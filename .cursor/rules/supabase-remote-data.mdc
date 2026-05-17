@@ -1,0 +1,11 @@
+---
+description: Supabase-Daten und Seeds gegen die verlinkte Cloud-DB ausrichten, nicht nur lokal.
+alwaysApply: true
+---
+
+# Supabase: Remote zuerst
+
+- **Demo-, Test- und Produktionsdaten** (Reservierungen, Seeds, Ad-hoc-SQL) sollen in der **verlinkten Supabase-Cloud** (`supabase link`) angelegt oder ausgeführt werden — **nicht** nur gegen die lokale Docker-DB, sofern der Nutzer nicht ausdrücklich lokales Arbeiten verlangt.
+- Zum Ausführen: nach `supabase login` und `supabase link` z. B. `npx supabase db query --linked -f <skript.sql>` oder das Dashboard-SQL-Editor — **nicht** `--local` als Standardannahme für „ist angelegt“.
+- **Kein `supabase db reset`** vorschlagen, um Daten anzulegen oder zu „pushen“.
+- Schema-Migrationen auf Remote: `npx supabase db push` (ohne Reset), wenn das Projekt verlinkt ist.

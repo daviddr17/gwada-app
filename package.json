@@ -12,6 +12,7 @@
     "db:stop": "supabase stop",
     "db:status": "supabase status",
     "db:reset": "supabase db reset",
+    "db:seed:reservations-demo": "supabase db query --linked -f scripts/insert-reservations-2026-05-demo.sql",
     "gen:menu-seed": "node scripts/gen-menu-seed-sql.mjs"
   },
   "dependencies": {

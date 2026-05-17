@@ -1,0 +1,14 @@
+---
+description: UI und Layout an bestehendem App-Design und shadcn-Komponenten ausrichten.
+alwaysApply: true
+---
+
+# App-Design und shadcn
+
+Neue Oberflächen, Seiten und Module sollen **optisch und strukturell** zum bestehenden **App-Design** passen und **shadcn/ui**-Bausteine aus diesem Projekt (`components/ui/…`) nutzen (Buttons, Cards, Sidebar, Formularfelder, Dialoge usw.).
+
+## Vorgehen
+
+1. **Vorhandene Muster wiederverwenden** — gleiche Abstände, Karten (`border-border/50`, `shadow-card`), Typografie und Farbrollen wie auf Dashboard, Speisekarte oder Bestand.
+2. **Keine parallelen Design-Systeme** — keine ad-hoc-„eigenen“ Button-Styles oder fremde UI-Kits, wenn ein shadcn-Baustein oder eine bestehende Hilfsklasse passt.
+3. **Konsistenz vor Eigenbrötler** — bei Unsicherheit eine ähnliche bestehende Seite als Referenz öffnen und daran angleichen.

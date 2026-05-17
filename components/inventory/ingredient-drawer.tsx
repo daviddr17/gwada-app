@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
 type IngredientDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (row: NewIngredient) => boolean;
+  onCreate: (row: NewIngredient) => boolean | Promise<boolean>;
   suppliers: InventoryTaxonomyDefinition[];
   ingredientCategories: InventoryTaxonomyDefinition[];
   productionSites: InventoryTaxonomyDefinition[];
@@ -128,17 +128,21 @@ export function IngredientDrawer({
     if (!trimmed) return;
     const stock = Number.parseFloat(currentStock.replace(",", "."));
     if (Number.isNaN(stock) || stock < 0) return;
-    const ok = onCreate({
-      name: trimmed,
-      unit,
-      currentStock: stock,
-      supplierId: supplierId || firstActiveId(suppliers),
-      categoryId: categoryId || firstActiveId(ingredientCategories),
-      productionSiteId: productionSiteId || firstActiveId(productionSites),
-      brandId: brandId || firstActiveId(brands),
-      active,
-    });
-    if (ok) onOpenChange(false);
+    void (async () => {
+      const ok = await Promise.resolve(
+        onCreate({
+          name: trimmed,
+          unit,
+          currentStock: stock,
+          supplierId: supplierId || firstActiveId(suppliers),
+          categoryId: categoryId || firstActiveId(ingredientCategories),
+          productionSiteId: productionSiteId || firstActiveId(productionSites),
+          brandId: brandId || firstActiveId(brands),
+          active,
+        }),
+      );
+      if (ok) onOpenChange(false);
+    })();
   };
 
   return (

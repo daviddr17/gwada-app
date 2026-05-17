@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
-import { DIET_FILTERS } from "@/lib/constants/menu-labels";
 import type { DietFilter, PriceRange } from "@/lib/types/menu";
 
 const money = new Intl.NumberFormat("de-DE", {
@@ -30,6 +29,7 @@ const money = new Intl.NumberFormat("de-DE", {
 type FilterDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  dietOptions: { value: DietFilter; label: string }[];
   dietFilter: DietFilter;
   onDietFilterChange: (v: DietFilter) => void;
   priceRange: PriceRange;
@@ -41,6 +41,7 @@ type FilterDrawerProps = {
 export function FilterDrawer({
   open,
   onOpenChange,
+  dietOptions,
   dietFilter,
   onDietFilterChange,
   priceRange,
@@ -76,7 +77,7 @@ export function FilterDrawer({
             <Select
               value={dietFilter}
               items={Object.fromEntries(
-                DIET_FILTERS.map(({ value, label }) => [value, label]),
+                dietOptions.map(({ value, label }) => [value, label]),
               )}
               onValueChange={(v) => {
                 if (typeof v === "string")
@@ -90,7 +91,7 @@ export function FilterDrawer({
                 <SelectValue placeholder="Eigenschaft wählen" />
               </SelectTrigger>
               <SelectContent>
-                {DIET_FILTERS.map(({ value, label }) => (
+                {dietOptions.map(({ value, label }) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>

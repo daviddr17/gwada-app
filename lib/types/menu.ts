@@ -1,11 +1,14 @@
-export type MenuTag =
-  | "vegan"
-  | "vegetarian"
-  | "spicy"
-  | "gluten"
-  | "nuts"
-  | "dairy"
-  | "halal";
+/** Stammdaten: Eigenschaft oder Allergen (Chip inkl. Farbe). */
+export type MenuTaxonomyDefinition = {
+  id: string;
+  name: string;
+  active?: boolean;
+  /** Anzeige-Hintergrund für Chips (#rrggbb) */
+  backgroundColor: string;
+};
+
+/** Tag-/Allergen-ID aus den Stammdaten (frei wählbar bei neuen Einträgen). */
+export type MenuTag = string;
 
 /** Kategorie-ID (Standard-IDs wie `starters` oder UUID für neue). */
 export type MenuCategoryId = string;

@@ -5,18 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/combobox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
+import { INVENTORY_PRODUCTION_SITES_KEY } from "@/lib/constants/inventory-storage";
+import { SEED_PRODUCTION_SITES } from "@/lib/data/inventory-seeds";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
+import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import {
   type OrderProtocolActor,
@@ -58,6 +54,10 @@ function formatDeliveryYmd(ymd: string | null) {
 const orderQtyInputClass =
   "h-9 w-full min-w-[4.5rem] rounded-xl border border-input bg-transparent px-2 text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
+/** Gleiche Trigger-Höhe und Typo wie SearchableSelect (Kombobox-Input). */
+const purchaseOrderFilterControlClass =
+  "h-11 w-full min-w-0 rounded-2xl sm:min-w-[12rem] sm:max-w-[14rem]";
+
 function OrderLineQtyCell({
   orderId,
   line,
@@ -74,7 +74,7 @@ function OrderLineQtyCell({
     lineId: string,
     qty: number,
     user: OrderProtocolActor,
-  ) => boolean;
+  ) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState(() => String(line.quantity));
 
@@ -82,7 +82,7 @@ function OrderLineQtyCell({
     setDraft(String(line.quantity));
   }, [line.quantity]);
 
-  const commit = useCallback(() => {
+  const commit = useCallback(async () => {
     if (readOnly) return;
     const q = Number.parseFloat(draft.replace(",", "."));
     if (Number.isNaN(q) || q < 0) {
@@ -90,7 +90,10 @@ function OrderLineQtyCell({
       setDraft(String(line.quantity));
       return;
     }
-    onCommit(orderId, line.id, q, actor);
+    const ok = await onCommit(orderId, line.id, q, actor);
+    if (!ok) {
+      setDraft(String(line.quantity));
+    }
   }, [draft, line.id, line.quantity, onCommit, orderId, readOnly, actor]);
 
   return (
@@ -131,8 +134,13 @@ export function PurchaseOrdersScreen() {
     updateIngredient,
     isHydrated: ingredientsHydrated,
   } = useIngredientsStorage();
+  const productionSites = useInventoryTaxonomyStorage(
+    INVENTORY_PRODUCTION_SITES_KEY,
+    SEED_PRODUCTION_SITES,
+  );
   const [scope, setScope] = useState<keyof typeof scopeItems>("active");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
+  const [productionFilterId, setProductionFilterId] = useState<string>("all");
   const [protocolOrderId, setProtocolOrderId] = useState<string | null>(null);
   const [protocolOpen, setProtocolOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -152,6 +160,22 @@ export function PurchaseOrdersScreen() {
       .map(([value, label]) => ({ value, label }));
   }, [orders]);
 
+  const productionFilterOptions = useMemo(() => {
+    const ids = new Set<string>();
+    for (const o of orders) {
+      for (const line of o.lines) {
+        const ing = ingredients.find((i) => i.id === line.ingredientId);
+        if (ing?.productionSiteId?.trim()) ids.add(ing.productionSiteId);
+      }
+    }
+    const labelById = new Map(
+      productionSites.items.map((s) => [s.id, s.name] as const),
+    );
+    return [...ids]
+      .map((id) => ({ value: id, label: labelById.get(id) ?? id }))
+      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  }, [orders, ingredients, productionSites.items]);
+
   useEffect(() => {
     if (supplierFilterId === "all") return;
     if (!supplierFilterOptions.some((o) => o.value === supplierFilterId)) {
@@ -159,17 +183,35 @@ export function PurchaseOrdersScreen() {
     }
   }, [supplierFilterId, supplierFilterOptions]);
 
+  useEffect(() => {
+    if (productionFilterId === "all") return;
+    if (!productionFilterOptions.some((o) => o.value === productionFilterId)) {
+      setProductionFilterId("all");
+    }
+  }, [productionFilterId, productionFilterOptions]);
+
   const filtered = useMemo(() => {
     return orders
       .filter((o) => (scope === "active" ? o.status === "open" : o.status === "closed"))
       .filter((o) => supplierFilterId === "all" || o.supplierId === supplierFilterId)
+      .filter((o) => {
+        if (productionFilterId === "all") return true;
+        return o.lines.some((line) => {
+          const ing = ingredients.find((i) => i.id === line.ingredientId);
+          return ing?.productionSiteId === productionFilterId;
+        });
+      })
       .sort(
         (a, b) =>
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
-  }, [orders, scope, supplierFilterId]);
+  }, [orders, scope, supplierFilterId, productionFilterId, ingredients]);
 
-  const ready = isHydrated && userNameHydrated && ingredientsHydrated;
+  const ready =
+    isHydrated &&
+    userNameHydrated &&
+    ingredientsHydrated &&
+    productionSites.isHydrated;
 
   const openProtocol = (o: PurchaseOrder) => {
     setProtocolOrderId(o.id);
@@ -181,13 +223,13 @@ export function PurchaseOrdersScreen() {
   };
 
   const commitLineQty = useCallback(
-    (orderId: string, lineId: string, qty: number, user: OrderProtocolActor) =>
+    async (orderId: string, lineId: string, qty: number, user: OrderProtocolActor) =>
       updateLineQuantity(orderId, lineId, qty, user),
     [updateLineQuantity],
   );
 
   const handleMarkLineDelivered = useCallback(
-    (orderId: string, lineId: string) => {
+    async (orderId: string, lineId: string) => {
       const order = orders.find((o) => o.id === orderId);
       const line = order?.lines.find((l) => l.id === lineId);
       const ing = line ? ingredients.find((i) => i.id === line.ingredientId) : undefined;
@@ -197,7 +239,7 @@ export function PurchaseOrdersScreen() {
         return;
       }
       const newStock = ing.currentStock + line.quantity;
-      const okStock = updateIngredient(ing.id, { currentStock: newStock }, {
+      const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
         stockActor: actor,
         stockUnitLabel: line.unitLabel,
         stockFromDelivery: { orderId: order.id, supplierName: order.supplierName },
@@ -206,8 +248,8 @@ export function PurchaseOrdersScreen() {
         toast.error("Bestand konnte nicht gespeichert werden.");
         return;
       }
-      if (!markLineDelivered(orderId, lineId)) {
-        updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
+      if (!(await markLineDelivered(orderId, lineId))) {
+        await updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
         toast.error(
           "Bestellung konnte nicht aktualisiert werden. Bestand wurde zurückgesetzt.",
         );
@@ -221,7 +263,7 @@ export function PurchaseOrdersScreen() {
   );
 
   const handleUnmarkLineDelivered = useCallback(
-    (orderId: string, lineId: string) => {
+    async (orderId: string, lineId: string) => {
       const order = orders.find((o) => o.id === orderId);
       const line = order?.lines.find((l) => l.id === lineId);
       const ing = line ? ingredients.find((i) => i.id === line.ingredientId) : undefined;
@@ -237,7 +279,7 @@ export function PurchaseOrdersScreen() {
         );
         return;
       }
-      const okStock = updateIngredient(ing.id, { currentStock: newStock }, {
+      const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
         stockActor: actor,
         stockUnitLabel: line.unitLabel,
         stockDeliveryRevert: { orderId: order.id, supplierName: order.supplierName },
@@ -246,8 +288,8 @@ export function PurchaseOrdersScreen() {
         toast.error("Bestand konnte nicht gespeichert werden.");
         return;
       }
-      if (!unmarkLineDelivered(orderId, lineId)) {
-        updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
+      if (!(await unmarkLineDelivered(orderId, lineId))) {
+        await updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
         toast.error(
           "Bestellung konnte nicht aktualisiert werden. Bestand wurde zurückgesetzt.",
         );
@@ -268,21 +310,12 @@ export function PurchaseOrdersScreen() {
         ready && "opacity-100",
       )}
     >
-      <p className="mb-6 max-w-2xl text-base leading-relaxed text-muted-foreground">
-        Lieferantenbestellungen mit Positionen und Protokoll. Bei abgeschlossenen
-        Bestellungen kannst du Positionen als geliefert markieren – der Lagerbestand
-        wird erhöht und sowohl im Bestell- als auch im Bestandsprotokoll erfasst. Markierung
-        ist wieder aufhebbar („Geliefert rückgängig“) mit Bestandskorrektur und Protokoll.
-        Mengen und Lieferdatum sind bei offenen Bestellungen direkt in der Tabelle
-        änderbar. Klicke auf eine Zeile, um Details einzublenden.
-      </p>
-
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <ClipboardList className="size-4 shrink-0 opacity-80" aria-hidden />
           <span>{filtered.length} Bestellung{filtered.length === 1 ? "" : "en"}</span>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:max-w-2xl sm:flex-row sm:justify-end">
+        <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:max-w-4xl sm:flex-row sm:flex-wrap sm:justify-end">
           <SearchableSelect
             options={[
               { value: "all", label: "Alle Lieferanten" },
@@ -293,23 +326,34 @@ export function PurchaseOrdersScreen() {
             placeholder="Lieferant"
             searchPlaceholder="Lieferant suchen…"
             aria-label="Nach Lieferant filtern"
-            className="h-11 w-full min-w-0 rounded-2xl sm:min-w-[12rem] sm:max-w-[14rem]"
+            className={purchaseOrderFilterControlClass}
           />
-          <Select
+          <SearchableSelect
+            options={[
+              { value: "all", label: "Alle Produktionsstellen" },
+              ...productionFilterOptions,
+            ]}
+            value={productionFilterId}
+            onValueChange={setProductionFilterId}
+            placeholder="Produktion"
+            searchPlaceholder="Stelle suchen…"
+            aria-label="Nach Produktionsstelle filtern"
+            className={purchaseOrderFilterControlClass}
+          />
+          <SearchableSelect
+            options={[
+              { value: "active", label: scopeItems.active },
+              { value: "past", label: scopeItems.past },
+            ]}
             value={scope}
-            items={scopeItems}
             onValueChange={(v) => {
               if (v === "active" || v === "past") setScope(v);
             }}
-          >
-            <SelectTrigger className="h-11 w-full min-w-0 rounded-2xl sm:min-w-[14rem] sm:max-w-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="active">{scopeItems.active}</SelectItem>
-              <SelectItem value="past">{scopeItems.past}</SelectItem>
-            </SelectContent>
-          </Select>
+            placeholder="Zeitraum"
+            searchPlaceholder="Zeitraum suchen…"
+            aria-label="Aktive oder vergangene Bestellungen filtern"
+            className={purchaseOrderFilterControlClass}
+          />
         </div>
       </div>
 
@@ -334,7 +378,7 @@ export function PurchaseOrdersScreen() {
             return (
               <section
                 key={order.id}
-                className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm"
+                className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm"
               >
                 <div className="flex min-h-[3.25rem] items-stretch gap-0">
                   <button
@@ -391,7 +435,7 @@ export function PurchaseOrdersScreen() {
                         type="button"
                         size="sm"
                         className="rounded-full bg-accent px-3 text-accent-foreground hover:bg-accent/90 sm:px-4"
-                        onClick={() => closeOrder(order.id)}
+                        onClick={() => void closeOrder(order.id)}
                       >
                         Schließen
                       </Button>
@@ -402,9 +446,9 @@ export function PurchaseOrdersScreen() {
                         size="sm"
                         className="rounded-full px-3 sm:px-4"
                         onClick={() => {
-                          if (reopenOrder(order.id)) {
-                            setScope("active");
-                          }
+                          void reopenOrder(order.id).then((ok) => {
+                            if (ok) setScope("active");
+                          });
                         }}
                       >
                         Wieder öffnen
@@ -423,15 +467,14 @@ export function PurchaseOrdersScreen() {
                         >
                           Lieferdatum
                         </Label>
-                        <Input
+                        <DatePickerField
                           id={`delivery-${order.id}`}
-                          type="date"
+                          size="compact"
                           disabled={order.status !== "open"}
-                          value={order.deliveryDate ?? ""}
-                          onChange={(e) =>
-                            setOrderDeliveryDate(order.id, e.target.value || null)
-                          }
-                          className="h-10 w-full max-w-[11.5rem] rounded-xl border-border/60 bg-card"
+                          value={order.deliveryDate}
+                          onChange={(ymd) => void setOrderDeliveryDate(order.id, ymd)}
+                          placeholder="Lieferdatum wählen"
+                          className="max-w-[min(100%,12rem)]"
                         />
                       </div>
                       {order.status !== "open" ? (
@@ -475,7 +518,7 @@ export function PurchaseOrdersScreen() {
                               return (
                               <tr
                                 key={line.id}
-                                className="border-b border-border/40 last:border-0"
+                                className="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
                               >
                                 <td className="px-3 py-2 font-medium text-foreground">
                                   {line.ingredientName}

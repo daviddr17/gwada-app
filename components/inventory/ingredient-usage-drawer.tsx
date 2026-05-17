@@ -65,7 +65,12 @@ export function IngredientUsageDrawer({
                     variant="outline"
                     size="sm"
                     className="shrink-0 rounded-full"
-                    render={<Link href={`/menu?dish=${encodeURIComponent(d.id)}`} prefetch />}
+                    render={
+                      <Link
+                        href={`/menu/uebersicht?dish=${encodeURIComponent(d.id)}`}
+                        prefetch
+                      />
+                    }
                     onClick={() => onOpenChange(false)}
                   >
                     Zur Speisekarte

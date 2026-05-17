@@ -8,14 +8,19 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import {
+  SettingsStickySaveBar,
+  settingsAccentSaveButtonClassName,
+} from "@/components/settings/settings-sticky-save-bar";
+import { cn } from "@/lib/utils";
 import {
   WEEKDAY_LABEL_DE,
   WEEKDAY_ORDER,
@@ -62,8 +67,26 @@ function newException(): DateHoursException {
   };
 }
 
-export function RestaurantSettingsPanel() {
-  const { profile, saveProfile, isReady } = useRestaurantProfile();
+function pickStammdaten(p: RestaurantProfile) {
+  return {
+    name: p.name,
+    street: p.street,
+    postalCode: p.postalCode,
+    city: p.city,
+    country: p.country,
+    website: p.website,
+    phone: p.phone,
+  };
+}
+
+export type RestaurantSettingsSection = "restaurant" | "hours";
+
+export function RestaurantSettingsPanel({
+  section,
+}: {
+  section: RestaurantSettingsSection;
+}) {
+  const { profile, saveProfile, saveOpeningHours, isReady } = useRestaurantProfile();
   const [draft, setDraft] = useState<RestaurantProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedRestaurantFlash, setSavedRestaurantFlash] = useState(false);
@@ -93,7 +116,7 @@ export function RestaurantSettingsPanel() {
     window.setTimeout(() => setSavedRestaurantFlash(false), 2000);
   };
 
-  const handleSaveHours = () => {
+  const handleSaveHours = async () => {
     if (!draft) return;
     const normalized = normalizeProfileForSave(draft);
     const msg = validateOpeningHours(normalized);
@@ -102,7 +125,8 @@ export function RestaurantSettingsPanel() {
       return;
     }
     setError(null);
-    saveProfile({ ...normalized, id: draft.id });
+    const ok = await saveOpeningHours({ ...normalized, id: draft.id });
+    if (!ok) return;
     setSavedHoursFlash(true);
     window.setTimeout(() => setSavedHoursFlash(false), 2000);
   };
@@ -161,6 +185,24 @@ export function RestaurantSettingsPanel() {
     return draft.dateExceptions.filter((ex) => ex.date < today).length;
   }, [draft?.dateExceptions, showPastExceptions]);
 
+  const stammdatenDirty = useMemo(() => {
+    if (!draft || !isReady) return false;
+    return (
+      JSON.stringify(pickStammdaten(draft)) !==
+      JSON.stringify(pickStammdaten(profile))
+    );
+  }, [draft, profile, isReady]);
+
+  const hoursDirty = useMemo(() => {
+    if (!draft || !isReady) return false;
+    return (
+      JSON.stringify(draft.weeklyHours) !==
+        JSON.stringify(profile.weeklyHours) ||
+      JSON.stringify(draft.dateExceptions) !==
+        JSON.stringify(profile.dateExceptions)
+    );
+  }, [draft, profile, isReady]);
+
   const addException = () => {
     setDraft((prev) => {
       if (!prev) return prev;
@@ -182,7 +224,7 @@ export function RestaurantSettingsPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       {error && (
         <p
           className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive"
@@ -191,10 +233,15 @@ export function RestaurantSettingsPanel() {
           {error}
         </p>
       )}
-      <section
-        id="settings-restaurant"
-        className="scroll-mt-[7.25rem] lg:scroll-mt-[5.5rem]"
-      >
+      {section === "restaurant" && (
+      <section>
+        <form
+          className="contents"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSaveRestaurant();
+          }}
+        >
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">
             <CardTitle className="text-xl">Restaurant</CardTitle>
@@ -302,22 +349,31 @@ export function RestaurantSettingsPanel() {
             />
           </div>
         </CardContent>
-        <CardFooter className="flex-col items-stretch gap-2 border-t border-border/50 sm:flex-row sm:items-center">
+      </Card>
+        <SettingsStickySaveBar show={stammdatenDirty}>
           <Button
-            type="button"
-            className="h-11 w-full tap-scale sm:w-auto sm:min-w-[14rem]"
-            onClick={handleSaveRestaurant}
+            type="submit"
+            className={cn(
+              "h-11 w-full min-w-[12rem] sm:w-auto",
+              settingsAccentSaveButtonClassName,
+            )}
           >
             {savedRestaurantFlash ? "Gespeichert" : "Restaurantdaten speichern"}
           </Button>
-        </CardFooter>
-      </Card>
+        </SettingsStickySaveBar>
+        </form>
       </section>
+      )}
 
-      <section
-        id="settings-hours"
-        className="scroll-mt-[7.25rem] lg:scroll-mt-[5.5rem]"
-      >
+      {section === "hours" && (
+      <section>
+        <form
+          className="contents"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSaveHours();
+          }}
+        >
         <Card className="border-border/50 shadow-card">
           <CardHeader>
             <CardTitle className="text-xl">Restaurant-Öffnungszeiten</CardTitle>
@@ -345,7 +401,7 @@ export function RestaurantSettingsPanel() {
                 <span className="min-w-[7.5rem] text-sm font-medium">
                   {WEEKDAY_LABEL_DE[day]}
                 </span>
-                <div className="flex flex-wrap items-center gap-3 sm:flex-1">
+                <div className="flex min-h-11 flex-wrap items-center gap-3 sm:flex-1">
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
                     <Checkbox
                       checked={h.closed}
@@ -363,7 +419,7 @@ export function RestaurantSettingsPanel() {
                         onChange={(e) =>
                           updateDay(day, { open: e.target.value })
                         }
-                        className="h-10 w-[7.5rem] rounded-lg tabular-nums"
+                        className={formScheduleTimeInputClassName}
                       />
                       <span className="text-muted-foreground">–</span>
                       <Input
@@ -372,7 +428,7 @@ export function RestaurantSettingsPanel() {
                         onChange={(e) =>
                           updateDay(day, { close: e.target.value })
                         }
-                        className="h-10 w-[7.5rem] rounded-lg tabular-nums"
+                        className={formScheduleTimeInputClassName}
                       />
                     </div>
                   )}
@@ -445,13 +501,13 @@ export function RestaurantSettingsPanel() {
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="space-y-2">
                     <Label className="text-xs">Datum</Label>
-                    <Input
-                      type="date"
+                    <DatePickerField
                       value={ex.date}
-                      onChange={(e) =>
-                        updateException(ex.id, { date: e.target.value })
-                      }
-                      className="h-10 rounded-lg"
+                      onChange={(d) => {
+                        if (d) updateException(ex.id, { date: d });
+                      }}
+                      placeholder="Datum wählen"
+                      className="max-w-[min(100%,18rem)]"
                     />
                   </div>
                   <label className="flex cursor-pointer items-center gap-2 pb-2 text-sm">
@@ -474,27 +530,29 @@ export function RestaurantSettingsPanel() {
                     <Trash2 className="size-4" />
                   </Button>
                 </div>
-                {!ex.closed && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Input
-                      type="time"
-                      value={ex.open ?? ""}
-                      onChange={(e) =>
-                        updateException(ex.id, { open: e.target.value })
-                      }
-                      className="h-10 w-[7.5rem] rounded-lg"
-                    />
-                    <span className="text-muted-foreground">–</span>
-                    <Input
-                      type="time"
-                      value={ex.close ?? ""}
-                      onChange={(e) =>
-                        updateException(ex.id, { close: e.target.value })
-                      }
-                      className="h-10 w-[7.5rem] rounded-lg"
-                    />
-                  </div>
-                )}
+                <div className="flex min-h-11 flex-wrap items-center gap-2">
+                  {!ex.closed && (
+                    <>
+                      <Input
+                        type="time"
+                        value={ex.open ?? ""}
+                        onChange={(e) =>
+                          updateException(ex.id, { open: e.target.value })
+                        }
+                        className={formScheduleTimeInputClassName}
+                      />
+                      <span className="text-muted-foreground">–</span>
+                      <Input
+                        type="time"
+                        value={ex.close ?? ""}
+                        onChange={(e) =>
+                          updateException(ex.id, { close: e.target.value })
+                        }
+                        className={formScheduleTimeInputClassName}
+                      />
+                    </>
+                  )}
+                </div>
                 <div className="space-y-2">
                   <Label className="text-xs">Notiz (optional)</Label>
                   <Input
@@ -513,17 +571,21 @@ export function RestaurantSettingsPanel() {
           )}
             </div>
           </CardContent>
-        <CardFooter className="flex-col items-stretch gap-2 border-t border-border/50 sm:flex-row sm:items-center">
+      </Card>
+        <SettingsStickySaveBar show={hoursDirty}>
           <Button
-            type="button"
-            className="h-11 w-full tap-scale sm:w-auto sm:min-w-[14rem]"
-            onClick={handleSaveHours}
+            type="submit"
+            className={cn(
+              "h-11 w-full min-w-[12rem] sm:w-auto",
+              settingsAccentSaveButtonClassName,
+            )}
           >
             {savedHoursFlash ? "Gespeichert" : "Öffnungszeiten speichern"}
           </Button>
-        </CardFooter>
-        </Card>
+        </SettingsStickySaveBar>
+        </form>
       </section>
+      )}
     </div>
   );
 }

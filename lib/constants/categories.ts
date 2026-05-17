@@ -1,12 +1,15 @@
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
+import { DEMO_MENU_CATEGORY_IDS } from "@/lib/constants/demo-menu-uuids";
 
-/** Default-Kategorien (stabile IDs für Mock-Daten & Migration). */
+const C = DEMO_MENU_CATEGORY_IDS;
+
+/** Default categories (UUIDs match Postgres seed — `scripts/gen-menu-seed-sql.mjs`). */
 export const DEFAULT_CATEGORIES: MenuCategoryDefinition[] = [
-  { id: "starters", name: "Vorspeisen", active: true },
-  { id: "mains", name: "Hauptgerichte", active: true },
-  { id: "sides", name: "Beilagen", active: true },
-  { id: "desserts", name: "Desserts", active: true },
-  { id: "drinks", name: "Getränke", active: true },
+  { id: C.starters, name: "Vorspeisen", active: true },
+  { id: C.mains, name: "Hauptgerichte", active: true },
+  { id: C.sides, name: "Beilagen", active: true },
+  { id: C.desserts, name: "Desserts", active: true },
+  { id: C.drinks, name: "Getränke", active: true },
 ];
 
 export const CATEGORY_STORAGE_KEY = "gwada-categories-v1";

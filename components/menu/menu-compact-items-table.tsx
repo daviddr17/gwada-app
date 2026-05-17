@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { MenuItemCompactRow } from "@/components/menu/menu-item-compact-row";
-import type { MenuItem } from "@/lib/types/menu";
+import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
 
 type MenuCompactItemsTableProps = {
   items: MenuItem[];
+  tagDefinitions: readonly MenuTaxonomyDefinition[];
   /** Nur bei vollständiger Liste (ohne Such-/Filter-Auszug) sinnvoll. */
   sortable: boolean;
   onReorder: (orderedIds: string[]) => void;
@@ -14,6 +15,7 @@ type MenuCompactItemsTableProps = {
 
 export function MenuCompactItemsTable({
   items,
+  tagDefinitions,
   sortable,
   onReorder,
   onSelect,
@@ -33,7 +35,7 @@ export function MenuCompactItemsTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-sm">
+    <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
       <table className="w-full min-w-[320px] text-sm">
         <thead>
           <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -51,6 +53,7 @@ export function MenuCompactItemsTable({
             <MenuItemCompactRow
               key={item.id}
               item={item}
+              tagDefinitions={tagDefinitions}
               onSelect={(row) => onSelect(row.id)}
               sortable={sortable}
               dragState={

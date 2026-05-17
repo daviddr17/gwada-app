@@ -17,6 +17,7 @@ import type {
   MenuItem,
   MenuRecipeLine,
   MenuTag,
+  MenuTaxonomyDefinition,
   NewMenuItem,
 } from "@/lib/types/menu";
 import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/inventory";
@@ -70,6 +71,8 @@ type DishFormProps = {
   initialItem?: MenuItem;
   categories: MenuCategoryDefinition[];
   ingredients: Ingredient[];
+  /** Tags + Allergene (Stammdaten) für Auswahl und Chips */
+  tagDefinitions: MenuTaxonomyDefinition[];
   /** Lagereinheiten (Bestand) – für Anzeige im Rezept */
   stockUnits: InventoryTaxonomyDefinition[];
   onSubmit: (item: NewMenuItem) => void;
@@ -81,6 +84,7 @@ export function DishForm({
   initialItem,
   categories,
   ingredients,
+  tagDefinitions,
   stockUnits,
   onSubmit,
   onCancel,
@@ -319,6 +323,7 @@ export function DishForm({
           <Label htmlFor="dish-tags-combo">Tags &amp; Allergene</Label>
           <TagMultiCombobox
             id="dish-tags-combo"
+            definitions={tagDefinitions}
             value={form.tags}
             onChange={(tags) => setForm((p) => ({ ...p, tags }))}
             aria-label="Tags und Allergene"

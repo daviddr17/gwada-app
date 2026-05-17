@@ -3,8 +3,20 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { INGREDIENT_STORAGE_KEY } from "@/lib/constants/inventory-storage";
+import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
 import { toastStorageError } from "@/lib/persist-notify";
+import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  getWorkspaceRestaurantId,
+  loadWorkspaceJson,
+  persistWorkspaceState,
+} from "@/lib/supabase/workspace-persistence";
+import {
+  inventoryRelationalPersistenceEnabled,
+  loadIngredientsRelational,
+  saveIngredientsRelational,
+} from "@/lib/supabase/inventory-db";
 import type { Ingredient, NewIngredient } from "@/lib/types/inventory";
 import type {
   IngredientStockLogDeliveryReverted,
@@ -146,20 +158,24 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
   };
 }
 
+function parseIngredientsFromUnknown(parsed: unknown): Ingredient[] | null {
+  if (!Array.isArray(parsed)) return null;
+  const out: Ingredient[] = [];
+  for (const row of parsed) {
+    if (!row || typeof row !== "object") continue;
+    const n = normalizeIngredient(row as Record<string, unknown>);
+    if (n) out.push(n);
+  }
+  return out.length ? out : null;
+}
+
 function loadFromStorage(): Ingredient[] | null {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(INGREDIENT_STORAGE_KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    const out: Ingredient[] = [];
-    for (const row of parsed) {
-      if (!row || typeof row !== "object") continue;
-      const n = normalizeIngredient(row as Record<string, unknown>);
-      if (n) out.push(n);
-    }
-    return out.length ? out : null;
+    return parseIngredientsFromUnknown(parsed);
   } catch {
     return null;
   }
@@ -167,32 +183,81 @@ function loadFromStorage(): Ingredient[] | null {
 
 export type UpdateIngredientOptions = {
   stockActor?: OrderProtocolActor;
-  /** Anzeige-Einheit für das Bestandsprotokoll */
   stockUnitLabel?: string;
-  /** Kein Protokolleintrag (z. B. Rollback) */
   skipStockLog?: boolean;
   stockFromDelivery?: { orderId: string; supplierName: string };
-  /** Lieferbuchung rückgängig (Bestand reduziert) */
   stockDeliveryRevert?: { orderId: string; supplierName: string };
 };
 
 export function useIngredientsStorage() {
-  const [ingredients, setIngredients] = useState<Ingredient[]>(() => [
-    ...SEED_INGREDIENTS,
-  ]);
+  const supabaseOnly = isSupabaseOnlyMode();
+  const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
+  const useDbInventory = inventoryRelationalPersistenceEnabled();
+
+  const [ingredients, setIngredients] = useState<Ingredient[]>(() =>
+    supabaseOnly ? [] : [...SEED_INGREDIENTS],
+  );
   const [isHydrated, setIsHydrated] = useState(false);
   const updateSaveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
   useEffect(() => {
-    const stored = loadFromStorage();
-    const frame = requestAnimationFrame(() => {
-      if (stored) setIngredients(stored);
-      setIsHydrated(true);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, []);
+    let cancelled = false;
+    if (useDbInventory) {
+      void (async () => {
+        const rows = await loadIngredientsRelational();
+        if (cancelled) return;
+        if (rows === null) {
+          setIngredients([...SEED_INGREDIENTS]);
+        } else {
+          setIngredients(rows);
+        }
+        setIsHydrated(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (supabaseOnly) {
+      void (async () => {
+        const remote = await loadWorkspaceJson(INGREDIENT_STORAGE_KEY);
+        const fromRemote = parseIngredientsFromUnknown(remote);
+        if (cancelled) return;
+        setIngredients(fromRemote ?? []);
+        setIsHydrated(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const remote = await loadWorkspaceJson(INGREDIENT_STORAGE_KEY);
+      const fromRemote = parseIngredientsFromUnknown(remote);
+      const stored = loadFromStorage();
+      const next = fromRemote ?? stored;
+      if (next?.length) {
+        try {
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem(INGREDIENT_STORAGE_KEY, JSON.stringify(next));
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        if (next && next.length) setIngredients(next);
+        setIsHydrated(true);
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseOnly, useDbInventory]);
 
   useEffect(
     () => () => {
@@ -204,9 +269,21 @@ export function useIngredientsStorage() {
   );
 
   const persist = useCallback(
-    (next: Ingredient[], toastKind?: "add" | "remove" | "update"): boolean => {
-      try {
-        localStorage.setItem(INGREDIENT_STORAGE_KEY, JSON.stringify(next));
+    async (
+      next: Ingredient[],
+      toastKind?: "add" | "remove" | "update",
+    ): Promise<boolean> => {
+      if (useDbInventory) {
+        const rid = await getWorkspaceRestaurantId();
+        if (!rid) {
+          failSave();
+          return false;
+        }
+        const ok = await saveIngredientsRelational(rid, next);
+        if (!ok) {
+          failSave();
+          return false;
+        }
         setIngredients(next);
         if (toastKind === "add") {
           toast.success("Zutat angelegt");
@@ -222,17 +299,41 @@ export function useIngredientsStorage() {
           }, 450);
         }
         return true;
-      } catch (e) {
-        console.error(e);
-        toastStorageError();
-        return false;
       }
+
+      return new Promise((resolve) => {
+        setIngredients((prev) => {
+          void persistWorkspaceState(INGREDIENT_STORAGE_KEY, next).then((ok) => {
+            if (!ok) {
+              setIngredients(prev);
+              failSave();
+              resolve(false);
+              return;
+            }
+            if (toastKind === "add") {
+              toast.success("Zutat angelegt");
+            } else if (toastKind === "remove") {
+              toast.success("Zutat entfernt");
+            } else if (toastKind === "update") {
+              if (updateSaveToastTimerRef.current) {
+                clearTimeout(updateSaveToastTimerRef.current);
+              }
+              updateSaveToastTimerRef.current = setTimeout(() => {
+                updateSaveToastTimerRef.current = null;
+                toast.success("Zutat gespeichert", { id: "ingredient-update" });
+              }, 450);
+            }
+            resolve(true);
+          });
+          return next;
+        });
+      });
     },
-    [],
+    [failSave, useDbInventory],
   );
 
   const addIngredient = useCallback(
-    (row: NewIngredient) => {
+    async (row: NewIngredient): Promise<Ingredient | null> => {
       const id = crypto.randomUUID();
       const next: Ingredient = {
         ...row,
@@ -240,18 +341,18 @@ export function useIngredientsStorage() {
         active: row.active !== false,
         stockLog: row.stockLog ?? [],
       };
-      const ok = persist([...ingredients, next], "add");
+      const ok = await persist([...ingredients, next], "add");
       return ok ? next : null;
     },
     [ingredients, persist],
   );
 
   const updateIngredient = useCallback(
-    (
+    async (
       id: string,
       patch: Partial<Ingredient>,
       opts?: UpdateIngredientOptions,
-    ): boolean => {
+    ): Promise<boolean> => {
       const prev = ingredients.find((x) => x.id === id);
       if (!prev) return false;
 
@@ -330,8 +431,8 @@ export function useIngredientsStorage() {
   );
 
   const removeIngredient = useCallback(
-    (id: string) => {
-      persist(ingredients.filter((x) => x.id !== id), "remove");
+    async (id: string) => {
+      await persist(ingredients.filter((x) => x.id !== id), "remove");
     },
     [ingredients, persist],
   );

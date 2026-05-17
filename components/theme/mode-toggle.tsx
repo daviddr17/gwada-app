@@ -33,7 +33,7 @@ export function ModeToggle() {
       type="button"
       variant="outline"
       size="icon"
-      className="size-10 shrink-0 rounded-full border-border/60 bg-card/80 shadow-sm backdrop-blur-sm"
+      className="size-10 shrink-0 rounded-full border-border/60 bg-card/80 shadow-none backdrop-blur-sm dark:shadow-sm"
       aria-label={isDark ? "Light Mode" : "Dark Mode"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >

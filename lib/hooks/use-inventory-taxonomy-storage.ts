@@ -2,8 +2,23 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { inventoryTaxonomyTableForStorageKey } from "@/lib/constants/inventory-taxonomy-tables";
+import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import { toastStorageError } from "@/lib/persist-notify";
+import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  insertInventoryTaxonomyRow,
+  inventoryRelationalPersistenceEnabled,
+  loadInventoryTaxonomyRelational,
+  reorderInventoryTaxonomyRows,
+  updateInventoryTaxonomyRow,
+} from "@/lib/supabase/inventory-db";
+import {
+  getWorkspaceRestaurantId,
+  loadWorkspaceJson,
+  persistWorkspaceState,
+} from "@/lib/supabase/workspace-persistence";
 
 function normalizeTaxonomy(
   c: InventoryTaxonomyDefinition,
@@ -28,6 +43,12 @@ export function useInventoryTaxonomyStorage(
   storageKey: string,
   initialSeed: InventoryTaxonomyDefinition[],
 ) {
+  const supabaseOnly = isSupabaseOnlyMode();
+  const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
+  const table = inventoryTaxonomyTableForStorageKey(storageKey);
+  const useDbInventory =
+    inventoryRelationalPersistenceEnabled() && table != null;
+
   const [items, setItems] = useState<InventoryTaxonomyDefinition[]>(() =>
     initialSeed.map(normalizeTaxonomy),
   );
@@ -35,48 +56,145 @@ export function useInventoryTaxonomyStorage(
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    let parsed: InventoryTaxonomyDefinition[] | null = null;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      if (raw) {
-        const data: unknown = JSON.parse(raw);
-        if (Array.isArray(data) && data.every(isValidLoose)) {
-          parsed = data.map(normalizeTaxonomy);
+    let cancelled = false;
+
+    if (useDbInventory && table) {
+      void (async () => {
+        const rows = await loadInventoryTaxonomyRelational(table);
+        if (cancelled) return;
+        if (rows && rows.length > 0) {
+          setItems(rows.map(normalizeTaxonomy));
+        } else {
+          setItems(initialSeed.map(normalizeTaxonomy));
+        }
+        setIsHydrated(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const remote = await loadWorkspaceJson(storageKey);
+      let parsed: InventoryTaxonomyDefinition[] | null = null;
+      if (Array.isArray(remote) && remote.every(isValidLoose)) {
+        parsed = remote.map(normalizeTaxonomy);
+      }
+      if (supabaseOnly) {
+        if (cancelled) return;
+        setItems(parsed && parsed.length > 0 ? parsed : initialSeed.map(normalizeTaxonomy));
+        setIsHydrated(true);
+        return;
+      }
+      if (!parsed) {
+        try {
+          const raw = localStorage.getItem(storageKey);
+          if (raw) {
+            const data: unknown = JSON.parse(raw);
+            if (Array.isArray(data) && data.every(isValidLoose)) {
+              parsed = data.map(normalizeTaxonomy);
+            }
+          }
+        } catch {
+          parsed = null;
+        }
+      } else {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(parsed));
+        } catch {
+          /* ignore */
         }
       }
-    } catch {
-      parsed = null;
-    }
-    const frame = requestAnimationFrame(() => {
-      if (parsed && parsed.length > 0) setItems(parsed);
-      setIsHydrated(true);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [storageKey]);
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        if (parsed && parsed.length > 0) setItems(parsed);
+        setIsHydrated(true);
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey, supabaseOnly, useDbInventory, table, initialSeed]);
 
   const persist = useCallback(
     (next: InventoryTaxonomyDefinition[], successMessage?: string) => {
       const cleaned = next.map(normalizeTaxonomy);
-      try {
-        localStorage.setItem(storageKey, JSON.stringify(cleaned));
-        setItems(cleaned);
-        if (successMessage) {
-          toast.success(successMessage);
-        }
-        return true;
-      } catch (e) {
-        console.error(e);
-        toastStorageError();
+      setItems((prev) => {
+        void persistWorkspaceState(storageKey, cleaned).then((ok) => {
+          if (!ok) {
+            setItems(prev);
+            failSave();
+          } else if (successMessage) {
+            toast.success(successMessage);
+          }
+        });
+        return cleaned;
+      });
+      return true;
+    },
+    [storageKey, failSave],
+  );
+
+  const persistDbReorder = useCallback(
+    async (
+      next: InventoryTaxonomyDefinition[],
+      successMessage?: string,
+    ): Promise<boolean> => {
+      if (!table) return false;
+      const rid = await getWorkspaceRestaurantId();
+      if (!rid) {
+        failSave();
         return false;
       }
+      const ok = await reorderInventoryTaxonomyRows(
+        table,
+        rid,
+        next.map((x) => x.id),
+      );
+      if (!ok) {
+        failSave();
+        return false;
+      }
+      setItems(next.map(normalizeTaxonomy));
+      if (successMessage) toast.success(successMessage);
+      return true;
     },
-    [storageKey],
+    [failSave, table],
   );
 
   const add = useCallback(
-    (name: string, active = true) => {
+    async (
+      name: string,
+      active = true,
+    ): Promise<{ id: string; name: string } | null> => {
       const trimmed = name.trim();
       if (!trimmed) return null;
+      if (useDbInventory && table) {
+        const rid = await getWorkspaceRestaurantId();
+        if (!rid) {
+          failSave();
+          return null;
+        }
+        const id = crypto.randomUUID();
+        const ok = await insertInventoryTaxonomyRow(
+          table,
+          rid,
+          id,
+          trimmed,
+          active,
+        );
+        if (!ok) {
+          failSave();
+          return null;
+        }
+        setItems((prev) => [
+          ...prev,
+          normalizeTaxonomy({ id, name: trimmed, active }),
+        ]);
+        toast.success("Eintrag angelegt");
+        return { id, name: trimmed };
+      }
       const id = crypto.randomUUID();
       const ok = persist(
         [...items, { id, name: trimmed, active }],
@@ -84,11 +202,41 @@ export function useInventoryTaxonomyStorage(
       );
       return ok ? { id, name: trimmed } : null;
     },
-    [items, persist],
+    [failSave, items, persist, table, useDbInventory],
   );
 
   const update = useCallback(
-    (id: string, updates: { name?: string; active?: boolean }) => {
+    (
+      id: string,
+      updates: { name?: string; active?: boolean },
+    ) => {
+      if (useDbInventory && table) {
+        void (async () => {
+          const rid = await getWorkspaceRestaurantId();
+          if (!rid) {
+            failSave();
+            return;
+          }
+          const ok = await updateInventoryTaxonomyRow(table, rid, id, updates);
+          if (!ok) {
+            failSave();
+            return;
+          }
+          setItems((prev) =>
+            prev.map((c) => {
+              if (c.id !== id) return c;
+              return normalizeTaxonomy({
+                ...c,
+                ...updates,
+                name:
+                  updates.name !== undefined ? updates.name.trim() : c.name,
+              });
+            }),
+          );
+          toast.success("Eintrag gespeichert");
+        })();
+        return;
+      }
       persist(
         items.map((c) => {
           if (c.id !== id) return c;
@@ -101,14 +249,19 @@ export function useInventoryTaxonomyStorage(
         "Eintrag gespeichert",
       );
     },
-    [items, persist],
+    [failSave, items, persist, table, useDbInventory],
   );
 
   const reorder = useCallback(
     (next: InventoryTaxonomyDefinition[]) => {
-      persist(next.map(normalizeTaxonomy), "Reihenfolge aktualisiert");
+      const cleaned = next.map(normalizeTaxonomy);
+      if (useDbInventory && table) {
+        void persistDbReorder(cleaned, "Reihenfolge aktualisiert");
+        return;
+      }
+      persist(cleaned, "Reihenfolge aktualisiert");
     },
-    [persist],
+    [persist, persistDbReorder, table, useDbInventory],
   );
 
   const getById = useCallback(

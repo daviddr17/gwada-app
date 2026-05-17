@@ -1,10 +1,9 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
+import { SupabaseDatabaseGate } from "@/components/providers/supabase-database-gate";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
-import { RestaurantProfileProvider } from "@/lib/contexts/restaurant-profile-context";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -14,14 +13,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange={false}
     >
-      <AccentColorProvider>
-        <RestaurantProfileProvider>
-          <TooltipProvider>
-            {children}
-            <Toaster />
-          </TooltipProvider>
-        </RestaurantProfileProvider>
-      </AccentColorProvider>
+      <Toaster />
+      <SupabaseDatabaseGate>
+        <TooltipProvider>{children}</TooltipProvider>
+      </SupabaseDatabaseGate>
     </ThemeProvider>
   );
 }

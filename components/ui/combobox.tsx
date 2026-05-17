@@ -5,8 +5,9 @@ import { Combobox } from "@base-ui/react/combobox"
 
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
 import { cn } from "@/lib/utils"
-import { ALL_TAGS, TAG_LABELS } from "@/lib/constants/menu-labels"
-import type { MenuTag } from "@/lib/types/menu"
+import { labelForTagId } from "@/lib/constants/menu-labels"
+import { getTagChipVisual } from "@/lib/utils/tag-styles"
+import type { MenuTag, MenuTaxonomyDefinition } from "@/lib/types/menu"
 import { CheckIcon, ChevronDownIcon } from "lucide-react"
 
 const collisionDefaults = {
@@ -98,7 +99,7 @@ export function SearchableSelect({
         data-slot="searchable-select-trigger"
         title={placeholder}
         className={cn(
-          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-1 rounded-2xl border border-border/70 bg-card px-2.5 py-1 shadow-sm transition-[border-color,box-shadow] outline-none hover:border-border focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25",
+          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-1 rounded-2xl border border-border/70 bg-card px-2.5 py-1 shadow-none transition-[border-color,box-shadow] outline-none hover:border-border focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25 dark:shadow-sm",
           disabled && "pointer-events-none opacity-50",
           className,
         )}
@@ -135,7 +136,7 @@ export function SearchableSelect({
         >
           <Combobox.Popup
             className={cn(
-              "pointer-events-auto max-h-[min(var(--available-height),22rem)] w-(--anchor-width) max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/10",
+              "pointer-events-auto max-h-[min(var(--available-height),22rem)] w-(--anchor-width) max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-none ring-1 ring-black/5 dark:shadow-xl dark:ring-white/10",
               "data-[side=bottom]:slide-in-from-top-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
             )}
           >
@@ -169,6 +170,7 @@ export function SearchableSelect({
 }
 
 export type TagMultiComboboxProps = {
+  definitions: MenuTaxonomyDefinition[]
   value: MenuTag[]
   onChange: (tags: MenuTag[]) => void
   disabled?: boolean
@@ -181,6 +183,7 @@ export type TagMultiComboboxProps = {
  * Multi-select tags with chips + search (Allergene / Eigenschaften).
  */
 export function TagMultiCombobox({
+  definitions,
   value,
   onChange,
   disabled,
@@ -191,8 +194,11 @@ export function TagMultiCombobox({
   const drawerFloatingHost = useDrawerFloatingPortalHost()
 
   const available = React.useMemo(
-    () => ALL_TAGS.filter((t) => !value.includes(t)),
-    [value],
+    () =>
+      definitions
+        .filter((d) => d.active !== false && !value.includes(d.id))
+        .map((d) => d.id),
+    [definitions, value],
   )
 
   const matcher = Combobox.useFilter({
@@ -211,7 +217,7 @@ export function TagMultiCombobox({
         else onChange([])
       }}
       items={available}
-      itemToStringLabel={(t) => TAG_LABELS[t]}
+      itemToStringLabel={(t) => labelForTagId(t, definitions)}
       filter={(t, query, toStr) =>
         query.trim() === "" ||
         matcher.contains(t, query, toStr as (item: MenuTag) => string)
@@ -224,7 +230,7 @@ export function TagMultiCombobox({
         aria-label={ariaLabel}
         data-slot="tag-multi-combobox"
         className={cn(
-          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-1.5 rounded-2xl border border-border/70 bg-card px-2 py-1.5 shadow-sm transition-[border-color,box-shadow] outline-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25",
+          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-1.5 rounded-2xl border border-border/70 bg-card px-2 py-1.5 shadow-none transition-[border-color,box-shadow] outline-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25 dark:shadow-sm",
           disabled && "pointer-events-none opacity-50",
           className,
         )}
@@ -233,18 +239,25 @@ export function TagMultiCombobox({
           <Combobox.Value>
             {(selected: MenuTag[]) => (
               <>
-                {selected.map((t) => (
+                {selected.map((t) => {
+                  const vis = getTagChipVisual(t, definitions)
+                  return (
                   <Combobox.Chip
                     key={t}
-                    className="inline-flex max-w-full min-w-0 shrink items-center gap-1 rounded-full border border-accent/30 bg-accent/12 px-2.5 py-1 text-xs font-semibold text-accent-foreground"
+                    className={cn(
+                      "inline-flex max-w-full min-w-0 shrink items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
+                      vis.className,
+                    )}
+                    style={vis.style}
                   >
-                    <span className="min-w-0 truncate">{TAG_LABELS[t]}</span>
+                    <span className="min-w-0 truncate">{labelForTagId(t, definitions)}</span>
                     <Combobox.ChipRemove
-                      className="rounded-full p-0.5 hover:bg-accent/25"
-                      aria-label={`${TAG_LABELS[t]} entfernen`}
+                      className="rounded-full p-0.5 text-foreground/65 hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10"
+                      aria-label={`${labelForTagId(t, definitions)} entfernen`}
                     />
                   </Combobox.Chip>
-                ))}
+                  )
+                })}
                 <Combobox.Input
                   placeholder={
                     selected.length ? "Weitere Tags suchen…" : "Tags suchen und hinzufügen…"
@@ -280,28 +293,28 @@ export function TagMultiCombobox({
         >
           <Combobox.Popup
             className={cn(
-              "pointer-events-auto max-h-[min(var(--available-height),22rem)] w-(--anchor-width) max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-xl ring-1 ring-black/5 dark:ring-white/10",
+              "pointer-events-auto max-h-[min(var(--available-height),22rem)] w-(--anchor-width) max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-none ring-1 ring-black/5 dark:shadow-xl dark:ring-white/10",
               "data-[side=bottom]:slide-in-from-top-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
             )}
           >
             <Combobox.List className="max-h-60 scroll-py-2 overflow-y-auto overscroll-contain px-1.5 py-2 outline-none">
-              {available.map((t) => (
+              {(t: MenuTag) => (
                 <Combobox.Item
                   key={t}
                   value={t}
-                  className="pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-popover-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground data-highlighted:bg-muted/80 data-highlighted:text-foreground data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm"
+                  className="pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-foreground outline-none select-none hover:bg-muted/70 data-highlighted:bg-muted/80 data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm"
                 >
-                  <span className="flex-1">{TAG_LABELS[t]}</span>
-                  <Combobox.ItemIndicator className="pointer-events-none absolute right-2.5 top-1/2 flex size-4 -translate-y-1/2 text-accent">
+                  <span className="flex-1 font-medium">{labelForTagId(t, definitions)}</span>
+                  <Combobox.ItemIndicator className="pointer-events-none absolute right-2.5 top-1/2 flex size-4 -translate-y-1/2 text-foreground dark:text-accent">
                     <CheckIcon className="size-4" aria-hidden />
                   </Combobox.ItemIndicator>
                 </Combobox.Item>
-              ))}
+              )}
             </Combobox.List>
             <Combobox.Empty className="empty:hidden min-h-0 px-4 py-8 text-center text-sm text-muted-foreground">
               {available.length === 0
                 ? "Alle Tags ausgewählt"
-                : "Kein passender Tag"}
+                : "Kein Treffer für diese Suche"}
             </Combobox.Empty>
           </Combobox.Popup>
         </Combobox.Positioner>

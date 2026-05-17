@@ -2,10 +2,10 @@
 
 import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { TAG_LABELS } from "@/lib/constants/menu-labels";
+import { labelForTagId } from "@/lib/constants/menu-labels";
 import { isMenuItemActive } from "@/lib/menu/item-utils";
-import type { MenuItem } from "@/lib/types/menu";
-import { getTagBadgeClass } from "@/lib/utils/tag-styles";
+import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
+import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import { cn } from "@/lib/utils";
 
 const priceFormatter = new Intl.NumberFormat("de-DE", {
@@ -23,6 +23,7 @@ export type MenuItemCompactRowDragState = {
 
 type MenuItemCompactRowProps = {
   item: MenuItem;
+  tagDefinitions: readonly MenuTaxonomyDefinition[];
   onSelect?: (item: MenuItem) => void;
   /** Tabellen-Sortierung per Drag & Drop (wie Kategorien). */
   sortable?: boolean;
@@ -31,6 +32,7 @@ type MenuItemCompactRowProps = {
 
 export function MenuItemCompactRow({
   item,
+  tagDefinitions,
   onSelect,
   sortable = false,
   dragState,
@@ -112,18 +114,22 @@ export function MenuItemCompactRow({
               Inaktiv
             </Badge>
           ) : null}
-          {item.tags.map((tag) => (
+          {item.tags.map((tag) => {
+            const vis = getTagChipVisual(tag, tagDefinitions);
+            return (
             <Badge
               key={tag}
               variant="outline"
               className={cn(
                 "h-5 rounded-full px-1.5 text-[0.65rem]",
-                getTagBadgeClass(tag),
+                vis.className,
               )}
+              style={vis.style}
             >
-              {TAG_LABELS[tag]}
+              {labelForTagId(tag, tagDefinitions)}
             </Badge>
-          ))}
+            );
+          })}
         </div>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-right align-middle font-semibold tabular-nums text-accent">

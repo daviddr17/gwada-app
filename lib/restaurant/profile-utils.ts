@@ -1,9 +1,14 @@
 import {
   createDefaultRestaurant,
   DEFAULT_RESTAURANT_ID,
+  defaultWeeklyHours,
   WEEKDAY_LABEL_DE,
   WEEKDAY_ORDER,
 } from "@/lib/constants/restaurant-profile";
+import {
+  isUuidRestaurantId,
+  openingHoursDbEnabled,
+} from "@/lib/supabase/opening-hours-db";
 import { defaultExceptionDateString } from "@/lib/restaurant/date-exception-utils";
 import type {
   DayHours,
@@ -35,6 +40,30 @@ export function mergeRestaurantProfile(
     dateExceptions: Array.isArray(partial.dateExceptions)
       ? partial.dateExceptions
       : base.dateExceptions,
+  };
+}
+
+/**
+ * UUID-Restaurants: Öffnungszeiten liegen in `opening_hours`, nicht im JSON-Payload.
+ */
+export function persistenceStripOpeningHoursForRemote(
+  persistence: RestaurantPersistenceV1,
+): RestaurantPersistenceV1 {
+  if (!openingHoursDbEnabled()) return persistence;
+  return {
+    ...persistence,
+    restaurants: Object.fromEntries(
+      Object.entries(persistence.restaurants).map(([id, prof]) => [
+        id,
+        isUuidRestaurantId(id)
+          ? {
+              ...prof,
+              weeklyHours: defaultWeeklyHours(),
+              dateExceptions: [],
+            }
+          : prof,
+      ]),
+    ) as Record<string, RestaurantProfile>,
   };
 }
 

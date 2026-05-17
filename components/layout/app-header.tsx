@@ -37,7 +37,7 @@ export function AppHeader({ tenantName = "Gwada", className }: AppHeaderProps) {
           <Button
             variant="outline"
             size="icon"
-            className="size-10 rounded-full border-border/60 bg-card/80 shadow-sm md:hidden"
+            className="size-10 rounded-full border-border/60 bg-card/80 shadow-none dark:shadow-sm md:hidden"
             aria-label={mobileOpen ? "Menü schließen" : "Menü öffnen"}
             onClick={() => setMobileOpen((o) => !o)}
           >
@@ -47,7 +47,7 @@ export function AppHeader({ tenantName = "Gwada", className }: AppHeaderProps) {
           <Button
             variant="outline"
             size="icon"
-            className="hidden size-10 rounded-full border-border/60 bg-card/80 shadow-sm md:inline-flex"
+            className="hidden size-10 rounded-full border-border/60 bg-card/80 shadow-none dark:shadow-sm md:inline-flex"
             aria-label="Einstellungen"
             render={<Link href="/settings" />}
             nativeButton={false}

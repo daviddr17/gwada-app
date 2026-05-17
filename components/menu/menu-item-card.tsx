@@ -11,9 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TAG_LABELS } from "@/lib/constants/menu-labels";
-import type { MenuItem } from "@/lib/types/menu";
-import { getTagBadgeClass } from "@/lib/utils/tag-styles";
+import { labelForTagId } from "@/lib/constants/menu-labels";
+import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
+import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import { cn } from "@/lib/utils";
 
 const priceFormatter = new Intl.NumberFormat("de-DE", {
@@ -23,10 +23,11 @@ const priceFormatter = new Intl.NumberFormat("de-DE", {
 
 type MenuItemCardProps = {
   item: MenuItem;
+  tagDefinitions: readonly MenuTaxonomyDefinition[];
   onSelect?: (item: MenuItem) => void;
 };
 
-export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
+export function MenuItemCard({ item, tagDefinitions, onSelect }: MenuItemCardProps) {
   const live = isMenuItemActive(item);
   return (
     <Card
@@ -80,18 +81,22 @@ export function MenuItemCard({ item, onSelect }: MenuItemCardProps) {
 
       {item.tags.length > 0 && (
         <CardContent className="flex flex-wrap gap-1.5 px-5 pt-3 pb-0">
-          {item.tags.map((tag) => (
+          {item.tags.map((tag) => {
+            const vis = getTagChipVisual(tag, tagDefinitions);
+            return (
             <Badge
               key={tag}
               variant="outline"
               className={cn(
                 "h-6 rounded-full border px-2.5 text-[0.6875rem] font-medium",
-                getTagBadgeClass(tag),
+                vis.className,
               )}
+              style={vis.style}
             >
-              {TAG_LABELS[tag]}
+              {labelForTagId(tag, tagDefinitions)}
             </Badge>
-          ))}
+            );
+          })}
         </CardContent>
       )}
 

@@ -41,6 +41,11 @@ export function normalizeMenuItem(
       : fallbackId ?? `m-${Date.now().toString(36)}`;
   const listNum = raw.listNumber;
   const recipe = normalizeRecipeLines(raw.recipe);
+  const rawTags = Array.isArray(raw.tags)
+    ? (raw.tags as unknown[]).filter(
+        (t): t is string => typeof t === "string" && t.length > 0,
+      )
+    : [];
   return {
     id,
     name: raw.name,
@@ -48,7 +53,7 @@ export function normalizeMenuItem(
     price: raw.price,
     category: raw.category,
     imageUrl: raw.imageUrl,
-    tags: raw.tags as MenuItem["tags"],
+    tags: rawTags,
     active: raw.active === false ? false : true,
     listNumber:
       typeof listNum === "number" && !Number.isNaN(listNum) ? listNum : null,

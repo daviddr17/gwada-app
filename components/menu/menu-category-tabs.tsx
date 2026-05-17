@@ -151,8 +151,8 @@ export function MenuCategoryTabs({
                   className={cn(
                     "inline-flex max-w-[200px] items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
                     selected
-                      ? "border-accent bg-accent text-accent-foreground shadow-sm"
-                      : "border-border/60 bg-card shadow-xs hover:bg-muted/80",
+                      ? "border-accent bg-accent text-accent-foreground shadow-none dark:shadow-sm"
+                      : "border-border/60 bg-card shadow-none dark:shadow-xs hover:bg-muted/80",
                     !catLive && "opacity-70",
                   )}
                   onClick={() => onCategorySelect(cat.id)}
@@ -198,7 +198,7 @@ export function MenuCategoryTabs({
         type="button"
         variant="outline"
         size="icon-sm"
-        className="shrink-0 rounded-full border-border/60 shadow-sm"
+        className="shrink-0 rounded-full border-border/60 shadow-none dark:shadow-sm"
         aria-label="Kategorien sortieren und verwalten"
         onClick={() => onOpenManageCategories()}
       >

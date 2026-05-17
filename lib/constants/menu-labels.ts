@@ -1,6 +1,7 @@
-import type { DietFilter, MenuTag } from "@/lib/types/menu";
+import type { DietFilter, MenuTaxonomyDefinition } from "@/lib/types/menu";
 
-export const TAG_LABELS: Record<MenuTag, string> = {
+/** Fallback-Labels für ältere Daten ohne Stammdaten-Treffer. */
+export const FALLBACK_TAG_LABELS: Record<string, string> = {
   vegan: "Vegan",
   vegetarian: "Vegetarisch",
   spicy: "Spicy",
@@ -10,21 +11,21 @@ export const TAG_LABELS: Record<MenuTag, string> = {
   halal: "Halal",
 };
 
-export const DIET_FILTERS: { value: DietFilter; label: string }[] = [
-  { value: "all", label: "Alle" },
-  { value: "vegan", label: "Vegan" },
-  { value: "vegetarian", label: "Vegetarisch" },
-  { value: "spicy", label: "Spicy" },
-  { value: "gluten", label: "Gluten" },
-  { value: "nuts", label: "Nüsse" },
-];
+export function labelForTagId(
+  id: string,
+  definitions: readonly MenuTaxonomyDefinition[],
+): string {
+  const def = definitions.find((d) => d.id === id);
+  if (def) return def.name;
+  return FALLBACK_TAG_LABELS[id] ?? id;
+}
 
-export const ALL_TAGS: MenuTag[] = [
-  "vegan",
-  "vegetarian",
-  "spicy",
-  "gluten",
-  "nuts",
-  "dairy",
-  "halal",
-];
+export function buildDietFilterOptions(
+  definitions: readonly MenuTaxonomyDefinition[],
+): { value: DietFilter; label: string }[] {
+  const active = definitions.filter((d) => d.active !== false);
+  return [
+    { value: "all", label: "Alle" },
+    ...active.map((d) => ({ value: d.id as DietFilter, label: d.name })),
+  ];
+}

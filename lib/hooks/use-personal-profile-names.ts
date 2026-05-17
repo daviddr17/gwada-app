@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY } from "@/lib/constants/user-identity";
+import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
 import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { toastStorageError } from "@/lib/persist-notify";
+import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  loadWorkspaceJson,
+  persistWorkspaceState,
+  workspacePersistenceConfigured,
+} from "@/lib/supabase/workspace-persistence";
 
 type PersistedV2 = { version: 2; firstName: string; lastName: string };
 type PersistedV1 = { version: 1; displayName: string };
@@ -53,19 +61,97 @@ function load(): { firstName: string; lastName: string } {
  * Wird für Bestellprotokolle und Bestellaktionen verwendet.
  */
 export function usePersonalProfileNames() {
+  const supabaseOnly = isSupabaseOnlyMode();
+  const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [isHydrated, setIsHydrated] = useState(false);
+  const [authTick, setAuthTick] = useState(0);
 
   useEffect(() => {
-    const { firstName: f, lastName: l } = load();
-    const frame = requestAnimationFrame(() => {
-      setFirstName(f);
-      setLastName(l);
-      setIsHydrated(true);
+    if (!workspacePersistenceConfigured()) return;
+    const supabase = createSupabaseBrowserClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      setAuthTick((t) => t + 1);
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      let names: { firstName: string; lastName: string } = {
+        firstName: "",
+        lastName: "",
+      };
+
+      if (workspacePersistenceConfigured()) {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("given_name, family_name")
+            .eq("id", user.id)
+            .maybeSingle();
+          if (!cancelled && prof) {
+            names = {
+              firstName:
+                typeof prof.given_name === "string" ? prof.given_name : "",
+              lastName:
+                typeof prof.family_name === "string" ? prof.family_name : "",
+            };
+          }
+        }
+      }
+
+      if (!names.firstName && !names.lastName) {
+        const remote = await loadWorkspaceJson(
+          USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
+        );
+        if (supabaseOnly) {
+          names =
+            remote && typeof remote === "object" && !Array.isArray(remote)
+              ? readNamesFromPayload(remote)
+              : { firstName: "", lastName: "" };
+        } else if (
+          remote &&
+          typeof remote === "object" &&
+          !Array.isArray(remote)
+        ) {
+          names = readNamesFromPayload(remote);
+          try {
+            localStorage.setItem(
+              USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
+              JSON.stringify(remote),
+            );
+          } catch {
+            /* ignore */
+          }
+        } else {
+          names = load();
+        }
+      }
+
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        setFirstName(names.firstName);
+        setLastName(names.lastName);
+        setIsHydrated(true);
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseOnly, authTick]);
 
   const actor: OrderProtocolActor = useMemo(
     () => ({
@@ -80,26 +166,51 @@ export function usePersonalProfileNames() {
   const save = useCallback(() => {
     const f = firstName.trim();
     const l = lastName.trim();
-    const payload: PersistedV2 = {
-      version: 2,
-      firstName: f,
-      lastName: l,
-    };
-    try {
-      localStorage.setItem(
+    const prev = { firstName, lastName };
+    setFirstName(f);
+    setLastName(l);
+
+    void (async () => {
+      if (workspacePersistenceConfigured()) {
+        const supabase = createSupabaseBrowserClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { error } = await supabase
+            .from("profiles")
+            .update({ given_name: f, family_name: l })
+            .eq("id", user.id);
+          if (error) {
+            setFirstName(prev.firstName);
+            setLastName(prev.lastName);
+            failSave();
+            return;
+          }
+          toast.success("Vor- und Nachname gespeichert");
+          return;
+        }
+      }
+
+      const payload: PersistedV2 = {
+        version: 2,
+        firstName: f,
+        lastName: l,
+      };
+      const ok = await persistWorkspaceState(
         USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
-        JSON.stringify(payload),
+        payload,
       );
-      setFirstName(f);
-      setLastName(l);
-      toast.success("Vor- und Nachname gespeichert");
-      return true;
-    } catch (e) {
-      console.error(e);
-      toastStorageError();
-      return false;
-    }
-  }, [firstName, lastName]);
+      if (!ok) {
+        setFirstName(prev.firstName);
+        setLastName(prev.lastName);
+        failSave();
+      } else {
+        toast.success("Vor- und Nachname gespeichert");
+      }
+    })();
+    return true;
+  }, [firstName, lastName, failSave]);
 
   return {
     firstName,

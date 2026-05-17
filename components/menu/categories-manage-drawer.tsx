@@ -12,8 +12,14 @@ import {
 } from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { MenuCategoryDefinition } from "@/lib/types/menu";
 import { cn } from "@/lib/utils";
+
+/** Kategorien, Lieferanten, Tags, … – gemeinsame Listen-Zeile. */
+export type ManageableListItem = {
+  id: string;
+  name: string;
+  active?: boolean;
+};
 
 export type CategoriesManageDrawerCopy = {
   title: string;
@@ -31,10 +37,12 @@ const DEFAULT_MANAGE_COPY: CategoriesManageDrawerCopy = {
 type CategoriesManageDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  categories: MenuCategoryDefinition[];
-  onReorder: (next: MenuCategoryDefinition[]) => void;
-  onEdit: (cat: MenuCategoryDefinition) => void;
+  categories: ManageableListItem[];
+  onReorder: (next: ManageableListItem[]) => void;
+  onEdit: (row: ManageableListItem) => void;
   onNew: () => void;
+  /** z. B. Farbpunkt bei Tag-Stammdaten */
+  rowLeading?: (row: ManageableListItem) => React.ReactNode;
   /** z. B. Bestand: Lieferanten, Marken, … */
   copy?: Partial<CategoriesManageDrawerCopy>;
 };
@@ -46,6 +54,7 @@ export function CategoriesManageDrawer({
   onReorder,
   onEdit,
   onNew,
+  rowLeading,
   copy: copyProp,
 }: CategoriesManageDrawerProps) {
   const copy = { ...DEFAULT_MANAGE_COPY, ...copyProp };
@@ -130,13 +139,18 @@ export function CategoriesManageDrawer({
                 }}
                 onDragEnd={() => setDragId(null)}
                 className={cn(
-                  "flex items-center gap-2 rounded-xl border border-border/50 bg-muted/20 p-2 shadow-xs",
+                  "flex items-center gap-2 rounded-xl border border-border/50 bg-muted/20 p-2 shadow-none dark:shadow-xs",
                   dragId === cat.id && "opacity-60",
                 )}
               >
                 <div className="flex size-10 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg border border-border/40 bg-background text-muted-foreground active:cursor-grabbing">
                   <GripVertical className="size-5" />
                 </div>
+                {rowLeading ? (
+                  <div className="flex shrink-0 items-center justify-center">
+                    {rowLeading(cat)}
+                  </div>
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{cat.name}</p>
                   <p className="text-xs text-muted-foreground">

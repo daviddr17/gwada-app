@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient-stock-protocol-drawer";
 import { IngredientUsageDrawer } from "@/components/inventory/ingredient-usage-drawer";
+import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
 import type { CategoryDrawerLabels } from "@/components/menu/category-drawer";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
@@ -68,7 +69,10 @@ export type InventoryTaxonomyKind =
 
 type TaxonomyStore = {
   items: InventoryTaxonomyDefinition[];
-  add: (name: string, active?: boolean) => { id: string; name: string } | null;
+  add: (
+    name: string,
+    active?: boolean,
+  ) => Promise<{ id: string; name: string } | null>;
   update: (id: string, updates: { name?: string; active?: boolean }) => void;
   reorder: (next: InventoryTaxonomyDefinition[]) => void;
 };
@@ -181,6 +185,10 @@ type SortDir = "asc" | "desc";
 const inputCellClass =
   "h-9 w-full min-w-[6rem] rounded-xl border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
 
+/** Tabellen-Selects: Fokus / geöffnet wie andere Formularfelder (Ring + Border). */
+const inventoryTableSelectTriggerClass =
+  "h-9 min-h-9 w-full border border-input bg-transparent px-2 text-xs font-normal shadow-none transition-[border-color,box-shadow] outline-none hover:border-border focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45 data-popup-open:border-ring data-popup-open:ring-[3px] data-popup-open:ring-ring/45";
+
 function InventoryStockInputCell({
   ingredientId,
   currentStock,
@@ -257,13 +265,13 @@ function InventoryOrderAddCell({
   openQty: number;
   openOrderId: string | null;
   openLineId: string | null;
-  addLine: (p: AddPurchaseLineParams) => boolean;
+  addLine: (p: AddPurchaseLineParams) => Promise<boolean>;
   updateLineQuantity: (
     orderId: string,
     lineId: string,
     qty: number,
     user: OrderProtocolActor,
-  ) => boolean;
+  ) => Promise<boolean>;
 }) {
   const [draft, setDraft] = useState(() =>
     openLineId ? String(openQty) : "",
@@ -282,7 +290,7 @@ function InventoryOrderAddCell({
 
   const highlightOrderQty = canOrder && displayOrderQty > 0;
 
-  const commit = useCallback(() => {
+  const commit = useCallback(async () => {
     if (!canOrder) {
       toast.error(
         "Diese Zutat hat keinen Lieferanten in den Stammdaten und kann nicht bestellt werden.",
@@ -306,13 +314,21 @@ function InventoryOrderAddCell({
 
     if (q === 0) {
       if (openOrderId && openLineId) {
-        updateLineQuantity(openOrderId, openLineId, 0, actor);
+        const ok = await updateLineQuantity(
+          openOrderId,
+          openLineId,
+          0,
+          actor,
+        );
+        if (!ok) {
+          setDraft(openLineId ? String(openQty) : "");
+        }
       }
       return;
     }
 
     if (!openLineId) {
-      addLine({
+      const ok = await addLine({
         supplierId: ingredient.supplierId,
         supplierName,
         ingredientId: ingredient.id,
@@ -323,10 +339,21 @@ function InventoryOrderAddCell({
         unitLabel,
         actor,
       });
+      if (!ok) {
+        setDraft("");
+      }
       return;
     }
     if (openOrderId && openLineId) {
-      updateLineQuantity(openOrderId, openLineId, q, actor);
+      const ok = await updateLineQuantity(
+        openOrderId,
+        openLineId,
+        q,
+        actor,
+      );
+      if (!ok) {
+        setDraft(String(openQty));
+      }
     }
   }, [
     addLine,
@@ -412,7 +439,8 @@ function InventoryTableTaxonomySelect({
       <SelectTrigger
         size="sm"
         className={cn(
-          "h-9 min-h-9 w-full min-w-[7.5rem] border border-input bg-transparent px-2 text-xs font-normal shadow-none",
+          inventoryTableSelectTriggerClass,
+          "min-w-[7.5rem]",
           className,
         )}
       >
@@ -461,10 +489,7 @@ function InventoryTableUnitSelect({
     >
       <SelectTrigger
         size="sm"
-        className={cn(
-          "h-9 min-h-9 w-full min-w-0 border border-input bg-transparent px-2 text-xs font-normal shadow-none",
-          className,
-        )}
+        className={cn(inventoryTableSelectTriggerClass, "min-w-0", className)}
       >
         <SelectValue />
       </SelectTrigger>
@@ -681,7 +706,7 @@ export function InventoryScreen() {
       unitLabel: string,
       act: OrderProtocolActor,
     ) => {
-      updateIngredient(
+      void updateIngredient(
         id,
         { currentStock: nextStock },
         { stockActor: act, stockUnitLabel: unitLabel },
@@ -729,22 +754,11 @@ export function InventoryScreen() {
     units.isHydrated;
 
   return (
-    <div
-      className={cn(
-        "transition-opacity duration-300",
-        !ready && "opacity-0",
-        ready && "opacity-100",
-      )}
-    >
-      <p className="mb-6 max-w-lg text-base leading-relaxed text-muted-foreground">
-        Zutaten mit Lieferant, Kategorie, Produktionsstelle und Marke. Suche
-        nach Zutat, Speise (Rezept) oder beides – inkl. ungefährer Treffer
-        (~80% Übereinstimmung). In der Spalte „Bestellung“ siehst du die Menge
-        in der offenen Lieferantenbestellung und kannst sie dort direkt anpassen
-        (0 entfernt die Position). Vor- und Nachname für das Protokoll trägst du
-        unter Persönliches Profil → Persönliche Daten ein.
-      </p>
-
+    <>
+      {!ready ? (
+        <InventoryScreenSkeleton />
+      ) : (
+        <div className="w-full">
       <div className="mb-4 flex flex-wrap gap-2">
         {(
           [
@@ -779,7 +793,7 @@ export function InventoryScreen() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Zutaten suchen…"
-            className="h-11 rounded-2xl border-border/50 bg-card pl-10 shadow-sm"
+            className="h-11 rounded-2xl border-border/50 bg-card pl-10 shadow-none dark:shadow-sm"
             aria-label="Zutaten suchen"
           />
         </div>
@@ -856,14 +870,14 @@ export function InventoryScreen() {
       <div className="mb-4 flex justify-end">
         <Button
           size="lg"
-          className="h-12 gap-2 rounded-full bg-accent px-6 text-accent-foreground shadow-md hover:bg-accent/90 tap-scale"
+          className="h-12 gap-2 rounded-full bg-accent px-6 text-accent-foreground shadow-none tap-scale hover:bg-accent/90 dark:shadow-md"
           onClick={() => setIngredientDrawerOpen(true)}
         >
           Neue Zutat
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
         <table className="w-full min-w-[1180px] text-sm">
           <thead>
             <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -925,13 +939,13 @@ export function InventoryScreen() {
                 return (
                 <tr
                   key={row.id}
-                  className="border-b border-border/40 last:border-0"
+                  className="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
                 >
                   <td className="px-2 py-1.5 align-middle">
                     <input
                       value={row.name}
                       onChange={(e) =>
-                        updateIngredient(row.id, { name: e.target.value })
+                        void updateIngredient(row.id, { name: e.target.value })
                       }
                       className={inputCellClass}
                     />
@@ -950,7 +964,7 @@ export function InventoryScreen() {
                       value={row.unit}
                       units={units.items}
                       onValueChange={(unit) =>
-                        updateIngredient(row.id, { unit })
+                        void updateIngredient(row.id, { unit })
                       }
                     />
                   </td>
@@ -974,7 +988,7 @@ export function InventoryScreen() {
                     <InventoryTableTaxonomySelect
                       value={row.supplierId}
                       onValueChange={(supplierId) =>
-                        updateIngredient(row.id, { supplierId })
+                        void updateIngredient(row.id, { supplierId })
                       }
                       items={suppliers.items}
                     />
@@ -983,7 +997,7 @@ export function InventoryScreen() {
                     <InventoryTableTaxonomySelect
                       value={row.categoryId}
                       onValueChange={(categoryId) =>
-                        updateIngredient(row.id, { categoryId })
+                        void updateIngredient(row.id, { categoryId })
                       }
                       items={ingredientCategories.items}
                     />
@@ -992,7 +1006,7 @@ export function InventoryScreen() {
                     <InventoryTableTaxonomySelect
                       value={row.productionSiteId}
                       onValueChange={(productionSiteId) =>
-                        updateIngredient(row.id, { productionSiteId })
+                        void updateIngredient(row.id, { productionSiteId })
                       }
                       items={productionSites.items}
                     />
@@ -1001,7 +1015,7 @@ export function InventoryScreen() {
                     <InventoryTableTaxonomySelect
                       value={row.brandId}
                       onValueChange={(brandId) =>
-                        updateIngredient(row.id, { brandId })
+                        void updateIngredient(row.id, { brandId })
                       }
                       items={brands.items}
                     />
@@ -1051,6 +1065,8 @@ export function InventoryScreen() {
           </tbody>
         </table>
       </div>
+        </div>
+      )}
 
       <IngredientUsageDrawer
         open={usageDrawer !== null}
@@ -1105,7 +1121,7 @@ export function InventoryScreen() {
               : null
           }
           labels={KIND_UI[entitySheet.kind].drawer}
-          onSave={(payload) => {
+          onSave={async (payload) => {
             const s = storeFor(entitySheet.kind);
             if ("id" in payload && payload.id) {
               s.update(payload.id, {
@@ -1113,7 +1129,7 @@ export function InventoryScreen() {
                 active: payload.active,
               });
             } else {
-              s.add(payload.name, payload.active !== false);
+              await s.add(payload.name, payload.active !== false);
             }
           }}
         />
@@ -1130,13 +1146,13 @@ export function InventoryScreen() {
       <IngredientDrawer
         open={ingredientDrawerOpen}
         onOpenChange={setIngredientDrawerOpen}
-        onCreate={(row) => addIngredient(row) != null}
+        onCreate={async (row) => (await addIngredient(row)) != null}
         suppliers={suppliers.items}
         ingredientCategories={ingredientCategories.items}
         productionSites={productionSites.items}
         brands={brands.items}
         units={units.items}
       />
-    </div>
+    </>
   );
 }

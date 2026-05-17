@@ -3,7 +3,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
+import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
+import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  getWorkspaceRestaurantId,
+  loadWorkspaceJson,
+  persistWorkspaceState,
+} from "@/lib/supabase/workspace-persistence";
+import {
+  inventoryRelationalPersistenceEnabled,
+  loadPurchaseOrdersRelational,
+  savePurchaseOrdersRelational,
+} from "@/lib/supabase/inventory-db";
 import type {
   OrderProtocolActor,
   PurchaseOrder,
@@ -216,21 +228,25 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
   };
 }
 
+function parseOrdersFromUnknown(parsed: unknown): PurchaseOrder[] {
+  if (!isRecord(parsed) || parsed.version !== 1) return [];
+  const arr = parsed.orders;
+  if (!Array.isArray(arr)) return [];
+  const out: PurchaseOrder[] = [];
+  for (const o of arr) {
+    const p = parseOrder(o);
+    if (p) out.push(p);
+  }
+  return out;
+}
+
 function loadFromStorage(): PurchaseOrder[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = localStorage.getItem(PURCHASE_ORDERS_STORAGE_KEY);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
-    if (!isRecord(parsed) || parsed.version !== 1) return [];
-    const arr = parsed.orders;
-    if (!Array.isArray(arr)) return [];
-    const out: PurchaseOrder[] = [];
-    for (const o of arr) {
-      const p = parseOrder(o);
-      if (p) out.push(p);
-    }
-    return out;
+    return parseOrdersFromUnknown(parsed);
   } catch {
     return [];
   }
@@ -255,30 +271,92 @@ export type OpenLineContext = {
 };
 
 export function usePurchaseOrdersStorage() {
+  const supabaseOnly = isSupabaseOnlyMode();
+  const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
+  const useDbInventory = inventoryRelationalPersistenceEnabled();
+
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    const stored = loadFromStorage();
-    const frame = requestAnimationFrame(() => {
-      setOrders(stored);
-      setIsHydrated(true);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, []);
+    let cancelled = false;
+    if (useDbInventory) {
+      void (async () => {
+        const rows = await loadPurchaseOrdersRelational();
+        if (cancelled) return;
+        setOrders(rows ?? []);
+        setIsHydrated(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
 
-  const persist = useCallback((next: PurchaseOrder[]) => {
-    const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
-    try {
-      localStorage.setItem(PURCHASE_ORDERS_STORAGE_KEY, JSON.stringify(payload));
+    if (supabaseOnly) {
+      void (async () => {
+        const remote = await loadWorkspaceJson(PURCHASE_ORDERS_STORAGE_KEY);
+        const fromRemote = remote != null ? parseOrdersFromUnknown(remote) : null;
+        if (cancelled) return;
+        setOrders(fromRemote ?? []);
+        setIsHydrated(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const remote = await loadWorkspaceJson(PURCHASE_ORDERS_STORAGE_KEY);
+      const fromRemote = remote != null ? parseOrdersFromUnknown(remote) : null;
+      const stored = loadFromStorage();
+      const next = fromRemote && fromRemote.length > 0 ? fromRemote : stored;
+      try {
+        const json = JSON.stringify({ version: 1 as const, orders: next });
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(PURCHASE_ORDERS_STORAGE_KEY, json);
+        }
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        setOrders(next);
+        setIsHydrated(true);
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseOnly, useDbInventory]);
+
+  const persist = useCallback(
+    async (next: PurchaseOrder[]): Promise<boolean> => {
+      if (useDbInventory) {
+        const rid = await getWorkspaceRestaurantId();
+        if (!rid) {
+          failSave();
+          return false;
+        }
+        const ok = await savePurchaseOrdersRelational(rid, next);
+        if (!ok) {
+          failSave();
+          return false;
+        }
+        setOrders(next);
+        return true;
+      }
+      const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
+      const ok = await persistWorkspaceState(PURCHASE_ORDERS_STORAGE_KEY, payload);
+      if (!ok) {
+        failSave();
+        return false;
+      }
       setOrders(next);
       return true;
-    } catch (e) {
-      console.error(e);
-      toastStorageError();
-      return false;
-    }
-  }, []);
+    },
+    [failSave, useDbInventory],
+  );
 
   const getOpenLineContext = useCallback(
     (supplierId: string, ingredientId: string): OpenLineContext => {
@@ -297,7 +375,7 @@ export function usePurchaseOrdersStorage() {
   );
 
   const addLine = useCallback(
-    (params: AddPurchaseLineParams): boolean => {
+    async (params: AddPurchaseLineParams): Promise<boolean> => {
       if (!params.supplierId.trim()) {
         toast.error(
           "Diese Zutat hat keinen gültigen Lieferanten und kann nicht bestellt werden.",
@@ -363,7 +441,8 @@ export function usePurchaseOrdersStorage() {
         });
       }
 
-      if (!persist(next)) return false;
+      const ok = await persist(next);
+      if (!ok) return false;
 
       if (createdNewOrder) {
         toast.success(
@@ -378,7 +457,7 @@ export function usePurchaseOrdersStorage() {
   );
 
   const closeOrder = useCallback(
-    (orderId: string): boolean => {
+    async (orderId: string): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "open") {
         toast.error("Bestellung nicht gefunden oder bereits abgeschlossen.");
@@ -387,7 +466,7 @@ export function usePurchaseOrdersStorage() {
       const next = orders.map((o) =>
         o.id === orderId ? { ...o, status: "closed" as const } : o,
       );
-      if (!persist(next)) return false;
+      if (!(await persist(next))) return false;
       toast.success("Bestellung abgeschlossen");
       return true;
     },
@@ -395,7 +474,7 @@ export function usePurchaseOrdersStorage() {
   );
 
   const reopenOrder = useCallback(
-    (orderId: string): boolean => {
+    async (orderId: string): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "closed") {
         toast.error("Bestellung nicht gefunden oder nicht abgeschlossen.");
@@ -413,7 +492,7 @@ export function usePurchaseOrdersStorage() {
       const next = orders.map((o) =>
         o.id === orderId ? { ...o, status: "open" as const } : o,
       );
-      if (!persist(next)) return false;
+      if (!(await persist(next))) return false;
       toast.success("Bestellung wieder geöffnet");
       return true;
     },
@@ -421,7 +500,7 @@ export function usePurchaseOrdersStorage() {
   );
 
   const setOrderDeliveryDate = useCallback(
-    (orderId: string, ymd: string | null): boolean => {
+    async (orderId: string, ymd: string | null): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target) {
         toast.error("Bestellung nicht gefunden.");
@@ -437,7 +516,7 @@ export function usePurchaseOrdersStorage() {
       const next = orders.map((o) =>
         o.id === orderId ? { ...o, deliveryDate: normalized } : o,
       );
-      if (!persist(next)) return false;
+      if (!(await persist(next))) return false;
       toast.success(
         normalized ? "Lieferdatum gespeichert" : "Lieferdatum entfernt",
         { id: `order-delivery-${orderId}` },
@@ -448,12 +527,12 @@ export function usePurchaseOrdersStorage() {
   );
 
   const updateLineQuantity = useCallback(
-    (
+    async (
       orderId: string,
       lineId: string,
       nextQty: number,
       _actor: OrderProtocolActor,
-    ): boolean => {
+    ): Promise<boolean> => {
       const order = orders.find((o) => o.id === orderId);
       if (!order || order.status !== "open") {
         toast.error("Menge kann nur bei offenen Bestellungen geändert werden.");
@@ -499,7 +578,7 @@ export function usePurchaseOrdersStorage() {
         l.quantity = nextQty;
       }
 
-      if (!persist(next)) return false;
+      if (!(await persist(next))) return false;
       if (nextQty === 0) {
         toast.success("Position entfernt (Menge 0)");
       } else {
@@ -511,7 +590,7 @@ export function usePurchaseOrdersStorage() {
   );
 
   const markLineDelivered = useCallback(
-    (orderId: string, lineId: string): boolean => {
+    async (orderId: string, lineId: string): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "closed") {
         toast.error("Liefermeldung nur bei abgeschlossenen Bestellungen möglich.");
@@ -551,13 +630,13 @@ export function usePurchaseOrdersStorage() {
         lineId: l.id,
       };
       o.log.push(logEntry);
-      return persist(next);
+      return await persist(next);
     },
     [orders, persist],
   );
 
   const unmarkLineDelivered = useCallback(
-    (orderId: string, lineId: string): boolean => {
+    async (orderId: string, lineId: string): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "closed") {
         toast.error("Nur bei abgeschlossenen Bestellungen möglich.");
@@ -597,7 +676,7 @@ export function usePurchaseOrdersStorage() {
         lineId: l.id,
       };
       o.log.push(logEntry);
-      return persist(next);
+      return await persist(next);
     },
     [orders, persist],
   );

@@ -179,6 +179,19 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 pt-2">
+      <Card className="min-w-0 border-border/50 shadow-card">
+        <CardHeader className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          <div className="space-y-1">
+            <CardTitle className="text-lg">Reservierungen</CardTitle>
+            <CardDescription>
+              Monatsübersicht ab heute und Einstellungen für Tischreservierungen.
+            </CardDescription>
+          </div>
+          <Button render={<Link href="/reservierungen/uebersicht" prefetch />}>
+            Zur Übersicht
+          </Button>
+        </CardHeader>
+      </Card>
       {sections.map((section) => {
         if (section.kind === "overviewStats") {
           return (

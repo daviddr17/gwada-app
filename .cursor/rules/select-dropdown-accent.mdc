@@ -1,0 +1,18 @@
+---
+description: Select-/Dropdown-Trigger mit einheitlichem Akzent-Ring wie im Rest der App.
+alwaysApply: true
+---
+
+# Select & Dropdowns: Akzent-Border / Ring
+
+`SelectTrigger` (shadcn / Base UI) sollen **nicht** mit abweichenden Einzel-Klassen „neu erfunden“ werden, sondern das **etablierte Fokus- und Offen-Verhalten** nutzen: **Border `border-input`**, bei Fokus und geöffnetem Popup **Ring in Akzent (`ring`)** wie bei den Bestands-Tabellen-Selects.
+
+## Vorgehen
+
+1. **`appSelectTriggerAccentClassName`** bzw. `appSelectTriggerAccentCn()` aus `@/lib/ui/app-select-trigger-accent` importieren und am `SelectTrigger` per `className={appSelectTriggerAccentCn("h-9 …")}` kombinieren.
+2. **Breite für Jahres-/kurze Werte:** genug `min-w-*` setzen und bei Bedarf die Wert-Zelle nicht künstlich schrumpfen lassen (`[&_[data-slot=select-value]]:…]`), damit z. B. „2026“ nicht mit Ellipse abgeschnitten wird.
+3. **Kein paralleles Design** — nicht andere Border-/Ring-Ketten kopieren, wenn diese Hilfsklasse passt.
+
+## Referenz
+
+Bestand: `inventoryTableSelectTriggerClass` in `components/inventory/inventory-screen.tsx` (gleiche Semantik wie `appSelectTriggerAccentClassName`).

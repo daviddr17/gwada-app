@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 
 function isPublicPath(pathname: string): boolean {
+  if (pathname === "/") return true;
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
   if (pathname.startsWith("/_next")) return true;
   if (pathname === "/favicon.ico" || pathname === "/robots.txt") return true;
@@ -10,10 +11,11 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+/** Auth & öffentliche Routen — Next.js 16: `proxy.ts` (ersetzt `middleware.ts`). */
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
-  let response = NextResponse.next({ request });
+  const response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -22,6 +24,15 @@ export async function proxy(request: NextRequest) {
     if (!isPublicPath(pathname)) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
+    return response;
+  }
+
+  /* Landing + Login: kein getUser → schnellerer First Paint, weniger Auth-Roundtrips */
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname.startsWith("/login/")
+  ) {
     return response;
   }
 

@@ -421,6 +421,22 @@ export async function updateMenuItemRelational(item: MenuItem): Promise<boolean>
   return replaceMenuItemRelations(rid, item.id, item);
 }
 
+export async function deleteMenuItemRelational(id: string): Promise<boolean> {
+  const rid = await getWorkspaceRestaurantId();
+  if (!rid) return false;
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("menu_items")
+    .delete()
+    .eq("id", id)
+    .eq("restaurant_id", rid);
+  if (error) {
+    console.warn("[gwada] delete menu_items", error.message);
+    return false;
+  }
+  return true;
+}
+
 export async function reorderMenuItemsInCategoryRelational(
   categoryId: string,
   orderedIds: string[],

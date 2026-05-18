@@ -4,6 +4,11 @@ export type DashboardWidgetId =
   | "activityChart"
   | "categoryChart";
 
+export type DashboardWidgetPrefs = {
+  visibility: Record<DashboardWidgetId, boolean>;
+  order: DashboardWidgetId[];
+};
+
 /** localStorage-Schlüssel für Dashboard-Widget-Sichtbarkeit */
 export const DASHBOARD_WIDGET_STORAGE_KEY = "gwada-dashboard-widgets";
 

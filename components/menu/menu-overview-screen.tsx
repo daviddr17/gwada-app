@@ -82,6 +82,7 @@ export function MenuOverviewScreen() {
     items,
     addItem,
     updateItem,
+    deleteItem,
     getItemById,
     reorderItemsInCategory,
     isHydrated: menuHydrated,
@@ -638,6 +639,7 @@ export function MenuOverviewScreen() {
         editItem={editItem}
         onCreate={async (item) => (await addItem(item)) != null}
         onUpdate={updateItem}
+        onDelete={deleteItem}
         categories={categories}
       />
 

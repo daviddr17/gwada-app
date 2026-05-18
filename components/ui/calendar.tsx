@@ -113,18 +113,20 @@ function Calendar({
           defaultClassNames.dropdowns,
         ),
         dropdown_root: cn(
-          "border-input bg-background relative rounded-md border shadow-xs outline-none hover:bg-muted/60 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-input dark:bg-input/30",
+          "border-input bg-background relative isolate z-10 rounded-xl border shadow-none outline-none transition-colors",
+          "hover:bg-muted/60 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
+          "dark:border-input dark:bg-input/30",
           defaultClassNames.dropdown_root,
         ),
         dropdown: cn(
-          "bg-popover absolute inset-0 cursor-pointer opacity-0",
+          "pointer-events-auto absolute inset-0 z-20 cursor-pointer appearance-none border-0 bg-transparent opacity-0",
           defaultClassNames.dropdown,
         ),
         caption_label: cn(
           "select-none font-medium",
           captionLayout === "label"
             ? "text-sm"
-            : "flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
+            : "pointer-events-none flex h-8 items-center gap-1 rounded-md pl-2 pr-1 text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground",
           defaultClassNames.caption_label,
         ),
         month_grid: cn(
@@ -252,8 +254,9 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        "relative z-10 flex size-9 min-w-9 flex-col gap-1 border-0 p-0 font-normal leading-none",
-        "text-foreground hover:bg-muted/80 hover:text-foreground",
+        "relative z-10 flex size-9 min-w-9 flex-col gap-1 border-0 p-0 font-normal leading-none transition-colors",
+        "text-foreground hover:bg-muted/70 hover:text-foreground",
+        "aria-disabled:hover:bg-transparent aria-disabled:hover:text-inherit",
         "data-[range-start=true]:rounded-l-md data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground",
         "data-[range-end=true]:rounded-r-md data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground",
         "data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-muted data-[range-middle=true]:text-foreground",
@@ -263,7 +266,7 @@ function CalendarDayButton({
         /* Heute: größere, kräftigere Zahl (früher eher „gewählt“-Optik) */
         "data-[today]:text-[15px] data-[today]:font-semibold data-[today]:tabular-nums data-[today]:tracking-wide",
         /* Gewählter Tag: muted-Fläche (früher „Heute“-Optik) */
-        "data-[selected-single=true]:bg-muted data-[selected-single=true]:text-foreground data-[selected-single=true]:hover:bg-muted/80 data-[selected-single=true]:hover:text-foreground",
+        "data-[selected-single=true]:bg-muted data-[selected-single=true]:text-foreground data-[selected-single=true]:hover:bg-muted/70 data-[selected-single=true]:hover:text-foreground",
         className,
       )}
       {...props}

@@ -53,7 +53,10 @@ function PopoverPositioner({
   return (
     <PopoverPrimitive.Positioner
       data-slot="popover-positioner"
-      className={cn("isolate z-[320] outline-none", className)}
+      className={cn(
+        "pointer-events-auto isolate z-[340] outline-none",
+        className,
+      )}
       side={side}
       sideOffset={sideOffset}
       align={align}
@@ -72,7 +75,7 @@ function PopoverContent({
     <PopoverPrimitive.Popup
       data-slot="popover-content"
       className={cn(
-        "z-[320] w-auto origin-(--transform-origin) overflow-hidden rounded-2xl border border-border/60 bg-popover p-0 text-popover-foreground shadow-none outline-none ring-1 ring-black/5 duration-150 dark:shadow-xl dark:ring-white/10",
+        "pointer-events-auto z-[340] w-auto origin-(--transform-origin) overflow-hidden rounded-2xl border border-border/60 bg-popover p-0 text-popover-foreground shadow-none outline-none ring-1 ring-black/5 duration-150 dark:shadow-xl dark:ring-white/10",
         "data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
         className,
       )}

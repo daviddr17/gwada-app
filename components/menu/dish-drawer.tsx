@@ -1,6 +1,10 @@
 "use client";
 
+import * as React from "react";
+import { Trash2 } from "lucide-react";
 import { DishForm } from "@/components/menu/dish-form";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Drawer,
   DrawerContent,
@@ -19,7 +23,6 @@ import { SEED_UNITS } from "@/lib/data/inventory-seeds";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { useMenuTaxonomyStorage } from "@/lib/hooks/use-menu-taxonomy-storage";
-import * as React from "react";
 import type {
   MenuCategoryDefinition,
   MenuItem,
@@ -33,6 +36,8 @@ type DishDrawerProps = {
   editItem?: MenuItem;
   onCreate: (item: NewMenuItem) => boolean | Promise<boolean>;
   onUpdate: (id: string, item: NewMenuItem) => boolean | Promise<boolean>;
+  /** Nur Bearbeiten: Gericht endgültig löschen */
+  onDelete?: (id: string) => boolean | Promise<boolean>;
   categories: MenuCategoryDefinition[];
 };
 
@@ -43,6 +48,7 @@ export function DishDrawer({
   editItem,
   onCreate,
   onUpdate,
+  onDelete,
   categories,
 }: DishDrawerProps) {
   const { ingredients } = useIngredientsStorage();
@@ -63,6 +69,12 @@ export function DishDrawer({
     [menuTags.items, menuAllergens.items],
   );
 
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open) setConfirmDeleteOpen(false);
+  }, [open]);
+
   const handleSubmit = (item: NewMenuItem) => {
     void (async () => {
       const raw =
@@ -77,7 +89,14 @@ export function DishDrawer({
   const formKey =
     mode === "edit" && editItem ? `edit-${editItem.id}` : "create";
 
+  const handleConfirmDelete = async () => {
+    if (!editItem || !onDelete) return;
+    const ok = await Promise.resolve(onDelete(editItem.id));
+    if (ok) onOpenChange(false);
+  };
+
   return (
+    <>
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
@@ -88,15 +107,31 @@ export function DishDrawer({
         showHandle
         className="mx-auto flex max-h-[min(92dvh,640px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            {mode === "edit" ? "Gericht bearbeiten" : "Gericht hinzufügen"}
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {mode === "edit"
-              ? "Änderungen werden lokal gespeichert."
-              : "Neues Gericht zur Speisekarte hinzufügen."}
-          </DrawerDescription>
+        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 text-left">
+              <DrawerTitle className="text-xl font-semibold tracking-tight">
+                {mode === "edit" ? "Gericht bearbeiten" : "Gericht hinzufügen"}
+              </DrawerTitle>
+              <DrawerDescription className="text-base">
+                {mode === "edit"
+                  ? "Änderungen werden lokal gespeichert."
+                  : "Neues Gericht zur Speisekarte hinzufügen."}
+              </DrawerDescription>
+            </div>
+            {mode === "edit" && editItem && onDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label="Gericht löschen"
+                onClick={() => setConfirmDeleteOpen(true)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            ) : null}
+          </div>
         </DrawerHeader>
         <DishForm
           key={formKey}
@@ -111,5 +146,22 @@ export function DishDrawer({
         />
       </DrawerContent>
     </Drawer>
+
+    <ConfirmDialog
+      open={confirmDeleteOpen}
+      onOpenChange={setConfirmDeleteOpen}
+      title="Gericht wirklich löschen?"
+      description={
+        editItem ? (
+          <>
+            „<span className="font-medium text-foreground">{editItem.name}</span>“
+            wird dauerhaft aus der Speisekarte entfernt.
+          </>
+        ) : null
+      }
+      confirmLabel="Ja, löschen"
+      onConfirm={handleConfirmDelete}
+    />
+    </>
   );
 }

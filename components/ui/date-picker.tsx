@@ -64,7 +64,7 @@ export function DatePickerField({
   const compact = size === "compact"
 
   return (
-    <div className="[contain:layout] inline-flex w-fit max-w-full shrink-0">
+    <div className="[contain:layout] flex min-w-0 w-fit max-w-full shrink-0">
       <Popover open={open} onOpenChange={setOpen} modal={false}>
         <PopoverTrigger
           id={id}
@@ -77,17 +77,15 @@ export function DatePickerField({
               disabled={disabled}
               data-empty={!hasDate}
               className={cn(
-                "shrink-0 gap-2 border border-input bg-background text-left font-normal shadow-sm",
-                "h-9 w-[240px] justify-between px-3 text-sm",
-                /* Kein Tailwind-ring: Button-Variante nutzt ring-3 außen — würde Layout unter dem Feld verschieben. */
-                "!ring-0 !outline-none transition-[color,box-shadow,border-color,transform]",
-                "focus-visible:border-ring focus-visible:shadow-[inset_0_0_0_2px_var(--ring)]",
-                "data-[popup-open]:border-ring data-[popup-open]:bg-background data-[popup-open]:shadow-[inset_0_0_0_2px_var(--ring)] data-[popup-open]:dark:border-ring dark:data-[popup-open]:bg-input/30",
+                "h-11 w-[240px] shrink-0 justify-between gap-2 rounded-xl border border-input bg-transparent px-3 text-left text-sm font-normal shadow-none",
+                "text-foreground outline-none transition-colors",
+                "hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/40",
+                "focus:border-ring focus:ring-3 focus:ring-ring/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
+                "data-[popup-open]:border-ring data-[popup-open]:ring-3 data-[popup-open]:ring-ring/50",
+                "disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:disabled:bg-input/80",
                 "active:!translate-y-0",
-                open &&
-                  "border-ring shadow-[inset_0_0_0_2px_var(--ring)] dark:border-ring",
+                open && "border-ring ring-3 ring-ring/50",
                 compact && "h-9 w-[200px]",
-                "rounded-md",
                 !hasDate && "text-muted-foreground",
                 className,
               )}
@@ -113,12 +111,16 @@ export function DatePickerField({
             sideOffset={8}
             positionMethod="fixed"
           >
-            <PopoverContent className="w-auto overflow-hidden rounded-md border border-border bg-popover p-0 shadow-md ring-0 dark:ring-0">
+            <PopoverContent
+              initialFocus={false}
+              className="w-auto overflow-visible rounded-2xl border border-border/60 bg-popover p-0 shadow-none ring-1 ring-black/5 dark:shadow-xl dark:ring-white/10"
+            >
               <Calendar
-                className="rounded-md p-3"
+                className="rounded-2xl p-3"
                 locale={localeDe}
                 mode="single"
-                captionLayout="dropdown"
+                /* Kein captionLayout="dropdown": native <select>-Listen liegen außerhalb des Popover-DOM;
+                   Floating UI wertet Klicks/Fokus dann oft als "outside" — UI wirkt eingefroren. */
                 startMonth={new Date(2020, 0)}
                 endMonth={new Date(2035, 11)}
                 selected={selected}

@@ -70,7 +70,12 @@ function DrawerContent({
         {...props}
       >
         {showHandle ? (
-          <div className="mx-auto mt-4 hidden h-1 w-[100px] shrink-0 rounded-full bg-muted-foreground/30 group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
+          <DrawerPrimitive.Handle
+            className="mx-auto mt-4 hidden shrink-0 group-data-[vaul-drawer-direction=bottom]/drawer-content:block"
+            aria-hidden
+          >
+            <div className="mx-auto h-1 w-[100px] rounded-full bg-muted-foreground/30" />
+          </DrawerPrimitive.Handle>
         ) : null}
         <DrawerFloatingPortalContext.Provider value={floatingHost}>
           {children}

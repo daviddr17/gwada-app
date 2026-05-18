@@ -67,6 +67,7 @@ sql_paths = [
   "./seed_menu_relational.sql",
   "./seed_inventory_relational.sql",
   "./seed_demo_user.sql",
+  "./seed_reservations_demo.sql",
 ]
 
 [db.network_restrictions]

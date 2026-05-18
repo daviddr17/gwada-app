@@ -3,6 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   SearchableSelect,
   TagMultiCombobox,
@@ -91,6 +92,9 @@ export function DishForm({
 }: DishFormProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [recipeLineRemoveIndex, setRecipeLineRemoveIndex] = useState<
+    number | null
+  >(null);
 
   const categorySelectOptions = useMemo(
     () =>
@@ -114,6 +118,14 @@ export function DishForm({
     [stockUnits],
   );
 
+  const recipeRemoveLabel = useMemo(() => {
+    if (recipeLineRemoveIndex === null) return "";
+    const line = form.recipe[recipeLineRemoveIndex];
+    if (!line) return "";
+    const ing = ingredients.find((x) => x.id === line.ingredientId);
+    return ing?.name?.trim() || "Rezeptzeile";
+  }, [recipeLineRemoveIndex, form.recipe, ingredients]);
+
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (mode === "edit" && initialItem) {
@@ -122,6 +134,7 @@ export function DishForm({
         setForm(emptyForm);
       }
       setErrors({});
+      setRecipeLineRemoveIndex(null);
     });
     return () => cancelAnimationFrame(frame);
   }, [mode, initialItem]);
@@ -190,6 +203,7 @@ export function DishForm({
   };
 
   return (
+    <>
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
       <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pb-4">
         <div className="space-y-2">
@@ -431,12 +445,7 @@ export function DishForm({
                                 size="icon-sm"
                                 className="size-8 text-muted-foreground hover:text-destructive"
                                 aria-label="Zeile entfernen"
-                                onClick={() =>
-                                  setForm((p) => ({
-                                    ...p,
-                                    recipe: p.recipe.filter((_, j) => j !== i),
-                                  }))
-                                }
+                                onClick={() => setRecipeLineRemoveIndex(i)}
                               >
                                 <Trash2 className="size-3.5" />
                               </Button>
@@ -501,5 +510,29 @@ export function DishForm({
         </Button>
       </div>
     </form>
+
+    <ConfirmDialog
+      open={recipeLineRemoveIndex !== null}
+      onOpenChange={(o) => {
+        if (!o) setRecipeLineRemoveIndex(null);
+      }}
+      title="Rezeptzeile entfernen?"
+      description={
+        recipeRemoveLabel ? (
+          <>
+            „<span className="font-medium text-foreground">{recipeRemoveLabel}</span>“
+            wird aus dem Rezept entfernt. Zum Speichern danach „Speichern“ wählen.
+          </>
+        ) : null
+      }
+      confirmLabel="Entfernen"
+      destructive={false}
+      onConfirm={async () => {
+        const i = recipeLineRemoveIndex;
+        if (i === null) return;
+        setForm((p) => ({ ...p, recipe: p.recipe.filter((_, j) => j !== i) }));
+      }}
+    />
+    </>
   );
 }

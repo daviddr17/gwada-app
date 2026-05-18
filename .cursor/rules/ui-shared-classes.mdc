@@ -1,0 +1,24 @@
+---
+description: Gleiche Optik für Buttons/Container über gemeinsame Klassen-Exports, kein Copy-Paste von Tailwind-Ketten.
+alwaysApply: true
+---
+
+# UI: gemeinsame Klassen statt Duplikaten
+
+Wenn **Buttons, Container, Chips, Karten-Ränder** usw. an verschiedenen Stellen **optisch identisch** sein sollen, darf die gleiche lange `className` / `cn(...)`-Kette **nicht** mehrfach in Seiten und Komponenten stehen.
+
+## Vorgehen
+
+1. **Einen Namen exportieren** — Konstante (z. B. `settingsAccentSaveButtonClassName`) oder `cva`/`buttonVariants`-Erweiterung in einer passenden Datei:
+   - am ehesten **neben dem primären UI-Baustein** (z. B. unter `components/settings/`, `components/ui/`);
+   - nur bei wirklich app-weitem Muster in eine kleine `lib/ui/…`- oder `components/ui/…`-Hilfsdatei.
+2. **Import und Wiederverwendung** — an allen Stellen nur `className={cn("…layout-only…", sharedClassName)}` bzw. `variant`/Slot nutzen.
+3. **Keine optischen Forks** — wenn sich das Design ändnt, wird **an einer Stelle** angepasst.
+
+## Anti-Pattern
+
+Lange identische Tailwind-Strings an mehreren Call-Sites kopieren → schwer wartbar, leicht inkonsistent.
+
+## Positiv-Beispiel (Projekt)
+
+Primär-Speichern / Akzent-Aktion: `settingsAccentSaveButtonClassName` aus `@/components/settings/settings-sticky-save-bar` wiederverwenden statt die Kette zu duplizieren.

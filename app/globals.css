@@ -302,3 +302,138 @@
   background-color: color-mix(in oklch, var(--muted) 90%, transparent);
   color: var(--foreground);
 }
+
+/* Landing Hero — Stripe-ähnliches Farb-Mesh (CSS-only, sichtbar + performant) */
+.gwada-hero-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gwada-hero-blob {
+    animation: none !important;
+  }
+}
+.gwada-hero-blob-a {
+  width: min(92vw, 620px);
+  height: min(92vw, 620px);
+  left: -14%;
+  top: -12%;
+  background: radial-gradient(
+    circle at 45% 42%,
+    rgba(99, 91, 255, 0.88) 0%,
+    rgba(129, 140, 248, 0.35) 42%,
+    transparent 68%
+  );
+}
+.dark .gwada-hero-blob-a {
+  background: radial-gradient(
+    circle at 45% 42%,
+    rgba(99, 91, 255, 0.62) 0%,
+    rgba(99, 102, 241, 0.28) 45%,
+    transparent 70%
+  );
+}
+.gwada-hero-blob-b {
+  width: min(88vw, 540px);
+  height: min(88vw, 540px);
+  right: -18%;
+  top: 4%;
+  background: radial-gradient(
+    circle at 55% 48%,
+    rgba(244, 114, 182, 0.72) 0%,
+    rgba(236, 72, 153, 0.38) 45%,
+    transparent 70%
+  );
+}
+.dark .gwada-hero-blob-b {
+  background: radial-gradient(
+    circle at 55% 48%,
+    rgba(217, 70, 239, 0.55) 0%,
+    rgba(244, 63, 94, 0.28) 48%,
+    transparent 72%
+  );
+}
+.gwada-hero-blob-c {
+  width: min(100vw, 680px);
+  height: min(100vw, 680px);
+  left: 18%;
+  bottom: -28%;
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(34, 211, 238, 0.62) 0%,
+    rgba(59, 130, 246, 0.35) 48%,
+    transparent 72%
+  );
+}
+.dark .gwada-hero-blob-c {
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(56, 189, 248, 0.48) 0%,
+    rgba(99, 102, 241, 0.25) 50%,
+    transparent 74%
+  );
+}
+.gwada-hero-blob-d {
+  width: min(75vw, 480px);
+  height: min(75vw, 480px);
+  left: 38%;
+  top: 22%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(253, 186, 116, 0.55) 0%,
+    rgba(251, 113, 133, 0.32) 46%,
+    transparent 72%
+  );
+  opacity: 0.95;
+}
+.dark .gwada-hero-blob-d {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(251, 113, 133, 0.42) 0%,
+    rgba(168, 85, 247, 0.22) 50%,
+    transparent 74%
+  );
+  opacity: 0.9;
+}
+@keyframes gwada-hero-blob-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6vw, 4vh, 0) scale(1.08);
+  }
+}
+@keyframes gwada-hero-blob-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  50% {
+    transform: translate3d(-5vw, 6vh, 0) scale(1.12);
+  }
+}
+@keyframes gwada-hero-blob-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-4vw, -5vh, 0) scale(1.06);
+  }
+}
+@keyframes gwada-hero-blob-d {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(5vw, -3vh, 0) scale(1.07);
+  }
+  66% {
+    transform: translate3d(-3vw, 4vh, 0) scale(1.03);
+  }
+}

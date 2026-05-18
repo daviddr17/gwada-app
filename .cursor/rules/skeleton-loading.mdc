@@ -1,0 +1,26 @@
+---
+description: Akzent-Skeletons nur bei echtem Ladezustand; verzögert einblenden, damit schnelle Pfade nicht flackern.
+alwaysApply: true
+---
+
+# Skeleton-Loader (Akzent-Shimmer)
+
+Die Komponente `Skeleton` / `SkeletonCardFrame` (`@/components/ui/skeleton`) nutzt die Utility **`skeleton-shimmer`** — der Lichtstreifen bezieht sich auf **`var(--accent)`** (Tenant-Branding, siehe `globals.css`).
+
+## Wann Skeleton zeigen
+
+- **Nur**, wenn für die Seite oder den Bereich **tatsächlich noch Daten / Remote-Status** geladen werden und ohne diese Daten der Inhalt **nicht sinnvoll** wäre.
+- **Nicht** als Deko oder „immer zuerst Skeleton“: Wenn Daten **sofort** da sind (Cache, synchroner LS, schon im Provider), **keinen** Skeleton einblenden — das würde nur verlangsamen oder flackern.
+
+## Verzögerung bei kurzen Ladevorgängen
+
+Hook **`useDeferredSkeleton(loading, delayMs?)`** aus `@/lib/hooks/use-deferred-skeleton` verwenden:
+
+- Skeleton erst anzeigen, wenn `loading` mindestens ca. **`120ms`** (`DEFERRED_SKELETON_MS`) anhält.
+- Sobald `loading` `false` ist, Skeleton **sofort** ausblenden (kein künstliches Nachlaufen).
+- In der Zeit **vor** dem Schwellwert: optional unsichtbarer Platzhalter mit **`min-h-*`** + **`aria-busy`**, um Layout-Sprünge zu begrenzen — **kein** Shimmer.
+
+## Umsetzung
+
+- Layout der Skeletons an die **echte Karte** anlehnen (`SkeletonCardFrame` + Zeilen wie im Ziel-UI).
+- Wiederverwendbare Skeleton-Komponenten in **`components/...`** kollokieren (z. B. `restaurant-settings-skeleton.tsx`), nicht lange `Skeleton`-Listen in Seiten duplizieren.

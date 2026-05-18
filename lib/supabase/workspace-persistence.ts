@@ -1,8 +1,13 @@
+import type { User } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   GWADA_DB_UNAVAILABLE_MESSAGE,
   isSupabaseOnlyMode,
 } from "@/lib/constants/database-mode";
+import {
+  GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+  raceWithTimeout,
+} from "@/lib/supabase/race-timeout";
 
 /** JSON-serializable value for `jsonb` columns (no `Json` export in this supabase-js version). */
 export type WorkspaceJson =
@@ -49,9 +54,18 @@ export async function getWorkspaceRestaurantId(): Promise<string | null> {
   if (!workspacePersistenceConfigured()) return null;
 
   const supabase = createSupabaseBrowserClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: User | null = null;
+  try {
+    const got = await raceWithTimeout(
+      supabase.auth.getUser(),
+      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+      "Supabase-Session",
+    );
+    user = got.data.user;
+  } catch (e) {
+    console.warn("[gwada] getUser", e);
+    return null;
+  }
   const cacheKey = user?.id ?? "__anon__";
 
   if (workspaceRestaurantCache?.key === cacheKey) {
@@ -61,58 +75,66 @@ export async function getWorkspaceRestaurantId(): Promise<string | null> {
   if (!restaurantIdInFlight) {
     restaurantIdInFlight = (async () => {
       try {
-        let id: string | null = null;
+        const id = await raceWithTimeout(
+          (async (): Promise<string | null> => {
+            let resolved: string | null = null;
 
-        if (user) {
-          const { data: prof, error: profErr } = await supabase
-            .from("profiles")
-            .select("active_restaurant_id")
-            .eq("id", user.id)
-            .maybeSingle();
-          if (!profErr && prof?.active_restaurant_id) {
-            const rid = prof.active_restaurant_id;
-            const { data: mem } = await supabase
-              .from("restaurant_employees")
-              .select("restaurant_id")
-              .eq("profile_id", user.id)
-              .eq("restaurant_id", rid)
-              .eq("is_active", true)
-              .maybeSingle();
-            if (mem?.restaurant_id) {
-              id = rid;
+            if (user) {
+              const { data: prof, error: profErr } = await supabase
+                .from("profiles")
+                .select("active_restaurant_id")
+                .eq("id", user.id)
+                .maybeSingle();
+              if (!profErr && prof?.active_restaurant_id) {
+                const rid = prof.active_restaurant_id;
+                const { data: mem } = await supabase
+                  .from("restaurant_employees")
+                  .select("restaurant_id")
+                  .eq("profile_id", user.id)
+                  .eq("restaurant_id", rid)
+                  .eq("is_active", true)
+                  .maybeSingle();
+                if (mem?.restaurant_id) {
+                  resolved = rid;
+                }
+              }
+              if (!resolved) {
+                const { data: first, error: empErr } = await supabase
+                  .from("restaurant_employees")
+                  .select("restaurant_id")
+                  .eq("profile_id", user.id)
+                  .eq("is_active", true)
+                  .order("created_at", { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+                if (!empErr && first?.restaurant_id) {
+                  resolved = first.restaurant_id;
+                }
+              }
+            } else {
+              const { data, error } = await supabase
+                .from("restaurants")
+                .select("id")
+                .eq("slug", workspaceSlug())
+                .maybeSingle();
+              if (error) {
+                console.warn("[gwada] workspace restaurant:", error.message);
+              } else if (data?.id) {
+                resolved = data.id;
+              } else {
+                console.warn(
+                  "[gwada] Kein Restaurant mit slug",
+                  JSON.stringify(workspaceSlug()),
+                  "— Sync zu Supabase ausgesetzt. Seed ausführen (npm run db:reset) oder NEXT_PUBLIC_GWADA_WORKSPACE_SLUG prüfen.",
+                );
+              }
             }
-          }
-          if (!id) {
-            const { data: first, error: empErr } = await supabase
-              .from("restaurant_employees")
-              .select("restaurant_id")
-              .eq("profile_id", user.id)
-              .eq("is_active", true)
-              .order("created_at", { ascending: true })
-              .limit(1)
-              .maybeSingle();
-            if (!empErr && first?.restaurant_id) {
-              id = first.restaurant_id;
-            }
-          }
-        } else {
-          const { data, error } = await supabase
-            .from("restaurants")
-            .select("id")
-            .eq("slug", workspaceSlug())
-            .maybeSingle();
-          if (error) {
-            console.warn("[gwada] workspace restaurant:", error.message);
-          } else if (data?.id) {
-            id = data.id;
-          } else {
-            console.warn(
-              "[gwada] Kein Restaurant mit slug",
-              JSON.stringify(workspaceSlug()),
-              "— Sync zu Supabase ausgesetzt. Seed ausführen (npm run db:reset) oder NEXT_PUBLIC_GWADA_WORKSPACE_SLUG prüfen.",
-            );
-          }
-        }
+
+            return resolved;
+          })(),
+          GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+          "Workspace-Restaurant-ID",
+        );
 
         workspaceRestaurantCache = { key: cacheKey, id };
         return id;
@@ -137,12 +159,16 @@ export async function loadWorkspaceJson(
     const supabase = createSupabaseBrowserClient();
     const restaurantId = await getWorkspaceRestaurantId();
     if (!restaurantId) return null;
-    const { data, error } = await supabase
-      .from("restaurant_app_state")
-      .select("payload")
-      .eq("restaurant_id", restaurantId)
-      .eq("storage_key", storageKey)
-      .maybeSingle();
+    const { data, error } = await raceWithTimeout(
+      supabase
+        .from("restaurant_app_state")
+        .select("payload")
+        .eq("restaurant_id", restaurantId)
+        .eq("storage_key", storageKey)
+        .maybeSingle(),
+      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+      "Restaurant-App-State lesen",
+    );
     if (error || !data) return null;
     return data.payload as unknown;
   } catch (e) {
@@ -160,13 +186,17 @@ export async function saveWorkspaceJson(
     const supabase = createSupabaseBrowserClient();
     const restaurantId = await getWorkspaceRestaurantId();
     if (!restaurantId) return false;
-    const { error } = await supabase.from("restaurant_app_state").upsert(
-      {
-        restaurant_id: restaurantId,
-        storage_key: storageKey,
-        payload,
-      },
-      { onConflict: "restaurant_id,storage_key" },
+    const { error } = await raceWithTimeout(
+      supabase.from("restaurant_app_state").upsert(
+        {
+          restaurant_id: restaurantId,
+          storage_key: storageKey,
+          payload,
+        },
+        { onConflict: "restaurant_id,storage_key" },
+      ),
+      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+      "Restaurant-App-State speichern",
     );
     if (error) {
       console.warn("[gwada] saveWorkspaceJson", storageKey, error.message);
@@ -216,6 +246,10 @@ export async function persistWorkspaceState(
   }
 }
 
+/**
+ * Prüft, ob die Supabase-API erreichbar ist und `anon` publizierte Restaurants lesen darf (RLS).
+ * Kein Slug-Zwang — vermeidet falsche „DB nicht erreichbar“-Meldungen auf `/login`.
+ */
 export async function checkWorkspaceDatabaseReachable(): Promise<{
   ok: boolean;
   message: string;
@@ -228,22 +262,21 @@ export async function checkWorkspaceDatabaseReachable(): Promise<{
   }
   try {
     const supabase = createSupabaseBrowserClient();
-    const slug = workspaceSlug();
-    const { data, error } = await supabase
-      .from("restaurants")
-      .select("id")
-      .eq("slug", slug)
-      .maybeSingle();
+    /* Vor Login: anon darf nur `is_published` sehen — Slug-Check schlägt sonst oft fehl
+       (falscher Slug / noch kein Seed). Ein lesbarer Demo-Row reicht als „API+DB ok“. */
+    const { error } = await raceWithTimeout(
+      supabase
+        .from("restaurants")
+        .select("id")
+        .eq("is_published", true)
+        .limit(1),
+      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+      "Supabase-Restaurants",
+    );
     if (error) {
       return {
         ok: false,
         message: `${GWADA_DB_UNAVAILABLE_MESSAGE} (${error.message})`,
-      };
-    }
-    if (!data?.id) {
-      return {
-        ok: false,
-        message: `${GWADA_DB_UNAVAILABLE_MESSAGE} (Kein Restaurant mit Slug „${slug}“. Bitte „npm run db:reset“ ausführen.)`,
       };
     }
     return { ok: true, message: "" };

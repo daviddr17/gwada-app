@@ -1,0 +1,15 @@
+---
+description: Standard für Datums- und Uhrzeitfelder in Formularen (wie Öffnungszeiten).
+globs: "**/*.tsx"
+---
+
+# Datum & Uhrzeit in Formularen
+
+- **Datum:** `DatePickerField` aus `@/components/ui/date-picker` mit Wert `yyyy-MM-dd` (string \| null).
+- **Uhrzeit:** natives `<Input type="time" />` mit `formScheduleTimeInputClassName` aus derselben Datei.
+
+Orientierung: Ausnahme-Termine in `components/settings/restaurant-settings.tsx` (Datum + Zeit nebeneinander).
+
+Vermeide ein einzelnes `<input type="datetime-local" />`, wenn Kalender-Popup und konsistente Optik gewünscht sind.
+
+**Drawer / Portale:** `PopoverPortal` rendert in den Drawer-Floating-Host (`pointer-events-none` am Wrapper). `PopoverContent` und `PopoverPositioner` müssen **`pointer-events-auto`** haben (wie `Select`), sonst sind Kalender-Klicks wirkungslos.

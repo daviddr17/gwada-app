@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
 import type { MenuTaxonomyDefinition } from "@/lib/types/menu";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -133,7 +134,7 @@ export function MenuTaxonomyDrawer({
                   type="color"
                   value={HEX.test(backgroundColor) ? backgroundColor : "#64748b"}
                   onChange={(e) => setBackgroundColor(e.target.value)}
-                  className="size-12 cursor-pointer rounded-xl border border-border/60 bg-background p-0 shadow-none"
+                  className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
                   aria-label="Farbe wählen"
                 />
                 <Input

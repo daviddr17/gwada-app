@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  CalendarDays,
   LayoutDashboard,
   LogOut,
   Package,
@@ -119,6 +120,16 @@ export function AppSidebar() {
                 >
                   <Package />
                   <span>Bestand</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname.startsWith("/reservierungen")}
+                  tooltip="Reservierungen"
+                  render={<Link href="/reservierungen/uebersicht" prefetch />}
+                >
+                  <CalendarDays />
+                  <span>Reservierungen</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>

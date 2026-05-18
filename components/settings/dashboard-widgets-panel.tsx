@@ -11,10 +11,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { DashboardWidgetsPanelSkeleton } from "@/components/settings/dashboard-widgets-panel-skeleton";
 import {
   DASHBOARD_WIDGET_OPTIONS,
   type DashboardWidgetId,
 } from "@/lib/constants/dashboard-widgets";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
 import { cn } from "@/lib/utils";
 
@@ -34,13 +36,19 @@ export function DashboardWidgetsPanel() {
     [order],
   );
 
-  if (!isReady) {
+  const prefsLoading = !isReady;
+  const showSkeleton = useDeferredSkeleton(prefsLoading);
+
+  if (prefsLoading) {
+    if (showSkeleton) {
+      return <DashboardWidgetsPanelSkeleton />;
+    }
     return (
-      <Card className="border-border/50 shadow-card">
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Laden…
-        </CardContent>
-      </Card>
+      <div
+        className="min-h-[14rem] w-full"
+        aria-busy="true"
+        aria-label="Dashboard-Einstellungen werden geladen"
+      />
     );
   }
 
@@ -57,7 +65,9 @@ export function DashboardWidgetsPanel() {
             Dashboard
           </Link>{" "}
           erscheinen, und ziehe sie per Ziehen und Ablegen in die gewünschte
-          Reihenfolge. Gespeichert wird lokal in diesem Browser.
+          Reihenfolge. Angemeldet: gespeichert pro Restaurant und Benutzer in der
+          Datenbank; ohne Anmeldung weiterhin pro Restaurant über den
+          Workspace-Sync bzw. lokal in diesem Browser.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">

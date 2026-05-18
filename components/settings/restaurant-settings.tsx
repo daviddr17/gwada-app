@@ -3,6 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
@@ -16,10 +17,12 @@ import { Label } from "@/components/ui/label";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { cn } from "@/lib/utils";
 import {
   WEEKDAY_LABEL_DE,
@@ -92,6 +95,20 @@ export function RestaurantSettingsPanel({
   const [savedRestaurantFlash, setSavedRestaurantFlash] = useState(false);
   const [savedHoursFlash, setSavedHoursFlash] = useState(false);
   const [showPastExceptions, setShowPastExceptions] = useState(false);
+  const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
+
+  const pendingExceptionDateLabel = useMemo(() => {
+    if (!exceptionDeleteId || !draft) return "";
+    const ex = draft.dateExceptions.find((e) => e.id === exceptionDeleteId);
+    if (!ex) return "";
+    try {
+      return new Date(`${ex.date}T12:00:00`).toLocaleDateString("de-DE", {
+        dateStyle: "medium",
+      });
+    } catch {
+      return ex.date;
+    }
+  }, [exceptionDeleteId, draft]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -213,13 +230,19 @@ export function RestaurantSettingsPanel({
     });
   };
 
+  const awaitingDraft = !isReady || draft === null;
+  const showSkeleton = useDeferredSkeleton(awaitingDraft);
+
   if (!draft) {
+    if (showSkeleton && awaitingDraft) {
+      return <RestaurantSettingsSkeleton section={section} />;
+    }
     return (
-      <Card className="border-border/50 shadow-card">
-        <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Laden…
-        </CardContent>
-      </Card>
+      <div
+        className="min-h-[22rem] w-full"
+        aria-busy="true"
+        aria-label="Restaurantdaten werden geladen"
+      />
     );
   }
 
@@ -525,7 +548,7 @@ export function RestaurantSettingsPanel({
                     size="icon-sm"
                     className="ms-auto shrink-0 text-muted-foreground hover:text-destructive"
                     aria-label="Ausnahme entfernen"
-                    onClick={() => removeException(ex.id)}
+                    onClick={() => setExceptionDeleteId(ex.id)}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -586,6 +609,29 @@ export function RestaurantSettingsPanel({
         </form>
       </section>
       )}
+
+      <ConfirmDialog
+        open={exceptionDeleteId !== null}
+        onOpenChange={(o) => {
+          if (!o) setExceptionDeleteId(null);
+        }}
+        title="Termin-Ausnahme wirklich löschen?"
+        description={
+          pendingExceptionDateLabel ? (
+            <>
+              Die Ausnahme für den{" "}
+              <span className="font-medium text-foreground">
+                {pendingExceptionDateLabel}
+              </span>{" "}
+              wird entfernt.
+            </>
+          ) : null
+        }
+        confirmLabel="Ja, löschen"
+        onConfirm={async () => {
+          if (exceptionDeleteId) removeException(exceptionDeleteId);
+        }}
+      />
     </div>
   );
 }

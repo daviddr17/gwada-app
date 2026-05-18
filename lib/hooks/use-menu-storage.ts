@@ -8,6 +8,7 @@ import { normalizeMenuItem } from "@/lib/menu/item-utils";
 import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
+  deleteMenuItemRelational,
   insertMenuItemRelational,
   loadMenuItemsRelational,
   menuRelationalPersistenceEnabled,
@@ -263,10 +264,44 @@ export function useMenuStorage() {
     [failSave, useDbMenu],
   );
 
+  const deleteItem = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (useDbMenu) {
+        const ok = await deleteMenuItemRelational(id);
+        if (!ok) {
+          failSave();
+          return false;
+        }
+        setItems((prev) => prev.filter((i) => i.id !== id));
+        toast.success("Gericht gelöscht");
+        return true;
+      }
+      return new Promise((resolve) => {
+        setItems((prev) => {
+          const rollback = prev;
+          const next = prev.filter((i) => i.id !== id);
+          void persistWorkspaceState(STORAGE_KEY, next).then((ok) => {
+            if (!ok) {
+              setItems(rollback);
+              failSave();
+              resolve(false);
+            } else {
+              toast.success("Gericht gelöscht");
+              resolve(true);
+            }
+          });
+          return next;
+        });
+      });
+    },
+    [failSave, useDbMenu],
+  );
+
   return {
     items,
     addItem,
     updateItem,
+    deleteItem,
     getItemById,
     reorderItemsInCategory,
     isHydrated,

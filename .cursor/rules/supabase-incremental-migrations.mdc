@@ -1,0 +1,22 @@
+---
+description: Migrationen inkrementell; nach neuer Migration immer db push ausführen; kein db reset als Standard
+globs: supabase/**/*
+alwaysApply: true
+---
+
+# Supabase / Postgres: Migrationen inkrementell
+
+Wenn du **neue Datenbanktabellen** oder Schemaänderungen anlegst:
+
+1. **Migration** als neue Datei unter `supabase/migrations/` hinzufügen (eine logische Änderung pro Datei, sinnvoller Timestamp-Präfix).
+
+2. **Direkt danach Migrationen pushen** (Repo-Root), damit die Änderung **inkrementell** auf der Datenbank ankommt — nicht nur die Datei ablegen:
+   - **Verlinktes Remote-Projekt:** `npx supabase db push` (Standard).
+   - **Nur lokaler Stack (`supabase start`), kein `supabase link`:** `npx supabase db push --local`.
+   Wenn der Befehl fehlschlägt (CLI fehlt, Docker/DB nicht gestartet, nicht verlinkt): Fehler kurz melden und den Nutzer auf manuelles Push / Studio hinweisen.
+
+3. **`db:reset` niemals vorschlagen**, nur um neue Migrationen anzuwenden — das wäre irreführend. `npm run db:reset` / `supabase db reset` nur, wenn der Nutzer **ausdrücklich** einen leeren lokalen Stand will oder das ausdrücklich verlangt (löscht Daten und spielt alle Migrationen + Seeds neu ein).
+
+4. **Alternativen zu Push** nur nutzen, wenn Push in dieser Umgebung wirklich nicht geht: z. B. `npx supabase migration up` (je nach CLI), oder die neue Migration **einmalig** per SQL (Supabase Studio, `psql`). Remote-Projekte: derselbe Push-/CI-Weg wie im Team üblich.
+
+5. Kurz mitteilen, **dass Push (oder der Ersatzweg) gelaufen ist** bzw. warum nicht, und dass **bestehende Daten** erhalten bleiben (kein Full-Reset).

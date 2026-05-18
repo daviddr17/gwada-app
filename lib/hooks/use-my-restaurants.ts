@@ -3,6 +3,10 @@
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+  raceWithTimeout,
+} from "@/lib/supabase/race-timeout";
 
 export type MyRestaurantRow = {
   restaurantId: string;
@@ -31,9 +35,18 @@ export function useMyRestaurants() {
 
   useEffect(() => {
     const sb = createSupabaseBrowserClient();
-    void sb.auth.getSession().then(({ data }) => {
-      setSession(data.session ?? null);
-    });
+    void raceWithTimeout(
+      sb.auth.getSession(),
+      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+      "Supabase-Session (Restaurants)",
+    ).then(
+      ({ data }) => {
+        setSession(data.session ?? null);
+      },
+      () => {
+        setSession(null);
+      },
+    );
     const {
       data: { subscription },
     } = sb.auth.onAuthStateChange((_event, nextSession) => {

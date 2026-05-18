@@ -19,6 +19,7 @@ import type { CategoryDrawerLabels } from "@/components/menu/category-drawer";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import {
@@ -544,6 +545,10 @@ export function InventoryScreen() {
   const [stockProtocolIngredientId, setStockProtocolIngredientId] = useState<
     string | null
   >(null);
+  const [ingredientDelete, setIngredientDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState<string>("all");
@@ -1053,7 +1058,9 @@ export function InventoryScreen() {
                       size="icon-sm"
                       className="text-muted-foreground hover:text-destructive"
                       aria-label="Zutat entfernen"
-                      onClick={() => removeIngredient(row.id)}
+                      onClick={() =>
+                        setIngredientDelete({ id: row.id, name: row.name })
+                      }
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -1152,6 +1159,26 @@ export function InventoryScreen() {
         productionSites={productionSites.items}
         brands={brands.items}
         units={units.items}
+      />
+
+      <ConfirmDialog
+        open={ingredientDelete !== null}
+        onOpenChange={(o) => {
+          if (!o) setIngredientDelete(null);
+        }}
+        title="Zutat wirklich löschen?"
+        description={
+          ingredientDelete ? (
+            <>
+              „{ingredientDelete.name}“ wird aus dem Bestand entfernt. Verknüpfungen
+              in der Speisekarte können betroffen sein.
+            </>
+          ) : null
+        }
+        confirmLabel="Ja, löschen"
+        onConfirm={async () => {
+          if (ingredientDelete) await removeIngredient(ingredientDelete.id);
+        }}
       />
     </>
   );

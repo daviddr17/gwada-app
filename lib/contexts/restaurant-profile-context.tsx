@@ -41,6 +41,8 @@ type RestaurantProfileContextValue = {
   isReady: boolean;
   selectedRestaurantId: string;
   profile: RestaurantProfile;
+  /** Stammdaten + Öffnungszeiten für eine beliebige Restaurant-ID (z. B. Workspace-UUID). */
+  getProfileForRestaurantId: (id: string) => RestaurantProfile;
   saveProfile: (next: RestaurantProfile) => void;
   /** Öffnungszeiten: relationale Tabelle `opening_hours` (bei UUID-Restaurant + Supabase). */
   saveOpeningHours: (next: RestaurantProfile) => Promise<boolean>;
@@ -169,26 +171,25 @@ export function RestaurantProfileProvider({
 
   const saveProfile = useCallback(
     (next: RestaurantProfile) => {
-      setStore((prev) => {
-        const n: RestaurantPersistenceV1 = {
-          ...prev,
-          restaurants: {
-            ...prev.restaurants,
-            [next.id]: next,
-          },
-        };
-        void persistWorkspaceState(
-          RESTAURANT_STORAGE_KEY,
-          persistenceStripOpeningHoursForRemote(n),
-        ).then((ok) => {
-          if (!ok) {
-            setStore(prev);
-            failSave();
-          } else {
-            toast.success("Restaurantprofil gespeichert");
-          }
-        });
-        return n;
+      const prev = storeRef.current;
+      const n: RestaurantPersistenceV1 = {
+        ...prev,
+        restaurants: {
+          ...prev.restaurants,
+          [next.id]: next,
+        },
+      };
+      setStore(n);
+      void persistWorkspaceState(
+        RESTAURANT_STORAGE_KEY,
+        persistenceStripOpeningHoursForRemote(n),
+      ).then((ok) => {
+        if (!ok) {
+          setStore(prev);
+          failSave();
+        } else {
+          toast.success("Restaurantprofil gespeichert");
+        }
       });
     },
     [failSave],
@@ -197,20 +198,30 @@ export function RestaurantProfileProvider({
   const saveOpeningHours = useCallback(
     async (next: RestaurantProfile): Promise<boolean> => {
       const snapshot = storeRef.current;
-      setStore((p) => ({
-        ...p,
-        restaurants: {
-          ...p.restaurants,
-          [next.id]: next,
-        },
-      }));
-
       const rid = await getWorkspaceRestaurantId();
       const useDb =
-        openingHoursDbEnabled() && rid !== null && isUuidRestaurantId(next.id);
+        openingHoursDbEnabled() && rid !== null && isUuidRestaurantId(rid);
+
+      const restaurants: Record<string, RestaurantProfile> = {
+        ...snapshot.restaurants,
+        [next.id]: next,
+      };
+      if (useDb) {
+        const base = restaurants[rid] ?? mergeRestaurantProfile(rid, undefined);
+        restaurants[rid] = {
+          ...base,
+          weeklyHours: next.weeklyHours,
+          dateExceptions: next.dateExceptions,
+        };
+      }
+
+      setStore((p) => ({ ...p, restaurants }));
 
       if (useDb) {
-        const ok = await replaceOpeningHoursForRestaurant(rid, next);
+        const ok = await replaceOpeningHoursForRestaurant(rid, {
+          weeklyHours: next.weeklyHours,
+          dateExceptions: next.dateExceptions,
+        });
         if (!ok) {
           setStore(snapshot);
           failSave();
@@ -220,10 +231,7 @@ export function RestaurantProfileProvider({
 
       const merged: RestaurantPersistenceV1 = {
         ...snapshot,
-        restaurants: {
-          ...snapshot.restaurants,
-          [next.id]: next,
-        },
+        restaurants,
       };
 
       const ok = await persistWorkspaceState(
@@ -243,28 +251,27 @@ export function RestaurantProfileProvider({
 
   const setSelectedRestaurantId = useCallback(
     (id: string) => {
-      setStore((prev) => {
-        const restaurants = { ...prev.restaurants };
-        if (!restaurants[id]) {
-          restaurants[id] = mergeRestaurantProfile(id, undefined);
+      const prev = storeRef.current;
+      const restaurants = { ...prev.restaurants };
+      if (!restaurants[id]) {
+        restaurants[id] = mergeRestaurantProfile(id, undefined);
+      }
+      const n: RestaurantPersistenceV1 = {
+        ...prev,
+        selectedRestaurantId: id,
+        restaurants,
+      };
+      setStore(n);
+      void persistWorkspaceState(
+        RESTAURANT_STORAGE_KEY,
+        persistenceStripOpeningHoursForRemote(n),
+      ).then((ok) => {
+        if (!ok) {
+          setStore(prev);
+          failSave();
+        } else {
+          toast.success("Restaurant-Auswahl gespeichert");
         }
-        const n: RestaurantPersistenceV1 = {
-          ...prev,
-          selectedRestaurantId: id,
-          restaurants,
-        };
-        void persistWorkspaceState(
-          RESTAURANT_STORAGE_KEY,
-          persistenceStripOpeningHoursForRemote(n),
-        ).then((ok) => {
-          if (!ok) {
-            setStore(prev);
-            failSave();
-          } else {
-            toast.success("Restaurant-Auswahl gespeichert");
-          }
-        });
-        return n;
       });
     },
     [failSave],
@@ -278,11 +285,17 @@ export function RestaurantProfileProvider({
     return mergeRestaurantProfile(selectedRestaurantId, undefined);
   }, [store.restaurants, selectedRestaurantId]);
 
+  const getProfileForRestaurantId = useCallback(
+    (id: string) => store.restaurants[id] ?? mergeRestaurantProfile(id, undefined),
+    [store.restaurants],
+  );
+
   const value = useMemo(
     () => ({
       isReady,
       selectedRestaurantId,
       profile,
+      getProfileForRestaurantId,
       saveProfile,
       saveOpeningHours,
       setSelectedRestaurantId,
@@ -291,6 +304,7 @@ export function RestaurantProfileProvider({
       isReady,
       selectedRestaurantId,
       profile,
+      getProfileForRestaurantId,
       saveProfile,
       saveOpeningHours,
       setSelectedRestaurantId,

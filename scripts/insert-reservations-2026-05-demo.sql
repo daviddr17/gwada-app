@@ -1,9 +1,8 @@
 -- Drei Reservierungen: 20.05.2026 12:00 offen, 20.05.2026 13:00 bestätigt, 21.05.2026 18:00 storniert.
 -- Wandzeit Europe/Berlin. Restaurant slug `gwada-demo`; Migration `reservation_statuses` muss auf der DB liegen.
 --
--- **Remote (Standard):** nach `supabase login` + `supabase link`:
---   npx supabase db query --linked -f scripts/insert-reservations-2026-05-demo.sql
--- **Nur auf ausdrücklichen Wunsch lokal:** `--local` statt `--linked`.
+-- **Remote:** `npm run db:seed:reservations-demo` (nach `supabase login` + `supabase link`).
+-- **Lokal (App zeigt lokale Supabase):** `npm run db:seed:reservations-demo:local`
 
 do $$
 declare

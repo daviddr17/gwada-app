@@ -1,0 +1,47 @@
+---
+description: Bei „live deployen“ Git push + Live-DB-Migrationen (Tunnel, db push) ausführen.
+alwaysApply: true
+---
+
+# Live deployen (nur auf Anfrage)
+
+Wenn der Nutzer **live deployen**, **jetzt live**, **production deploy** o. Ä. sagt:
+
+## 1. Live-Datenbank
+
+**Standard (nur Schema, keine Einträge):**
+
+```bash
+npm run deploy:live
+```
+
+**Nur wenn der Nutzer ausdrücklich lokale Daten / Einträge mit will:**
+
+```bash
+npm run deploy:live:full
+```
+
+(Leert `public` auf Live, kopiert Daten von `127.0.0.1:54322` — destruktiv.)
+
+- Startet SSH-Tunnel automatisch (wenn Port 5433 frei), wendet Migrationen an, kein `db reset`.
+- Voraussetzung: `SUPABASE_DB_URL` in `.env.production`; SSH **ohne Passwort** (`ssh-copy-id root@95.111.229.250` einmalig).
+- Optional vorher prüfen: `npm run deploy:live:dry-run`
+- **SSH schlägt fehl (BatchMode / Passwort):** Immer explizit anweisen:
+  ```bash
+  ssh-copy-id root@95.111.229.250
+  ssh root@95.111.229.250 true
+  ```
+  (Passwort **nur lokal einmal** eingeben — nie ins Repo schreiben.)
+- Alternativ: manueller Tunnel (`npm run db:tunnel:live`) + `npm run db:push:live`.
+
+## 2. App (Git → Coolify)
+
+Wie `git-deploy-on-request.mdc`: `git status` / `diff` / `log`, Commit (keine `.env*`), Push nach **`main`**.
+
+## 3. Kurz bestätigen
+
+- Welche Migrationen liefen (oder dry-run)
+- Commit-Hash + Branch
+- Coolify baut aus GitHub; Env-Vars liegen in Coolify
+
+**Nie** ohne ausdrückliche Anfrage deployen.

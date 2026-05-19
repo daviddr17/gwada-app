@@ -1,0 +1,31 @@
+---
+description: Schema lokal entwickeln; Live-DB nur Struktur bei Git-Deploy — keine Datenübernahme.
+alwaysApply: true
+---
+
+# Supabase: lokal entwickeln, Live nur Schema
+
+## Standard (ohne ausdrückliche Live-Anfrage)
+
+- **Schema** (Tabellen, Spalten, RLS, Functions, …): neue Datei unter `supabase/migrations/`, dann **`npx supabase db push --local`** (Docker/`supabase start` muss laufen).
+- **Keine** Live-/VPS-Datenbank anfassen.
+- **Keine** Demo-Seeds, `seed.sql`, Ad-hoc-INSERTs oder lokale Testdaten auf Production spielen — nur wenn der Nutzer das **explizit** verlangt.
+
+## Wenn der Nutzer „live deployen“ / „auf git deployen“ sagt (zusammen mit Git-Push)
+
+1. Zuerst sicherstellen, dass alle Schemaänderungen als **Migrationen im Repo** liegen (nicht nur manuell in Studio lokal).
+2. **Live nur Struktur:** ausstehende Migrationen gegen die **Production-DB** anwenden (`db push` auf verlinktes Live-Projekt / VPS, oder einmalig gleiches SQL in Live-Studio — **kein `db reset`**).
+3. **Keine Datenmigration:** keine `pg_dump`/`COPY` von lokal nach live, keine Seeds auf live, bestehende Live-Zeilen nicht überschreiben.
+4. Kurz bestätigen: welche Migrationen auf live gelaufen sind bzw. warum nicht (z. B. nicht verlinkt, CLI-Fehler).
+
+## Selbst gehostetes Live (VPS)
+
+- **Kein** `supabase link` nötig (nur Supabase Cloud). Live-Schema: `npm run db:push:live` mit `SUPABASE_DB_URL` in `.env.production` — Anleitung `docs/supabase-lokal-und-live.md`.
+
+## Trennung
+
+| | Lokal | Live (nur bei Deploy-Anfrage) |
+|---|--------|------------------------------|
+| Migrationen in Git | ja | gleicher Stand nach Push |
+| Struktur anwenden | `db push --local` | `db push` (linked) / SQL |
+| Demo-/Testdaten | ok | **nein** (Standard) |

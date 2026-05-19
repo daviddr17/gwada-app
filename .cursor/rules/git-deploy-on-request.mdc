@@ -1,0 +1,21 @@
+---
+description: Auf ausdrückliche Anfrage alle Änderungen committen und nach GitHub pushen (Coolify-Deploy).
+alwaysApply: true
+---
+
+# Git deployen (nur auf Anfrage)
+
+Wenn der Nutzer ausdrücklich will, dass Änderungen **live gehen**, **auf Git deployen**, **live deployen**, **pushen**, **nach GitHub** o. Ä.:
+
+**Vollständiges Live-Deploy:** zuerst `live-deploy-on-request.mdc` (DB + Git). Nur Code ohne DB: unten ab Schritt 2.
+
+1. **Nur dann** committen und pushen — nie proaktiv ohne diese Anfrage.
+2. Parallel ausführen: `git status`, `git diff` (staged + unstaged), `git log -1 --oneline`, prüfen ob Branch mit `origin` synchron ist.
+3. **Branch:** Standard **`main`** (Coolify deployt typischerweise `main`). Wenn der Nutzer einen anderen Branch nennt, diesen verwenden.
+4. **Nicht committen:** `.env.local`, `.env.production`, Secrets, Credentials. Warnen, falls gewünscht.
+5. Sinnvolle Commit-Message (1–2 Sätze, „why“), via HEREDOC.
+6. `git add` für alle relevanten Änderungen → `git commit` → `git push -u origin <branch>` (Netzwerk/`git_write` nötig).
+7. Nach Erfolg kurz bestätigen: Branch, Commit-Hash, dass **Coolify** den Push ggf. automatisch baut (Env-Vars liegen in Coolify, nicht im Repo).
+8. Bei Push-Fehlern (Auth, Reject): Fehler melden, Nutzer um Login/Token bitten — nicht force-pushen.
+
+Trigger-Beispiele: „jetzt live“, „alles auf git deployen“, „push to github“, „deployen“.

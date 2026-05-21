@@ -81,7 +81,6 @@ export function IngredientStockProtocolDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent
-        showHandle
         className="mx-auto flex max-h-[min(88dvh,560px)] max-w-5xl flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
       >
         <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">

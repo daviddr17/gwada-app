@@ -26,6 +26,10 @@ import {
   raceWithTimeout,
 } from "@/lib/supabase/race-timeout";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
+import {
+  startOAuthFlow,
+  type GwadaOAuthProvider,
+} from "@/lib/supabase/oauth";
 
 type Screen = "login" | "register";
 
@@ -93,8 +97,38 @@ export function LoginForm() {
     };
   }, [router, nextParam]);
 
-  const oauthSoon = () =>
-    toast.info("Anmeldung mit Google oder Apple folgt in einem späteren Schritt.");
+  useEffect(() => {
+    const err = searchParams.get("error");
+    if (!err?.trim()) return;
+    loginToastError("Anmeldung fehlgeschlagen.", err);
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("error");
+    const qs = params.toString();
+    router.replace(qs ? `/login?${qs}` : "/login");
+  }, [searchParams, router]);
+
+  const handleOAuth = async (provider: GwadaOAuthProvider) => {
+    setBusy(true);
+    try {
+      const sb = createSupabaseBrowserClient();
+      const { error } = await startOAuthFlow(sb, provider, {
+        next: safeInternalPath(nextParam),
+      });
+      if (error) {
+        loginToastError(
+          provider === "google"
+            ? "Anmeldung mit Google fehlgeschlagen."
+            : "Anmeldung mit Apple fehlgeschlagen.",
+          error.message,
+        );
+      }
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      loginToastError("Anmeldung fehlgeschlagen.", raw);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleLogin = async () => {
     setBusy(true);
@@ -273,7 +307,8 @@ export function LoginForm() {
                   type="button"
                   variant="outline"
                   className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  onClick={oauthSoon}
+                  disabled={busy}
+                  onClick={() => void handleOAuth("google")}
                 >
                   <GoogleGlyph />
                   Mit Google anmelden
@@ -282,7 +317,8 @@ export function LoginForm() {
                   type="button"
                   variant="outline"
                   className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  onClick={oauthSoon}
+                  disabled={busy}
+                  onClick={() => void handleOAuth("apple")}
                 >
                   <Apple className="size-5 shrink-0" aria-hidden />
                   Mit Apple anmelden
@@ -374,7 +410,8 @@ export function LoginForm() {
                   type="button"
                   variant="outline"
                   className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  onClick={oauthSoon}
+                  disabled={busy}
+                  onClick={() => void handleOAuth("google")}
                 >
                   <GoogleGlyph />
                   Mit Google registrieren
@@ -383,7 +420,8 @@ export function LoginForm() {
                   type="button"
                   variant="outline"
                   className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  onClick={oauthSoon}
+                  disabled={busy}
+                  onClick={() => void handleOAuth("apple")}
                 >
                   <Apple className="size-5 shrink-0" aria-hidden />
                   Mit Apple registrieren

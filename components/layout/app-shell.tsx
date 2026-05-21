@@ -6,6 +6,7 @@ import { ArrowLeft, Settings, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
+import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -65,14 +66,15 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           orientation="vertical"
           className="!h-6 shrink-0 self-center data-vertical:!self-center"
         />
-        <div className="min-w-0 flex-1 px-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
           {chrome.title ? (
-            <h1 className="truncate text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
+            <h1 className="min-w-0 truncate text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
               {chrome.title}
             </h1>
           ) : (
             <span className="sr-only">App</span>
           )}
+          <TestEnvironmentChip />
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button
@@ -116,7 +118,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           <ModuleChipNav
             items={chrome.subnav.items}
             aria-label={chrome.subnav.ariaLabel}
-            className="min-w-0"
+            className="min-w-0 flex-1"
           />
         </div>
       ) : null}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import { GripVertical } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { SortableDragOverlay } from "@/components/ui/sortable-drag-overlay";
 import { DashboardWidgetsPanelSkeleton } from "@/components/settings/dashboard-widgets-panel-skeleton";
 import {
   DASHBOARD_WIDGET_OPTIONS,
@@ -18,23 +19,33 @@ import {
 } from "@/lib/constants/dashboard-widgets";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
 import { cn } from "@/lib/utils";
 
 const OPTION_BY_ID = new Map(
   DASHBOARD_WIDGET_OPTIONS.map((o) => [o.id, o] as const),
 );
 
-const DND_MIME = "application/x-gwada-dashboard-widget";
-
 export function DashboardWidgetsPanel() {
   const { visibility, order, setWidgetVisible, reorderWidgets, isReady } =
     useDashboardWidgetPreferences();
-  const [draggingId, setDraggingId] = useState<DashboardWidgetId | null>(null);
 
   const orderedOptions = useMemo(
     () => order.map((id) => OPTION_BY_ID.get(id)!),
     [order],
   );
+
+  const sort = useSortableReorder({
+    itemIds: order,
+    onReorder: ({ dragId, overId, placement }) => {
+      const overIndex = order.indexOf(overId);
+      const dropId =
+        placement === "after"
+          ? (order[overIndex + 1] ?? overId)
+          : overId;
+      if (dragId !== dropId) reorderWidgets(dragId, dropId);
+    },
+  });
 
   const prefsLoading = !isReady;
   const showSkeleton = useDeferredSkeleton(prefsLoading);
@@ -73,64 +84,73 @@ export function DashboardWidgetsPanel() {
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
           Zum Sortieren den Griff links gedrückt halten und auf eine andere Zeile
-          ziehen.
+          ziehen (auch auf dem Smartphone).
         </p>
         <ul className="list-none space-y-2 p-0" aria-label="Dashboard-Widgets">
-          {orderedOptions.map((opt) => (
-            <li key={opt.id}>
-              <div
-                className={cn(
-                  "flex gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2 transition-opacity sm:items-start",
-                  draggingId === opt.id && "opacity-60",
-                )}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const raw = e.dataTransfer.getData(DND_MIME);
-                  const dragId = raw as DashboardWidgetId;
-                  if (!dragId || dragId === opt.id) return;
-                  reorderWidgets(dragId, opt.id);
-                  setDraggingId(null);
-                }}
-              >
-                <button
-                  type="button"
-                  draggable
-                  aria-label={`${opt.label} verschieben`}
-                  className={cn(
-                    "mt-0.5 flex size-9 shrink-0 cursor-grab touch-manipulation items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground active:cursor-grabbing",
+          {orderedOptions.map((opt) => {
+            const handle = sort.getHandleProps(opt.id);
+            return (
+              <li key={opt.id}>
+                <div
+                  ref={(el) => sort.registerItemRef(opt.id, el)}
+                  className={sort.getItemDropClassName(
+                    opt.id,
+                    "flex gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2 sm:items-start",
                   )}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(DND_MIME, opt.id);
-                    e.dataTransfer.effectAllowed = "move";
-                    setDraggingId(opt.id);
-                  }}
-                  onDragEnd={() => setDraggingId(null)}
                 >
-                  <GripVertical className="size-4" aria-hidden />
-                </button>
-                <label className="flex min-w-0 flex-1 cursor-pointer gap-3 sm:items-start">
-                  <Checkbox
-                    checked={visibility[opt.id]}
-                    onCheckedChange={(v) => setWidgetVisible(opt.id, v === true)}
-                    className="mt-0.5"
-                  />
-                  <span className="min-w-0 space-y-0.5">
-                    <span className="block text-sm font-medium leading-snug text-foreground">
-                      {opt.label}
+                  <button
+                    type="button"
+                    {...handle}
+                    aria-label={`${opt.label} verschieben`}
+                    className={cn(
+                      "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                      handle.className,
+                    )}
+                  >
+                    <GripVertical className="size-4" aria-hidden />
+                  </button>
+                  <label className="flex min-w-0 flex-1 cursor-pointer gap-3 sm:items-start">
+                    <Checkbox
+                      checked={visibility[opt.id]}
+                      onCheckedChange={(v) =>
+                        setWidgetVisible(opt.id, v === true)
+                      }
+                      className="mt-0.5"
+                    />
+                    <span className="min-w-0 space-y-0.5">
+                      <span className="block text-sm font-medium leading-snug text-foreground">
+                        {opt.label}
+                      </span>
+                      <span className="block text-xs text-muted-foreground sm:text-sm">
+                        {opt.description}
+                      </span>
                     </span>
-                    <span className="block text-xs text-muted-foreground sm:text-sm">
-                      {opt.description}
-                    </span>
-                  </span>
-                </label>
-              </div>
-            </li>
-          ))}
+                  </label>
+                </div>
+              </li>
+            );
+          })}
         </ul>
+        <SortableDragOverlay
+          activeId={sort.activeId}
+          dragLayout={sort.dragLayout}
+          showGapLine={sort.wouldReorder}
+          renderGhost={(id) => {
+            const opt = OPTION_BY_ID.get(id as DashboardWidgetId);
+            if (!opt) return null;
+            return (
+              <div className="flex gap-3 px-3 py-2">
+                <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 space-y-0.5">
+                  <span className="block text-sm font-medium">{opt.label}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {opt.description}
+                  </span>
+                </span>
+              </div>
+            );
+          }}
+        />
       </CardContent>
     </Card>
   );

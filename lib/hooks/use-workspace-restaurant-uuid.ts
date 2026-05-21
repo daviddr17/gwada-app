@@ -5,11 +5,12 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import {
   GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
   getWorkspaceRestaurantId,
+  supabasePublicEnvConfigured,
   workspacePersistenceConfigured,
 } from "@/lib/supabase/workspace-persistence";
 
 export function useWorkspaceRestaurantUuid() {
-  const supabaseEnvOk = workspacePersistenceConfigured();
+  const supabaseEnvOk = supabasePublicEnvConfigured();
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {

@@ -43,6 +43,7 @@ export function DatePickerField({
   id,
   className,
   size = "default",
+  fullWidth = false,
 }: {
   value: string | null | undefined
   onChange: (ymd: string | null) => void
@@ -51,6 +52,8 @@ export function DatePickerField({
   id?: string
   className?: string
   size?: "default" | "compact"
+  /** Trigger füllt die verfügbare Breite (z. B. in `sm:grid-cols-2`). */
+  fullWidth?: boolean
 }) {
   const [open, setOpen] = React.useState(false)
   const selected = React.useMemo(() => parseYmdToDate(value ?? null), [value])
@@ -64,7 +67,12 @@ export function DatePickerField({
   const compact = size === "compact"
 
   return (
-    <div className="[contain:layout] flex min-w-0 w-fit max-w-full shrink-0">
+    <div
+      className={cn(
+        "[contain:layout] flex min-w-0",
+        fullWidth ? "w-full" : "w-fit max-w-full shrink-0",
+      )}
+    >
       <Popover open={open} onOpenChange={setOpen} modal={false}>
         <PopoverTrigger
           id={id}
@@ -77,7 +85,8 @@ export function DatePickerField({
               disabled={disabled}
               data-empty={!hasDate}
               className={cn(
-                "h-11 w-[240px] shrink-0 justify-between gap-2 rounded-xl border border-input bg-transparent px-3 text-left text-sm font-normal shadow-none",
+                "h-11 shrink-0 justify-between gap-2 rounded-xl border border-input bg-transparent px-3 text-left text-sm font-normal shadow-none",
+                fullWidth ? "w-full" : "w-[240px]",
                 "text-foreground outline-none transition-colors",
                 "hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/40",
                 "focus:border-ring focus:ring-3 focus:ring-ring/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",

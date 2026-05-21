@@ -6,7 +6,18 @@ import { loadEnvConfig } from "@next/env";
 const projectDir = process.cwd();
 loadEnvConfig(projectDir);
 
+const supabaseUpstream = process.env.SUPABASE_UPSTREAM_URL?.replace(/\/+$/, "");
+
 const nextConfig: NextConfig = {
+  async rewrites() {
+    if (!supabaseUpstream) return [];
+    return [
+      {
+        source: "/sb/:path*",
+        destination: `${supabaseUpstream}/:path*`,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {

@@ -115,6 +115,21 @@ SUPABASE_DB_URL=postgresql://postgres:DEIN_LIVE_PASSWORT@95.111.229.250:5432/pos
 
 **Nicht** committen. Gleiche Variable kannst du in Coolify nur brauchen, wenn du Migrationen **auf dem Server** ausführst — für die Next-App reichen die drei Supabase-Keys.
 
+### HTTPS-App + HTTP-Supabase (Bestand/Bestellungen scheitern im Browser)
+
+Wenn die Gwada-App über **HTTPS** läuft, `NEXT_PUBLIC_SUPABASE_URL` aber **`http://…:8001`** ist, blockiert der Browser viele Client-Requests (Mixed Content). Login über Server-Middleware kann trotzdem funktionieren — **Speichern aus Client Components** (z. B. Bestellungen) dann nicht.
+
+**Lösung:** Same-Origin-Proxy (`/sb` → Kong), in Coolify für die **Next-App**:
+
+```env
+NEXT_PUBLIC_SUPABASE_PROXY=true
+SUPABASE_UPSTREAM_URL=http://95.111.229.250:8001
+NEXT_PUBLIC_SITE_URL=https://DEINE_APP_DOMAIN
+NEXT_PUBLIC_SUPABASE_URL=https://DEINE_APP_DOMAIN/sb
+```
+
+`SUPABASE_UPSTREAM_URL` nur Build/Runtime auf dem Server (Rewrite). Nach Deploy: erneut einloggen. In Supabase/GoTrue die Redirect-URL `https://DEINE_APP_DOMAIN/auth/callback` erlauben.
+
 ---
 
 ## 3. Schema auf Live bringen (nur Struktur)

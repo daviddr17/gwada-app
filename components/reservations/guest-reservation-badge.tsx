@@ -29,10 +29,43 @@ function approxTextWidthPx(text: string, fontSize: number): number {
   return w;
 }
 
+function floorTableOccupantCaptionTiers(
+  first: string,
+  last: string,
+  partySize: number,
+): string[] {
+  const fn = first.trim();
+  const ln = last.trim();
+  const ps = String(Math.max(1, Math.round(partySize)));
+  const nom = ln || fn || "—";
+  const initial = guestInitialsDe(fn, ln);
+  const tiers: string[] = [];
+  if (fn && ln) tiers.push(`${ps} ${fn} ${ln}`);
+  tiers.push(`${ps} ${nom}`, `${ps} ${initial}`, nom, initial);
+  return tiers;
+}
+
 /**
- * Eine Zeile, feste Schriftgröße (z. B. wie „frei“): wählt die informativste
- * Darstellung, die in `maxWidthPx` passt (`Name · #` → `Name` → … → MM).
+ * Tischplan: Personenanzahl + Name (ohne Res.-Nr.), Vorname nur wenn Platz.
  */
+export function pickFloorTableOccupantCaption(
+  first: string,
+  last: string,
+  partySize: number,
+  maxWidthPx: number,
+  fontSizePx: number,
+): string {
+  const maxW = Math.max(8, maxWidthPx);
+  const fs = Math.max(5, fontSizePx);
+  const slack = 2;
+  const tiers = floorTableOccupantCaptionTiers(first, last, partySize);
+  for (const t of tiers) {
+    if (approxTextWidthPx(t, fs) <= maxW + slack) return t;
+  }
+  return guestInitialsDe(first.trim(), last.trim());
+}
+
+/** Listen/legacy: Name mit Res.-Nr. — Tischplan nutzt {@link pickFloorTableOccupantCaption}. */
 export function pickFloorTableCaption(
   first: string,
   last: string,
@@ -45,7 +78,6 @@ export function pickFloorTableCaption(
   const full = [fn, ln].filter(Boolean).join(" ") || "—";
   const nom = ln || fn || "—";
   const initial = guestInitialsDe(fn, ln);
-  /** Zuerst längstmöglicher Text; voller Name ohne # vor kürzerem Namen mit #. */
   const tiers = [
     `${full} · #${reservationNumber}`,
     full,
@@ -60,6 +92,91 @@ export function pickFloorTableCaption(
     if (approxTextWidthPx(t, fs) <= maxW + slack) return t;
   }
   return initial;
+}
+
+const CAPTION_LINE_HEIGHT = 1.12;
+
+export function captionFitsBox(
+  text: string,
+  maxW: number,
+  maxH: number,
+  fontSize: number,
+): boolean {
+  return (
+    approxTextWidthPx(text, fontSize) <= Math.max(4, maxW) &&
+    fontSize * CAPTION_LINE_HEIGHT <= Math.max(4, maxH)
+  );
+}
+
+export function maxFontSizeThatFitsCaption(
+  text: string,
+  maxW: number,
+  maxH: number,
+  maxFontPx: number,
+  minFontPx = 5,
+): number {
+  const maxWpx = Math.max(4, maxW);
+  const maxHpx = Math.max(4, maxH);
+  for (let fs = maxFontPx; fs >= minFontPx; fs--) {
+    if (captionFitsBox(text, maxWpx, maxHpx, fs)) return fs;
+  }
+  return minFontPx;
+}
+
+/** Tischplan-Slot: „#12“ oder „frei“ in die Kachel einpassen. */
+export function fitFloorTableSlotCaption(
+  text: string,
+  maxWidthPx: number,
+  maxHeightPx: number,
+  maxFontPx = 16,
+  minFontPx = 6,
+): { fontSize: number } {
+  const maxW = Math.max(8, maxWidthPx);
+  const maxH = Math.max(8, maxHeightPx);
+  const fs = maxFontSizeThatFitsCaption(
+    text,
+    maxW,
+    maxH,
+    maxFontPx,
+    minFontPx,
+  );
+  return { fontSize: fs };
+}
+
+export function fitFloorTableOccupantBadge(params: {
+  first: string;
+  last: string;
+  partySize: number;
+  maxWidthPx: number;
+  maxHeightPx: number;
+  maxFontPx?: number;
+  minFontPx?: number;
+}): { text: string; fontSize: number } {
+  const maxFontPx = params.maxFontPx ?? 22;
+  const minFontPx = params.minFontPx ?? 5;
+  const maxW = Math.max(8, params.maxWidthPx);
+  const maxH = Math.max(8, params.maxHeightPx);
+  const lh = 1.15;
+  const tiers = floorTableOccupantCaptionTiers(
+    params.first,
+    params.last,
+    params.partySize,
+  );
+
+  const fits = (text: string, fs: number) =>
+    approxTextWidthPx(text, fs) <= maxW && fs * lh <= maxH;
+
+  for (const text of tiers) {
+    for (let fs = maxFontPx; fs >= minFontPx; fs--) {
+      if (fits(text, fs)) {
+        return { text, fontSize: fs };
+      }
+    }
+  }
+  const fallback = tiers[tiers.length - 1] ?? "—";
+  let fs = minFontPx;
+  while (fs > 4 && !fits(fallback, fs)) fs--;
+  return { text: fallback, fontSize: Math.max(4, fs) };
 }
 
 export function fitGuestReservationBadge(params: {

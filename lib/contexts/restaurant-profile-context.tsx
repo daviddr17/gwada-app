@@ -23,6 +23,7 @@ import {
   getWorkspaceRestaurantId,
   GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
   loadWorkspaceJson,
+  notifyWorkspaceRestaurantChanged,
   persistWorkspaceState,
 } from "@/lib/supabase/workspace-persistence";
 import {
@@ -32,6 +33,12 @@ import {
   replaceOpeningHoursForRestaurant,
   weeklyHoursEqualDefault,
 } from "@/lib/supabase/opening-hours-db";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  bindPersistenceToWorkspaceRestaurant,
+  persistenceNeedsWorkspaceBind,
+} from "@/lib/restaurant/workspace-profile-bind";
+import { syncRestaurantStammdatenToDb } from "@/lib/supabase/restaurant-stammdaten-db";
 import type {
   RestaurantPersistenceV1,
   RestaurantProfile,
@@ -52,6 +59,36 @@ type RestaurantProfileContextValue = {
 
 const RestaurantProfileContext =
   createContext<RestaurantProfileContextValue | null>(null);
+
+async function loadBoundRestaurantPersistence(): Promise<RestaurantPersistenceV1> {
+  const remote = await loadWorkspaceJson(RESTAURANT_STORAGE_KEY);
+  let raw: string | null = null;
+  if (remote && typeof remote === "object" && !Array.isArray(remote)) {
+    raw = JSON.stringify(remote);
+    if (typeof localStorage !== "undefined") {
+      try {
+        localStorage.setItem(RESTAURANT_STORAGE_KEY, raw);
+      } catch {
+        /* ignore quota */
+      }
+    }
+  } else if (typeof localStorage !== "undefined") {
+    raw = localStorage.getItem(RESTAURANT_STORAGE_KEY);
+  }
+
+  const parsed = parsePersistence(raw);
+  const workspaceId = await getWorkspaceRestaurantId();
+  const bound = bindPersistenceToWorkspaceRestaurant(parsed, workspaceId);
+
+  if (workspaceId && persistenceNeedsWorkspaceBind(parsed, bound)) {
+    await persistWorkspaceState(
+      RESTAURANT_STORAGE_KEY,
+      persistenceStripOpeningHoursForRemote(bound),
+    );
+  }
+
+  return bound;
+}
 
 export function RestaurantProfileProvider({
   children,
@@ -117,46 +154,12 @@ export function RestaurantProfileProvider({
     let cancelled = false;
     let raf = 0;
 
-    if (supabaseOnly) {
-      void (async () => {
-        const remote = await loadWorkspaceJson(RESTAURANT_STORAGE_KEY);
-        if (cancelled) return;
-        const raw =
-          remote && typeof remote === "object" && !Array.isArray(remote)
-            ? JSON.stringify(remote)
-            : null;
-        setStore(parsePersistence(raw));
-        setIsReady(true);
-        queueMicrotask(() => {
-          void applyOpeningHoursOverlay();
-        });
-      })();
-      return () => {
-        cancelled = true;
-      };
-    }
-
     void (async () => {
-      const remote = await loadWorkspaceJson(RESTAURANT_STORAGE_KEY);
-      let raw: string | null = null;
-      if (remote && typeof remote === "object" && !Array.isArray(remote)) {
-        try {
-          raw = JSON.stringify(remote);
-          if (typeof localStorage !== "undefined") {
-            localStorage.setItem(RESTAURANT_STORAGE_KEY, raw);
-          }
-        } catch {
-          raw = null;
-        }
-      }
+      const bound = await loadBoundRestaurantPersistence();
       if (cancelled) return;
-      const fromLocal =
-        typeof localStorage !== "undefined"
-          ? localStorage.getItem(RESTAURANT_STORAGE_KEY)
-          : null;
       raf = requestAnimationFrame(() => {
         if (cancelled) return;
-        setStore(parsePersistence(raw ?? fromLocal));
+        setStore(bound);
         setIsReady(true);
         queueMicrotask(() => {
           void applyOpeningHoursOverlay();
@@ -172,25 +175,48 @@ export function RestaurantProfileProvider({
   const saveProfile = useCallback(
     (next: RestaurantProfile) => {
       const prev = storeRef.current;
-      const n: RestaurantPersistenceV1 = {
-        ...prev,
-        restaurants: {
-          ...prev.restaurants,
-          [next.id]: next,
-        },
-      };
-      setStore(n);
-      void persistWorkspaceState(
-        RESTAURANT_STORAGE_KEY,
-        persistenceStripOpeningHoursForRemote(n),
-      ).then((ok) => {
+      void (async () => {
+        const workspaceId = await getWorkspaceRestaurantId();
+        const saveId =
+          workspaceId && isUuidRestaurantId(workspaceId)
+            ? workspaceId
+            : next.id;
+        const profile: RestaurantProfile = { ...next, id: saveId };
+        const n: RestaurantPersistenceV1 = {
+          ...prev,
+          selectedRestaurantId: saveId,
+          restaurants: {
+            ...prev.restaurants,
+            [saveId]: profile,
+          },
+        };
+        setStore(n);
+
+        const ok = await persistWorkspaceState(
+          RESTAURANT_STORAGE_KEY,
+          persistenceStripOpeningHoursForRemote(n),
+        );
         if (!ok) {
           setStore(prev);
           failSave();
-        } else {
-          toast.success("Restaurantprofil gespeichert");
+          return;
         }
-      });
+        const { ok: synced, error: syncErr } =
+          await syncRestaurantStammdatenToDb(
+            createSupabaseBrowserClient(),
+            profile,
+          );
+        if (!synced) {
+          console.warn("[gwada] syncRestaurantStammdatenToDb", syncErr);
+          toast.error(
+            syncErr ??
+              "Profil gespeichert, aber Restaurant-Stammdaten konnten nicht in der Datenbank aktualisiert werden.",
+          );
+          return;
+        }
+        toast.success("Restaurantprofil gespeichert");
+        notifyWorkspaceRestaurantChanged();
+      })();
     },
     [failSave],
   );
@@ -199,12 +225,15 @@ export function RestaurantProfileProvider({
     async (next: RestaurantProfile): Promise<boolean> => {
       const snapshot = storeRef.current;
       const rid = await getWorkspaceRestaurantId();
+      const saveId =
+        rid && isUuidRestaurantId(rid) ? rid : next.id;
+      const profile: RestaurantProfile = { ...next, id: saveId };
       const useDb =
         openingHoursDbEnabled() && rid !== null && isUuidRestaurantId(rid);
 
       const restaurants: Record<string, RestaurantProfile> = {
         ...snapshot.restaurants,
-        [next.id]: next,
+        [saveId]: profile,
       };
       if (useDb) {
         const base = restaurants[rid] ?? mergeRestaurantProfile(rid, undefined);
@@ -231,6 +260,7 @@ export function RestaurantProfileProvider({
 
       const merged: RestaurantPersistenceV1 = {
         ...snapshot,
+        selectedRestaurantId: saveId,
         restaurants,
       };
 

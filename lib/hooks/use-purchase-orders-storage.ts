@@ -5,7 +5,10 @@ import { toast } from "sonner";
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
-import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  toastDatabaseSaveError,
+  toastDatabaseUnavailable,
+} from "@/lib/supabase/db-toast";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJson,
@@ -338,9 +341,9 @@ export function usePurchaseOrdersStorage() {
           failSave();
           return false;
         }
-        const ok = await savePurchaseOrdersRelational(rid, next);
-        if (!ok) {
-          failSave();
+        const result = await savePurchaseOrdersRelational(rid, next);
+        if (!result.ok) {
+          toastDatabaseSaveError(result.message);
           return false;
         }
         setOrders(next);

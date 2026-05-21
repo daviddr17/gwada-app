@@ -63,9 +63,9 @@ gwada_tunnel_start_bg
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
 if [[ ${#DRY_RUN[@]} -gt 0 ]]; then
-  dotenv -e .env.production -- bash scripts/db-push-live.sh --dry-run
+  npx dotenv -e .env.production -- bash scripts/db-push-live.sh --dry-run
 else
-  dotenv -e .env.production -- bash scripts/db-push-live.sh
+  npx dotenv -e .env.production -- bash scripts/db-push-live.sh
 fi
 
 if [[ "${WITH_DATA}" -eq 1 ]]; then
@@ -74,7 +74,7 @@ if [[ "${WITH_DATA}" -eq 1 ]]; then
   else
     echo ""
     echo "=== Live-DB: Daten von lokal (public) ==="
-    dotenv -e .env.production -- bash "${ROOT}/scripts/live-sync-data.sh"
+    npx dotenv -e .env.production -- bash "${ROOT}/scripts/live-sync-data.sh"
   fi
 fi
 

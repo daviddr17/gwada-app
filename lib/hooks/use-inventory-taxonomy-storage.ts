@@ -8,11 +8,11 @@ import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
-  insertInventoryTaxonomyRow,
   inventoryRelationalPersistenceEnabled,
   loadInventoryTaxonomyRelational,
   reorderInventoryTaxonomyRows,
   updateInventoryTaxonomyRow,
+  upsertInventoryTaxonomyRow,
 } from "@/lib/supabase/inventory-db";
 import {
   getWorkspaceRestaurantId,
@@ -65,7 +65,20 @@ export function useInventoryTaxonomyStorage(
         if (rows && rows.length > 0) {
           setItems(rows.map(normalizeTaxonomy));
         } else {
-          setItems(initialSeed.map(normalizeTaxonomy));
+          const seeded = initialSeed.map(normalizeTaxonomy);
+          setItems(seeded);
+          const rid = await getWorkspaceRestaurantId();
+          if (rid && seeded.length > 0) {
+            for (const item of seeded) {
+              await upsertInventoryTaxonomyRow(
+                table,
+                rid,
+                item.id,
+                item.name,
+                item.active !== false,
+              );
+            }
+          }
         }
         setIsHydrated(true);
       })();
@@ -177,7 +190,7 @@ export function useInventoryTaxonomyStorage(
           return null;
         }
         const id = crypto.randomUUID();
-        const ok = await insertInventoryTaxonomyRow(
+        const ok = await upsertInventoryTaxonomyRow(
           table,
           rid,
           id,

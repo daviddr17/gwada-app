@@ -35,7 +35,7 @@ import {
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { formatDiningTableLabel } from "@/lib/supabase/dining-floor-db";
+import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
@@ -596,7 +596,7 @@ export function ReservationsOverview() {
         </p>
       ) : null}
 
-      <div className="space-y-3">
+      <div className="space-y-2">
         {visibleDays.map((d) => {
           const isToday = d.getTime() === today.getTime();
           const key = localDayKey(d);
@@ -606,12 +606,13 @@ export function ReservationsOverview() {
           return (
             <Card
               key={key}
+              size="sm"
               className={cn(
-                "border-border/50 shadow-card transition-colors",
+                "gap-2 border-border/50 py-2 shadow-card transition-colors",
                 isToday && "ring-1 ring-green-500/25 dark:ring-green-400/20",
               )}
             >
-              <CardHeader className="gap-2 pb-2 pt-4">
+              <CardHeader className="gap-1.5 pb-1 pt-2">
                 {isToday ? (
                   <p className="text-sm font-semibold text-green-600 dark:text-green-400">
                     Heute
@@ -664,7 +665,7 @@ export function ReservationsOverview() {
               {list.length > 0 ? (
                 <>
                   <Separator className="mx-6" />
-                  <CardContent className="space-y-2 py-4">
+                  <CardContent className="space-y-1.5 py-2">
                     {list.map((r) => {
                       const st = r.reservation_statuses;
                       const stripe =
@@ -675,13 +676,11 @@ export function ReservationsOverview() {
                         `${r.guest_first_name} ${r.guest_last_name}`.trim();
                       const timeLabel = timeDe.format(new Date(r.starts_at));
                       const endLabel = timeDe.format(new Date(r.ends_at));
-                      const tableLabel = r.dining_tables
-                        ? formatDiningTableLabel(r.dining_tables)
-                        : null;
+                      const tableLabel = reservationDiningTableLabel(r);
                       return (
                         <div
                           key={r.id}
-                          className="flex gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-2.5"
+                          className="flex gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-2"
                         >
                           <div
                             className="mt-0.5 w-0.5 shrink-0 self-stretch rounded-full sm:mt-0"

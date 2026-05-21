@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { labelForTagId } from "@/lib/constants/menu-labels";
 import { isMenuItemActive } from "@/lib/menu/item-utils";
+import type { UseSortableReorderResult } from "@/lib/hooks/use-sortable-reorder";
 import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import { cn } from "@/lib/utils";
@@ -13,21 +14,18 @@ const priceFormatter = new Intl.NumberFormat("de-DE", {
   currency: "EUR",
 });
 
-export type MenuItemCompactRowDragState = {
-  draggingId: string | null;
-  onDragStart: () => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDrop: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
-};
+type SortableHandleProps = ReturnType<
+  UseSortableReorderResult<string>["getHandleProps"]
+>;
 
 type MenuItemCompactRowProps = {
   item: MenuItem;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
   onSelect?: (item: MenuItem) => void;
-  /** Tabellen-Sortierung per Drag & Drop (wie Kategorien). */
   sortable?: boolean;
-  dragState?: MenuItemCompactRowDragState;
+  itemRef?: (el: HTMLTableRowElement | null) => void;
+  itemClassName?: string;
+  handleProps?: SortableHandleProps;
 };
 
 export function MenuItemCompactRow({
@@ -35,17 +33,18 @@ export function MenuItemCompactRow({
   tagDefinitions,
   onSelect,
   sortable = false,
-  dragState,
+  itemRef,
+  itemClassName,
+  handleProps,
 }: MenuItemCompactRowProps) {
   const live = isMenuItemActive(item);
-  const canDrag = sortable && !!dragState;
+  const canDrag = sortable && !!handleProps;
 
   return (
     <tr
+      ref={itemRef}
       role={onSelect ? "button" : undefined}
       tabIndex={onSelect ? 0 : undefined}
-      onDragOver={canDrag && dragState ? dragState.onDragOver : undefined}
-      onDrop={canDrag && dragState ? dragState.onDrop : undefined}
       onClick={() => onSelect?.(item)}
       onKeyDown={(e) => {
         if (onSelect && (e.key === "Enter" || e.key === " ")) {
@@ -54,36 +53,29 @@ export function MenuItemCompactRow({
         }
       }}
       className={cn(
-        "border-b border-border/40 transition-colors last:border-0",
+        "border-b border-border/40 transition-[opacity,transform] duration-150 last:border-0",
         onSelect &&
           (live
             ? "cursor-pointer hover:bg-muted/60"
             : "cursor-pointer hover:bg-destructive/12"),
-        canDrag && dragState?.draggingId === item.id && "opacity-60",
         !live &&
           "bg-destructive/[0.07] text-foreground dark:bg-destructive/15",
+        itemClassName,
       )}
     >
-      {canDrag && dragState && (
+      {canDrag && handleProps && (
         <td
           className="w-9 px-1 py-2.5 align-middle"
           onClick={(e) => e.stopPropagation()}
         >
           <span
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation();
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("text/plain", item.id);
-              dragState.onDragStart();
-            }}
-            onDragEnd={(e) => {
-              e.stopPropagation();
-              dragState.onDragEnd();
-            }}
+            {...handleProps}
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
-            className="inline-flex size-8 cursor-grab touch-none select-none items-center justify-center rounded-md border border-transparent text-muted-foreground hover:border-border/50 hover:bg-muted/50 active:cursor-grabbing"
+            className={cn(
+              "inline-flex size-8 items-center justify-center rounded-md border border-transparent text-muted-foreground hover:border-border/50 hover:bg-muted/50",
+              handleProps.className,
+            )}
             aria-label="Reihenfolge ändern"
           >
             <GripVertical className="size-4 shrink-0" />
@@ -117,17 +109,17 @@ export function MenuItemCompactRow({
           {item.tags.map((tag) => {
             const vis = getTagChipVisual(tag, tagDefinitions);
             return (
-            <Badge
-              key={tag}
-              variant="outline"
-              className={cn(
-                "h-5 rounded-full px-1.5 text-[0.65rem]",
-                vis.className,
-              )}
-              style={vis.style}
-            >
-              {labelForTagId(tag, tagDefinitions)}
-            </Badge>
+              <Badge
+                key={tag}
+                variant="outline"
+                className={cn(
+                  "h-5 rounded-full px-1.5 text-[0.65rem]",
+                  vis.className,
+                )}
+                style={vis.style}
+              >
+                {labelForTagId(tag, tagDefinitions)}
+              </Badge>
             );
           })}
         </div>

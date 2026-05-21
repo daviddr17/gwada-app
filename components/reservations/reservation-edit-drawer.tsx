@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Mail, Trash2 } from "lucide-react";
+import { TermsGlyph } from "@/components/icons/terms-glyph";
+import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -14,7 +16,10 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
+import { ReservationCreatedHint } from "@/components/reservations/reservation-created-hint";
+import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
 import {
   Select,
   SelectContent,
@@ -22,10 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DatePickerField,
-  formScheduleTimeInputClassName,
-} from "@/components/ui/date-picker";
+import { DatePickerField } from "@/components/ui/date-picker";
 import {
   datetimeLocalValueToIso,
   datetimeLocalValueToYmdHm,
@@ -33,7 +35,15 @@ import {
   localDayToYmd,
   ymdAndHmToDatetimeLocal,
 } from "@/lib/reservations/datetime-local";
-import { formatDayHeadingDe } from "@/lib/reservations/month-range";
+import {
+  COUNTRIES_REFERENCE_FALLBACK,
+  findCountryByIso2,
+  resolveCountryIso2FromLabel,
+  type CountryReference,
+} from "@/lib/constants/countries";
+import { fetchCountries } from "@/lib/supabase/countries-db";
+import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import {
   formatDiningTableLabel,
   fetchDiningTables,
@@ -42,6 +52,7 @@ import {
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import {
   deleteReservation,
+  fetchNextReservationNumber,
   fetchReservationStatuses,
   insertReservation,
   updateReservation,
@@ -52,6 +63,7 @@ import {
   checkTableAssignmentForSave,
   type TableAssignmentCheck,
 } from "@/lib/reservations/reservation-table-conflicts";
+import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -102,8 +114,13 @@ export function ReservationEditDrawer({
 }: ReservationEditDrawerProps) {
   const isEdit = Boolean(reservation);
   const isCreate = Boolean(createFor) && !reservation;
+  const { getProfileForRestaurantId } = useRestaurantProfile();
 
   const [statuses, setStatuses] = useState<ReservationStatusJoin[]>([]);
+  const [countries, setCountries] = useState<CountryReference[]>([]);
+  const [nextReservationNumber, setNextReservationNumber] = useState<number | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [tableSharePending, setTableSharePending] = useState<{
@@ -113,7 +130,8 @@ export function ReservationEditDrawer({
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [phoneCountryIso, setPhoneCountryIso] = useState("DE");
+  const [phoneLocal, setPhoneLocal] = useState("");
   const [email, setEmail] = useState("");
   const [partySize, setPartySize] = useState("2");
   const [dateYmd, setDateYmd] = useState("");
@@ -141,17 +159,77 @@ export function ReservationEditDrawer({
   useEffect(() => {
     if (!open) return;
     void (async () => {
-      const { data, error } = await fetchReservationStatuses();
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setStatuses(data);
+      const [stRes, coRes] = await Promise.all([
+        fetchReservationStatuses(),
+        fetchCountries(),
+      ]);
+      if (stRes.error) toast.error(stRes.error.message);
+      else setStatuses(stRes.data);
+      if (coRes.error) toast.error(coRes.error.message);
+      setCountries(coRes.data);
     })();
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !isCreate || !createFor?.restaurantId) {
+      setNextReservationNumber(null);
+      return;
+    }
+    void (async () => {
+      const { data, error } = await fetchNextReservationNumber(
+        createFor.restaurantId,
+      );
+      if (error) toast.error(error.message);
+      setNextReservationNumber(data);
+    })();
+  }, [open, isCreate, createFor?.restaurantId]);
+
   const restaurantIdForFetch =
     reservation?.restaurant_id ?? createFor?.restaurantId ?? null;
+
+  const countriesForPhone = useMemo(
+    () => (countries.length > 0 ? countries : COUNTRIES_REFERENCE_FALLBACK),
+    [countries],
+  );
+
+  const selectedPhoneCountry = useMemo(
+    () => findCountryByIso2(phoneCountryIso, countriesForPhone),
+    [phoneCountryIso, countriesForPhone],
+  );
+
+  const selectedStatus = useMemo(
+    () => statuses.find((s) => s.id === statusId) ?? null,
+    [statuses, statusId],
+  );
+
+  const tableAssignmentAllowed = useMemo(
+    () => reservationAllowsTableAssignment(statusId, statuses),
+    [statusId, statuses],
+  );
+
+  useEffect(() => {
+    if (!tableAssignmentAllowed && tableId !== "__none__") {
+      setTableId("__none__");
+    }
+  }, [tableAssignmentAllowed, tableId]);
+
+  const hasEmail = email.trim().length > 0;
+
+  const hasPhone = useMemo(
+    () =>
+      Boolean(
+        formatGuestPhone(phoneCountryIso, phoneLocal, countriesForPhone)?.trim(),
+      ),
+    [phoneCountryIso, phoneLocal, countriesForPhone],
+  );
+
+  useEffect(() => {
+    if (!hasEmail && notifyEmail) setNotifyEmail(false);
+  }, [hasEmail, notifyEmail]);
+
+  useEffect(() => {
+    if (!hasPhone && notifyWhatsapp) setNotifyWhatsapp(false);
+  }, [hasPhone, notifyWhatsapp]);
 
   const handleDrawerOpenChange = useCallback(
     (next: boolean) => {
@@ -185,11 +263,39 @@ export function ReservationEditDrawer({
   }, [open, restaurantIdForFetch]);
 
   useEffect(() => {
+    if (!open || reservation) return;
+    if (!createFor) return;
+    setDwellDraft(String(defaultDwellMinutes));
+  }, [open, reservation?.id, createFor?.restaurantId, defaultDwellMinutes]);
+
+  useEffect(() => {
+    if (!open || !reservation || reservation.dwell_minutes != null) return;
+    setDwellDraft(String(defaultDwellMinutes));
+  }, [
+    open,
+    reservation?.id,
+    reservation?.dwell_minutes,
+    defaultDwellMinutes,
+  ]);
+
+  useEffect(() => {
     if (!open) return;
+    const defaultIso = restaurantIdForFetch
+      ? resolveCountryIso2FromLabel(
+          getProfileForRestaurantId(restaurantIdForFetch).country,
+          COUNTRIES_REFERENCE_FALLBACK,
+        )
+      : "DE";
     if (reservation) {
       setFirstName(reservation.guest_first_name);
       setLastName(reservation.guest_last_name);
-      setPhone(reservation.guest_phone ?? "");
+      const parsed = parseGuestPhone(
+        reservation.guest_phone,
+        COUNTRIES_REFERENCE_FALLBACK,
+        defaultIso,
+      );
+      setPhoneCountryIso(parsed.iso2);
+      setPhoneLocal(parsed.local);
       setEmail(reservation.guest_email ?? "");
       setPartySize(String(reservation.party_size));
       const dl = isoToDatetimeLocalValue(reservation.starts_at);
@@ -201,7 +307,9 @@ export function ReservationEditDrawer({
       setNotifyWhatsapp(reservation.notify_whatsapp);
       setTermsAccepted(reservation.terms_accepted);
       setDwellDraft(
-        reservation.dwell_minutes != null ? String(reservation.dwell_minutes) : "",
+        reservation.dwell_minutes != null
+          ? String(reservation.dwell_minutes)
+          : String(defaultDwellMinutes),
       );
       setTableId(reservation.dining_table_id ?? "__none__");
       return;
@@ -209,7 +317,8 @@ export function ReservationEditDrawer({
     if (createFor) {
       setFirstName("");
       setLastName("");
-      setPhone("");
+      setPhoneCountryIso(defaultIso);
+      setPhoneLocal("");
       setEmail("");
       setPartySize("2");
       setDateYmd(localDayToYmd(createFor.day));
@@ -226,7 +335,7 @@ export function ReservationEditDrawer({
       setNotifyEmail(true);
       setNotifyWhatsapp(false);
       setTermsAccepted(true);
-      setDwellDraft("");
+      setDwellDraft(String(defaultDwellMinutes));
       setTableId(
         createFor.initialDiningTableId &&
           createFor.initialDiningTableId.length > 0
@@ -234,7 +343,16 @@ export function ReservationEditDrawer({
           : "__none__",
       );
     }
-  }, [reservation, createFor, open]);
+  }, [
+    open,
+    reservation?.id,
+    createFor?.restaurantId,
+    createFor?.day,
+    createFor?.initialTimeHm,
+    createFor?.initialDiningTableId,
+    restaurantIdForFetch,
+    getProfileForRestaurantId,
+  ]);
 
   useEffect(() => {
     if (!open || reservation || !createFor || statuses.length === 0) return;
@@ -279,17 +397,16 @@ export function ReservationEditDrawer({
     const startsLocalCombined = ymdAndHmToDatetimeLocal(dateYmd, timeHm);
     const startsIso = datetimeLocalValueToIso(startsLocalCombined);
     const dwellTrim = dwellDraft.trim();
-    let dwellStored: number | null = null;
     let minutesForEnd = defaultDwellMinutes;
     if (dwellTrim !== "") {
       const n = Number.parseInt(dwellTrim, 10);
       if (!Number.isFinite(n) || n < 15 || n > 1440) {
-        toast.error("Verweildauer leer oder 15–1440 Minuten.");
+        toast.error("Verweildauer: 15–1440 Minuten.");
         return null;
       }
-      dwellStored = n;
       minutesForEnd = n;
     }
+    const dwellStored = minutesForEnd;
     const endsIso = new Date(
       new Date(startsIso).getTime() + minutesForEnd * 60 * 1000,
     ).toISOString();
@@ -297,13 +414,18 @@ export function ReservationEditDrawer({
     return {
       guest_first_name: firstName.trim() || "Gast",
       guest_last_name: lastName.trim(),
-      guest_phone: phone.trim() || null,
+      guest_phone: formatGuestPhone(
+        phoneCountryIso,
+        phoneLocal,
+        countriesForPhone,
+      ),
       guest_email: email.trim() || null,
       party_size: ps,
       starts_at: startsIso,
       ends_at: endsIso,
       status_id: statusId,
-      dining_table_id: tableId === "__none__" ? null : tableId,
+      dining_table_id:
+        tableAssignmentAllowed && tableId !== "__none__" ? tableId : null,
       dwell_minutes: dwellStored,
       notify_email: notifyEmail,
       notify_whatsapp: notifyWhatsapp,
@@ -329,7 +451,7 @@ export function ReservationEditDrawer({
 
     if (isCreate && createFor) {
       setSaving(true);
-      const { error } = await insertReservation({
+      const { data: created, error } = await insertReservation({
         restaurant_id: createFor.restaurantId,
         ...payload,
       });
@@ -338,7 +460,11 @@ export function ReservationEditDrawer({
         toast.error(error.message);
         return;
       }
-      toast.success("Reservierung angelegt.");
+      toast.success(
+        created
+          ? `Reservierung #${created.reservation_number} angelegt. Gast-PIN: ${created.guest_pin}`
+          : "Reservierung angelegt.",
+      );
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       onSaved();
@@ -392,6 +518,19 @@ export function ReservationEditDrawer({
   const fieldClass =
     "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
 
+  const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
+
+  const phoneFieldGroupClass =
+    "flex h-11 w-full min-w-0 overflow-hidden rounded-xl border border-input bg-transparent transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45";
+
+  const phonePrefixTriggerClass = appSelectTriggerAccentCn(
+    "h-11 min-h-11 w-[5.5rem] shrink-0 rounded-none border-0 bg-transparent px-1.5 shadow-none hover:bg-muted/40 focus-visible:ring-0 data-popup-open:ring-0 dark:hover:bg-input/40 [&_[data-slot=select-value]]:gap-1",
+    selectValueNoShrink,
+  );
+
+  const phoneNumberInputClass =
+    "h-11 min-h-0 w-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
+
   const canSave = isEdit || isCreate;
 
   return (
@@ -403,7 +542,6 @@ export function ReservationEditDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        showHandle
         className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
       >
         <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
@@ -412,18 +550,30 @@ export function ReservationEditDrawer({
               <DrawerTitle className="text-xl font-semibold tracking-tight">
                 {isCreate ? "Neue Reservierung" : "Reservierung bearbeiten"}
               </DrawerTitle>
-              <DrawerDescription className="text-base">
+              <div className="space-y-1">
+                <DrawerDescription className="text-base leading-relaxed">
+                  {isEdit && reservation ? (
+                    <ReservationAccessMeta
+                      reservationNumber={reservation.reservation_number}
+                      guestPin={reservation.guest_pin}
+                    />
+                  ) : isCreate ? (
+                    <ReservationAccessMeta
+                      reservationNumber={nextReservationNumber}
+                      guestPin={null}
+                      numberProvisional={nextReservationNumber != null}
+                      pinPending
+                    />
+                  ) : null}
+                </DrawerDescription>
                 {isEdit && reservation ? (
-                  <>
-                    Nr.{" "}
-                    <span className="font-mono font-semibold text-foreground">
-                      #{reservation.reservation_number}
-                    </span>
-                  </>
-                ) : isCreate && createFor ? (
-                  <>Datum: {formatDayHeadingDe(createFor.day)}</>
+                  <ReservationCreatedHint
+                    createdAt={reservation.created_at}
+                    createdByProfileId={reservation.created_by_profile_id}
+                    createdByProfile={reservation.created_by_profile}
+                  />
                 ) : null}
-              </DrawerDescription>
+              </div>
             </div>
             {isEdit && reservation ? (
               <Button
@@ -444,7 +594,91 @@ export function ReservationEditDrawer({
         {open ? (
           <>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className={drawerTwoColClass}>
+                <div className="min-w-0 space-y-1.5">
+                  <Label htmlFor="res-status" className="text-xs text-muted-foreground">
+                    Status
+                  </Label>
+                  <Select
+                    value={statusId}
+                    items={statusItems}
+                    onValueChange={(v) => {
+                      if (typeof v !== "string") return;
+                      setStatusId(v);
+                      const next = statuses.find((s) => s.id === v);
+                      if (next?.code !== "confirmed") setTableId("__none__");
+                    }}
+                  >
+                    <SelectTrigger
+                      id="res-status"
+                      size="sm"
+                      className={appSelectTriggerAccentCn(
+                        "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                        selectValueNoShrink,
+                      )}
+                    >
+                      {selectedStatus ? (
+                        <ReservationStatusLabel status={selectedStatus} />
+                      ) : (
+                        <SelectValue placeholder="Status" />
+                      )}
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statuses.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <ReservationStatusLabel status={s} />
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="res-ps" className="text-xs text-muted-foreground">
+                    Personen
+                  </Label>
+                  <Input
+                    id="res-ps"
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={partySize}
+                    onChange={(e) => setPartySize(e.target.value)}
+                    className={cn(fieldClass, "tabular-nums")}
+                  />
+                </div>
+              </div>
+
+              <div className={drawerTwoColClass}>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Datum</Label>
+                  <DatePickerField
+                    fullWidth
+                    value={dateYmd || null}
+                    onChange={(d) => {
+                      if (d) setDateYmd(d);
+                    }}
+                    placeholder="Datum wählen"
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="res-time"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Uhrzeit
+                  </Label>
+                  <Input
+                    id="res-time"
+                    type="time"
+                    value={timeHm}
+                    onChange={(e) => setTimeHm(e.target.value)}
+                    className={cn(fieldClass, "tabular-nums")}
+                  />
+                </div>
+              </div>
+
+              <div className={drawerTwoColClass}>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-fn" className="text-xs text-muted-foreground">
                     Vorname
@@ -469,18 +703,69 @@ export function ReservationEditDrawer({
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className={drawerTwoColClass}>
                 <div className="space-y-1.5">
-                  <Label htmlFor="res-phone" className="text-xs text-muted-foreground">
+                  <Label htmlFor="res-phone-local" className="text-xs text-muted-foreground">
                     Telefon
                   </Label>
-                  <Input
-                    id="res-phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className={fieldClass}
-                    inputMode="tel"
-                  />
+                  <div className={phoneFieldGroupClass}>
+                    <Select
+                      value={phoneCountryIso}
+                      items={Object.fromEntries(
+                        countriesForPhone.map((c) => [
+                          c.iso2,
+                          `${c.flag_emoji} ${c.dial_code}`,
+                        ]),
+                      )}
+                      onValueChange={(v) => {
+                        if (typeof v === "string") setPhoneCountryIso(v);
+                      }}
+                    >
+                      <SelectTrigger
+                        id="res-phone-country"
+                        size="sm"
+                        aria-label="Landesvorwahl"
+                        className={phonePrefixTriggerClass}
+                      >
+                        {selectedPhoneCountry ? (
+                          <span className="flex items-center gap-1.5">
+                            <span aria-hidden>{selectedPhoneCountry.flag_emoji}</span>
+                            <span>{selectedPhoneCountry.dial_code}</span>
+                          </span>
+                        ) : (
+                          <SelectValue placeholder="+49" />
+                        )}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countriesForPhone.map((c) => (
+                          <SelectItem key={c.iso2} value={c.iso2}>
+                            <span className="flex items-center gap-2">
+                              <span aria-hidden>{c.flag_emoji}</span>
+                              <span className="tabular-nums">{c.dial_code}</span>
+                              <span className="text-muted-foreground">
+                                {c.name_de}
+                              </span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <span
+                      className="shrink-0 self-center px-0.5 text-sm leading-none text-muted-foreground/60 select-none"
+                      aria-hidden
+                    >
+                      |
+                    </span>
+                    <input
+                      id="res-phone-local"
+                      value={phoneLocal}
+                      onChange={(e) => setPhoneLocal(e.target.value)}
+                      className={phoneNumberInputClass}
+                      inputMode="tel"
+                      autoComplete="tel-national"
+                      placeholder="Nummer"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-email" className="text-xs text-muted-foreground">
@@ -496,81 +781,7 @@ export function ReservationEditDrawer({
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-ps" className="text-xs text-muted-foreground">
-                    Personen
-                  </Label>
-                  <Input
-                    id="res-ps"
-                    type="number"
-                    min={1}
-                    max={50}
-                    value={partySize}
-                    onChange={(e) => setPartySize(e.target.value)}
-                    className={cn(fieldClass, "tabular-nums")}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="res-status" className="text-xs text-muted-foreground">
-                    Status
-                  </Label>
-                  <Select
-                    value={statusId}
-                    items={statusItems}
-                    onValueChange={(v) => {
-                      if (typeof v === "string") setStatusId(v);
-                    }}
-                  >
-                    <SelectTrigger
-                      id="res-status"
-                      size="sm"
-                      className={appSelectTriggerAccentCn(
-                        "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
-                        selectValueNoShrink,
-                      )}
-                    >
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {statuses.map((s) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          {s.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid w-full max-w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 sm:w-fit">
-                <Label className="text-xs text-muted-foreground">Datum</Label>
-                <Label
-                  htmlFor="res-time"
-                  className="text-xs text-muted-foreground"
-                >
-                  Uhrzeit
-                </Label>
-                <div className="min-w-0">
-                  <DatePickerField
-                    value={dateYmd || null}
-                    onChange={(d) => {
-                      if (d) setDateYmd(d);
-                    }}
-                    placeholder="Datum wählen"
-                    className="w-full max-w-[min(100%,18rem)] sm:w-[240px]"
-                  />
-                </div>
-                <Input
-                  id="res-time"
-                  type="time"
-                  value={timeHm}
-                  onChange={(e) => setTimeHm(e.target.value)}
-                  className={formScheduleTimeInputClassName}
-                />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className={cn(drawerTwoColClass, "sm:grid-cols-[1fr_1fr]")}>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-dwell" className="text-xs text-muted-foreground">
                     Verweildauer (Min.)
@@ -580,14 +791,10 @@ export function ReservationEditDrawer({
                     type="number"
                     min={15}
                     max={1440}
-                    placeholder={`Standard (${defaultDwellMinutes})`}
                     value={dwellDraft}
                     onChange={(e) => setDwellDraft(e.target.value)}
                     className={cn(fieldClass, "tabular-nums")}
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    Leer = Standard aus Einstellungen ({defaultDwellMinutes} Min.).
-                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-table" className="text-xs text-muted-foreground">
@@ -596,6 +803,7 @@ export function ReservationEditDrawer({
                   <Select
                     value={tableId}
                     items={tableItems}
+                    disabled={!tableAssignmentAllowed}
                     onValueChange={(v) => {
                       if (typeof v === "string") setTableId(v);
                     }}
@@ -603,8 +811,10 @@ export function ReservationEditDrawer({
                     <SelectTrigger
                       id="res-table"
                       size="sm"
+                      disabled={!tableAssignmentAllowed}
                       className={appSelectTriggerAccentCn(
                         "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                        !tableAssignmentAllowed && "cursor-not-allowed opacity-50",
                         selectValueNoShrink,
                       )}
                     >
@@ -619,34 +829,78 @@ export function ReservationEditDrawer({
                       ))}
                     </SelectContent>
                   </Select>
+                  {!tableAssignmentAllowed ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Tischzuordnung nur bei Status „Bestätigt“.
+                    </p>
+                  ) : null}
                 </div>
               </div>
 
               <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Benachrichtigungen & AGB
                 </p>
-                <label className="flex cursor-pointer items-center gap-3">
-                  <Checkbox
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-3",
+                    !hasEmail && "opacity-50",
+                  )}
+                >
+                  <span
+                    id="res-notify-email"
+                    className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
+                  >
+                    <Mail
+                      className="size-4 shrink-0 text-muted-foreground"
+                      aria-hidden
+                    />
+                    E-Mail-Benachrichtigung
+                  </span>
+                  <Switch
                     checked={notifyEmail}
+                    disabled={!hasEmail}
                     onCheckedChange={(v) => setNotifyEmail(v === true)}
+                    size="sm"
+                    aria-labelledby="res-notify-email"
                   />
-                  <span className="text-sm">E-Mail-Benachrichtigung</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-3">
-                  <Checkbox
+                </div>
+                <div
+                  className={cn(
+                    "flex items-center justify-between gap-3",
+                    !hasPhone && "opacity-50",
+                  )}
+                >
+                  <span
+                    id="res-notify-whatsapp"
+                    className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
+                  >
+                    <WhatsAppGlyph className="text-[#25D366]" />
+                    WhatsApp-Benachrichtigung
+                  </span>
+                  <Switch
                     checked={notifyWhatsapp}
+                    disabled={!hasPhone}
                     onCheckedChange={(v) => setNotifyWhatsapp(v === true)}
+                    size="sm"
+                    aria-labelledby="res-notify-whatsapp"
                   />
-                  <span className="text-sm">WhatsApp-Benachrichtigung</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-3">
-                  <Checkbox
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span
+                    id="res-terms"
+                    className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
+                  >
+                    <TermsGlyph className="text-muted-foreground" />
+                    AGB akzeptiert
+                  </span>
+                  <Switch
                     checked={termsAccepted}
                     onCheckedChange={(v) => setTermsAccepted(v === true)}
+                    size="sm"
+                    aria-labelledby="res-terms"
                   />
-                  <span className="text-sm">AGB akzeptiert</span>
-                </label>
+                </div>
               </div>
             </div>
 

@@ -1,10 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
+  if (pathname === "/auth/callback" || pathname.startsWith("/auth/")) return true;
   if (pathname.startsWith("/_next")) return true;
   if (pathname === "/favicon.ico" || pathname === "/robots.txt") return true;
   if (pathname.startsWith("/api/")) return true;
@@ -17,10 +19,9 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request });
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey) {
+  if (!anonKey) {
     if (!isPublicPath(pathname)) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -36,7 +37,7 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const supabase = createServerClient(url, anonKey, {
+  const supabase = createServerClient(resolveSupabaseUrl(request.nextUrl.origin), anonKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

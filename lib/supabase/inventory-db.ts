@@ -279,6 +279,17 @@ export async function insertInventoryTaxonomyRow(
   name: string,
   active: boolean,
 ): Promise<boolean> {
+  return upsertInventoryTaxonomyRow(table, restaurantId, id, name, active);
+}
+
+/** Legt Stammdaten-Zeile an oder aktualisiert Name/Aktiv (z. B. vor Bestell-RPC). */
+export async function upsertInventoryTaxonomyRow(
+  table: InventoryTaxonomyDbTable,
+  restaurantId: string,
+  id: string,
+  name: string,
+  active: boolean,
+): Promise<boolean> {
   const supabase = createSupabaseBrowserClient();
   const { data: last } = await supabase
     .from(table)
@@ -288,16 +299,43 @@ export async function insertInventoryTaxonomyRow(
     .limit(1)
     .maybeSingle();
   const sortOrder = (last?.sort_order ?? -1) + 1;
-  const { error } = await supabase.from(table).insert({
-    restaurant_id: restaurantId,
-    id,
-    name,
-    is_active: active,
-    sort_order: sortOrder,
-  });
+  const { error } = await supabase.from(table).upsert(
+    {
+      restaurant_id: restaurantId,
+      id,
+      name,
+      is_active: active,
+      sort_order: sortOrder,
+    },
+    { onConflict: "restaurant_id,id" },
+  );
   if (error) {
-    console.warn(`[gwada] insert ${table}`, error.message);
+    console.warn(`[gwada] upsert ${table}`, error.message);
     return false;
+  }
+  return true;
+}
+
+/** Lieferanten aus offenen/abgeschlossenen Bestellungen in inventory_suppliers spiegeln. */
+export async function ensurePurchaseOrderSuppliers(
+  restaurantId: string,
+  orders: PurchaseOrder[],
+): Promise<boolean> {
+  const byId = new Map<string, string>();
+  for (const o of orders) {
+    const sid = o.supplierId?.trim();
+    if (!sid) continue;
+    byId.set(sid, o.supplierName?.trim() || sid);
+  }
+  for (const [id, name] of byId) {
+    const ok = await upsertInventoryTaxonomyRow(
+      "inventory_suppliers",
+      restaurantId,
+      id,
+      name,
+      true,
+    );
+    if (!ok) return false;
   }
   return true;
 }
@@ -500,10 +538,13 @@ export async function loadPurchaseOrdersRelational(): Promise<PurchaseOrder[] | 
   return out;
 }
 
+export type InventorySaveResult = { ok: true } | { ok: false; message: string };
+
 export async function savePurchaseOrdersRelational(
   restaurantId: string,
   orders: PurchaseOrder[],
-): Promise<boolean> {
+): Promise<InventorySaveResult> {
+  await ensurePurchaseOrderSuppliers(restaurantId, orders);
   const supabase = createSupabaseBrowserClient();
   const { error } = await supabase.rpc("inventory_replace_purchase_orders", {
     p_restaurant_id: restaurantId,
@@ -511,7 +552,7 @@ export async function savePurchaseOrdersRelational(
   });
   if (error) {
     console.warn("[gwada] inventory_replace_purchase_orders", error.message);
-    return false;
+    return { ok: false, message: error.message };
   }
-  return true;
+  return { ok: true };
 }

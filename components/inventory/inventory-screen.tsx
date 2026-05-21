@@ -936,9 +936,7 @@ export function InventoryScreen() {
                   unitDef != null
                     ? `${unitDef.name}${unitDef.active === false ? " · inaktiv" : ""}`
                     : row.unit;
-                const canOrderRow =
-                  Boolean(row.supplierId?.trim()) &&
-                  suppliers.items.some((s) => s.id === row.supplierId);
+                const canOrderRow = Boolean(row.supplierId?.trim());
                 const orderCtx = getOpenLineContext(row.supplierId, row.id);
 
                 return (

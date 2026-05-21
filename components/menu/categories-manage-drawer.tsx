@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/drawer";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { SortableDragOverlay } from "@/components/ui/sortable-drag-overlay";
+import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
 import { cn } from "@/lib/utils";
 
 /** Kategorien, Lieferanten, Tags, … – gemeinsame Listen-Zeile. */
@@ -59,7 +61,6 @@ export function CategoriesManageDrawer({
 }: CategoriesManageDrawerProps) {
   const copy = { ...DEFAULT_MANAGE_COPY, ...copyProp };
   const [local, setLocal] = React.useState(categories);
-  const [dragId, setDragId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (!open) return;
@@ -67,16 +68,18 @@ export function CategoriesManageDrawer({
   }, [open, categories]);
 
   const ordered = local;
+  const itemIds = React.useMemo(() => ordered.map((c) => c.id), [ordered]);
 
-  const move = (fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
-    if (fromIndex >= ordered.length || toIndex >= ordered.length) return;
-    const next = [...ordered];
-    const [removed] = next.splice(fromIndex, 1);
-    next.splice(toIndex, 0, removed);
-    setLocal(next);
-    onReorder(next);
-  };
+  const sort = useSortableReorder({
+    itemIds,
+    onReorder: ({ fromIndex, toIndex }) => {
+      const next = [...ordered];
+      const [removed] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, removed);
+      setLocal(next);
+      onReorder(next);
+    },
+  });
 
   const toggleActive = (id: string, active: boolean) => {
     const next = ordered.map((c) =>
@@ -94,7 +97,6 @@ export function CategoriesManageDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        showHandle
         className="mx-auto flex max-h-[min(88dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
       >
         <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
@@ -120,30 +122,24 @@ export function CategoriesManageDrawer({
           </Button>
 
           <ul className="space-y-2 pt-1">
-            {ordered.map((cat, index) => (
+            {ordered.map((cat, index) => {
+              const handle = sort.getHandleProps(cat.id);
+              return (
               <li
                 key={cat.id}
-                draggable
-                onDragStart={() => setDragId(cat.id)}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (!dragId || dragId === cat.id) return;
-                  const from = ordered.findIndex((c) => c.id === dragId);
-                  const to = index;
-                  move(from, to);
-                  setDragId(null);
-                }}
-                onDragEnd={() => setDragId(null)}
-                className={cn(
+                ref={(el) => sort.registerItemRef(cat.id, el)}
+                className={sort.getItemDropClassName(
+                  cat.id,
                   "flex items-center gap-2 rounded-xl border border-border/50 bg-muted/20 p-2 shadow-none dark:shadow-xs",
-                  dragId === cat.id && "opacity-60",
                 )}
               >
-                <div className="flex size-10 shrink-0 cursor-grab touch-none items-center justify-center rounded-lg border border-border/40 bg-background text-muted-foreground active:cursor-grabbing">
+                <div
+                  {...handle}
+                  className={cn(
+                    "flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-background text-muted-foreground",
+                    handle.className,
+                  )}
+                >
                   <GripVertical className="size-5" />
                 </div>
                 {rowLeading ? (
@@ -187,8 +183,34 @@ export function CategoriesManageDrawer({
                   </Button>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ul>
+          <SortableDragOverlay
+            activeId={sort.activeId}
+            dragLayout={sort.dragLayout}
+            showGapLine={sort.wouldReorder}
+            renderGhost={(id) => {
+              const cat = ordered.find((c) => c.id === id);
+              if (!cat) return null;
+              return (
+                <div className="flex items-center gap-2 p-2">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-background text-muted-foreground">
+                    <GripVertical className="size-5" />
+                  </div>
+                  {rowLeading ? (
+                    <div className="flex shrink-0">{rowLeading(cat)}</div>
+                  ) : null}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{cat.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Position {ordered.findIndex((c) => c.id === id) + 1}
+                    </p>
+                  </div>
+                </div>
+              );
+            }}
+          />
         </div>
 
         <div className="border-t border-border/50 px-6 py-3">

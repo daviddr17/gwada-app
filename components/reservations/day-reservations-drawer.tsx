@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Pause, Pencil, Play, Plus, ZoomIn, ZoomOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +28,11 @@ import {
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { formatDayHeadingDe } from "@/lib/reservations/month-range";
 import {
+  isConfirmedReservationStatus,
+  reservationAssignedTableLabel,
+  reservationDiningTableLabel,
+} from "@/lib/reservations/reservation-table-assignment";
+import {
   fallbackSlotRangeFromReservations,
   localDateAtSlotMinutes,
   localDateStringForDate,
@@ -38,8 +51,17 @@ import {
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import {
   GuestReservationBadge,
-  pickFloorTableCaption,
+  maxFontSizeThatFitsCaption,
 } from "@/components/reservations/guest-reservation-badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
+  FloorTableChairsAround,
+  floorTableChairInsetPx,
+} from "@/components/reservations/floor-table-chairs";
 import {
   parseTableHex,
   tablePlanMutedClass,
@@ -111,7 +133,12 @@ function sortReservations(
 }
 
 /** Padding um die Tisch-Union in Plan-Koordinaten (0–100, wie plan_*_pct). */
-const TABLE_CROP_PAD = 10;
+const TABLE_CROP_PAD = 5;
+
+/** Zielanteil der sichtbaren Planfläche (unter Zoom/Statistik). */
+const FLOOR_PLAN_HEIGHT_FILL = 0.92;
+/** Geschätzte Höhe von Zoom-Zeile + Statistik innerhalb des scrollbaren Bereichs. */
+const FLOOR_PLAN_CHROME_PX = 100;
 
 /** Achsenparalleles Rechteck aller Tische inkl. Padding — für Ausschnitt + aspect-ratio. */
 function computeTableCropFrame(tables: DiningTableRow[]): {
@@ -145,8 +172,18 @@ function computeTableCropFrame(tables: DiningTableRow[]): {
 }
 
 const FLOOR_ZOOM_MIN = 0.52;
-const FLOOR_ZOOM_MAX = 1.9;
+const FLOOR_ZOOM_MAX = 2.4;
 const FLOOR_ZOOM_STEP = 0.06;
+
+function floorPlanHeightFillZoom(planHpx: number, viewportHpx: number): number {
+  if (planHpx < 12 || viewportHpx < 32) return 1;
+  const target = viewportHpx * FLOOR_PLAN_HEIGHT_FILL;
+  if (planHpx >= target * 0.96) return 1;
+  return Math.min(
+    FLOOR_ZOOM_MAX,
+    Math.max(1, Math.round((target / planHpx) * 100) / 100),
+  );
+}
 
 /**
  * Schrift am Tisch relativ zur sichtbaren Kachelgröße im Ausschnitt (Anteil der Plan-Breite/-Höhe 0–100),
@@ -167,36 +204,170 @@ function dayFloorTableTypography(wPctInCrop: number, hPctInCrop: number) {
   };
 }
 
-/**
- * Schriftgröße für „frei“, sodass das Wort in der Kachel einzeilig vollständig sichtbar bleibt
- * (Platz unter dem Tischlabel, mit Padding und Zeilenhöhe).
- */
-function fitFreiLabelFontPx(params: {
+type DayFloorTableCellLayout = {
+  contentPadPx: number;
+  /** Quer (breiter als hoch): Tischnummer | Inhalt in einer Zeile; hoch: untereinander. */
+  bodyLayout: "stack" | "inline";
+  labelPx: number;
+  labelWidthPx: number | null;
+  innerW: number;
+  bodyGapPx: number;
+  slotFontPx: number;
+  slotWidthPx: number;
+  slotHeightPx: number;
+  slotSepPx: number;
+};
+
+function floorTableContentPadPx(
+  cellWpx: number,
+  cellHpx: number,
+  typoPad: number,
+): number {
+  return Math.max(2, Math.min(typoPad, Math.floor(Math.min(cellWpx, cellHpx) * 0.12)));
+}
+
+function maxSlotFontForCaptions(
+  captions: string[],
+  slotW: number,
+  slotH: number,
+  capPx: number,
+): number {
+  if (captions.length === 0) return 6;
+  let fs = 16;
+  for (const text of captions) {
+    fs = Math.min(
+      fs,
+      maxFontSizeThatFitsCaption(text, slotW, slotH, capPx, 5),
+    );
+  }
+  return fs;
+}
+
+/** Label + Slots: quer = nebeneinander, hoch = untereinander. */
+function layoutDayFloorTableCell(params: {
   cellWpx: number;
   cellHpx: number;
-  contentPadPx: number;
-  labelFontPx: number;
-  contentGapPx: number;
-  compact: boolean;
-}): number {
-  const {
-    cellWpx,
-    cellHpx,
-    contentPadPx,
-    labelFontPx,
-    contentGapPx,
-    compact,
-  } = params;
-  const gap = compact ? 2 : contentGapPx;
-  const innerW = Math.max(4, cellWpx - 2 * contentPadPx);
-  const innerH = Math.max(4, cellHpx - 2 * contentPadPx);
-  const labelBlockH = labelFontPx * 1.32 + gap;
-  const freiH = Math.max(6, innerH - labelBlockH);
-  const freiW = innerW;
-  /** Breite von „frei“ ≈ 2.5× fontSize (UI-Sans); Zeilenhöhe ≈ 1.22×. */
-  const byW = freiW / 2.5;
-  const byH = freiH / 1.22;
-  return Math.max(5, Math.min(36, Math.floor(Math.min(byW, byH))));
+  typo: ReturnType<typeof dayFloorTableTypography>;
+  reservationCount: number;
+  tableLabel: string;
+  slotCaptions: string[];
+}): DayFloorTableCellLayout {
+  const { cellWpx, cellHpx, typo, reservationCount, tableLabel, slotCaptions } =
+    params;
+  const pad = floorTableContentPadPx(cellWpx, cellHpx, typo.contentPadPx);
+  const innerW = Math.max(8, cellWpx - 2 * pad);
+  const innerH = Math.max(8, cellHpx - 2 * pad);
+  const captions = slotCaptions.length > 0 ? slotCaptions : ["frei"];
+  const slotCount = captions.length;
+  const bodyLayout: "inline" | "stack" = innerW > innerH ? "inline" : "stack";
+  const bodyGapPx = 2;
+  const slotSepPx = 4;
+  const labelSepPx = Math.max(5, 6);
+
+  if (bodyLayout === "inline") {
+    const labelW = Math.max(
+      10,
+      Math.min(
+        Math.floor(innerW * 0.34),
+        innerW - slotCount * 14 - bodyGapPx - labelSepPx - 8,
+      ),
+    );
+    const slotsTotalW = Math.max(
+      12,
+      innerW - labelW - bodyGapPx - labelSepPx,
+    );
+    const slotWidthPx =
+      slotCount <= 1
+        ? slotsTotalW
+        : Math.max(
+            10,
+            Math.floor((slotsTotalW - (slotCount - 1) * slotSepPx) / slotCount),
+          );
+    const slotHeightPx = innerH;
+    const labelPx = maxFontSizeThatFitsCaption(
+      tableLabel,
+      labelW,
+      innerH,
+      Math.min(typo.labelPx, Math.floor(innerH * 0.52)),
+      6,
+    );
+    const slotFontPx = maxSlotFontForCaptions(
+      captions,
+      slotWidthPx,
+      slotHeightPx,
+      Math.min(16, Math.floor(Math.min(slotWidthPx, innerH) * 0.88)),
+    );
+    return {
+      contentPadPx: pad,
+      bodyLayout,
+      labelPx: Math.min(labelPx, slotFontPx + 2),
+      labelWidthPx: labelW,
+      innerW,
+      bodyGapPx,
+      slotFontPx,
+      slotWidthPx,
+      slotHeightPx,
+      slotSepPx,
+    };
+  }
+
+  const labelMaxH = Math.max(8, Math.floor(innerH * 0.4));
+  let labelPx = maxFontSizeThatFitsCaption(
+    tableLabel,
+    innerW,
+    labelMaxH,
+    Math.min(typo.labelPx, Math.floor(labelMaxH * 0.95)),
+    6,
+  );
+  const labelBlockH = labelPx * 1.12 + bodyGapPx;
+  let remainH = Math.max(8, innerH - labelBlockH);
+  let slotHeightPx = Math.max(
+    8,
+    Math.floor((remainH - (slotCount - 1) * 2) / slotCount),
+  );
+  const slotWidthPx = innerW;
+  let slotFontPx = maxSlotFontForCaptions(
+    captions,
+    slotWidthPx,
+    slotHeightPx,
+    Math.min(16, Math.floor(Math.min(slotWidthPx, slotHeightPx) * 0.9)),
+  );
+  if (slotFontPx <= 6 && labelPx > 6) {
+    labelPx = Math.max(
+      6,
+      maxFontSizeThatFitsCaption(
+        tableLabel,
+        innerW,
+        Math.max(6, Math.floor(innerH * 0.3)),
+        labelPx - 1,
+        6,
+      ),
+    );
+    remainH = Math.max(8, innerH - labelPx * 1.12 - bodyGapPx);
+    slotHeightPx = Math.max(
+      8,
+      Math.floor((remainH - (slotCount - 1) * 2) / slotCount),
+    );
+    slotFontPx = maxSlotFontForCaptions(
+      captions,
+      slotWidthPx,
+      slotHeightPx,
+      16,
+    );
+  }
+
+  return {
+    contentPadPx: pad,
+    bodyLayout,
+    labelPx,
+    labelWidthPx: null,
+    innerW,
+    bodyGapPx,
+    slotFontPx,
+    slotWidthPx,
+    slotHeightPx,
+    slotSepPx,
+  };
 }
 
 function reservationsAtTableForInstant(
@@ -207,7 +378,13 @@ function reservationsAtTableForInstant(
   const map = new Map<string, ReservationListRow[]>();
   const tableIds = new Set(tables.map((t) => t.id));
   for (const r of reservations) {
-    if (!r.dining_table_id || !tableIds.has(r.dining_table_id)) continue;
+    if (
+      !isConfirmedReservationStatus(r.reservation_statuses) ||
+      !r.dining_table_id ||
+      !tableIds.has(r.dining_table_id)
+    ) {
+      continue;
+    }
     if (!reservationActiveAtInstant(r, instant)) continue;
     const arr = map.get(r.dining_table_id) ?? [];
     arr.push(r);
@@ -239,8 +416,8 @@ export function DayReservationsDrawer({
   const [slotIndex, setSlotIndex] = useState(0);
   const [floorAutoplay, setFloorAutoplay] = useState(false);
   const [floorPlanZoom, setFloorPlanZoom] = useState(1);
-  const floorViewportRef = useRef<HTMLDivElement>(null);
-  const [floorViewportSize, setFloorViewportSize] = useState({ w: 0, h: 0 });
+  const floorPlanMeasureRef = useRef<HTMLDivElement>(null);
+  const [floorPlanAreaSize, setFloorPlanAreaSize] = useState({ w: 0, h: 0 });
   /** Entspricht `p-1` (4px) bzw. `sm:p-2` (8px) am Plan-Wrapper — sonst ist der Plan minimal größer als die nutzbare Fläche. */
   const [floorFitPadPx, setFloorFitPadPx] = useState(4);
   /** Ab sm (640px) wie `sm:grid-cols-2` auf der Seite — sonst wirkt Grid wie Liste. */
@@ -340,34 +517,44 @@ export function DayReservationsDrawer({
     [tablesInArea],
   );
 
+  const floorPlanMaxHeightPx = useMemo(() => {
+    const h = floorPlanAreaSize.h;
+    if (h < 48) return 0;
+    return Math.max(96, h - FLOOR_PLAN_CHROME_PX);
+  }, [floorPlanAreaSize.h]);
+
   const floorPlanFitSize = useMemo(() => {
-    if (!floorCropFrame) return null;
+    if (!floorCropFrame || floorPlanMaxHeightPx < 48) return null;
     const { bw, bh } = floorCropFrame;
     const ar = bh / bw;
     const pad = floorFitPadPx * 2;
-    /** clientWidth/Height minus Rand wie am Plan-Wrapper; 1px Puffer gegen Subpixel-Overflow. */
-    const vw = Math.max(0, floorViewportSize.w - pad - 1);
-    const vh = Math.max(0, floorViewportSize.h - pad - 1);
-    if (vw < 24 || vh < 24) return null;
+    const vw = Math.max(0, floorPlanAreaSize.w - pad - 1);
+    const maxH = Math.max(48, floorPlanMaxHeightPx - pad - 1);
+    if (vw < 24) return null;
     let planW = vw;
     let planH = planW * ar;
-    if (planH > vh) {
-      planH = vh;
+    if (planH > maxH) {
+      planH = maxH;
       planW = planH / ar;
     }
     planW = Math.floor(planW);
     planH = Math.floor(planH);
-    return { planW, planH, ar };
-  }, [floorCropFrame, floorFitPadPx, floorViewportSize.w, floorViewportSize.h]);
+    return { planW, planH, ar, maxH };
+  }, [
+    floorCropFrame,
+    floorFitPadPx,
+    floorPlanAreaSize.w,
+    floorPlanMaxHeightPx,
+  ]);
 
   useLayoutEffect(() => {
     if (!open || viewMode !== "floor") return;
-    const el = floorViewportRef.current;
+    const el = floorPlanMeasureRef.current;
     if (!el) return;
     const measure = () => {
-      const node = floorViewportRef.current;
+      const node = floorPlanMeasureRef.current;
       if (!node) return;
-      setFloorViewportSize({ w: node.clientWidth, h: node.clientHeight });
+      setFloorPlanAreaSize({ w: node.clientWidth, h: node.clientHeight });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -376,8 +563,21 @@ export function DayReservationsDrawer({
   }, [open, viewMode, floorCropFrame, selectedAreaId, tablesInArea.length]);
 
   useEffect(() => {
-    setFloorPlanZoom(1);
-  }, [day?.getTime(), viewMode, selectedAreaId]);
+    if (viewMode !== "floor" || !floorPlanFitSize || floorPlanMaxHeightPx < 48) {
+      setFloorPlanZoom(1);
+      return;
+    }
+    setFloorPlanZoom(
+      floorPlanHeightFillZoom(floorPlanFitSize.planH, floorPlanFitSize.maxH),
+    );
+  }, [
+    day?.getTime(),
+    viewMode,
+    selectedAreaId,
+    floorPlanFitSize?.planH,
+    floorPlanFitSize?.maxH,
+    floorPlanMaxHeightPx,
+  ]);
 
   const slotInstant = useMemo(() => {
     if (!day || floorSlotStartsMinutes.length === 0) return null;
@@ -392,6 +592,37 @@ export function DayReservationsDrawer({
     if (!slotInstant) return new Map<string, ReservationListRow[]>();
     return reservationsAtTableForInstant(tablesInArea, reservations, slotInstant);
   }, [tablesInArea, reservations, slotInstant]);
+
+  const floorSlotStats = useMemo(() => {
+    if (!slotInstant || tablesInArea.length === 0) {
+      return {
+        freeTables: 0,
+        occupiedTables: 0,
+        freeSeats: 0,
+        occupiedSeats: 0,
+        totalSeats: 0,
+      };
+    }
+    let occupiedTables = 0;
+    let occupiedSeats = 0;
+    let totalSeats = 0;
+    for (const t of tablesInArea) {
+      const cap = Math.max(0, Number(t.capacity) || 0);
+      totalSeats += cap;
+      const list = occupancy.get(t.id) ?? [];
+      if (list.length > 0) {
+        occupiedTables += 1;
+        occupiedSeats += list.reduce((sum, r) => sum + r.party_size, 0);
+      }
+    }
+    return {
+      freeTables: tablesInArea.length - occupiedTables,
+      occupiedTables,
+      freeSeats: Math.max(0, totalSeats - occupiedSeats),
+      occupiedSeats,
+      totalSeats,
+    };
+  }, [tablesInArea, occupancy, slotInstant]);
 
   useEffect(() => {
     if (
@@ -430,15 +661,6 @@ export function DayReservationsDrawer({
     };
   }, [floorPlanFitSize, floorPlanZoom]);
 
-  /** Außenmaß des Plan-Rahmens inkl. Innenrand (`p-1` / `sm:p-2` = floorFitPadPx). */
-  const floorPlanShellPx = useMemo(() => {
-    const p = floorFitPadPx * 2;
-    return {
-      w: floorPlanBoxPx.w + p,
-      h: floorPlanBoxPx.h + p,
-    };
-  }, [floorPlanBoxPx.w, floorPlanBoxPx.h, floorFitPadPx]);
-
   const currentSlotLabel = useMemo(() => {
     if (floorSlotStartsMinutes.length === 0 || !day) return "—";
     const m =
@@ -455,7 +677,9 @@ export function DayReservationsDrawer({
     const guest = `${r.guest_first_name} ${r.guest_last_name}`.trim();
     const t = timeDe.format(new Date(r.starts_at));
     const endLabel = timeDe.format(new Date(r.ends_at));
-    const tableLabel = r.dining_tables ? formatDiningTableLabel(r.dining_tables) : null;
+    const tableLabel = compact
+      ? reservationAssignedTableLabel(r)
+      : reservationDiningTableLabel(r);
     const editBtn = (
       <Button
         type="button"
@@ -493,10 +717,14 @@ export function DayReservationsDrawer({
                       maxFontPx={15}
                     />
                   </div>
+                  {tableLabel ? (
+                    <span className="shrink-0 rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium tabular-nums text-foreground">
+                      {tableLabel}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
                   {r.party_size} {r.party_size === 1 ? "Person" : "Personen"} · bis {endLabel}
-                  {tableLabel ? ` · ${tableLabel}` : ""}
                   {st?.name ? ` · ${st.name}` : ""}
                 </p>
               </div>
@@ -583,22 +811,16 @@ export function DayReservationsDrawer({
       handleOnly
     >
       <DrawerContent
-        showHandle
         className={cn(
-          "flex h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 w-full flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
-          "data-[vaul-drawer-direction=bottom]:mt-4 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
+          "mx-auto flex h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 w-full flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
           viewMode === "floor"
-            ? "w-full max-w-full data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:translate-x-0"
-            : "w-full max-w-[42rem] data-[vaul-drawer-direction=bottom]:inset-x-auto data-[vaul-drawer-direction=bottom]:left-1/2 data-[vaul-drawer-direction=bottom]:right-auto data-[vaul-drawer-direction=bottom]:-translate-x-1/2 data-[vaul-drawer-direction=bottom]:w-full",
-          "transition-[max-width,width,transform] duration-[600ms] ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none",
+            ? "max-w-[min(100%,52rem)]"
+            : "max-w-[42rem]",
+          "data-[vaul-drawer-direction=bottom]:mt-4 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
+          "data-[vaul-drawer-direction=bottom]:inset-x-auto data-[vaul-drawer-direction=bottom]:left-1/2 data-[vaul-drawer-direction=bottom]:right-auto data-[vaul-drawer-direction=bottom]:-translate-x-1/2",
         )}
       >
-        <DrawerHeader
-          className={cn(
-            "shrink-0 space-y-3 pt-2 pb-2 text-left",
-            viewMode === "floor" ? "px-3 sm:px-4" : "px-6",
-          )}
-        >
+        <DrawerHeader className="shrink-0 space-y-3 px-6 pt-2 pb-2 text-left">
           <div>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Tagesübersicht
@@ -648,7 +870,7 @@ export function DayReservationsDrawer({
         </DrawerHeader>
 
         {viewMode === "floor" && areas.length > 1 ? (
-          <div className="shrink-0 border-b border-border/40 px-3 pb-2 sm:px-4">
+          <div className="shrink-0 border-b border-border/40 px-6 pb-2">
             <div className="flex gap-1.5 overflow-x-auto pb-1">
               {areas.map((a) => (
                 <button
@@ -670,9 +892,13 @@ export function DayReservationsDrawer({
         ) : null}
 
         <div
+          ref={viewMode === "floor" ? floorPlanMeasureRef : undefined}
+          data-vaul-no-drag={viewMode === "floor" ? true : undefined}
           className={cn(
-            "min-h-0 flex-1 overflow-hidden",
-            viewMode === "floor" ? "px-2 sm:px-3" : "px-6",
+            "min-h-0 flex-1 px-6",
+            viewMode === "floor"
+              ? "overflow-auto overscroll-contain"
+              : "overflow-hidden",
           )}
         >
           {viewMode === "list" && (
@@ -700,7 +926,7 @@ export function DayReservationsDrawer({
             </div>
           )}
           {viewMode === "floor" && (
-            <div className="flex h-full min-h-[200px] flex-col gap-2 pb-2">
+            <div className="flex flex-col gap-1.5 pb-3">
               {!restaurantId ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   Kein Restaurant gewählt — Tischplan nicht verfügbar.
@@ -711,8 +937,8 @@ export function DayReservationsDrawer({
                 </p>
               ) : (
                 <>
-                  <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-                    <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 px-0.5 pt-2">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex shrink-0 flex-wrap items-center justify-center gap-1.5 px-0.5 pt-0.5">
                       <Button
                         type="button"
                         variant="outline"
@@ -743,45 +969,56 @@ export function DayReservationsDrawer({
                         variant="ghost"
                         size="sm"
                         className="h-9 rounded-full px-3 text-xs"
-                        disabled={!floorPlanFitSize || floorPlanZoom === 1}
-                        onClick={() => setFloorPlanZoom(1)}
+                        disabled={!floorPlanFitSize}
+                        onClick={() => {
+                          if (!floorPlanFitSize) return;
+                          setFloorPlanZoom(
+                            floorPlanHeightFillZoom(
+                              floorPlanFitSize.planH,
+                              floorPlanFitSize.maxH,
+                            ),
+                          );
+                        }}
                       >
                         Anpassen
                       </Button>
                     </div>
-                    <div
-                      ref={floorViewportRef}
-                      data-vaul-no-drag
-                      className={cn(
-                        "relative min-h-0 flex-1",
-                        floorPlanZoom > 1 ? "overflow-auto" : "overflow-hidden",
-                      )}
-                    >
+                    <div className="grid shrink-0 grid-cols-2 gap-x-2 gap-y-0.5 rounded-lg border border-border/40 bg-muted/15 px-2.5 py-1.5 text-[10px] leading-snug text-muted-foreground sm:grid-cols-4">
+                      <p>
+                        Freie Tische:{" "}
+                        <span className="font-semibold tabular-nums text-foreground">
+                          {floorSlotStats.freeTables}
+                        </span>
+                      </p>
+                      <p>
+                        Besetzte Tische:{" "}
+                        <span className="font-semibold tabular-nums text-foreground">
+                          {floorSlotStats.occupiedTables}
+                        </span>
+                      </p>
+                      <p>
+                        Freie Plätze:{" "}
+                        <span className="font-semibold tabular-nums text-foreground">
+                          {floorSlotStats.freeSeats}
+                        </span>
+                      </p>
+                      <p>
+                        Besetzte Plätze:{" "}
+                        <span className="font-semibold tabular-nums text-foreground">
+                          {floorSlotStats.occupiedSeats}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="relative w-full shrink-0 rounded-lg bg-muted/10 py-1">
                       {floorCropFrame && floorPlanFitSize ? (
-                        <div
-                          className={cn(
-                            "rounded-2xl border border-border/60 bg-muted/20 shadow-inner",
-                            floorPlanZoom > 1
-                              ? "shrink-0"
-                              : "flex h-full min-h-0 w-full flex-col",
-                          )}
-                          style={
-                            floorPlanZoom > 1
-                              ? {
-                                  width: floorPlanShellPx.w,
-                                  height: floorPlanShellPx.h,
-                                }
-                              : undefined
-                          }
-                        >
-                          <div className="flex min-h-full min-w-full flex-1 items-center justify-center p-1 sm:p-2">
-                        <div
-                          className="relative shrink-0 overflow-hidden rounded-xl bg-muted/15 shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                          style={{
-                            width: floorPlanBoxPx.w,
-                            height: floorPlanBoxPx.h,
-                          }}
-                        >
+                        <div className="box-border flex w-full justify-center p-0.5">
+                          <div
+                            className="relative shrink-0 overflow-visible rounded-xl bg-muted/15 shadow-sm ring-1 ring-border/50"
+                            style={{
+                              width: floorPlanBoxPx.w,
+                              height: floorPlanBoxPx.h,
+                            }}
+                          >
                           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] [background-size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]" />
                           <div className="relative h-full w-full">
                             {tablesInArea.map((t) => {
@@ -801,32 +1038,43 @@ export function DayReservationsDrawer({
                               const cellHpx = (hPct / 100) * planHpx;
                               const typo = dayFloorTableTypography(wPct, hPct);
                               const bg = parseTableHex(t.color_hex) ?? "#94a3b8";
-                              const compact = list.length > 1;
-                              const labelPx = compact
-                                ? Math.max(13, Math.round(typo.labelPx * 0.95))
-                                : typo.labelPx;
-                              const freiFontPx = fitFreiLabelFontPx({
+                              const capacity = Math.max(
+                                0,
+                                Number(t.capacity) || 0,
+                              );
+                              const layoutWide = cellWpx > cellHpx * 1.02;
+                              const chairInset = floorTableChairInsetPx(
+                                capacity,
                                 cellWpx,
                                 cellHpx,
-                                contentPadPx: typo.contentPadPx,
-                                labelFontPx: labelPx,
-                                contentGapPx: typo.contentGapPx,
-                                compact,
+                                layoutWide,
+                              );
+                              const tableWpx = Math.max(
+                                20,
+                                cellWpx - chairInset.left - chairInset.right,
+                              );
+                              const tableHpx = Math.max(
+                                20,
+                                cellHpx - chairInset.top - chairInset.bottom,
+                              );
+                              const slotCaptions =
+                                list.length === 0
+                                  ? ["frei"]
+                                  : list.map(
+                                      (r) => `#${r.reservation_number}`,
+                                    );
+                              const cellLayout = layoutDayFloorTableCell({
+                                cellWpx: tableWpx,
+                                cellHpx: tableHpx,
+                                typo,
+                                reservationCount: list.length,
+                                tableLabel: formatDiningTableLabel(t),
+                                slotCaptions,
                               });
-                              const freiDisplayPx = Math.min(
-                                freiFontPx,
-                                Math.max(5, Math.round(typo.freiPx * 1.35)),
-                              );
-                              const chipInnerW = Math.max(
-                                10,
-                                (wPct / 100) * planWpx -
-                                  2 * typo.contentPadPx -
-                                  6,
-                              );
                               return (
                                 <div
                                   key={t.id}
-                                  className="absolute -translate-x-1/2 -translate-y-1/2 transition-[opacity,transform] duration-150 ease-out"
+                                  className="absolute -translate-x-1/2 -translate-y-1/2 overflow-visible transition-[opacity,transform] duration-150 ease-out"
                                   style={{
                                     left: `${leftPct}%`,
                                     top: `${topPct}%`,
@@ -834,130 +1082,257 @@ export function DayReservationsDrawer({
                                     height: `${hPct}%`,
                                   }}
                                 >
-                                  <div
-                                    className={cn(
-                                      "relative flex h-full w-full flex-col overflow-hidden rounded-2xl border-2 shadow-card transition-colors duration-150 ease-out",
-                                      list.length > 0
-                                        ? cn(
-                                            "border-red-600 dark:border-red-500",
-                                            list.length > 1 &&
-                                              "ring-2 ring-amber-500/90 ring-offset-1 ring-offset-transparent dark:ring-amber-400/90",
-                                          )
-                                        : "border-green-600 dark:border-green-500",
-                                    )}
-                                    style={{ backgroundColor: bg }}
-                                  >
+                                  <div className="relative h-full w-full overflow-visible">
+                                    {capacity > 0 ? (
+                                      <FloorTableChairsAround
+                                        capacity={capacity}
+                                        reservations={list}
+                                        cellWpx={cellWpx}
+                                        cellHpx={cellHpx}
+                                        layoutWide={layoutWide}
+                                      />
+                                    ) : null}
                                     <div
-                                      className="flex min-h-0 flex-1 flex-col items-stretch justify-start text-center transition-opacity duration-150"
+                                      className={cn(
+                                        "absolute flex flex-col overflow-hidden rounded-2xl border-2 shadow-card transition-colors duration-150 ease-out",
+                                        list.length > 0
+                                          ? cn(
+                                              "border-red-600 dark:border-red-500",
+                                              list.length > 1 &&
+                                                "ring-2 ring-amber-500/90 ring-offset-1 ring-offset-transparent dark:ring-amber-400/90",
+                                            )
+                                          : "border-green-600 dark:border-green-500",
+                                      )}
                                       style={{
-                                        padding: typo.contentPadPx,
-                                        gap: compact ? 2 : typo.contentGapPx,
+                                        backgroundColor: bg,
+                                        top: chairInset.top,
+                                        right: chairInset.right,
+                                        bottom: chairInset.bottom,
+                                        left: chairInset.left,
+                                      }}
+                                    >
+                                    <div
+                                      className={cn(
+                                        "flex min-h-0 flex-1 overflow-hidden text-center transition-opacity duration-150",
+                                        cellLayout.bodyLayout === "inline"
+                                          ? "flex-row items-center justify-center"
+                                          : "flex-col items-center justify-center",
+                                      )}
+                                      style={{
+                                        padding: cellLayout.contentPadPx,
+                                        gap: cellLayout.bodyGapPx,
                                       }}
                                     >
                                       <span
                                         className={cn(
-                                          "max-w-full shrink-0 truncate font-semibold leading-tight",
+                                          "shrink-0 truncate font-semibold leading-tight",
                                           tablePlanTextClass(bg),
                                         )}
-                                        style={{ fontSize: labelPx }}
+                                        style={{
+                                          fontSize: cellLayout.labelPx,
+                                          maxWidth:
+                                            cellLayout.labelWidthPx ?? "100%",
+                                        }}
                                       >
                                         {formatDiningTableLabel(t)}
+                                      </span>
+                                      <span
+                                        className={cn(
+                                          "shrink-0 select-none leading-none opacity-45",
+                                          tablePlanMutedClass(bg),
+                                        )}
+                                        style={{
+                                          fontSize: Math.max(
+                                            5,
+                                            cellLayout.slotFontPx - 1,
+                                          ),
+                                        }}
+                                        aria-hidden
+                                      >
+                                        {cellLayout.bodyLayout === "inline"
+                                          ? "|"
+                                          : "–"}
                                       </span>
                                       <div
                                         key={
                                           list.map((x) => x.id).join("-") ||
                                           `empty-${t.id}`
                                         }
-                                        className="flex min-h-0 w-full max-w-full flex-1 flex-col justify-center transition-opacity duration-150"
+                                        className={cn(
+                                          "flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden",
+                                          cellLayout.bodyLayout === "inline"
+                                            ? "flex-row"
+                                            : "flex-col",
+                                        )}
+                                        style={{ gap: 0 }}
                                       >
                                         {list.length === 0 ? (
                                           onCreateReservation && slotInstant ? (
-                                            <button
-                                              type="button"
-                                              data-vaul-no-drag
-                                              className={cn(
-                                                "flex w-full items-center justify-center rounded-md px-0.5 py-0.5 outline-none transition-colors",
-                                                "hover:bg-black/15 active:bg-black/25 dark:hover:bg-white/12 dark:active:bg-white/20",
-                                                "focus-visible:ring-2 focus-visible:ring-white/50",
-                                              )}
-                                              aria-label={`Neue Reservierung um ${timeDe.format(slotInstant)}`}
-                                              onClick={() =>
-                                                onCreateReservation({
-                                                  diningTableId: t.id,
-                                                  startsAt: slotInstant,
-                                                })
-                                              }
-                                            >
-                                              <span
-                                                className={cn(
-                                                  "inline-block max-w-full whitespace-nowrap opacity-80",
-                                                  tablePlanMutedClass(bg),
-                                                )}
-                                                style={{
-                                                  fontSize: freiDisplayPx,
-                                                  lineHeight: 1.1,
-                                                }}
+                                            <Tooltip>
+                                              <TooltipTrigger
+                                                render={
+                                                  <button
+                                                    type="button"
+                                                    data-vaul-no-drag
+                                                    className={cn(
+                                                      "flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden px-0.5 py-0 outline-none",
+                                                      cellLayout.bodyLayout ===
+                                                        "inline"
+                                                        ? "h-full max-w-full"
+                                                        : "w-full",
+                                                      "transition-colors hover:bg-black/15 focus-visible:bg-black/15 focus-visible:ring-1 focus-visible:ring-white/35 dark:hover:bg-white/12 dark:focus-visible:bg-white/12",
+                                                      "touch-manipulation active:bg-black/25 dark:active:bg-white/18",
+                                                      tablePlanMutedClass(bg),
+                                                    )}
+                                                    style={{
+                                                      maxHeight:
+                                                        cellLayout.slotHeightPx,
+                                                      maxWidth:
+                                                        cellLayout.bodyLayout ===
+                                                        "inline"
+                                                          ? cellLayout.slotWidthPx
+                                                          : undefined,
+                                                      fontSize:
+                                                        cellLayout.slotFontPx,
+                                                      lineHeight: 1.12,
+                                                    }}
+                                                    aria-label={`Neue Reservierung um ${timeDe.format(slotInstant)}`}
+                                                    onClick={() =>
+                                                      onCreateReservation({
+                                                        diningTableId: t.id,
+                                                        startsAt: slotInstant,
+                                                      })
+                                                    }
+                                                  >
+                                                    frei
+                                                  </button>
+                                                }
+                                              />
+                                              <TooltipContent
+                                                side="top"
+                                                className="max-w-[14rem] text-left"
                                               >
-                                                frei
-                                              </span>
-                                            </button>
+                                                <p className="font-medium leading-snug">
+                                                  Neue Reservierung
+                                                </p>
+                                                <p className="text-background/85">
+                                                  {timeDe.format(slotInstant)} ·
+                                                  Tisch{" "}
+                                                  {formatDiningTableLabel(t)}
+                                                </p>
+                                              </TooltipContent>
+                                            </Tooltip>
                                           ) : (
                                             <span
                                               className={cn(
-                                                "inline-block max-w-full whitespace-nowrap opacity-80",
+                                                "block w-full truncate opacity-80",
                                                 tablePlanMutedClass(bg),
                                               )}
                                               style={{
-                                                fontSize: freiDisplayPx,
-                                                lineHeight: 1.1,
+                                                fontSize: cellLayout.slotFontPx,
+                                                lineHeight: 1.12,
                                               }}
                                             >
                                               frei
                                             </span>
                                           )
                                         ) : (
-                                          <div className="flex max-h-full w-full flex-col gap-0.5 overflow-y-auto [scrollbar-width:thin]">
-                                            {list.map((res) => {
-                                              const g =
-                                                `${res.guest_first_name} ${res.guest_last_name}`.trim();
-                                              const caption = pickFloorTableCaption(
-                                                res.guest_first_name,
-                                                res.guest_last_name,
-                                                res.reservation_number,
-                                                chipInnerW,
-                                                freiDisplayPx,
-                                              );
-                                              return (
-                                                <button
-                                                  key={res.id}
-                                                  type="button"
-                                                  data-vaul-no-drag
-                                                  className={cn(
-                                                    "flex w-full items-center justify-center rounded-lg border-b border-black/15 px-0.5 py-0.5 text-center outline-none last:border-b-0 dark:border-white/20",
-                                                    "transition-colors hover:bg-black/15 focus-visible:bg-black/15 focus-visible:ring-2 focus-visible:ring-white/40 dark:hover:bg-white/12 dark:focus-visible:bg-white/12",
-                                                    "touch-manipulation active:bg-black/25 dark:active:bg-white/18",
-                                                  )}
-                                                  aria-label={`Reservierung ${g || "Gast"} bearbeiten`}
-                                                  onClick={() => onEdit(res)}
-                                                >
+                                          list.map((res, resIndex) => {
+                                            const g =
+                                              `${res.guest_first_name} ${res.guest_last_name}`.trim();
+                                            const slotText = `#${res.reservation_number}`;
+                                            const partyLabel =
+                                              res.party_size === 1
+                                                ? "1 Person"
+                                                : `${res.party_size} Personen`;
+                                            return (
+                                              <Fragment key={res.id}>
+                                                {resIndex > 0 ? (
                                                   <span
                                                     className={cn(
-                                                      "inline-block max-w-full whitespace-nowrap text-center opacity-90",
+                                                      "shrink-0 select-none opacity-45",
+                                                      cellLayout.bodyLayout ===
+                                                        "inline"
+                                                        ? "px-px leading-none"
+                                                        : "block leading-[0.85]",
                                                       tablePlanMutedClass(bg),
                                                     )}
                                                     style={{
-                                                      fontSize: freiDisplayPx,
-                                                      lineHeight: 1.1,
+                                                      fontSize: Math.max(
+                                                        5,
+                                                        cellLayout.slotFontPx - 1,
+                                                      ),
+                                                      height:
+                                                        cellLayout.bodyLayout ===
+                                                        "stack"
+                                                          ? Math.max(
+                                                              5,
+                                                              cellLayout.slotFontPx -
+                                                                1,
+                                                            )
+                                                          : undefined,
                                                     }}
+                                                    aria-hidden
                                                   >
-                                                    {caption}
+                                                    {cellLayout.bodyLayout ===
+                                                    "inline"
+                                                      ? "|"
+                                                      : "–"}
                                                   </span>
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
+                                                ) : null}
+                                                <Tooltip>
+                                                  <TooltipTrigger
+                                                    render={
+                                                      <button
+                                                        type="button"
+                                                        data-vaul-no-drag
+                                                        className={cn(
+                                                          "flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden px-0.5 py-0 text-center font-medium tabular-nums outline-none",
+                                                          cellLayout.bodyLayout ===
+                                                            "inline"
+                                                            ? "h-full max-w-full"
+                                                            : "w-full",
+                                                          "transition-colors hover:bg-black/15 focus-visible:bg-black/15 focus-visible:ring-1 focus-visible:ring-white/35 dark:hover:bg-white/12 dark:focus-visible:bg-white/12",
+                                                          "touch-manipulation active:bg-black/25 dark:active:bg-white/18",
+                                                          tablePlanMutedClass(bg),
+                                                        )}
+                                                        style={{
+                                                          maxHeight:
+                                                            cellLayout.slotHeightPx,
+                                                          maxWidth:
+                                                            cellLayout.bodyLayout ===
+                                                            "inline"
+                                                              ? cellLayout.slotWidthPx
+                                                              : undefined,
+                                                          fontSize:
+                                                            cellLayout.slotFontPx,
+                                                          lineHeight: 1.12,
+                                                        }}
+                                                        aria-label={`Reservierung ${slotText}, ${g || "Gast"}, ${partyLabel}`}
+                                                        onClick={() => onEdit(res)}
+                                                      >
+                                                        {slotText}
+                                                      </button>
+                                                    }
+                                                  />
+                                                  <TooltipContent
+                                                    side="top"
+                                                    className="max-w-[14rem] space-y-0.5 text-left"
+                                                  >
+                                                    <p className="font-medium leading-snug">
+                                                      {g || "Gast"}
+                                                    </p>
+                                                    <p className="text-background/85">
+                                                      {partyLabel}
+                                                    </p>
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </Fragment>
+                                            );
+                                          })
                                         )}
                                       </div>
+                                    </div>
                                     </div>
                                   </div>
                                 </div>
@@ -965,13 +1340,12 @@ export function DayReservationsDrawer({
                             })}
                           </div>
                         </div>
-                      </div>
-                    </div>
-                    ) : (
-                      <div className="flex min-h-[12rem] w-full items-center justify-center p-6 text-sm text-muted-foreground">
-                        {floorCropFrame ? "Plan wird geladen …" : null}
-                      </div>
-                    )}
+                        </div>
+                      ) : (
+                        <div className="flex min-h-[12rem] w-full items-center justify-center p-6 text-sm text-muted-foreground">
+                          {floorCropFrame ? "Plan wird geladen …" : null}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -983,7 +1357,7 @@ export function DayReservationsDrawer({
         {viewMode === "floor" && floorSlotStartsMinutes.length > 0 ? (
           <div
             data-vaul-no-drag
-            className="shrink-0 space-y-2 border-t border-border/50 bg-card px-3 py-3 touch-pan-y sm:px-4"
+            className="shrink-0 space-y-2 border-t border-border/50 bg-card px-6 py-3 touch-pan-y"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground tabular-nums">
@@ -1040,12 +1414,7 @@ export function DayReservationsDrawer({
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "shrink-0 border-t border-border/50 py-3",
-            viewMode === "floor" ? "px-3 sm:px-4" : "px-6",
-          )}
-        >
+        <div className="shrink-0 border-t border-border/50 px-6 py-3">
           <Button
             type="button"
             variant="outline"

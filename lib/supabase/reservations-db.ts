@@ -68,10 +68,22 @@ export function normalizeReservationDiningTableJoin(
   };
 }
 
+export type ReservationCreatorProfileJoin = {
+  id: string;
+  given_name: string | null;
+  family_name: string | null;
+  display_name: string | null;
+};
+
 export type ReservationListRow = {
   id: string;
   restaurant_id: string;
   reservation_number: number;
+  /** 6-stellig, automatisch bei INSERT; für Gast-Zugang (später Nummer + PIN). */
+  guest_pin: string;
+  created_at: string;
+  created_by_profile_id: string | null;
+  created_by_profile: ReservationCreatorProfileJoin | null;
   guest_first_name: string;
   guest_last_name: string;
   guest_phone: string | null;
@@ -95,13 +107,16 @@ function mapRawToReservationListRow(
   const status = Array.isArray(st) ? (st[0] ?? null) : st;
   const dt = row.dining_tables;
   const tableRaw = Array.isArray(dt) ? (dt[0] ?? null) : dt;
+  const cp = row.created_by_profile;
+  const creatorRaw = Array.isArray(cp) ? (cp[0] ?? null) : cp;
   return {
     ...(row as Omit<
       ReservationListRow,
-      "reservation_statuses" | "dining_tables"
+      "reservation_statuses" | "dining_tables" | "created_by_profile"
     >),
     reservation_statuses: status as ReservationStatusJoin | null,
     dining_tables: normalizeReservationDiningTableJoin(tableRaw),
+    created_by_profile: creatorRaw as ReservationCreatorProfileJoin | null,
   };
 }
 
@@ -109,6 +124,9 @@ const RESERVATION_LIST_ROW_SELECT = `
       id,
       restaurant_id,
       reservation_number,
+      guest_pin,
+      created_at,
+      created_by_profile_id,
       guest_first_name,
       guest_last_name,
       guest_phone,
@@ -122,6 +140,12 @@ const RESERVATION_LIST_ROW_SELECT = `
       notify_whatsapp,
       terms_accepted,
       reservation_statuses ( id, code, name, color_hex ),
+      created_by_profile:created_by_profile_id (
+        id,
+        given_name,
+        family_name,
+        display_name
+      ),
       dining_tables ( * )
     `;
 
@@ -179,6 +203,32 @@ export async function fetchReservationById(params: {
   };
 }
 
+/** Nächste vermutliche `reservation_number` (Counter + 1, sonst 1). */
+export async function fetchNextReservationNumber(
+  restaurantId: string,
+): Promise<{ data: number; error: Error | null }> {
+  if (!isUuidRestaurantId(restaurantId)) {
+    return { data: 1, error: null };
+  }
+  const sb = createSupabaseBrowserClient();
+  const { data, error } = await sb
+    .from("restaurant_reservation_counters")
+    .select("next_number")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (error) {
+    return { data: 1, error: new Error(error.message) };
+  }
+  const last = data?.next_number;
+  const n =
+    typeof last === "number" && Number.isFinite(last)
+      ? last
+      : typeof last === "string"
+        ? Number.parseInt(last, 10)
+        : 0;
+  return { data: (Number.isFinite(n) ? n : 0) + 1, error: null };
+}
+
 export async function fetchReservationStatuses(): Promise<{
   data: ReservationStatusJoin[];
   error: Error | null;
@@ -214,33 +264,47 @@ export type ReservationInsertPayload = ReservationUpdatePayload & {
   restaurant_id: string;
 };
 
+export type ReservationInsertResult = {
+  id: string;
+  reservation_number: number;
+  guest_pin: string;
+};
+
 export async function insertReservation(
   payload: ReservationInsertPayload,
-): Promise<{ error: Error | null }> {
+): Promise<{ data: ReservationInsertResult | null; error: Error | null }> {
   if (!isUuidRestaurantId(payload.restaurant_id)) {
-    return { error: new Error("Ungültige Restaurant-ID.") };
+    return { data: null, error: new Error("Ungültige Restaurant-ID.") };
   }
   const sb = createSupabaseBrowserClient();
-  const { error } = await sb.from("reservations").insert({
-    restaurant_id: payload.restaurant_id,
-    guest_first_name: payload.guest_first_name,
-    guest_last_name: payload.guest_last_name,
-    guest_phone: payload.guest_phone,
-    guest_email: payload.guest_email,
-    party_size: payload.party_size,
-    starts_at: payload.starts_at,
-    ends_at: payload.ends_at,
-    status_id: payload.status_id,
-    dining_table_id: payload.dining_table_id,
-    dwell_minutes: payload.dwell_minutes,
-    notify_email: payload.notify_email,
-    notify_whatsapp: payload.notify_whatsapp,
-    terms_accepted: payload.terms_accepted,
-  });
+  const { data, error } = await sb
+    .from("reservations")
+    .insert({
+      restaurant_id: payload.restaurant_id,
+      guest_first_name: payload.guest_first_name,
+      guest_last_name: payload.guest_last_name,
+      guest_phone: payload.guest_phone,
+      guest_email: payload.guest_email,
+      party_size: payload.party_size,
+      starts_at: payload.starts_at,
+      ends_at: payload.ends_at,
+      status_id: payload.status_id,
+      dining_table_id: payload.dining_table_id,
+      dwell_minutes: payload.dwell_minutes,
+      notify_email: payload.notify_email,
+      notify_whatsapp: payload.notify_whatsapp,
+      terms_accepted: payload.terms_accepted,
+    })
+    .select("id, reservation_number, guest_pin")
+    .single();
   if (error) {
-    return { error: new Error(error.message) };
+    return { data: null, error: new Error(error.message) };
   }
-  return { error: null };
+  const row = data as ReservationInsertResult | null;
+  if (!row?.id || !row.guest_pin) {
+    return { data: null, error: new Error("Reservierung ohne PIN zurückgegeben.") };
+  }
+  return { data: row, error: null };
 }
 
 export async function updateReservation(

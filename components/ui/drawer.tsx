@@ -46,6 +46,10 @@ function DrawerOverlay({
   )
 }
 
+/** Ein Griff — Vaul-Default (32px) + innerer Div erzeugten zuvor zwei Balken. */
+const drawerHandleClassName =
+  "!mx-auto !mt-4 hidden !h-1 !w-[100px] shrink-0 !rounded-full !bg-muted-foreground/30 !opacity-100 group-data-[vaul-drawer-direction=bottom]/drawer-content:!block hover:!opacity-100 [&_[data-vaul-handle-hitarea]]:!absolute [&_[data-vaul-handle-hitarea]]:!inset-0 [&_[data-vaul-handle-hitarea]]:!h-11 [&_[data-vaul-handle-hitarea]]:!w-full [&_[data-vaul-handle-hitarea]]:!min-h-0 [&_[data-vaul-handle-hitarea]]:!bg-transparent"
+
 function DrawerContent({
   className,
   children,
@@ -71,11 +75,9 @@ function DrawerContent({
       >
         {showHandle ? (
           <DrawerPrimitive.Handle
-            className="mx-auto mt-4 hidden shrink-0 group-data-[vaul-drawer-direction=bottom]/drawer-content:block"
+            className={drawerHandleClassName}
             aria-hidden
-          >
-            <div className="mx-auto h-1 w-[100px] rounded-full bg-muted-foreground/30" />
-          </DrawerPrimitive.Handle>
+          />
         ) : null}
         <DrawerFloatingPortalContext.Provider value={floatingHost}>
           {children}

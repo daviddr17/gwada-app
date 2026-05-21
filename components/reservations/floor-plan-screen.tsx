@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { Minus, Pencil, Plus, RotateCcw, Trash2, ZoomIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +26,10 @@ import {
 } from "@/components/reservations/dining-area-drawer";
 import { DiningAreaTabs } from "@/components/reservations/dining-area-tabs";
 import { DiningTableDrawer } from "@/components/reservations/dining-table-drawer";
+import {
+  FloorTableChairsAround,
+  floorTableChairInsetPx,
+} from "@/components/reservations/floor-table-chairs";
 import {
   anchorForResizeCorner,
   clampPct,
@@ -107,10 +118,15 @@ export function FloorPlanScreen() {
     h: number;
   } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ w: 0, h: 0 });
   /** rAF-Batching für Drag-/Resize-Move (weniger Re-Renders). */
   const dragMoveRafRef = useRef<number | null>(null);
   const resizeMoveRafRef = useRef<number | null>(null);
   const dragPendingPctRef = useRef<{ id: string; x: number; y: number } | null>(null);
+  const pointerCaptureRef = useRef<{
+    el: HTMLElement;
+    pointerId: number;
+  } | null>(null);
   const resizePendingRef = useRef<{
     id: string;
     cx: number;
@@ -211,6 +227,20 @@ export function FloorPlanScreen() {
     [tables],
   );
 
+  useLayoutEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const measure = () => {
+      const node = canvasRef.current;
+      if (!node) return;
+      setCanvasSize({ w: node.clientWidth, h: node.clientHeight });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [selectedAreaId, tablesInArea.length, zoom, reloadNonce]);
+
   const bump = () => setReloadNonce((n) => n + 1);
 
   const persistArea = async (payload: DiningAreaSavePayload): Promise<boolean> => {
@@ -279,6 +309,16 @@ export function FloorPlanScreen() {
   };
 
   useEffect(() => {
+    if (!drag && !resize) return;
+    const vp = viewportRef.current;
+    const prevTouchAction = vp?.style.touchAction;
+    if (vp) vp.style.touchAction = "none";
+    return () => {
+      if (vp) vp.style.touchAction = prevTouchAction ?? "";
+    };
+  }, [drag, resize]);
+
+  useEffect(() => {
     if (!drag) return;
     const move = (ev: PointerEvent) => {
       const dx = ((ev.clientX - drag.startClientX) / drag.rectW) * 100;
@@ -293,9 +333,23 @@ export function FloorPlanScreen() {
         if (p) setDragPreview({ id: p.id, x: p.x, y: p.y });
       });
     };
+    const releaseCapture = () => {
+      const cap = pointerCaptureRef.current;
+      if (cap) {
+        try {
+          cap.el.releasePointerCapture(cap.pointerId);
+        } catch {
+          /* ignore */
+        }
+        pointerCaptureRef.current = null;
+      }
+    };
+
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseCapture();
       if (dragMoveRafRef.current !== null) {
         cancelAnimationFrame(dragMoveRafRef.current);
         dragMoveRafRef.current = null;
@@ -326,8 +380,17 @@ export function FloorPlanScreen() {
         bump();
       })();
     };
+    const cancel = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseCapture();
+      setDrag(null);
+      setDragPreview(null);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
     return () => {
       if (dragMoveRafRef.current !== null) {
         cancelAnimationFrame(dragMoveRafRef.current);
@@ -336,6 +399,8 @@ export function FloorPlanScreen() {
       dragPendingPctRef.current = null;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseCapture();
     };
   }, [drag]);
 
@@ -360,9 +425,23 @@ export function FloorPlanScreen() {
         if (p) setResizePreview({ id: p.id, cx: p.cx, cy: p.cy, w: p.w, h: p.h });
       });
     };
+    const releaseCapture = () => {
+      const cap = pointerCaptureRef.current;
+      if (cap) {
+        try {
+          cap.el.releasePointerCapture(cap.pointerId);
+        } catch {
+          /* ignore */
+        }
+        pointerCaptureRef.current = null;
+      }
+    };
+
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseCapture();
       if (resizeMoveRafRef.current !== null) {
         cancelAnimationFrame(resizeMoveRafRef.current);
         resizeMoveRafRef.current = null;
@@ -411,8 +490,17 @@ export function FloorPlanScreen() {
         bump();
       })();
     };
+    const cancel = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseCapture();
+      setResize(null);
+      setResizePreview(null);
+    };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
     return () => {
       if (resizeMoveRafRef.current !== null) {
         cancelAnimationFrame(resizeMoveRafRef.current);
@@ -421,6 +509,8 @@ export function FloorPlanScreen() {
       resizePendingRef.current = null;
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseCapture();
     };
   }, [resize]);
 
@@ -445,6 +535,13 @@ export function FloorPlanScreen() {
       x: Number(t.plan_x_pct),
       y: Number(t.plan_y_pct),
     });
+    const handle = e.currentTarget as HTMLElement;
+    try {
+      handle.setPointerCapture(e.pointerId);
+      pointerCaptureRef.current = { el: handle, pointerId: e.pointerId };
+    } catch {
+      /* ignore */
+    }
     e.preventDefault();
   };
 
@@ -452,6 +549,13 @@ export function FloorPlanScreen() {
     e.preventDefault();
     e.stopPropagation();
     if (!canvasRef.current) return;
+    const handle = e.currentTarget as HTMLElement;
+    try {
+      handle.setPointerCapture(e.pointerId);
+      pointerCaptureRef.current = { el: handle, pointerId: e.pointerId };
+    } catch {
+      /* ignore */
+    }
     const cx = Number(t.plan_x_pct);
     const cy = Number(t.plan_y_pct);
     const w = Number(t.plan_w_pct) || 13;
@@ -594,14 +698,52 @@ export function FloorPlanScreen() {
 
           <div
             ref={viewportRef}
-            className="relative mx-auto aspect-[4/3] min-h-[12rem] w-full max-w-3xl overflow-auto rounded-2xl border border-border/60 bg-muted/25 shadow-inner touch-pan-x touch-pan-y"
+            className="relative mx-auto aspect-[4/3] min-h-[12rem] w-full max-w-3xl overflow-auto overscroll-contain rounded-2xl border border-border/60 bg-muted/25 shadow-inner touch-pan-x touch-pan-y"
           >
             <div
               ref={canvasRef}
-              className="relative shrink-0 aspect-[4/3] bg-muted/20"
+              className="relative shrink-0 aspect-[4/3] overflow-visible bg-muted/20"
               style={zoomWorldStyle}
             >
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] [background-size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]" />
+            {dragPreview
+              ? (() => {
+                  const ghost = tablesInArea.find((t) => t.id === dragPreview.id);
+                  if (!ghost) return null;
+                  const gw = Number(ghost.plan_w_pct) || 13;
+                  const gh = Number(ghost.plan_h_pct) || 20;
+                  return (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute z-[25] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed border-accent bg-accent/15 ring-4 ring-accent/20"
+                      style={{
+                        left: `${dragPreview.x}%`,
+                        top: `${dragPreview.y}%`,
+                        width: `${gw}%`,
+                        height: `${gh}%`,
+                      }}
+                    />
+                  );
+                })()
+              : null}
+            {resizePreview
+              ? (() => {
+                  const ghost = tablesInArea.find((t) => t.id === resizePreview.id);
+                  if (!ghost) return null;
+                  return (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute z-[25] -translate-x-1/2 -translate-y-1/2 rounded-2xl border-2 border-dashed border-accent/90 ring-4 ring-accent/25"
+                      style={{
+                        left: `${resizePreview.cx}%`,
+                        top: `${resizePreview.cy}%`,
+                        width: `${resizePreview.w}%`,
+                        height: `${resizePreview.h}%`,
+                      }}
+                    />
+                  );
+                })()
+              : null}
             {selectedAreaId &&
               tablesInArea.map((t) => {
                 const { left, top } = posFor(t);
@@ -612,11 +754,23 @@ export function FloorPlanScreen() {
                 const activeDrag = drag?.id === t.id;
                 const activeResize = resize?.id === t.id;
                 const corners: FloorResizeCorner[] = ["nw", "ne", "sw", "se"];
+                const capacity = Math.max(0, Number(t.capacity) || 0);
+                const cellWpx =
+                  canvasSize.w > 0 ? (w / 100) * canvasSize.w : 0;
+                const cellHpx =
+                  canvasSize.h > 0 ? (h / 100) * canvasSize.h : 0;
+                const layoutWide = cellWpx > cellHpx * 1.02;
+                const chairInset = floorTableChairInsetPx(
+                  capacity,
+                  cellWpx,
+                  cellHpx,
+                  layoutWide,
+                );
                 return (
                   <div
                     key={t.id}
                     className={cn(
-                      "absolute -translate-x-1/2 -translate-y-1/2 touch-none",
+                      "absolute -translate-x-1/2 -translate-y-1/2 touch-none overflow-visible",
                       (activeDrag || activeResize) && "z-30",
                       activeDrag && "will-change-[left,top]",
                     )}
@@ -627,15 +781,31 @@ export function FloorPlanScreen() {
                       height: `${h}%`,
                     }}
                   >
-                    <div
-                      className={cn(
-                        "relative flex h-full w-full cursor-grab flex-col overflow-hidden rounded-2xl border border-black/15 shadow-card active:cursor-grabbing dark:border-white/20",
-                        activeDrag && "ring-2 ring-accent/40",
-                        activeResize && "ring-2 ring-accent/50",
-                      )}
-                      style={{ backgroundColor: bg }}
-                      onPointerDown={(e) => beginDrag(e, t)}
-                    >
+                    <div className="relative h-full w-full overflow-visible">
+                      {capacity > 0 && cellWpx >= 28 ? (
+                        <FloorTableChairsAround
+                          capacity={capacity}
+                          reservations={[]}
+                          cellWpx={cellWpx}
+                          cellHpx={cellHpx}
+                          layoutWide={layoutWide}
+                        />
+                      ) : null}
+                      <div
+                        className={cn(
+                          "absolute flex cursor-grab flex-col overflow-hidden rounded-2xl border border-black/15 shadow-card active:cursor-grabbing dark:border-white/20",
+                          activeDrag && "ring-2 ring-accent shadow-[0_0_0_4px_color-mix(in_oklch,var(--accent)_25%,transparent)]",
+                          activeResize && "ring-2 ring-accent/50 shadow-[0_0_0_4px_color-mix(in_oklch,var(--accent)_25%,transparent)]",
+                        )}
+                        style={{
+                          backgroundColor: bg,
+                          top: chairInset.top,
+                          right: chairInset.right,
+                          bottom: chairInset.bottom,
+                          left: chairInset.left,
+                        }}
+                        onPointerDown={(e) => beginDrag(e, t)}
+                      >
                       <div
                         className="flex min-h-0 flex-1 flex-col items-center justify-center text-center"
                         style={{
@@ -727,7 +897,7 @@ export function FloorPlanScreen() {
                           />
                         </Button>
                       </div>
-                    </div>
+                      </div>
 
                     {corners.map((corner) => (
                       <div
@@ -752,6 +922,7 @@ export function FloorPlanScreen() {
                         onPointerDown={(e) => beginResize(e, t, corner)}
                       />
                     ))}
+                    </div>
                   </div>
                 );
               })}

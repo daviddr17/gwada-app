@@ -25,6 +25,20 @@ Der Agent führt aus:
 npm run deploy:live:full
 ```
 
+**Nur App-Daten (`public`)** — Gerichte, Reservierungen, Bestand (Login bleibt):
+
+```bash
+npm run sync:live:public
+```
+
+(Wenn lokal nach dem ersten Sync erst Seeds/Demos kamen, einmal nachziehen.)
+
+Mit lokalen **Login-Usern** (`auth`):
+
+```bash
+npm run sync:live:data:all
+```
+
 ## Selbst testen
 
 ```bash

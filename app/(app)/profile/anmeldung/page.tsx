@@ -21,6 +21,12 @@ import { ProfileAnmeldungSkeleton } from "@/components/profile/profile-anmeldung
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  identityHasProvider,
+  startOAuthFlow,
+  unlinkOAuthProvider,
+  type GwadaOAuthProvider,
+} from "@/lib/supabase/oauth";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
 import { cn } from "@/lib/utils";
 
@@ -32,40 +38,43 @@ const oauthConnectedBadgeClassName = cn(
   "border-transparent bg-accent font-normal text-accent-foreground shadow-none",
 );
 
-/** Platzhalter bis echte OAuth-Anbindung (nur UI). */
-const DEMO_OAUTH = {
-  googleSignedIn: true,
-  appleRegistered: true,
-} as const;
-
 export default function ProfileAnmeldungPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwBusy, setPwBusy] = useState(false);
   const [canChangePassword, setCanChangePassword] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(false);
+  const [appleConnected, setAppleConnected] = useState(false);
+  const [identityCount, setIdentityCount] = useState(0);
+  const [oauthBusy, setOauthBusy] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
+
+  const refreshAuthState = async () => {
+    if (!workspacePersistenceConfigured()) {
+      setCanChangePassword(false);
+      setGoogleConnected(false);
+      setAppleConnected(false);
+      setIdentityCount(0);
+      return;
+    }
+    const sb = createSupabaseBrowserClient();
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    const identities = user?.identities ?? [];
+    setIdentityCount(identities.length);
+    setGoogleConnected(identityHasProvider(identities, "google"));
+    setAppleConnected(identityHasProvider(identities, "apple"));
+    const hasEmailIdentity = identities.some((i) => i.provider === "email");
+    setCanChangePassword(Boolean(user?.email && hasEmailIdentity));
+  };
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        if (!workspacePersistenceConfigured()) {
-          setCanChangePassword(false);
-          return;
-        }
-        const sb = createSupabaseBrowserClient();
-        const {
-          data: { user },
-        } = await sb.auth.getUser();
-        if (cancelled) return;
-        if (!user?.email) {
-          setCanChangePassword(false);
-          return;
-        }
-        const hasEmailIdentity =
-          user.identities?.some((i) => i.provider === "email") ?? false;
-        setCanChangePassword(hasEmailIdentity);
+        await refreshAuthState();
       } finally {
         if (!cancelled) setAuthResolved(true);
       }
@@ -91,8 +100,62 @@ export default function ProfileAnmeldungPage() {
     );
   }
 
-  const oauthSoon = () =>
-    toast.info("Konto-Verknüpfung folgt in einem späteren Schritt.");
+  const handleOAuthLink = async (provider: GwadaOAuthProvider) => {
+    if (!workspacePersistenceConfigured()) {
+      toast.error("Supabase ist nicht konfiguriert.");
+      return;
+    }
+    setOauthBusy(true);
+    try {
+      const sb = createSupabaseBrowserClient();
+      const { error } = await startOAuthFlow(sb, provider, { link: true });
+      if (error) {
+        toast.error(
+          provider === "google"
+            ? "Google-Verknüpfung fehlgeschlagen."
+            : "Apple-Verknüpfung fehlgeschlagen.",
+          { description: error.message },
+        );
+      }
+    } finally {
+      setOauthBusy(false);
+    }
+  };
+
+  const handleOAuthUnlink = async (provider: GwadaOAuthProvider) => {
+    if (!workspacePersistenceConfigured()) {
+      toast.error("Supabase ist nicht konfiguriert.");
+      return;
+    }
+    if (identityCount <= 1) {
+      toast.error(
+        "Mindestens eine Anmeldemethode muss bestehen bleiben.",
+      );
+      return;
+    }
+    setOauthBusy(true);
+    try {
+      const sb = createSupabaseBrowserClient();
+      const { error } = await unlinkOAuthProvider(sb, provider);
+      if (error) {
+        toast.error(
+          provider === "google"
+            ? "Google-Trennung fehlgeschlagen."
+            : "Apple-Trennung fehlgeschlagen.",
+          { description: error.message },
+        );
+        return;
+      }
+      toast.success(
+        provider === "google"
+          ? "Google-Verknüpfung entfernt."
+          : "Apple-Verknüpfung entfernt.",
+      );
+      await refreshAuthState();
+    } finally {
+      setOauthBusy(false);
+    }
+  };
 
   const handlePasswordChange = async () => {
     if (!workspacePersistenceConfigured()) {
@@ -168,8 +231,7 @@ export default function ProfileAnmeldungPage() {
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">OAuth &amp; Konten</CardTitle>
           <CardDescription>
-            Google und Apple verknüpfen oder Status prüfen (Anbindung folgt
-            später).
+            Google- und Apple-Konto mit deinem Profil verknüpfen oder trennen.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -178,7 +240,7 @@ export default function ProfileAnmeldungPage() {
               <span className="text-sm font-medium text-muted-foreground">
                 Google
               </span>
-              {DEMO_OAUTH.googleSignedIn ? (
+              {googleConnected ? (
                 <Badge className={oauthConnectedBadgeClassName}>
                   Mit Google verbunden
                 </Badge>
@@ -186,17 +248,28 @@ export default function ProfileAnmeldungPage() {
                 <Badge variant="secondary">Nicht verbunden</Badge>
               )}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
-              onClick={oauthSoon}
-            >
-              <GoogleGlyph />
-              {DEMO_OAUTH.googleSignedIn
-                ? "Google verwalten"
-                : "Mit Google verknüpfen"}
-            </Button>
+            {googleConnected ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
+                disabled={oauthBusy || identityCount <= 1}
+                onClick={() => void handleOAuthUnlink("google")}
+              >
+                Verknüpfung lösen
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
+                disabled={oauthBusy}
+                onClick={() => void handleOAuthLink("google")}
+              >
+                <GoogleGlyph />
+                Mit Google verknüpfen
+              </Button>
+            )}
           </div>
           <Separator />
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -204,7 +277,7 @@ export default function ProfileAnmeldungPage() {
               <span className="text-sm font-medium text-muted-foreground">
                 Apple
               </span>
-              {DEMO_OAUTH.appleRegistered ? (
+              {appleConnected ? (
                 <Badge className={oauthConnectedBadgeClassName}>
                   Mit Apple verbunden
                 </Badge>
@@ -212,21 +285,35 @@ export default function ProfileAnmeldungPage() {
                 <Badge variant="secondary">Nicht verbunden</Badge>
               )}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
-              onClick={oauthSoon}
-            >
-              <Apple className="size-5 shrink-0" aria-hidden />
-              {DEMO_OAUTH.appleRegistered
-                ? "Apple verwalten"
-                : "Mit Apple verknüpfen"}
-            </Button>
+            {appleConnected ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
+                disabled={oauthBusy || identityCount <= 1}
+                onClick={() => void handleOAuthUnlink("apple")}
+              >
+                Verknüpfung lösen
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
+                disabled={oauthBusy}
+                onClick={() => void handleOAuthLink("apple")}
+              >
+                <Apple className="size-5 shrink-0" aria-hidden />
+                Mit Apple verknüpfen
+              </Button>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
-            Badges und Buttons sind Vorschau — echte OAuth-Prüfung und
-            Konto-Verknüpfung werden später implementiert.
+            Provider müssen in Supabase (Dashboard oder lokale Env) aktiviert
+            sein. Redirect-URL:{" "}
+            <span className="font-mono text-foreground/80">
+              /auth/callback
+            </span>
           </p>
         </CardContent>
       </Card>

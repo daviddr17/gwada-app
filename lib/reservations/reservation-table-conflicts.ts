@@ -1,5 +1,6 @@
 import { formatDiningTableLabel, type DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
+import { isConfirmedReservationStatus } from "@/lib/reservations/reservation-table-assignment";
 
 /** Halb-offene Überlappung: [aStart,aEnd) vs [bStart,bEnd) — hier mit DB-Konvention start <= t < end. */
 export function reservationsIntervalsOverlap(
@@ -44,6 +45,7 @@ export function checkTableAssignmentForSave(params: {
   const overlaps = params.knownReservations.filter(
     (r) =>
       r.id !== params.excludeReservationId &&
+      isConfirmedReservationStatus(r.reservation_statuses) &&
       r.dining_table_id === params.tableId &&
       reservationsIntervalsOverlap(
         r.starts_at,

@@ -12,7 +12,6 @@ declare
   st_confirmed uuid;
   st_cancelled uuid;
   st_declined uuid;
-  v_pin text := extensions.crypt('4829', extensions.gen_salt('bf'));
 begin
   select id, coalesce(nullif(trim(timezone), ''), 'UTC')
     into v_rid, v_tz
@@ -49,7 +48,7 @@ begin
     starts_at,
     ends_at,
     status_id,
-    guest_pin_hash,
+    guest_pin,
     notify_email,
     notify_whatsapp,
     terms_accepted,
@@ -67,7 +66,7 @@ begin
       (v_local_today + time '12:30')::timestamp at time zone v_tz,
       (v_local_today + time '14:30')::timestamp at time zone v_tz,
       st_pending,
-      v_pin,
+      '482901',
       true,
       false,
       true,
@@ -84,7 +83,7 @@ begin
       (v_local_today + time '19:00')::timestamp at time zone v_tz,
       (v_local_today + time '21:30')::timestamp at time zone v_tz,
       st_confirmed,
-      v_pin,
+      '193847',
       true,
       true,
       true,
@@ -101,7 +100,7 @@ begin
       ((v_local_today + 1) + time '13:00')::timestamp at time zone v_tz,
       ((v_local_today + 1) + time '15:00')::timestamp at time zone v_tz,
       st_cancelled,
-      null,
+      '550012',
       true,
       false,
       true,
@@ -118,7 +117,7 @@ begin
       ((v_local_today + 2) + time '20:00')::timestamp at time zone v_tz,
       ((v_local_today + 2) + time '22:00')::timestamp at time zone v_tz,
       st_declined,
-      v_pin,
+      '770043',
       false,
       false,
       true,

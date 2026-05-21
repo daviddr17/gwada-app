@@ -3,11 +3,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ArrowLeft,
+  Building2,
   CalendarDays,
   LayoutDashboard,
   LogOut,
   Package,
+  Plug,
   Settings,
+  Shield,
+  Users,
   UtensilsCrossed,
 } from "lucide-react";
 import {
@@ -27,6 +32,7 @@ import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context"
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -50,6 +56,8 @@ export function AppSidebar() {
   const router = useRouter();
   const { profile } = useRestaurantProfile();
   const { firstName, lastName } = usePersonalProfileNames();
+  const { isSuperadmin } = useIsSuperadmin();
+  const inSuperadmin = pathname.startsWith("/superadmin");
 
   const displayName =
     profile.name.trim() || "Restaurant";
@@ -88,50 +96,106 @@ export function AppSidebar() {
       <SidebarContent className="gap-2">
         <SidebarGroup>
           <SidebarGroupLabel className="text-sidebar-foreground/65">
-            Module
+            {inSuperadmin ? "Superadmin" : "Module"}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname === "/dashboard"}
-                  tooltip="Dashboard"
-                  render={<Link href="/dashboard" prefetch />}
-                >
-                  <LayoutDashboard />
-                  <span>Dashboard</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname.startsWith("/menu")}
-                  tooltip="Speisekarte"
-                  render={<Link href="/menu/uebersicht" prefetch />}
-                >
-                  <UtensilsCrossed />
-                  <span>Speisekarte</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname.startsWith("/inventory")}
-                  tooltip="Bestand"
-                  render={<Link href="/inventory" prefetch />}
-                >
-                  <Package />
-                  <span>Bestand</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  isActive={pathname.startsWith("/reservierungen")}
-                  tooltip="Reservierungen"
-                  render={<Link href="/reservierungen/uebersicht" prefetch />}
-                >
-                  <CalendarDays />
-                  <span>Reservierungen</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {inSuperadmin ? (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/users")}
+                      tooltip="User"
+                      render={<Link href="/superadmin/users" prefetch />}
+                    >
+                      <Users />
+                      <span>User</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/restaurants",
+                      )}
+                      tooltip="Restaurants"
+                      render={
+                        <Link href="/superadmin/restaurants" prefetch />
+                      }
+                    >
+                      <Building2 />
+                      <span>Restaurants</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/integrationen",
+                      )}
+                      tooltip="Integrationen"
+                      render={
+                        <Link href="/superadmin/integrationen" prefetch />
+                      }
+                    >
+                      <Plug />
+                      <span>Integrationen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      tooltip="Zurück zum Dashboard"
+                      render={<Link href="/dashboard" prefetch />}
+                    >
+                      <ArrowLeft />
+                      <span>Zurück zum Dashboard</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              ) : (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname === "/dashboard"}
+                      tooltip="Dashboard"
+                      render={<Link href="/dashboard" prefetch />}
+                    >
+                      <LayoutDashboard />
+                      <span>Dashboard</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/menu")}
+                      tooltip="Speisekarte"
+                      render={<Link href="/menu/uebersicht" prefetch />}
+                    >
+                      <UtensilsCrossed />
+                      <span>Speisekarte</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/inventory")}
+                      tooltip="Bestand"
+                      render={<Link href="/inventory" prefetch />}
+                    >
+                      <Package />
+                      <span>Bestand</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/reservierungen")}
+                      tooltip="Reservierungen"
+                      render={
+                        <Link href="/reservierungen/uebersicht" prefetch />
+                      }
+                    >
+                      <CalendarDays />
+                      <span>Reservierungen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -139,6 +203,18 @@ export function AppSidebar() {
       <SidebarSeparator />
       <SidebarFooter>
         <SidebarMenu className="gap-1.5">
+          {isSuperadmin && !inSuperadmin ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={pathname.startsWith("/superadmin")}
+                tooltip="Superadmin"
+                render={<Link href="/superadmin" prefetch />}
+              >
+                <Shield />
+                <span>Superadmin</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <SidebarMenuItem>
             <SidebarMenuButton
               isActive={pathname.startsWith("/settings")}

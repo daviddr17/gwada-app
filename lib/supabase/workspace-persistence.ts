@@ -18,13 +18,18 @@ export type WorkspaceJson =
   | WorkspaceJson[]
   | { [key: string]: WorkspaceJson };
 
-/** True in the browser when public Supabase env is set (used for remote JSON sync). */
-export function workspacePersistenceConfigured(): boolean {
-  if (typeof window === "undefined") return false;
+/** Env gesetzt — identisch auf Server und Client (für UI/Hydration). */
+export function supabasePublicEnvConfigured(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim(),
   );
+}
+
+/** True in the browser when public Supabase env is set (used for remote JSON sync). */
+export function workspacePersistenceConfigured(): boolean {
+  if (typeof window === "undefined") return false;
+  return supabasePublicEnvConfigured();
 }
 
 function workspaceSlug(): string {

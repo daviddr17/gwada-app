@@ -1,15 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
-function getSupabasePublicEnv(): { url: string; anonKey: string } {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY",
-    );
-  }
-  return { url, anonKey };
+async function resolveSupabaseUrlForServer(): Promise<string> {
+  const h = await headers();
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const origin = host ? `${proto}://${host}` : null;
+  return resolveSupabaseUrl(origin);
 }
 
 /**
@@ -17,7 +15,11 @@ function getSupabasePublicEnv(): { url: string; anonKey: string } {
  */
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
-  const { url, anonKey } = getSupabasePublicEnv();
+  const url = await resolveSupabaseUrlForServer();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!anonKey) {
+    throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  }
 
   return createServerClient(url, anonKey, {
     cookies: {

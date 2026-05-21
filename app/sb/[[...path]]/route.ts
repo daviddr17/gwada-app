@@ -1,27 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getSupabaseUpstreamUrl } from "@/lib/supabase/resolve-url";
 
 export const runtime = "nodejs";
 
-/** Fallback wenn Coolify SUPABASE_UPSTREAM_URL nicht in der Runtime-.env hat. */
-const VPS_KONG_UPSTREAM = "http://95.111.229.250:8001";
+/** Kong auf dem VPS — bewusst ohne resolve-url (Coolify hat oft nur Anon-Key zur Runtime). */
+const DEFAULT_UPSTREAM = "http://95.111.229.250:8001";
 
 function upstreamBase(): string {
-  const fromHelper = getSupabaseUpstreamUrl();
-  if (fromHelper) return fromHelper;
   const raw = process.env.SUPABASE_UPSTREAM_URL?.trim();
   if (raw) return raw.replace(/\/+$/, "");
   const pub = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
   if (pub && !pub.includes("/sb")) return pub.replace(/\/+$/, "");
-  if (process.env.NODE_ENV === "production") return VPS_KONG_UPSTREAM;
-  return "http://127.0.0.1:54321";
+  return DEFAULT_UPSTREAM;
 }
 
 async function proxyToSupabase(
   request: NextRequest,
   pathSegments: string[] | undefined,
 ): Promise<NextResponse> {
-  const base = upstreamBase().replace(/\/+$/, "");
+  const base = upstreamBase();
   const subPath = (pathSegments ?? []).join("/");
   const target = new URL(subPath, `${base}/`);
   target.search = request.nextUrl.search;

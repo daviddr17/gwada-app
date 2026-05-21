@@ -188,8 +188,9 @@ export function LoginForm() {
         return;
       }
       const next = safeInternalPath(searchParams.get("next"));
-      router.replace(next);
-      router.refresh();
+      /* Voller Request, damit proxy.ts die frisch gesetzten Auth-Cookies sieht. */
+      window.location.assign(next);
+      return;
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       loginToastError("Anmeldung fehlgeschlagen.", raw);

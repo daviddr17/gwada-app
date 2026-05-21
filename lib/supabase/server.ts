@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
+import { getSupabaseAnonKey } from "@/lib/public-env";
+import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
 async function resolveSupabaseUrlForServer(): Promise<string> {
@@ -16,12 +18,13 @@ async function resolveSupabaseUrlForServer(): Promise<string> {
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
   const url = await resolveSupabaseUrlForServer();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = getSupabaseAnonKey();
   if (!anonKey) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
   return createServerClient(url, anonKey, {
+    cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
       getAll() {
         return cookieStore.getAll();

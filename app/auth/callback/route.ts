@@ -1,7 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
+import { getSupabaseAnonKey } from "@/lib/public-env";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
 function loginRedirect(
@@ -29,13 +31,14 @@ export async function GET(request: NextRequest) {
     return loginRedirect(origin, "Anmeldung abgebrochen oder unvollständig.");
   }
 
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = getSupabaseAnonKey();
   if (!anonKey) {
     return loginRedirect(origin, "Supabase ist nicht konfiguriert.");
   }
 
   const cookieStore = await cookies();
   const supabase = createServerClient(resolveSupabaseUrl(origin), anonKey, {
+    cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
       getAll() {
         return cookieStore.getAll();

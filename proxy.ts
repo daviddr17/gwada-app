@@ -1,6 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
+import { getSupabaseAnonKey } from "@/lib/public-env";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
 function isPublicPath(pathname: string): boolean {
@@ -20,7 +22,7 @@ export async function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request });
 
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = getSupabaseAnonKey();
 
   if (!anonKey) {
     if (!isPublicPath(pathname)) {
@@ -39,6 +41,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const supabase = createServerClient(resolveSupabaseUrl(request.nextUrl.origin), anonKey, {
+    cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
       getAll() {
         return request.cookies.getAll();

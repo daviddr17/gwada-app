@@ -3,12 +3,18 @@ import { getSupabaseUpstreamUrl } from "@/lib/supabase/resolve-url";
 
 export const runtime = "nodejs";
 
+/** Fallback wenn Coolify SUPABASE_UPSTREAM_URL nicht in der Runtime-.env hat. */
+const VPS_KONG_UPSTREAM = "http://95.111.229.250:8001";
+
 function upstreamBase(): string {
-  return (
-    getSupabaseUpstreamUrl() ??
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/sb\/?$/, "").trim() ??
-    "http://127.0.0.1:54321"
-  );
+  const fromHelper = getSupabaseUpstreamUrl();
+  if (fromHelper) return fromHelper;
+  const raw = process.env.SUPABASE_UPSTREAM_URL?.trim();
+  if (raw) return raw.replace(/\/+$/, "");
+  const pub = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (pub && !pub.includes("/sb")) return pub.replace(/\/+$/, "");
+  if (process.env.NODE_ENV === "production") return VPS_KONG_UPSTREAM;
+  return "http://127.0.0.1:54321";
 }
 
 async function proxyToSupabase(

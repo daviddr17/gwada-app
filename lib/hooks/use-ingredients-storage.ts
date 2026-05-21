@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { INGREDIENT_STORAGE_KEY } from "@/lib/constants/inventory-storage";
+import { createId } from "@/lib/create-id";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
 import { toastStorageError } from "@/lib/persist-notify";
@@ -334,7 +335,7 @@ export function useIngredientsStorage() {
 
   const addIngredient = useCallback(
     async (row: NewIngredient): Promise<Ingredient | null> => {
-      const id = crypto.randomUUID();
+      const id = createId();
       const next: Ingredient = {
         ...row,
         id,
@@ -370,7 +371,7 @@ export function useIngredientsStorage() {
       ) {
         const unitId = patch.unit !== undefined ? patch.unit : prev.unit;
         const base = {
-          id: crypto.randomUUID(),
+          id: createId(),
           at: new Date().toISOString(),
           userFirstName: "",
           userLastName: "",

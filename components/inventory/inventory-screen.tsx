@@ -292,6 +292,7 @@ function InventoryOrderAddCell({
   const highlightOrderQty = canOrder && displayOrderQty > 0;
 
   const commit = useCallback(async () => {
+    try {
     if (!canOrder) {
       toast.error(
         "Diese Zutat hat keinen Lieferanten in den Stammdaten und kann nicht bestellt werden.",
@@ -355,6 +356,11 @@ function InventoryOrderAddCell({
       if (!ok) {
         setDraft(String(openQty));
       }
+    }
+    } catch (e) {
+      console.warn("[gwada] Bestellmenge speichern", e);
+      toast.error("Bestellung konnte nicht gespeichert werden.");
+      setDraft(openLineId ? String(openQty) : "");
     }
   }, [
     addLine,

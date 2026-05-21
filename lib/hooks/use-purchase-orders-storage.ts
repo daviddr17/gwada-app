@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
+import { createId } from "@/lib/create-id";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
 import {
@@ -398,7 +399,7 @@ export function usePurchaseOrdersStorage() {
       let createdNewOrder = false;
       if (!order) {
         order = {
-          id: crypto.randomUUID(),
+          id: createId(),
           supplierId: params.supplierId,
           supplierName: params.supplierName,
           status: "open",
@@ -414,7 +415,7 @@ export function usePurchaseOrdersStorage() {
       }
 
       const logEntry: PurchaseOrderLogAdd = {
-        id: crypto.randomUUID(),
+        id: createId(),
         at: new Date().toISOString(),
         userFirstName: "",
         userLastName: "",
@@ -434,7 +435,7 @@ export function usePurchaseOrdersStorage() {
         existing.brandLabel = params.brandLabel;
       } else {
         order.lines.push({
-          id: crypto.randomUUID(),
+          id: createId(),
           ingredientId: params.ingredientId,
           ingredientName: params.ingredientName,
           brandLabel: params.brandLabel,
@@ -560,7 +561,7 @@ export function usePurchaseOrdersStorage() {
       if (!l) return false;
 
       const logEntry: PurchaseOrderLogQuantityChange = {
-        id: crypto.randomUUID(),
+        id: createId(),
         at: new Date().toISOString(),
         userFirstName: "",
         userLastName: "",
@@ -619,7 +620,7 @@ export function usePurchaseOrdersStorage() {
       if (!l) return false;
       l.deliveredAt = new Date().toISOString();
       const logEntry: PurchaseOrderLogMarkedDelivered = {
-        id: crypto.randomUUID(),
+        id: createId(),
         at: new Date().toISOString(),
         userFirstName: "",
         userLastName: "",
@@ -665,7 +666,7 @@ export function usePurchaseOrdersStorage() {
       if (!l) return false;
       delete l.deliveredAt;
       const logEntry: PurchaseOrderLogDeliveryReverted = {
-        id: crypto.randomUUID(),
+        id: createId(),
         at: new Date().toISOString(),
         userFirstName: "",
         userLastName: "",

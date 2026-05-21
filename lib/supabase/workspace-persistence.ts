@@ -5,6 +5,11 @@ import {
   isSupabaseOnlyMode,
 } from "@/lib/constants/database-mode";
 import {
+  getPublicGwadaWorkspaceSlug,
+  getPublicSupabaseUrl,
+  getSupabaseAnonKey,
+} from "@/lib/public-env";
+import {
   GWADA_SUPABASE_FETCH_TIMEOUT_MS,
   raceWithTimeout,
 } from "@/lib/supabase/race-timeout";
@@ -33,7 +38,7 @@ export function workspacePersistenceConfigured(): boolean {
 }
 
 function workspaceSlug(): string {
-  return (process.env.NEXT_PUBLIC_GWADA_WORKSPACE_SLUG || "gwada-demo").trim();
+  return (getPublicGwadaWorkspaceSlug() || "gwada-demo").trim();
 }
 
 /** Cache key = auth user id, or `__anon__` for unauthenticated clients. */

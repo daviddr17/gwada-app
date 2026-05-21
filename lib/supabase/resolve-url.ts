@@ -15,10 +15,13 @@ export function isSupabaseProxyEnabled(): boolean {
   return v === "true" || v === "1" || v === "yes";
 }
 
-/** Upstream (Kong) — nur Server/Rewrites, nicht im Browser. */
+/** Upstream (Kong) — Server-Proxy `/sb` (Route Handler), nicht im Browser. */
 export function getSupabaseUpstreamUrl(): string | null {
   const u = process.env.SUPABASE_UPSTREAM_URL?.trim();
-  return u ? trimSlash(u) : null;
+  if (u) return trimSlash(u);
+  const direct = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (direct && !direct.includes("/sb")) return trimSlash(direct);
+  return null;
 }
 
 /**

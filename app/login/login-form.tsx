@@ -49,7 +49,8 @@ function isTechnicalLoginToastDetail(s: string): boolean {
   return (
     /Restaurant-|Workspace-|App-State|Supabase-Session|Erreichbarkeit|keine Antwort nach|\d+\s*s\b|Zeitüberschreitung|\bnpm\b|`npm|db:start|NEXT_PUBLIC|127\.0\.0\.1|localhost:\d+/i.test(
       t,
-    ) || /^Anmeldung \(Passwort\):/i.test(t)
+    ) ||     /^Anmeldung \(Passwort\):/i.test(t) ||
+    /Missing NEXT_PUBLIC_SUPABASE/i.test(t)
   );
 }
 

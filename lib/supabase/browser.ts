@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { getSupabaseAnonKey } from "@/lib/public-env";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
 /**
@@ -6,7 +7,7 @@ import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
  */
 export function createSupabaseBrowserClient() {
   const url = resolveSupabaseUrl();
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const anonKey = getSupabaseAnonKey();
   if (!anonKey) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }

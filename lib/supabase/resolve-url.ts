@@ -6,6 +6,13 @@
  * NEXT_PUBLIC_SITE_URL=https://deine-app-domain (für SSR/Auth-Callback).
  */
 
+import {
+  getPublicSiteUrl,
+  getPublicSupabaseUrl,
+  getSupabaseAnonKey,
+  isPublicSupabaseProxyEnabled,
+} from "@/lib/public-env";
+
 function trimSlash(s: string): string {
   return s.replace(/\/+$/, "");
 }
@@ -14,15 +21,7 @@ const VPS_APP_ORIGIN = "http://95.111.229.250:3000";
 const VPS_KONG_URL = "http://95.111.229.250:8001";
 
 export function isSupabaseProxyEnabled(): boolean {
-  const v = process.env.NEXT_PUBLIC_SUPABASE_PROXY?.trim().toLowerCase();
-  if (v === "true" || v === "1" || v === "yes") return true;
-  const pub = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  if (pub?.includes("/sb")) return true;
-  /* Coolify-Runtime: oft nur Anon-Key — Live-Build nutzt /sb im Client-Bundle */
-  if (typeof window === "undefined" && process.env.NODE_ENV === "production") {
-    return Boolean(process.env.SUPABASE_UPSTREAM_URL?.trim());
-  }
-  return false;
+  return isPublicSupabaseProxyEnabled();
 }
 
 /** Upstream (Kong) — Server-Proxy `/sb` (Route Handler), nicht im Browser. */
@@ -40,8 +39,7 @@ export function getSupabaseUpstreamUrl(): string | null {
  * @param origin — z. B. aus `new URL(request.url).origin` oder `window.location.origin`
  */
 export function resolveSupabaseUrl(origin?: string | null): string {
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
-  if (!anonKey) {
+  if (!getSupabaseAnonKey()) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
@@ -50,9 +48,9 @@ export function resolveSupabaseUrl(origin?: string | null): string {
     if (typeof window !== "undefined") {
       return `${window.location.origin}/sb`;
     }
-    const site = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+    const site = getPublicSiteUrl();
     if (site) return `${trimSlash(site)}/sb`;
-    const fallback = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+    const fallback = getPublicSupabaseUrl();
     if (fallback) return trimSlash(fallback);
     if (process.env.NODE_ENV === "production") {
       return `${VPS_APP_ORIGIN}/sb`;
@@ -62,7 +60,7 @@ export function resolveSupabaseUrl(origin?: string | null): string {
     );
   }
 
-  const direct = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const direct = getPublicSupabaseUrl();
   if (direct) return trimSlash(direct);
   if (origin) return `${trimSlash(origin)}/sb`;
   if (process.env.NODE_ENV === "production") return VPS_KONG_URL;

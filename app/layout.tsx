@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
+import { GwadaPublicEnvScript } from "@/components/gwada-public-env-script";
 import { AppProviders } from "@/components/providers/app-providers";
 import "./globals.css";
 
@@ -23,6 +24,7 @@ export default function RootLayout({
   return (
     <html lang="de" suppressHydrationWarning className={dmSans.variable}>
       <body className="min-h-dvh font-sans">
+        <GwadaPublicEnvScript />
         <AppProviders>{children}</AppProviders>
       </body>
     </html>

@@ -1,56 +1,10 @@
 "use client";
 
 import { motion } from "framer-motion";
-import {
-  CalendarDays,
-  LayoutGrid,
-  Palette,
-  QrCode,
-  ShieldCheck,
-  Sparkles,
-  UtensilsCrossed,
-} from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { LANDING_FEATURE_ITEMS } from "@/components/landing/landing-feature-items";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-
-const items = [
-  {
-    title: "Digitale Speisekarte",
-    description:
-      "Strukturierte Gerichte, Allergene, schöne Karten — schnell editierbar.",
-    icon: UtensilsCrossed,
-  },
-  {
-    title: "Reservierungen",
-    description:
-      "Tischplan, Slots und Übersicht — ohne visuelles Rauschen für dein Team.",
-    icon: CalendarDays,
-  },
-  {
-    title: "Branding & Akzent",
-    description:
-      "Farben und Typo passend zum Restaurant — konsistent auf allen Flächen.",
-    icon: Palette,
-  },
-  {
-    title: "QR & Gast-Flow",
-    description:
-      "Gäste scannen, lesen, bestellen — linear und vertraut wie iOS.",
-    icon: QrCode,
-  },
-  {
-    title: "Mandantenfähig",
-    description:
-      "Workspace, Rollen, Team — sauber getrennt, enterprise-tauglich skalierbar.",
-    icon: LayoutGrid,
-  },
-  {
-    title: "Zuverlässigkeit",
-    description:
-      "Klare Fehlerbilder, robuste Syncs — weniger Support, mehr Vertrauen.",
-    icon: ShieldCheck,
-  },
-];
 
 const container = {
   hidden: {},
@@ -96,7 +50,7 @@ export function LandingFeatures() {
           viewport={{ once: true, margin: "-60px" }}
           className="mt-16 grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
         >
-          {items.map((it) => (
+          {LANDING_FEATURE_ITEMS.map((it) => (
             <motion.div key={it.title} variants={itemV}>
               <Card
                 className={cn(

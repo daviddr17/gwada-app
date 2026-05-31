@@ -3,5 +3,5 @@ export const gwadaSupabaseCookieOptions = {
   name: "sb-gwada-auth",
   path: "/",
   sameSite: "lax" as const,
-  secure: false,
+  secure: process.env.NODE_ENV === "production",
 };

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
-SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://127.0.0.1:8001}"
+SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 SSH_USER="${LIVE_SSH_USER:-root}"
 

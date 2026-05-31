@@ -6,9 +6,7 @@ import { loadEnvConfig } from "@next/env";
 const projectDir = process.cwd();
 loadEnvConfig(projectDir);
 
-/** Hostnames für Production-Image-Optimizer (exakter Match; remotePatterns-Regex allein reicht in Next 16 prod nicht). */
-const menuImageDomains = ["images.unsplash.com"] as const;
-
+/** Hostnames für Production-Image-Optimizer via remotePatterns. */
 const gwadaAppStorageHostnames = ["new.gwada.app", "gwada.app"] as const;
 
 const supabaseStoragePatterns = [
@@ -44,7 +42,6 @@ const supabaseStoragePatterns = [
 
 const nextConfig: NextConfig = {
   images: {
-    domains: [...menuImageDomains],
     remotePatterns: [
       {
         protocol: "https",

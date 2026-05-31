@@ -10,6 +10,8 @@ import { fetchPlatformAppBranding } from "@/lib/supabase/platform-app-settings-d
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const dmSans = DM_Sans({
   variable: "--font-sans",
   subsets: ["latin"],

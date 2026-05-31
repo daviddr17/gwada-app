@@ -80,7 +80,7 @@ fi
 
 echo ""
 echo "→ Coolify-App: Proxy-Env (${APP_ORIGIN})…"
-APP_ORIGIN="${APP_ORIGIN}" SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://127.0.0.1:8001}" \
+APP_ORIGIN="${APP_ORIGIN}" SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}" \
   LIVE_VPS_HOST="${VPS}" LIVE_SSH_USER="${SSH_USER}" \
   bash "${ROOT}/scripts/coolify-env-live-proxy.sh"
 

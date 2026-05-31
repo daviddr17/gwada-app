@@ -16,7 +16,10 @@ export function toastDatabaseSaveError(message: string | undefined): void {
     trimmed.includes("inventory_po_fk_supplier") ||
     trimmed.includes("inventory_suppliers")
       ? "Lieferant fehlt in den Stammdaten. Bitte unter Bestand → Lieferanten speichern oder Seite neu laden."
-      : trimmed.includes("permission denied for function") ||
+      : trimmed.includes("opening_hours_times_when_open")
+        ? "Bitte für jeden geöffneten Tag Von- und Bis-Zeit angeben (Format HH:MM)."
+        : trimmed.includes("permission denied for function") ||
+          trimmed.includes("row-level security") ||
           trimmed.includes("not authorized") ||
           trimmed.includes("42501")
         ? "Anmeldung fehlt oder ist abgelaufen — bitte erneut einloggen. Bei HTTPS-App: Supabase-Proxy in Coolify aktivieren (siehe docs/supabase-lokal-und-live.md)."

@@ -7,6 +7,7 @@ import {
 } from "@/lib/constants/restaurant-profile";
 import {
   isUuidRestaurantId,
+  normalizeScheduleHHmm,
   openingHoursDbEnabled,
 } from "@/lib/supabase/opening-hours-db";
 import { defaultExceptionDateString } from "@/lib/restaurant/date-exception-utils";
@@ -162,6 +163,16 @@ export function validateProfile(p: RestaurantProfile): string | null {
 
 /** Vor dem Speichern: trimmen, leere Website normalisieren, Sortierung */
 export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile {
+  const weeklyHours = { ...p.weeklyHours };
+  for (const day of WEEKDAY_ORDER) {
+    const h = p.weeklyHours[day];
+    weeklyHours[day] = {
+      ...h,
+      open: h.closed ? undefined : normalizeScheduleHHmm(h.open),
+      close: h.closed ? undefined : normalizeScheduleHHmm(h.close),
+    };
+  }
+
   return {
     ...p,
     slug: normalizeRestaurantSlugInput(p.slug),
@@ -172,6 +183,7 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     country: p.country.trim() || "Deutschland",
     website: normalizeWebsite(p.website),
     phone: p.phone.trim(),
+    weeklyHours,
     dateExceptions: [...p.dateExceptions]
       .map((ex) => {
         const trimmed = ex.date?.trim() ?? "";
@@ -180,8 +192,8 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
           ...ex,
           date: dateOk ? trimmed : defaultExceptionDateString(),
           note: ex.note?.trim() || undefined,
-          open: ex.closed ? undefined : ex.open?.trim(),
-          close: ex.closed ? undefined : ex.close?.trim(),
+          open: ex.closed ? undefined : normalizeScheduleHHmm(ex.open),
+          close: ex.closed ? undefined : normalizeScheduleHHmm(ex.close),
         };
       })
       .sort((a, b) => a.date.localeCompare(b.date)),

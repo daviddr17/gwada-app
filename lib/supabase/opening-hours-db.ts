@@ -23,12 +23,22 @@ function timeToHHmm(t: string | null | undefined): string | undefined {
   return `${h}:${m[2]}`;
 }
 
-function hhmmToPgTime(s: string | undefined): string | null {
-  if (!s?.trim()) return null;
-  const t = s.trim();
-  if (!/^\d{2}:\d{2}$/.test(t)) return null;
-  return `${t}:00`;
+/** Client-Zeiten (z. B. `9:30`) → `09:30` für Postgres-`time`. */
+export function normalizeScheduleHHmm(
+  s: string | undefined,
+): string | undefined {
+  return timeToHHmm(s);
 }
+
+function hhmmToPgTime(s: string | undefined): string | null {
+  const normalized = timeToHHmm(s);
+  if (!normalized) return null;
+  return `${normalized}:00`;
+}
+
+export type OpeningHoursSaveResult =
+  | { ok: true }
+  | { ok: false; error: string };
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -115,8 +125,10 @@ export async function replaceOpeningHoursForRestaurant(
     RestaurantProfile,
     "weeklyHours" | "dateExceptions"
   >,
-): Promise<boolean> {
-  if (!openingHoursDbEnabled()) return false;
+): Promise<OpeningHoursSaveResult> {
+  if (!openingHoursDbEnabled()) {
+    return { ok: false, error: "Supabase ist nicht konfiguriert." };
+  }
   const supabase = createSupabaseBrowserClient();
 
   const { error: delErr } = await supabase
@@ -125,7 +137,7 @@ export async function replaceOpeningHoursForRestaurant(
     .eq("restaurant_id", restaurantId);
   if (delErr) {
     console.warn("[gwada] opening_hours delete", delErr.message);
-    return false;
+    return { ok: false, error: delErr.message };
   }
 
   const inserts: Record<string, unknown>[] = [];
@@ -163,7 +175,7 @@ export async function replaceOpeningHoursForRestaurant(
   const { error: insErr } = await supabase.from("opening_hours").insert(inserts);
   if (insErr) {
     console.warn("[gwada] opening_hours insert", insErr.message);
-    return false;
+    return { ok: false, error: insErr.message };
   }
-  return true;
+  return { ok: true };
 }

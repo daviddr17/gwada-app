@@ -17,8 +17,7 @@ import {
 } from "@/lib/restaurant/profile-utils";
 import { RESTAURANT_STORAGE_KEY } from "@/lib/constants/restaurant-profile";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
-import { toastStorageError } from "@/lib/persist-notify";
-import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import { toastDatabaseSaveError } from "@/lib/supabase/db-toast";
 import {
   getWorkspaceRestaurantId,
   GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
@@ -112,7 +111,6 @@ export function RestaurantProfileProvider({
   children: React.ReactNode;
 }) {
   const supabaseOnly = isSupabaseOnlyMode();
-  const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
 
   const [store, setStore] = useState<RestaurantPersistenceV1>(() =>
     parsePersistence(null),
@@ -136,7 +134,7 @@ export function RestaurantProfileProvider({
           mem.dateExceptions.length > 0)
       ) {
         const ok = await replaceOpeningHoursForRestaurant(rid, mem);
-        if (!ok) return;
+        if (!ok.ok) return;
         const again = await loadOpeningHoursForRestaurant(rid);
         if (!again) return;
         loaded = again;
@@ -261,7 +259,7 @@ export function RestaurantProfileProvider({
         return true;
       })();
     },
-    [failSave],
+    [],
   );
 
   const saveOpeningHours = useCallback(
@@ -290,13 +288,13 @@ export function RestaurantProfileProvider({
       setStore((p) => ({ ...p, restaurants }));
 
       if (useDb) {
-        const ok = await replaceOpeningHoursForRestaurant(rid, {
+        const result = await replaceOpeningHoursForRestaurant(rid, {
           weeklyHours: next.weeklyHours,
           dateExceptions: next.dateExceptions,
         });
-        if (!ok) {
+        if (!result.ok) {
           setStore(snapshot);
-          failSave();
+          toastDatabaseSaveError(result.error);
           return false;
         }
       }
@@ -311,7 +309,7 @@ export function RestaurantProfileProvider({
       toast.success("Öffnungszeiten gespeichert");
       return true;
     },
-    [failSave],
+    [],
   );
 
   const patchProfile = useCallback((partial: Partial<RestaurantProfile>) => {

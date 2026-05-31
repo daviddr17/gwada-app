@@ -21,6 +21,8 @@ export type SuperadminCoolifyDeploymentInfo = {
   supabasePublicUrl: string | null;
   supabaseUpstream: string | null;
   supabaseStudioHint: string | null;
+  /** z. B. SSH-Tunnel-Hinweis, wenn Studio nicht öffentlich erreichbar ist */
+  supabaseStudioAccessNote: string | null;
   dashboardUrl: string | null;
   deployBranch: string | null;
   sourceCommit: string | null;

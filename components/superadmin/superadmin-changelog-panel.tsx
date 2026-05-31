@@ -161,9 +161,7 @@ export function SuperadminChangelogPanel() {
 
   const handleGitSync = async () => {
     setSyncing(true);
-    const { result, error } = await syncSuperadminChangelogFromGit({
-      gitRange: "HEAD~30..HEAD",
-    });
+    const { result, error } = await syncSuperadminChangelogFromGit();
     setSyncing(false);
     if (error) {
       toast.error(error);

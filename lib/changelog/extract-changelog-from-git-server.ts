@@ -7,16 +7,41 @@ import { gitFieldsToChangelogPayload } from "@/lib/changelog/parse-changelog-fro
 import type { GitCommitChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 
 export const GIT_LOG_FORMAT = "%H%x1f%s%x1f%b%x1f%aI%x1e";
+export const DEFAULT_CHANGELOG_GIT_MAX_COMMITS = 30;
+
+/**
+ * `HEAD~30..HEAD` scheitert bei wenigen Commits / Shallow-Clones.
+ * `HEAD~N..HEAD` → letzte N Commits via `-N`; sonst Range unverändert.
+ */
+export function buildGitLogArgs(range?: string | null): string[] {
+  const trimmed = range?.trim();
+  const headRange = trimmed?.match(/^HEAD~(\d+)\.\.HEAD$/i);
+  if (headRange) {
+    const n = Number.parseInt(headRange[1] ?? "", 10);
+    if (Number.isFinite(n) && n > 0) {
+      return ["log", `-${n}`, `--format=${GIT_LOG_FORMAT}`, "--reverse"];
+    }
+  }
+  if (trimmed && /^-\d+$/.test(trimmed)) {
+    return ["log", trimmed, `--format=${GIT_LOG_FORMAT}`, "--reverse"];
+  }
+  if (trimmed) {
+    return ["log", trimmed, `--format=${GIT_LOG_FORMAT}`, "--reverse"];
+  }
+  return [
+    "log",
+    `-${DEFAULT_CHANGELOG_GIT_MAX_COMMITS}`,
+    `--format=${GIT_LOG_FORMAT}`,
+    "--reverse",
+  ];
+}
 
 export function extractChangelogPayloadsFromGit(
-  range: string,
+  range?: string | null,
   repoRoot?: string,
 ): GitCommitChangelogPayload[] {
   const root = repoRoot ?? resolveChangelogGitRepoRoot();
-  const output = execFileSync(
-    "git",
-    ["log", range, `--format=${GIT_LOG_FORMAT}`, "--reverse"],
-    {
+  const output = execFileSync("git", buildGitLogArgs(range), {
       encoding: "utf8",
       cwd: root,
       maxBuffer: 10 * 1024 * 1024,

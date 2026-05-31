@@ -265,17 +265,19 @@ export function SuperadminDatabasePanel() {
           <CardTitle className="text-base">Coolify / Deployment</CardTitle>
           <CardDescription>
             Laufzeit-Container und öffentliche Endpunkte auf dem VPS — keine
-            Secrets.
+            Secrets. „Coolify-Deploy“ = App läuft in Coolify (nicht die
+            Webapp-URL). „Phase“ leitet sich aus der App-Domain ab (Staging =
+            new.gwada.app vor Cutover auf gwada.app).
           </CardDescription>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-3">
             <InfoRow
-              label="Erkannt"
+              label="Coolify-Deploy"
               value={
                 status.coolify.detected
-                  ? "Ja"
-                  : "Nein (lokal oder ohne Proxy)"
+                  ? "Ja (VPS / Proxy-Env)"
+                  : "Nein (lokal oder ohne Coolify-Env)"
               }
             />
             <InfoRow
@@ -339,10 +341,21 @@ export function SuperadminDatabasePanel() {
               label="Supabase Studio"
               value={
                 status.coolify.supabaseStudioHint ? (
-                  <InfoRowLink
-                    href={status.coolify.supabaseStudioHint}
-                    label={status.coolify.supabaseStudioHint}
-                  />
+                  <span className="flex flex-col gap-1">
+                    <InfoRowLink
+                      href={status.coolify.supabaseStudioHint}
+                      label={status.coolify.supabaseStudioHint}
+                    />
+                    {status.coolify.supabaseStudioAccessNote ? (
+                      <span className="text-xs font-normal text-muted-foreground">
+                        {status.coolify.supabaseStudioAccessNote}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : status.coolify.supabaseStudioAccessNote ? (
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {status.coolify.supabaseStudioAccessNote}
+                  </span>
                 ) : (
                   "—"
                 )
@@ -353,7 +366,7 @@ export function SuperadminDatabasePanel() {
               value={status.coolify.proxyEnabled ? "Ja" : "Nein"}
             />
             <InfoRow
-              label="Coolify-Dashboard"
+              label="Coolify-UI"
               value={
                 status.coolify.dashboardUrl ? (
                   <InfoRowLink
@@ -361,7 +374,7 @@ export function SuperadminDatabasePanel() {
                     label={status.coolify.dashboardUrl}
                   />
                 ) : (
-                  "Optional: GWADA_COOLIFY_DASHBOARD_URL"
+                  "Optional: GWADA_COOLIFY_DASHBOARD_URL (nicht COOLIFY_URL — das ist die App)"
                 )
               }
             />
@@ -370,11 +383,14 @@ export function SuperadminDatabasePanel() {
               value={status.coolify.deployBranch ?? "—"}
             />
             <InfoRow
-              label="Commit"
+              label="Build-Commit"
               value={
                 status.coolify.sourceCommit ? (
                   <span className="font-mono text-xs font-normal">
                     {status.coolify.sourceCommit.slice(0, 12)}
+                    <span className="ml-1 font-sans text-muted-foreground">
+                      (SOURCE_COMMIT beim letzten Deploy)
+                    </span>
                   </span>
                 ) : (
                   "—"

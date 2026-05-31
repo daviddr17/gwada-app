@@ -44,11 +44,11 @@ function parseSafeHttpOrigin(raw: string | undefined): string | null {
   }
 }
 
-function supabaseStudioHintFromUpstream(upstream: string | null): string | null {
+function supabaseStudioHintFromLocalUpstream(upstream: string | null): string | null {
   if (!upstream) return null;
   try {
     const u = new URL(upstream);
-    if (u.port === "8001" || u.hostname !== "127.0.0.1") {
+    if (u.hostname === "127.0.0.1" || u.hostname === "localhost") {
       u.port = "54323";
       u.pathname = "";
       u.search = "";
@@ -57,6 +57,53 @@ function supabaseStudioHintFromUpstream(upstream: string | null): string | null 
     }
   } catch {
     return null;
+  }
+  return null;
+}
+
+function resolveSupabaseStudioDisplay(upstream: string | null): {
+  url: string | null;
+  note: string | null;
+} {
+  const explicit = parseSafeHttpOrigin(process.env.GWADA_SUPABASE_STUDIO_URL);
+  const dockerKong = Boolean(upstream?.includes("supabase-kong-"));
+  const firewallNote =
+    "Port 54323 ist auf dem VPS nicht öffentlich — Zugriff per SSH-Tunnel (siehe docs/supabase-lokal-und-live.md).";
+
+  if (explicit) {
+    return { url: explicit, note: dockerKong ? firewallNote : null };
+  }
+
+  if (dockerKong) {
+    const host = process.env.GWADA_VPS_PUBLIC_HOST?.trim()?.replace(
+      /^https?:\/\//,
+      "",
+    );
+    if (host) {
+      return { url: `http://${host.split("/")[0]}:54323`, note: firewallNote };
+    }
+    return {
+      url: null,
+      note:
+        "Studio hängt nicht an Kong — eigener Container auf Host-Port 54323. GWADA_SUPABASE_STUDIO_URL optional setzen.",
+    };
+  }
+
+  return {
+    url: supabaseStudioHintFromLocalUpstream(upstream),
+    note: null,
+  };
+}
+
+function resolveCoolifyDashboardUrl(): string | null {
+  const explicit = parseSafeHttpOrigin(process.env.GWADA_COOLIFY_DASHBOARD_URL);
+  if (explicit) return explicit;
+  const host = process.env.GWADA_VPS_PUBLIC_HOST?.trim()?.replace(
+    /^https?:\/\//,
+    "",
+  );
+  if (host) {
+    return `http://${host.split("/")[0]}:8000`;
   }
   return null;
 }
@@ -87,21 +134,19 @@ function buildCoolifyDeploymentInfo(): SuperadminDatabaseStatus["coolify"] {
   const supabaseUpstream = parseSafeHttpOrigin(
     process.env.SUPABASE_UPSTREAM_URL,
   );
+  const studio = resolveSupabaseStudioDisplay(supabaseUpstream);
   const proxyEnabled = isPublicSupabaseProxyEnabled();
-  const dashboardUrl =
-    parseSafeHttpOrigin(process.env.GWADA_COOLIFY_DASHBOARD_URL) ??
-    parseSafeHttpOrigin(process.env.COOLIFY_URL) ??
-    null;
+  const dashboardUrl = resolveCoolifyDashboardUrl();
   const deployBranch = process.env.COOLIFY_BRANCH?.trim() || null;
   const sourceCommit =
     process.env.SOURCE_COMMIT?.trim() ||
     process.env.COOLIFY_COMMIT?.trim() ||
     null;
   const detected = Boolean(
-    dashboardUrl ||
-      deployBranch ||
+    deployBranch ||
       sourceCommit ||
       process.env.COOLIFY_FQDN?.trim() ||
+      process.env.COOLIFY_RESOURCE_UUID?.trim() ||
       (runtime === "production" && proxyEnabled && supabaseUpstream),
   );
 
@@ -114,7 +159,8 @@ function buildCoolifyDeploymentInfo(): SuperadminDatabaseStatus["coolify"] {
     plannedProductionUrl,
     supabasePublicUrl,
     supabaseUpstream,
-    supabaseStudioHint: supabaseStudioHintFromUpstream(supabaseUpstream),
+    supabaseStudioHint: studio.url,
+    supabaseStudioAccessNote: studio.note,
     dashboardUrl,
     deployBranch,
     sourceCommit,

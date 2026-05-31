@@ -80,11 +80,7 @@ export async function POST(req: Request) {
 
   if (body.runGit === true) {
     try {
-      const range =
-        typeof body.gitRange === "string" && body.gitRange.trim()
-          ? body.gitRange.trim()
-          : "HEAD~30..HEAD";
-      for (const payload of extractChangelogPayloadsFromGit(range)) {
+      for (const payload of extractChangelogPayloadsFromGit(body.gitRange)) {
         items.push({ kind: "git", payload });
       }
     } catch (e) {

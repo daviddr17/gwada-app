@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const GIT_FORMAT = "%H%x1f%s%x1f%b%x1f%aI%x1e";
+const DEFAULT_MAX_COMMITS = 30;
 const DRAFT_PATH = join(ROOT, "content/changelog.draft.json");
 
 const SYNC_URL =
@@ -19,9 +20,27 @@ const SYNC_URL =
   "http://127.0.0.1:3000/api/superadmin/changelog/sync-from-git";
 const SYNC_SECRET = process.env.CHANGELOG_SYNC_SECRET?.trim();
 
+function buildGitLogArgs(range) {
+  const trimmed = range?.trim();
+  const headRange = trimmed?.match(/^HEAD~(\d+)\.\.HEAD$/i);
+  if (headRange) {
+    const n = Number.parseInt(headRange[1] ?? "", 10);
+    if (Number.isFinite(n) && n > 0) {
+      return ["log", `-${n}`, `--format=${GIT_FORMAT}`, "--reverse"];
+    }
+  }
+  if (trimmed && /^-\d+$/.test(trimmed)) {
+    return ["log", trimmed, `--format=${GIT_FORMAT}`, "--reverse"];
+  }
+  if (trimmed) {
+    return ["log", trimmed, `--format=${GIT_FORMAT}`, "--reverse"];
+  }
+  return ["log", `-${DEFAULT_MAX_COMMITS}`, `--format=${GIT_FORMAT}`, "--reverse"];
+}
+
 function resolveGitRange() {
-  let range = process.env.CHANGELOG_GIT_RANGE?.trim() || "HEAD~30..HEAD";
-  if (/^0+\.\./.test(range) || range.includes("000000000000")) {
+  let range = process.env.CHANGELOG_GIT_RANGE?.trim();
+  if (range && (/^0+\.\./.test(range) || range.includes("000000000000"))) {
     const sha = process.env.GITHUB_SHA?.trim() || "HEAD";
     range = `${sha}~1..${sha}`;
   }
@@ -29,12 +48,11 @@ function resolveGitRange() {
 }
 
 function extractGitRecords() {
-  const range = resolveGitRange();
-  const output = execFileSync(
-    "git",
-    ["log", range, `--format=${GIT_FORMAT}`, "--reverse"],
-    { encoding: "utf8", cwd: ROOT, maxBuffer: 10 * 1024 * 1024 },
-  );
+  const output = execFileSync("git", buildGitLogArgs(resolveGitRange()), {
+    encoding: "utf8",
+    cwd: ROOT,
+    maxBuffer: 10 * 1024 * 1024,
+  });
   return output
     .split("\x1e")
     .map((r) => r.trim())

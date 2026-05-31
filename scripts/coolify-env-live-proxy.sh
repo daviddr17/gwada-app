@@ -6,6 +6,8 @@ set -euo pipefail
 APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
 SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
+COOLIFY_UI="${GWADA_COOLIFY_DASHBOARD_URL:-http://${VPS}:8000}"
+STUDIO_URL="${GWADA_SUPABASE_STUDIO_URL:-http://${VPS}:54323}"
 SSH_USER="${LIVE_SSH_USER:-root}"
 
 # shellcheck source=scripts/gwada-ssh-lib.sh
@@ -25,11 +27,14 @@ echo "Container: ${CONTAINER}"
 
 # Coolify-Compose-.env auf dem Host + optional /app/.env im Container; dann neu starten.
 # Hinweis: docker update unterstützt keine -e Env-Flags (nur docker run/create).
-gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" <<'REMOTE'
+gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" "${VPS}" "${COOLIFY_UI}" "${STUDIO_URL}" <<'REMOTE'
 set -euo pipefail
 c="$1"
 origin="$2"
 upstream="$3"
+vps_host="$4"
+coolify_ui="$5"
+studio_url="$6"
 
 patch_env_file() {
   local f="$1"
@@ -39,7 +44,11 @@ patch_env_file() {
     | grep -v '^NEXT_PUBLIC_SITE_URL=' \
     | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' \
     | grep -v '^NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=' \
-    | grep -v '^NEXT_PUBLIC_GWADA_SUPABASE_ONLY=' > "${f}.tmp" || true
+    | grep -v '^NEXT_PUBLIC_GWADA_SUPABASE_ONLY=' \
+    | grep -v '^GWADA_VPS_PUBLIC_HOST=' \
+    | grep -v '^GWADA_COOLIFY_DASHBOARD_URL=' \
+    | grep -v '^GWADA_SUPABASE_STUDIO_URL=' \
+    | grep -v '^GWADA_PLANNED_PRODUCTION_URL=' > "${f}.tmp" || true
   {
     cat "${f}.tmp" 2>/dev/null || true
     echo "NEXT_PUBLIC_SUPABASE_PROXY=true"
@@ -48,6 +57,10 @@ patch_env_file() {
     echo "NEXT_PUBLIC_SUPABASE_URL=${origin}/sb"
     echo "NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo"
     echo "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false"
+    echo "GWADA_VPS_PUBLIC_HOST=${vps_host}"
+    echo "GWADA_COOLIFY_DASHBOARD_URL=${coolify_ui}"
+    echo "GWADA_SUPABASE_STUDIO_URL=${studio_url}"
+    echo "GWADA_PLANNED_PRODUCTION_URL=https://gwada.app"
   } > "${f}"
   rm -f "${f}.tmp"
   echo "  .env aktualisiert: ${f}"

@@ -17,7 +17,10 @@ import {
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { applyAccentToDocument, normalizeHex } from "@/lib/theme/color-utils";
 import { toastStorageError } from "@/lib/persist-notify";
-import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
+import {
+  toastDatabaseSaveError,
+  toastDatabaseUnavailable,
+} from "@/lib/supabase/db-toast";
 import {
   fetchRestaurantBrandAccentHex,
   updateRestaurantBrandAccentHex,
@@ -150,7 +153,13 @@ export function AccentColorProvider({ children }: { children: React.ReactNode })
         if (!ok) {
           setAccentHexState(prev);
           applyAccentToDocument(prev);
-          failSave();
+          if (rid) {
+            toastDatabaseSaveError(
+              "Akzentfarbe konnte nicht in der Datenbank gespeichert werden.",
+            );
+          } else {
+            failSave();
+          }
           return;
         }
         if (!supabaseOnly) {

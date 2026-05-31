@@ -18,7 +18,11 @@ export function toastDatabaseSaveError(message: string | undefined): void {
       ? "Lieferant fehlt in den Stammdaten. Bitte unter Bestand → Lieferanten speichern oder Seite neu laden."
       : trimmed.includes("opening_hours_times_when_open")
         ? "Bitte für jeden geöffneten Tag Von- und Bis-Zeit angeben (Format HH:MM)."
-        : trimmed.includes("permission denied for function") ||
+        : trimmed.includes("opening_hours_weekly_one_per_day") ||
+            trimmed.includes("opening_hours_exception_one_per_date") ||
+            (trimmed.includes("23505") && trimmed.includes("opening_hours"))
+          ? "Öffnungszeiten konnten nicht aktualisiert werden — bitte Seite neu laden und erneut speichern."
+          : trimmed.includes("permission denied for function") ||
           trimmed.includes("row-level security") ||
           trimmed.includes("not authorized") ||
           trimmed.includes("42501")

@@ -22,6 +22,7 @@ import {
   getWorkspaceRestaurantId,
   GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
   notifyWorkspaceRestaurantChanged,
+  peekCachedWorkspaceRestaurantId,
 } from "@/lib/supabase/workspace-persistence";
 import {
   isUuidRestaurantId,
@@ -265,12 +266,22 @@ export function RestaurantProfileProvider({
   const saveOpeningHours = useCallback(
     async (next: RestaurantProfile): Promise<boolean> => {
       const snapshot = storeRef.current;
-      const rid = await getWorkspaceRestaurantId();
+      let rid = await getWorkspaceRestaurantId();
+      if (!rid) {
+        rid = peekCachedWorkspaceRestaurantId();
+      }
       const saveId =
         rid && isUuidRestaurantId(rid) ? rid : next.id;
       const profile: RestaurantProfile = { ...next, id: saveId };
       const useDb =
         openingHoursDbEnabled() && rid !== null && isUuidRestaurantId(rid);
+
+      if (openingHoursDbEnabled() && !useDb) {
+        toastDatabaseSaveError(
+          "Restaurant konnte nicht zugeordnet werden. Bitte Seite neu laden oder erneut anmelden.",
+        );
+        return false;
+      }
 
       const restaurants: Record<string, RestaurantProfile> = {
         ...snapshot.restaurants,

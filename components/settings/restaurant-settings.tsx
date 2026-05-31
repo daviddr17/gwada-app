@@ -147,6 +147,7 @@ export function RestaurantSettingsPanel({
     setError(null);
     const ok = await saveOpeningHours({ ...normalized, id: draft.id });
     if (!ok) return;
+    setDraft(cloneProfile({ ...normalized, id: draft.id }));
     setSavedHoursFlash(true);
     window.setTimeout(() => setSavedHoursFlash(false), 2000);
   };

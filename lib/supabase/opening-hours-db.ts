@@ -1,4 +1,5 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { ensureBrowserSupabaseSession } from "@/lib/supabase/ensure-browser-session";
 import {
   defaultWeeklyHours,
   WEEKDAY_ORDER,
@@ -130,6 +131,11 @@ export async function replaceOpeningHoursForRestaurant(
     return { ok: false, error: "Supabase ist nicht konfiguriert." };
   }
   const supabase = createSupabaseBrowserClient();
+
+  const sessionOk = await ensureBrowserSupabaseSession(supabase);
+  if (!sessionOk.ok) {
+    return sessionOk;
+  }
 
   const { error: delErr } = await supabase
     .from("opening_hours")

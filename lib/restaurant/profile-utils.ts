@@ -10,6 +10,10 @@ import {
   openingHoursDbEnabled,
 } from "@/lib/supabase/opening-hours-db";
 import { defaultExceptionDateString } from "@/lib/restaurant/date-exception-utils";
+import {
+  normalizeRestaurantSlugInput,
+  validateRestaurantSlugInput,
+} from "@/lib/restaurant/restaurant-slug";
 import type {
   DayHours,
   RestaurantPersistenceV1,
@@ -123,7 +127,7 @@ export function validateRestaurantStammdaten(
   if (!p.name?.trim()) {
     return "Bitte einen Restaurantnamen eintragen.";
   }
-  return null;
+  return validateRestaurantSlugInput(p.slug);
 }
 
 export function validateOpeningHours(p: RestaurantProfile): string | null {
@@ -160,6 +164,7 @@ export function validateProfile(p: RestaurantProfile): string | null {
 export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile {
   return {
     ...p,
+    slug: normalizeRestaurantSlugInput(p.slug),
     name: p.name.trim() || "Mein Restaurant",
     street: p.street.trim(),
     postalCode: p.postalCode.trim(),

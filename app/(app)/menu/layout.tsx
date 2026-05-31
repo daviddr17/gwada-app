@@ -12,9 +12,9 @@ const MENU_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/menu"],
   },
   {
-    href: "#",
-    label: "Weitere Bereiche folgen",
-    disabled: true,
+    href: "/menu/export",
+    label: "Export",
+    matchMode: "exact",
   },
 ];
 

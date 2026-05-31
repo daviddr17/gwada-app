@@ -39,6 +39,15 @@ export function formatDiningTableLabel(t: Pick<DiningTableRow, "table_name" | "t
   return n && n.length > 0 ? n : String(t.table_number);
 }
 
+/** Tisch-Dropdown / Select-Trigger: lesbarer Name, sonst Klarnummer. */
+export function formatDiningTableSelectLabel(
+  t: Pick<DiningTableRow, "table_name" | "table_number">,
+): string {
+  const name = t.table_name?.trim();
+  if (name) return name;
+  return `Tisch ${t.table_number}`;
+}
+
 /** Tisch mit dem neuesten `created_at` (Fallback: höchste Tischnummer). */
 export function pickMostRecentlyCreatedDiningTable(
   tables: DiningTableRow[],

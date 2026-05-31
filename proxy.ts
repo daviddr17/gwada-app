@@ -12,6 +12,9 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/_next")) return true;
   if (pathname === "/favicon.ico" || pathname === "/robots.txt") return true;
   if (pathname.startsWith("/api/")) return true;
+  if (pathname.startsWith("/embed/")) return true;
+  if (pathname.startsWith("/display/")) return true;
+  if (pathname.startsWith("/einladung/")) return true;
   if (pathname.startsWith("/sb")) return true;
   return false;
 }
@@ -35,7 +38,10 @@ export async function proxy(request: NextRequest) {
   if (
     pathname === "/" ||
     pathname === "/login" ||
-    pathname.startsWith("/login/")
+    pathname.startsWith("/login/") ||
+    pathname.startsWith("/embed/") ||
+    pathname.startsWith("/display/") ||
+    pathname.startsWith("/einladung/")
   ) {
     return response;
   }

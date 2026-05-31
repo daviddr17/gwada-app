@@ -56,5 +56,10 @@ export async function GET(request: NextRequest) {
     return loginRedirect(origin, error.message, searchParams.get("next"));
   }
 
-  return NextResponse.redirect(new URL(next, origin));
+  return NextResponse.redirect(
+    new URL(
+      `/auth/enter?next=${encodeURIComponent(next)}`,
+      origin,
+    ),
+  );
 }

@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
 import {
   SettingsStickySaveBar,
@@ -72,6 +73,7 @@ function newException(): DateHoursException {
 
 function pickStammdaten(p: RestaurantProfile) {
   return {
+    slug: p.slug,
     name: p.name,
     street: p.street,
     postalCode: p.postalCode,
@@ -89,7 +91,7 @@ export function RestaurantSettingsPanel({
 }: {
   section: RestaurantSettingsSection;
 }) {
-  const { profile, saveProfile, saveOpeningHours, isReady } = useRestaurantProfile();
+  const { profile, saveProfile, saveOpeningHours, patchProfile, isReady } = useRestaurantProfile();
   const [draft, setDraft] = useState<RestaurantProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savedRestaurantFlash, setSavedRestaurantFlash] = useState(false);
@@ -119,7 +121,7 @@ export function RestaurantSettingsPanel({
     return () => cancelAnimationFrame(frame);
   }, [isReady, profile]);
 
-  const handleSaveRestaurant = () => {
+  const handleSaveRestaurant = async () => {
     if (!draft) return;
     const normalized = normalizeProfileForSave(draft);
     const msg = validateRestaurantStammdaten(normalized);
@@ -128,7 +130,8 @@ export function RestaurantSettingsPanel({
       return;
     }
     setError(null);
-    saveProfile({ ...normalized, id: draft.id });
+    const ok = await saveProfile({ ...normalized, id: draft.id });
+    if (!ok) return;
     setSavedRestaurantFlash(true);
     window.setTimeout(() => setSavedRestaurantFlash(false), 2000);
   };
@@ -257,7 +260,7 @@ export function RestaurantSettingsPanel({
         </p>
       )}
       {section === "restaurant" && (
-      <section>
+      <section className="space-y-6">
         <form
           className="contents"
           onSubmit={(e) => {
@@ -265,27 +268,25 @@ export function RestaurantSettingsPanel({
             handleSaveRestaurant();
           }}
         >
+        <RestaurantProfileHeader
+          restaurantId={draft.id}
+          name={draft.name}
+          slug={draft.slug}
+          avatarStoragePath={profile.avatarStoragePath}
+          coverStoragePath={profile.coverStoragePath}
+          onNameChange={(name) =>
+            setDraft((p) => (p ? { ...p, name } : p))
+          }
+          onSlugChange={(slug) =>
+            setDraft((p) => (p ? { ...p, slug } : p))
+          }
+          onImagePathsChange={(paths) => {
+            patchProfile(paths);
+            setDraft((p) => (p ? { ...p, ...paths } : p));
+          }}
+        />
         <Card className="border-border/50 shadow-card">
-          <CardHeader className="gap-2">
-            <CardTitle className="text-xl">Restaurant</CardTitle>
-            <CardDescription className="text-base leading-relaxed">
-              Stammdaten für das aktuell ausgewählte Restaurant. Später kannst du
-              mehrere Standorte verwalten und hier wechseln.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="rs-name">Name</Label>
-            <Input
-              id="rs-name"
-              value={draft.name}
-              onChange={(e) =>
-                setDraft((p) => (p ? { ...p, name: e.target.value } : p))
-              }
-              placeholder="z. B. Gwada Soul Kitchen"
-              className="h-11 rounded-xl"
-            />
-          </div>
+          <CardContent className="space-y-4 pt-6">
           <div className="space-y-2">
             <Label htmlFor="rs-street">Straße & Hausnummer</Label>
             <Input

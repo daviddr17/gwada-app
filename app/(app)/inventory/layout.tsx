@@ -14,6 +14,12 @@ const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
     href: "/inventory/bestellung",
     label: "Bestellung",
     matchMode: "prefix",
+    activeWhen: ["/inventory/bestellung"],
+  },
+  {
+    href: "/inventory/export",
+    label: "Export",
+    matchMode: "exact",
   },
 ];
 

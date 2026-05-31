@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { DocumentTitle } from "@/components/layout/document-title";
 import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
@@ -10,6 +11,7 @@ export default function LoginPage() {
         </div>
       }
     >
+      <DocumentTitle pageTitle="Anmelden" />
       <LoginForm />
     </Suspense>
   );

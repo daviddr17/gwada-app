@@ -1,3 +1,4 @@
+import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
@@ -12,6 +13,13 @@ export type ReservationStatusJoin = {
   name: string;
   color_hex: string;
 };
+
+/**
+ * PostgREST-Embed für den aktuellen Status (`status_id`).
+ * Ohne Hinweis scheitert der Join, sobald auch `status_before_change_id` existiert.
+ */
+export const RESERVATION_STATUS_EMBED =
+  "reservation_statuses!reservations_status_id_fkey";
 
 export type ReservationDiningTableJoin = {
   id: string;
@@ -88,6 +96,7 @@ export type ReservationListRow = {
   guest_last_name: string;
   guest_phone: string | null;
   guest_email: string | null;
+  contact_id: string | null;
   party_size: number;
   starts_at: string;
   ends_at: string;
@@ -96,6 +105,8 @@ export type ReservationListRow = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  pending_change: unknown | null;
+  status_before_change_id: string | null;
   reservation_statuses: ReservationStatusJoin | null;
   dining_tables: ReservationDiningTableJoin | null;
 };
@@ -131,6 +142,7 @@ const RESERVATION_LIST_ROW_SELECT = `
       guest_last_name,
       guest_phone,
       guest_email,
+      contact_id,
       party_size,
       starts_at,
       ends_at,
@@ -139,7 +151,9 @@ const RESERVATION_LIST_ROW_SELECT = `
       notify_email,
       notify_whatsapp,
       terms_accepted,
-      reservation_statuses ( id, code, name, color_hex ),
+      pending_change,
+      status_before_change_id,
+      ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
       created_by_profile:created_by_profile_id (
         id,
         given_name,
@@ -164,6 +178,49 @@ export async function fetchReservationsForRestaurant(params: {
     .eq("restaurant_id", params.restaurantId)
     .gte("starts_at", params.rangeStartIso)
     .lt("starts_at", params.rangeEndExclusiveIso)
+    .order("starts_at", { ascending: true });
+
+  if (error) {
+    return { data: [], error: new Error(error.message) };
+  }
+  const raw = (data ?? []) as Record<string, unknown>[];
+  const normalized: ReservationListRow[] = raw.map((row) =>
+    mapRawToReservationListRow(row),
+  );
+  return { data: normalized, error: null };
+}
+
+/** Alle offenen / zu prüfenden Reservierungen (status), ohne Monatsgrenze. */
+export async function fetchUnconfirmedReservationsForRestaurant(
+  restaurantId: string,
+): Promise<{ data: ReservationListRow[]; error: Error | null }> {
+  if (!isUuidRestaurantId(restaurantId)) {
+    return { data: [], error: null };
+  }
+
+  const { data: statuses, error: statusError } =
+    await fetchReservationStatuses();
+  if (statusError) {
+    return { data: [], error: statusError };
+  }
+
+  const statusIds = statuses
+    .filter((s) =>
+      (UNCONFIRMED_RESERVATION_STATUS_CODES as readonly string[]).includes(
+        s.code,
+      ),
+    )
+    .map((s) => s.id);
+  if (statusIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const sb = createSupabaseBrowserClient();
+  const { data, error } = await sb
+    .from("reservations")
+    .select(RESERVATION_LIST_ROW_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .in("status_id", statusIds)
     .order("starts_at", { ascending: true });
 
   if (error) {
@@ -268,6 +325,7 @@ export type ReservationInsertResult = {
   id: string;
   reservation_number: number;
   guest_pin: string;
+  contact_id: string | null;
 };
 
 export async function insertReservation(
@@ -295,7 +353,7 @@ export async function insertReservation(
       notify_whatsapp: payload.notify_whatsapp,
       terms_accepted: payload.terms_accepted,
     })
-    .select("id, reservation_number, guest_pin")
+    .select("id, reservation_number, guest_pin, contact_id")
     .single();
   if (error) {
     return { data: null, error: new Error(error.message) };
@@ -305,6 +363,21 @@ export async function insertReservation(
     return { data: null, error: new Error("Reservierung ohne PIN zurückgegeben.") };
   }
   return { data: row, error: null };
+}
+
+export async function updateReservationDiningTable(
+  id: string,
+  dining_table_id: string | null,
+): Promise<{ error: Error | null }> {
+  const sb = createSupabaseBrowserClient();
+  const { error } = await sb
+    .from("reservations")
+    .update({ dining_table_id })
+    .eq("id", id);
+  if (error) {
+    return { error: new Error(error.message) };
+  }
+  return { error: null };
 }
 
 export async function updateReservation(

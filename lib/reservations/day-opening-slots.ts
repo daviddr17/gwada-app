@@ -120,6 +120,36 @@ export function openingDaySlotStartsMinutes(
   return out;
 }
 
+function normalizeMinMinutesBeforeClosing(value: number | null | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 60;
+  return Math.min(480, Math.max(0, Math.round(value)));
+}
+
+/**
+ * Buchbare Start-Slots: Öffnung bis spätester Reservierungsbeginn
+ * (Schließzeit minus `minMinutesBeforeClosing` aus den Einstellungen).
+ */
+export function openingDayBookableSlotStartsMinutes(
+  hours: DayHours,
+  fallback: { openMin: number; closeMin: number },
+  stepMinutes: number = 15,
+  minMinutesBeforeClosing: number = 60,
+): number[] {
+  const slots = openingDaySlotStartsMinutes(hours, fallback, stepMinutes);
+  const buffer = normalizeMinMinutesBeforeClosing(minMinutesBeforeClosing);
+  if (buffer <= 0 || slots.length === 0) return slots;
+
+  let closeM: number;
+  if (hours.closed || !hours.close?.trim()) {
+    closeM = fallback.closeMin;
+  } else {
+    closeM = hhmmToMinutes(hours.close);
+  }
+  const latestStartM = closeM - buffer;
+  const filtered = slots.filter((m) => m <= latestStartM);
+  return filtered.length > 0 ? filtered : slots.slice(0, 1);
+}
+
 export function localDateAtSlotMinutes(day: Date, minutesFromMidnight: number): Date {
   const h = Math.floor(minutesFromMidnight / 60);
   const m = minutesFromMidnight % 60;
@@ -127,7 +157,7 @@ export function localDateAtSlotMinutes(day: Date, minutesFromMidnight: number): 
 }
 
 export function reservationActiveAtInstant(
-  r: ReservationListRow,
+  r: { starts_at: string; ends_at: string },
   instant: Date,
 ): boolean {
   const t = instant.getTime();

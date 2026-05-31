@@ -1,25 +1,39 @@
 export type DashboardWidgetId =
-  | "overviewStats"
+  | "menu"
+  | "reservations"
+  | "staff"
   | "weather"
-  | "activityChart"
-  | "categoryChart";
+  | "contacts"
+  | "messages"
+  | "integrations"
+  | "inventory";
+
+/** Frühere Widget-IDs (Speisekarte), werden auf `menu` gemappt. */
+const LEGACY_MENU_WIDGET_IDS = [
+  "overviewStats",
+  "activityChart",
+  "categoryChart",
+] as const;
 
 export type DashboardWidgetPrefs = {
   visibility: Record<DashboardWidgetId, boolean>;
   order: DashboardWidgetId[];
 };
 
-/** localStorage-Schlüssel für Dashboard-Widget-Sichtbarkeit */
 export const DASHBOARD_WIDGET_STORAGE_KEY = "gwada-dashboard-widgets";
 
 export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   DashboardWidgetId,
   boolean
 > = {
-  overviewStats: true,
+  menu: true,
+  reservations: true,
+  staff: true,
   weather: true,
-  activityChart: true,
-  categoryChart: true,
+  contacts: true,
+  messages: true,
+  integrations: true,
+  inventory: true,
 };
 
 export const DASHBOARD_WIDGET_OPTIONS: readonly {
@@ -28,9 +42,21 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
   description: string;
 }[] = [
   {
-    id: "overviewStats",
-    label: "Kennzahlen",
-    description: "Gerichte, Kategorien und durchschnittlicher Preis",
+    id: "menu",
+    label: "Speisekarte",
+    description: "Gerichte, Kategorien, Preise und Top-Kategorie",
+  },
+  {
+    id: "reservations",
+    label: "Reservierungen",
+    description:
+      "Unbestätigt, Reservierungen und Personen heute sowie in der Kalenderwoche",
+  },
+  {
+    id: "staff",
+    label: "Mitarbeiter",
+    description:
+      "Live-Schichten vom Display (Aktiv/Pause) und erfasste Arbeitszeit heute",
   },
   {
     id: "weather",
@@ -38,22 +64,76 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
     description: "Aktuelles Wetter am Restaurantstandort",
   },
   {
-    id: "activityChart",
-    label: "Diagramm Aktivität",
-    description: "Demo-Zeitreihe (Aufrufe)",
+    id: "contacts",
+    label: "Kontakte",
+    description: "Anzahl Kontakte, mit Reservierung und Firmenkontakte",
   },
   {
-    id: "categoryChart",
-    label: "Diagramm Kategorien",
-    description: "Gerichte pro Kategorie",
+    id: "messages",
+    label: "Nachrichten",
+    description: "Ungelesene Chats auf Gwada und WhatsApp",
+  },
+  {
+    id: "integrations",
+    label: "Integrationen",
+    description:
+      "Freigeschaltete Kanäle (WhatsApp, E-Mail, Social) — verbunden in Farbe, offen ausgegraut",
+  },
+  {
+    id: "inventory",
+    label: "Bestand & Bestellung",
+    description: "Zutaten, leerer Bestand und offene Bestellungen",
   },
 ] as const;
 
-/** Standard-Reihenfolge = Reihenfolge in `DASHBOARD_WIDGET_OPTIONS`. */
 export const DEFAULT_DASHBOARD_WIDGET_ORDER: DashboardWidgetId[] =
   DASHBOARD_WIDGET_OPTIONS.map((o) => o.id);
 
 const ORDER_SET = new Set<DashboardWidgetId>(DEFAULT_DASHBOARD_WIDGET_ORDER);
+
+/** Alte IDs → aktuelle Widget-ID. */
+export function canonicalDashboardWidgetId(
+  raw: string,
+): DashboardWidgetId | null {
+  if ((LEGACY_MENU_WIDGET_IDS as readonly string[]).includes(raw)) {
+    return "menu";
+  }
+  if (ORDER_SET.has(raw as DashboardWidgetId)) {
+    return raw as DashboardWidgetId;
+  }
+  return null;
+}
+
+/** Sichtbarkeit aus gespeichertem JSON (inkl. Legacy-Speisekarten-Widgets). */
+export function visibilityPatchFromStored(
+  visRaw: Record<string, unknown>,
+): Partial<Record<DashboardWidgetId, boolean>> {
+  const patch: Partial<Record<DashboardWidgetId, boolean>> = {};
+  for (const id of DEFAULT_DASHBOARD_WIDGET_ORDER) {
+    if (typeof visRaw[id] === "boolean") {
+      patch[id] = visRaw[id] as boolean;
+    }
+  }
+  if (patch.menu === undefined) {
+    const legacyVals = LEGACY_MENU_WIDGET_IDS.map((k) => visRaw[k]).filter(
+      (v) => typeof v === "boolean",
+    ) as boolean[];
+    if (legacyVals.some((v) => v === true)) patch.menu = true;
+    else if (
+      legacyVals.length === LEGACY_MENU_WIDGET_IDS.length &&
+      legacyVals.every((v) => v === false)
+    ) {
+      patch.menu = false;
+    }
+  }
+  return patch;
+}
+
+export function mergeDashboardWidgetVisibility(
+  partial: Partial<Record<DashboardWidgetId, boolean>>,
+): Record<DashboardWidgetId, boolean> {
+  return { ...DEFAULT_DASHBOARD_WIDGET_VISIBILITY, ...partial };
+}
 
 export function normalizeWidgetOrder(input: unknown): DashboardWidgetId[] {
   if (!Array.isArray(input)) return [...DEFAULT_DASHBOARD_WIDGET_ORDER];
@@ -61,8 +141,8 @@ export function normalizeWidgetOrder(input: unknown): DashboardWidgetId[] {
   const out: DashboardWidgetId[] = [];
   for (const x of input) {
     if (typeof x !== "string") continue;
-    const id = x as DashboardWidgetId;
-    if (!ORDER_SET.has(id) || seen.has(id)) continue;
+    const id = canonicalDashboardWidgetId(x);
+    if (!id || seen.has(id)) continue;
     seen.add(id);
     out.push(id);
   }
@@ -72,7 +152,6 @@ export function normalizeWidgetOrder(input: unknown): DashboardWidgetId[] {
   return out;
 }
 
-/** Liste neu sortieren: `dragId` wird vor `dropId` eingefügt (wie typische Listen-DnD). */
 export function reorderDashboardWidgetOrder(
   order: DashboardWidgetId[],
   dragId: DashboardWidgetId,

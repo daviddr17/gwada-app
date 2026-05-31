@@ -34,3 +34,14 @@ export function applyAccentToDocument(hex: string) {
     getAccentForeground(normalized),
   );
 }
+
+/** Inline-Style für geerbte Akzent-CSS-Variablen (Display, Embed). */
+export function accentCssVariableStyle(hex: string): Record<string, string> {
+  const normalized = normalizeHex(hex) ?? DEFAULT_ACCENT_HEX;
+  return {
+    "--brand-accent": normalized,
+    "--accent": normalized,
+    "--ring": normalized,
+    "--accent-foreground": getAccentForeground(normalized),
+  };
+}

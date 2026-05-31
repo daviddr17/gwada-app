@@ -5,7 +5,10 @@ import Link from "next/link";
 import { ArrowLeft, Settings, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
+import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
+import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { DocumentTitleSync } from "@/components/layout/document-title";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -60,42 +63,58 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarInset className="min-w-0">
-      <header className="z-30 box-border flex h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] shrink-0 items-center gap-2 border-b border-border/50 bg-app-chrome px-4">
-        <SidebarTrigger className="-ml-1 shrink-0" />
-        <Separator
-          orientation="vertical"
-          className="!h-6 shrink-0 self-center data-vertical:!self-center"
-        />
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-1">
-          {chrome.title ? (
-            <h1 className="min-w-0 truncate text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
-              {chrome.title}
-            </h1>
-          ) : (
-            <span className="sr-only">App</span>
-          )}
-          <TestEnvironmentChip />
+      <DocumentTitleSync />
+      <header className="z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50 bg-app-chrome">
+        <div className="flex shrink-0 items-center ps-4 pe-2">
+          <SidebarTrigger className="-ms-1 shrink-0" />
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full border-border/60"
-            aria-label="Persönliches Profil"
-            render={<Link href="/profile" prefetch />}
-          >
-            <UserRound className="size-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            className="rounded-full border-border/60"
-            aria-label="Einstellungen"
-            render={<Link href="/settings" prefetch />}
-          >
-            <Settings className="size-4" />
-          </Button>
-          <ModeToggle />
+        <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex h-full w-max min-w-full items-center gap-2 px-2 pe-4 sm:gap-3 sm:px-4">
+            <Separator
+              orientation="vertical"
+              className="!h-6 shrink-0 self-center data-vertical:!self-center"
+            />
+            <div className="flex shrink-0 items-center gap-2">
+              {chrome.title ? (
+                <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
+                  {chrome.title}
+                </h1>
+              ) : (
+                <span className="sr-only">App</span>
+              )}
+              <TestEnvironmentChip />
+            </div>
+            <div
+              className="min-w-4 flex-1 basis-0 shrink-[2]"
+              aria-hidden
+            />
+            <AppChromeCenterFavicon />
+            <div
+              className="min-w-4 flex-1 basis-0 shrink-[2]"
+              aria-hidden
+            />
+            <div className="flex shrink-0 items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="shrink-0 rounded-full border-border/60"
+                aria-label="Profil"
+                render={<Link href="/profile" prefetch />}
+              >
+                <UserRound className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="shrink-0 rounded-full border-border/60"
+                aria-label="Einstellungen"
+                render={<Link href="/settings" prefetch />}
+              >
+                <Settings className="size-4" />
+              </Button>
+              <ModeToggle />
+            </div>
+          </div>
         </div>
       </header>
 
@@ -127,7 +146,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
         data-app-scroll-root
         className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
       >
-        {children}
+        <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
       </div>
     </SidebarInset>
   );

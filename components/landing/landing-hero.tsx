@@ -1,10 +1,13 @@
 "use client";
 
 import { motion, useMotionTemplate, useSpring, useTransform } from "framer-motion";
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { StripeHeroCanvas } from "@/components/landing/stripe-hero-canvas";
+import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
+import { useResolvedPlatformLogoSrc } from "@/lib/hooks/use-resolved-platform-logo-src";
 
 type Props = {
   mouse: { x: number; y: number };
@@ -15,6 +18,10 @@ type Props = {
  * Full-viewport Hero: Stripe-Gradient + Glas-Card, starke Typo, CTAs.
  */
 export function LandingHero({ mouse, onScrollToSection }: Props) {
+  const branding = usePlatformAppBrandingOptional();
+  const appName = branding?.appName ?? "gwada";
+  const logoUrl = useResolvedPlatformLogoSrc();
+
   const sx = useSpring(mouse.x, { stiffness: 80, damping: 24, mass: 0.4 });
   const sy = useSpring(mouse.y, { stiffness: 80, damping: 24, mass: 0.4 });
 
@@ -53,14 +60,26 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
             className="pointer-events-none absolute inset-0 rounded-[2rem] opacity-70"
             style={{ background: glare }}
           />
-          <motion.p
+          <motion.div
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="text-xs font-semibold tracking-[0.22em] text-neutral-500 uppercase dark:text-white/80"
+            className="flex flex-col items-center gap-3"
           >
-            Gwada
-          </motion.p>
+            {logoUrl ? (
+              <Image
+                src={logoUrl}
+                alt=""
+                width={120}
+                height={48}
+                unoptimized
+                className="h-10 w-auto max-w-[10rem] object-contain md:h-12"
+              />
+            ) : null}
+            <p className="text-xs font-semibold tracking-[0.22em] text-neutral-500 uppercase dark:text-white/80">
+              {appName}
+            </p>
+          </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

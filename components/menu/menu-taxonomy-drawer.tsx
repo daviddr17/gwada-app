@@ -27,7 +27,7 @@ type MenuTaxonomyDrawerProps = {
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   initial?: MenuTaxonomyDefinition | null;
-  variant: "tags" | "allergens";
+  variant: "tags" | "allergens" | "documentTags" | "staffPositionTags";
   onSave: (payload: SavePayload) => void;
 };
 
@@ -44,6 +44,18 @@ const COPY: Record<
     titleCreate: "Neues Allergen",
     titleEdit: "Allergen bearbeiten",
     description: "Name, Sichtbarkeit und Chip-Farbe für Allergen-Kennzeichnung.",
+  },
+  documentTags: {
+    titleCreate: "Neues Dokument-Tag",
+    titleEdit: "Dokument-Tag bearbeiten",
+    description:
+      "Name, Sichtbarkeit und Chip-Farbe für die Zuordnung von Dokumenten.",
+  },
+  staffPositionTags: {
+    titleCreate: "Neue Position",
+    titleEdit: "Position bearbeiten",
+    description:
+      "Name, Sichtbarkeit und Chip-Farbe für Mitarbeiter-Positionen.",
   },
 };
 

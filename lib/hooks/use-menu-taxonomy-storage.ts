@@ -17,10 +17,11 @@ import {
   reorderMenuTaxonomyRows,
   updateMenuTaxonomyRow,
 } from "@/lib/supabase/menu-db";
+import { migrateMenuTaxonomyFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
   getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -80,6 +81,15 @@ export function useMenuTaxonomyStorage(
 
     if (useDbMenu && table) {
       void (async () => {
+        const rid = await getWorkspaceRestaurantId();
+        if (rid) {
+          await migrateMenuTaxonomyFromLegacyAppStateIfEmpty(
+            table,
+            storageKey,
+            rid,
+            initialSeed.map(normalizeTaxonomy),
+          );
+        }
         const rows = await loadMenuTaxonomyRelational(table);
         if (cancelled) return;
         if (rows && rows.length > 0) {
@@ -94,44 +104,33 @@ export function useMenuTaxonomyStorage(
       };
     }
 
-    void (async () => {
-      const remote = await loadWorkspaceJson(storageKey);
-      let parsed: MenuTaxonomyDefinition[] | null = null;
-      if (Array.isArray(remote) && remote.every(isValidLoose)) {
-        parsed = remote.map(normalizeTaxonomy);
-      }
-      if (supabaseOnly) {
-        if (cancelled) return;
-        setItems(parsed && parsed.length > 0 ? parsed : initialSeed.map(normalizeTaxonomy));
-        setIsHydrated(true);
-        return;
-      }
-      if (!parsed) {
-        try {
-          const raw = localStorage.getItem(storageKey);
-          if (raw) {
-            const data: unknown = JSON.parse(raw);
-            if (Array.isArray(data) && data.every(isValidLoose)) {
-              parsed = data.map(normalizeTaxonomy);
-            }
-          }
-        } catch {
-          parsed = null;
-        }
-      } else {
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(parsed));
-        } catch {
-          /* ignore */
-        }
-      }
+    let parsed: MenuTaxonomyDefinition[] | null = null;
+    const localRaw = loadWorkspaceJsonLocal(storageKey);
+    if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
+      parsed = localRaw.map(normalizeTaxonomy);
+    }
+    if (supabaseOnly) {
+      if (cancelled) return;
+      setItems(parsed && parsed.length > 0 ? parsed : initialSeed.map(normalizeTaxonomy));
+      setIsHydrated(true);
+      return;
+    }
+    if (!parsed) {
       if (cancelled) return;
       requestAnimationFrame(() => {
-        if (cancelled) return;
-        if (parsed && parsed.length > 0) setItems(parsed);
-        setIsHydrated(true);
+        if (!cancelled) setIsHydrated(true);
       });
-    })();
+      return () => {
+        cancelled = true;
+      };
+    }
+    mirrorWorkspaceJsonLocal(storageKey, parsed);
+    if (cancelled) return;
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      setItems(parsed!);
+      setIsHydrated(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -141,14 +140,13 @@ export function useMenuTaxonomyStorage(
     (next: MenuTaxonomyDefinition[], successMessage?: string) => {
       const cleaned = next.map(normalizeTaxonomy);
       setItems((prev) => {
-        void persistWorkspaceState(storageKey, cleaned).then((ok) => {
-          if (!ok) {
-            setItems(prev);
-            failSave();
-          } else if (successMessage) {
-            toast.success(successMessage);
-          }
-        });
+        const ok = mirrorWorkspaceJsonLocal(storageKey, cleaned);
+        if (!ok) {
+          setItems(prev);
+          failSave();
+        } else if (successMessage) {
+          toast.success(successMessage);
+        }
         return cleaned;
       });
       return true;

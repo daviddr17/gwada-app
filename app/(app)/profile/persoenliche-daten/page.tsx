@@ -5,13 +5,11 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { PersonalProfileHeader } from "@/components/profile/personal-profile-header";
 import { ProfilePersoenlicheDatenSkeleton } from "@/components/profile/profile-persoenliche-daten-skeleton";
 import {
   SettingsStickySaveBar,
@@ -24,6 +22,7 @@ import { cn } from "@/lib/utils";
 type ProfileBaseline = {
   firstName: string;
   lastName: string;
+  nickname: string;
   birthDate: string;
   street: string;
   postalCode: string;
@@ -34,6 +33,7 @@ type ProfileBaseline = {
 function snapshotFromHook(p: {
   firstName: string;
   lastName: string;
+  nickname: string;
   birthDate: string;
   street: string;
   postalCode: string;
@@ -43,6 +43,7 @@ function snapshotFromHook(p: {
   return {
     firstName: p.firstName,
     lastName: p.lastName,
+    nickname: p.nickname,
     birthDate: p.birthDate,
     street: p.street,
     postalCode: p.postalCode,
@@ -54,26 +55,31 @@ function snapshotFromHook(p: {
 export default function ProfilePersoenlicheDatenPage() {
   const {
     email,
+    userId,
     firstName,
     lastName,
+    nickname,
     birthDate,
     street,
     postalCode,
     city,
     country,
+    avatarStoragePath,
+    coverStoragePath,
     setFirstName,
     setLastName,
+    setNickname,
     setBirthDate,
     setStreet,
     setPostalCode,
     setCity,
     setCountry,
+    patchImagePaths,
     save,
     isHydrated,
   } = usePersonalProfileNames();
 
   const [savedFlash, setSavedFlash] = useState(false);
-  /** Bumps after baseline updates so `profileDirty` useMemo recalculates (refs do not rerender). */
   const [baselineTick, setBaselineTick] = useState(0);
   const baselineRef = useRef<ProfileBaseline | null>(null);
 
@@ -82,6 +88,7 @@ export default function ProfilePersoenlicheDatenPage() {
     baselineRef.current = snapshotFromHook({
       firstName,
       lastName,
+      nickname,
       birthDate,
       street,
       postalCode,
@@ -92,6 +99,7 @@ export default function ProfilePersoenlicheDatenPage() {
     isHydrated,
     firstName,
     lastName,
+    nickname,
     birthDate,
     street,
     postalCode,
@@ -104,6 +112,7 @@ export default function ProfilePersoenlicheDatenPage() {
     const cur = snapshotFromHook({
       firstName,
       lastName,
+      nickname,
       birthDate,
       street,
       postalCode,
@@ -116,6 +125,7 @@ export default function ProfilePersoenlicheDatenPage() {
     isHydrated,
     firstName,
     lastName,
+    nickname,
     birthDate,
     street,
     postalCode,
@@ -129,11 +139,12 @@ export default function ProfilePersoenlicheDatenPage() {
     baselineRef.current = snapshotFromHook({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      nickname: nickname.trim(),
       birthDate: birthDate.trim(),
       street: street.trim(),
       postalCode: postalCode.trim(),
       city: city.trim(),
-      country: (country.trim() || "DE"),
+      country: country.trim() || "DE",
     });
     setBaselineTick((t) => t + 1);
     setSavedFlash(true);
@@ -142,6 +153,7 @@ export default function ProfilePersoenlicheDatenPage() {
     save,
     firstName,
     lastName,
+    nickname,
     birthDate,
     street,
     postalCode,
@@ -174,17 +186,22 @@ export default function ProfilePersoenlicheDatenPage() {
           if (profileDirty) void handleSave();
         }}
       >
+        <PersonalProfileHeader
+          userId={userId}
+          firstName={firstName}
+          lastName={lastName}
+          nickname={nickname}
+          avatarStoragePath={avatarStoragePath}
+          coverStoragePath={coverStoragePath}
+          onFirstNameChange={setFirstName}
+          onLastNameChange={setLastName}
+          onNicknameChange={setNickname}
+          onImagePathsChange={patchImagePaths}
+          disabled={!isHydrated}
+        />
+
         <Card className="border-border/50 shadow-card">
-          <CardHeader className="gap-2">
-            <CardTitle className="text-xl">Persönliche Daten</CardTitle>
-            <CardDescription>
-              E-Mail stammt aus deinem Konto und kann hier nicht geändert werden.
-              Vorname, Nachname, Geburtstag und Adresse werden in deinem
-              Benutzerprofil gespeichert und u.a. im Bestellprotokoll unter
-              „Bestand“ verwendet.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pt-6">
             <div className="space-y-2">
               <Label htmlFor="profile-email">E-Mail</Label>
               <Input
@@ -196,35 +213,6 @@ export default function ProfilePersoenlicheDatenPage() {
                 tabIndex={-1}
                 className="h-11 cursor-not-allowed rounded-xl bg-muted/40 text-muted-foreground"
               />
-              {!email && isHydrated ? (
-                <p className="text-xs text-muted-foreground">
-                  Nach Anmeldung mit E-Mail erscheint deine Adresse hier.
-                </p>
-              ) : null}
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="profile-first">Vorname</Label>
-                <Input
-                  id="profile-first"
-                  autoComplete="given-name"
-                  disabled={!isHydrated}
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  className="h-11 rounded-xl"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="profile-last">Nachname</Label>
-                <Input
-                  id="profile-last"
-                  autoComplete="family-name"
-                  disabled={!isHydrated}
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className="h-11 rounded-xl"
-                />
-              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="profile-birthday">Geburtstag</Label>
@@ -298,7 +286,7 @@ export default function ProfilePersoenlicheDatenPage() {
               settingsAccentSaveButtonClassName,
             )}
           >
-            {savedFlash ? "Gespeichert" : "Persönliche Daten speichern"}
+            {savedFlash ? "Gespeichert" : "Profil speichern"}
           </Button>
         </SettingsStickySaveBar>
       </form>

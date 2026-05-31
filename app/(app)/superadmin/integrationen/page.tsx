@@ -6,17 +6,35 @@ import { AppleGlyph } from "@/components/icons/apple-glyph";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
-import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { IntegrationProviderCard } from "@/components/superadmin/integration-provider-card";
-import { fetchPlatformIntegrations } from "@/lib/supabase/platform-superadmin-db";
+import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
+import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
+import { Button } from "@/components/ui/button";
+import {
+  SettingsStickySaveBar,
+  settingsAccentSaveButtonClassName,
+} from "@/components/settings/settings-sticky-save-bar";
+import {
+  SuperadminIntegrationsSaveProvider,
+  useSuperadminIntegrationsSave,
+} from "@/lib/superadmin/integrations-save-registry";
+import { fetchSuperadminPlatformIntegrations } from "@/lib/superadmin/platform-integrations-api";
 import type {
   PlatformIntegrationKey,
   PlatformIntegrationRow,
 } from "@/lib/types/platform-integration";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { cn } from "@/lib/utils";
 
-const INTEGRATION_META: Record<
-  PlatformIntegrationKey,
+const OAUTH_ORDER = [
+  "google_oauth",
+  "apple_oauth",
+  "facebook",
+  "instagram",
+  "google_business",
+] as const satisfies readonly PlatformIntegrationKey[];
+
+const OAUTH_META: Record<
+  (typeof OAUTH_ORDER)[number],
   {
     title: string;
     description: string;
@@ -40,40 +58,55 @@ const INTEGRATION_META: Record<
   },
   facebook: {
     title: "Facebook",
-    description: "Social-Integration — folgt in einer späteren Version.",
+    description:
+      "Messenger & Meta-APIs. App-ID und App-Geheimnis aus der Meta Developer Console (developers.facebook.com).",
     icon: <FacebookGlyph />,
-    configurable: false,
+    configurable: true,
   },
   instagram: {
     title: "Instagram",
-    description: "Social-Integration — folgt in einer späteren Version.",
+    description:
+      "Instagram Business über Meta. App-ID und App-Geheimnis — dieselbe Meta-App wie Facebook möglich.",
     icon: <InstagramGlyph />,
-    configurable: false,
+    configurable: true,
   },
-  whatsapp: {
-    title: "WhatsApp",
-    description: "Messaging-Integration — folgt in einer späteren Version.",
-    icon: <WhatsAppGlyph />,
-    configurable: false,
+  google_business: {
+    title: "Google Business Profile",
+    description:
+      "OAuth für Unternehmensprofile (Bewertungen, Nachrichten, Beiträge). Client ID und Secret aus der Google Cloud Console — Redirect-URI auf der Live-Domain eintragen.",
+    icon: <GoogleGlyph />,
+    configurable: true,
   },
 };
 
-const ORDER: PlatformIntegrationKey[] = [
-  "google_oauth",
-  "apple_oauth",
-  "facebook",
-  "instagram",
-  "whatsapp",
-];
+const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow> = {
+  google_oauth: { key: "google_oauth", enabled: false, config: {}, updated_at: "" },
+  apple_oauth: { key: "apple_oauth", enabled: false, config: {}, updated_at: "" },
+  facebook: { key: "facebook", enabled: false, config: {}, updated_at: "" },
+  instagram: { key: "instagram", enabled: false, config: {}, updated_at: "" },
+  google_business: {
+    key: "google_business",
+    enabled: false,
+    config: {},
+    updated_at: "",
+  },
+  whatsapp: { key: "whatsapp", enabled: false, config: {}, updated_at: "" },
+  email: {
+    key: "email",
+    enabled: false,
+    config: { email: "contact@gwada.app" },
+    updated_at: "",
+  },
+};
 
-export default function SuperadminIntegrationsPage() {
+function SuperadminIntegrationsContent() {
   const [rows, setRows] = useState<PlatformIntegrationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const { dirty, saving, saveAll } = useSuperadminIntegrationsSave();
 
   const load = useCallback(async () => {
     setLoading(true);
-    const sb = createSupabaseBrowserClient();
-    const { rows: data, error } = await fetchPlatformIntegrations(sb);
+    const { rows: data, error } = await fetchSuperadminPlatformIntegrations();
     if (error) toast.error(error);
     setRows(data);
     setLoading(false);
@@ -94,8 +127,8 @@ export default function SuperadminIntegrationsPage() {
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Integrationen</h2>
         <p className="text-sm text-muted-foreground">
-          OAuth-Provider aktivieren und Zugangsdaten zentral verwalten. Social-
-          Kanäle sind vorerst Platzhalter.
+          OAuth, WhatsApp (WAHA) und E-Mail — Zugangsdaten nur für Superadmins,
+          Versand und API-Calls nur serverseitig.
         </p>
       </div>
 
@@ -105,14 +138,17 @@ export default function SuperadminIntegrationsPage() {
         </p>
       ) : (
         <div className="space-y-4">
-          {ORDER.map((key) => {
-            const meta = INTEGRATION_META[key];
-            const row = byKey.get(key) ?? {
-              key,
-              enabled: false,
-              config: {},
-              updated_at: new Date().toISOString(),
-            };
+          <PlatformWhatsappFeatureCard
+            row={byKey.get("whatsapp") ?? EMPTY_PLATFORM_ROW.whatsapp}
+            onSaved={() => void load()}
+          />
+          <PlatformEmailSmtpCard
+            row={byKey.get("email") ?? EMPTY_PLATFORM_ROW.email}
+            onSaved={() => void load()}
+          />
+          {OAUTH_ORDER.map((key) => {
+            const meta = OAUTH_META[key];
+            const row = byKey.get(key) ?? EMPTY_PLATFORM_ROW[key];
             return (
               <IntegrationProviderCard
                 key={key}
@@ -121,12 +157,60 @@ export default function SuperadminIntegrationsPage() {
                 icon={meta.icon}
                 row={row}
                 configurable={meta.configurable}
+                clientIdLabel={
+                  key === "facebook" || key === "instagram"
+                    ? "App ID"
+                    : key === "google_business"
+                      ? "Client ID"
+                      : undefined
+                }
+                clientSecretLabel={
+                  key === "facebook" || key === "instagram"
+                    ? "App Secret"
+                    : key === "google_business"
+                      ? "Client Secret"
+                      : undefined
+                }
+                clientIdPlaceholder={
+                  key === "facebook" || key === "instagram"
+                    ? "z. B. 1234567890123456"
+                    : key === "google_business"
+                      ? "z. B. 123456789-….apps.googleusercontent.com"
+                      : undefined
+                }
                 onSaved={() => void load()}
               />
             );
           })}
         </div>
       )}
+
+      <SettingsStickySaveBar show={dirty}>
+        <Button
+          type="button"
+          disabled={saving}
+          className={cn(
+            "h-11 w-full min-w-[12rem] sm:w-auto",
+            settingsAccentSaveButtonClassName,
+          )}
+          onClick={() => void saveAll()}
+        >
+          {saving ? "Speichern…" : "Speichern"}
+        </Button>
+      </SettingsStickySaveBar>
     </div>
+  );
+}
+
+export default function SuperadminIntegrationsPage() {
+  const [reloadToken, setReloadToken] = useState(0);
+  const handleAfterSave = useCallback(async () => {
+    setReloadToken((t) => t + 1);
+  }, []);
+
+  return (
+    <SuperadminIntegrationsSaveProvider onAfterSave={handleAfterSave}>
+      <SuperadminIntegrationsContent key={reloadToken} />
+    </SuperadminIntegrationsSaveProvider>
   );
 }

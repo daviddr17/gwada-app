@@ -16,6 +16,8 @@ export type SuperadminUserRow = {
   locale: string | null;
   created_at: string;
   last_sign_in_at: string | null;
+  last_seen_at: string | null;
+  is_online: boolean;
   restaurant_count: number;
 };
 

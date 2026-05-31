@@ -202,10 +202,32 @@ Nur sinnvoll für einzelne Hotfixes; dauerhaft besser: `db push` + Dateien im Gi
 
 ---
 
+## 8. Parität Lokal ↔ Live (Deploy-Checkliste)
+
+Damit nach dem nächsten Coolify-Deploy **Login**, **Bestand/Bestellungen** und **Toasts** wie lokal bleiben:
+
+| Thema | Lokal (`npm run dev`) | Live (Coolify / `scripts/vps-build-gwada-live.sh`) |
+|--------|------------------------|-----------------------------------------------------|
+| Bestand/Bestellungen | `NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false` (relational) | gleich |
+| Workspace | `NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo` | gleich |
+| Supabase-Client | `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` | zusätzlich Proxy: `NEXT_PUBLIC_SUPABASE_PROXY=true`, `SUPABASE_UPSTREAM_URL=http://…:8001`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_SUPABASE_URL=https://…/sb` |
+| Build | `.env.local` beim `next dev` | **`NEXT_PUBLIC_*` beim `docker build`** setzen (nicht nur Runtime) |
+| Runtime-Fallback | `GwadaPublicEnvScript` (injiziert Keys, wenn Build-Env fehlt) | gleicher Code |
+| HTTP ohne HTTPS | `createId()` statt `crypto.randomUUID()` | wichtig auf `http://95.111.229.250:3000` |
+| Auth-Cookies | `sb-gwada-auth` (fest, Browser + `proxy.ts`) | gleich |
+
+**Lokal wie Live testen:** `npm run dev:live` (lädt `.env.production`) oder Proxy-Block aus `.env.production.example` in `.env.local`.
+
+**Nach Deploy prüfen:** Login → Bestand → Menge in Spalte „Bestellung“ → Toast „Bestellung eröffnet“ / „Bestellung angepasst“ (siehe `lib/inventory/purchase-order-notifications.ts`).
+
+Coolify-Env patchen: `bash scripts/coolify-env-live-proxy.sh`
+
+---
+
 ## Kurz-Checkliste
 
 - [ ] Docker + `npm run db:start` (lokal)
 - [ ] `SUPABASE_DB_URL` in `.env.local`
 - [ ] `SUPABASE_DB_URL` in `.env.production` (Live-Postgres)
-- [ ] Supabase-Keys in **Coolify** (App)
+- [ ] Supabase-Keys in **Coolify** (App) + Proxy-Env (Abschnitt 8)
 - [ ] Bei Schema-Änderung: lokal `db:push:local`, bei Go-Live `db:push:live` + Git push

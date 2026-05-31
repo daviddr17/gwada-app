@@ -28,6 +28,11 @@ export function SuperadminSearchToolbar({
   filterOptions?: readonly { value: string; label: string }[];
   onFilterChange?: (v: string) => void;
 }) {
+  const selectedFilterLabel =
+    filterOptions?.find((o) => o.value === (filterValue ?? "all"))?.label ??
+    filterLabel ??
+    "Filter";
+
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="relative min-w-0 flex-1 sm:max-w-md">
@@ -52,7 +57,7 @@ export function SuperadminSearchToolbar({
             <SelectTrigger
               className={appSelectTriggerAccentCn("h-9 min-w-[10rem]")}
             >
-              <SelectValue />
+              <SelectValue>{selectedFilterLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
               {filterOptions.map((o) => (

@@ -1,0 +1,111 @@
+create extension if not exists pgcrypto with schema extensions;
+
+-- Einladung annehmen: Profil verknüpfen, restaurant_employees anlegen/aktualisieren.
+create or replace function public.accept_staff_invite(
+  p_token text,
+  p_profile_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid;
+  v_invite record;
+  v_staff record;
+  v_emp_id uuid;
+  v_token_hash text;
+begin
+  v_uid := coalesce(p_profile_id, (select auth.uid()));
+  if v_uid is null then
+    return jsonb_build_object('ok', false, 'error', 'unauthorized');
+  end if;
+
+  if p_token is null or length(trim(p_token)) < 16 then
+    return jsonb_build_object('ok', false, 'error', 'invalid_token');
+  end if;
+
+  v_token_hash := encode(extensions.digest(trim(p_token), 'sha256'), 'hex');
+
+  select i.*, s.given_name, s.family_name, s.email as staff_email
+  into v_invite
+  from public.restaurant_staff_invites i
+  inner join public.restaurant_staff s on s.id = i.staff_id
+  where i.token_hash = v_token_hash
+    and i.status = 'pending'
+    and i.expires_at > timezone('utc', now())
+  for update of i;
+
+  if not found then
+    return jsonb_build_object('ok', false, 'error', 'invite_not_found');
+  end if;
+
+  select * into v_staff from public.restaurant_staff where id = v_invite.staff_id;
+
+  -- Bereits Mitglied?
+  select id into v_emp_id
+  from public.restaurant_employees
+  where restaurant_id = v_invite.restaurant_id
+    and profile_id = v_uid
+  limit 1;
+
+  if v_emp_id is not null then
+    update public.restaurant_employees
+    set
+      staff_id = v_invite.staff_id,
+      position_id = v_invite.restaurant_position_id,
+      is_active = true
+    where id = v_emp_id;
+  else
+    insert into public.restaurant_employees (
+      restaurant_id,
+      profile_id,
+      staff_id,
+      position_id,
+      role,
+      is_active
+    )
+    select
+      v_invite.restaurant_id,
+      v_uid,
+      v_invite.staff_id,
+      v_invite.restaurant_position_id,
+      case
+        when rp.slug in (
+          'owner', 'manager', 'host', 'server', 'kitchen', 'other'
+        ) then rp.slug::public.employee_role
+        else 'other'::public.employee_role
+      end,
+      true
+    from public.restaurant_positions rp
+    where rp.id = v_invite.restaurant_position_id
+    returning id into v_emp_id;
+  end if;
+
+  update public.restaurant_staff
+  set
+    profile_id = v_uid,
+    employee_id = v_emp_id
+  where id = v_invite.staff_id;
+
+  update public.restaurant_staff_invites
+  set
+    status = 'accepted',
+    accepted_at = timezone('utc', now()),
+    accepted_by = v_uid
+  where id = v_invite.id;
+
+  return jsonb_build_object(
+    'ok', true,
+    'restaurant_id', v_invite.restaurant_id,
+    'staff_id', v_invite.staff_id
+  );
+exception
+  when others then
+    return jsonb_build_object('ok', false, 'error', sqlerrm);
+end;
+$$;
+
+revoke all on function public.accept_staff_invite(text, uuid) from public;
+grant execute on function public.accept_staff_invite(text, uuid) to authenticated, service_role;

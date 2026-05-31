@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Gwada — Digitale Gastronomie",
+  title: "Startseite",
   description:
     "Reservierungen, Menü und Branding in einer ruhigen, hochwertigen Oberfläche.",
 };

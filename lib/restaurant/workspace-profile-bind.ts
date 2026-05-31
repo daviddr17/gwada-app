@@ -88,41 +88,6 @@ export function persistenceNeedsWorkspaceBind(
   );
 }
 
-/** Name aus App-State-Payload (JSON unter `restaurant_app_state`). */
-export function profileNameFromAppStatePayload(
-  payload: unknown,
-  restaurantId: string,
-): string | null {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-    return null;
-  }
-  const root = payload as Record<string, unknown>;
-  const restaurants = root.restaurants;
-  if (!restaurants || typeof restaurants !== "object" || Array.isArray(restaurants)) {
-    return null;
-  }
-  const map = restaurants as Record<string, unknown>;
-
-  const readName = (key: string): string | null => {
-    const entry = map[key];
-    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
-    const name = (entry as { name?: unknown }).name;
-    return typeof name === "string" && name.trim() ? name.trim() : null;
-  };
-
-  const selectedId =
-    typeof root.selectedRestaurantId === "string"
-      ? root.selectedRestaurantId
-      : DEFAULT_RESTAURANT_ID;
-
-  return (
-    readName(restaurantId) ??
-    readName(selectedId) ??
-    readName(DEFAULT_RESTAURANT_ID) ??
-    readName("default")
-  );
-}
-
 export function emptyWorkspacePersistence(
   workspaceId: string,
 ): RestaurantPersistenceV1 {

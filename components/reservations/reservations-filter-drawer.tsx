@@ -37,6 +37,8 @@ type ReservationsFilterDrawerProps = {
   onHidePastReservationsChange: (v: boolean) => void;
   hideEmptyDays: boolean;
   onHideEmptyDaysChange: (v: boolean) => void;
+  unconfirmedMode: boolean;
+  onUnconfirmedModeChange: (enabled: boolean) => void;
 };
 
 export function ReservationsFilterDrawer({
@@ -50,6 +52,8 @@ export function ReservationsFilterDrawer({
   onHidePastReservationsChange,
   hideEmptyDays,
   onHideEmptyDaysChange,
+  unconfirmedMode,
+  onUnconfirmedModeChange,
 }: ReservationsFilterDrawerProps) {
   const statusItems = useMemo(() => {
     const m: Record<string, string> = { all: "Alle Status" };
@@ -74,40 +78,67 @@ export function ReservationsFilterDrawer({
             Filter
           </DrawerTitle>
           <DrawerDescription className="text-base">
-            Reservierungen in der Monatsübersicht nach Status und Anzeige filtern.
+            {unconfirmedMode
+              ? "Anzeige der unbestätigten Reservierungen (alle Monate)."
+              : "Reservierungen in der Monatsübersicht nach Status und Anzeige filtern."}
           </DrawerDescription>
         </DrawerHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-2">
-          <div className="space-y-3">
-            <Label
-              htmlFor="res-filter-status"
-              className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-            >
-              Status
-            </Label>
-            <Select
-              value={statusFilterId}
-              items={statusItems}
-              onValueChange={(v) => {
-                if (typeof v === "string") onStatusFilterIdChange(v);
-              }}
-            >
-              <SelectTrigger
-                id="res-filter-status"
-                className="h-12 w-full rounded-2xl text-left text-base font-medium"
+          {!unconfirmedMode ? (
+            <div className="space-y-3">
+              <Label
+                htmlFor="res-filter-status"
+                className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
               >
-                <SelectValue placeholder="Status wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Status</SelectItem>
-                {statusOptions.map((o) => (
-                  <SelectItem key={o.id} value={o.id}>
-                    {o.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                Status
+              </Label>
+              <Select
+                value={statusFilterId}
+                items={statusItems}
+                onValueChange={(v) => {
+                  if (typeof v === "string") onStatusFilterIdChange(v);
+                }}
+              >
+                <SelectTrigger
+                  id="res-filter-status"
+                  className="h-12 w-full rounded-2xl text-left text-base font-medium"
+                >
+                  <SelectValue placeholder="Status wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Status</SelectItem>
+                  {statusOptions.map((o) => (
+                    <SelectItem key={o.id} value={o.id}>
+                      {o.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+
+          <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/20 px-3 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span
+                id="res-filter-unconfirmed"
+                className="min-w-0 text-sm font-medium leading-snug"
+              >
+                Alle unbestätigten
+              </span>
+              <Switch
+                checked={unconfirmedMode}
+                onCheckedChange={(v) =>
+                  onUnconfirmedModeChange(v === true)
+                }
+                size="sm"
+                aria-labelledby="res-filter-unconfirmed"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground leading-snug">
+              Status Offen oder Änderung prüfen — über alle Monate, wie vom
+              Dashboard.
+            </p>
           </div>
 
           <Separator />
@@ -171,6 +202,7 @@ export function ReservationsFilterDrawer({
             variant="outline"
             className="h-12 flex-1 rounded-xl tap-scale"
             onClick={() => {
+              onUnconfirmedModeChange(false);
               onStatusFilterIdChange("all");
               onHidePastReservationsChange(true);
               onHideEmptyDaysChange(false);

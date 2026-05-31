@@ -9,7 +9,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { Pause, Pencil, Play, Plus, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  Download,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -67,6 +75,10 @@ import {
   tablePlanMutedClass,
   tablePlanTextClass,
 } from "@/components/reservations/floor-plan-geometry";
+import { DayReservationsExportSheet } from "@/components/reservations/day-reservations-export-sheet";
+import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
+import { toAutoAssignReservation } from "@/lib/reservations/auto-table-assignment";
+import { reservationsAtTableForInstant } from "@/lib/reservations/reservations-table-occupancy";
 import { cn } from "@/lib/utils";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
@@ -95,6 +107,7 @@ type DayReservationsDrawerProps = {
     diningTableId: string;
     startsAt: Date;
   }) => void;
+  onDataChanged?: () => void;
 };
 
 function sortReservations(
@@ -370,34 +383,6 @@ function layoutDayFloorTableCell(params: {
   };
 }
 
-function reservationsAtTableForInstant(
-  tables: DiningTableRow[],
-  reservations: ReservationListRow[],
-  instant: Date,
-): Map<string, ReservationListRow[]> {
-  const map = new Map<string, ReservationListRow[]>();
-  const tableIds = new Set(tables.map((t) => t.id));
-  for (const r of reservations) {
-    if (
-      !isConfirmedReservationStatus(r.reservation_statuses) ||
-      !r.dining_table_id ||
-      !tableIds.has(r.dining_table_id)
-    ) {
-      continue;
-    }
-    if (!reservationActiveAtInstant(r, instant)) continue;
-    const arr = map.get(r.dining_table_id) ?? [];
-    arr.push(r);
-    map.set(r.dining_table_id, arr);
-  }
-  for (const arr of map.values()) {
-    arr.sort(
-      (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-    );
-  }
-  return map;
-}
-
 export function DayReservationsDrawer({
   open,
   onOpenChange,
@@ -406,6 +391,7 @@ export function DayReservationsDrawer({
   restaurantId,
   onEdit,
   onCreateReservation,
+  onDataChanged,
 }: DayReservationsDrawerProps) {
   const { getProfileForRestaurantId, isReady: profileReady } = useRestaurantProfile();
   const [viewMode, setViewMode] = useState<DayViewMode>("list");
@@ -422,6 +408,7 @@ export function DayReservationsDrawer({
   const [floorFitPadPx, setFloorFitPadPx] = useState(4);
   /** Ab sm (640px) wie `sm:grid-cols-2` auf der Seite — sonst wirkt Grid wie Liste. */
   const [showGridOption, setShowGridOption] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   useLayoutEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
@@ -447,6 +434,11 @@ export function DayReservationsDrawer({
       weekly: p.weeklyHours,
       exceptions: p.dateExceptions,
     };
+  }, [restaurantId, profileReady, getProfileForRestaurantId]);
+
+  const restaurantName = useMemo(() => {
+    if (!restaurantId || !profileReady) return undefined;
+    return getProfileForRestaurantId(restaurantId).name.trim() || undefined;
   }, [restaurantId, profileReady, getProfileForRestaurantId]);
 
   useEffect(() => {
@@ -726,6 +718,7 @@ export function DayReservationsDrawer({
                 <p className="text-[11px] text-muted-foreground">
                   {r.party_size} {r.party_size === 1 ? "Person" : "Personen"} · bis {endLabel}
                   {st?.name ? ` · ${st.name}` : ""}
+                  {st?.code === "change_requested" ? " · Änderung prüfen" : ""}
                 </p>
               </div>
             </div>
@@ -802,7 +795,10 @@ export function DayReservationsDrawer({
     </button>
   );
 
+  const dayTitle = day ? formatDayHeadingDe(day) : "";
+
   return (
+    <>
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
@@ -835,18 +831,38 @@ export function DayReservationsDrawer({
               {showGridOption ? viewChip("grid", "Gridansicht") : null}
               {viewChip("floor", "Tischansicht")}
             </div>
-            {onCreateReservation ? (
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <AutoAssignTablesButton
+                variant="dashboard"
+                size="icon"
+                reservations={reservations.map(toAutoAssignReservation)}
+                tables={tables}
+                onDone={onDataChanged}
+              />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="ml-auto size-9 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
-                aria-label="Neue Reservierung"
-                onClick={() => onCreateReservation?.()}
+                className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
+                aria-label="Tagesliste exportieren"
+                disabled={sorted.length === 0}
+                onClick={() => setExportOpen(true)}
               >
-                <Plus className="size-5" />
+                <Download className="size-5" />
               </Button>
-            ) : null}
+              {onCreateReservation ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
+                  aria-label="Neue Reservierung"
+                  onClick={() => onCreateReservation?.()}
+                >
+                  <Plus className="size-5" />
+                </Button>
+              ) : null}
+            </div>
           </div>
           {(viewMode === "list" || (viewMode === "grid" && showGridOption)) && (
             <div className="flex flex-wrap items-center gap-2">
@@ -1426,5 +1442,14 @@ export function DayReservationsDrawer({
         </div>
       </DrawerContent>
     </Drawer>
+    <DayReservationsExportSheet
+      open={exportOpen}
+      onOpenChange={setExportOpen}
+      day={day}
+      dayTitle={dayTitle}
+      reservations={sorted}
+      restaurantName={restaurantName}
+    />
+    </>
   );
 }

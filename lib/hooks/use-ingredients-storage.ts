@@ -9,15 +9,16 @@ import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
 import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
-  getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
-} from "@/lib/supabase/workspace-persistence";
-import {
   inventoryRelationalPersistenceEnabled,
   loadIngredientsRelational,
   saveIngredientsRelational,
 } from "@/lib/supabase/inventory-db";
+import { migrateIngredientsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import {
+  getWorkspaceRestaurantId,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
+} from "@/lib/supabase/workspace-persistence";
 import type { Ingredient, NewIngredient } from "@/lib/types/inventory";
 import type {
   IngredientStockLogDeliveryReverted,
@@ -207,6 +208,10 @@ export function useIngredientsStorage() {
     let cancelled = false;
     if (useDbInventory) {
       void (async () => {
+        const rid = await getWorkspaceRestaurantId();
+        if (rid) {
+          await migrateIngredientsFromLegacyAppStateIfEmpty(rid, [...SEED_INGREDIENTS]);
+        }
         const rows = await loadIngredientsRelational();
         if (cancelled) return;
         if (rows === null) {
@@ -222,39 +227,28 @@ export function useIngredientsStorage() {
     }
 
     if (supabaseOnly) {
-      void (async () => {
-        const remote = await loadWorkspaceJson(INGREDIENT_STORAGE_KEY);
-        const fromRemote = parseIngredientsFromUnknown(remote);
-        if (cancelled) return;
-        setIngredients(fromRemote ?? []);
-        setIsHydrated(true);
-      })();
+      if (cancelled) return;
+      setIngredients([]);
+      setIsHydrated(true);
       return () => {
         cancelled = true;
       };
     }
 
-    void (async () => {
-      const remote = await loadWorkspaceJson(INGREDIENT_STORAGE_KEY);
-      const fromRemote = parseIngredientsFromUnknown(remote);
-      const stored = loadFromStorage();
-      const next = fromRemote ?? stored;
-      if (next?.length) {
-        try {
-          if (typeof localStorage !== "undefined") {
-            localStorage.setItem(INGREDIENT_STORAGE_KEY, JSON.stringify(next));
-          }
-        } catch {
-          /* ignore */
-        }
-      }
+    const fromLocal = parseIngredientsFromUnknown(
+      loadWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY),
+    );
+    const stored = loadFromStorage();
+    const next = fromLocal ?? stored;
+    if (next?.length) {
+      mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
+    }
+    if (cancelled) return;
+    requestAnimationFrame(() => {
       if (cancelled) return;
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        if (next && next.length) setIngredients(next);
-        setIsHydrated(true);
-      });
-    })();
+      if (next && next.length) setIngredients(next);
+      setIsHydrated(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -304,7 +298,8 @@ export function useIngredientsStorage() {
 
       return new Promise((resolve) => {
         setIngredients((prev) => {
-          void persistWorkspaceState(INGREDIENT_STORAGE_KEY, next).then((ok) => {
+          void (async () => {
+            const ok = mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
             if (!ok) {
               setIngredients(prev);
               failSave();
@@ -325,7 +320,7 @@ export function useIngredientsStorage() {
               }, 450);
             }
             resolve(true);
-          });
+          })();
           return next;
         });
       });

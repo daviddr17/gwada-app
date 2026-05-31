@@ -15,9 +15,6 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -54,6 +51,10 @@ import {
   type DiningAreaRow,
   type DiningTableRow,
 } from "@/lib/supabase/dining-floor-db";
+import {
+  WorkspaceRestaurantMissingMessage,
+  WorkspaceRestaurantResolvePlaceholder,
+} from "@/components/workspace/workspace-restaurant-placeholder";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 
@@ -77,7 +78,8 @@ function clampZoom(z: number): number {
 }
 
 export function FloorPlanScreen() {
-  const { restaurantId, supabaseEnvOk } = useWorkspaceRestaurantUuid();
+  const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
+    useWorkspaceRestaurantUuid();
   const [areas, setAreas] = useState<DiningAreaRow[]>([]);
   const [tables, setTables] = useState<DiningTableRow[]>([]);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
@@ -590,26 +592,18 @@ export function FloorPlanScreen() {
     );
   }
 
+  if (!workspaceReady) {
+    return <WorkspaceRestaurantResolvePlaceholder className="min-h-[16rem]" />;
+  }
+
   if (!restaurantId) {
-    return (
-      <p className="text-center text-sm text-muted-foreground">
-        Kein Workspace-Restaurant — bitte unter Workspace → Restaurants wählen.
-      </p>
-    );
+    return <WorkspaceRestaurantMissingMessage className="text-center" />;
   }
 
   return (
     <div className="space-y-6 pb-4">
       <Card className="border-border/50 shadow-card">
-        <CardHeader className="gap-2">
-          <CardTitle className="text-xl">Tischplan</CardTitle>
-          <CardDescription>
-            Bereiche anlegen, Tische platzieren, ziehen zum Verschieben, Ecken zum
-            Skalieren, Plan zoomen für feinere Arbeit. Ohne Namen wird die Tischnummer
-            angezeigt.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <DiningAreaTabs
             areas={areas}
             activeAreaId={selectedAreaId}

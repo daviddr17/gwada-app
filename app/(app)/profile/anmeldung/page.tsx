@@ -18,6 +18,11 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { ProfileAnmeldungSkeleton } from "@/components/profile/profile-anmeldung-skeleton";
+import { PasswordStrengthBar } from "@/components/auth/password-strength-bar";
+import {
+  PASSWORD_POLICY_ERROR_MESSAGE,
+  passwordMeetsPolicy,
+} from "@/lib/auth/password-policy";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -29,9 +34,6 @@ import {
 } from "@/lib/supabase/oauth";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
 import { cn } from "@/lib/utils";
-
-/** Mindestlänge wie in `supabase/config.toml` (`minimum_password_length`). */
-const MIN_PASSWORD_LENGTH = 6;
 
 /** Status-Chip „verbunden“ in Tenant-Akzentfarbe (nicht der umgebende Container). */
 const oauthConnectedBadgeClassName = cn(
@@ -49,6 +51,9 @@ export default function ProfileAnmeldungPage() {
   const [identityCount, setIdentityCount] = useState(0);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
+  const [googleOAuthEnabled, setGoogleOAuthEnabled] = useState(false);
+  const [appleOAuthEnabled, setAppleOAuthEnabled] = useState(false);
+  const [oauthFlagsResolved, setOauthFlagsResolved] = useState(false);
 
   const refreshAuthState = async () => {
     if (!workspacePersistenceConfigured()) {
@@ -84,8 +89,41 @@ export default function ProfileAnmeldungPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/platform/oauth-flags", {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          googleEnabled?: boolean;
+          appleEnabled?: boolean;
+        };
+        if (cancelled) return;
+        setGoogleOAuthEnabled(data.googleEnabled === true);
+        setAppleOAuthEnabled(data.appleEnabled === true);
+      } catch {
+        /* optional */
+      } finally {
+        if (!cancelled) setOauthFlagsResolved(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const authLoading = !authResolved;
   const showAuthSkeleton = useDeferredSkeleton(authLoading);
+  const showOAuthProviders = googleOAuthEnabled || appleOAuthEnabled;
+  const oauthCardDescription =
+    googleOAuthEnabled && appleOAuthEnabled
+      ? "Google- und Apple-Konto mit deinem Profil verknüpfen oder trennen."
+      : googleOAuthEnabled
+        ? "Google-Konto mit deinem Profil verknüpfen oder trennen."
+        : "Apple-Konto mit deinem Profil verknüpfen oder trennen.";
 
   if (authLoading) {
     if (showAuthSkeleton) {
@@ -172,10 +210,8 @@ export default function ProfileAnmeldungPage() {
       toast.error("Bitte das aktuelle Passwort eingeben.");
       return;
     }
-    if (newPassword.length < MIN_PASSWORD_LENGTH) {
-      toast.error(
-        `Neues Passwort mindestens ${MIN_PASSWORD_LENGTH} Zeichen.`,
-      );
+    if (!passwordMeetsPolicy(newPassword)) {
+      toast.error(PASSWORD_POLICY_ERROR_MESSAGE);
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -227,96 +263,93 @@ export default function ProfileAnmeldungPage() {
 
   return (
     <div className="space-y-6 pb-4">
-      <Card className="border-border/50 shadow-card">
-        <CardHeader className="gap-2">
-          <CardTitle className="text-xl">OAuth &amp; Konten</CardTitle>
-          <CardDescription>
-            Google- und Apple-Konto mit deinem Profil verknüpfen oder trennen.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">
-                Google
-              </span>
-              {googleConnected ? (
-                <Badge className={oauthConnectedBadgeClassName}>
-                  Mit Google verbunden
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Nicht verbunden</Badge>
-              )}
-            </div>
-            {googleConnected ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
-                disabled={oauthBusy || identityCount <= 1}
-                onClick={() => void handleOAuthUnlink("google")}
-              >
-                Verknüpfung lösen
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
-                disabled={oauthBusy}
-                onClick={() => void handleOAuthLink("google")}
-              >
-                <GoogleGlyph />
-                Mit Google verknüpfen
-              </Button>
-            )}
-          </div>
-          <Separator />
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
-              <span className="text-sm font-medium text-muted-foreground">
-                Apple
-              </span>
-              {appleConnected ? (
-                <Badge className={oauthConnectedBadgeClassName}>
-                  Mit Apple verbunden
-                </Badge>
-              ) : (
-                <Badge variant="secondary">Nicht verbunden</Badge>
-              )}
-            </div>
-            {appleConnected ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
-                disabled={oauthBusy || identityCount <= 1}
-                onClick={() => void handleOAuthUnlink("apple")}
-              >
-                Verknüpfung lösen
-              </Button>
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
-                disabled={oauthBusy}
-                onClick={() => void handleOAuthLink("apple")}
-              >
-                <Apple className="size-5 shrink-0" aria-hidden />
-                Mit Apple verknüpfen
-              </Button>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Provider müssen in Supabase (Dashboard oder lokale Env) aktiviert
-            sein. Redirect-URL:{" "}
-            <span className="font-mono text-foreground/80">
-              /auth/callback
-            </span>
-          </p>
-        </CardContent>
-      </Card>
+      {oauthFlagsResolved && showOAuthProviders ? (
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">OAuth &amp; Konten</CardTitle>
+            <CardDescription>{oauthCardDescription}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {googleOAuthEnabled ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Google
+                  </span>
+                  {googleConnected ? (
+                    <Badge className={oauthConnectedBadgeClassName}>
+                      Mit Google verbunden
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Nicht verbunden</Badge>
+                  )}
+                </div>
+                {googleConnected ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
+                    disabled={oauthBusy || identityCount <= 1}
+                    onClick={() => void handleOAuthUnlink("google")}
+                  >
+                    Verknüpfung lösen
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
+                    disabled={oauthBusy}
+                    onClick={() => void handleOAuthLink("google")}
+                  >
+                    <GoogleGlyph />
+                    Mit Google verknüpfen
+                  </Button>
+                )}
+              </div>
+            ) : null}
+            {googleOAuthEnabled && appleOAuthEnabled ? <Separator /> : null}
+            {appleOAuthEnabled ? (
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Apple
+                  </span>
+                  {appleConnected ? (
+                    <Badge className={oauthConnectedBadgeClassName}>
+                      Mit Apple verbunden
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary">Nicht verbunden</Badge>
+                  )}
+                </div>
+                {appleConnected ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 shrink-0 rounded-xl border-border/80 sm:ms-auto"
+                    disabled={oauthBusy || identityCount <= 1}
+                    onClick={() => void handleOAuthUnlink("apple")}
+                  >
+                    Verknüpfung lösen
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 shrink-0 gap-2 rounded-xl border-border/80 bg-background font-normal sm:ms-auto"
+                    disabled={oauthBusy}
+                    onClick={() => void handleOAuthLink("apple")}
+                  >
+                    <Apple className="size-5 shrink-0" aria-hidden />
+                    Mit Apple verknüpfen
+                  </Button>
+                )}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
@@ -362,9 +395,7 @@ export default function ProfileAnmeldungPage() {
               disabled={!canChangePassword}
               className="h-11 rounded-xl"
             />
-            <p className="text-xs text-muted-foreground">
-              Mindestens {MIN_PASSWORD_LENGTH} Zeichen.
-            </p>
+            <PasswordStrengthBar password={newPassword} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="pw-confirm">Neues Passwort wiederholen</Label>
@@ -382,6 +413,7 @@ export default function ProfileAnmeldungPage() {
               disabled={!canChangePassword}
               className="h-11 rounded-xl"
             />
+            <PasswordStrengthBar password={confirmPassword} showRequirements={false} />
           </div>
         </CardContent>
         <CardFooter className="flex-col items-stretch gap-2 border-t border-border/40 bg-muted/15 px-6 py-4 sm:flex-row sm:items-center sm:px-8">

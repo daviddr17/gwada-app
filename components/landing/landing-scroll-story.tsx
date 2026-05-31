@@ -7,12 +7,15 @@ import {
   useTransform,
 } from "framer-motion";
 import { useRef } from "react";
+import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 
 /**
  * Lange Scroll-Strecke mit sticky Viewport: „Filmsequenz“ aus drei Phasen
  * (Scale, Blur, Parallax) — rein CSS/Motion, keine Video-Assets.
  */
 export function LandingScrollStory() {
+  const branding = usePlatformAppBrandingOptional();
+  const appName = branding?.appName ?? "gwada";
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({
@@ -99,7 +102,7 @@ export function LandingScrollStory() {
                 className="absolute inset-[26%] flex items-center justify-center rounded-2xl bg-background/90 text-center shadow-2xl ring-1 ring-border/60 backdrop-blur-md"
               >
                 <span className="px-6 text-sm font-medium text-foreground md:text-base">
-                  Gwada — klar, ruhig, bereit für Gäste.
+                  {appName} — klar, ruhig, bereit für Gäste.
                 </span>
               </motion.div>
             </div>

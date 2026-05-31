@@ -14,10 +14,11 @@ import {
   updateInventoryTaxonomyRow,
   upsertInventoryTaxonomyRow,
 } from "@/lib/supabase/inventory-db";
+import { readLegacyRestaurantAppStatePayload } from "@/lib/supabase/legacy-restaurant-app-state";
 import {
   getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
 
 function normalizeTaxonomy(
@@ -68,8 +69,13 @@ export function useInventoryTaxonomyStorage(
           const seeded = initialSeed.map(normalizeTaxonomy);
           setItems(seeded);
           const rid = await getWorkspaceRestaurantId();
-          if (rid && seeded.length > 0) {
-            for (const item of seeded) {
+          if (rid) {
+            const legacyRaw = await readLegacyRestaurantAppStatePayload(storageKey);
+            const legacy =
+              Array.isArray(legacyRaw) && legacyRaw.every(isValidLoose)
+                ? legacyRaw.map(normalizeTaxonomy)
+                : seeded;
+            for (const item of legacy) {
               await upsertInventoryTaxonomyRow(
                 table,
                 rid,
@@ -77,6 +83,10 @@ export function useInventoryTaxonomyStorage(
                 item.name,
                 item.active !== false,
               );
+            }
+            const after = await loadInventoryTaxonomyRelational(table);
+            if (after && after.length > 0) {
+              setItems(after.map(normalizeTaxonomy));
             }
           }
         }
@@ -87,44 +97,33 @@ export function useInventoryTaxonomyStorage(
       };
     }
 
-    void (async () => {
-      const remote = await loadWorkspaceJson(storageKey);
-      let parsed: InventoryTaxonomyDefinition[] | null = null;
-      if (Array.isArray(remote) && remote.every(isValidLoose)) {
-        parsed = remote.map(normalizeTaxonomy);
-      }
-      if (supabaseOnly) {
-        if (cancelled) return;
-        setItems(parsed && parsed.length > 0 ? parsed : initialSeed.map(normalizeTaxonomy));
-        setIsHydrated(true);
-        return;
-      }
-      if (!parsed) {
-        try {
-          const raw = localStorage.getItem(storageKey);
-          if (raw) {
-            const data: unknown = JSON.parse(raw);
-            if (Array.isArray(data) && data.every(isValidLoose)) {
-              parsed = data.map(normalizeTaxonomy);
-            }
-          }
-        } catch {
-          parsed = null;
-        }
-      } else {
-        try {
-          localStorage.setItem(storageKey, JSON.stringify(parsed));
-        } catch {
-          /* ignore */
-        }
-      }
+    let parsed: InventoryTaxonomyDefinition[] | null = null;
+    const localRaw = loadWorkspaceJsonLocal(storageKey);
+    if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
+      parsed = localRaw.map(normalizeTaxonomy);
+    }
+    if (supabaseOnly) {
+      if (cancelled) return;
+      setItems(parsed && parsed.length > 0 ? parsed : initialSeed.map(normalizeTaxonomy));
+      setIsHydrated(true);
+      return;
+    }
+    if (!parsed) {
       if (cancelled) return;
       requestAnimationFrame(() => {
-        if (cancelled) return;
-        if (parsed && parsed.length > 0) setItems(parsed);
-        setIsHydrated(true);
+        if (!cancelled) setIsHydrated(true);
       });
-    })();
+      return () => {
+        cancelled = true;
+      };
+    }
+    mirrorWorkspaceJsonLocal(storageKey, parsed);
+    if (cancelled) return;
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      setItems(parsed!);
+      setIsHydrated(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -134,14 +133,13 @@ export function useInventoryTaxonomyStorage(
     (next: InventoryTaxonomyDefinition[], successMessage?: string) => {
       const cleaned = next.map(normalizeTaxonomy);
       setItems((prev) => {
-        void persistWorkspaceState(storageKey, cleaned).then((ok) => {
-          if (!ok) {
-            setItems(prev);
-            failSave();
-          } else if (successMessage) {
-            toast.success(successMessage);
-          }
-        });
+        const ok = mirrorWorkspaceJsonLocal(storageKey, cleaned);
+        if (!ok) {
+          setItems(prev);
+          failSave();
+        } else if (successMessage) {
+          toast.success(successMessage);
+        }
         return cleaned;
       });
       return true;

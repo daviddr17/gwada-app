@@ -24,3 +24,10 @@ Hook **`useDeferredSkeleton(loading, delayMs?)`** aus `@/lib/hooks/use-deferred-
 
 - Layout der Skeletons an die **echte Karte** anlehnen (`SkeletonCardFrame` + Zeilen wie im Ziel-UI).
 - Wiederverwendbare Skeleton-Komponenten in **`components/...`** kollokieren (z. B. `restaurant-settings-skeleton.tsx`), nicht lange `Skeleton`-Listen in Seiten duplizieren.
+
+## Pflicht bei Remote-Laden
+
+- **Immer** Akzent-Skeleton statt Spinner (`Loader2`, `animate-spin`) oder Fließtext wie „Laden …“ / „Wird geladen …“ als **alleinigen** Ladezustand für Screens, Tabellen, Karten und Panel-Hauptinhalte.
+- **`useDeferredSkeleton(loading)`** + passende Skeleton-Komponente (z. B. `RestaurantTeamPanelSkeleton`, `StaffOverviewTableSkeleton`).
+- Spinner nur für **Inline-Aktionen** (Speichern, Senden, Button disabled) — nicht für initiales Daten-Fetching.
+- Neue Module und bestehende Lade-Texte schrittweise auf Skeletons umstellen.

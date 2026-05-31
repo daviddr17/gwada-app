@@ -1,0 +1,863 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LayoutList, Loader2, MessageSquare, Plus, Rows3, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DisplayReservationDrawer } from "@/components/display/modules/display-reservation-drawer";
+import { DisplayReservationEditDrawer } from "@/components/display/display-reservation-edit-drawer";
+import {
+  DisplayReservationMessageSheet,
+  reservationHasContactChannel,
+} from "@/components/display/display-reservation-message-sheet";
+import { DisplayReservationTableField } from "@/components/display/display-reservation-table-field";
+import { DisplayTimeRangeSlider } from "@/components/display/display-time-range-slider";
+import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats-bar";
+import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
+import {
+  normalizeBookingTimeStepMinutes,
+  type BookingTimeStepMinutes,
+} from "@/lib/reservations/booking-time-step";
+import {
+  fallbackSlotRangeFromReservations,
+  localDateAtSlotMinutes,
+  openingDayBookableSlotStartsMinutes,
+  resolveHoursForLocalCalendarDay,
+} from "@/lib/reservations/day-opening-slots";
+import {
+  computeTableSlotStats,
+  reservationsAtTableForInstant,
+  reservationsAtTableForRange,
+} from "@/lib/reservations/reservations-table-occupancy";
+import { formatDayHeadingDe } from "@/lib/reservations/month-range";
+import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import type { DiningAreaRow, DiningTableRow } from "@/lib/supabase/dining-floor-db";
+import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
+import type { ReservationListRow } from "@/lib/supabase/reservations-db";
+import type { DayHours, DateHoursException, Weekday } from "@/lib/types/restaurant";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+type ReservationStatus = {
+  id: string;
+  code: string;
+  name: string;
+  color_hex: string;
+};
+
+type DayPayload = {
+  day: string;
+  restaurant_id: string;
+  restaurant_name: string | null;
+  reservations: DisplayReservationRow[];
+  statuses: ReservationStatus[];
+  areas: DiningAreaRow[];
+  tables: DiningTableRow[];
+  default_dwell_minutes: number;
+  booking_time_step_minutes: BookingTimeStepMinutes;
+  min_minutes_before_closing: number;
+  next_reservation_number: number;
+  weekly_hours: Record<Weekday, DayHours>;
+  date_exceptions: DateHoursException[];
+  stats: { count: number; guests: number };
+};
+
+type ViewMode = "list" | "occupancy";
+type ListDensity = "comfortable" | "compact";
+
+const timeFmt = new Intl.DateTimeFormat("de-DE", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+const DISPLAY_SESSION_ERRORS: Record<string, string> = {
+  session_expired: "Sitzung abgelaufen — bitte erneut anmelden.",
+  session_locked: "Bitte mit PIN anmelden.",
+  module_forbidden: "Keine Berechtigung für Reservierungen.",
+};
+
+function reservationOverlapsSlotRange(
+  r: DisplayReservationRow,
+  day: Date,
+  fromMin: number,
+  toMin: number,
+  stepMinutes: number,
+): boolean {
+  const rangeStart = localDateAtSlotMinutes(day, fromMin).getTime();
+  const rangeEnd = localDateAtSlotMinutes(day, toMin + stepMinutes).getTime();
+  const rStart = new Date(r.starts_at).getTime();
+  const rEnd = new Date(r.ends_at).getTime();
+  return rStart < rangeEnd && rEnd > rangeStart;
+}
+
+export function DisplayReservationsModule() {
+  const [loading, setLoading] = useState(true);
+  const showSkeleton = useDeferredSkeleton(loading);
+  const [payload, setPayload] = useState<DayPayload | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [listDensity, setListDensity] = useState<ListDensity>("comfortable");
+  const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const [rangeSlotIndices, setRangeSlotIndices] = useState<[number, number]>([0, 0]);
+  const lastSlotsKeyRef = useRef("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [messageTarget, setMessageTarget] = useState<DisplayReservationRow | null>(
+    null,
+  );
+  const [editReservationId, setEditReservationId] = useState<string | null>(null);
+
+  const today = useMemo(() => new Date(), []);
+  const bookingStep = normalizeBookingTimeStepMinutes(
+    payload?.booking_time_step_minutes,
+  );
+
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const res = await fetch("/api/display/reservations", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await res.json()) as DayPayload & { error?: string };
+      if (!res.ok) {
+        toast.error(
+          DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
+            "Reservierungen konnten nicht geladen werden.",
+        );
+        return;
+      }
+      setPayload(data);
+    } catch {
+      toast.error("Reservierungen konnten nicht geladen werden.");
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+    const id = setInterval(() => void load({ silent: true }), 60_000);
+    return () => clearInterval(id);
+  }, [load]);
+
+  const reservations = payload?.reservations ?? [];
+  const statuses = payload?.statuses ?? [];
+  const areas = payload?.areas ?? [];
+  const tables = payload?.tables ?? [];
+
+  useEffect(() => {
+    if (!selectedAreaId && areas[0]) setSelectedAreaId(areas[0].id);
+  }, [areas, selectedAreaId]);
+
+  const tablesInArea = useMemo(
+    () => tables.filter((t) => t.area_id === selectedAreaId),
+    [tables, selectedAreaId],
+  );
+
+  const hoursForDay = useMemo(() => {
+    if (!payload) return null;
+    return resolveHoursForLocalCalendarDay(
+      today,
+      payload.weekly_hours,
+      payload.date_exceptions,
+    );
+  }, [payload, today]);
+
+  const slotMinutes = useMemo(() => {
+    if (!hoursForDay) return [];
+    const fallbackReservations = reservations.map((r) => ({
+      starts_at: r.starts_at,
+      ends_at: r.ends_at,
+    })) as never[];
+    const fallback = fallbackSlotRangeFromReservations(fallbackReservations, today);
+    return openingDayBookableSlotStartsMinutes(
+      hoursForDay,
+      fallback,
+      bookingStep,
+      payload?.min_minutes_before_closing ?? 60,
+    );
+  }, [hoursForDay, reservations, today, bookingStep, payload?.min_minutes_before_closing]);
+
+  useEffect(() => {
+    if (slotMinutes.length === 0) return;
+    const slotsKey = `${slotMinutes[0]}-${slotMinutes[slotMinutes.length - 1]}-${slotMinutes.length}`;
+    if (slotsKey === lastSlotsKeyRef.current) return;
+    lastSlotsKeyRef.current = slotsKey;
+
+    const nowMin = today.getHours() * 60 + today.getMinutes();
+    let nowIdx = 0;
+    for (let i = 0; i < slotMinutes.length; i++) {
+      if (slotMinutes[i]! <= nowMin) nowIdx = i;
+    }
+    const lastIdx = slotMinutes.length - 1;
+    setRangeSlotIndices([nowIdx, lastIdx]);
+  }, [slotMinutes, today]);
+
+  const fromMin = slotMinutes[rangeSlotIndices[0]] ?? 0;
+  const toMin =
+    slotMinutes[
+      Math.min(rangeSlotIndices[1], Math.max(slotMinutes.length - 1, 0))
+    ] ?? fromMin;
+
+  const filteredReservations = useMemo(() => {
+    if (slotMinutes.length === 0) return reservations;
+    return reservations
+      .filter((r) =>
+        reservationOverlapsSlotRange(r, today, fromMin, toMin, bookingStep),
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+      );
+  }, [reservations, today, fromMin, toMin, bookingStep, slotMinutes.length]);
+
+  const occupancyInstant = useMemo(
+    () => localDateAtSlotMinutes(today, toMin),
+    [today, toMin],
+  );
+
+  const occupancyRange = useMemo(() => {
+    const rangeStart = localDateAtSlotMinutes(today, fromMin);
+    const rangeEnd = localDateAtSlotMinutes(today, toMin + bookingStep);
+    return { rangeStart, rangeEnd };
+  }, [today, fromMin, toMin, bookingStep]);
+
+  const occupancy = useMemo(() => {
+    if (slotMinutes.length === 0) return new Map<string, DisplayReservationRow[]>();
+    const withStatus = reservations.map((r) => ({
+      ...r,
+      status: r.status,
+    }));
+    return reservationsAtTableForRange(
+      tablesInArea,
+      withStatus,
+      occupancyRange.rangeStart,
+      occupancyRange.rangeEnd,
+      { includeSeated: true },
+    );
+  }, [tablesInArea, reservations, occupancyRange, slotMinutes.length]);
+
+  const allTablesOccupancy = useMemo(() => {
+    if (slotMinutes.length === 0) return new Map<string, DisplayReservationRow[]>();
+    const withStatus = reservations.map((r) => ({
+      ...r,
+      status: r.status,
+    }));
+    return reservationsAtTableForInstant(
+      tables,
+      withStatus,
+      occupancyInstant,
+      { includeSeated: true },
+    );
+  }, [tables, reservations, occupancyInstant, slotMinutes.length]);
+
+  const periodStats = useMemo(
+    () => computeTableSlotStats(tables, allTablesOccupancy),
+    [tables, allTablesOccupancy],
+  );
+
+  const filteredGuestCount = useMemo(
+    () => filteredReservations.reduce((sum, r) => sum + r.party_size, 0),
+    [filteredReservations],
+  );
+
+  const patchReservationTable = (reservationId: string, tableId: string | null) => {
+    setPayload((prev) => {
+      if (!prev) return prev;
+      const table = tableId ? tables.find((t) => t.id === tableId) : null;
+      return {
+        ...prev,
+        reservations: prev.reservations.map((r) =>
+          r.id === reservationId
+            ? {
+                ...r,
+                dining_table_id: tableId,
+                table: table
+                  ? {
+                      id: table.id,
+                      table_number: table.table_number,
+                      table_name: table.table_name,
+                    }
+                  : null,
+              }
+            : r,
+        ),
+      };
+    });
+  };
+
+  const patchReservationStatus = (reservationId: string, status: ReservationStatus) => {
+    setPayload((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        reservations: prev.reservations.map((r) =>
+          r.id === reservationId
+            ? {
+                ...r,
+                status: {
+                  id: status.id,
+                  code: status.code,
+                  name: status.name,
+                  color_hex: status.color_hex,
+                },
+              }
+            : r,
+        ),
+      };
+    });
+  };
+
+  const setStatus = async (reservationId: string, status: ReservationStatus) => {
+    setBusyId(reservationId);
+    try {
+      const res = await fetch(
+        `/api/display/reservations/${encodeURIComponent(reservationId)}/status`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ status_id: status.id }),
+        },
+      );
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(
+          DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
+            "Status konnte nicht geändert werden.",
+        );
+        return;
+      }
+      patchReservationStatus(reservationId, status);
+      toast.success(`Status: ${status.name}`);
+      void load({ silent: true });
+    } catch {
+      toast.error("Status konnte nicht geändert werden.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const overlapReservations = useMemo((): ReservationListRow[] => {
+    return reservations.map((r) => ({
+      id: r.id,
+      restaurant_id: payload?.restaurant_id ?? "",
+      reservation_number: r.reservation_number,
+      guest_pin: "",
+      created_at: "",
+      created_by_profile_id: null,
+      created_by_profile: null,
+      guest_first_name: r.guest_first_name,
+      guest_last_name: r.guest_last_name,
+      guest_phone: r.guest_phone,
+      guest_email: r.guest_email,
+      contact_id: r.contact_id,
+      party_size: r.party_size,
+      starts_at: r.starts_at,
+      ends_at: r.ends_at,
+      dining_table_id: r.dining_table_id,
+      dwell_minutes: null,
+      notify_email: false,
+      notify_whatsapp: false,
+      terms_accepted: false,
+      pending_change: null,
+      status_before_change_id: null,
+      reservation_statuses: r.status
+        ? {
+            id: r.status.id,
+            code: r.status.code,
+            name: r.status.name,
+            color_hex: r.status.color_hex,
+          }
+        : null,
+      dining_tables: r.table
+        ? {
+            id: r.table.id,
+            table_number: r.table.table_number,
+            table_name: r.table.table_name,
+            area_id: tables.find((t) => t.id === r.table!.id)?.area_id ?? "",
+          }
+        : null,
+    }));
+  }, [reservations, payload?.restaurant_id, tables]);
+
+  const seatedStatus = statuses.find((s) => s.code === "seated");
+  const confirmedStatus = statuses.find((s) => s.code === "confirmed");
+  const completedStatus = statuses.find((s) => s.code === "completed");
+
+  const renderListActions = (
+    r: DisplayReservationRow,
+    code: string | undefined,
+    isBusy: boolean,
+    compact: boolean,
+  ) => {
+    const iconBtnClass = compact
+      ? "size-8 shrink-0 rounded-lg"
+      : "size-11 shrink-0 rounded-xl";
+    const btnClass = compact
+      ? "h-8 min-w-[4.5rem] rounded-lg px-2 text-xs"
+      : "h-12 min-w-[8rem] rounded-xl";
+    return (
+      <div
+        className={cn("flex gap-1.5", compact ? "w-full flex-wrap" : "shrink-0 flex-col sm:flex-row")}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={iconBtnClass}
+          aria-label="Nachricht senden"
+          disabled={isBusy}
+          onClick={() => {
+            if (!reservationHasContactChannel(r)) {
+              toast.error(
+                "Keine Kontaktmöglichkeit hinterlegt (Telefon oder E-Mail).",
+              );
+              return;
+            }
+            setMessageTarget(r);
+          }}
+        >
+          <MessageSquare className={compact ? "size-3.5" : "size-4"} />
+        </Button>
+        {confirmedStatus &&
+        code !== "confirmed" &&
+        code !== "seated" &&
+        code !== "completed" ? (
+          <Button
+            size={compact ? "sm" : "lg"}
+            className={cn(btnClass, "bg-accent text-accent-foreground hover:bg-accent/90")}
+            disabled={isBusy}
+            onClick={() => void setStatus(r.id, confirmedStatus)}
+          >
+            {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : "Bestätigen"}
+          </Button>
+        ) : null}
+        {seatedStatus && code !== "seated" && code !== "completed" ? (
+          <Button
+            size={compact ? "sm" : "lg"}
+            variant="secondary"
+            className={btnClass}
+            disabled={isBusy}
+            onClick={() => void setStatus(r.id, seatedStatus)}
+          >
+            Check-in
+          </Button>
+        ) : null}
+        {completedStatus && code === "seated" ? (
+          <Button
+            size={compact ? "sm" : "lg"}
+            variant="outline"
+            className={btnClass}
+            disabled={isBusy}
+            onClick={() => void setStatus(r.id, completedStatus)}
+          >
+            Abschließen
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderListReservation = (r: DisplayReservationRow) => {
+    const isBusy = busyId === r.id;
+    const tableLabel = r.table ? formatDiningTableSelectLabel(r.table) : null;
+    const startLabel = timeFmt.format(new Date(r.starts_at));
+    const endLabel = timeFmt.format(new Date(r.ends_at));
+    const code = r.status?.code;
+    const guestName = `${r.guest_first_name} ${r.guest_last_name}`.trim();
+    const hasListActions =
+      (confirmedStatus &&
+        code !== "confirmed" &&
+        code !== "seated" &&
+        code !== "completed") ||
+      (seatedStatus && code !== "seated" && code !== "completed") ||
+      (completedStatus && code === "seated");
+    const tableField = (
+      <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <DisplayReservationTableField
+          reservation={r}
+          tables={tables}
+          reservations={reservations}
+          disabled={isBusy}
+          compact={listDensity === "compact"}
+          onUpdated={(tableId) => patchReservationTable(r.id, tableId)}
+        />
+      </div>
+    );
+
+    const openEdit = () => setEditReservationId(r.id);
+
+    if (listDensity === "compact") {
+      return (
+        <div
+          key={r.id}
+          role="button"
+          tabIndex={0}
+          className="flex h-full min-w-0 cursor-pointer flex-col rounded-xl border border-border/50 bg-card px-3 py-2.5 shadow-card transition-colors hover:bg-muted/20"
+          onClick={openEdit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openEdit();
+            }
+          }}
+        >
+          <div className="flex min-w-0 items-start gap-2">
+            <span className="w-11 shrink-0 text-base font-semibold tabular-nums leading-none">
+              {startLabel}
+            </span>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="truncate font-semibold text-sm leading-snug">{guestName}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  #{r.reservation_number}
+                </span>
+                {r.status ? (
+                  <span
+                    className="shrink-0 rounded-full px-2 py-px text-[10px] font-medium text-white"
+                    style={{ backgroundColor: r.status.color_hex }}
+                  >
+                    {r.status.name}
+                  </span>
+                ) : null}
+              </div>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {r.party_size} P. · bis {endLabel}
+                {tableLabel ? ` · ${tableLabel}` : ""}
+              </p>
+            </div>
+          </div>
+          {hasListActions ? (
+            <div className="mt-2">{renderListActions(r, code, isBusy, true)}</div>
+          ) : null}
+          <div className="mt-2">{tableField}</div>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={r.id}
+        role="button"
+        tabIndex={0}
+        className="cursor-pointer rounded-2xl border border-border/50 bg-card p-4 shadow-card transition-colors hover:bg-muted/20"
+        onClick={openEdit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openEdit();
+          }
+        }}
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">#{r.reservation_number}</span>
+              <span className="text-2xl font-semibold tabular-nums">{startLabel}</span>
+              {r.status ? (
+                <span
+                  className="rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
+                  style={{ backgroundColor: r.status.color_hex }}
+                >
+                  {r.status.name}
+                </span>
+              ) : null}
+            </div>
+            <p className="text-2xl font-semibold leading-tight">{guestName}</p>
+            <p className="flex items-center gap-1 text-muted-foreground">
+              <Users className="size-4" />
+              {r.party_size} Personen · bis {endLabel}
+              {tableLabel ? ` · ${tableLabel}` : ""}
+            </p>
+            {r.notes && !r.notes.startsWith("display-demo:") ? (
+              <p className="text-sm text-muted-foreground">{r.notes}</p>
+            ) : null}
+            {tableField}
+          </div>
+          {renderListActions(r, code, isBusy, false)}
+        </div>
+      </div>
+    );
+  };
+
+  const viewChip = (id: ViewMode, label: string) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setViewMode(id)}
+      className={cn(
+        "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
+        viewMode === id
+          ? "border-accent bg-accent text-accent-foreground"
+          : "border-border/60 bg-muted/30 text-muted-foreground",
+      )}
+    >
+      {label}
+    </button>
+  );
+
+  if (showSkeleton) {
+    return (
+      <div className="space-y-3">
+        <Skeleton className="h-16 w-full rounded-2xl" />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 w-full rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 pb-8">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">{formatDayHeadingDe(today)}</p>
+          <div className="mt-1 flex flex-wrap gap-4 text-lg">
+            <span>
+              <span className="font-semibold tabular-nums">{payload?.stats.count ?? 0}</span>{" "}
+              Reservierungen
+            </span>
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <Users className="size-5" />
+              <span className="font-semibold tabular-nums text-foreground">
+                {payload?.stats.guests ?? 0}
+              </span>{" "}
+              Gäste
+            </span>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="lg"
+            className={cn(modulePrimaryAddButtonClassName, "h-12 rounded-xl")}
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="mr-2 size-5" />
+            Neu
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {viewChip("list", "Liste")}
+        {viewChip("occupancy", "Tischbelegung")}
+      </div>
+
+      {slotMinutes.length > 1 ? (
+        <DisplayTimeRangeSlider
+          slotMinutes={slotMinutes}
+          value={rangeSlotIndices}
+          onChange={setRangeSlotIndices}
+          hint={
+            viewMode === "occupancy"
+              ? "Tischbelegung: alle Reservierungen im gewählten Zeitraum"
+              : "Liste: Überlappung im gewählten Zeitraum"
+          }
+        />
+      ) : null}
+
+      {slotMinutes.length > 0 ? (
+        <DisplayPeriodStatsBar
+          reservationCount={filteredReservations.length}
+          guestCount={filteredGuestCount}
+          freeTables={periodStats.freeTables}
+          occupiedTables={periodStats.occupiedTables}
+          freeSeats={periodStats.freeSeats}
+          occupiedSeats={periodStats.occupiedSeats}
+          totalSeats={periodStats.totalSeats}
+        />
+      ) : null}
+
+      <div className="space-y-2">
+        <AutoAssignTablesButton
+          variant="display"
+          size="default"
+          className="h-12 w-full sm:w-auto"
+          reservations={reservations.map((r) => ({
+            id: r.id,
+            party_size: r.party_size,
+            starts_at: r.starts_at,
+            ends_at: r.ends_at,
+            dining_table_id: r.dining_table_id,
+            reservation_statuses: r.status ? { code: r.status.code } : null,
+          }))}
+          tables={tables}
+          onDone={() => void load({ silent: true })}
+        />
+        {viewMode === "list" ? (
+          <div className="flex justify-end">
+            <div
+              className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5"
+              role="group"
+              aria-label="Listenansicht"
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "size-8 rounded-md",
+                  listDensity === "comfortable" &&
+                    "bg-background text-foreground shadow-sm",
+                )}
+                aria-label="Ausführliche Liste"
+                aria-pressed={listDensity === "comfortable"}
+                onClick={() => setListDensity("comfortable")}
+              >
+                <LayoutList className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "size-8 rounded-md",
+                  listDensity === "compact" &&
+                    "bg-background text-foreground shadow-sm",
+                )}
+                aria-label="Kompakte Liste"
+                aria-pressed={listDensity === "compact"}
+                onClick={() => setListDensity("compact")}
+              >
+                <Rows3 className="size-4" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {viewMode === "occupancy" ? (
+        <div className="space-y-4">
+          {areas.length > 1 ? (
+            <div className="flex gap-2 overflow-x-auto">
+              {areas.map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  onClick={() => setSelectedAreaId(a.id)}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium",
+                    selectedAreaId === a.id
+                      ? "border-accent bg-accent/10 font-medium text-foreground"
+                      : "border-border/50 bg-muted/30 text-muted-foreground",
+                  )}
+                >
+                  {a.name}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {tablesInArea.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">Keine Tische hinterlegt.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {tablesInArea.map((t) => {
+                const list = occupancy.get(t.id) ?? [];
+                const label = formatDiningTableSelectLabel(t);
+                const bg = list.length > 0 ? t.color_hex : undefined;
+                return (
+                  <div
+                    key={t.id}
+                    className={cn(
+                      "rounded-xl border border-border/50 p-2.5 shadow-card",
+                      list.length > 0 ? "text-white" : "bg-card min-h-[4.5rem]",
+                    )}
+                    style={
+                      list.length > 0 && bg
+                        ? { backgroundColor: bg }
+                        : undefined
+                    }
+                  >
+                    <div className="flex items-start justify-between gap-1.5">
+                      <p className="text-sm font-semibold leading-tight">{label}</p>
+                      <span className="shrink-0 rounded-full bg-black/10 px-1.5 py-px text-[10px] tabular-nums">
+                        {t.capacity}
+                      </span>
+                    </div>
+                    {list.length === 0 ? (
+                      <p className="mt-1 text-xs text-muted-foreground">frei</p>
+                    ) : (
+                      <ul className="mt-1 space-y-0.5 text-xs leading-snug">
+                        {list.map((r) => (
+                          <li key={r.id}>
+                            <button
+                              type="button"
+                              className="w-full truncate text-left tabular-nums underline-offset-2 hover:underline"
+                              onClick={() => setEditReservationId(r.id)}
+                            >
+                              {timeFmt.format(new Date(r.starts_at))}–
+                              {timeFmt.format(new Date(r.ends_at))} · #{r.reservation_number}{" "}
+                              · {r.guest_last_name} ({r.party_size})
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          className={cn(
+            listDensity === "compact"
+              ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+              : "space-y-3",
+          )}
+        >
+          {filteredReservations.length === 0 ? (
+            <p className="py-12 text-center text-lg text-muted-foreground">
+              {reservations.length === 0
+                ? "Heute keine Reservierungen."
+                : "Keine Reservierungen in diesem Zeitraum."}
+            </p>
+          ) : (
+            filteredReservations.map((r) => renderListReservation(r))
+          )}
+        </div>
+      )}
+
+      <DisplayReservationEditDrawer
+        open={editReservationId !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditReservationId(null);
+        }}
+        reservationId={editReservationId}
+        statuses={statuses}
+        tables={tables}
+        reservations={overlapReservations}
+        defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
+        bookingTimeStepMinutes={bookingStep}
+        onSaved={() => void load({ silent: true })}
+      />
+
+      <DisplayReservationDrawer
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        statuses={statuses}
+        tables={tables}
+        defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
+        bookingTimeStepMinutes={bookingStep}
+        nextReservationNumber={payload?.next_reservation_number ?? null}
+        onCreated={() => void load({ silent: true })}
+      />
+
+      <DisplayReservationMessageSheet
+        open={messageTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setMessageTarget(null);
+        }}
+        reservation={messageTarget}
+        restaurantName={payload?.restaurant_name ?? null}
+      />
+    </div>
+  );
+}

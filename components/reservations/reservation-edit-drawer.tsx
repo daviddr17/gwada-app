@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Mail, Trash2 } from "lucide-react";
+import { Contact, Mail, Trash2 } from "lucide-react";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
+import { ReservationMessagesPanel } from "@/components/contacts/reservation-messages-panel";
+import {
+  triggerSendContactMessage,
+} from "@/lib/contact-messages/trigger-send-contact-message";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
+import { ReservationChangeRequestPanel } from "@/components/reservations/reservation-change-request-panel";
 import { ReservationCreatedHint } from "@/components/reservations/reservation-created-hint";
 import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
 import {
@@ -37,18 +44,27 @@ import {
 } from "@/lib/reservations/datetime-local";
 import {
   COUNTRIES_REFERENCE_FALLBACK,
-  findCountryByIso2,
   resolveCountryIso2FromLabel,
   type CountryReference,
 } from "@/lib/constants/countries";
 import { fetchCountries } from "@/lib/supabase/countries-db";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import {
   formatDiningTableLabel,
   fetchDiningTables,
   type DiningTableRow,
 } from "@/lib/supabase/dining-floor-db";
+import {
+  triggerReservationEmailDispatch,
+  emailDispatchUserMessage,
+} from "@/lib/reservations/trigger-email-dispatch";
+import {
+  triggerReservationWhatsappDispatch,
+  whatsappDispatchUserMessage,
+} from "@/lib/reservations/trigger-whatsapp-dispatch";
+import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import {
   deleteReservation,
@@ -64,6 +80,7 @@ import {
   type TableAssignmentCheck,
 } from "@/lib/reservations/reservation-table-conflicts";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
+import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +132,7 @@ export function ReservationEditDrawer({
   const isEdit = Boolean(reservation);
   const isCreate = Boolean(createFor) && !reservation;
   const { getProfileForRestaurantId } = useRestaurantProfile();
+  const { isSuperadmin } = useIsSuperadmin();
 
   const [statuses, setStatuses] = useState<ReservationStatusJoin[]>([]);
   const [countries, setCountries] = useState<CountryReference[]>([]);
@@ -144,9 +162,11 @@ export function ReservationEditDrawer({
   const [defaultDwellMinutes, setDefaultDwellMinutes] = useState(120);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
+  const [guestMessage, setGuestMessage] = useState("");
 
   /** Wenn ein Modal (Löschen / Tisch teilen) offen ist, unterdrückt Vaul fälschlich `onOpenChange(false)` — außer nach explizitem Schließen. */
   const allowDrawerCloseRef = useRef(false);
+  const initialStatusCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -190,11 +210,6 @@ export function ReservationEditDrawer({
   const countriesForPhone = useMemo(
     () => (countries.length > 0 ? countries : COUNTRIES_REFERENCE_FALLBACK),
     [countries],
-  );
-
-  const selectedPhoneCountry = useMemo(
-    () => findCountryByIso2(phoneCountryIso, countriesForPhone),
-    [phoneCountryIso, countriesForPhone],
   );
 
   const selectedStatus = useMemo(
@@ -303,6 +318,8 @@ export function ReservationEditDrawer({
       setDateYmd(ymd);
       setTimeHm(hm);
       setStatusId(reservation.reservation_statuses?.id ?? "");
+      initialStatusCodeRef.current =
+        reservation.reservation_statuses?.code ?? null;
       setNotifyEmail(reservation.notify_email);
       setNotifyWhatsapp(reservation.notify_whatsapp);
       setTermsAccepted(reservation.terms_accepted);
@@ -312,9 +329,11 @@ export function ReservationEditDrawer({
           : String(defaultDwellMinutes),
       );
       setTableId(reservation.dining_table_id ?? "__none__");
+      setGuestMessage("");
       return;
     }
     if (createFor) {
+      setGuestMessage("");
       setFirstName("");
       setLastName("");
       setPhoneCountryIso(defaultIso);
@@ -433,7 +452,32 @@ export function ReservationEditDrawer({
     };
   };
 
+  const restaurantDisplayName = restaurantIdForFetch
+    ? getProfileForRestaurantId(restaurantIdForFetch).name.trim() || undefined
+    : undefined;
+
+  const persistGuestMessage = async (
+    contactId: string | null,
+    reservationId: string,
+    restaurantId: string,
+  ) => {
+    const text = guestMessage.trim();
+    if (!text || !contactId) return;
+    await triggerSendContactMessage({
+      restaurantId,
+      contactId,
+      messageBody: text,
+      direction: "inbound",
+      channels: ["gwada"],
+      reservationId,
+      restaurantName: restaurantDisplayName,
+    });
+  };
+
   const executeSave = async (payload: BuiltReservationPayload) => {
+    const newStatusCode =
+      statuses.find((s) => s.id === payload.status_id)?.code ?? "";
+
     if (isEdit && reservation) {
       setSaving(true);
       const { error } = await updateReservation(reservation.id, payload);
@@ -443,6 +487,27 @@ export function ReservationEditDrawer({
         return;
       }
       toast.success("Reservierung gespeichert.");
+      const dispatchEvent = reservationStatusDispatchEvent(
+        initialStatusCodeRef.current,
+        newStatusCode,
+      );
+      if (dispatchEvent && payload.notify_whatsapp) {
+        void triggerReservationWhatsappDispatch(reservation.id, dispatchEvent).then(
+          (wa) => {
+            const msg = whatsappDispatchUserMessage(wa);
+            if (msg) toast.warning(msg);
+          },
+        );
+      }
+      if (dispatchEvent && payload.notify_email) {
+        void triggerReservationEmailDispatch(reservation.id, dispatchEvent).then(
+          (em) => {
+            const msg = emailDispatchUserMessage(em, { isSuperadmin });
+            if (msg) toast.warning(msg);
+          },
+        );
+      }
+      initialStatusCodeRef.current = newStatusCode;
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       onSaved();
@@ -465,6 +530,18 @@ export function ReservationEditDrawer({
           ? `Reservierung #${created.reservation_number} angelegt. Gast-PIN: ${created.guest_pin}`
           : "Reservierung angelegt.",
       );
+      if (created && payload.notify_whatsapp) {
+        void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
+          const msg = whatsappDispatchUserMessage(wa);
+          if (msg) toast.warning(msg);
+        });
+      }
+      if (created && payload.notify_email) {
+        void triggerReservationEmailDispatch(created.id, "created").then((em) => {
+          const msg = emailDispatchUserMessage(em, { isSuperadmin });
+          if (msg) toast.warning(msg);
+        });
+      }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       onSaved();
@@ -519,17 +596,6 @@ export function ReservationEditDrawer({
     "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
 
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
-
-  const phoneFieldGroupClass =
-    "flex h-11 w-full min-w-0 overflow-hidden rounded-xl border border-input bg-transparent transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45";
-
-  const phonePrefixTriggerClass = appSelectTriggerAccentCn(
-    "h-11 min-h-11 w-[5.5rem] shrink-0 rounded-none border-0 bg-transparent px-1.5 shadow-none hover:bg-muted/40 focus-visible:ring-0 data-popup-open:ring-0 dark:hover:bg-input/40 [&_[data-slot=select-value]]:gap-1",
-    selectValueNoShrink,
-  );
-
-  const phoneNumberInputClass =
-    "h-11 min-h-0 w-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-0 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-50";
 
   const canSave = isEdit || isCreate;
 
@@ -594,6 +660,13 @@ export function ReservationEditDrawer({
         {open ? (
           <>
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+              {isEdit && reservation ? (
+                <ReservationChangeRequestPanel
+                  reservation={reservation}
+                  restaurantId={reservation.restaurant_id}
+                  onResolved={onSaved}
+                />
+              ) : null}
               <div className={drawerTwoColClass}>
                 <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="res-status" className="text-xs text-muted-foreground">
@@ -708,64 +781,15 @@ export function ReservationEditDrawer({
                   <Label htmlFor="res-phone-local" className="text-xs text-muted-foreground">
                     Telefon
                   </Label>
-                  <div className={phoneFieldGroupClass}>
-                    <Select
-                      value={phoneCountryIso}
-                      items={Object.fromEntries(
-                        countriesForPhone.map((c) => [
-                          c.iso2,
-                          `${c.flag_emoji} ${c.dial_code}`,
-                        ]),
-                      )}
-                      onValueChange={(v) => {
-                        if (typeof v === "string") setPhoneCountryIso(v);
-                      }}
-                    >
-                      <SelectTrigger
-                        id="res-phone-country"
-                        size="sm"
-                        aria-label="Landesvorwahl"
-                        className={phonePrefixTriggerClass}
-                      >
-                        {selectedPhoneCountry ? (
-                          <span className="flex items-center gap-1.5">
-                            <span aria-hidden>{selectedPhoneCountry.flag_emoji}</span>
-                            <span>{selectedPhoneCountry.dial_code}</span>
-                          </span>
-                        ) : (
-                          <SelectValue placeholder="+49" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        {countriesForPhone.map((c) => (
-                          <SelectItem key={c.iso2} value={c.iso2}>
-                            <span className="flex items-center gap-2">
-                              <span aria-hidden>{c.flag_emoji}</span>
-                              <span className="tabular-nums">{c.dial_code}</span>
-                              <span className="text-muted-foreground">
-                                {c.name_de}
-                              </span>
-                            </span>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <span
-                      className="shrink-0 self-center px-0.5 text-sm leading-none text-muted-foreground/60 select-none"
-                      aria-hidden
-                    >
-                      |
-                    </span>
-                    <input
-                      id="res-phone-local"
-                      value={phoneLocal}
-                      onChange={(e) => setPhoneLocal(e.target.value)}
-                      className={phoneNumberInputClass}
-                      inputMode="tel"
-                      autoComplete="tel-national"
-                      placeholder="Nummer"
-                    />
-                  </div>
+                  <GuestPhoneField
+                    countryId="res-phone-country"
+                    localId="res-phone-local"
+                    countryIso={phoneCountryIso}
+                    onCountryChange={setPhoneCountryIso}
+                    localValue={phoneLocal}
+                    onLocalChange={setPhoneLocal}
+                    countries={countriesForPhone}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-email" className="text-xs text-muted-foreground">
@@ -780,6 +804,20 @@ export function ReservationEditDrawer({
                   />
                 </div>
               </div>
+
+              {isEdit && reservation?.contact_id ? (
+                <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1.5 -mt-1">
+                  <Contact className="size-3.5 shrink-0" aria-hidden />
+                  Verknüpft mit{" "}
+                  <Link
+                    href={`/kontakte/uebersicht?contact=${reservation.contact_id}`}
+                    className="font-medium text-foreground underline underline-offset-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    Kontakt
+                  </Link>
+                </p>
+              ) : null}
 
               <div className={cn(drawerTwoColClass, "sm:grid-cols-[1fr_1fr]")}>
                 <div className="space-y-1.5">
@@ -836,6 +874,38 @@ export function ReservationEditDrawer({
                   ) : null}
                 </div>
               </div>
+
+              {isCreate ? (
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="res-guest-message"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Nachricht an das Restaurant
+                  </Label>
+                  <Textarea
+                    id="res-guest-message"
+                    value={guestMessage}
+                    onChange={(e) => setGuestMessage(e.target.value)}
+                    rows={3}
+                    placeholder="Wünsche, Allergien, Anlass …"
+                    className="min-h-[4.5rem] resize-y rounded-xl"
+                  />
+                </div>
+              ) : null}
+
+              {isEdit && reservation ? (
+                <ReservationMessagesPanel
+                  restaurantId={reservation.restaurant_id}
+                  reservationId={reservation.id}
+                  contactId={reservation.contact_id}
+                  restaurantName={restaurantDisplayName}
+                  hasPhone={hasPhone}
+                  hasEmail={hasEmail}
+                  defaultSendWhatsapp={notifyWhatsapp}
+                  defaultSendEmail={notifyEmail}
+                />
+              ) : null}
 
               <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
                 <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">

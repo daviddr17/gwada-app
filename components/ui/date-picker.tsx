@@ -44,6 +44,7 @@ export function DatePickerField({
   className,
   size = "default",
   fullWidth = false,
+  minYmd,
 }: {
   value: string | null | undefined
   onChange: (ymd: string | null) => void
@@ -54,9 +55,12 @@ export function DatePickerField({
   size?: "default" | "compact"
   /** Trigger füllt die verfügbare Breite (z. B. in `sm:grid-cols-2`). */
   fullWidth?: boolean
+  /** Frühestes wählbares Datum (`yyyy-MM-dd`, inklusive). */
+  minYmd?: string | null
 }) {
   const [open, setOpen] = React.useState(false)
   const selected = React.useMemo(() => parseYmdToDate(value ?? null), [value])
+  const minDate = React.useMemo(() => parseYmdToDate(minYmd ?? null), [minYmd])
   const hasDate = Boolean(value?.trim())
 
   /** Kurzes lokales Datum — passt zur schmalen shadcn-Triggerbreite. */
@@ -133,7 +137,8 @@ export function DatePickerField({
                 startMonth={new Date(2020, 0)}
                 endMonth={new Date(2035, 11)}
                 selected={selected}
-                defaultMonth={selected}
+                defaultMonth={selected ?? minDate}
+                disabled={minDate ? { before: minDate } : undefined}
                 onSelect={(d) => {
                   onChange(d ? format(d, "yyyy-MM-dd") : null)
                   setOpen(false)

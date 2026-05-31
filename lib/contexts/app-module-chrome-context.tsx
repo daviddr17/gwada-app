@@ -42,6 +42,11 @@ export function useAppModuleChrome() {
   return ctx;
 }
 
+export function useAppModuleChromeOptional(): AppModuleChromeState | null {
+  const ctx = React.useContext(AppModuleChromeContext);
+  return ctx?.chrome ?? null;
+}
+
 /** Registriert Titel + Chip-Untermenü für die App-Kopfzeile (cleanup beim Unmount). */
 export function RegisterModuleChrome({
   title,

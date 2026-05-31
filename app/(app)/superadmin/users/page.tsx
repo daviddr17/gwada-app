@@ -9,6 +9,11 @@ import {
   type SuperadminUserRow,
 } from "@/lib/supabase/platform-superadmin-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { formatLocaleLabel } from "@/lib/constants/locale-labels";
+import {
+  superadminCellNowrapClass,
+  superadminDateCellClass,
+} from "@/components/superadmin/superadmin-table-cells";
 import { Badge } from "@/components/ui/badge";
 
 function formatUserName(row: SuperadminUserRow): string {
@@ -53,7 +58,9 @@ export default function SuperadminUsersPage() {
     }
     return [
       { value: "all", label: "Alle Sprachen" },
-      ...[...set].sort().map((l) => ({ value: l, label: l })),
+      ...[...set]
+        .sort((a, b) => formatLocaleLabel(a).localeCompare(formatLocaleLabel(b), "de"))
+        .map((l) => ({ value: l, label: formatLocaleLabel(l) })),
     ];
   }, [rows]);
 
@@ -109,6 +116,7 @@ export default function SuperadminUsersPage() {
           {
             id: "email",
             header: "E-Mail",
+            sortValue: (r) => r.email ?? "",
             cell: (r) => (
               <span className="font-medium">{r.email ?? "—"}</span>
             ),
@@ -116,20 +124,44 @@ export default function SuperadminUsersPage() {
           {
             id: "name",
             header: "Name",
-            cell: (r) => formatUserName(r),
+            className: superadminCellNowrapClass,
+            sortValue: (r) => formatUserName(r),
+            cell: (r) => (
+              <span className={superadminCellNowrapClass}>
+                {formatUserName(r)}
+              </span>
+            ),
+          },
+          {
+            id: "online",
+            header: "Online",
+            sortValue: (r) => (r.is_online ? 1 : 0),
+            cell: (r) =>
+              r.is_online ? (
+                <Badge
+                  variant="outline"
+                  className="border-emerald-500/40 bg-emerald-500/10 font-normal text-emerald-800 dark:text-emerald-200"
+                >
+                  Online
+                </Badge>
+              ) : (
+                <span>Offline</span>
+              ),
           },
           {
             id: "phone",
             header: "Telefon",
+            sortValue: (r) => r.phone?.trim() ?? "",
             cell: (r) => r.phone?.trim() || "—",
           },
           {
             id: "locale",
-            header: "Locale",
+            header: "Sprache",
+            sortValue: (r) => formatLocaleLabel(r.locale ?? ""),
             cell: (r) =>
               r.locale ? (
                 <Badge variant="outline" className="font-normal">
-                  {r.locale}
+                  {formatLocaleLabel(r.locale)}
                 </Badge>
               ) : (
                 "—"
@@ -139,17 +171,30 @@ export default function SuperadminUsersPage() {
             id: "restaurants",
             header: "Restaurants",
             className: "text-right tabular-nums",
+            sortValue: (r) => r.restaurant_count,
             cell: (r) => r.restaurant_count,
           },
           {
             id: "created",
             header: "Registriert",
-            cell: (r) => formatDt(r.created_at),
+            className: superadminDateCellClass,
+            sortValue: (r) => r.created_at ?? "",
+            cell: (r) => (
+              <span className={superadminDateCellClass}>
+                {formatDt(r.created_at)}
+              </span>
+            ),
           },
           {
             id: "last_sign_in",
             header: "Letzte Anmeldung",
-            cell: (r) => formatDt(r.last_sign_in_at),
+            className: superadminDateCellClass,
+            sortValue: (r) => r.last_sign_in_at ?? "",
+            cell: (r) => (
+              <span className={superadminDateCellClass}>
+                {formatDt(r.last_sign_in_at)}
+              </span>
+            ),
           },
         ]}
       />

@@ -25,8 +25,6 @@ import {
 import {
   GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
   getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
   workspacePersistenceConfigured,
 } from "@/lib/supabase/workspace-persistence";
 
@@ -38,22 +36,7 @@ type AccentColorContextValue = {
 
 const AccentColorContext = createContext<AccentColorContextValue | null>(null);
 
-function parseAccentFromWorkspaceRemote(remote: unknown): string | null {
-  let candidate = "";
-  if (typeof remote === "string") {
-    candidate = remote;
-  } else if (
-    remote &&
-    typeof remote === "object" &&
-    !Array.isArray(remote) &&
-    typeof (remote as { value?: unknown }).value === "string"
-  ) {
-    candidate = (remote as { value: string }).value;
-  }
-  return normalizeHex(candidate);
-}
-
-/** Liest Spalte `restaurants.brand_accent_hex`, sonst Legacy `restaurant_app_state`, sonst localStorage (hybrid). */
+/** Liest Spalte `restaurants.brand_accent_hex`, sonst localStorage (hybrid). */
 async function loadRestaurantAccentResolved(
   supabaseOnly: boolean,
 ): Promise<string> {
@@ -63,9 +46,6 @@ async function loadRestaurantAccentResolved(
       const fromColumn = await fetchRestaurantBrandAccentHex(rid);
       if (fromColumn) return fromColumn;
     }
-    const remote = await loadWorkspaceJson(ACCENT_STORAGE_KEY);
-    const fromRemote = parseAccentFromWorkspaceRemote(remote);
-    if (fromRemote) return fromRemote;
   }
   if (!supabaseOnly && typeof localStorage !== "undefined") {
     const fromLs = normalizeHex(localStorage.getItem(ACCENT_STORAGE_KEY) ?? "");
@@ -159,8 +139,13 @@ export function AccentColorProvider({ children }: { children: React.ReactNode })
         let ok = false;
         if (rid) {
           ok = await updateRestaurantBrandAccentHex(rid, normalized);
-        } else {
-          ok = await persistWorkspaceState(ACCENT_STORAGE_KEY, normalized);
+        } else if (!supabaseOnly && typeof localStorage !== "undefined") {
+          try {
+            localStorage.setItem(ACCENT_STORAGE_KEY, normalized);
+            ok = true;
+          } catch {
+            ok = false;
+          }
         }
         if (!ok) {
           setAccentHexState(prev);

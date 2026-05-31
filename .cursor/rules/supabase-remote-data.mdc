@@ -1,12 +1,11 @@
 ---
-description: Supabase-Daten und Seeds gegen die verlinkte Cloud-DB ausrichten, nicht nur lokal.
+description: Supabase-Daten und Schema standardmäßig lokal; Live nur auf ausdrückliche Anfrage.
 alwaysApply: true
 ---
 
-# Supabase: Remote-Daten (nur auf Anfrage)
+# Supabase: lokal standardmäßig
 
-- **Standard:** Schema und Testdaten **lokal** (`db push --local`, Seeds/`--local` query). Live-DB nur Struktur bei ausdrücklichem Git-/Live-Deploy — siehe `supabase-schema-local-deploy-live.mdc`.
-- **Demo-, Test- oder Produktionsdaten** auf **Live/VPS** nur, wenn der Nutzer das **explizit** will — nicht automatisch beim Schema-Deploy.
-- Zum Ausführen: nach `supabase login` und `supabase link` z. B. `npx supabase db query --linked -f <skript.sql>` oder das Dashboard-SQL-Editor — **nicht** `--local` als Standardannahme für „ist angelegt“.
+- **Standard:** Schema, Seeds und Ad-hoc-SQL gegen die **lokale** Supabase (`supabase start`, `npm run db:push:local`, `npx supabase db query --local -f …`, lokales Studio `127.0.0.1:54323`). Die App nutzt dafür **`.env.local`** (API `127.0.0.1:54321`).
+- **Live/VPS** (`.env.production`, Tunnel, `sync:live:*`, `deploy:live`, `db:push:live`) **nur**, wenn der Nutzer das **explizit** will — siehe `supabase-schema-local-deploy-live.mdc` und `live-deploy-on-request.mdc`.
 - **Kein `supabase db reset`** vorschlagen, um Daten anzulegen oder zu „pushen“.
-- Schema-Migrationen auf Remote: `npx supabase db push` (ohne Reset), wenn das Projekt verlinkt ist.
+- **Kein** `supabase link` / `db push` ohne `--local` als Annahme, dass etwas „schon auf der DB liegt“ — bis zur Live-Anfrage gilt: **lokal anwenden und prüfen**.

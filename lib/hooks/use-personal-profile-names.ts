@@ -10,8 +10,19 @@ import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
-  loadWorkspaceJson,
-  persistWorkspaceState,
+  normalizeUserNicknameInput,
+  USER_NICKNAME_TAKEN_MESSAGE,
+  validateUserNicknameInput,
+} from "@/lib/profile/user-nickname";
+import { readLegacyRestaurantAppStatePayload } from "@/lib/supabase/legacy-restaurant-app-state";
+import {
+  isPersonalProfileRowEmpty,
+  personalProfileDraftToRow,
+  updatePersonalProfileRow,
+} from "@/lib/supabase/personal-profile-db";
+import {
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
   workspacePersistenceConfigured,
 } from "@/lib/supabase/workspace-persistence";
 
@@ -25,12 +36,14 @@ type PersistedV3 = {
   city: string;
   country: string;
 };
+type PersistedV4 = Omit<PersistedV3, "version"> & { version: 4; nickname: string };
 type PersistedV2 = { version: 2; firstName: string; lastName: string };
 type PersistedV1 = { version: 1; displayName: string };
 
 export type PersonalProfileDraft = {
   firstName: string;
   lastName: string;
+  nickname: string;
   birthDate: string;
   street: string;
   postalCode: string;
@@ -57,11 +70,25 @@ function readPersistedProfile(parsed: unknown): PersonalProfileDraft {
     return emptyDraft();
   }
   const v = (parsed as { version?: number }).version;
+  if (v === 4) {
+    const p = parsed as PersistedV4;
+    return {
+      firstName: typeof p.firstName === "string" ? p.firstName : "",
+      lastName: typeof p.lastName === "string" ? p.lastName : "",
+      nickname: typeof p.nickname === "string" ? p.nickname : "",
+      birthDate: typeof p.birthDate === "string" ? p.birthDate : "",
+      street: typeof p.street === "string" ? p.street : "",
+      postalCode: typeof p.postalCode === "string" ? p.postalCode : "",
+      city: typeof p.city === "string" ? p.city : "",
+      country: typeof p.country === "string" ? p.country : "DE",
+    };
+  }
   if (v === 3) {
     const p = parsed as PersistedV3;
     return {
       firstName: typeof p.firstName === "string" ? p.firstName : "",
       lastName: typeof p.lastName === "string" ? p.lastName : "",
+      nickname: "",
       birthDate: typeof p.birthDate === "string" ? p.birthDate : "",
       street: typeof p.street === "string" ? p.street : "",
       postalCode: typeof p.postalCode === "string" ? p.postalCode : "",
@@ -74,6 +101,7 @@ function readPersistedProfile(parsed: unknown): PersonalProfileDraft {
     return {
       firstName: typeof p.firstName === "string" ? p.firstName : "",
       lastName: typeof p.lastName === "string" ? p.lastName : "",
+      nickname: "",
       birthDate: "",
       street: "",
       postalCode: "",
@@ -88,6 +116,7 @@ function readPersistedProfile(parsed: unknown): PersonalProfileDraft {
     );
     return {
       ...n,
+      nickname: "",
       birthDate: "",
       street: "",
       postalCode: "",
@@ -102,6 +131,7 @@ function emptyDraft(): PersonalProfileDraft {
   return {
     firstName: "",
     lastName: "",
+    nickname: "",
     birthDate: "",
     street: "",
     postalCode: "",
@@ -110,21 +140,87 @@ function emptyDraft(): PersonalProfileDraft {
   };
 }
 
+function isDraftEmpty(draft: PersonalProfileDraft): boolean {
+  return (
+    !draft.firstName.trim() &&
+    !draft.lastName.trim() &&
+    !draft.nickname.trim() &&
+    !draft.birthDate &&
+    !draft.street.trim() &&
+    !draft.postalCode.trim() &&
+    !draft.city.trim()
+  );
+}
+
 function loadLocal(): PersonalProfileDraft {
-  if (typeof window === "undefined") return emptyDraft();
-  try {
-    const raw = localStorage.getItem(USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY);
-    if (!raw) return emptyDraft();
-    const parsed: unknown = JSON.parse(raw);
-    return readPersistedProfile(parsed);
-  } catch {
-    return emptyDraft();
+  const raw = loadWorkspaceJsonLocal(USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY);
+  return raw ? readPersistedProfile(raw) : emptyDraft();
+}
+
+function draftToPersistedV4(draft: PersonalProfileDraft): PersistedV4 {
+  return {
+    version: 4,
+    firstName: draft.firstName,
+    lastName: draft.lastName,
+    nickname: draft.nickname,
+    birthDate: draft.birthDate,
+    street: draft.street,
+    postalCode: draft.postalCode,
+    city: draft.city,
+    country: draft.country,
+  };
+}
+
+async function migrateLegacyPersonalProfileIfEmpty(
+  supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  userId: string,
+  currentRow: {
+    given_name: string | null;
+    family_name: string | null;
+    nickname: string | null;
+    birth_date: string | null;
+    address_line1: string | null;
+    address_postal_code: string | null;
+    address_city: string | null;
+  } | null,
+): Promise<PersonalProfileDraft | null> {
+  if (currentRow && !isPersonalProfileRowEmpty(currentRow)) {
+    return null;
   }
+
+  let legacyDraft = loadLocal();
+  if (isDraftEmpty(legacyDraft)) {
+    const remote = await readLegacyRestaurantAppStatePayload(
+      USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
+    );
+    if (remote) {
+      legacyDraft = readPersistedProfile(remote);
+    }
+  }
+
+  if (isDraftEmpty(legacyDraft)) {
+    return null;
+  }
+
+  const { ok } = await updatePersonalProfileRow(
+    supabase,
+    userId,
+    personalProfileDraftToRow(legacyDraft),
+  );
+  if (ok) {
+    mirrorWorkspaceJsonLocal(
+      USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
+      draftToPersistedV4(legacyDraft),
+    );
+    return legacyDraft;
+  }
+  return legacyDraft;
 }
 
 function rowToDraft(row: {
   given_name: string | null;
   family_name: string | null;
+  nickname: string | null;
   birth_date: string | null;
   address_line1: string | null;
   address_postal_code: string | null;
@@ -134,6 +230,7 @@ function rowToDraft(row: {
   return {
     firstName: row.given_name ?? "",
     lastName: row.family_name ?? "",
+    nickname: row.nickname ?? "",
     birthDate: row.birth_date ?? "",
     street: row.address_line1 ?? "",
     postalCode: row.address_postal_code ?? "",
@@ -154,11 +251,15 @@ export function usePersonalProfileNames() {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [nickname, setNickname] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [street, setStreet] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("DE");
+  const [userId, setUserId] = useState<string | null>(null);
+  const [avatarStoragePath, setAvatarStoragePath] = useState<string | null>(null);
+  const [coverStoragePath, setCoverStoragePath] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [authTick, setAuthTick] = useState(0);
 
@@ -191,49 +292,45 @@ export function usePersonalProfileNames() {
           const { data: prof } = await supabase
             .from("profiles")
             .select(
-              "given_name, family_name, birth_date, address_line1, address_postal_code, address_city, address_country",
+              "given_name, family_name, nickname, birth_date, address_line1, address_postal_code, address_city, address_country, avatar_storage_path, cover_storage_path",
             )
             .eq("id", user.id)
             .maybeSingle();
           if (!cancelled && prof) {
             draft = rowToDraft(prof);
+            setUserId(user.id);
+            setAvatarStoragePath(
+              typeof prof.avatar_storage_path === "string"
+                ? prof.avatar_storage_path
+                : null,
+            );
+            setCoverStoragePath(
+              typeof prof.cover_storage_path === "string"
+                ? prof.cover_storage_path
+                : null,
+            );
+            if (isPersonalProfileRowEmpty(prof)) {
+              const migrated = await migrateLegacyPersonalProfileIfEmpty(
+                supabase,
+                user.id,
+                prof,
+              );
+              if (migrated) draft = migrated;
+            }
+          } else if (!cancelled) {
+            setUserId(user.id);
+            const migrated = await migrateLegacyPersonalProfileIfEmpty(
+              supabase,
+              user.id,
+              null,
+            );
+            if (migrated) draft = migrated;
           }
         }
       }
 
-      const namesEmpty = !draft.firstName.trim() && !draft.lastName.trim();
-      const addressEmpty =
-        !draft.birthDate &&
-        !draft.street.trim() &&
-        !draft.postalCode.trim() &&
-        !draft.city.trim();
-
-      if (namesEmpty && addressEmpty) {
-        const remote = await loadWorkspaceJson(
-          USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
-        );
-        if (supabaseOnly) {
-          draft =
-            remote && typeof remote === "object" && !Array.isArray(remote)
-              ? readPersistedProfile(remote)
-              : emptyDraft();
-        } else if (
-          remote &&
-          typeof remote === "object" &&
-          !Array.isArray(remote)
-        ) {
-          draft = readPersistedProfile(remote);
-          try {
-            localStorage.setItem(
-              USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
-              JSON.stringify(remote),
-            );
-          } catch {
-            /* ignore */
-          }
-        } else {
-          draft = loadLocal();
-        }
+      if (isDraftEmpty(draft)) {
+        draft = loadLocal();
       }
 
       if (cancelled) return;
@@ -242,6 +339,7 @@ export function usePersonalProfileNames() {
         setEmail(mail);
         setFirstName(draft.firstName);
         setLastName(draft.lastName);
+        setNickname(draft.nickname);
         setBirthDate(draft.birthDate);
         setStreet(draft.street);
         setPostalCode(draft.postalCode);
@@ -268,6 +366,13 @@ export function usePersonalProfileNames() {
   const save = useCallback(async (): Promise<boolean> => {
     const f = firstName.trim();
     const l = lastName.trim();
+    const nickRaw = nickname.trim();
+    const nickNormalized = nickRaw ? normalizeUserNicknameInput(nickRaw) : "";
+    const nickValidation = validateUserNicknameInput(nickname);
+    if (nickValidation) {
+      toast.error(nickValidation);
+      return false;
+    }
     const bd = birthDate.trim();
     const st = street.trim();
     const pc = postalCode.trim();
@@ -277,6 +382,7 @@ export function usePersonalProfileNames() {
     const prev = {
       firstName,
       lastName,
+      nickname,
       birthDate,
       street,
       postalCode,
@@ -285,6 +391,7 @@ export function usePersonalProfileNames() {
     };
     setFirstName(f);
     setLastName(l);
+    setNickname(nickNormalized);
     setStreet(st);
     setPostalCode(pc);
     setCity(ci);
@@ -302,6 +409,7 @@ export function usePersonalProfileNames() {
           .update({
             given_name: f,
             family_name: l,
+            nickname: nickNormalized || null,
             birth_date: bd ? bd : null,
             address_line1: st || null,
             address_postal_code: pc || null,
@@ -312,36 +420,55 @@ export function usePersonalProfileNames() {
         if (error) {
           setFirstName(prev.firstName);
           setLastName(prev.lastName);
+          setNickname(prev.nickname);
           setBirthDate(prev.birthDate);
           setStreet(prev.street);
           setPostalCode(prev.postalCode);
           setCity(prev.city);
           setCountry(prev.country);
-          failSave();
+          if (error.code === "23505") {
+            toast.error(USER_NICKNAME_TAKEN_MESSAGE);
+          } else {
+            failSave();
+          }
           return false;
         }
+        mirrorWorkspaceJsonLocal(
+          USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
+          draftToPersistedV4({
+            firstName: f,
+            lastName: l,
+            nickname: nickNormalized,
+            birthDate: bd,
+            street: st,
+            postalCode: pc,
+            city: ci,
+            country: co,
+          }),
+        );
         toast.success("Profil gespeichert");
         return true;
       }
     }
 
-    const payload: PersistedV3 = {
-      version: 3,
+    const payload = draftToPersistedV4({
       firstName: f,
       lastName: l,
+      nickname: nickNormalized,
       birthDate: bd,
       street: st,
       postalCode: pc,
       city: ci,
       country: co,
-    };
-    const ok = await persistWorkspaceState(
+    });
+    const ok = mirrorWorkspaceJsonLocal(
       USER_PERSONAL_PROFILE_NAMES_STORAGE_KEY,
       payload,
     );
     if (!ok) {
       setFirstName(prev.firstName);
       setLastName(prev.lastName);
+      setNickname(prev.nickname);
       setBirthDate(prev.birthDate);
       setStreet(prev.street);
       setPostalCode(prev.postalCode);
@@ -355,6 +482,7 @@ export function usePersonalProfileNames() {
   }, [
     firstName,
     lastName,
+    nickname,
     birthDate,
     street,
     postalCode,
@@ -363,22 +491,43 @@ export function usePersonalProfileNames() {
     failSave,
   ]);
 
+  const patchImagePaths = useCallback(
+    (paths: {
+      avatarStoragePath?: string | null;
+      coverStoragePath?: string | null;
+    }) => {
+      if (paths.avatarStoragePath !== undefined) {
+        setAvatarStoragePath(paths.avatarStoragePath);
+      }
+      if (paths.coverStoragePath !== undefined) {
+        setCoverStoragePath(paths.coverStoragePath);
+      }
+    },
+    [],
+  );
+
   return {
     email,
+    userId,
     firstName,
     lastName,
+    nickname,
     birthDate,
     street,
     postalCode,
     city,
     country,
+    avatarStoragePath,
+    coverStoragePath,
     setFirstName,
     setLastName,
+    setNickname,
     setBirthDate,
     setStreet,
     setPostalCode,
     setCity,
     setCountry,
+    patchImagePaths,
     save,
     actor,
     resolvedFullName,

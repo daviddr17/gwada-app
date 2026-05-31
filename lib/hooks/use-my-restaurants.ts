@@ -10,17 +10,20 @@ import {
 
 export type MyRestaurantRow = {
   restaurantId: string;
-  role: string;
   name: string;
   slug: string;
-  isPublished: boolean;
+  avatarStoragePath: string | null;
+  coverStoragePath: string | null;
+  brandAccentHex: string | null;
 };
 
 type RestaurantJoin = {
   id: string;
   name: string;
   slug: string;
-  is_published: boolean;
+  avatar_storage_path: string | null;
+  cover_storage_path: string | null;
+  brand_accent_hex: string | null;
 };
 
 export function useMyRestaurants() {
@@ -73,7 +76,9 @@ export function useMyRestaurants() {
       const sb = createSupabaseBrowserClient();
       const { data, error } = await sb
         .from("restaurant_employees")
-        .select("restaurant_id, role, restaurants(id, name, slug, is_published)")
+        .select(
+          "restaurant_id, restaurants(id, name, slug, avatar_storage_path, cover_storage_path, brand_accent_hex)",
+        )
         .eq("profile_id", session.user.id)
         .eq("is_active", true);
 
@@ -90,10 +95,20 @@ export function useMyRestaurants() {
           if (!rr) continue;
           out.push({
             restaurantId: row.restaurant_id as string,
-            role: row.role as string,
             name: rr.name,
             slug: rr.slug,
-            isPublished: rr.is_published,
+            avatarStoragePath:
+              typeof rr.avatar_storage_path === "string"
+                ? rr.avatar_storage_path
+                : null,
+            coverStoragePath:
+              typeof rr.cover_storage_path === "string"
+                ? rr.cover_storage_path
+                : null,
+            brandAccentHex:
+              typeof rr.brand_accent_hex === "string"
+                ? rr.brand_accent_hex
+                : null,
           });
         }
         setRows(out);

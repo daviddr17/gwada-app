@@ -7,12 +7,7 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 const WORKSPACE_NAV: readonly ModuleSubnavItem[] = [
   {
     href: "/workspace/restaurants",
-    label: "Restaurants",
-    matchMode: "prefix",
-  },
-  {
-    href: "/workspace/team",
-    label: "Team",
+    label: "Übersicht",
     matchMode: "prefix",
   },
 ];

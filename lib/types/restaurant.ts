@@ -31,6 +31,8 @@ export type DateHoursException = {
 /** Stammdaten eines Restaurants (später mehrere pro Account). */
 export type RestaurantProfile = {
   id: string;
+  /** Eindeutiger Nickname → `restaurants.slug` (URL-Kennung). */
+  slug: string;
   name: string;
   street: string;
   postalCode: string;
@@ -38,6 +40,10 @@ export type RestaurantProfile = {
   country: string;
   website: string;
   phone: string;
+  /** Storage-Pfad im Bucket `restaurant-profile-images`. */
+  avatarStoragePath: string | null;
+  /** Storage-Pfad im Bucket `restaurant-profile-images`. */
+  coverStoragePath: string | null;
   weeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
 };

@@ -4,6 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { createId } from "@/lib/create-id";
+import {
+  toastPurchaseOrderLineAdded,
+  toastPurchaseOrderLineRemoved,
+  toastPurchaseOrderOpened,
+  toastPurchaseOrderQuantityChanged,
+  toastPurchaseOrderQuantityIncreased,
+} from "@/lib/inventory/purchase-order-notifications";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
 import {
@@ -11,15 +18,16 @@ import {
   toastDatabaseUnavailable,
 } from "@/lib/supabase/db-toast";
 import {
-  getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
-} from "@/lib/supabase/workspace-persistence";
-import {
   inventoryRelationalPersistenceEnabled,
   loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
 } from "@/lib/supabase/inventory-db";
+import { migratePurchaseOrdersFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import {
+  getWorkspaceRestaurantId,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
+} from "@/lib/supabase/workspace-persistence";
 import type {
   OrderProtocolActor,
   PurchaseOrder,
@@ -286,6 +294,10 @@ export function usePurchaseOrdersStorage() {
     let cancelled = false;
     if (useDbInventory) {
       void (async () => {
+        const rid = await getWorkspaceRestaurantId();
+        if (rid) {
+          await migratePurchaseOrdersFromLegacyAppStateIfEmpty(rid);
+        }
         const rows = await loadPurchaseOrdersRelational();
         if (cancelled) return;
         setOrders(rows ?? []);
@@ -297,38 +309,29 @@ export function usePurchaseOrdersStorage() {
     }
 
     if (supabaseOnly) {
-      void (async () => {
-        const remote = await loadWorkspaceJson(PURCHASE_ORDERS_STORAGE_KEY);
-        const fromRemote = remote != null ? parseOrdersFromUnknown(remote) : null;
-        if (cancelled) return;
-        setOrders(fromRemote ?? []);
-        setIsHydrated(true);
-      })();
+      if (cancelled) return;
+      setOrders([]);
+      setIsHydrated(true);
       return () => {
         cancelled = true;
       };
     }
 
-    void (async () => {
-      const remote = await loadWorkspaceJson(PURCHASE_ORDERS_STORAGE_KEY);
-      const fromRemote = remote != null ? parseOrdersFromUnknown(remote) : null;
-      const stored = loadFromStorage();
-      const next = fromRemote && fromRemote.length > 0 ? fromRemote : stored;
-      try {
-        const json = JSON.stringify({ version: 1 as const, orders: next });
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem(PURCHASE_ORDERS_STORAGE_KEY, json);
-        }
-      } catch {
-        /* ignore */
-      }
+    const fromLocal = parseOrdersFromUnknown(
+      loadWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY),
+    );
+    const stored = loadFromStorage();
+    const next = fromLocal.length > 0 ? fromLocal : stored;
+    mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+      version: 1 as const,
+      orders: next,
+    });
+    if (cancelled) return;
+    requestAnimationFrame(() => {
       if (cancelled) return;
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        setOrders(next);
-        setIsHydrated(true);
-      });
-    })();
+      setOrders(next);
+      setIsHydrated(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -351,7 +354,7 @@ export function usePurchaseOrdersStorage() {
         return true;
       }
       const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
-      const ok = await persistWorkspaceState(PURCHASE_ORDERS_STORAGE_KEY, payload);
+      const ok = mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, payload);
       if (!ok) {
         failSave();
         return false;
@@ -430,10 +433,12 @@ export function usePurchaseOrdersStorage() {
       order.log.push(logEntry);
 
       const existing = order.lines.find((l) => l.ingredientId === params.ingredientId);
+      let addedNewLine = false;
       if (existing) {
         existing.quantity += params.quantity;
         existing.brandLabel = params.brandLabel;
       } else {
+        addedNewLine = true;
         order.lines.push({
           id: createId(),
           ingredientId: params.ingredientId,
@@ -449,11 +454,25 @@ export function usePurchaseOrdersStorage() {
       if (!ok) return false;
 
       if (createdNewOrder) {
-        toast.success(
-          `Neue Bestellung für „${params.supplierName}“ angelegt und erste Position hinzugefügt.`,
+        toastPurchaseOrderOpened(
+          params.supplierName,
+          params.ingredientName,
+          params.quantity,
+          params.unitLabel,
         );
-      } else {
-        toast.success("Zur Bestellung hinzugefügt");
+      } else if (addedNewLine) {
+        toastPurchaseOrderLineAdded(
+          params.supplierName,
+          params.ingredientName,
+          params.quantity,
+          params.unitLabel,
+        );
+      } else if (existing) {
+        toastPurchaseOrderQuantityIncreased(
+          params.ingredientName,
+          existing.quantity,
+          params.unitLabel,
+        );
       }
       return true;
     },
@@ -584,9 +603,13 @@ export function usePurchaseOrdersStorage() {
 
       if (!(await persist(next))) return false;
       if (nextQty === 0) {
-        toast.success("Position entfernt (Menge 0)");
+        toastPurchaseOrderLineRemoved(l.ingredientName);
       } else {
-        toast.success("Menge gespeichert", { id: `order-line-${lineId}` });
+        toastPurchaseOrderQuantityChanged(
+          l.ingredientName,
+          nextQty,
+          l.unitLabel,
+        );
       }
       return true;
     },

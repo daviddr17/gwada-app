@@ -30,13 +30,20 @@ upstream="$3"
 patch_env() {
   local f="$1"
   [[ -f "$f" ]] || return 0
-  grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' "$f" 2>/dev/null | grep -v '^SUPABASE_UPSTREAM_URL=' | grep -v '^NEXT_PUBLIC_SITE_URL=' | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' > "${f}.tmp" || true
+  grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' "$f" 2>/dev/null \
+    | grep -v '^SUPABASE_UPSTREAM_URL=' \
+    | grep -v '^NEXT_PUBLIC_SITE_URL=' \
+    | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' \
+    | grep -v '^NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=' \
+    | grep -v '^NEXT_PUBLIC_GWADA_SUPABASE_ONLY=' > "${f}.tmp" || true
   {
     cat "${f}.tmp" 2>/dev/null || true
     echo "NEXT_PUBLIC_SUPABASE_PROXY=true"
     echo "SUPABASE_UPSTREAM_URL=${upstream}"
     echo "NEXT_PUBLIC_SITE_URL=${origin}"
     echo "NEXT_PUBLIC_SUPABASE_URL=${origin}/sb"
+    echo "NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo"
+    echo "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false"
   } > "${f}"
   rm -f "${f}.tmp"
 }
@@ -45,8 +52,8 @@ patch_env() {
 for f in /app/.env /app/.env.production; do
   if docker exec "$c" test -f "$f" 2>/dev/null; then
     echo "Patch $f im laufenden Container…"
-    docker exec "$c" sh -c "grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' '$f' 2>/dev/null | grep -v '^SUPABASE_UPSTREAM_URL=' | grep -v '^NEXT_PUBLIC_SITE_URL=' | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' > '${f}.bak' || true"
-    docker exec "$c" sh -c "cat '${f}.bak' 2>/dev/null; echo NEXT_PUBLIC_SUPABASE_PROXY=true; echo SUPABASE_UPSTREAM_URL=${upstream}; echo NEXT_PUBLIC_SITE_URL=${origin}; echo NEXT_PUBLIC_SUPABASE_URL=${origin}/sb" > /tmp/gwada-env-patch
+    docker exec "$c" sh -c "grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' '$f' 2>/dev/null | grep -v '^SUPABASE_UPSTREAM_URL=' | grep -v '^NEXT_PUBLIC_SITE_URL=' | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' | grep -v '^NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=' | grep -v '^NEXT_PUBLIC_GWADA_SUPABASE_ONLY=' > '${f}.bak' || true"
+    docker exec "$c" sh -c "cat '${f}.bak' 2>/dev/null; echo NEXT_PUBLIC_SUPABASE_PROXY=true; echo SUPABASE_UPSTREAM_URL=${upstream}; echo NEXT_PUBLIC_SITE_URL=${origin}; echo NEXT_PUBLIC_SUPABASE_URL=${origin}/sb; echo NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo; echo NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false" > /tmp/gwada-env-patch
     docker cp /tmp/gwada-env-patch "$c:$f"
     rm -f /tmp/gwada-env-patch
   fi
@@ -57,7 +64,9 @@ docker update "$c" \
   -e NEXT_PUBLIC_SUPABASE_PROXY=true \
   -e "SUPABASE_UPSTREAM_URL=${upstream}" \
   -e "NEXT_PUBLIC_SITE_URL=${origin}" \
-  -e "NEXT_PUBLIC_SUPABASE_URL=${origin}/sb" >/dev/null
+  -e "NEXT_PUBLIC_SUPABASE_URL=${origin}/sb" \
+  -e NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo \
+  -e NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false >/dev/null
 
 docker restart "$c"
 echo "Container neu gestartet mit Proxy-Env."

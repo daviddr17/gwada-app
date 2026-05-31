@@ -16,10 +16,11 @@ import {
   reorderMenuCategoryRows,
   updateMenuCategoryRow,
 } from "@/lib/supabase/menu-db";
+import { migrateMenuCategoriesFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
   getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 
@@ -71,6 +72,13 @@ export function useCategoriesStorage() {
     let cancelled = false;
     if (useDbMenu) {
       void (async () => {
+        const rid = await getWorkspaceRestaurantId();
+        if (rid) {
+          await migrateMenuCategoriesFromLegacyAppStateIfEmpty(
+            rid,
+            DEFAULT_CATEGORIES.map(normalizeCategory),
+          );
+        }
         const rows = await loadMenuCategoriesRelational();
         if (cancelled) return;
         if (rows && rows.length > 0) {
@@ -85,42 +93,32 @@ export function useCategoriesStorage() {
       };
     }
 
-    void (async () => {
-      const remote = await loadWorkspaceJson(CATEGORY_STORAGE_KEY);
-      const fromRemote = loadFromParsed(remote);
-      let next: MenuCategoryDefinition[] | null | undefined;
-
-      if (supabaseOnly) {
-        next =
-          fromRemote && fromRemote.length > 0
-            ? fromRemote
-            : DEFAULT_CATEGORIES.map(normalizeCategory);
-      } else {
-        const stored = loadFromStorage();
-        next = fromRemote ?? stored;
-      }
-
-      if (next?.length) {
-        try {
-          if (!supabaseOnly && typeof localStorage !== "undefined") {
-            localStorage.setItem(
-              CATEGORY_STORAGE_KEY,
-              JSON.stringify(next.map(normalizeCategory)),
-            );
-          }
-        } catch {
-          /* ignore */
-        }
-      }
+    if (supabaseOnly) {
       if (cancelled) return;
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        if (next && next.length > 0) {
-          setCategories(next.map(normalizeCategory));
-        }
-        setIsHydrated(true);
-      });
-    })();
+      setCategories(DEFAULT_CATEGORIES.map(normalizeCategory));
+      setIsHydrated(true);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const stored = loadFromStorage();
+    const fromLocal = loadFromParsed(loadWorkspaceJsonLocal(CATEGORY_STORAGE_KEY));
+    const next = fromLocal ?? stored;
+    if (next?.length) {
+      mirrorWorkspaceJsonLocal(
+        CATEGORY_STORAGE_KEY,
+        next.map(normalizeCategory),
+      );
+    }
+    if (cancelled) return;
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      if (next && next.length > 0) {
+        setCategories(next.map(normalizeCategory));
+      }
+      setIsHydrated(true);
+    });
     return () => {
       cancelled = true;
     };
@@ -159,16 +157,15 @@ export function useCategoriesStorage() {
           const id = crypto.randomUUID();
           const next = [...prev, { id, name: trimmed, active }];
           const cleaned = next.map(normalizeCategory);
-          void persistWorkspaceState(CATEGORY_STORAGE_KEY, cleaned).then((ok) => {
-            if (!ok) {
-              setCategories(rollback);
-              failSave();
-              resolve(null);
-            } else {
-              toast.success("Kategorie angelegt");
-              resolve({ id, name: trimmed });
-            }
-          });
+          const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
+          if (!ok) {
+            setCategories(rollback);
+            failSave();
+            resolve(null);
+          } else {
+            toast.success("Kategorie angelegt");
+            resolve({ id, name: trimmed });
+          }
           return cleaned;
         });
       });
@@ -214,14 +211,13 @@ export function useCategoriesStorage() {
           });
         });
         const cleaned = next.map(normalizeCategory);
-        void persistWorkspaceState(CATEGORY_STORAGE_KEY, cleaned).then((ok) => {
-          if (!ok) {
-            setCategories(rollback);
-            failSave();
-          } else {
-            toast.success("Kategorie gespeichert");
-          }
-        });
+        const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
+        if (!ok) {
+          setCategories(rollback);
+          failSave();
+        } else {
+          toast.success("Kategorie gespeichert");
+        }
         return cleaned;
       });
     },
@@ -244,14 +240,13 @@ export function useCategoriesStorage() {
         return;
       }
       setCategories((prev) => {
-        void persistWorkspaceState(CATEGORY_STORAGE_KEY, cleaned).then((ok) => {
-          if (!ok) {
-            setCategories(prev);
-            failSave();
-          } else {
-            toast.success("Kategorien sortiert");
-          }
-        });
+        const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
+        if (!ok) {
+          setCategories(prev);
+          failSave();
+        } else {
+          toast.success("Kategorien sortiert");
+        }
         return cleaned;
       });
     },

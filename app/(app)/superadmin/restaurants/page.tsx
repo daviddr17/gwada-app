@@ -9,7 +9,12 @@ import {
   type SuperadminRestaurantRow,
 } from "@/lib/supabase/platform-superadmin-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  superadminCellNowrapClass,
+  superadminDateCellClass,
+} from "@/components/superadmin/superadmin-table-cells";
 import { Badge } from "@/components/ui/badge";
+import { formatRestaurantTimezoneLabel } from "@/lib/restaurant/restaurant-timezone";
 
 function formatDt(iso: string | null): string {
   if (!iso) return "—";
@@ -98,16 +103,30 @@ export default function SuperadminRestaurantsPage() {
           {
             id: "name",
             header: "Name",
+            className: superadminCellNowrapClass,
+            sortValue: (r) => r.name,
             cell: (r) => (
-              <div>
-                <span className="font-medium">{r.name}</span>
-                <div className="text-xs text-muted-foreground">{r.slug}</div>
-              </div>
+              <span className={`font-medium ${superadminCellNowrapClass}`}>
+                {r.name}
+              </span>
+            ),
+          },
+          {
+            id: "slug",
+            header: "Slug",
+            className: superadminCellNowrapClass,
+            sortValue: (r) => r.slug,
+            cell: (r) => (
+              <span className="font-mono text-xs text-muted-foreground">
+                {r.slug}
+              </span>
             ),
           },
           {
             id: "owner",
             header: "Owner",
+            sortValue: (r) =>
+              r.owner_display_name?.trim() || r.owner_email?.trim() || "",
             cell: (r) => (
               <div>
                 <span>{r.owner_display_name?.trim() || "—"}</span>
@@ -122,22 +141,27 @@ export default function SuperadminRestaurantsPage() {
           {
             id: "contact",
             header: "Kontakt",
+            sortValue: (r) => r.email?.trim() || r.phone?.trim() || "",
             cell: (r) => r.email?.trim() || r.phone?.trim() || "—",
           },
           {
             id: "timezone",
             header: "Zeitzone",
-            cell: (r) => r.timezone,
+            className: superadminCellNowrapClass,
+            sortValue: (r) => r.timezone,
+            cell: (r) => formatRestaurantTimezoneLabel(r.timezone),
           },
           {
             id: "team",
             header: "Team",
             className: "text-right tabular-nums",
+            sortValue: (r) => r.employee_count,
             cell: (r) => r.employee_count,
           },
           {
             id: "status",
             header: "Status",
+            sortValue: (r) => (r.is_published ? 1 : 0),
             cell: (r) =>
               r.is_published ? (
                 <Badge
@@ -152,8 +176,14 @@ export default function SuperadminRestaurantsPage() {
           },
           {
             id: "created",
-            header: "Angelegt",
-            cell: (r) => formatDt(r.created_at),
+            header: "Angelegt am",
+            className: superadminDateCellClass,
+            sortValue: (r) => r.created_at ?? "",
+            cell: (r) => (
+              <span className={superadminDateCellClass}>
+                {formatDt(r.created_at)}
+              </span>
+            ),
           },
         ]}
       />

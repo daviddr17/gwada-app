@@ -51,6 +51,7 @@ export function defaultWeeklyHours(): Record<Weekday, DayHours> {
 export function createDefaultRestaurant(id: string): RestaurantProfile {
   return {
     id,
+    slug: "",
     name: "Mein Restaurant",
     street: "",
     postalCode: "",
@@ -58,6 +59,8 @@ export function createDefaultRestaurant(id: string): RestaurantProfile {
     country: "Deutschland",
     website: "",
     phone: "",
+    avatarStoragePath: null,
+    coverStoragePath: null,
     weeklyHours: defaultWeeklyHours(),
     dateExceptions: [],
   };

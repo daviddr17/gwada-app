@@ -15,9 +15,11 @@ import {
   reorderMenuItemsInCategoryRelational,
   updateMenuItemRelational,
 } from "@/lib/supabase/menu-db";
+import { migrateMenuItemsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
-  loadWorkspaceJson,
-  persistWorkspaceState,
+  getWorkspaceRestaurantId,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
 import type { MenuItem, NewMenuItem } from "@/lib/types/menu";
 
@@ -74,6 +76,10 @@ export function useMenuStorage() {
     let cancelled = false;
     if (useDbMenu) {
       void (async () => {
+        const rid = await getWorkspaceRestaurantId();
+        if (rid) {
+          await migrateMenuItemsFromLegacyAppStateIfEmpty(rid);
+        }
         const rows = await loadMenuItemsRelational();
         if (cancelled) return;
         if (rows && rows.length > 0) {
@@ -89,38 +95,29 @@ export function useMenuStorage() {
     }
 
     if (supabaseOnly) {
-      void (async () => {
-        const remote = await loadWorkspaceJson(STORAGE_KEY);
-        const parsed = parseMenuItemsFromRemote(remote);
-        if (cancelled) return;
-        setItems(parsed ?? []);
-        setIsHydrated(true);
-      })();
+      if (cancelled) return;
+      setItems([]);
+      setIsHydrated(true);
       return () => {
         cancelled = true;
       };
     }
 
     const stored = loadFromStorage();
-    void (async () => {
-      const remote = await loadWorkspaceJson(STORAGE_KEY);
-      const fromRemote = parseMenuItemsFromRemote(remote);
-      const next = fromRemote ?? stored ?? normalizeSeedItems(mockMenu);
-      try {
-        if (typeof localStorage !== "undefined") {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        }
-      } catch {
-        /* ignore */
+    const fromLocal = parseMenuItemsFromRemote(loadWorkspaceJsonLocal(STORAGE_KEY));
+    const next = fromLocal ?? stored ?? normalizeSeedItems(mockMenu);
+    try {
+      mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+    if (cancelled) return;
+    requestAnimationFrame(() => {
+      if (!cancelled) {
+        setItems(next);
+        setIsHydrated(true);
       }
-      if (cancelled) return;
-      requestAnimationFrame(() => {
-        if (!cancelled) {
-          setItems(next);
-          setIsHydrated(true);
-        }
-      });
-    })();
+    });
     return () => {
       cancelled = true;
     };
@@ -150,16 +147,15 @@ export function useMenuStorage() {
       return new Promise((resolve) => {
         setItems((prev) => {
           const next = [newItem, ...prev];
-          void persistWorkspaceState(STORAGE_KEY, next).then((ok) => {
-            if (!ok) {
-              setItems((p) => p.filter((i) => i.id !== newItem.id));
-              failSave();
-              resolve(null);
-            } else {
-              toast.success("Gericht hinzugefügt");
-              resolve(newItem);
-            }
-          });
+          const ok = mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
+          if (!ok) {
+            setItems((p) => p.filter((i) => i.id !== newItem.id));
+            failSave();
+            resolve(null);
+          } else {
+            toast.success("Gericht hinzugefügt");
+            resolve(newItem);
+          }
           return next;
         });
       });
@@ -196,16 +192,15 @@ export function useMenuStorage() {
           const next = prev.map((existing) =>
             existing.id === id ? built : existing,
           );
-          void persistWorkspaceState(STORAGE_KEY, next).then((ok) => {
-            if (!ok) {
-              setItems(rollback);
-              failSave();
-              resolve(false);
-            } else {
-              toast.success("Gericht gespeichert");
-              resolve(true);
-            }
-          });
+          const ok = mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
+          if (!ok) {
+            setItems(rollback);
+            failSave();
+            resolve(false);
+          } else {
+            toast.success("Gericht gespeichert");
+            resolve(true);
+          }
           return next;
         });
       });
@@ -250,14 +245,13 @@ export function useMenuStorage() {
           if (pos === -1) return item;
           return { ...item, listNumber: pos + 1 };
         });
-        void persistWorkspaceState(STORAGE_KEY, next).then((ok) => {
-          if (!ok) {
-            setItems(rollback);
-            failSave();
-          } else {
-            toast.success("Reihenfolge der Gerichte aktualisiert");
-          }
-        });
+        const ok = mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
+        if (!ok) {
+          setItems(rollback);
+          failSave();
+        } else {
+          toast.success("Reihenfolge der Gerichte aktualisiert");
+        }
         return next;
       });
     },
@@ -280,16 +274,15 @@ export function useMenuStorage() {
         setItems((prev) => {
           const rollback = prev;
           const next = prev.filter((i) => i.id !== id);
-          void persistWorkspaceState(STORAGE_KEY, next).then((ok) => {
-            if (!ok) {
-              setItems(rollback);
-              failSave();
-              resolve(false);
-            } else {
-              toast.success("Gericht gelöscht");
-              resolve(true);
-            }
-          });
+          const ok = mirrorWorkspaceJsonLocal(STORAGE_KEY, next);
+          if (!ok) {
+            setItems(rollback);
+            failSave();
+            resolve(false);
+          } else {
+            toast.success("Gericht gelöscht");
+            resolve(true);
+          }
           return next;
         });
       });

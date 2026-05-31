@@ -59,6 +59,7 @@ import type {
   MenuTaxonomyDefinition,
   PriceRange,
 } from "@/lib/types/menu";
+import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
 import { readModuleChipStripHeightPx } from "@/lib/layout/module-chip-strip";
@@ -513,7 +514,7 @@ export function MenuOverviewScreen() {
         <div className="mb-6 mt-5 flex justify-end">
           <Button
             size="lg"
-            className="h-12 gap-2 rounded-full bg-accent px-6 text-accent-foreground shadow-none tap-scale hover:bg-accent/90 dark:shadow-md"
+            className={modulePrimaryAddButtonClassName}
             onClick={openCreateDrawer}
           >
             <Plus className="size-4" />

@@ -17,8 +17,18 @@ const RESERVATIONS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "prefix",
   },
   {
+    href: "/reservierungen/statistiken",
+    label: "Statistiken",
+    matchMode: "prefix",
+  },
+  {
     href: "/reservierungen/einstellungen",
     label: "Einstellungen",
+    matchMode: "prefix",
+  },
+  {
+    href: "/reservierungen/einbinden",
+    label: "Einbinden",
     matchMode: "prefix",
   },
 ];

@@ -2,7 +2,6 @@ import type { User } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   GWADA_DB_UNAVAILABLE_MESSAGE,
-  isSupabaseOnlyMode,
 } from "@/lib/constants/database-mode";
 import {
   getPublicGwadaWorkspaceSlug,
@@ -58,6 +57,17 @@ export function notifyWorkspaceRestaurantChanged(): void {
 export function invalidateWorkspaceRestaurantCache(): void {
   workspaceRestaurantCache = null;
   restaurantIdInFlight = null;
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** Synchroner Cache-Hit für sofortige UI (kein „Kein Restaurant“-Flackern beim Navigieren). */
+export function peekCachedWorkspaceRestaurantId(): string | null {
+  if (typeof window === "undefined") return null;
+  if (!workspacePersistenceConfigured()) return null;
+  const id = workspaceRestaurantCache?.id;
+  return id && UUID_RE.test(id) ? id : null;
 }
 
 export async function getWorkspaceRestaurantId(): Promise<string | null> {
@@ -161,95 +171,26 @@ export async function getWorkspaceRestaurantId(): Promise<string | null> {
   return restaurantIdInFlight;
 }
 
-export async function loadWorkspaceJson(
-  storageKey: string,
-): Promise<unknown | null> {
-  if (!workspacePersistenceConfigured()) return null;
+/** Liest JSON nur aus localStorage (Hybrid ohne `restaurant_app_state`). */
+export function loadWorkspaceJsonLocal(storageKey: string): unknown | null {
+  if (typeof localStorage === "undefined") return null;
   try {
-    const supabase = createSupabaseBrowserClient();
-    const restaurantId = await getWorkspaceRestaurantId();
-    if (!restaurantId) return null;
-    const { data, error } = await raceWithTimeout(
-      supabase
-        .from("restaurant_app_state")
-        .select("payload")
-        .eq("restaurant_id", restaurantId)
-        .eq("storage_key", storageKey)
-        .maybeSingle(),
-      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
-      "Restaurant-App-State lesen",
-    );
-    if (error || !data) return null;
-    return data.payload as unknown;
-  } catch (e) {
-    console.warn("[gwada] loadWorkspaceJson", storageKey, e);
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    return JSON.parse(raw) as unknown;
+  } catch {
     return null;
   }
 }
 
-export async function saveWorkspaceJson(
-  storageKey: string,
-  payload: WorkspaceJson,
-): Promise<boolean> {
-  if (!workspacePersistenceConfigured()) return false;
-  try {
-    const supabase = createSupabaseBrowserClient();
-    const restaurantId = await getWorkspaceRestaurantId();
-    if (!restaurantId) return false;
-    const { error } = await raceWithTimeout(
-      supabase.from("restaurant_app_state").upsert(
-        {
-          restaurant_id: restaurantId,
-          storage_key: storageKey,
-          payload,
-        },
-        { onConflict: "restaurant_id,storage_key" },
-      ),
-      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
-      "Restaurant-App-State speichern",
-    );
-    if (error) {
-      console.warn("[gwada] saveWorkspaceJson", storageKey, error.message);
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.warn("[gwada] saveWorkspaceJson", storageKey, e);
-    return false;
-  }
-}
-
-export function toWorkspaceJson(value: unknown): WorkspaceJson {
-  return JSON.parse(JSON.stringify(value)) as WorkspaceJson;
-}
-
-/**
- * Speichert App-State: Supabase-only → nur DB.
- * Hybrid: wenn NEXT_PUBLIC_SUPABASE_* gesetzt ist, zuerst DB (`restaurant_app_state`), danach
- * localStorage — damit ein Erfolg in der UI auch wirklich in der DB ankommt (kein „fire-and-forget“-Mirror).
- * Ohne Supabase-Env: nur localStorage.
- */
-export async function persistWorkspaceState(
+/** Schreibt JSON nur in localStorage. */
+export function mirrorWorkspaceJsonLocal(
   storageKey: string,
   value: unknown,
-): Promise<boolean> {
-  if (isSupabaseOnlyMode()) {
-    return saveWorkspaceJson(storageKey, toWorkspaceJson(value));
-  }
-  const json = JSON.stringify(value);
-  if (workspacePersistenceConfigured()) {
-    const remoteOk = await saveWorkspaceJson(
-      storageKey,
-      toWorkspaceJson(value),
-    );
-    if (!remoteOk) {
-      return false;
-    }
-  }
+): boolean {
+  if (typeof localStorage === "undefined") return false;
   try {
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem(storageKey, json);
-    }
+    localStorage.setItem(storageKey, JSON.stringify(value));
     return true;
   } catch {
     return false;

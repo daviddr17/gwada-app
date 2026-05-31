@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function SuperadminIndexPage() {
-  redirect("/superadmin/users");
+  redirect("/superadmin/allgemein");
 }

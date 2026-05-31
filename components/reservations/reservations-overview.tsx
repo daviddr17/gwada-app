@@ -4,13 +4,20 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { CalendarDays, ChevronLeft, ChevronRight, Filter, Pencil, Plus } from "lucide-react";
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -30,8 +37,12 @@ import {
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
 import {
+  RESERVATIONS_UNCONFIRMED_QUERY,
+} from "@/lib/reservations/unconfirmed-reservations";
+import {
   fetchReservationById,
   fetchReservationsForRestaurant,
+  fetchUnconfirmedReservationsForRestaurant,
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -127,8 +138,11 @@ export function ReservationsOverview() {
   const [rows, setRows] = useState<ReservationListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const { restaurantId: workspaceRestaurantId, supabaseEnvOk } =
-    useWorkspaceRestaurantUuid();
+  const {
+    restaurantId: workspaceRestaurantId,
+    supabaseEnvOk,
+    ready: workspaceReady,
+  } = useWorkspaceRestaurantUuid();
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [daySheetDay, setDaySheetDay] = useState<Date | null>(null);
   const pendingReopenDaySheetRef = useRef<Date | null>(null);
@@ -145,6 +159,8 @@ export function ReservationsOverview() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const unconfirmedMode =
+    searchParams.get(RESERVATIONS_UNCONFIRMED_QUERY) === "1";
   const reservationIdParam = searchParams.get("reservation");
   const isNewParam = searchParams.get("new") === "1";
   const dayParam = searchParams.get("day");
@@ -179,8 +195,7 @@ export function ReservationsOverview() {
   }, [searchParams, pathname, router]);
 
   const dbOk =
-    supabaseEnvOk &&
-    workspaceRestaurantId !== null;
+    supabaseEnvOk && workspaceReady && workspaceRestaurantId !== null;
 
   useEffect(() => {
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
@@ -276,13 +291,23 @@ export function ReservationsOverview() {
       (isNewParam && Boolean(workspaceRestaurantId)),
   );
 
+  const withUnconfirmedParam = useCallback(
+    (p: URLSearchParams) => {
+      if (unconfirmedMode) {
+        p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
+      }
+    },
+    [unconfirmedMode],
+  );
+
   const pushReservationEdit = useCallback(
     (id: string) => {
       const p = new URLSearchParams();
       p.set("reservation", id);
+      withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname],
+    [router, pathname, withUnconfirmedParam],
   );
 
   const pushReservationCreate = useCallback(
@@ -299,14 +324,46 @@ export function ReservationsOverview() {
       if (extras?.diningTableId && isUuidRestaurantId(extras.diningTableId)) {
         p.set("table", extras.diningTableId);
       }
+      withUnconfirmedParam(p);
       router.push(`${pathname}?${p.toString()}`, { scroll: false });
     },
-    [router, pathname],
+    [router, pathname, withUnconfirmedParam],
   );
 
   const clearReservationUrl = useCallback(() => {
+    if (unconfirmedMode) {
+      const p = new URLSearchParams();
+      p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
+      router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+      return;
+    }
+    router.replace(pathname, { scroll: false });
+  }, [router, pathname, unconfirmedMode]);
+
+  const exitUnconfirmedMode = useCallback(() => {
     router.replace(pathname, { scroll: false });
   }, [router, pathname]);
+
+  const setUnconfirmedMode = useCallback(
+    (enabled: boolean) => {
+      if (enabled) {
+        const p = new URLSearchParams(searchParams.toString());
+        p.set(RESERVATIONS_UNCONFIRMED_QUERY, "1");
+        p.delete("reservation");
+        p.delete("new");
+        p.delete("day");
+        p.delete("time");
+        p.delete("table");
+        router.replace(`${pathname}?${p.toString()}`, { scroll: false });
+        return;
+      }
+      const p = new URLSearchParams(searchParams.toString());
+      p.delete(RESERVATIONS_UNCONFIRMED_QUERY);
+      const qs = p.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
 
   const consumePendingDaySheetReopen = useCallback(() => {
     const d = pendingReopenDaySheetRef.current;
@@ -329,11 +386,13 @@ export function ReservationsOverview() {
     setLoading(true);
     setLoadError(null);
     void (async () => {
-      const { data, error } = await fetchReservationsForRestaurant({
-        restaurantId: workspaceRestaurantId,
-        rangeStartIso,
-        rangeEndExclusiveIso,
-      });
+      const { data, error } = unconfirmedMode
+        ? await fetchUnconfirmedReservationsForRestaurant(workspaceRestaurantId)
+        : await fetchReservationsForRestaurant({
+            restaurantId: workspaceRestaurantId,
+            rangeStartIso,
+            rangeEndExclusiveIso,
+          });
       if (cancelled) return;
       setLoading(false);
       if (error) {
@@ -349,10 +408,18 @@ export function ReservationsOverview() {
   }, [
     dbOk,
     workspaceRestaurantId,
+    unconfirmedMode,
     rangeStartIso,
     rangeEndExclusiveIso,
     reloadNonce,
   ]);
+
+  useEffect(() => {
+    if (unconfirmedMode) {
+      setStatusFilterId("all");
+      setHidePastReservations(false);
+    }
+  }, [unconfirmedMode]);
 
   const statusFilterOptions = useMemo(() => {
     const m = new Map<string, string>();
@@ -394,7 +461,21 @@ export function ReservationsOverview() {
     return map;
   }, [rowsFiltered]);
 
+  const unconfirmedDayList = useMemo(() => {
+    const keys = [...byDay.keys()].sort();
+    return keys.map((k) => {
+      const [y, m, d] = k.split("-").map(Number);
+      return new Date(y!, (m ?? 1) - 1, d ?? 1);
+    });
+  }, [byDay]);
+
   const visibleDays = useMemo(() => {
+    if (unconfirmedMode) {
+      if (!hideEmptyDays) return unconfirmedDayList;
+      return unconfirmedDayList.filter(
+        (d) => (byDay.get(localDayKey(d))?.length ?? 0) > 0,
+      );
+    }
     let out = days;
     if (isViewingCurrentMonth && hidePastReservations) {
       out = out.filter(
@@ -406,6 +487,8 @@ export function ReservationsOverview() {
     }
     return out;
   }, [
+    unconfirmedMode,
+    unconfirmedDayList,
     days,
     byDay,
     isViewingCurrentMonth,
@@ -415,12 +498,23 @@ export function ReservationsOverview() {
   ]);
 
   const filterActiveCount = useMemo(() => {
+    if (unconfirmedMode) {
+      let n = 1;
+      if (hideEmptyDays) n++;
+      return n;
+    }
     let n = 0;
     if (statusFilterId !== "all") n++;
     if (isViewingCurrentMonth && !hidePastReservations) n++;
     if (hideEmptyDays) n++;
     return n;
-  }, [statusFilterId, isViewingCurrentMonth, hidePastReservations, hideEmptyDays]);
+  }, [
+    unconfirmedMode,
+    statusFilterId,
+    isViewingCurrentMonth,
+    hidePastReservations,
+    hideEmptyDays,
+  ]);
 
   const nowY = today.getFullYear();
   const yearMin = nowY - 1;
@@ -452,112 +546,153 @@ export function ReservationsOverview() {
   return (
     <div className="space-y-6 pb-4">
       <Card className="border-border/50 shadow-card">
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
-          <div className="min-w-0 space-y-1">
-            <CardTitle className="text-xl">Reservierungen</CardTitle>
-            <CardDescription>
-              {isViewingCurrentMonth && hidePastReservations
-                ? "Tage ab heute bis Monatsende."
-                : "Alle Tage des gewählten Monats."}
-              {hideEmptyDays ? " Tage ohne Reservierungen sind ausgeblendet." : ""}
-              {statusFilterId !== "all"
-                ? " Nur Reservierungen mit dem gewählten Status."
-                : ""}
-            </CardDescription>
-          </div>
-          <div className="flex w-full items-center justify-center gap-1 sm:w-auto sm:shrink-0 sm:justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 shrink-0 rounded-lg"
-                onClick={prevMonth}
-                aria-label="Vorheriger Monat"
-              >
-                <ChevronLeft className="size-5" />
-              </Button>
-              <Select
-                value={String(cursor.month)}
-                items={monthItems}
-                onValueChange={(v) => {
-                  if (typeof v === "string") setMonth(Number.parseInt(v, 10));
-                }}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className={appSelectTriggerAccentCn(
-                    "h-9 min-h-9 min-w-[9.5rem] max-w-[min(100%,12rem)] shrink rounded-xl px-2.5 text-left text-sm font-normal",
-                    selectValueNoShrink,
-                  )}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 12 }, (_, m) => (
-                    <SelectItem key={m} value={String(m)}>
-                      {monthItems[String(m)]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select
-                value={String(cursor.year)}
-                items={yearItems}
-                onValueChange={(v) => {
-                  if (typeof v === "string") setYear(Number.parseInt(v, 10));
-                }}
-              >
-                <SelectTrigger
-                  size="sm"
-                  className={appSelectTriggerAccentCn(
-                    "h-9 min-h-9 min-w-[4.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums",
-                    selectValueNoShrink,
-                  )}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: yearMax - yearMin + 1 }, (_, i) => {
-                    const y = yearMin + i;
-                    return (
-                      <SelectItem key={y} value={String(y)}>
-                        {y}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 shrink-0 rounded-lg"
-                onClick={nextMonth}
-                aria-label="Nächster Monat"
-              >
-                <ChevronRight className="size-5" />
-              </Button>
-              <div className="relative shrink-0">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
+          {unconfirmedMode ? (
+            <>
+              <div className="order-2 min-w-0 space-y-1 sm:order-1 sm:flex-1">
+                <p className="text-sm font-semibold text-foreground">
+                  Unbestätigte Reservierungen
+                </p>
+                <p className="text-xs text-muted-foreground sm:text-sm">
+                  Offen und „Änderung prüfen“ — alle Monate, nach Termin sortiert.
+                  {hideEmptyDays ? " Leere Tage ausgeblendet." : ""}
+                </p>
+              </div>
+              <div className="order-1 flex w-full shrink-0 items-center justify-end gap-2 sm:order-2 sm:w-auto">
                 <Button
                   type="button"
                   variant="outline"
-                  size="icon"
-                  className="size-9 shrink-0 rounded-lg border-border/60"
-                  aria-label="Filter"
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-xl"
                   onClick={() => setFilterOpen(true)}
                 >
                   <Filter className="size-4" />
+                  Filter
+                  {filterActiveCount > 1 ? (
+                    <Badge
+                      variant="secondary"
+                      className="h-5 min-w-5 rounded-full px-1 text-[10px] tabular-nums"
+                    >
+                      {filterActiveCount}
+                    </Badge>
+                  ) : null}
                 </Button>
-                {filterActiveCount > 0 ? (
-                  <Badge
-                    variant="secondary"
-                    className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
-                  >
-                    {filterActiveCount}
-                  </Badge>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 gap-1 rounded-xl"
+                  onClick={exitUnconfirmedMode}
+                >
+                  <X className="size-4" />
+                  Monatsansicht
+                </Button>
               </div>
-            </div>
+            </>
+          ) : (
+            <>
+              <p className="order-2 min-w-0 text-xs text-muted-foreground sm:order-1 sm:flex-1">
+                {isViewingCurrentMonth && hidePastReservations
+                  ? "Tage ab heute bis Monatsende."
+                  : "Alle Tage des gewählten Monats."}
+                {hideEmptyDays ? " Tage ohne Reservierungen ausgeblendet." : ""}
+                {statusFilterId !== "all" ? " Nur gewählter Status." : ""}
+              </p>
+              <div className="order-1 flex w-full items-center justify-center gap-1 sm:order-2 sm:w-auto sm:shrink-0 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-lg"
+                  onClick={prevMonth}
+                  aria-label="Vorheriger Monat"
+                >
+                  <ChevronLeft className="size-5" />
+                </Button>
+                <Select
+                  value={String(cursor.month)}
+                  items={monthItems}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") setMonth(Number.parseInt(v, 10));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className={appSelectTriggerAccentCn(
+                      "h-9 min-h-9 min-w-[9.5rem] max-w-[min(100%,12rem)] shrink rounded-xl px-2.5 text-left text-sm font-normal",
+                      selectValueNoShrink,
+                    )}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, m) => (
+                      <SelectItem key={m} value={String(m)}>
+                        {monthItems[String(m)]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={String(cursor.year)}
+                  items={yearItems}
+                  onValueChange={(v) => {
+                    if (typeof v === "string") setYear(Number.parseInt(v, 10));
+                  }}
+                >
+                  <SelectTrigger
+                    size="sm"
+                    className={appSelectTriggerAccentCn(
+                      "h-9 min-h-9 min-w-[4.75rem] w-auto shrink-0 rounded-xl px-2.5 text-left text-sm font-normal tabular-nums",
+                      selectValueNoShrink,
+                    )}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: yearMax - yearMin + 1 }, (_, i) => {
+                      const y = yearMin + i;
+                      return (
+                        <SelectItem key={y} value={String(y)}>
+                          {y}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 shrink-0 rounded-lg"
+                  onClick={nextMonth}
+                  aria-label="Nächster Monat"
+                >
+                  <ChevronRight className="size-5" />
+                </Button>
+                <div className="relative shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="size-9 shrink-0 rounded-lg border-border/60"
+                    aria-label="Filter"
+                    onClick={() => setFilterOpen(true)}
+                  >
+                    <Filter className="size-4" />
+                  </Button>
+                  {filterActiveCount > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                    >
+                      {filterActiveCount}
+                    </Badge>
+                  ) : null}
+                </div>
+              </div>
+            </>
+          )}
         </CardHeader>
       </Card>
 
@@ -574,7 +709,7 @@ export function ReservationsOverview() {
           (z.&nbsp;B. in{" "}
           <span className="font-mono text-foreground/80">.env.local</span>).
         </p>
-      ) : !workspaceRestaurantId ? (
+      ) : workspaceReady && !workspaceRestaurantId ? (
         <p className="text-center text-sm text-muted-foreground">
           Es ist kein aktives Workspace-Restaurant gesetzt oder dein Konto ist
           keiner UUID-Restaurant-Zuordnung zugeordnet. Bitte unter{" "}
@@ -593,6 +728,16 @@ export function ReservationsOverview() {
       {dbOk && loading && rows.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
           Reservierungen werden geladen …
+        </p>
+      ) : null}
+
+      {dbOk && !loading && visibleDays.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border/60 bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">
+          {unconfirmedMode
+            ? "Keine unbestätigten Reservierungen — alles erledigt."
+            : hideEmptyDays
+              ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
+              : "Keine Reservierungen in diesem Monat."}
         </p>
       ) : null}
 
@@ -699,6 +844,11 @@ export function ReservationsOverview() {
                                 <span className="text-xs text-muted-foreground">
                                   {st?.name ?? "—"}
                                 </span>
+                                {st?.code === "change_requested" ? (
+                                  <span className="rounded-md border border-amber-500/40 bg-amber-500/15 px-1.5 py-px text-[10px] font-medium text-amber-800 dark:text-amber-200">
+                                    Änderung prüfen
+                                  </span>
+                                ) : null}
                                 {tableLabel ? (
                                   <span className="rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium text-foreground">
                                     {tableLabel}
@@ -752,14 +902,16 @@ export function ReservationsOverview() {
       <ReservationsFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
+        unconfirmedMode={unconfirmedMode}
         statusOptions={statusFilterOptions}
         statusFilterId={statusFilterId}
         onStatusFilterIdChange={setStatusFilterId}
-        showHidePastSection={isViewingCurrentMonth}
+        showHidePastSection={!unconfirmedMode && isViewingCurrentMonth}
         hidePastReservations={hidePastReservations}
         onHidePastReservationsChange={setHidePastReservations}
         hideEmptyDays={hideEmptyDays}
         onHideEmptyDaysChange={setHideEmptyDays}
+        onUnconfirmedModeChange={setUnconfirmedMode}
       />
 
       <DayReservationsDrawer
@@ -795,6 +947,7 @@ export function ReservationsOverview() {
               }
             : undefined
         }
+        onDataChanged={() => setReloadNonce((n) => n + 1)}
       />
 
       <ReservationEditDrawer

@@ -22,3 +22,7 @@ Lange identische Tailwind-Strings an mehreren Call-Sites kopieren → schwer war
 ## Positiv-Beispiel (Projekt)
 
 Primär-Speichern / Akzent-Aktion: `settingsAccentSaveButtonClassName` aus `@/components/settings/settings-sticky-save-bar` wiederverwenden statt die Kette zu duplizieren.
+
+Primär **Neu anlegen** (über Tabelle/Liste, rechts): `modulePrimaryAddButtonClassName` aus `@/lib/ui/module-primary-add-button` mit `Button size="lg"` und `Plus`-Icon — Referenz: Speisekarte „Gericht hinzufügen“, Bestand „Neue Zutat“, Dokumente „Neues Dokument“.
+
+Filter-Dropdowns mit **lesbarem Namen** (nicht UUID im Trigger): `SearchableSelect` aus `@/components/ui/combobox` mit `{ value, label }` — wie im Bestand.

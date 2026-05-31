@@ -1,163 +1,77 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  type ChartConfig,
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
-import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonCardFrame } from "@/components/ui/skeleton";
+import { DashboardContactsTile } from "@/components/dashboard/dashboard-contacts-tile";
+import { DashboardMessagesTile } from "@/components/dashboard/dashboard-messages-tile";
+import { DashboardIntegrationsTile } from "@/components/dashboard/dashboard-integrations-tile";
+import { DashboardInventoryTile } from "@/components/dashboard/dashboard-inventory-tile";
+import { DashboardMenuTile } from "@/components/dashboard/dashboard-menu-tile";
+import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile";
+import { DashboardReservationsTile } from "@/components/dashboard/dashboard-reservations-tile";
 import { DashboardWeatherTile } from "@/components/dashboard/dashboard-weather-tile";
+import { DashboardWidgetStatsSkeleton } from "@/components/dashboard/dashboard-stat-block";
+import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
-import { useCategoriesStorage } from "@/lib/hooks/use-categories-storage";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
-import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
-import { cn } from "@/lib/utils";
 
-const trendConfig = {
-  views: {
-    label: "Aufrufe",
-    color: "var(--chart-1)",
-  },
-} satisfies ChartConfig;
+function DashboardWidgetSkeleton() {
+  return (
+    <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
+      <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:justify-between">
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-36 rounded-md" />
+          <Skeleton className="h-4 w-72 max-w-full rounded-md" />
+        </div>
+        <Skeleton className="h-9 w-32 rounded-xl" />
+      </div>
+      <DashboardWidgetStatsSkeleton />
+    </SkeletonCardFrame>
+  );
+}
 
-const categoryConfig = {
-  count: {
-    label: "Gerichte",
-    color: "var(--chart-2)",
-  },
-} satisfies ChartConfig;
-
-const demoTrend = [
-  { day: "Mo", views: 124 },
-  { day: "Di", views: 198 },
-  { day: "Mi", views: 156 },
-  { day: "Do", views: 242 },
-  { day: "Fr", views: 289 },
-  { day: "Sa", views: 312 },
-  { day: "So", views: 267 },
-];
+function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
+  switch (id) {
+    case "menu":
+      return <DashboardMenuTile />;
+    case "reservations":
+      return <DashboardReservationsTile />;
+    case "staff":
+      return <DashboardStaffTile />;
+    case "weather":
+      return <DashboardWeatherTile />;
+    case "contacts":
+      return <DashboardContactsTile />;
+    case "messages":
+      return <DashboardMessagesTile />;
+    case "integrations":
+      return <DashboardIntegrationsTile />;
+    case "inventory":
+      return <DashboardInventoryTile />;
+    default:
+      return null;
+  }
+}
 
 export default function DashboardPage() {
-  const { items, isHydrated: menuReady } = useMenuStorage();
-  const { categories, isHydrated: catReady } = useCategoriesStorage();
   const { visibility, order, isReady: widgetsReady } =
     useDashboardWidgetPreferences();
 
-  const ready = menuReady && catReady && widgetsReady;
-
-  const stats = useMemo(() => {
-    const n = items.length;
-    const total = items.reduce((s, i) => s + i.price, 0);
-    const avg = n ? total / n : 0;
-    return {
-      dishes: n,
-      categories: categories.length,
-      avgPrice: avg,
-    };
-  }, [items, categories]);
-
-  const byCategory = useMemo(
-    () =>
-      categories.map((c) => ({
-        name: c.name,
-        count: items.filter((i) => i.category === c.id).length,
-      })),
-    [categories, items],
-  );
-
-  const orderedVisible = useMemo(
-    () => order.filter((id) => visibility[id]),
-    [order, visibility],
-  );
-
-  const sections = useMemo(
-    () => groupDashboardLayoutSections(orderedVisible),
-    [orderedVisible],
+  const orderedVisible = groupDashboardLayoutSections(
+    order.filter((id) => visibility[id]),
   );
 
   const anyWidget = orderedVisible.length > 0;
 
-  if (!ready) {
+  if (!widgetsReady) {
     return (
       <div className="space-y-8 pt-2">
         <Skeleton className="h-10 w-56 rounded-lg" />
-        <div className="grid gap-4 sm:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SkeletonCardFrame key={i} className="min-h-[5.5rem] space-y-3 py-3">
-              <Skeleton className="h-3 w-24 rounded-md" />
-              <Skeleton className="h-9 w-20 rounded-lg" />
-            </SkeletonCardFrame>
-          ))}
-        </div>
-        <div className="grid gap-6 xl:grid-cols-12">
-          <SkeletonCardFrame className="min-h-[16rem] space-y-5 xl:col-span-4">
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-28 rounded-md" />
-              <Skeleton className="h-4 w-64 max-w-full rounded-md" />
-            </div>
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="flex gap-3">
-                <Skeleton className="size-12 shrink-0 rounded-xl" />
-                <div className="space-y-2">
-                  <Skeleton className="h-10 w-28 rounded-lg" />
-                  <Skeleton className="h-4 w-44 rounded-md" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="ml-auto h-4 w-32 rounded-md" />
-                <Skeleton className="ml-auto h-4 w-24 rounded-md" />
-                <Skeleton className="ml-auto h-4 w-24 rounded-md" />
-              </div>
-            </div>
-            <div className="divide-y divide-border/50">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-4 py-2.5 first:pt-0"
-                >
-                  <Skeleton className="h-4 w-28 rounded-md" />
-                  <Skeleton className="h-4 w-40 rounded-md" />
-                </div>
-              ))}
-            </div>
-          </SkeletonCardFrame>
-          <div className="grid min-w-0 gap-6 lg:grid-cols-5 xl:col-span-8">
-            <SkeletonCardFrame className="min-h-[18rem] space-y-4 lg:col-span-3">
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-36 rounded-md" />
-                <Skeleton className="h-4 max-w-sm rounded-md" />
-              </div>
-              <Skeleton className="h-[220px] w-full rounded-lg" />
-            </SkeletonCardFrame>
-            <SkeletonCardFrame className="min-h-[18rem] space-y-4 lg:col-span-2">
-              <div className="space-y-2">
-                <Skeleton className="h-5 w-48 rounded-md" />
-                <Skeleton className="h-4 max-w-xs rounded-md" />
-              </div>
-              <Skeleton className="h-[220px] w-full rounded-lg" />
-            </SkeletonCardFrame>
-          </div>
-        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <DashboardWidgetSkeleton key={i} />
+        ))}
       </div>
     );
   }
@@ -167,8 +81,8 @@ export default function DashboardPage() {
       <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <p className="max-w-md text-sm text-muted-foreground sm:text-base">
           Für das Dashboard sind aktuell keine Widgets aktiviert. Unter
-          Einstellungen kannst du Kennzahlen, Wetter und Diagramme wieder
-          einblenden.
+          Einstellungen kannst du           Speisekarte, Reservierungen, Mitarbeiter, Wetter, Kontakte, Nachrichten,
+          Integrationen und Bestand wieder einblenden.
         </p>
         <Button render={<Link href="/settings/dashboard" prefetch />}>
           Dashboard-Einstellungen
@@ -179,210 +93,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 pt-2">
-      <Card className="min-w-0 border-border/50 shadow-card">
-        <CardHeader className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-center sm:justify-between sm:space-y-0">
-          <div className="space-y-1">
-            <CardTitle className="text-lg">Reservierungen</CardTitle>
-            <CardDescription>
-              Monatsübersicht ab heute und Einstellungen für Tischreservierungen.
-            </CardDescription>
-          </div>
-          <Button render={<Link href="/reservierungen/uebersicht" prefetch />}>
-            Zur Übersicht
-          </Button>
-        </CardHeader>
-      </Card>
-      {sections.map((section) => {
-        if (section.kind === "overviewStats") {
-          return (
-            <div
-              key="overviewStats"
-              className="grid min-w-0 gap-4 sm:grid-cols-3"
-            >
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader className="pb-2">
-                  <CardDescription>Gerichte</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums">
-                    {stats.dishes}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader className="pb-2">
-                  <CardDescription>Kategorien</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums">
-                    {stats.categories}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader className="pb-2">
-                  <CardDescription>Ø Preis</CardDescription>
-                  <CardTitle className="text-3xl tabular-nums">
-                    {stats.dishes ? `${stats.avgPrice.toFixed(2)} €` : "—"}
-                  </CardTitle>
-                </CardHeader>
-              </Card>
-            </div>
-          );
-        }
-
-        if (section.kind === "weather") {
-          return (
-            <div key="weather" className="min-w-0">
-              <DashboardWeatherTile />
-            </div>
-          );
-        }
-
-        const chartIds = section.widgetIds;
-        const n = chartIds.length;
-        return (
-          <div
-            key={`charts-${chartIds.join("-")}`}
-            className={cn(
-              "grid min-w-0 gap-6",
-              n === 2 && "lg:grid-cols-5",
-            )}
-          >
-            {chartIds.map((chartId, index) => {
-              const spanTwo =
-                n === 2 ? (index === 0 ? "lg:col-span-3" : "lg:col-span-2") : "";
-
-              if (chartId === "activityChart") {
-                return (
-                  <Card
-                    key={chartId}
-                    className={cn(
-                      "min-w-0 border-border/50 shadow-card",
-                      spanTwo,
-                    )}
-                  >
-                    <CardHeader>
-                      <CardTitle className="text-lg">Aktivität</CardTitle>
-                      <CardDescription>
-                        Demo-Zeitreihe (echte Tracking-Daten folgen mit Analytics).
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pl-0">
-                      <ChartContainer
-                        config={trendConfig}
-                        className="aspect-auto h-[260px] w-full min-w-0"
-                      >
-                        <AreaChart
-                          accessibilityLayer
-                          data={demoTrend}
-                          margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
-                        >
-                          <defs>
-                            <linearGradient
-                              id="fillViews"
-                              x1="0"
-                              y1="0"
-                              x2="0"
-                              y2="1"
-                            >
-                              <stop
-                                offset="5%"
-                                stopColor="var(--color-views)"
-                                stopOpacity={0.35}
-                              />
-                              <stop
-                                offset="95%"
-                                stopColor="var(--color-views)"
-                                stopOpacity={0.02}
-                              />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                          <XAxis
-                            dataKey="day"
-                            tickLine={false}
-                            axisLine={false}
-                            tickMargin={12}
-                          />
-                          <YAxis
-                            tickLine={false}
-                            axisLine={false}
-                            width={36}
-                            tickMargin={8}
-                            className="tabular-nums"
-                          />
-                          <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent indicator="line" />}
-                          />
-                          <Area
-                            dataKey="views"
-                            type="natural"
-                            fill="url(#fillViews)"
-                            stroke="var(--color-views)"
-                            strokeWidth={2}
-                          />
-                        </AreaChart>
-                      </ChartContainer>
-                    </CardContent>
-                  </Card>
-                );
-              }
-
-              return (
-                <Card
-                  key={chartId}
-                  className={cn(
-                    "min-w-0 border-border/50 shadow-card",
-                    spanTwo,
-                  )}
-                >
-                  <CardHeader>
-                    <CardTitle className="text-lg">Gerichte pro Kategorie</CardTitle>
-                    <CardDescription>Aus deiner lokalen Speisekarte.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pl-0">
-                    <ChartContainer
-                      config={categoryConfig}
-                      className="aspect-auto h-[260px] w-full min-w-0"
-                    >
-                      <BarChart
-                        accessibilityLayer
-                        data={byCategory}
-                        layout="vertical"
-                        margin={{ left: 4, right: 16, top: 8, bottom: 0 }}
-                      >
-                        <CartesianGrid
-                          horizontal={false}
-                          strokeDasharray="4 4"
-                          className="stroke-border/50"
-                        />
-                        <XAxis type="number" hide />
-                        <YAxis
-                          type="category"
-                          dataKey="name"
-                          width={120}
-                          tickLine={false}
-                          axisLine={false}
-                          tickMargin={8}
-                          interval={0}
-                        />
-                        <ChartTooltip
-                          cursor={false}
-                          content={<ChartTooltipContent hideLabel indicator="dot" />}
-                        />
-                        <Bar
-                          dataKey="count"
-                          radius={6}
-                          fill="var(--color-count)"
-                          maxBarSize={28}
-                        />
-                      </BarChart>
-                    </ChartContainer>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        );
-      })}
+      {orderedVisible.map((id) => (
+        <div key={id} className="min-w-0">
+          <DashboardWidgetById id={id} />
+        </div>
+      ))}
     </div>
   );
 }

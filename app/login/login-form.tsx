@@ -21,6 +21,7 @@ import { useWorkspaceDatabaseGate } from "@/components/providers/supabase-databa
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { syncUserProfileNames } from "@/lib/profile/sync-user-profile-names";
 import {
   GWADA_SUPABASE_SIGNIN_TIMEOUT_MS,
   raceWithTimeout,
@@ -30,8 +31,15 @@ import {
   startOAuthFlow,
   type GwadaOAuthProvider,
 } from "@/lib/supabase/oauth";
-
-type Screen = "login" | "register";
+import {
+  useAuthScreenTransition,
+} from "@/components/auth/use-auth-screen-transition";
+import { useAuthEnterTransition } from "@/components/auth/use-auth-enter-transition";
+import { PasswordStrengthBar } from "@/components/auth/password-strength-bar";
+import {
+  PASSWORD_POLICY_ERROR_MESSAGE,
+  passwordMeetsPolicy,
+} from "@/lib/auth/password-policy";
 
 const backNavLinkClass =
   "inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline";
@@ -59,13 +67,26 @@ export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const nextParam = searchParams.get("next");
-  const [screen, setScreen] = useState<Screen>("login");
+  const {
+    screen,
+    transitionTo,
+    overlay: authScreenOverlay,
+    isTransitioning,
+  } = useAuthScreenTransition("login");
+  const {
+    enterApp,
+    overlay: authEnterOverlay,
+    isEntering,
+  } = useAuthEnterTransition();
   const [email, setEmail] = useState("dreyer@techlion.de");
   const [password, setPassword] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regGivenName, setRegGivenName] = useState("");
+  const [regFamilyName, setRegFamilyName] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [magicLinkBusy, setMagicLinkBusy] = useState(false);
 
   const loginToastError = (headline: string, detail?: string) => {
     const d = detail?.trim();
@@ -87,8 +108,9 @@ export function LoginForm() {
         } = await sb.auth.getSession();
         if (cancelled || !session?.user) return;
         const next = safeInternalPath(nextParam);
-        router.replace(next);
-        router.refresh();
+        enterApp(() => {
+          window.location.assign(next);
+        });
       } catch {
         /* Session optional */
       }
@@ -96,7 +118,7 @@ export function LoginForm() {
     return () => {
       cancelled = true;
     };
-  }, [router, nextParam]);
+  }, [nextParam, enterApp]);
 
   useEffect(() => {
     const err = searchParams.get("error");
@@ -188,8 +210,9 @@ export function LoginForm() {
         return;
       }
       const next = safeInternalPath(searchParams.get("next"));
-      /* Voller Request, damit proxy.ts die frisch gesetzten Auth-Cookies sieht. */
-      window.location.assign(next);
+      enterApp(() => {
+        window.location.assign(next);
+      });
       return;
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
@@ -199,7 +222,67 @@ export function LoginForm() {
     }
   };
 
-  const handleRegisterSubmit = () => {
+  const handleMagicLink = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      toast.error("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+
+    if (isSupabaseOnlyMode()) {
+      let reach: { ok: boolean; message: string };
+      try {
+        reach = await ensureReachable();
+      } catch {
+        loginToastError("Die Datenbank konnte nicht geprüft werden.");
+        return;
+      }
+      if (!reach.ok) {
+        loginToastError(
+          "Aktuell gibt es Probleme mit der Datenbank. Ein Anmelde-Link kann zurzeit nicht gesendet werden.",
+        );
+        return;
+      }
+    }
+
+    setMagicLinkBusy(true);
+    try {
+      const res = await fetch("/api/auth/magic-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: trimmed,
+          next: safeInternalPath(nextParam),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok) {
+        loginToastError(
+          typeof data.error === "string"
+            ? data.error
+            : "Der Anmelde-Link konnte nicht gesendet werden.",
+        );
+        return;
+      }
+      toast.success("Anmelde-Link gesendet.", {
+        description: "Prüfe dein Postfach und klicke auf den Link in der E-Mail.",
+      });
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      loginToastError("Der Anmelde-Link konnte nicht gesendet werden.", raw);
+    } finally {
+      setMagicLinkBusy(false);
+    }
+  };
+
+  const handleRegisterSubmit = async () => {
+    if (!regGivenName.trim() || !regFamilyName.trim()) {
+      toast.error("Bitte Vor- und Nachname eingeben.");
+      return;
+    }
     if (!regEmail.trim()) {
       toast.error("Bitte eine E-Mail-Adresse eingeben.");
       return;
@@ -208,15 +291,83 @@ export function LoginForm() {
       toast.error("Bitte ein Passwort eingeben.");
       return;
     }
+    if (!passwordMeetsPolicy(regPassword)) {
+      toast.error(PASSWORD_POLICY_ERROR_MESSAGE);
+      return;
+    }
     if (regPassword !== regPasswordConfirm) {
       toast.error("Die Passwörter stimmen nicht überein.");
       return;
     }
-    toast.info("Registrierung folgt in einem späteren Schritt.");
+
+    setBusy(true);
+    try {
+      if (isSupabaseOnlyMode()) {
+        let reach: { ok: boolean; message: string };
+        try {
+          reach = await ensureReachable();
+        } catch {
+          loginToastError("Die Datenbank konnte nicht geprüft werden.");
+          return;
+        }
+        if (!reach.ok) {
+          loginToastError(
+            "Aktuell gibt es Probleme mit der Datenbank. Eine Registrierung ist zurzeit nicht möglich.",
+          );
+          return;
+        }
+      }
+
+      const sb = createSupabaseBrowserClient();
+      const givenName = regGivenName.trim();
+      const familyName = regFamilyName.trim();
+      const { data, error } = await sb.auth.signUp({
+        email: regEmail.trim(),
+        password: regPassword,
+        options: {
+          data: {
+            given_name: givenName,
+            family_name: familyName,
+          },
+        },
+      });
+
+      if (error) {
+        loginToastError("Registrierung fehlgeschlagen.", error.message);
+        return;
+      }
+
+      if (!data.user?.id) {
+        toast.info(
+          "Bitte bestätige deine E-Mail — danach kannst du dich anmelden.",
+        );
+        transitionTo("login");
+        setEmail(regEmail.trim());
+        return;
+      }
+
+      const synced = await syncUserProfileNames(sb, { givenName, familyName });
+      if (!synced.ok) {
+        loginToastError("Profilname konnte nicht gespeichert werden.");
+        return;
+      }
+
+      toast.success("Konto angelegt — du kannst dich jetzt anmelden.");
+      transitionTo("login");
+      setEmail(regEmail.trim());
+      setPassword("");
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      loginToastError("Registrierung fehlgeschlagen.", raw);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-background p-4">
+      {authScreenOverlay}
+      {authEnterOverlay}
       <div className="flex w-full max-w-md flex-col gap-3">
         {screen === "login" ? (
           <Link href="/" className={backNavLinkClass}>
@@ -228,7 +379,8 @@ export function LoginForm() {
             type="button"
             className={backNavLinkClass}
             aria-label="Zurück zur Anmeldung"
-            onClick={() => setScreen("login")}
+            disabled={isTransitioning}
+            onClick={() => transitionTo("login")}
           >
             <ArrowLeft className="size-4 shrink-0" aria-hidden />
             Zurück zur Anmeldung
@@ -284,7 +436,7 @@ export function LoginForm() {
               <Button
                 type="button"
                 className="h-11 w-full"
-                disabled={busy}
+                disabled={busy || isEntering}
                 onClick={() => void handleLogin()}
               >
                 {busy ? (
@@ -294,6 +446,22 @@ export function LoginForm() {
                   </>
                 ) : (
                   "Weiter"
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full rounded-xl border-border/80 bg-background font-normal"
+                disabled={busy || magicLinkBusy || isEntering}
+                onClick={() => void handleMagicLink()}
+              >
+                {magicLinkBusy ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Link wird gesendet…
+                  </>
+                ) : (
+                  "Magic Link per E-Mail"
                 )}
               </Button>
 
@@ -335,8 +503,9 @@ export function LoginForm() {
                 type="button"
                 variant="secondary"
                 className="h-11 w-full rounded-xl"
+                disabled={isTransitioning}
                 onClick={() => {
-                  setScreen("register");
+                  transitionTo("register");
                   if (!regEmail.trim()) setRegEmail(email.trim());
                 }}
               >
@@ -351,11 +520,32 @@ export function LoginForm() {
                 Registrieren
               </CardTitle>
               <CardDescription>
-                Lege ein Konto an. OAuth und Bestätigung folgen später — hier
-                nur die Eingaben.
+                Lege ein Konto mit Vor- und Nachname an.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-given">Vorname</Label>
+                  <Input
+                    id="reg-given"
+                    autoComplete="given-name"
+                    value={regGivenName}
+                    onChange={(e) => setRegGivenName(e.target.value)}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="reg-family">Nachname</Label>
+                  <Input
+                    id="reg-family"
+                    autoComplete="family-name"
+                    value={regFamilyName}
+                    onChange={(e) => setRegFamilyName(e.target.value)}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-email">E-Mail</Label>
                 <Input
@@ -377,6 +567,7 @@ export function LoginForm() {
                   onChange={(e) => setRegPassword(e.target.value)}
                   className="h-11 rounded-xl"
                 />
+                <PasswordStrengthBar password={regPassword} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-password-2">Passwort wiederholen</Label>
@@ -387,17 +578,26 @@ export function LoginForm() {
                   value={regPasswordConfirm}
                   onChange={(e) => setRegPasswordConfirm(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRegisterSubmit();
+                    if (e.key === "Enter") void handleRegisterSubmit();
                   }}
                   className="h-11 rounded-xl"
                 />
+                <PasswordStrengthBar password={regPasswordConfirm} showRequirements={false} />
               </div>
               <Button
                 type="button"
                 className="h-11 w-full"
-                onClick={handleRegisterSubmit}
+                disabled={busy}
+                onClick={() => void handleRegisterSubmit()}
               >
-                Konto anlegen
+                {busy ? (
+                  <>
+                    <Loader2 className="mr-2 size-4 animate-spin" />
+                    Registrierung…
+                  </>
+                ) : (
+                  "Konto anlegen"
+                )}
               </Button>
 
               <div className="relative py-1">

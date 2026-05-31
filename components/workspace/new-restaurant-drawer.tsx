@@ -13,7 +13,12 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { restaurantSlugFromName } from "@/lib/restaurant/slug-from-name";
+import {
+  RESTAURANT_SLUG_TAKEN_MESSAGE,
+  restaurantSlugFromName,
+} from "@/lib/restaurant/restaurant-slug";
+import { isRestaurantSlugAvailable } from "@/lib/supabase/restaurant-stammdaten-db";
+import { seedRestaurantDefaultPositions } from "@/lib/supabase/restaurant-positions-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   invalidateWorkspaceRestaurantCache,
@@ -27,16 +32,12 @@ async function pickUniqueRestaurantSlug(
   let candidate = baseSlug;
   let n = 2;
   for (let attempt = 0; attempt < 40; attempt += 1) {
-    const { data, error } = await sb
-      .from("restaurants")
-      .select("id")
-      .eq("slug", candidate)
-      .maybeSingle();
+    const { available, error } = await isRestaurantSlugAvailable(sb, candidate);
     if (error) {
-      console.warn("[gwada] pickUniqueRestaurantSlug", error.message);
+      console.warn("[gwada] pickUniqueRestaurantSlug", error);
       return null;
     }
-    if (!data) return candidate;
+    if (available) return candidate;
     candidate = `${baseSlug}-${n}`;
     n += 1;
   }
@@ -86,7 +87,7 @@ export function NewRestaurantDrawer({
     try {
       const slug = await pickUniqueRestaurantSlug(base);
       if (!slug) {
-        toast.error("Slug konnte nicht vergeben werden.");
+        toast.error(RESTAURANT_SLUG_TAKEN_MESSAGE);
         return;
       }
 
@@ -105,8 +106,11 @@ export function NewRestaurantDrawer({
 
       if (insErr || !inserted?.id) {
         console.warn(insErr);
+        const msg = insErr?.message ?? "";
         toast.error(
-          insErr?.message ?? "Restaurant konnte nicht angelegt werden.",
+          msg.includes("duplicate key") || msg.includes("restaurants_slug")
+            ? RESTAURANT_SLUG_TAKEN_MESSAGE
+            : msg || "Restaurant konnte nicht angelegt werden.",
         );
         return;
       }
@@ -124,6 +128,11 @@ export function NewRestaurantDrawer({
         console.warn(empErr);
         toast.error("Zuordnung zum Restaurant ist fehlgeschlagen.");
         return;
+      }
+
+      const { error: seedErr } = await seedRestaurantDefaultPositions(sb, newId);
+      if (seedErr) {
+        console.warn("seed_restaurant_default_positions", seedErr);
       }
 
       const { error: profErr } = await sb

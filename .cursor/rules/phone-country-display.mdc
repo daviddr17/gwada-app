@@ -1,0 +1,29 @@
+---
+description: Telefonnummern einheitlich mit Ländervorwahl (Reservierungs-Bottom-Sheet-Muster)
+globs:
+  - components/**/*.tsx
+  - app/**/*.tsx
+  - lib/phone/**/*.ts
+---
+
+# Telefonnummern: Ländervorwahl + lokale Nummer
+
+Telefonfelder in Formularen, Drawern und Bottom Sheets **einheitlich** wie im Reservierungs-Bottom-Sheet (`components/reservations/reservation-edit-drawer.tsx`):
+
+## Eingabe (bearbeitbar)
+
+1. **`GuestPhoneField`** aus `@/components/phone/guest-phone-field` — gemeinsame Shell: Ländervorwahl-Select, Trenner `|`, lokales Nummernfeld in **einer** gerahmten Gruppe (`guestPhoneFieldGroupClassName`).
+2. **`GuestPhoneCountrySelect`** nur direkt nutzen, wenn das Layout bewusst abweicht — sonst immer `GuestPhoneField`.
+3. **Speichern / Laden:** `parseGuestPhone` und `formatGuestPhone` aus `@/lib/phone/guest-phone` — keine parallele Format-Logik.
+4. **Kein separates Vorschau-Label** unter dem Feld — die Vorwahl steht im Select (Flag + `dial_code`).
+
+Referenz-Komponenten: Reservierung (`reservation-edit-drawer`), Kontakt (`contact-edit-drawer`), Mitarbeiter (`staff-form-drawer`).
+
+## Anzeige (read-only)
+
+Gespeicherte Nummern mit `formatGuestPhone(iso2, local, countries)` oder aus gespeichertem String via `parseGuestPhone` → `formatGuestPhone` formatieren — nicht roh anzeigen, wenn eine Vorwahl erkennbar ist.
+
+## Styling
+
+- Gruppe: `guestPhoneFieldGroupClassName`, Prefix-Trigger: `guestPhonePrefixTriggerClassName()`, Nummer: `guestPhoneNumberInputClassName` — aus `guest-phone-field.tsx`, nicht duplizieren.
+- Select-Akzent wie üblich über `appSelectTriggerAccentCn` (bereits in `GuestPhoneCountrySelect` / `GuestPhoneField`).

@@ -47,12 +47,14 @@ export function RestaurantSettingsSkeleton({
 
   return (
     <div className="space-y-6 pb-4">
-      <SkeletonCardFrame className="shadow-card">
-        <div className="space-y-2 border-b border-border/30 pb-4">
-          <Skeleton className="h-8 w-44 max-w-full rounded-md" />
-          <Skeleton className="h-4 w-full max-w-xl rounded-md" />
-          <Skeleton className="h-4 w-full max-w-md rounded-md" />
+      <div className="overflow-hidden rounded-xl border border-border/50 shadow-card">
+        <Skeleton className="h-36 w-full rounded-none md:h-44" />
+        <div className="space-y-4 px-5 pb-5">
+          <Skeleton className="-mt-12 size-24 rounded-full border-4 border-card sm:-mt-14" />
+          <FieldRow />
         </div>
+      </div>
+      <SkeletonCardFrame className="shadow-card">
         <div className="space-y-4 pt-4">
           <FieldRow />
           <FieldRow />

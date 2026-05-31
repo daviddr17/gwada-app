@@ -59,6 +59,7 @@ import type {
   InventoryTaxonomyDefinition,
 } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
+import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 
 export type InventoryTaxonomyKind =
@@ -878,12 +879,13 @@ export function InventoryScreen() {
         </div>
       </div>
 
-      <div className="mb-4 flex justify-end">
+      <div className="mb-6 flex justify-end">
         <Button
           size="lg"
-          className="h-12 gap-2 rounded-full bg-accent px-6 text-accent-foreground shadow-none tap-scale hover:bg-accent/90 dark:shadow-md"
+          className={modulePrimaryAddButtonClassName}
           onClick={() => setIngredientDrawerOpen(true)}
         >
+          <Plus className="size-4" />
           Neue Zutat
         </Button>
       </div>

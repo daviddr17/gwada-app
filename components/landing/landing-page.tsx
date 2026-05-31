@@ -11,12 +11,15 @@ import { LandingPricing } from "@/components/landing/landing-pricing";
 import { LandingScrollStory } from "@/components/landing/landing-scroll-story";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
+import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 
 /**
  * Marketing-Startseite: Lenis + Sektionen + Dock.
  * Maus-Parallax nur für die Hero-Glas-Karte (Hintergrund-Mesh bleibt fix).
  */
 export function LandingPage() {
+  const branding = usePlatformAppBrandingOptional();
+  const appName = branding?.appName ?? "gwada";
   const lenisRef = useLandingLenis();
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
 
@@ -88,7 +91,7 @@ export function LandingPage() {
 
         <footer className="border-t border-border/50 bg-muted/10 px-6 py-20 pb-40 text-center text-sm text-muted-foreground sm:pb-44 dark:bg-muted/5">
           <p suppressHydrationWarning>
-            © {new Date().getFullYear()} Gwada. Mit Ruhe gebaut.
+            © {new Date().getFullYear()} {appName}. Mit Ruhe gebaut.
           </p>
           <p className="mt-2">
             <Link

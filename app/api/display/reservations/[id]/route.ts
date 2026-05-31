@@ -1,0 +1,116 @@
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
+import { updateDisplayReservation } from "@/lib/display/display-reservation-mutations-server";
+import { loadDisplayReservationDetail } from "@/lib/display/display-reservations-server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const cookieStore = await cookies();
+  const access = await assertDisplayModuleAccess(cookieStore, "reservations");
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  const { id } = await context.params;
+  const result = await loadDisplayReservationDetail(access.restaurantId, id);
+
+  if ("error" in result) {
+    const status =
+      result.error === "not_found"
+        ? 404
+        : result.error === "server_misconfigured"
+          ? 503
+          : 500;
+    return NextResponse.json({ error: result.error }, { status });
+  }
+
+  return NextResponse.json(result.detail);
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
+  }
+
+  const cookieStore = await cookies();
+  const access = await assertDisplayModuleAccess(cookieStore, "reservations");
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  const { id } = await context.params;
+
+  let body: Record<string, unknown>;
+  try {
+    body = (await request.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const partySize = Number(body.party_size);
+  if (
+    typeof body.guest_first_name !== "string" ||
+    typeof body.guest_last_name !== "string" ||
+    typeof body.starts_at !== "string" ||
+    typeof body.ends_at !== "string" ||
+    typeof body.status_id !== "string" ||
+    !Number.isFinite(partySize) ||
+    partySize < 1 ||
+    partySize > 50
+  ) {
+    return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const dwellRaw = body.dwell_minutes;
+  const dwellMinutes =
+    dwellRaw == null
+      ? null
+      : typeof dwellRaw === "number" && Number.isFinite(dwellRaw)
+        ? dwellRaw
+        : null;
+
+  const result = await updateDisplayReservation(
+    admin,
+    access.restaurantId,
+    id,
+    {
+      guest_first_name: body.guest_first_name.trim() || "Gast",
+      guest_last_name:
+        typeof body.guest_last_name === "string" ? body.guest_last_name.trim() : "",
+      guest_phone:
+        typeof body.guest_phone === "string" ? body.guest_phone.trim() || null : null,
+      guest_email:
+        typeof body.guest_email === "string" ? body.guest_email.trim() || null : null,
+      party_size: partySize,
+      starts_at: body.starts_at,
+      ends_at: body.ends_at,
+      status_id: body.status_id,
+      dining_table_id:
+        typeof body.dining_table_id === "string" ? body.dining_table_id : null,
+      dwell_minutes: dwellMinutes,
+      notify_email: Boolean(body.notify_email),
+      notify_whatsapp: Boolean(body.notify_whatsapp),
+      terms_accepted: Boolean(body.terms_accepted),
+    },
+  );
+
+  if (!result.ok) {
+    const status =
+      result.error === "not_found"
+        ? 404
+        : result.error === "table_requires_confirmed"
+          ? 400
+          : 500;
+    return NextResponse.json({ error: result.error }, { status });
+  }
+
+  return NextResponse.json({ ok: true });
+}

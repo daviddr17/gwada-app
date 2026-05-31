@@ -7,8 +7,18 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
   {
     href: "/settings/restaurant",
-    label: "Restaurant",
+    label: "Übersicht",
     matchMode: "exact",
+  },
+  {
+    href: "/settings/team",
+    label: "Team",
+    matchMode: "prefix",
+  },
+  {
+    href: "/settings/rollen",
+    label: "Rollen",
+    matchMode: "prefix",
   },
   {
     href: "/settings/oeffnungszeiten",
@@ -21,8 +31,18 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/settings/integrationen",
+    label: "Integrationen",
+    matchMode: "prefix",
+  },
+  {
     href: "/settings/branding",
     label: "Branding",
+    matchMode: "prefix",
+  },
+  {
+    href: "/settings/displays",
+    label: "Displays",
     matchMode: "prefix",
   },
 ];

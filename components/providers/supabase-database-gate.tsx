@@ -54,7 +54,9 @@ export function SupabaseDatabaseGate({
   const skipDbProbe =
     pathname === "/" ||
     pathname === "/login" ||
-    pathname.startsWith("/login/");
+    pathname.startsWith("/login/") ||
+    pathname.startsWith("/embed/") ||
+    pathname.startsWith("/einladung/");
 
   const supabaseOnly = isSupabaseOnlyMode();
   const [state, setState] = useState<GateState>(() =>

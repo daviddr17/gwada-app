@@ -6,13 +6,18 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
 const PROFILE_NAV: readonly ModuleSubnavItem[] = [
   {
+    href: "/profile/persoenliche-daten",
+    label: "Übersicht",
+    matchMode: "exact",
+  },
+  {
     href: "/profile/anmeldung",
     label: "Anmeldung",
     matchMode: "exact",
   },
   {
-    href: "/profile/persoenliche-daten",
-    label: "Persönliche Daten",
+    href: "/profile/arbeitszeiten",
+    label: "Arbeitszeiten",
     matchMode: "exact",
   },
 ];
@@ -23,7 +28,7 @@ export default function ProfileLayout({
   return (
     <>
       <RegisterModuleChrome
-        title="Persönliches Profil"
+        title="Profil"
         subnavAriaLabel="Profilbereiche"
         subnavItems={PROFILE_NAV}
       />

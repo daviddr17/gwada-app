@@ -5,8 +5,11 @@ import {
   DASHBOARD_WIDGET_STORAGE_KEY,
   DEFAULT_DASHBOARD_WIDGET_ORDER,
   DEFAULT_DASHBOARD_WIDGET_VISIBILITY,
+  canonicalDashboardWidgetId,
+  mergeDashboardWidgetVisibility,
   normalizeWidgetOrder,
   reorderDashboardWidgetOrder,
+  visibilityPatchFromStored,
   type DashboardWidgetId,
   type DashboardWidgetPrefs,
 } from "@/lib/constants/dashboard-widgets";
@@ -19,31 +22,23 @@ import {
   upsertUserRestaurantDashboardWidgets,
   type RawDashboardWidgetRow,
 } from "@/lib/supabase/user-restaurant-dashboard-widgets";
+import { migrateDashboardWidgetsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
   GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
   getWorkspaceRestaurantId,
-  loadWorkspaceJson,
-  persistWorkspaceState,
+  loadWorkspaceJsonLocal,
+  mirrorWorkspaceJsonLocal,
   workspacePersistenceConfigured,
 } from "@/lib/supabase/workspace-persistence";
 
 export type { DashboardWidgetPrefs } from "@/lib/constants/dashboard-widgets";
 
-function mergeVisibility(
-  partial: Partial<Record<DashboardWidgetId, boolean>>,
-): Record<DashboardWidgetId, boolean> {
-  return { ...DEFAULT_DASHBOARD_WIDGET_VISIBILITY, ...partial };
-}
-
-function isLegacyFlatVisibility(
-  parsed: Record<string, unknown>,
-): parsed is Record<DashboardWidgetId, boolean> {
+function isLegacyFlatVisibility(parsed: Record<string, unknown>): boolean {
   const keys = Object.keys(parsed);
   if (keys.length === 0) return false;
   return keys.every(
     (k) =>
-      k in DEFAULT_DASHBOARD_WIDGET_VISIBILITY &&
-      typeof parsed[k] === "boolean",
+      canonicalDashboardWidgetId(k) != null && typeof parsed[k] === "boolean",
   );
 }
 
@@ -64,8 +59,8 @@ function parseStored(raw: string | null): DashboardWidgetPrefs {
 
     if (isLegacyFlatVisibility(o)) {
       return {
-        visibility: mergeVisibility(o),
-        order: [...DEFAULT_DASHBOARD_WIDGET_ORDER],
+        visibility: mergeDashboardWidgetVisibility(visibilityPatchFromStored(o)),
+        order: normalizeWidgetOrder(o.order ?? []),
       };
     }
 
@@ -73,13 +68,9 @@ function parseStored(raw: string | null): DashboardWidgetPrefs {
       o.visibility && typeof o.visibility === "object" && !Array.isArray(o.visibility)
         ? (o.visibility as Record<string, unknown>)
         : {};
-    const patch: Partial<Record<DashboardWidgetId, boolean>> = {};
-    for (const id of Object.keys(DEFAULT_DASHBOARD_WIDGET_VISIBILITY) as DashboardWidgetId[]) {
-      if (typeof visRaw[id] === "boolean") patch[id] = visRaw[id] as boolean;
-    }
 
     return {
-      visibility: mergeVisibility(patch),
+      visibility: mergeDashboardWidgetVisibility(visibilityPatchFromStored(visRaw)),
       order: normalizeWidgetOrder(o.order),
     };
   } catch {
@@ -97,12 +88,12 @@ function localCompositeKey(profileId: string, restaurantId: string): string {
 }
 
 function normalizeDbRow(row: RawDashboardWidgetRow): DashboardWidgetPrefs {
-  const patch: Partial<Record<DashboardWidgetId, boolean>> = {};
-  for (const id of Object.keys(DEFAULT_DASHBOARD_WIDGET_VISIBILITY) as DashboardWidgetId[]) {
-    if (typeof row.visibility[id] === "boolean") patch[id] = row.visibility[id] as boolean;
-  }
+  const visRaw =
+    row.visibility && typeof row.visibility === "object"
+      ? (row.visibility as Record<string, unknown>)
+      : {};
   return {
-    visibility: mergeVisibility(patch),
+    visibility: mergeDashboardWidgetVisibility(visibilityPatchFromStored(visRaw)),
     order: normalizeWidgetOrder(row.order),
   };
 }
@@ -140,10 +131,20 @@ export function useDashboardWidgetPreferences() {
         Boolean(profileId && restaurantId) && workspacePersistenceConfigured();
 
       if (useUserRestaurantDb) {
-        const row = await loadUserRestaurantDashboardWidgets(
+        let row = await loadUserRestaurantDashboardWidgets(
           profileId!,
           restaurantId!,
         );
+        if (!row) {
+          await migrateDashboardWidgetsFromLegacyAppStateIfEmpty(
+            profileId!,
+            restaurantId!,
+          );
+          row = await loadUserRestaurantDashboardWidgets(
+            profileId!,
+            restaurantId!,
+          );
+        }
         if (cancelled) return;
         if (row) {
           setPrefs(normalizeDbRow(row));
@@ -163,51 +164,25 @@ export function useDashboardWidgetPreferences() {
         } catch {
           /* ignore */
         }
-        const legacyRemote = await loadWorkspaceJson(DASHBOARD_WIDGET_STORAGE_KEY);
-        if (cancelled) return;
-        const fromLegacy = parseFromRemote(legacyRemote);
-        if (fromLegacy) {
-          setPrefs(fromLegacy);
-          setIsReady(true);
-          return;
-        }
         setPrefs(defaultPrefs());
         setIsReady(true);
         return;
       }
 
       if (supabaseOnly) {
-        const remote = await loadWorkspaceJson(DASHBOARD_WIDGET_STORAGE_KEY);
         if (cancelled) return;
-        const p = parseFromRemote(remote) ?? defaultPrefs();
-        setPrefs(p);
+        setPrefs(defaultPrefs());
         setIsReady(true);
         return;
       }
 
-      const remote = await loadWorkspaceJson(DASHBOARD_WIDGET_STORAGE_KEY);
-      let raw: string | null = null;
-      if (remote && typeof remote === "object" && !Array.isArray(remote)) {
-        try {
-          raw = JSON.stringify(remote);
-          if (typeof localStorage !== "undefined") {
-            localStorage.setItem(DASHBOARD_WIDGET_STORAGE_KEY, raw);
-          }
-        } catch {
-          raw = null;
-        }
-      }
+      const fromLocal = parseFromRemote(
+        loadWorkspaceJsonLocal(DASHBOARD_WIDGET_STORAGE_KEY),
+      );
       if (cancelled) return;
       requestAnimationFrame(() => {
         if (cancelled) return;
-        try {
-          if (raw === null && typeof localStorage !== "undefined") {
-            raw = localStorage.getItem(DASHBOARD_WIDGET_STORAGE_KEY);
-          }
-          setPrefs(parseStored(raw));
-        } catch {
-          setPrefs(defaultPrefs());
-        }
+        setPrefs(fromLocal ?? defaultPrefs());
         setIsReady(true);
       });
     };
@@ -262,17 +237,11 @@ export function useDashboardWidgetPreferences() {
       }
 
       if (supabaseOnly) {
-        const ok = await persistWorkspaceState(DASHBOARD_WIDGET_STORAGE_KEY, {
-          visibility: next.visibility,
-          order: next.order,
-        });
-        if (!ok) {
-          setPrefs(previous);
-          failSave();
-        }
+        failSave();
         return;
       }
-      const ok = await persistWorkspaceState(DASHBOARD_WIDGET_STORAGE_KEY, {
+
+      const ok = mirrorWorkspaceJsonLocal(DASHBOARD_WIDGET_STORAGE_KEY, {
         visibility: next.visibility,
         order: next.order,
       });

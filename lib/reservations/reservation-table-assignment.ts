@@ -5,11 +5,31 @@ import type {
 } from "@/lib/supabase/reservations-db";
 
 export const RESERVATION_STATUS_CONFIRMED = "confirmed" as const;
+export const RESERVATION_STATUS_SEATED = "seated" as const;
 
 export function isConfirmedReservationStatus(
   status: Pick<ReservationStatusJoin, "code"> | null | undefined,
 ): boolean {
   return status?.code === RESERVATION_STATUS_CONFIRMED;
+}
+
+export function isSeatedReservationStatus(
+  status: Pick<ReservationStatusJoin, "code"> | null | undefined,
+): boolean {
+  return status?.code === RESERVATION_STATUS_SEATED;
+}
+
+/** Tisch belegt oder zuordenbar (Bestätigt / Am Tisch). */
+export function reservationContributesToTableOccupancy(
+  status: Pick<ReservationStatusJoin, "code"> | null | undefined,
+): boolean {
+  return isConfirmedReservationStatus(status) || isSeatedReservationStatus(status);
+}
+
+export function reservationStatusAllowsTableAssignment(
+  status: Pick<ReservationStatusJoin, "code"> | null | undefined,
+): boolean {
+  return reservationContributesToTableOccupancy(status);
 }
 
 /** Tisch-Badge/Label nur bei Status „Bestätigt“. */
@@ -37,5 +57,5 @@ export function reservationAllowsTableAssignment(
 ): boolean {
   if (!statusId) return false;
   const st = statuses.find((s) => s.id === statusId);
-  return isConfirmedReservationStatus(st);
+  return reservationStatusAllowsTableAssignment(st);
 }

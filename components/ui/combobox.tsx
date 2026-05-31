@@ -20,6 +20,21 @@ export type SearchableSelectOption = {
   value: string
   label: string
   disabled?: boolean
+  /** z. B. Tag-Farbe als linker Streifen */
+  leadingColor?: string
+}
+
+const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
+function TagColorStripe({ color }: { color?: string }) {
+  if (!color || !HEX_COLOR.test(color)) return null
+  return (
+    <span
+      className="mr-1.5 h-5 w-1 shrink-0 rounded-full"
+      style={{ backgroundColor: color }}
+      aria-hidden
+    />
+  )
 }
 
 export type SearchableSelectProps = {
@@ -64,6 +79,18 @@ export function SearchableSelect({
     for (const o of options) m.set(o.value, o.label)
     return m
   }, [options])
+
+  const colorById = React.useMemo(() => {
+    const m = new Map<string, string>()
+    for (const o of options) {
+      if (o.leadingColor && HEX_COLOR.test(o.leadingColor)) {
+        m.set(o.value, o.leadingColor)
+      }
+    }
+    return m
+  }, [options])
+
+  const selectedLeadingColor = value ? colorById.get(value) : undefined
 
   const displayLabel = value ? (labelById.get(value) ?? "") : ""
   const [inputValue, setInputValue] = React.useState(displayLabel)
@@ -147,9 +174,10 @@ export function SearchableSelect({
                   value={o.value}
                   disabled={o.disabled}
                   className={cn(
-                    "pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-popover-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-muted/80 data-highlighted:text-foreground data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm",
+                    "pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-popover-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-muted/80 data-highlighted:text-foreground data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm [&>span:first-child]:shrink-0",
                   )}
                 >
+                  <TagColorStripe color={o.leadingColor} />
                   <span className="flex-1 whitespace-normal break-words">
                     {o.label}
                   </span>

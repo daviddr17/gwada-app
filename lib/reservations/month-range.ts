@@ -7,6 +7,17 @@ export function startOfLocalDay(d: Date): Date {
  * Sichtbarer Bereich innerhalb eines Monats: ab Monatsanfang,
  * außer im **aktuellen** Monat — dort ab heute (lokale Zeit).
  */
+/** Gesamter Kalendermonat (1. bis letzter Tag). */
+export function calendarMonthRange(
+  year: number,
+  monthIndex: number,
+): { start: Date; end: Date } {
+  return {
+    start: new Date(year, monthIndex, 1),
+    end: new Date(year, monthIndex + 1, 0),
+  };
+}
+
 export function monthVisibleDayRange(
   year: number,
   monthIndex: number,

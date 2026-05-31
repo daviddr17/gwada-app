@@ -8,6 +8,9 @@ SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 COOLIFY_UI="${GWADA_COOLIFY_DASHBOARD_URL:-http://${VPS}:8000}"
 # Studio über Authelia (Traefik): https://studio.new.gwada.app
+COOLIFY_APP_UUID="${GWADA_COOLIFY_APP_UUID:-d3cg1b54arvue2tcm8u34qty}"
+COOLIFY_API_URL="${GWADA_COOLIFY_API_URL:-http://coolify:8080}"
+COOLIFY_API_TOKEN="${COOLIFY_API_TOKEN:-}"
 STUDIO_URL="${GWADA_SUPABASE_STUDIO_URL:-https://studio.new.gwada.app}"
 SSH_USER="${LIVE_SSH_USER:-root}"
 
@@ -28,7 +31,7 @@ echo "Container: ${CONTAINER}"
 
 # Coolify-Compose-.env auf dem Host + optional /app/.env im Container; dann neu starten.
 # Hinweis: docker update unterstützt keine -e Env-Flags (nur docker run/create).
-gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" "${VPS}" "${COOLIFY_UI}" "${STUDIO_URL}" <<'REMOTE'
+gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" "${VPS}" "${COOLIFY_UI}" "${STUDIO_URL}" "${COOLIFY_APP_UUID}" "${COOLIFY_API_URL}" "${COOLIFY_API_TOKEN}" <<'REMOTE'
 set -euo pipefail
 c="$1"
 origin="$2"
@@ -36,6 +39,9 @@ upstream="$3"
 vps_host="$4"
 coolify_ui="$5"
 studio_url="$6"
+coolify_app_uuid="$7"
+coolify_api_url="$8"
+coolify_api_token="$9"
 
 patch_env_file() {
   local f="$1"
@@ -49,7 +55,10 @@ patch_env_file() {
     | grep -v '^GWADA_VPS_PUBLIC_HOST=' \
     | grep -v '^GWADA_COOLIFY_DASHBOARD_URL=' \
     | grep -v '^GWADA_SUPABASE_STUDIO_URL=' \
-    | grep -v '^GWADA_PLANNED_PRODUCTION_URL=' > "${f}.tmp" || true
+    | grep -v '^GWADA_PLANNED_PRODUCTION_URL=' \
+    | grep -v '^GWADA_COOLIFY_APP_UUID=' \
+    | grep -v '^GWADA_COOLIFY_API_URL=' \
+    | grep -v '^COOLIFY_API_TOKEN=' > "${f}.tmp" || true
   {
     cat "${f}.tmp" 2>/dev/null || true
     echo "NEXT_PUBLIC_SUPABASE_PROXY=true"
@@ -64,6 +73,11 @@ patch_env_file() {
       echo "GWADA_SUPABASE_STUDIO_URL=${studio_url}"
     fi
     echo "GWADA_PLANNED_PRODUCTION_URL=https://gwada.app"
+    echo "GWADA_COOLIFY_APP_UUID=${coolify_app_uuid}"
+    echo "GWADA_COOLIFY_API_URL=${coolify_api_url}"
+    if [[ -n "${coolify_api_token}" ]]; then
+      echo "COOLIFY_API_TOKEN=${coolify_api_token}"
+    fi
   } > "${f}"
   rm -f "${f}.tmp"
   echo "  .env aktualisiert: ${f}"

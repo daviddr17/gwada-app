@@ -27,6 +27,26 @@ export type SuperadminCoolifyDeploymentInfo = {
   deployBranch: string | null;
   sourceCommit: string | null;
   proxyEnabled: boolean;
+  applicationUuid: string | null;
+  liveDeploy: SuperadminCoolifyLiveDeployStatus;
+};
+
+export type SuperadminCoolifyActiveDeployment = {
+  status: string;
+  commit: string | null;
+  startedAt: string | null;
+  deploymentUuid: string | null;
+  deploymentUiPath: string | null;
+};
+
+export type SuperadminCoolifyLiveDeployStatus = {
+  apiConfigured: boolean;
+  apiReachable: boolean;
+  applicationUuid: string | null;
+  appRuntimeStatus: string | null;
+  active: SuperadminCoolifyActiveDeployment[];
+  summary: "idle" | "deploying" | "queued" | "unavailable";
+  message: string | null;
 };
 
 export type SuperadminDatabaseStatus = {

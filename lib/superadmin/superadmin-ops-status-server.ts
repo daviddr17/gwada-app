@@ -27,6 +27,7 @@ import {
   integrationConfigFromJson,
   type PlatformIntegrationKey,
 } from "@/lib/types/platform-integration";
+import { fetchCoolifyLiveDeployStatus } from "@/lib/superadmin/coolify-api-server";
 import { DEFAULT_WEATHER_LOCATION } from "@/lib/weather/visual-crossing-location";
 import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key";
 
@@ -132,7 +133,9 @@ function inferDeploymentPhase(
   }
 }
 
-function buildCoolifyDeploymentInfo(): SuperadminDatabaseStatus["coolify"] {
+function buildCoolifyDeploymentInfo(
+  liveDeploy: SuperadminDatabaseStatus["coolify"]["liveDeploy"],
+): SuperadminDatabaseStatus["coolify"] {
   const runtime =
     process.env.NODE_ENV === "production" ? "production" : "development";
   const appUrl = getPublicSiteUrl() ?? null;
@@ -159,6 +162,11 @@ function buildCoolifyDeploymentInfo(): SuperadminDatabaseStatus["coolify"] {
       (runtime === "production" && proxyEnabled && supabaseUpstream),
   );
 
+  const applicationUuid =
+    process.env.GWADA_COOLIFY_APP_UUID?.trim() ||
+    process.env.COOLIFY_RESOURCE_UUID?.trim() ||
+    null;
+
   return {
     detected,
     runtime,
@@ -174,6 +182,8 @@ function buildCoolifyDeploymentInfo(): SuperadminDatabaseStatus["coolify"] {
     deployBranch,
     sourceCommit,
     proxyEnabled,
+    applicationUuid,
+    liveDeploy,
   };
 }
 
@@ -422,7 +432,8 @@ export async function buildSuperadminDatabaseStatus(): Promise<SuperadminDatabas
   const checkedAt = new Date().toISOString();
   const admin = createSupabaseAdminClient();
   const publicUrl = getPublicSupabaseUrl() ?? null;
-  const coolify = buildCoolifyDeploymentInfo();
+  const liveDeploy = await fetchCoolifyLiveDeployStatus();
+  const coolify = buildCoolifyDeploymentInfo(liveDeploy);
   const basePayload = {
     api: {
       publicUrl,

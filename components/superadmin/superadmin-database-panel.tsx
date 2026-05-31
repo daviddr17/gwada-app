@@ -76,6 +76,48 @@ function formatCheckedAt(iso: string): string {
   });
 }
 
+function deploySummaryLabel(
+  summary: SuperadminDatabaseStatus["coolify"]["liveDeploy"]["summary"],
+): string {
+  switch (summary) {
+    case "deploying":
+      return "Deploy läuft";
+    case "queued":
+      return "In Warteschlange";
+    case "idle":
+      return "Bereit";
+    default:
+      return "Nicht verfügbar";
+  }
+}
+
+function deploySummaryBadgeClass(
+  summary: SuperadminDatabaseStatus["coolify"]["liveDeploy"]["summary"],
+): string {
+  switch (summary) {
+    case "deploying":
+      return "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200";
+    case "queued":
+      return "border-sky-500/40 bg-sky-500/10 text-sky-800 dark:text-sky-200";
+    case "idle":
+      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200";
+    default:
+      return "border-border/50 bg-muted/40 text-muted-foreground";
+  }
+}
+
+function coolifyDeploymentHref(
+  dashboardUrl: string | null,
+  deploymentUiPath: string | null,
+): string | null {
+  if (!dashboardUrl || !deploymentUiPath) return null;
+  const base = dashboardUrl.replace(/\/+$/, "");
+  const path = deploymentUiPath.startsWith("/")
+    ? deploymentUiPath
+    : `/${deploymentUiPath}`;
+  return `${base}${path}`;
+}
+
 function DatabasePanelSkeleton() {
   return (
     <SkeletonCardFrame className="space-y-4 p-4">
@@ -109,6 +151,15 @@ export function SuperadminDatabasePanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const summary = status?.coolify.liveDeploy.summary;
+    if (summary !== "deploying" && summary !== "queued") return;
+    const id = window.setInterval(() => {
+      void load(true);
+    }, 12_000);
+    return () => window.clearInterval(id);
+  }, [status?.coolify.liveDeploy.summary, load]);
 
   if (showSkeleton) {
     return <DatabasePanelSkeleton />;
@@ -273,6 +324,74 @@ export function SuperadminDatabasePanel() {
         <CardContent>
           <dl className="grid gap-3">
             <InfoRow
+              label="Deploy-Status (Live)"
+              value={
+                <span
+                  className={cn(
+                    "inline-flex rounded-lg border px-2.5 py-1 text-xs font-medium",
+                    deploySummaryBadgeClass(status.coolify.liveDeploy.summary),
+                  )}
+                >
+                  {deploySummaryLabel(status.coolify.liveDeploy.summary)}
+                </span>
+              }
+            />
+            {status.coolify.liveDeploy.active.length > 0 ? (
+              <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  Aktive Coolify-Deployments
+                </p>
+                <ul className="space-y-2">
+                  {status.coolify.liveDeploy.active.map((dep) => {
+                    const href = coolifyDeploymentHref(
+                      status.coolify.dashboardUrl,
+                      dep.deploymentUiPath,
+                    );
+                    return (
+                      <li
+                        key={dep.deploymentUuid ?? dep.commit ?? dep.status}
+                        className="flex flex-col gap-1 text-sm sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <span>
+                          <span className="font-medium capitalize">
+                            {dep.status.replace(/_/g, " ")}
+                          </span>
+                          {dep.commit ? (
+                            <span className="ml-2 font-mono text-xs text-muted-foreground">
+                              {dep.commit.slice(0, 12)}
+                            </span>
+                          ) : null}
+                        </span>
+                        {href ? (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-foreground underline-offset-4 hover:underline"
+                          >
+                            In Coolify öffnen
+                            <ExternalLink
+                              className="size-3 opacity-60"
+                              aria-hidden
+                            />
+                          </a>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+            {status.coolify.liveDeploy.message ? (
+              <p className="text-xs text-muted-foreground">
+                {status.coolify.liveDeploy.message}
+              </p>
+            ) : null}
+            <InfoRow
+              label="Coolify App-Status"
+              value={status.coolify.liveDeploy.appRuntimeStatus ?? "—"}
+            />
+            <InfoRow
               label="Coolify-Deploy"
               value={
                 status.coolify.detected
@@ -377,6 +496,11 @@ export function SuperadminDatabasePanel() {
                   "Optional: GWADA_COOLIFY_DASHBOARD_URL (nicht COOLIFY_URL — das ist die App)"
                 )
               }
+            />
+            <InfoRow
+              label="App-UUID"
+              value={status.coolify.applicationUuid ?? "—"}
+              mono
             />
             <InfoRow
               label="Deploy-Branch"

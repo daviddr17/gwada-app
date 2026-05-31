@@ -12,7 +12,7 @@ import {
   getMetaPlatformConfigAdmin,
   metaOAuthCallbackUrl,
   metaPagesEligibleForInstagram,
-  settingsIntegrationsUrl,
+  redirectToSettingsIntegrations,
 } from "@/lib/integrations/meta-oauth-shared";
 
 export const dynamic = "force-dynamic";
@@ -25,45 +25,37 @@ export async function GET(req: Request) {
     searchParams.get("error_description") ?? searchParams.get("error");
 
   if (oauthError) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: String(oauthError).slice(0, 200),
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: String(oauthError).slice(0, 200),
+    });
   }
 
   if (!code || !stateRaw) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: "missing_code",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: "missing_code",
+    });
   }
 
   const state = decodeOAuthState(stateRaw);
   if (!state) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: "invalid_state",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: "invalid_state",
+    });
   }
 
   const platformCfg = await getMetaPlatformConfigAdmin("instagram");
   if (!platformCfg) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: "platform_not_configured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: "platform_not_configured",
+    });
   }
 
   const redirectUri = metaOAuthCallbackUrl(req, "instagram");
@@ -75,13 +67,11 @@ export async function GET(req: Request) {
   });
 
   if ("error" in tokenResult) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: tokenResult.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: tokenResult.error,
+    });
   }
 
   const grantedScopes = await fetchMetaGrantedScopes({
@@ -92,28 +82,24 @@ export async function GET(req: Request) {
 
   const pagesResult = await fetchMetaPageAccounts(tokenResult.accessToken);
   if ("error" in pagesResult) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: pagesResult.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: pagesResult.error,
+    });
   }
 
   const eligible = metaPagesEligibleForInstagram(pagesResult.pages);
   if (eligible.length === 0) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: "no_instagram_business_account",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: "no_instagram_business_account",
+    });
   }
 
   if (eligible.length > 1) {
-    return redirectToMetaPageSelection({
+    return redirectToMetaPageSelection(req, {
       provider: "instagram",
       restaurantId: state.restaurantId,
       userAccessToken: tokenResult.accessToken,
@@ -125,13 +111,11 @@ export async function GET(req: Request) {
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const admin = createSupabaseAdminClient();
   if (!admin) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: "server_misconfigured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: "server_misconfigured",
+    });
   }
 
   const page = eligible[0]!;
@@ -144,16 +128,15 @@ export async function GET(req: Request) {
   );
 
   if (error) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "instagram",
-        result: "error",
-        message: error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "instagram",
+      result: "error",
+      message: error,
+    });
   }
 
-  return redirectWithClearedMetaPending(
-    settingsIntegrationsUrl({ provider: "instagram", result: "connected" }),
-  );
+  return redirectWithClearedMetaPending(req, {
+    provider: "instagram",
+    result: "connected",
+  });
 }

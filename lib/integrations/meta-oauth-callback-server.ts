@@ -6,36 +6,48 @@ import {
   metaOAuthPendingCookieHeader,
   type MetaOAuthPendingPayload,
 } from "@/lib/integrations/meta-oauth-pending";
-import { settingsIntegrationsUrl } from "@/lib/integrations/meta-oauth-shared";
-import { getPublicSiteUrl } from "@/lib/public-env";
+import {
+  absoluteSitePath,
+  settingsIntegrationsUrl,
+} from "@/lib/integrations/meta-oauth-shared";
 
 export function redirectToMetaPageSelection(
+  req: Request,
   payload: Omit<MetaOAuthPendingPayload, "exp">,
 ): Response {
   const token = encodeMetaOAuthPending(payload);
   if (!token) {
     return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: payload.provider,
-        result: "error",
-        message: "server_misconfigured",
-      }),
+      absoluteSitePath(
+        req,
+        settingsIntegrationsUrl({
+          provider: payload.provider,
+          result: "error",
+          message: "server_misconfigured",
+        }),
+      ),
     );
   }
 
-  const site = getPublicSiteUrl();
-  const path = settingsIntegrationsUrl({
-    provider: payload.provider,
-    result: "select_page",
-  });
-  const url = site ? `${site}${path}` : path;
+  const url = absoluteSitePath(
+    req,
+    settingsIntegrationsUrl({
+      provider: payload.provider,
+      result: "select_page",
+    }),
+  );
   const res = Response.redirect(url);
   res.headers.append("Set-Cookie", metaOAuthPendingCookieHeader(token));
   return res;
 }
 
-export function redirectWithClearedMetaPending(url: string): Response {
-  const res = Response.redirect(url);
+export function redirectWithClearedMetaPending(
+  req: Request,
+  params: Parameters<typeof settingsIntegrationsUrl>[0],
+): Response {
+  const res = Response.redirect(
+    absoluteSitePath(req, settingsIntegrationsUrl(params)),
+  );
   res.headers.append("Set-Cookie", clearMetaOAuthPendingCookieHeader());
   return res;
 }

@@ -3,9 +3,7 @@ import {
   redirectToMetaPageSelection,
   redirectWithClearedMetaPending,
 } from "@/lib/integrations/meta-oauth-callback-server";
-import {
-  finalizeFacebookIntegration,
-} from "@/lib/integrations/meta-oauth-finalize-server";
+import { finalizeFacebookIntegration } from "@/lib/integrations/meta-oauth-finalize-server";
 import {
   decodeOAuthState,
   exchangeMetaCodeForToken,
@@ -14,7 +12,7 @@ import {
   getMetaPlatformConfigAdmin,
   metaOAuthCallbackUrl,
   metaPagesEligibleForMessenger,
-  settingsIntegrationsUrl,
+  redirectToSettingsIntegrations,
 } from "@/lib/integrations/meta-oauth-shared";
 
 export const dynamic = "force-dynamic";
@@ -27,45 +25,37 @@ export async function GET(req: Request) {
     searchParams.get("error_description") ?? searchParams.get("error");
 
   if (oauthError) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: String(oauthError).slice(0, 200),
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: String(oauthError).slice(0, 200),
+    });
   }
 
   if (!code || !stateRaw) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: "missing_code",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: "missing_code",
+    });
   }
 
   const state = decodeOAuthState(stateRaw);
   if (!state) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: "invalid_state",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: "invalid_state",
+    });
   }
 
   const platformCfg = await getMetaPlatformConfigAdmin("facebook");
   if (!platformCfg) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: "platform_not_configured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: "platform_not_configured",
+    });
   }
 
   const redirectUri = metaOAuthCallbackUrl(req, "facebook");
@@ -77,13 +67,11 @@ export async function GET(req: Request) {
   });
 
   if ("error" in tokenResult) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: tokenResult.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: tokenResult.error,
+    });
   }
 
   const grantedScopes = await fetchMetaGrantedScopes({
@@ -94,28 +82,24 @@ export async function GET(req: Request) {
 
   const pagesResult = await fetchMetaPageAccounts(tokenResult.accessToken);
   if ("error" in pagesResult) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: pagesResult.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: pagesResult.error,
+    });
   }
 
   const eligible = metaPagesEligibleForMessenger(pagesResult.pages);
   if (eligible.length === 0) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: "no_page_with_messaging",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: "no_page_with_messaging",
+    });
   }
 
   if (eligible.length > 1) {
-    return redirectToMetaPageSelection({
+    return redirectToMetaPageSelection(req, {
       provider: "facebook",
       restaurantId: state.restaurantId,
       userAccessToken: tokenResult.accessToken,
@@ -127,13 +111,11 @@ export async function GET(req: Request) {
   const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const admin = createSupabaseAdminClient();
   if (!admin) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: "server_misconfigured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: "server_misconfigured",
+    });
   }
 
   const page = eligible[0]!;
@@ -146,16 +128,15 @@ export async function GET(req: Request) {
   );
 
   if (error) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: error,
+    });
   }
 
-  return redirectWithClearedMetaPending(
-    settingsIntegrationsUrl({ provider: "facebook", result: "connected" }),
-  );
+  return redirectWithClearedMetaPending(req, {
+    provider: "facebook",
+    result: "connected",
+  });
 }

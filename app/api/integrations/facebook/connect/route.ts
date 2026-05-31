@@ -4,7 +4,7 @@ import {
   encodeOAuthState,
   getMetaPlatformConfigAdmin,
   metaOAuthCallbackUrl,
-  settingsIntegrationsUrl,
+  redirectToSettingsIntegrations,
 } from "@/lib/integrations/meta-oauth-shared";
 import { authorizeFacebookRestaurantRoute } from "@/lib/integrations/oauth-route-auth";
 
@@ -14,24 +14,20 @@ export async function GET(req: Request) {
   const restaurantId = new URL(req.url).searchParams.get("restaurantId");
   const auth = await authorizeFacebookRestaurantRoute(restaurantId);
   if (!auth.ok) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: auth.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: auth.error,
+    });
   }
 
   const platformCfg = await getMetaPlatformConfigAdmin("facebook");
   if (!platformCfg) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "facebook",
-        result: "error",
-        message: "platform_not_configured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "facebook",
+      result: "error",
+      message: "platform_not_configured",
+    });
   }
 
   const redirectUri = metaOAuthCallbackUrl(req, "facebook");

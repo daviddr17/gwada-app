@@ -210,3 +210,18 @@ export function settingsIntegrationsUrl(params?: {
   if (params.message) q.set("message", params.message);
   return `${base}?${q.toString()}`;
 }
+
+/** Response.redirect braucht absolute URLs (Next.js Production). */
+export function absoluteSitePath(req: Request, path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const site = getPublicSiteUrl()?.replace(/\/+$/, "");
+  if (site) return `${site}${normalized}`;
+  return new URL(normalized, req.url).href;
+}
+
+export function redirectToSettingsIntegrations(
+  req: Request,
+  params?: Parameters<typeof settingsIntegrationsUrl>[0],
+): Response {
+  return Response.redirect(absoluteSitePath(req, settingsIntegrationsUrl(params)));
+}

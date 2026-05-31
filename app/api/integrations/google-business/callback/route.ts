@@ -8,7 +8,7 @@ import {
   googleBusinessOAuthCallbackUrl,
   parseGoogleGrantedScopes,
 } from "@/lib/integrations/google-business-oauth";
-import { settingsIntegrationsUrl } from "@/lib/integrations/meta-oauth-shared";
+import { redirectToSettingsIntegrations } from "@/lib/integrations/meta-oauth-shared";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { upsertRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
 import type { GoogleBusinessIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
@@ -30,45 +30,37 @@ export async function GET(req: Request) {
     searchParams.get("error_description") ?? searchParams.get("error");
 
   if (oauthError) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: String(oauthError).slice(0, 200),
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: String(oauthError).slice(0, 200),
+    });
   }
 
   if (!code || !stateRaw) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: "missing_code",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: "missing_code",
+    });
   }
 
   const state = decodeGoogleOAuthState(stateRaw);
   if (!state) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: "invalid_state",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: "invalid_state",
+    });
   }
 
   const platformCfg = await getGoogleBusinessPlatformConfigAdmin();
   if (!platformCfg) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: "platform_not_configured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: "platform_not_configured",
+    });
   }
 
   const redirectUri = googleBusinessOAuthCallbackUrl(req);
@@ -80,13 +72,11 @@ export async function GET(req: Request) {
   });
 
   if ("error" in tokenResult) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: tokenResult.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: tokenResult.error,
+    });
   }
 
   const grantedScopes = parseGoogleGrantedScopes(tokenResult.scope);
@@ -95,24 +85,20 @@ export async function GET(req: Request) {
   });
 
   if ("error" in accountResult) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: accountResult.error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: accountResult.error,
+    });
   }
 
   const admin = createSupabaseAdminClient();
   if (!admin) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: "server_misconfigured",
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: "server_misconfigured",
+    });
   }
 
   const displayName =
@@ -147,19 +133,15 @@ export async function GET(req: Request) {
   );
 
   if (error) {
-    return Response.redirect(
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "error",
-        message: error,
-      }),
-    );
+    return redirectToSettingsIntegrations(req, {
+      provider: "google_business",
+      result: "error",
+      message: error,
+    });
   }
 
-  return Response.redirect(
-    settingsIntegrationsUrl({
-      provider: "google_business",
-      result: "connected",
-    }),
-  );
+  return redirectToSettingsIntegrations(req, {
+    provider: "google_business",
+    result: "connected",
+  });
 }

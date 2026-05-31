@@ -4,7 +4,7 @@ import {
   generateStaffInviteToken,
   hashStaffInviteToken,
 } from "@/lib/staff/staff-invite-server";
-import type { StaffInviteChannel, StaffInviteViewerStatus } from "@/lib/types/staff";
+import type { StaffInviteChannel } from "@/lib/types/staff";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 

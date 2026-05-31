@@ -16,7 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
-import { sendContactMessageUserMessage } from "@/lib/contact-messages/trigger-send-contact-message";
+import {
+  sendContactMessageUserMessage,
+  type SendContactMessageApiResult,
+} from "@/lib/contact-messages/trigger-send-contact-message";
 import { cn } from "@/lib/utils";
 
 type ChannelState = {
@@ -135,10 +138,11 @@ export function DisplayReservationMessageSheet({
           }),
         },
       );
-      const data = (await res.json()) as {
-        ok?: boolean;
-        errors?: string[];
-        error?: string;
+      const raw = (await res.json()) as Partial<SendContactMessageApiResult>;
+      const data: SendContactMessageApiResult = {
+        ok: raw.ok ?? false,
+        errors: raw.errors,
+        error: raw.error,
       };
       if (!res.ok || !data.ok) {
         if (data.errors?.includes("no_contact")) {

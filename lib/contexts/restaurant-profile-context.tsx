@@ -169,6 +169,17 @@ export function RestaurantProfileProvider({
     let cancelled = false;
     let raf = 0;
 
+    try {
+      const raw = localStorage.getItem(RESTAURANT_STORAGE_KEY);
+      if (raw) {
+        const local = parsePersistence(raw);
+        setStore(local);
+        setIsReady(true);
+      }
+    } catch {
+      /* ignore quota / private mode */
+    }
+
     void (async () => {
       const bound = await loadBoundRestaurantPersistence();
       if (cancelled) return;

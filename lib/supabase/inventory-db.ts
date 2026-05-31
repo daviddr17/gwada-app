@@ -251,8 +251,9 @@ function parseLineFromRow(r: Record<string, unknown>): PurchaseOrderLine | null 
 
 export async function loadInventoryTaxonomyRelational(
   table: InventoryTaxonomyDbTable,
+  restaurantId?: string | null,
 ): Promise<InventoryTaxonomyDefinition[] | null> {
-  const rid = await getWorkspaceRestaurantId();
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
   if (!rid) return null;
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -383,8 +384,10 @@ export async function reorderInventoryTaxonomyRows(
   return true;
 }
 
-export async function loadIngredientsRelational(): Promise<Ingredient[] | null> {
-  const rid = await getWorkspaceRestaurantId();
+export async function loadIngredientsRelational(
+  restaurantId?: string | null,
+): Promise<Ingredient[] | null> {
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
   if (!rid) return null;
   const supabase = createSupabaseBrowserClient();
   const { data: ings, error: e1 } = await supabase
@@ -452,8 +455,10 @@ export async function saveIngredientsRelational(
   return true;
 }
 
-export async function loadPurchaseOrdersRelational(): Promise<PurchaseOrder[] | null> {
-  const rid = await getWorkspaceRestaurantId();
+export async function loadPurchaseOrdersRelational(
+  restaurantId?: string | null,
+): Promise<PurchaseOrder[] | null> {
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
   if (!rid) return null;
   const supabase = createSupabaseBrowserClient();
   const { data: orders, error: e1 } = await supabase

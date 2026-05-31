@@ -288,19 +288,35 @@ export function usePurchaseOrdersStorage() {
   const useDbInventory = inventoryRelationalPersistenceEnabled();
 
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!useDbInventory);
 
   useEffect(() => {
     let cancelled = false;
     if (useDbInventory) {
+      const fromLocal = parseOrdersFromUnknown(
+        loadWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY),
+      );
+      const stored = loadFromStorage();
+      const cached = fromLocal.length > 0 ? fromLocal : stored;
+      if (cached.length > 0) {
+        setOrders(cached);
+      }
+      setIsHydrated(true);
+
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
         if (rid) {
           await migratePurchaseOrdersFromLegacyAppStateIfEmpty(rid);
         }
-        const rows = await loadPurchaseOrdersRelational();
+        const rows = await loadPurchaseOrdersRelational(rid);
         if (cancelled) return;
         setOrders(rows ?? []);
+        if (rows?.length) {
+          mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+            version: 1 as const,
+            orders: rows,
+          });
+        }
         setIsHydrated(true);
       })();
       return () => {

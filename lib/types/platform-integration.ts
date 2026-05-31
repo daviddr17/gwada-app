@@ -10,7 +10,8 @@ export type PlatformIntegrationKey =
   | "instagram"
   | "google_business"
   | "whatsapp"
-  | "email";
+  | "email"
+  | "weather";
 
 export type PlatformIntegrationConfig = {
   client_id?: string;
@@ -19,7 +20,7 @@ export type PlatformIntegrationConfig = {
   client_secret_configured?: boolean;
   waha_base_url?: string;
   waha_api_key_configured?: boolean;
-  waha_env_fallback_only?: boolean;
+  api_key_configured?: boolean;
   passwordConfigured?: boolean;
   /** Apple Sign In: Services ID, Team ID, Key ID, private key PEM, etc. */
   extra?: Record<string, string>;
@@ -41,6 +42,7 @@ export const PLATFORM_INTEGRATION_KEYS: readonly PlatformIntegrationKey[] = [
   "google_business",
   "whatsapp",
   "email",
+  "weather",
 ] as const;
 
 export function integrationConfigFromJson(

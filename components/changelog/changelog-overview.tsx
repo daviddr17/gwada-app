@@ -1,0 +1,54 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { ChangelogEntryCard } from "@/components/changelog/changelog-entry-card";
+import { ChangelogOverviewSkeleton } from "@/components/changelog/changelog-overview-skeleton";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { fetchPlatformChangelogEntries } from "@/lib/supabase/platform-changelog-db";
+import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { PlatformChangelogEntry } from "@/lib/types/platform-changelog";
+
+export function ChangelogOverview() {
+  const [entries, setEntries] = useState<PlatformChangelogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    const sb = createSupabaseBrowserClient();
+    const { entries: data, error } = await fetchPlatformChangelogEntries(sb);
+    if (error) toast.error(error);
+    setEntries(data);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (showSkeleton) {
+    return <ChangelogOverviewSkeleton />;
+  }
+
+  if (!loading && entries.length === 0) {
+    return (
+      <p className="rounded-2xl border border-border/50 bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-card">
+        Noch keine Einträge — neue Funktionen erscheinen hier nach dem nächsten
+        Update.
+      </p>
+    );
+  }
+
+  if (loading && entries.length === 0) {
+    return <div className="min-h-[12rem]" aria-busy="true" />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {entries.map((entry) => (
+        <ChangelogEntryCard key={entry.id} entry={entry} />
+      ))}
+    </div>
+  );
+}

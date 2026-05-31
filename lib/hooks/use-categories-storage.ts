@@ -66,11 +66,19 @@ export function useCategoriesStorage() {
   const [categories, setCategories] = useState<MenuCategoryDefinition[]>(() =>
     DEFAULT_CATEGORIES.map(normalizeCategory),
   );
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!useDbMenu);
 
   useEffect(() => {
     let cancelled = false;
     if (useDbMenu) {
+      const cached =
+        loadFromStorage() ??
+        loadFromParsed(loadWorkspaceJsonLocal(CATEGORY_STORAGE_KEY));
+      if (cached?.length) {
+        setCategories(cached);
+      }
+      setIsHydrated(true);
+
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
         if (rid) {
@@ -79,10 +87,12 @@ export function useCategoriesStorage() {
             DEFAULT_CATEGORIES.map(normalizeCategory),
           );
         }
-        const rows = await loadMenuCategoriesRelational();
+        const rows = await loadMenuCategoriesRelational(rid);
         if (cancelled) return;
         if (rows && rows.length > 0) {
-          setCategories(rows.map(normalizeCategory));
+          const next = rows.map(normalizeCategory);
+          setCategories(next);
+          mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
         } else {
           setCategories(DEFAULT_CATEGORIES.map(normalizeCategory));
         }

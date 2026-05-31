@@ -3,7 +3,10 @@ import {
   whatsappConfigFromJson,
   whatsappConfigToUi,
 } from "@/lib/integrations/platform-whatsapp-config";
-import { hasWahaEnvFallback } from "@/lib/waha/waha-config";
+import {
+  weatherConfigFromJson,
+  weatherConfigToUi,
+} from "@/lib/integrations/platform-weather-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 /** Antwort für Superadmin-UI — niemals Klartext-Secrets. */
@@ -13,15 +16,12 @@ export function platformIntegrationConfigForUi(
 ): Record<string, unknown> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
 
-  const o = raw as Record<string, unknown>;
-
   if (key === "whatsapp") {
-    const cfg = whatsappConfigFromJson(raw);
-    const ui = whatsappConfigToUi(cfg);
-    if (!ui.waha_api_key_configured && hasWahaEnvFallback()) {
-      ui.waha_env_fallback_only = true;
-    }
-    return ui;
+    return whatsappConfigToUi(whatsappConfigFromJson(raw));
+  }
+
+  if (key === "weather") {
+    return weatherConfigToUi(weatherConfigFromJson(raw));
   }
 
   if (key === "email") {
@@ -31,6 +31,7 @@ export function platformIntegrationConfigForUi(
     >;
   }
 
+  const o = raw as Record<string, unknown>;
   const out: Record<string, unknown> = { ...o };
   delete out.client_secret;
   if (typeof o.client_secret === "string" && o.client_secret.length > 0) {

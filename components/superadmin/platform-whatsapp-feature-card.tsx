@@ -8,34 +8,39 @@ import {
   superadminIntegrationFieldLabelClassName,
   superadminIntegrationInputClassName,
 } from "@/components/superadmin/superadmin-integration-panel";
+import {
+  SuperadminIntegrationStatusBadges,
+} from "@/components/superadmin/superadmin-integration-status-badges";
 import { SecretInput } from "@/components/ui/secret-input";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
 import { saveSuperadminPlatformIntegration } from "@/lib/superadmin/platform-integrations-api";
 import type { PlatformIntegrationRow } from "@/lib/types/platform-integration";
+import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 
 type WhatsappUiConfig = {
   waha_base_url?: string;
   waha_api_key_configured?: boolean;
-  waha_env_fallback_only?: boolean;
 };
 
 export function PlatformWhatsappFeatureCard({
   row,
   onSaved,
+  connection,
+  connectionChecking,
 }: {
   row: PlatformIntegrationRow;
   onSaved: () => void;
+  connection?: SuperadminIntegrationConnectionHealth | null;
+  connectionChecking?: boolean;
 }) {
   const ui = row.config as WhatsappUiConfig;
   const [enabled, setEnabled] = useState(row.enabled);
   const [baseUrl, setBaseUrl] = useState(ui.waha_base_url ?? "");
   const [apiKey, setApiKey] = useState("");
   const apiKeyConfigured = Boolean(ui.waha_api_key_configured);
-  const envFallbackOnly = Boolean(ui.waha_env_fallback_only);
 
   const snapshot = useMemo(
     () =>
@@ -66,7 +71,7 @@ export function PlatformWhatsappFeatureCard({
       toast.error("WAHA API-Link erforderlich.");
       return;
     }
-    if (enabled && !apiKeyConfigured && !envFallbackOnly && !apiKey.trim()) {
+    if (enabled && !apiKeyConfigured && !apiKey.trim()) {
       toast.error("WAHA API-Key erforderlich.");
       return;
     }
@@ -94,7 +99,7 @@ export function PlatformWhatsappFeatureCard({
 
   useRegisterSuperadminIntegrationSave("whatsapp", dirty, save);
 
-  const keyRequired = enabled && !apiKeyConfigured && !envFallbackOnly;
+  const keyRequired = enabled && !apiKeyConfigured;
 
   return (
     <SuperadminIntegrationPanel
@@ -102,38 +107,19 @@ export function PlatformWhatsappFeatureCard({
       description="Freischaltung für Restaurants und WAHA-Server. Der API-Key wird nie aus der Datenbank ins UI geladen — nur maskiert als gespeichert angezeigt."
       icon={<WhatsAppGlyph />}
       badges={
-        <>
-          {enabled ? (
-            <Badge
-              variant="outline"
-              className="border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-            >
-              Für Nutzer sichtbar
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-muted-foreground">
-              Ausgeblendet
-            </Badge>
-          )}
-          {apiKeyConfigured ? (
-            <Badge variant="secondary" className="text-xs">
-              API-Key hinterlegt
-            </Badge>
-          ) : envFallbackOnly ? (
-            <Badge
-              variant="outline"
-              className="text-xs text-amber-800 dark:text-amber-200"
-            >
-              Key nur in .env
-            </Badge>
-          ) : null}
-        </>
+        <SuperadminIntegrationStatusBadges
+          enabled={enabled}
+          configured={apiKeyConfigured}
+          configuredLabel="API-Key hinterlegt"
+          connection={connection}
+          connectionChecking={connectionChecking}
+        />
       }
       headerTrailing={
         <Switch
           checked={enabled}
           onCheckedChange={(v) => setEnabled(v === true)}
-          aria-label="WhatsApp für Nutzer freischalten"
+          aria-label="WhatsApp aktivieren"
         />
       }
     >
@@ -166,11 +152,9 @@ export function PlatformWhatsappFeatureCard({
         onChange={setApiKey}
         placeholder={keyRequired ? "API-Key eingeben" : undefined}
         hint={
-          envFallbackOnly && !apiKeyConfigured
-            ? "Aktuell läuft WAHA nur über .env (WAHA_API_KEY). Einmal hier eintragen und speichern, damit der Key in der Plattform liegt und oben als hinterlegt erscheint."
-            : apiKeyConfigured
-              ? "Punkte = gespeicherter Key. Feld anklicken zum Ersetzen. Auge zeigt nur neu eingegebenen Text."
-              : undefined
+          apiKeyConfigured
+            ? "Punkte = gespeicherter Key. Feld anklicken zum Ersetzen. Auge zeigt nur neu eingegebenen Text."
+            : undefined
         }
       />
     </SuperadminIntegrationPanel>

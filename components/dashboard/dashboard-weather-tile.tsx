@@ -170,7 +170,7 @@ export function DashboardWeatherTile() {
         const code = "error" in json ? json.error : undefined
         if (code === "missing_api_key") {
           setErr(
-            "Wetterdaten: Es fehlt VISUAL_CROSSING_API_KEY in der Umgebungskonfiguration.",
+            "Wetterdaten: Visual-Crossing-API-Key fehlt (Superadmin → Integrationen).",
           )
         } else {
           setErr("Wetterdaten konnten nicht geladen werden.")

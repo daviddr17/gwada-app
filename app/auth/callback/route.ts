@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { getSupabaseAnonKey } from "@/lib/public-env";
+import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
@@ -18,7 +19,8 @@ function loginRedirect(
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = resolveRequestOriginFromRequest(request);
   const code = searchParams.get("code");
   const next = safeInternalPath(searchParams.get("next"));
   const oauthError = searchParams.get("error_description") ?? searchParams.get("error");

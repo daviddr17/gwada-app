@@ -70,20 +70,29 @@ export function useMenuStorage() {
   const [items, setItems] = useState<MenuItem[]>(() =>
     supabaseOnly ? [] : normalizeSeedItems(mockMenu),
   );
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!useDbMenu);
 
   useEffect(() => {
     let cancelled = false;
     if (useDbMenu) {
+      const cached =
+        loadFromStorage() ??
+        parseMenuItemsFromRemote(loadWorkspaceJsonLocal(STORAGE_KEY));
+      if (cached?.length) {
+        setItems(cached);
+      }
+      setIsHydrated(true);
+
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
         if (rid) {
           await migrateMenuItemsFromLegacyAppStateIfEmpty(rid);
         }
-        const rows = await loadMenuItemsRelational();
+        const rows = await loadMenuItemsRelational(rid);
         if (cancelled) return;
         if (rows && rows.length > 0) {
           setItems(rows);
+          mirrorWorkspaceJsonLocal(STORAGE_KEY, rows);
         } else {
           setItems([]);
         }

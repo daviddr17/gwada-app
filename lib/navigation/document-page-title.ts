@@ -54,6 +54,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/superadmin/restaurants/export": "Export",
   "/superadmin/restaurants/statistiken": "Statistiken",
   "/superadmin/integrationen": "Integrationen",
+  "/superadmin/datenbank": "Datenbank",
 };
 
 function pathnamePageTitle(pathname: string): string {

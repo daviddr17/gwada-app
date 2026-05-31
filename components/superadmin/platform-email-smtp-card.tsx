@@ -8,13 +8,14 @@ import {
   type SmtpConnectionFieldValues,
 } from "@/components/integrations/smtp-connection-fields";
 import { SuperadminIntegrationPanel } from "@/components/superadmin/superadmin-integration-panel";
-import { Badge } from "@/components/ui/badge";
+import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
 import { Switch } from "@/components/ui/switch";
 import { GWADA_DEFAULT_FROM_EMAIL } from "@/lib/constants/gwada-email-defaults";
 import { validateSmtpConfigForSave } from "@/lib/integrations/smtp-integration-config";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
 import { saveSuperadminPlatformIntegration } from "@/lib/superadmin/platform-integrations-api";
 import type { PlatformIntegrationRow } from "@/lib/types/platform-integration";
+import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 
 function valuesFromRow(row: PlatformIntegrationRow): SmtpConnectionFieldValues {
   const c = row.config;
@@ -32,9 +33,13 @@ function valuesFromRow(row: PlatformIntegrationRow): SmtpConnectionFieldValues {
 export function PlatformEmailSmtpCard({
   row,
   onSaved,
+  connection,
+  connectionChecking,
 }: {
   row: PlatformIntegrationRow;
   onSaved: () => void;
+  connection?: SuperadminIntegrationConnectionHealth | null;
+  connectionChecking?: boolean;
 }) {
   const [enabled, setEnabled] = useState(row.enabled);
   const [fields, setFields] = useState<SmtpConnectionFieldValues>(() =>
@@ -119,24 +124,19 @@ export function PlatformEmailSmtpCard({
       description={`Fallback-Versand mit ${GWADA_DEFAULT_FROM_EMAIL} — SMTP-Daten nur serverseitig.`}
       icon={<Mail className="text-muted-foreground" />}
       badges={
-        enabled ? (
-          <Badge
-            variant="outline"
-            className="border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-          >
-            Für Nutzer sichtbar
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-muted-foreground">
-            Ausgeblendet
-          </Badge>
-        )
+        <SuperadminIntegrationStatusBadges
+          enabled={enabled}
+          configured={passwordConfigured}
+          configuredLabel="Passwort hinterlegt"
+          connection={connection}
+          connectionChecking={connectionChecking}
+        />
       }
       headerTrailing={
         <Switch
           checked={enabled}
           onCheckedChange={(v) => setEnabled(v === true)}
-          aria-label="E-Mail für Nutzer freischalten"
+          aria-label="E-Mail aktivieren"
         />
       }
     >

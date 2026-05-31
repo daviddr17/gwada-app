@@ -1,6 +1,6 @@
 /**
  * NEXT_PUBLIC_* wird beim `next build` eingebettet — Coolify setzt Keys oft erst zur Laufzeit.
- * `GwadaPublicEnvScript` injiziert dieselben Werte aus Server-Env in `window.__GWADA_PUBLIC_ENV__`.
+ * Root-Layout (`app/layout.tsx`) injiziert dieselben Werte aus Server-Env in `window.__GWADA_PUBLIC_ENV__`.
  */
 
 export type GwadaPublicEnv = {
@@ -78,19 +78,39 @@ export function getPublicGwadaWorkspaceSlug(): string | undefined {
   return baked || undefined;
 }
 
+function trimOrigin(origin: string): string {
+  return origin.replace(/\/+$/, "");
+}
+
 /** Server: Werte für das Inline-Script (nur öffentliche Keys). */
-export function buildGwadaPublicEnvForScript(): GwadaPublicEnv {
+export function buildGwadaPublicEnvForScript(
+  requestOrigin?: string | null,
+): GwadaPublicEnv {
   const proxyFlag = process.env.NEXT_PUBLIC_SUPABASE_PROXY?.trim();
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const envSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const envSiteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const proxyEnabled =
+    proxyFlag !== undefined
+      ? envTruthy(proxyFlag) || envSupabaseUrl?.includes("/sb") === true
+      : envSupabaseUrl?.includes("/sb") === true ||
+        Boolean(process.env.SUPABASE_UPSTREAM_URL?.trim());
+
+  const origin = requestOrigin?.trim() ? trimOrigin(requestOrigin.trim()) : null;
+  const siteUrl =
+    origin ??
+    (envSiteUrl ? trimOrigin(envSiteUrl) : undefined);
+  const supabaseUrl =
+    origin && proxyEnabled
+      ? `${origin}/sb`
+      : envSupabaseUrl
+        ? trimOrigin(envSupabaseUrl)
+        : undefined;
+
   return {
     supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() || undefined,
-    supabaseProxy:
-      proxyFlag !== undefined
-        ? envTruthy(proxyFlag) || supabaseUrl?.includes("/sb") === true
-        : supabaseUrl?.includes("/sb") === true ||
-          Boolean(process.env.SUPABASE_UPSTREAM_URL?.trim()),
-    supabaseUrl: supabaseUrl || undefined,
-    siteUrl: process.env.NEXT_PUBLIC_SITE_URL?.trim() || undefined,
+    supabaseProxy: proxyEnabled,
+    supabaseUrl,
+    siteUrl,
     gwadaSupabaseOnly: envTruthy(process.env.NEXT_PUBLIC_GWADA_SUPABASE_ONLY),
     gwadaWorkspaceSlug:
       process.env.NEXT_PUBLIC_GWADA_WORKSPACE_SLUG?.trim() || undefined,

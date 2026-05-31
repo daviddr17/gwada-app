@@ -50,6 +50,7 @@ export function getPasswordRequirements(password: string): PasswordRequirements 
   };
 }
 
+/** Nur bei Registrierung und Passwort-Änderung — nicht beim Login. */
 export function passwordMeetsPolicy(password: string): boolean {
   if (password.length < 8) return false;
   const req = getPasswordRequirements(password);

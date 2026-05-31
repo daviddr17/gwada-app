@@ -6,8 +6,6 @@ export type PlatformWhatsappConfig = {
 export type PlatformWhatsappConfigUi = {
   waha_base_url?: string;
   waha_api_key_configured?: boolean;
-  /** Nur Hinweis: .env hat Key, DB (UI) noch nicht — kein Secret. */
-  waha_env_fallback_only?: boolean;
 };
 
 export function whatsappConfigFromJson(raw: unknown): PlatformWhatsappConfig {

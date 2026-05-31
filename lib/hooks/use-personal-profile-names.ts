@@ -260,7 +260,9 @@ export function usePersonalProfileNames() {
   const [userId, setUserId] = useState<string | null>(null);
   const [avatarStoragePath, setAvatarStoragePath] = useState<string | null>(null);
   const [coverStoragePath, setCoverStoragePath] = useState<string | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(
+    !workspacePersistenceConfigured(),
+  );
   const [authTick, setAuthTick] = useState(0);
 
   useEffect(() => {
@@ -278,15 +280,30 @@ export function usePersonalProfileNames() {
 
   useEffect(() => {
     let cancelled = false;
+
+    const localDraft = loadLocal();
+    if (!isDraftEmpty(localDraft)) {
+      setFirstName(localDraft.firstName);
+      setLastName(localDraft.lastName);
+      setNickname(localDraft.nickname);
+      setBirthDate(localDraft.birthDate);
+      setStreet(localDraft.street);
+      setPostalCode(localDraft.postalCode);
+      setCity(localDraft.city);
+      setCountry(localDraft.country || "DE");
+    }
+    setIsHydrated(true);
+
     void (async () => {
-      let draft = emptyDraft();
+      let draft = localDraft;
       let mail = "";
 
       if (workspacePersistenceConfigured()) {
         const supabase = createSupabaseBrowserClient();
         const {
-          data: { user },
-        } = await supabase.auth.getUser();
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (user) {
           mail = user.email ?? "";
           const { data: prof } = await supabase
@@ -334,19 +351,15 @@ export function usePersonalProfileNames() {
       }
 
       if (cancelled) return;
-      requestAnimationFrame(() => {
-        if (cancelled) return;
-        setEmail(mail);
-        setFirstName(draft.firstName);
-        setLastName(draft.lastName);
-        setNickname(draft.nickname);
-        setBirthDate(draft.birthDate);
-        setStreet(draft.street);
-        setPostalCode(draft.postalCode);
-        setCity(draft.city);
-        setCountry(draft.country || "DE");
-        setIsHydrated(true);
-      });
+      setEmail(mail);
+      setFirstName(draft.firstName);
+      setLastName(draft.lastName);
+      setNickname(draft.nickname);
+      setBirthDate(draft.birthDate);
+      setStreet(draft.street);
+      setPostalCode(draft.postalCode);
+      setCity(draft.city);
+      setCountry(draft.country || "DE");
     })();
     return () => {
       cancelled = true;

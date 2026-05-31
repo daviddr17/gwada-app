@@ -1,4 +1,5 @@
 import { DEFAULT_WEATHER_LOCATION } from "@/lib/weather/visual-crossing-location"
+import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key"
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types"
 
 /** Niemals statisch cachen: Key darf nicht in Build-/Data-Cache landen. */
@@ -16,7 +17,7 @@ function isSafeLocationToken(s: string): boolean {
  * Query: `location` optional (z. B. `Berlin,DE`), sonst Default Frankfurt.
  */
 export async function GET(req: Request) {
-  const key = process.env.VISUAL_CROSSING_API_KEY?.trim()
+  const key = await getVisualCrossingApiKeyAdmin()
   if (!key) {
     return Response.json(
       { error: "missing_api_key" as const },

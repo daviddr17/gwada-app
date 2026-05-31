@@ -1,6 +1,6 @@
 "use client";
 
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import { PlatformFaviconSync } from "@/components/layout/platform-favicon-sync";
 import { PlatformAppBrandingProvider } from "@/lib/contexts/platform-app-branding-context";
 import { SuppressExpectedSupabaseNetworkNoise } from "@/components/providers/suppress-expected-supabase-network-noise";

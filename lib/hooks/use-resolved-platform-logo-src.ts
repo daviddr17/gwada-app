@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/components/providers/theme-provider";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 import { resolvePlatformLogoSrc } from "@/lib/platform/resolve-platform-logo";
 

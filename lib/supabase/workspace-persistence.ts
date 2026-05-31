@@ -43,8 +43,14 @@ function workspaceSlug(): string {
 /** Cache key = auth user id, or `__anon__` for unauthenticated clients. */
 let workspaceRestaurantCache: { key: string; id: string | null } | null = null;
 
-/** Laufender Resolve — wird nach Abschluss geleert, damit bei vorübergehendem Fehler erneut versucht wird. */
-let restaurantIdInFlight: Promise<string | null> | null = null;
+/** Laufender Resolve — keyed by cacheKey, damit parallele Aufrufer dieselbe Promise teilen. */
+let restaurantIdInFlight: {
+  key: string;
+  promise: Promise<string | null>;
+} | null = null;
+
+const SESSION_RESTAURANT_ID_KEY = "gwada:workspace-restaurant-id";
+const SESSION_RESTAURANT_USER_KEY = "gwada:workspace-restaurant-user";
 
 export const GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT =
   "gwada:workspace-restaurant-changed";
@@ -54,9 +60,48 @@ export function notifyWorkspaceRestaurantChanged(): void {
   window.dispatchEvent(new CustomEvent(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT));
 }
 
+function persistWorkspaceRestaurantIdToSession(
+  cacheKey: string,
+  id: string | null,
+): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    if (!id) {
+      sessionStorage.removeItem(SESSION_RESTAURANT_ID_KEY);
+      sessionStorage.removeItem(SESSION_RESTAURANT_USER_KEY);
+      return;
+    }
+    sessionStorage.setItem(SESSION_RESTAURANT_USER_KEY, cacheKey);
+    sessionStorage.setItem(SESSION_RESTAURANT_ID_KEY, id);
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+function readWorkspaceRestaurantIdFromSession(cacheKey: string): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    if (sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) !== cacheKey) {
+      return null;
+    }
+    const id = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
+    return id && UUID_RE.test(id) ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export function invalidateWorkspaceRestaurantCache(): void {
   workspaceRestaurantCache = null;
   restaurantIdInFlight = null;
+  if (typeof sessionStorage !== "undefined") {
+    try {
+      sessionStorage.removeItem(SESSION_RESTAURANT_ID_KEY);
+      sessionStorage.removeItem(SESSION_RESTAURANT_USER_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 const UUID_RE =
@@ -66,8 +111,103 @@ const UUID_RE =
 export function peekCachedWorkspaceRestaurantId(): string | null {
   if (typeof window === "undefined") return null;
   if (!workspacePersistenceConfigured()) return null;
-  const id = workspaceRestaurantCache?.id;
-  return id && UUID_RE.test(id) ? id : null;
+  const mem = workspaceRestaurantCache?.id;
+  if (mem && UUID_RE.test(mem)) return mem;
+  try {
+    const id = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
+    if (id && UUID_RE.test(id)) {
+      const userKey =
+        sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY) ?? "__anon__";
+      workspaceRestaurantCache = { key: userKey, id };
+      return id;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+async function resolveWorkspaceRestaurantIdFromDb(
+  supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  user: User | null,
+): Promise<string | null> {
+  let resolved: string | null = null;
+
+  if (user) {
+    const { data: prof, error: profErr } = await supabase
+      .from("profiles")
+      .select("active_restaurant_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (!profErr && prof?.active_restaurant_id) {
+      const rid = prof.active_restaurant_id;
+      const { data: mem } = await supabase
+        .from("restaurant_employees")
+        .select("restaurant_id")
+        .eq("profile_id", user.id)
+        .eq("restaurant_id", rid)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (mem?.restaurant_id) {
+        resolved = rid;
+      }
+    }
+    if (!resolved) {
+      const { data: first, error: empErr } = await supabase
+        .from("restaurant_employees")
+        .select("restaurant_id")
+        .eq("profile_id", user.id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (!empErr && first?.restaurant_id) {
+        resolved = first.restaurant_id;
+      }
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("restaurants")
+      .select("id")
+      .eq("slug", workspaceSlug())
+      .maybeSingle();
+    if (error) {
+      console.warn("[gwada] workspace restaurant:", error.message);
+    } else if (data?.id) {
+      resolved = data.id;
+    } else {
+      console.warn(
+        "[gwada] Kein Restaurant mit slug",
+        JSON.stringify(workspaceSlug()),
+        "— Sync zu Supabase ausgesetzt. Seed ausführen (npm run db:reset) oder NEXT_PUBLIC_GWADA_WORKSPACE_SLUG prüfen.",
+      );
+    }
+  }
+
+  return resolved;
+}
+
+async function refreshWorkspaceRestaurantIdInBackground(
+  supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  user: User | null,
+  cacheKey: string,
+  previousId: string | null,
+): Promise<void> {
+  try {
+    const id = await raceWithTimeout(
+      resolveWorkspaceRestaurantIdFromDb(supabase, user),
+      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+      "Workspace-Restaurant-ID (refresh)",
+    );
+    if (workspaceRestaurantCache?.key !== cacheKey) return;
+    workspaceRestaurantCache = { key: cacheKey, id };
+    persistWorkspaceRestaurantIdToSession(cacheKey, id);
+    if (id !== previousId) {
+      notifyWorkspaceRestaurantChanged();
+    }
+  } catch (e) {
+    console.warn("[gwada] workspace restaurant refresh", e);
+  }
 }
 
 export async function getWorkspaceRestaurantId(): Promise<string | null> {
@@ -76,14 +216,10 @@ export async function getWorkspaceRestaurantId(): Promise<string | null> {
   const supabase = createSupabaseBrowserClient();
   let user: User | null = null;
   try {
-    const got = await raceWithTimeout(
-      supabase.auth.getUser(),
-      GWADA_SUPABASE_FETCH_TIMEOUT_MS,
-      "Supabase-Session",
-    );
-    user = got.data.user;
+    const { data: sessionData } = await supabase.auth.getSession();
+    user = sessionData.session?.user ?? null;
   } catch (e) {
-    console.warn("[gwada] getUser", e);
+    console.warn("[gwada] getSession", e);
     return null;
   }
   const cacheKey = user?.id ?? "__anon__";
@@ -92,83 +228,46 @@ export async function getWorkspaceRestaurantId(): Promise<string | null> {
     return workspaceRestaurantCache.id;
   }
 
-  if (!restaurantIdInFlight) {
-    restaurantIdInFlight = (async () => {
-      try {
-        const id = await raceWithTimeout(
-          (async (): Promise<string | null> => {
-            let resolved: string | null = null;
-
-            if (user) {
-              const { data: prof, error: profErr } = await supabase
-                .from("profiles")
-                .select("active_restaurant_id")
-                .eq("id", user.id)
-                .maybeSingle();
-              if (!profErr && prof?.active_restaurant_id) {
-                const rid = prof.active_restaurant_id;
-                const { data: mem } = await supabase
-                  .from("restaurant_employees")
-                  .select("restaurant_id")
-                  .eq("profile_id", user.id)
-                  .eq("restaurant_id", rid)
-                  .eq("is_active", true)
-                  .maybeSingle();
-                if (mem?.restaurant_id) {
-                  resolved = rid;
-                }
-              }
-              if (!resolved) {
-                const { data: first, error: empErr } = await supabase
-                  .from("restaurant_employees")
-                  .select("restaurant_id")
-                  .eq("profile_id", user.id)
-                  .eq("is_active", true)
-                  .order("created_at", { ascending: true })
-                  .limit(1)
-                  .maybeSingle();
-                if (!empErr && first?.restaurant_id) {
-                  resolved = first.restaurant_id;
-                }
-              }
-            } else {
-              const { data, error } = await supabase
-                .from("restaurants")
-                .select("id")
-                .eq("slug", workspaceSlug())
-                .maybeSingle();
-              if (error) {
-                console.warn("[gwada] workspace restaurant:", error.message);
-              } else if (data?.id) {
-                resolved = data.id;
-              } else {
-                console.warn(
-                  "[gwada] Kein Restaurant mit slug",
-                  JSON.stringify(workspaceSlug()),
-                  "— Sync zu Supabase ausgesetzt. Seed ausführen (npm run db:reset) oder NEXT_PUBLIC_GWADA_WORKSPACE_SLUG prüfen.",
-                );
-              }
-            }
-
-            return resolved;
-          })(),
-          GWADA_SUPABASE_FETCH_TIMEOUT_MS,
-          "Workspace-Restaurant-ID",
-        );
-
-        workspaceRestaurantCache = { key: cacheKey, id };
-        return id;
-      } catch (e) {
-        console.warn("[gwada] workspace restaurant", e);
-        workspaceRestaurantCache = { key: cacheKey, id: null };
-        return null;
-      } finally {
-        restaurantIdInFlight = null;
-      }
-    })();
+  const fromSession = readWorkspaceRestaurantIdFromSession(cacheKey);
+  if (fromSession) {
+    workspaceRestaurantCache = { key: cacheKey, id: fromSession };
+    void refreshWorkspaceRestaurantIdInBackground(
+      supabase,
+      user,
+      cacheKey,
+      fromSession,
+    );
+    return fromSession;
   }
 
-  return restaurantIdInFlight;
+  if (restaurantIdInFlight?.key === cacheKey) {
+    return restaurantIdInFlight.promise;
+  }
+
+  const promise = (async (): Promise<string | null> => {
+    try {
+      const id = await raceWithTimeout(
+        resolveWorkspaceRestaurantIdFromDb(supabase, user),
+        GWADA_SUPABASE_FETCH_TIMEOUT_MS,
+        "Workspace-Restaurant-ID",
+      );
+
+      workspaceRestaurantCache = { key: cacheKey, id };
+      persistWorkspaceRestaurantIdToSession(cacheKey, id);
+      return id;
+    } catch (e) {
+      console.warn("[gwada] workspace restaurant", e);
+      workspaceRestaurantCache = { key: cacheKey, id: null };
+      return null;
+    } finally {
+      if (restaurantIdInFlight?.key === cacheKey) {
+        restaurantIdInFlight = null;
+      }
+    }
+  })();
+
+  restaurantIdInFlight = { key: cacheKey, promise };
+  return promise;
 }
 
 /** Liest JSON nur aus localStorage (Hybrid ohne `restaurant_app_state`). */

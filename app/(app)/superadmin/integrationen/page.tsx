@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { AppleGlyph } from "@/components/icons/apple-glyph";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
@@ -8,6 +9,7 @@ import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { IntegrationProviderCard } from "@/components/superadmin/integration-provider-card";
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
+import { PlatformWeatherFeatureCard } from "@/components/superadmin/platform-weather-feature-card";
 import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,10 +21,12 @@ import {
   useSuperadminIntegrationsSave,
 } from "@/lib/superadmin/integrations-save-registry";
 import { fetchSuperadminPlatformIntegrations } from "@/lib/superadmin/platform-integrations-api";
+import { fetchSuperadminIntegrationHealth } from "@/lib/superadmin/superadmin-ops-status-api";
 import type {
   PlatformIntegrationKey,
   PlatformIntegrationRow,
 } from "@/lib/types/platform-integration";
+import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 import { cn } from "@/lib/utils";
 
 const OAUTH_ORDER = [
@@ -97,12 +101,28 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
     config: { email: "contact@gwada.app" },
     updated_at: "",
   },
+  weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
 };
 
 function SuperadminIntegrationsContent() {
   const [rows, setRows] = useState<PlatformIntegrationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [healthMap, setHealthMap] = useState<
+    Partial<Record<PlatformIntegrationKey, SuperadminIntegrationConnectionHealth>>
+  >({});
+  const [healthLoading, setHealthLoading] = useState(true);
+  const [healthCheckedAt, setHealthCheckedAt] = useState("");
   const { dirty, saving, saveAll } = useSuperadminIntegrationsSave();
+
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true);
+    const { integrations, checkedAt, error } =
+      await fetchSuperadminIntegrationHealth();
+    if (error) toast.error(error);
+    setHealthMap(integrations);
+    setHealthCheckedAt(checkedAt);
+    setHealthLoading(false);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -110,7 +130,8 @@ function SuperadminIntegrationsContent() {
     if (error) toast.error(error);
     setRows(data);
     setLoading(false);
-  }, []);
+    void loadHealth();
+  }, [loadHealth]);
 
   useEffect(() => {
     void load();
@@ -124,12 +145,38 @@ function SuperadminIntegrationsContent() {
 
   return (
     <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Integrationen</h2>
-        <p className="text-sm text-muted-foreground">
-          OAuth, WhatsApp (WAHA) und E-Mail — Zugangsdaten nur für Superadmins,
-          Versand und API-Calls nur serverseitig.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">Integrationen</h2>
+          <p className="text-sm text-muted-foreground">
+            OAuth, WhatsApp (WAHA), Wetter-API und E-Mail — Zugangsdaten nur für
+            Superadmins, Versand und API-Calls nur serverseitig.
+          </p>
+          {healthCheckedAt ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Verbindungen geprüft:{" "}
+              {new Date(healthCheckedAt).toLocaleString("de-DE", {
+                dateStyle: "short",
+                timeStyle: "medium",
+              })}
+            </p>
+          ) : null}
+        </div>
+        {!loading ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            disabled={healthLoading}
+            onClick={() => void loadHealth()}
+          >
+            <RefreshCw
+              className={cn("mr-1.5 size-4", healthLoading && "animate-spin")}
+            />
+            Verbindungen prüfen
+          </Button>
+        ) : null}
       </div>
 
       {loading ? (
@@ -138,13 +185,23 @@ function SuperadminIntegrationsContent() {
         </p>
       ) : (
         <div className="space-y-4">
+          <PlatformWeatherFeatureCard
+            row={byKey.get("weather") ?? EMPTY_PLATFORM_ROW.weather}
+            onSaved={() => void load()}
+            connection={healthMap.weather}
+            connectionChecking={healthLoading}
+          />
           <PlatformWhatsappFeatureCard
             row={byKey.get("whatsapp") ?? EMPTY_PLATFORM_ROW.whatsapp}
             onSaved={() => void load()}
+            connection={healthMap.whatsapp}
+            connectionChecking={healthLoading}
           />
           <PlatformEmailSmtpCard
             row={byKey.get("email") ?? EMPTY_PLATFORM_ROW.email}
             onSaved={() => void load()}
+            connection={healthMap.email}
+            connectionChecking={healthLoading}
           />
           {OAUTH_ORDER.map((key) => {
             const meta = OAUTH_META[key];
@@ -179,6 +236,8 @@ function SuperadminIntegrationsContent() {
                       : undefined
                 }
                 onSaved={() => void load()}
+                connection={healthMap[key]}
+                connectionChecking={healthLoading}
               />
             );
           })}

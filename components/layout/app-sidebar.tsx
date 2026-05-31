@@ -6,11 +6,13 @@ import {
   Building2,
   CalendarDays,
   Contact,
+  Database,
   FileText,
   LayoutDashboard,
   LogOut,
   Package,
   Plug,
+  ScrollText,
   Settings,
   Settings2,
   Shield,
@@ -143,9 +145,7 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith(
-                        "/superadmin/integrationen",
-                      )}
+                      isActive={pathname.startsWith("/superadmin/integrationen")}
                       tooltip="Integrationen"
                       render={
                         <Link href="/superadmin/integrationen" prefetch />
@@ -153,6 +153,28 @@ export function AppSidebar() {
                     >
                       <Plug />
                       <span>Integrationen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/datenbank")}
+                      tooltip="Datenbank"
+                      render={<Link href="/superadmin/datenbank" prefetch />}
+                    >
+                      <Database />
+                      <span>Datenbank</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/changelog")}
+                      tooltip="Changelog"
+                      render={
+                        <Link href="/superadmin/changelog" prefetch />
+                      }
+                    >
+                      <ScrollText />
+                      <span>Changelog</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>
@@ -278,6 +300,16 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : null}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={pathname.startsWith("/changelog")}
+              tooltip="Changelog"
+              render={<Link href="/changelog" prefetch />}
+            >
+              <ScrollText />
+              <span>Changelog</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               type="button"

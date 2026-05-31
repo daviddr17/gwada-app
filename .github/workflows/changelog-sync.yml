@@ -1,0 +1,29 @@
+name: Changelog sync
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Sync changelog entries
+        env:
+          CHANGELOG_SYNC_URL: ${{ secrets.CHANGELOG_SYNC_URL }}
+          CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}
+          CHANGELOG_GIT_RANGE: ${{ github.event.before }}..${{ github.sha }}
+        run: |
+          if [ -z "$CHANGELOG_SYNC_URL" ] || [ -z "$CHANGELOG_SYNC_SECRET" ]; then
+            echo "CHANGELOG_SYNC_URL / CHANGELOG_SYNC_SECRET nicht gesetzt — übersprungen."
+            exit 0
+          fi
+          node scripts/changelog-sync-from-git.mjs

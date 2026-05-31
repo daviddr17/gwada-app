@@ -15,7 +15,6 @@ import {
 } from "@/lib/constants/database-mode";
 import {
   checkWorkspaceDatabaseReachable,
-  invalidateWorkspaceRestaurantCache,
 } from "@/lib/supabase/workspace-persistence";
 
 type GateState = "ready" | "checking" | "error";
@@ -72,7 +71,6 @@ export function SupabaseDatabaseGate({
     }
     setState("checking");
     try {
-      invalidateWorkspaceRestaurantCache();
       const result = await checkWorkspaceDatabaseReachable();
       if (result.ok) {
         setState("ready");

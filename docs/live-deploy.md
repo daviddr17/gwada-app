@@ -14,6 +14,8 @@ ssh-copy-id root@95.111.229.250
 
 > **„Live deployen bitte“** (oder „jetzt live“)
 
+Siehe auch **Staging-Domain:** [docs/new-gwada-app-staging.md](./new-gwada-app-staging.md) (`new.gwada.app` → später `gwada.app`).
+
 Der Agent führt aus:
 
 1. `npm run deploy:live` — Tunnel + DB-Migrationen (**nur Schema**, Standard)

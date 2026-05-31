@@ -55,10 +55,12 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
   };
 }
 
-export async function loadMenuCategoriesRelational(): Promise<
+export async function loadMenuCategoriesRelational(
+  restaurantId?: string | null,
+): Promise<
   MenuCategoryDefinition[] | null
 > {
-  const rid = await getWorkspaceRestaurantId();
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
   if (!rid) return null;
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -145,8 +147,9 @@ export async function reorderMenuCategoryRows(
 
 export async function loadMenuTaxonomyRelational(
   table: "menu_tags" | "menu_allergens",
+  restaurantId?: string | null,
 ): Promise<MenuTaxonomyDefinition[] | null> {
-  const rid = await getWorkspaceRestaurantId();
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
   if (!rid) return null;
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
@@ -346,8 +349,10 @@ async function replaceMenuItemRelations(
   return true;
 }
 
-export async function loadMenuItemsRelational(): Promise<MenuItem[] | null> {
-  const rid = await getWorkspaceRestaurantId();
+export async function loadMenuItemsRelational(
+  restaurantId?: string | null,
+): Promise<MenuItem[] | null> {
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
   if (!rid) return null;
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase

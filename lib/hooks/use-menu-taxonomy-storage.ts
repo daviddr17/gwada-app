@@ -73,13 +73,19 @@ export function useMenuTaxonomyStorage(
   const [items, setItems] = useState<MenuTaxonomyDefinition[]>(() =>
     initialSeed.map(normalizeTaxonomy),
   );
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!useDbMenu);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
 
     if (useDbMenu && table) {
+      const localRaw = loadWorkspaceJsonLocal(storageKey);
+      if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
+        setItems(localRaw.map(normalizeTaxonomy));
+      }
+      setIsHydrated(true);
+
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
         if (rid) {
@@ -90,10 +96,12 @@ export function useMenuTaxonomyStorage(
             initialSeed.map(normalizeTaxonomy),
           );
         }
-        const rows = await loadMenuTaxonomyRelational(table);
+        const rows = await loadMenuTaxonomyRelational(table, rid);
         if (cancelled) return;
         if (rows && rows.length > 0) {
-          setItems(rows.map(normalizeTaxonomy));
+          const next = rows.map(normalizeTaxonomy);
+          setItems(next);
+          mirrorWorkspaceJsonLocal(storageKey, next);
         } else {
           setItems(initialSeed.map(normalizeTaxonomy));
         }

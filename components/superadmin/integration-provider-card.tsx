@@ -12,12 +12,16 @@ import {
   superadminIntegrationFieldLabelClassName,
   superadminIntegrationInputClassName,
 } from "@/components/superadmin/superadmin-integration-panel";
+import {
+  SuperadminIntegrationStatusBadges,
+} from "@/components/superadmin/superadmin-integration-status-badges";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
 import { saveSuperadminPlatformIntegration } from "@/lib/superadmin/platform-integrations-api";
 import type {
   PlatformIntegrationKey,
   PlatformIntegrationRow,
 } from "@/lib/types/platform-integration";
+import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 
 export function IntegrationProviderCard({
   title,
@@ -28,6 +32,8 @@ export function IntegrationProviderCard({
   clientIdLabel = "Client ID",
   clientSecretLabel = "Client Secret / Token",
   clientIdPlaceholder = "OAuth Client ID",
+  connection,
+  connectionChecking,
   onSaved,
 }: {
   title: string;
@@ -38,6 +44,8 @@ export function IntegrationProviderCard({
   clientIdLabel?: string;
   clientSecretLabel?: string;
   clientIdPlaceholder?: string;
+  connection?: SuperadminIntegrationConnectionHealth | null;
+  connectionChecking?: boolean;
   onSaved: () => void;
 }) {
   const [enabled, setEnabled] = useState(row.enabled);
@@ -99,17 +107,14 @@ export function IntegrationProviderCard({
     <Badge variant="outline" className="text-[0.625rem] uppercase">
       Demnächst
     </Badge>
-  ) : enabled ? (
-    <Badge
-      variant="outline"
-      className="border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200"
-    >
-      Aktiv
-    </Badge>
   ) : (
-    <Badge variant="outline" className="text-muted-foreground">
-      Inaktiv
-    </Badge>
+    <SuperadminIntegrationStatusBadges
+      enabled={enabled}
+      configured={secretConfigured}
+      configuredLabel="Secret hinterlegt"
+      connection={connection}
+      connectionChecking={connectionChecking}
+    />
   );
 
   return (

@@ -53,22 +53,30 @@ export function useInventoryTaxonomyStorage(
   const [items, setItems] = useState<InventoryTaxonomyDefinition[]>(() =>
     initialSeed.map(normalizeTaxonomy),
   );
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!useDbInventory);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     let cancelled = false;
 
     if (useDbInventory && table) {
+      const localRaw = loadWorkspaceJsonLocal(storageKey);
+      if (Array.isArray(localRaw) && localRaw.every(isValidLoose)) {
+        setItems(localRaw.map(normalizeTaxonomy));
+      }
+      setIsHydrated(true);
+
       void (async () => {
-        const rows = await loadInventoryTaxonomyRelational(table);
+        const rid = await getWorkspaceRestaurantId();
+        const rows = await loadInventoryTaxonomyRelational(table, rid);
         if (cancelled) return;
         if (rows && rows.length > 0) {
-          setItems(rows.map(normalizeTaxonomy));
+          const next = rows.map(normalizeTaxonomy);
+          setItems(next);
+          mirrorWorkspaceJsonLocal(storageKey, next);
         } else {
           const seeded = initialSeed.map(normalizeTaxonomy);
           setItems(seeded);
-          const rid = await getWorkspaceRestaurantId();
           if (rid) {
             const legacyRaw = await readLegacyRestaurantAppStatePayload(storageKey);
             const legacy =
@@ -84,9 +92,11 @@ export function useInventoryTaxonomyStorage(
                 item.active !== false,
               );
             }
-            const after = await loadInventoryTaxonomyRelational(table);
+            const after = await loadInventoryTaxonomyRelational(table, rid);
             if (after && after.length > 0) {
-              setItems(after.map(normalizeTaxonomy));
+              const migrated = after.map(normalizeTaxonomy);
+              setItems(migrated);
+              mirrorWorkspaceJsonLocal(storageKey, migrated);
             }
           }
         }

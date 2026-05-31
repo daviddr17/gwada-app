@@ -3,31 +3,35 @@
 # Voraussetzung: ssh-copy-id root@95.111.229.250
 set -euo pipefail
 
-APP_ORIGIN="${APP_ORIGIN:-http://95.111.229.250:3000}"
-SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://95.111.229.250:8001}"
+APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
+SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://127.0.0.1:8001}"
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 SSH_USER="${LIVE_SSH_USER:-root}"
 
+# shellcheck source=scripts/gwada-ssh-lib.sh
+source "$(dirname "$0")/gwada-ssh-lib.sh"
+
 echo "Suche Container mit Port 3000 auf ${VPS}…"
-CONTAINER="$(ssh -o BatchMode=yes "${SSH_USER}@${VPS}" \
+CONTAINER="$(gwada_ssh "${SSH_USER}@${VPS}" \
   "docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E '0\\.0\\.0\\.0:3000->|:::3000->' | head -1 | cut -f1")"
 
 if [[ -z "${CONTAINER}" ]]; then
   echo "Kein Container mit Host-Port 3000 gefunden." >&2
-  ssh "${SSH_USER}@${VPS}" "docker ps --format 'table {{.Names}}\t{{.Ports}}'" >&2 || true
+  gwada_ssh "${SSH_USER}@${VPS}" "docker ps --format 'table {{.Names}}\t{{.Ports}}'" >&2 || true
   exit 1
 fi
 
 echo "Container: ${CONTAINER}"
 
-# Env-Datei im Container (Coolify/Nixpacks) oder docker update für nächsten Restart
-ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" <<'REMOTE'
+# Coolify-Compose-.env auf dem Host + optional /app/.env im Container; dann neu starten.
+# Hinweis: docker update unterstützt keine -e Env-Flags (nur docker run/create).
+gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" <<'REMOTE'
 set -euo pipefail
 c="$1"
 origin="$2"
 upstream="$3"
 
-patch_env() {
+patch_env_file() {
   local f="$1"
   [[ -f "$f" ]] || return 0
   grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' "$f" 2>/dev/null \
@@ -46,30 +50,38 @@ patch_env() {
     echo "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false"
   } > "${f}"
   rm -f "${f}.tmp"
+  echo "  .env aktualisiert: ${f}"
 }
 
-# Typische Pfade in Coolify-Deployments
-for f in /app/.env /app/.env.production; do
-  if docker exec "$c" test -f "$f" 2>/dev/null; then
-    echo "Patch $f im laufenden Container…"
-    docker exec "$c" sh -c "grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' '$f' 2>/dev/null | grep -v '^SUPABASE_UPSTREAM_URL=' | grep -v '^NEXT_PUBLIC_SITE_URL=' | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' | grep -v '^NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=' | grep -v '^NEXT_PUBLIC_GWADA_SUPABASE_ONLY=' > '${f}.bak' || true"
-    docker exec "$c" sh -c "cat '${f}.bak' 2>/dev/null; echo NEXT_PUBLIC_SUPABASE_PROXY=true; echo SUPABASE_UPSTREAM_URL=${upstream}; echo NEXT_PUBLIC_SITE_URL=${origin}; echo NEXT_PUBLIC_SUPABASE_URL=${origin}/sb; echo NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo; echo NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false" > /tmp/gwada-env-patch
-    docker cp /tmp/gwada-env-patch "$c:$f"
-    rm -f /tmp/gwada-env-patch
+app_id="${c%%-*}"
+compose_dir="/data/coolify/applications/${app_id}"
+patched_host=0
+
+if [[ -d "${compose_dir}" ]]; then
+  for f in "${compose_dir}/.env" "${compose_dir}/.env.production"; do
+    patch_env_file "$f"
+    patched_host=1
+  done
+  if [[ "${patched_host}" -eq 1 ]]; then
+    echo "  ✓ Coolify .env gespeichert (wirksam nach Redeploy in Coolify / git push main)."
+    echo "  Kein compose recreate — vermeidet fehlende Image-Tags; laufender Container unverändert."
   fi
-done
+else
+  echo "  Kein Coolify-Verzeichnis ${compose_dir} — Container-Patch."
+  for f in /app/.env /app/.env.production; do
+    if docker exec "$c" test -f "$f" 2>/dev/null; then
+      echo "  Patch ${f} im laufenden Container…"
+      docker exec "$c" sh -c "grep -v '^NEXT_PUBLIC_SUPABASE_PROXY=' '$f' 2>/dev/null | grep -v '^SUPABASE_UPSTREAM_URL=' | grep -v '^NEXT_PUBLIC_SITE_URL=' | grep -v '^NEXT_PUBLIC_SUPABASE_URL=' | grep -v '^NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=' | grep -v '^NEXT_PUBLIC_GWADA_SUPABASE_ONLY=' > '${f}.bak' || true"
+      docker exec "$c" sh -c "cat '${f}.bak' 2>/dev/null; echo NEXT_PUBLIC_SUPABASE_PROXY=true; echo SUPABASE_UPSTREAM_URL=${upstream}; echo NEXT_PUBLIC_SITE_URL=${origin}; echo NEXT_PUBLIC_SUPABASE_URL=${origin}/sb; echo NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo; echo NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false" > /tmp/gwada-env-patch
+      docker cp /tmp/gwada-env-patch "$c:$f"
+      rm -f /tmp/gwada-env-patch
+    fi
+  done
+  docker restart "$c"
+  echo "  Container neu gestartet (Fallback ohne Coolify-Verzeichnis)."
+fi
 
-# Runtime-Env für sofortigen Effekt (bis Redeploy)
-docker update "$c" \
-  -e NEXT_PUBLIC_SUPABASE_PROXY=true \
-  -e "SUPABASE_UPSTREAM_URL=${upstream}" \
-  -e "NEXT_PUBLIC_SITE_URL=${origin}" \
-  -e "NEXT_PUBLIC_SUPABASE_URL=${origin}/sb" \
-  -e NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo \
-  -e NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false >/dev/null
-
-docker restart "$c"
-echo "Container neu gestartet mit Proxy-Env."
+echo "  ✓ Proxy-Env: ${origin}/sb → ${upstream}"
 REMOTE
 
 echo "✓ Coolify-Container ${CONTAINER} aktualisiert (${APP_ORIGIN}/sb → ${SUPABASE_UPSTREAM})"

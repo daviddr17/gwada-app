@@ -1,14 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import { getSupabaseAnonKey } from "@/lib/public-env";
+import { resolveRequestOrigin } from "@/lib/navigation/request-origin";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 
 async function resolveSupabaseUrlForServer(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const origin = host ? `${proto}://${host}` : null;
+  const origin = await resolveRequestOrigin();
   return resolveSupabaseUrl(origin);
 }
 

@@ -6,6 +6,10 @@ import {
   normalizeWahaBaseUrl,
   whatsappConfigFromJson,
 } from "@/lib/integrations/platform-whatsapp-config";
+import {
+  mergeWeatherApiKey,
+  weatherConfigFromJson,
+} from "@/lib/integrations/platform-weather-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 export function mergePlatformIntegrationConfig(
@@ -37,6 +41,15 @@ export function mergePlatformIntegrationConfig(
         : undefined;
     merged.waha_api_key = mergeWhatsappApiKey(incKey, ex);
     delete merged.waha_baseUrl;
+    return merged;
+  }
+
+  if (key === "weather") {
+    const ex = weatherConfigFromJson(existing);
+    const incKey =
+      typeof incoming.api_key === "string" ? incoming.api_key : undefined;
+    merged.api_key = mergeWeatherApiKey(incKey, ex);
+    delete merged.visual_crossing_api_key;
     return merged;
   }
 

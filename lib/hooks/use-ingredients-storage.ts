@@ -199,7 +199,7 @@ export function useIngredientsStorage() {
   const [ingredients, setIngredients] = useState<Ingredient[]>(() =>
     supabaseOnly ? [] : [...SEED_INGREDIENTS],
   );
-  const [isHydrated, setIsHydrated] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(!useDbInventory);
   const updateSaveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -207,17 +207,26 @@ export function useIngredientsStorage() {
   useEffect(() => {
     let cancelled = false;
     if (useDbInventory) {
+      const fromLocal = parseIngredientsFromUnknown(
+        loadWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY),
+      );
+      if (fromLocal?.length) {
+        setIngredients(fromLocal);
+      }
+      setIsHydrated(true);
+
       void (async () => {
         const rid = await getWorkspaceRestaurantId();
         if (rid) {
           await migrateIngredientsFromLegacyAppStateIfEmpty(rid, [...SEED_INGREDIENTS]);
         }
-        const rows = await loadIngredientsRelational();
+        const rows = await loadIngredientsRelational(rid);
         if (cancelled) return;
         if (rows === null) {
           setIngredients([...SEED_INGREDIENTS]);
         } else {
           setIngredients(rows);
+          mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, rows);
         }
         setIsHydrated(true);
       })();

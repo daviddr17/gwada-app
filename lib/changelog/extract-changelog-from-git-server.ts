@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { resolveChangelogGitRepoRoot } from "@/lib/changelog/changelog-git-repo-root";
 import { gitFieldsToChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 import type { GitCommitChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 
@@ -11,12 +12,13 @@ export function extractChangelogPayloadsFromGit(
   range: string,
   repoRoot?: string,
 ): GitCommitChangelogPayload[] {
+  const root = repoRoot ?? resolveChangelogGitRepoRoot();
   const output = execFileSync(
     "git",
     ["log", range, `--format=${GIT_LOG_FORMAT}`, "--reverse"],
     {
       encoding: "utf8",
-      cwd: repoRoot,
+      cwd: root,
       maxBuffer: 10 * 1024 * 1024,
     },
   );

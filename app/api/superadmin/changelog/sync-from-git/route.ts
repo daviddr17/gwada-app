@@ -88,7 +88,13 @@ export async function POST(req: Request) {
         items.push({ kind: "git", payload });
       }
     } catch (e) {
-      const message = e instanceof Error ? e.message : "git_failed";
+      const raw = e instanceof Error ? e.message : "git_failed";
+      const message =
+        raw.includes("not a git repository") ||
+        raw.includes("ENOENT") ||
+        raw.includes("spawn git")
+          ? "Git-Repository nicht verfügbar. Auf Live: CHANGELOG_GIT_REPO setzen und git im Container installieren (oder npm run changelog:sync lokal / GitHub Action)."
+          : raw;
       return Response.json({ error: message }, { status: 500 });
     }
   }

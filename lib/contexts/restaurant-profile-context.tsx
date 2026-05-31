@@ -298,7 +298,7 @@ export function RestaurantProfileProvider({
         ...snapshot.restaurants,
         [saveId]: profile,
       };
-      if (useDb) {
+      if (useDb && rid) {
         const base = restaurants[rid] ?? mergeRestaurantProfile(rid, undefined);
         restaurants[rid] = {
           ...base,
@@ -309,7 +309,7 @@ export function RestaurantProfileProvider({
 
       setStore((p) => ({ ...p, restaurants }));
 
-      if (useDb) {
+      if (useDb && rid) {
         const result = await replaceOpeningHoursForRestaurant(rid, {
           weeklyHours: next.weeklyHours,
           dateExceptions: next.dateExceptions,

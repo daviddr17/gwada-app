@@ -104,9 +104,9 @@ export function LoginForm() {
       try {
         const sb = createSupabaseBrowserClient();
         const {
-          data: { session },
-        } = await sb.auth.getSession();
-        if (cancelled || !session?.user) return;
+          data: { user },
+        } = await sb.auth.getUser();
+        if (cancelled || !user) return;
         const next = safeInternalPath(nextParam);
         enterApp(() => {
           window.location.assign(next);

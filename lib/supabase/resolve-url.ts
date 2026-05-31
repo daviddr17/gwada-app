@@ -33,25 +33,32 @@ export function getSupabaseUpstreamUrl(): string | null {
 }
 
 /**
- * URL für createBrowserClient / createServerClient (Cookie-Domain muss konsistent sein).
- * @param origin — z. B. aus `new URL(request.url).origin` oder `window.location.origin`
+ * URL für createBrowserClient / createServerClient.
+ * Browser: öffentliche `/sb`-Proxy-URL (HTTPS, kein Mixed Content).
+ * Server hinter Proxy: direkt Kong/upstream — kein Hairpin über die öffentliche Domain
+ * (sonst TLS-Fehler in Docker: ERR_SSL_PACKET_LENGTH_TOO_LONG → Login↔Dashboard-Schleife).
+ *
+ * @param origin — nur Fallback, wenn kein Upstream konfiguriert ist
  */
 export function resolveSupabaseUrl(origin?: string | null): string {
   if (!getSupabaseAnonKey()) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
+  if (typeof window !== "undefined") {
+    return `${trimSlash(window.location.origin)}/sb`;
+  }
+
   if (isSupabaseProxyEnabled()) {
+    const upstream = getSupabaseUpstreamUrl();
+    if (upstream) return trimSlash(upstream);
     if (origin) return `${trimSlash(origin)}/sb`;
-    if (typeof window !== "undefined") {
-      return `${window.location.origin}/sb`;
-    }
     const site = getPublicSiteUrl();
     if (site) return `${trimSlash(site)}/sb`;
     const fallback = getPublicSupabaseUrl();
     if (fallback) return trimSlash(fallback);
     throw new Error(
-      "NEXT_PUBLIC_SUPABASE_PROXY=true: set NEXT_PUBLIC_SITE_URL or NEXT_PUBLIC_SUPABASE_URL (https://…/sb)",
+      "NEXT_PUBLIC_SUPABASE_PROXY=true: set SUPABASE_UPSTREAM_URL or NEXT_PUBLIC_SITE_URL",
     );
   }
 

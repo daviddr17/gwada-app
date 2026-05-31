@@ -120,15 +120,24 @@ WAHA / n8n: Webhook-URLs prüfen, wenn sie feste Hosts erwarten.
 
 ## Phase 5 — Sicherheit VPS
 
-Öffentlich nur **443 → Next.js**. Schließen oder einschränken:
+Öffentlich nur **443 → Next.js** und **443 → Supabase Studio** (mit Authelia). Schließen oder einschränken:
 
 | Port | Dienst | Empfehlung |
 |------|--------|------------|
-| 54323 | Supabase Studio | nur SSH-Tunnel / deine IP |
+| 54323 | Supabase Studio | nur `127.0.0.1` + Traefik-Proxy mit 2FA |
 | 5432 | Postgres | nicht öffentlich |
 | 8001 | Kong | intern; Browser nutzt `/sb` |
 
-Studio lokal: `ssh -L 54323:127.0.0.1:54323 root@95.111.229.250`
+**Studio (empfohlen):** https://studio.new.gwada.app — Authelia-Login unter https://auth.new.gwada.app (TOTP einrichten beim ersten Besuch).
+
+Einrichtung / nach Hardening-Redeploy:
+
+```bash
+./scripts/vps-harden-public-db-ports.sh   # ufw + localhost-Bind
+./scripts/vps-setup-studio-authelia.sh    # Traefik + Authelia (Secrets nur auf VPS)
+```
+
+Studio per Tunnel (Fallback): `ssh -L 54323:127.0.0.1:54323 root@95.111.229.250`
 
 ---
 

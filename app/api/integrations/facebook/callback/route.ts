@@ -1,32 +1,23 @@
 import { FACEBOOK_OAUTH_SCOPE_IDS } from "@/lib/constants/integration-oauth-scopes";
 import {
+  redirectToMetaPageSelection,
+  redirectWithClearedMetaPending,
+} from "@/lib/integrations/meta-oauth-callback-server";
+import {
+  finalizeFacebookIntegration,
+} from "@/lib/integrations/meta-oauth-finalize-server";
+import {
   decodeOAuthState,
   exchangeMetaCodeForToken,
   fetchMetaGrantedScopes,
   fetchMetaPageAccounts,
   getMetaPlatformConfigAdmin,
   metaOAuthCallbackUrl,
-  pickMetaPageForMessenger,
+  metaPagesEligibleForMessenger,
   settingsIntegrationsUrl,
 } from "@/lib/integrations/meta-oauth-shared";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import {
-  fetchRestaurantOAuthIntegration,
-  upsertRestaurantOAuthIntegration,
-} from "@/lib/supabase/restaurant-oauth-integration-db";
-import {
-  oauthConfigFromJson,
-  type MetaOAuthIntegrationConfig,
-} from "@/lib/integrations/oauth-integration-types";
 
 export const dynamic = "force-dynamic";
-
-function mergeMetaConfig(
-  existing: MetaOAuthIntegrationConfig,
-  patch: MetaOAuthIntegrationConfig | undefined,
-): MetaOAuthIntegrationConfig {
-  return { ...existing, ...patch };
-}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -112,8 +103,8 @@ export async function GET(req: Request) {
     );
   }
 
-  const page = pickMetaPageForMessenger(pagesResult.pages);
-  if (!page?.access_token) {
+  const eligible = metaPagesEligibleForMessenger(pagesResult.pages);
+  if (eligible.length === 0) {
     return Response.redirect(
       settingsIntegrationsUrl({
         provider: "facebook",
@@ -123,6 +114,17 @@ export async function GET(req: Request) {
     );
   }
 
+  if (eligible.length > 1) {
+    return redirectToMetaPageSelection({
+      provider: "facebook",
+      restaurantId: state.restaurantId,
+      userAccessToken: tokenResult.accessToken,
+      grantedScopes,
+      pages: eligible,
+    });
+  }
+
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return Response.redirect(
@@ -134,28 +136,13 @@ export async function GET(req: Request) {
     );
   }
 
-  const now = new Date().toISOString();
-  const { error } = await upsertRestaurantOAuthIntegration(
+  const page = eligible[0]!;
+  const { error } = await finalizeFacebookIntegration(
     admin,
     state.restaurantId,
-    "facebook",
-    {
-      status: "working",
-      display_name: page.name,
-      connected_at: now,
-      last_error: null,
-      config: {
-        requested_scopes: [...FACEBOOK_OAUTH_SCOPE_IDS],
-        granted_scopes: grantedScopes,
-        scopes_checked_at: now,
-        page_id: page.id,
-        page_name: page.name,
-        page_access_token: page.access_token,
-        user_access_token: tokenResult.accessToken,
-      },
-    },
-    oauthConfigFromJson<MetaOAuthIntegrationConfig>,
-    mergeMetaConfig,
+    page,
+    tokenResult.accessToken,
+    grantedScopes.length > 0 ? grantedScopes : [...FACEBOOK_OAUTH_SCOPE_IDS],
   );
 
   if (error) {
@@ -168,7 +155,7 @@ export async function GET(req: Request) {
     );
   }
 
-  return Response.redirect(
+  return redirectWithClearedMetaPending(
     settingsIntegrationsUrl({ provider: "facebook", result: "connected" }),
   );
 }

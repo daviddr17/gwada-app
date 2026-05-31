@@ -10,7 +10,7 @@ Deine Live-Instanz läuft **selbst auf dem VPS** (`http://95.111.229.250:8001`) 
 | | Lokal | Live (VPS) |
 |---|--------|------------|
 | **API** (App, Auth, REST) | `http://127.0.0.1:54321` | `http://95.111.229.250:8001` |
-| **Studio** (Tabellen-UI, SQL) | `http://127.0.0.1:54323` | **http://95.111.229.250:54323** |
+| **Studio** (Tabellen-UI, SQL) | `http://127.0.0.1:54323` | **https://studio.new.gwada.app** (Authelia 2FA) — alternativ SSH-Tunnel |
 | **Postgres** (nur Migrationen) | `127.0.0.1:54322` | Host/Port + Passwort aus Coolify (oft `5432`) |
 | **Schema ändern** | Migration in `supabase/migrations/` + `npm run db:push:local` | Bei Deploy: `npm run db:push:live` |
 | **Testdaten** | `seed.sql`, Demo-Skripte, `--local` | **nicht** automatisch |
@@ -64,7 +64,20 @@ npx supabase db push --local --dry-run
 
 ## 2. Live (VPS) — Postgres-URL finden
 
-Die App spricht Port **8001** (Kong/API). **Studio** (Tabellen, SQL Editor) läuft bei dir auf **http://95.111.229.250:54323** — dort **nicht** `NEXT_PUBLIC_SUPABASE_URL` eintragen, nur im Browser öffnen.
+Die App spricht Kong über den Docker-internen Upstream (in Production `/sb`-Proxy). **Studio** (Tabellen, SQL Editor) ist über **https://studio.new.gwada.app** erreichbar — geschützt durch **Authelia** (Login-Portal: **https://auth.new.gwada.app**, TOTP-Pflicht). Port **54323** bleibt auf dem VPS nur an `127.0.0.1` gebunden.
+
+**Ersteinrichtung / nach Coolify-Redeploy:** `./scripts/vps-setup-studio-authelia.sh` (idempotent, Secrets nur auf dem VPS).
+
+Alternativ weiterhin per SSH-Tunnel:
+
+```bash
+ssh -L 54323:127.0.0.1:54323 root@95.111.229.250
+# dann im Browser: http://127.0.0.1:54323
+```
+
+**DNS** (falls noch nicht gesetzt): `studio.new.gwada.app` und `auth.new.gwada.app` → A-Record auf die VPS-IP (`95.111.229.250`).
+
+Dort **nicht** `NEXT_PUBLIC_SUPABASE_URL` eintragen, nur im Browser öffnen.
 
 **Migrationen** brauchen eine direkte **PostgreSQL**-Verbindung (meist Port **5432**, nicht 54323).
 
@@ -111,7 +124,7 @@ SUPABASE_DB_URL=postgresql://postgres:DEIN_LIVE_PASSWORT@95.111.229.250:5432/pos
 
 (Port/Host anpassen, wenn Coolify andere Werte zeigt. Sonderzeichen im Passwort URL-encoden, z. B. `@` → `%40`.)
 
-**Passwort finden:** Coolify → Supabase/Postgres-Service → Env `POSTGRES_PASSWORD` oder `DATABASE_URL`. Oder in Studio (http://95.111.229.250:54323) unter Project Settings / Database, falls angezeigt.
+**Passwort finden:** Coolify → Supabase/Postgres-Service → Env `POSTGRES_PASSWORD` oder `DATABASE_URL`. Oder in Studio (https://studio.new.gwada.app oder SSH-Tunnel) unter Project Settings / Database, falls angezeigt.
 
 **Nicht** committen. Gleiche Variable kannst du in Coolify nur brauchen, wenn du Migrationen **auf dem Server** ausführst — für die Next-App reichen die drei Supabase-Keys.
 
@@ -183,7 +196,7 @@ Die Liste der angewendeten Migrationen sollte auf Live irgendwann dieselbe sein 
 ## 6. Alternative ohne CLI: SQL im Studio
 
 1. Migration-Datei aus `supabase/migrations/` öffnen.
-2. **Supabase Studio:** http://95.111.229.250:54323 → SQL Editor.
+2. **Supabase Studio:** https://studio.new.gwada.app (Authelia) oder SSH-Tunnel → SQL Editor.
 3. Inhalt **einmalig** ausführen.
 
 Nur sinnvoll für einzelne Hotfixes; dauerhaft besser: `db push` + Dateien im Git.

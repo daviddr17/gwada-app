@@ -1,31 +1,21 @@
 import { INSTAGRAM_OAUTH_SCOPE_IDS } from "@/lib/constants/integration-oauth-scopes";
 import {
+  redirectToMetaPageSelection,
+  redirectWithClearedMetaPending,
+} from "@/lib/integrations/meta-oauth-callback-server";
+import { finalizeInstagramIntegration } from "@/lib/integrations/meta-oauth-finalize-server";
+import {
   decodeOAuthState,
   exchangeMetaCodeForToken,
   fetchMetaGrantedScopes,
   fetchMetaPageAccounts,
   getMetaPlatformConfigAdmin,
   metaOAuthCallbackUrl,
-  pickMetaPageForInstagram,
+  metaPagesEligibleForInstagram,
   settingsIntegrationsUrl,
 } from "@/lib/integrations/meta-oauth-shared";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import {
-  upsertRestaurantOAuthIntegration,
-} from "@/lib/supabase/restaurant-oauth-integration-db";
-import {
-  oauthConfigFromJson,
-  type MetaOAuthIntegrationConfig,
-} from "@/lib/integrations/oauth-integration-types";
 
 export const dynamic = "force-dynamic";
-
-function mergeMetaConfig(
-  existing: MetaOAuthIntegrationConfig,
-  patch: MetaOAuthIntegrationConfig | undefined,
-): MetaOAuthIntegrationConfig {
-  return { ...existing, ...patch };
-}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -111,9 +101,8 @@ export async function GET(req: Request) {
     );
   }
 
-  const page = pickMetaPageForInstagram(pagesResult.pages);
-  const ig = page?.instagram_business_account;
-  if (!page?.access_token || !ig?.id) {
+  const eligible = metaPagesEligibleForInstagram(pagesResult.pages);
+  if (eligible.length === 0) {
     return Response.redirect(
       settingsIntegrationsUrl({
         provider: "instagram",
@@ -123,6 +112,17 @@ export async function GET(req: Request) {
     );
   }
 
+  if (eligible.length > 1) {
+    return redirectToMetaPageSelection({
+      provider: "instagram",
+      restaurantId: state.restaurantId,
+      userAccessToken: tokenResult.accessToken,
+      grantedScopes,
+      pages: eligible,
+    });
+  }
+
+  const { createSupabaseAdminClient } = await import("@/lib/supabase/admin");
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return Response.redirect(
@@ -134,34 +134,13 @@ export async function GET(req: Request) {
     );
   }
 
-  const displayName = ig.username
-    ? `@${ig.username}`
-    : page.name;
-  const now = new Date().toISOString();
-
-  const { error } = await upsertRestaurantOAuthIntegration(
+  const page = eligible[0]!;
+  const { error } = await finalizeInstagramIntegration(
     admin,
     state.restaurantId,
-    "instagram",
-    {
-      status: "working",
-      display_name: displayName,
-      connected_at: now,
-      last_error: null,
-      config: {
-        requested_scopes: [...INSTAGRAM_OAUTH_SCOPE_IDS],
-        granted_scopes: grantedScopes,
-        scopes_checked_at: now,
-        page_id: page.id,
-        page_name: page.name,
-        page_access_token: page.access_token,
-        user_access_token: tokenResult.accessToken,
-        instagram_business_account_id: ig.id,
-        instagram_username: ig.username,
-      },
-    },
-    oauthConfigFromJson<MetaOAuthIntegrationConfig>,
-    mergeMetaConfig,
+    page,
+    tokenResult.accessToken,
+    grantedScopes.length > 0 ? grantedScopes : [...INSTAGRAM_OAUTH_SCOPE_IDS],
   );
 
   if (error) {
@@ -174,7 +153,7 @@ export async function GET(req: Request) {
     );
   }
 
-  return Response.redirect(
+  return redirectWithClearedMetaPending(
     settingsIntegrationsUrl({ provider: "instagram", result: "connected" }),
   );
 }

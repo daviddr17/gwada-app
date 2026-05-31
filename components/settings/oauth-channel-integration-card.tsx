@@ -11,6 +11,7 @@ import {
   integrationStatusBadgeMuted,
 } from "@/components/settings/settings-integration-panel";
 import { IntegrationGrantedScopes } from "@/components/settings/integration-granted-scopes";
+import { MetaPageSelectDialog } from "@/components/settings/meta-page-select-dialog";
 import { oauthScopeIdsForProvider } from "@/lib/constants/integration-oauth-scopes";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -52,6 +53,7 @@ export function OAuthChannelIntegrationCard({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
+  const [selectPageOpen, setSelectPageOpen] = useState(false);
 
   const loadStatus = useCallback(async () => {
     if (!restaurantId) {
@@ -103,7 +105,11 @@ export function OAuthChannelIntegrationCard({
     const result = searchParams.get(provider);
     const message = searchParams.get("message");
     if (!result) return;
-    if (result === "connected") {
+    if (result === "select_page") {
+      if (provider === "facebook" || provider === "instagram") {
+        setSelectPageOpen(true);
+      }
+    } else if (result === "connected") {
       toast.success(`${title} verbunden.`);
       void loadStatus();
     } else if (result === "error") {
@@ -258,6 +264,16 @@ export function OAuthChannelIntegrationCard({
         destructive
         onConfirm={() => void disconnect()}
       />
+
+      {provider === "facebook" || provider === "instagram" ? (
+        <MetaPageSelectDialog
+          provider={provider}
+          title={title}
+          open={selectPageOpen}
+          onOpenChange={setSelectPageOpen}
+          onCompleted={() => void loadStatus()}
+        />
+      ) : null}
     </>
   );
 }

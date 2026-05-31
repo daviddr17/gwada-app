@@ -67,11 +67,17 @@ function resolveSupabaseStudioDisplay(upstream: string | null): {
 } {
   const explicit = parseSafeHttpOrigin(process.env.GWADA_SUPABASE_STUDIO_URL);
   const dockerKong = Boolean(upstream?.includes("supabase-kong-"));
-  const firewallNote =
-    "Port 54323 ist auf dem VPS nicht öffentlich — Zugriff per SSH-Tunnel (siehe docs/supabase-lokal-und-live.md).";
+  const studioSecureUrl = "https://studio.new.gwada.app";
+  const autheliaNote =
+    "Studio über Authelia (2FA): https://auth.new.gwada.app — Port 54323 bleibt localhost-only.";
+  const tunnelNote =
+    "Alternativ SSH-Tunnel: ssh -L 54323:127.0.0.1:54323 root@VPS → http://127.0.0.1:54323";
 
   if (explicit) {
-    return { url: explicit, note: dockerKong ? firewallNote : null };
+    return {
+      url: explicit,
+      note: dockerKong ? autheliaNote : null,
+    };
   }
 
   if (dockerKong) {
@@ -80,12 +86,15 @@ function resolveSupabaseStudioDisplay(upstream: string | null): {
       "",
     );
     if (host) {
-      return { url: `http://${host.split("/")[0]}:54323`, note: firewallNote };
+      const vps = host.split("/")[0];
+      return {
+        url: studioSecureUrl,
+        note: `${autheliaNote} ${tunnelNote.replace("VPS", vps)}`,
+      };
     }
     return {
-      url: null,
-      note:
-        "Studio hängt nicht an Kong — eigener Container auf Host-Port 54323. GWADA_SUPABASE_STUDIO_URL optional setzen.",
+      url: studioSecureUrl,
+      note: autheliaNote,
     };
   }
 

@@ -300,16 +300,18 @@ export function AppSidebar() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : null}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={pathname.startsWith("/changelog")}
-              tooltip="Changelog"
-              render={<Link href="/changelog" prefetch />}
-            >
-              <ScrollText />
-              <span>Changelog</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {!inSuperadmin ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                isActive={pathname.startsWith("/changelog")}
+                tooltip="Changelog"
+                render={<Link href="/changelog" prefetch />}
+              >
+                <ScrollText />
+                <span>Changelog</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <SidebarMenuItem>
             <SidebarMenuButton
               type="button"

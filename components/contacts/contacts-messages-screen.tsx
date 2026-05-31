@@ -73,8 +73,10 @@ import {
   isWhatsAppJidOrRawNumberLabel,
   needsWahaDisplayNameResolve,
   wahaConversationDisplayName,
+  wahaThreadTitleFromPreview,
 } from "@/lib/contact-messages/waha-chat-label";
 import {
+  digitsFromWhatsAppChatId,
   isWahaPseudoContactId,
   wahaChatIdFromPseudoContactId,
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
@@ -371,12 +373,7 @@ export function ContactsMessagesScreen() {
         );
         setConversations([]);
       } else {
-        setConversations(
-          data.map((c) => ({
-            ...c,
-            contact_name: wahaConversationDisplayName(c),
-          })),
-        );
+        setConversations(data);
       }
     } else if (platform === "email" && emailConnected) {
       const { data, error } = await fetchEmailConversationsClient(restaurantId);
@@ -487,6 +484,14 @@ export function ContactsMessagesScreen() {
     const effectivePlatform =
       platformInferredFromContact(contactParam) ?? platform;
 
+    const convPreview = conversationsRef.current.find(
+      (c) => c.contact_id === contactParam,
+    );
+    const listTitle = wahaThreadTitleFromPreview(convPreview);
+    if (listTitle) {
+      setContactName(listTitle);
+    }
+
     if (effectivePlatform === "email" && emailConnected) {
       const { data, error } = await fetchEmailMessagesClient({
         restaurantId,
@@ -548,16 +553,47 @@ export function ContactsMessagesScreen() {
           setContactName(resolvedName);
           setHasPhone(Boolean(primaryPhone(contact)?.trim()));
           setHasEmail(Boolean(primaryEmail(contact)?.trim()));
+        } else if (listTitle) {
+          resolvedName = listTitle;
+          setContactName(listTitle);
+          setHasPhone(true);
+          setHasEmail(false);
         }
       } else {
-        const conv = conversationsRef.current.find(
-          (c) => c.contact_id === contactParam,
-        );
         const chatId = wahaChatIdFromPseudoContactId(contactParam);
-        let name = wahaConversationDisplayName({
-          contact_id: contactParam,
-          contact_name: conv?.contact_name ?? "WhatsApp",
-        });
+        let name =
+          listTitle ??
+          wahaConversationDisplayName({
+            contact_id: contactParam,
+            contact_name: convPreview?.contact_name ?? "WhatsApp",
+          });
+
+        if (chatId && needsWahaDisplayNameResolve(name)) {
+          const digits = digitsFromWhatsAppChatId(chatId);
+          if (digits) {
+            const normalized =
+              normalizeContactPhone(digits) ?? normalizeContactPhone(`+${digits}`);
+            if (normalized) {
+              const existing = await findContactByPhoneNormalized({
+                restaurantId,
+                phoneNormalized: normalized,
+              });
+              if (existing) {
+                const { data: contact } = await fetchContactById({
+                  restaurantId,
+                  contactId: existing.contactId,
+                });
+                if (contact) {
+                  contactRow = contact;
+                  name = contactThreadDisplayName(contact);
+                } else {
+                  name = existing.displayName;
+                }
+              }
+            }
+          }
+        }
+
         if (chatId && needsWahaDisplayNameResolve(name)) {
           const { displayName } = await fetchWahaDisplayNameClient({
             restaurantId,

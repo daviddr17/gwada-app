@@ -111,4 +111,4 @@ Nur wenn du **keinen** Tunnel willst: Postgres-Service → Port **5432** auf die
 1. `npm run db:push:live` — Schema auf Live (keine Testdaten).
 2. Git deploy (Coolify) — App.
 
-Studio: http://95.111.229.250:54323
+Studio (nur SSH-Tunnel): `ssh -L 54323:127.0.0.1:54323 root@95.111.229.250` → http://127.0.0.1:54323

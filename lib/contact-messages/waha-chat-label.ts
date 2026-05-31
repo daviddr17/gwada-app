@@ -287,6 +287,15 @@ export function needsWahaDisplayNameResolve(name: string): boolean {
   return false;
 }
 
+/** Gültiger Listen-Titel für Thread-Header (ohne Nummer/JID-Platzhalter). */
+export function wahaThreadTitleFromPreview(
+  preview: { contact_name?: string | null } | null | undefined,
+): string | null {
+  const name = preview?.contact_name?.trim() ?? "";
+  if (!name || needsWahaDisplayNameResolve(name)) return null;
+  return name;
+}
+
 /** Lesbarer Titel (Firma, Pushname, Person) — ohne Telefonnummer. */
 export function pickWahaChatReadableTitle(params: {
   overviewName?: string | null;

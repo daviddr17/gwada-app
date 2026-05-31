@@ -7,7 +7,8 @@ APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
 SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 COOLIFY_UI="${GWADA_COOLIFY_DASHBOARD_URL:-http://${VPS}:8000}"
-STUDIO_URL="${GWADA_SUPABASE_STUDIO_URL:-http://${VPS}:54323}"
+# Studio über Authelia (Traefik): https://studio.new.gwada.app
+STUDIO_URL="${GWADA_SUPABASE_STUDIO_URL:-https://studio.new.gwada.app}"
 SSH_USER="${LIVE_SSH_USER:-root}"
 
 # shellcheck source=scripts/gwada-ssh-lib.sh
@@ -15,7 +16,7 @@ source "$(dirname "$0")/gwada-ssh-lib.sh"
 
 echo "Suche Container mit Port 3000 auf ${VPS}…"
 CONTAINER="$(gwada_ssh "${SSH_USER}@${VPS}" \
-  "docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E '0\\.0\\.0\\.0:3000->|:::3000->' | head -1 | cut -f1")"
+  "docker ps --format '{{.Names}}\t{{.Ports}}' | grep -E '0\\.0\\.0\\.0:3000->|127\\.0\\.0\\.1:3000->|:::3000->' | head -1 | cut -f1")"
 
 if [[ -z "${CONTAINER}" ]]; then
   echo "Kein Container mit Host-Port 3000 gefunden." >&2
@@ -59,7 +60,9 @@ patch_env_file() {
     echo "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false"
     echo "GWADA_VPS_PUBLIC_HOST=${vps_host}"
     echo "GWADA_COOLIFY_DASHBOARD_URL=${coolify_ui}"
-    echo "GWADA_SUPABASE_STUDIO_URL=${studio_url}"
+    if [[ -n "${studio_url}" ]]; then
+      echo "GWADA_SUPABASE_STUDIO_URL=${studio_url}"
+    fi
     echo "GWADA_PLANNED_PRODUCTION_URL=https://gwada.app"
   } > "${f}"
   rm -f "${f}.tmp"

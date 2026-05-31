@@ -167,10 +167,25 @@ export async function fetchMetaPageAccounts(
   return { pages: body.data ?? [] };
 }
 
+export function metaPagesEligibleForMessenger(
+  pages: MetaPageAccount[],
+): MetaPageAccount[] {
+  return pages.filter((p) => p.access_token?.trim());
+}
+
+export function metaPagesEligibleForInstagram(
+  pages: MetaPageAccount[],
+): MetaPageAccount[] {
+  return pages.filter(
+    (p) =>
+      p.access_token?.trim() && p.instagram_business_account?.id?.trim(),
+  );
+}
+
 export function pickMetaPageForMessenger(
   pages: MetaPageAccount[],
 ): MetaPageAccount | null {
-  const withToken = pages.filter((p) => p.access_token?.trim());
+  const withToken = metaPagesEligibleForMessenger(pages);
   if (withToken.length === 0) return null;
   return withToken[0] ?? null;
 }
@@ -178,18 +193,14 @@ export function pickMetaPageForMessenger(
 export function pickMetaPageForInstagram(
   pages: MetaPageAccount[],
 ): MetaPageAccount | null {
-  const withIg = pages.filter(
-    (p) =>
-      p.access_token?.trim() &&
-      p.instagram_business_account?.id?.trim(),
-  );
+  const withIg = metaPagesEligibleForInstagram(pages);
   if (withIg.length > 0) return withIg[0] ?? null;
   return pickMetaPageForMessenger(pages);
 }
 
 export function settingsIntegrationsUrl(params?: {
   provider?: "facebook" | "instagram" | "google_business";
-  result?: "connected" | "error";
+  result?: "connected" | "error" | "select_page";
   message?: string;
 }): string {
   const base = "/settings/integrationen";

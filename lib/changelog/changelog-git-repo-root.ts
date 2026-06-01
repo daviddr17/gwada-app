@@ -13,6 +13,15 @@ function repoHasGit(root: string): boolean {
   return existsSync(join(root, ".git"));
 }
 
+function isGitAvailable(): boolean {
+  try {
+    execFileSync("git", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function changelogGitBranch(): string {
   return (
     process.env.CHANGELOG_GIT_BRANCH?.trim() ||
@@ -99,7 +108,8 @@ function ensureShallowClone(): string {
 
 /**
  * Pfad mit `.git` für Changelog-Sync.
- * Lokal: Repo-Root. Production (Coolify ohne `.git`): Shallow-Clone-Cache.
+ * Lokal: Repo-Root. Mit git im Container: optional Shallow-Clone-Cache.
+ * Production ohne git: Aufrufer nutzt GitHub API (siehe extract-changelog-from-git-server).
  */
 export function resolveChangelogGitRepoRoot(): string {
   const cwd = process.cwd();
@@ -107,6 +117,10 @@ export function resolveChangelogGitRepoRoot(): string {
 
   const explicit = process.env.CHANGELOG_GIT_DIR?.trim();
   if (explicit && repoHasGit(explicit)) return explicit;
+
+  if (!isGitAvailable()) {
+    throw new Error("git_not_available");
+  }
 
   return ensureShallowClone();
 }

@@ -15,6 +15,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "documents.notes.edit",
   "display.manage",
   "display.time",
+  "display.time_presence",
   "display.reservations",
   "display.recipes",
   "display.kds",
@@ -121,6 +122,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "display.time",
       label: "Display: Zeiterfassung",
       description: "Schicht starten, Pause und Schicht beenden am Tablet.",
+      group: "display",
+    },
+    {
+      key: "display.time_presence",
+      label: "Display: Team-Anwesenheit",
+      description:
+        "Im Display-Modul Zeiterfassung sehen, wer gerade eingestempelt ist oder in Pause.",
       group: "display",
     },
     {

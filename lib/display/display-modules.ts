@@ -7,6 +7,9 @@ export const DISPLAY_MODULE_PERMISSION: Record<DisplayModule, string> = {
   kds: "display.kds",
 };
 
+/** Team-Anwesenheit in Display-Zeiterfassung (wer ist eingestempelt / in Pause). */
+export const DISPLAY_TIME_PRESENCE_PERMISSION = "display.time_presence";
+
 export function resolveStaffDisplayModules(params: {
   displayModules: DisplayModule[];
   staffPermissionKeys: string[];

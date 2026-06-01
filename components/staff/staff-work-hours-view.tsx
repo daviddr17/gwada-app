@@ -29,8 +29,8 @@ import {
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { RestaurantStaffRow, RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
+import { StaffDisplayShiftRow } from "@/components/staff/staff-display-shift-row";
 import {
-  displayShiftBounds,
   groupWorkHoursDayEntries,
   isDisplayWorkEntry,
 } from "@/lib/staff/staff-work-hours-display";
@@ -366,40 +366,11 @@ export function StaffWorkHoursView({
                     ) : (
                       groupWorkHoursDayEntries(dayEntries).map((item) => {
                         if (item.kind === "display_shift") {
-                          const bounds = displayShiftBounds(item.segments);
-                          const endLabel = bounds.isOpen
-                            ? "läuft"
-                            : timeDe.format(new Date(bounds.endsAt!));
-                          const breakCount = item.segments.filter(
-                            (s) => s.entry_type === "break",
-                          ).length;
                           return (
-                            <div
+                            <StaffDisplayShiftRow
                               key={item.shiftId}
-                              className="flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-sm"
-                            >
-                              <StaffWorkEntryTypeStripe
-                                type="work"
-                                className="mt-0.5 self-stretch"
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="font-medium">
-                                  Display-Schicht
-                                  {bounds.isOpen ? (
-                                    <span className="ml-1.5 text-xs font-normal text-accent">
-                                      (läuft)
-                                    </span>
-                                  ) : null}
-                                </span>
-                                <span className="mt-0.5 block text-xs text-muted-foreground tabular-nums">
-                                  {timeDe.format(new Date(bounds.startsAt))} –{" "}
-                                  {endLabel}
-                                  {breakCount > 0
-                                    ? ` · ${breakCount} Pause${breakCount === 1 ? "" : "n"}`
-                                    : ""}
-                                </span>
-                              </span>
-                            </div>
+                              segments={item.segments}
+                            />
                           );
                         }
 

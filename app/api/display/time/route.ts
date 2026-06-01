@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
+import {
+  assertDisplayModuleAccess,
+  staffHasDisplayPermission,
+} from "@/lib/display/display-auth-server";
+import { DISPLAY_TIME_PRESENCE_PERMISSION } from "@/lib/display/display-modules";
 import {
   getStaffDisplayTimeState,
+  listDisplayTeamPresence,
   runDisplayTimeAction,
 } from "@/lib/staff/staff-display-time-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -59,5 +64,23 @@ export async function GET() {
   }
 
   const state = await getStaffDisplayTimeState(admin, access.staffId);
-  return NextResponse.json(state);
+  const canViewTeamPresence = await staffHasDisplayPermission(
+    admin,
+    access.staffId,
+    DISPLAY_TIME_PRESENCE_PERMISSION,
+  );
+
+  if (!canViewTeamPresence) {
+    return NextResponse.json({
+      ...state,
+      can_view_team_presence: false,
+    });
+  }
+
+  const teamPresence = await listDisplayTeamPresence(admin, access.restaurantId);
+  return NextResponse.json({
+    ...state,
+    can_view_team_presence: true,
+    team_presence: teamPresence,
+  });
 }

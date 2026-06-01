@@ -2,12 +2,37 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import {
+  DEFAULT_CHANGELOG_GIT_MAX_COMMITS,
+  resolveChangelogGitCommitLimit,
+} from "@/lib/changelog/changelog-git-range";
 import { resolveChangelogGitRepoRoot } from "@/lib/changelog/changelog-git-repo-root";
+import { extractChangelogPayloadsFromGithub } from "@/lib/changelog/extract-changelog-from-github-server";
 import { gitFieldsToChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 import type { GitCommitChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 
+export { DEFAULT_CHANGELOG_GIT_MAX_COMMITS } from "@/lib/changelog/changelog-git-range";
+
 export const GIT_LOG_FORMAT = "%H%x1f%s%x1f%b%x1f%aI%x1e";
-export const DEFAULT_CHANGELOG_GIT_MAX_COMMITS = 30;
+
+function isGitAvailable(): boolean {
+  try {
+    execFileSync("git", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function localGitRepoRoot(): string | null {
+  const cwd = process.cwd();
+  if (existsSync(join(cwd, ".git"))) return cwd;
+  const explicit = process.env.CHANGELOG_GIT_DIR?.trim();
+  if (explicit && existsSync(join(explicit, ".git"))) return explicit;
+  return null;
+}
 
 /**
  * `HEAD~30..HEAD` scheitert bei wenigen Commits / Shallow-Clones.
@@ -36,17 +61,15 @@ export function buildGitLogArgs(range?: string | null): string[] {
   ];
 }
 
-export function extractChangelogPayloadsFromGit(
-  range?: string | null,
-  repoRoot?: string,
+function extractChangelogPayloadsFromGitLog(
+  range: string | null | undefined,
+  repoRoot: string,
 ): GitCommitChangelogPayload[] {
-  const root = repoRoot ?? resolveChangelogGitRepoRoot();
   const output = execFileSync("git", buildGitLogArgs(range), {
-      encoding: "utf8",
-      cwd: root,
-      maxBuffer: 10 * 1024 * 1024,
-    },
-  );
+    encoding: "utf8",
+    cwd: repoRoot,
+    maxBuffer: 10 * 1024 * 1024,
+  });
 
   const payloads: GitCommitChangelogPayload[] = [];
   for (const record of output.split("\x1e")) {
@@ -57,6 +80,46 @@ export function extractChangelogPayloadsFromGit(
     if (payload) payloads.push(payload);
   }
   return payloads;
+}
+
+/**
+ * Lokal: `git log`. Production (ohne `.git`/git): GitHub Commits API.
+ */
+export async function extractChangelogPayloadsFromGit(
+  range?: string | null,
+  repoRoot?: string,
+): Promise<GitCommitChangelogPayload[]> {
+  let root = repoRoot ?? localGitRepoRoot();
+  if (!root && isGitAvailable()) {
+    try {
+      root = resolveChangelogGitRepoRoot();
+    } catch {
+      root = null;
+    }
+  }
+
+  if (root && isGitAvailable()) {
+    try {
+      return extractChangelogPayloadsFromGitLog(range, root);
+    } catch (e) {
+      if (repoRoot) throw e;
+    }
+  }
+
+  try {
+    return await extractChangelogPayloadsFromGithub(range);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "github_failed";
+    if (msg === "github_api_401" || msg === "github_api_403") {
+      throw new Error(
+        "GitHub-API: Token fehlt oder ungültig (CHANGELOG_GIT_TOKEN / GITHUB_TOKEN).",
+      );
+    }
+    if (msg.startsWith("github_api_")) {
+      throw new Error(`GitHub-API nicht erreichbar (${msg.replace("github_api_", "")}).`);
+    }
+    throw e;
+  }
 }
 
 export function draftSourceGitSha(draft: {
@@ -70,3 +133,5 @@ export function draftSourceGitSha(draft: {
     .slice(0, 24);
   return `draft:${hash}`;
 }
+
+export { resolveChangelogGitCommitLimit };

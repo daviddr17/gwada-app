@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { generatePairingCode } from "@/lib/display/display-auth-server";
+import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
@@ -54,9 +55,7 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const origin =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ??
-    "http://localhost:3000";
+  const origin = resolvePublicAppOrigin(request);
   const pairUrl = `${origin}/display/pair?code=${encodeURIComponent(code)}`;
 
   return NextResponse.json({

@@ -350,3 +350,14 @@ export async function assertDisplayModuleAccess(
     restaurantId: sessionResult.session.restaurant_id,
   };
 }
+
+export async function staffHasDisplayPermission(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  staffId: string,
+  permissionKey: string,
+): Promise<boolean> {
+  const { data: permKeys } = await admin.rpc("staff_display_permission_keys", {
+    p_staff_id: staffId,
+  });
+  return ((permKeys as string[] | null) ?? []).includes(permissionKey);
+}

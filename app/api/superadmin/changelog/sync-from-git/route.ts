@@ -80,7 +80,9 @@ export async function POST(req: Request) {
 
   if (body.runGit === true) {
     try {
-      for (const payload of extractChangelogPayloadsFromGit(body.gitRange)) {
+      for (const payload of await extractChangelogPayloadsFromGit(
+        body.gitRange,
+      )) {
         items.push({ kind: "git", payload });
       }
     } catch (e) {
@@ -88,8 +90,9 @@ export async function POST(req: Request) {
       const message =
         raw.includes("not a git repository") ||
         raw.includes("ENOENT") ||
-        raw.includes("spawn git")
-          ? "Git-Repository nicht verfügbar. Auf Live: CHANGELOG_GIT_REPO setzen und git im Container installieren (oder npm run changelog:sync lokal / GitHub Action)."
+        raw.includes("spawn git") ||
+        raw === "git_not_available"
+          ? "Changelog-Quelle nicht erreichbar (weder lokales Git noch GitHub-API)."
           : raw;
       return Response.json({ error: message }, { status: 500 });
     }

@@ -1,8 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { Loader2, Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
+import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import type { DisplayTeamPresenceMember } from "@/lib/types/staff";
+import type { StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -10,6 +14,11 @@ type TimeState = {
   status: "off" | "working" | "on_break";
   clocked_in_at: string | null;
   break_started_at: string | null;
+};
+
+type TimePayload = TimeState & {
+  can_view_team_presence?: boolean;
+  team_presence?: DisplayTeamPresenceMember[];
 };
 
 const timeFmt = new Intl.DateTimeFormat("de-DE", {
@@ -28,6 +37,35 @@ function statusLabel(status: TimeState["status"]): string {
   }
 }
 
+function DisplayTimeActionButton({
+  stripeType,
+  children,
+  className,
+  ...props
+}: ComponentProps<typeof Button> & {
+  stripeType?: StaffWorkEntryType;
+}) {
+  return (
+    <Button
+      {...props}
+      className={cn(
+        "relative h-16 overflow-hidden rounded-2xl pl-6 text-lg",
+        className,
+      )}
+    >
+      {stripeType ? (
+        <StaffWorkEntryTypeStripe
+          type={stripeType}
+          className="absolute bottom-3 left-3 top-3 w-1.5"
+        />
+      ) : null}
+      <span className="flex w-full items-center justify-center gap-2">
+        {children}
+      </span>
+    </Button>
+  );
+}
+
 export function DisplayTimeModule({
   initial,
   onChanged,
@@ -38,7 +76,37 @@ export function DisplayTimeModule({
   const [state, setState] = useState<TimeState>(
     initial ?? { status: "off", clocked_in_at: null, break_started_at: null },
   );
+  const [canViewTeamPresence, setCanViewTeamPresence] = useState(false);
+  const [teamPresence, setTeamPresence] = useState<DisplayTeamPresenceMember[]>(
+    [],
+  );
   const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch("/api/display/time", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data = (await res.json()) as TimePayload;
+      setState({
+        status: data.status,
+        clocked_in_at: data.clocked_in_at,
+        break_started_at: data.break_started_at,
+      });
+      setCanViewTeamPresence(data.can_view_team_presence === true);
+      setTeamPresence(data.team_presence ?? []);
+    } catch {
+      /* ignore background refresh */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+    const id = setInterval(() => void refresh(), 30_000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   const runAction = useCallback(
     async (action: "clock_in" | "start_break" | "end_break" | "clock_out") => {
@@ -86,11 +154,12 @@ export function DisplayTimeModule({
           });
         }
         onChanged();
+        void refresh();
       } finally {
         setBusy(false);
       }
     },
-    [onChanged],
+    [onChanged, refresh],
   );
 
   const since =
@@ -124,37 +193,37 @@ export function DisplayTimeModule({
 
       <div className="flex w-full flex-col gap-3">
         {state.status === "off" ? (
-          <Button
+          <DisplayTimeActionButton
             size="lg"
-            className="h-16 rounded-2xl text-lg"
+            stripeType="work"
             disabled={busy}
             onClick={() => void runAction("clock_in")}
           >
             {busy ? (
-              <Loader2 className="mr-2 size-5 animate-spin" />
+              <Loader2 className="size-5 animate-spin" />
             ) : (
-              <LogIn className="mr-2 size-5" />
+              <LogIn className="size-5" />
             )}
             Schicht starten
-          </Button>
+          </DisplayTimeActionButton>
         ) : null}
 
         {state.status === "working" ? (
           <>
-            <Button
+            <DisplayTimeActionButton
               size="lg"
               variant="outline"
-              className="h-16 rounded-2xl text-lg"
+              stripeType="break"
               disabled={busy}
               onClick={() => void runAction("start_break")}
             >
               {busy ? (
-                <Loader2 className="mr-2 size-5 animate-spin" />
+                <Loader2 className="size-5 animate-spin" />
               ) : (
-                <Pause className="mr-2 size-5" />
+                <Pause className="size-5" />
               )}
               Pause starten
-            </Button>
+            </DisplayTimeActionButton>
             <Button
               size="lg"
               variant="destructive"
@@ -174,19 +243,19 @@ export function DisplayTimeModule({
 
         {state.status === "on_break" ? (
           <>
-            <Button
+            <DisplayTimeActionButton
               size="lg"
-              className="h-16 rounded-2xl text-lg"
+              stripeType="break"
               disabled={busy}
               onClick={() => void runAction("end_break")}
             >
               {busy ? (
-                <Loader2 className="mr-2 size-5 animate-spin" />
+                <Loader2 className="size-5 animate-spin" />
               ) : (
-                <Coffee className="mr-2 size-5" />
+                <Coffee className="size-5" />
               )}
               Pause beenden
-            </Button>
+            </DisplayTimeActionButton>
             <Button
               size="lg"
               variant="destructive"
@@ -199,6 +268,10 @@ export function DisplayTimeModule({
           </>
         ) : null}
       </div>
+
+      {canViewTeamPresence ? (
+        <DisplayTimeTeamPresence members={teamPresence} />
+      ) : null}
     </div>
   );
 }

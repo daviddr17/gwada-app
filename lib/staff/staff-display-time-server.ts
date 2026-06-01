@@ -1,7 +1,11 @@
 import "server-only";
 
 import { randomUUID } from "crypto";
-import type { StaffPresenceStatus } from "@/lib/types/staff";
+import { signStaffAvatarUrl } from "@/lib/display/display-storage-urls";
+import type {
+  DisplayTeamPresenceMember,
+  StaffPresenceStatus,
+} from "@/lib/types/staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type StaffDisplayTimeState = {
@@ -16,6 +20,8 @@ export type StaffLivePresenceRow = {
   clocked_in_at: string;
   break_started_at: string | null;
 };
+
+export type { DisplayTeamPresenceMember } from "@/lib/types/staff";
 
 type DisplayTimeAction = "clock_in" | "start_break" | "end_break" | "clock_out";
 
@@ -113,6 +119,85 @@ export async function listStaffLivePresence(
     });
   }
   return out;
+}
+
+export async function listDisplayTeamPresence(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<DisplayTeamPresenceMember[]> {
+  const presence = await listStaffLivePresence(admin, restaurantId);
+  if (presence.length === 0) return [];
+
+  const staffIds = presence.map((p) => p.staff_id);
+  const { data: staffRows } = await admin
+    .from("restaurant_staff")
+    .select(
+      `
+      id,
+      given_name,
+      family_name,
+      avatar_storage_path,
+      restaurant_position:restaurant_positions ( name )
+    `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .in("id", staffIds);
+
+  const staffById = new Map<
+    string,
+    {
+      given_name: string;
+      family_name: string;
+      avatar_url: string | null;
+      position_name: string | null;
+    }
+  >();
+
+  await Promise.all(
+    (staffRows ?? []).map(async (row) => {
+      const posRaw = (row as Record<string, unknown>).restaurant_position;
+      const posOne = Array.isArray(posRaw) ? posRaw[0] : posRaw;
+      const positionName =
+        posOne && typeof posOne === "object" && "name" in posOne
+          ? String((posOne as { name: string }).name)
+          : null;
+      staffById.set(row.id as string, {
+        given_name: row.given_name as string,
+        family_name: row.family_name as string,
+        avatar_url: await signStaffAvatarUrl(
+          admin,
+          row.avatar_storage_path as string | null,
+        ),
+        position_name: positionName,
+      });
+    }),
+  );
+
+  const members = presence
+    .map((p) => {
+      const staff = staffById.get(p.staff_id);
+      if (!staff) return null;
+      return {
+        staff_id: p.staff_id,
+        ...staff,
+        status: p.status,
+        clocked_in_at: p.clocked_in_at,
+        break_started_at: p.break_started_at,
+      };
+    })
+    .filter((row): row is DisplayTeamPresenceMember => row != null);
+
+  members.sort((a, b) => {
+    const statusOrder = (s: DisplayTeamPresenceMember["status"]) =>
+      s === "working" ? 0 : 1;
+    const byStatus = statusOrder(a.status) - statusOrder(b.status);
+    if (byStatus !== 0) return byStatus;
+    const nameA = `${a.family_name} ${a.given_name}`.trim();
+    const nameB = `${b.family_name} ${b.given_name}`.trim();
+    return nameA.localeCompare(nameB, "de");
+  });
+
+  return members;
 }
 
 async function closeOpenEntry(

@@ -183,6 +183,17 @@ export type StaffLivePresenceRow = {
   break_started_at: string | null;
 };
 
+export type DisplayTeamPresenceMember = {
+  staff_id: string;
+  given_name: string;
+  family_name: string;
+  avatar_url: string | null;
+  position_name: string | null;
+  status: Exclude<StaffPresenceStatus, "off">;
+  clocked_in_at: string;
+  break_started_at: string | null;
+};
+
 export type StaffInviteChannel = "email" | "whatsapp";
 
 export type StaffInviteViewerStatus =

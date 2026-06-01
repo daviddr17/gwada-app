@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutList, Loader2, MessageSquare, Plus, Rows3, Users } from "lucide-react";
+import { LayoutList, Loader2, MessageSquare, Plus, Rows3, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DatePickerField } from "@/components/ui/date-picker";
 import { DisplayReservationDrawer } from "@/components/display/modules/display-reservation-drawer";
 import { DisplayReservationEditDrawer } from "@/components/display/display-reservation-edit-drawer";
 import {
@@ -32,6 +33,7 @@ import {
   reservationsAtTableForRange,
 } from "@/lib/reservations/reservations-table-occupancy";
 import { formatDayHeadingDe } from "@/lib/reservations/month-range";
+import { localDayToYmd } from "@/lib/reservations/datetime-local";
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import type { DiningAreaRow, DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
@@ -92,6 +94,24 @@ function reservationOverlapsSlotRange(
   return rStart < rangeEnd && rEnd > rangeStart;
 }
 
+function sortReservationsByStart(
+  rows: DisplayReservationRow[],
+): DisplayReservationRow[] {
+  return [...rows].sort(
+    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+  );
+}
+
+/** Slider at both ends → show every reservation returned for the selected day (matches header stats). */
+function isFullDaySlotRange(
+  slotMinutes: number[],
+  rangeSlotIndices: [number, number],
+): boolean {
+  if (slotMinutes.length === 0) return true;
+  const lastIdx = slotMinutes.length - 1;
+  return rangeSlotIndices[0] === 0 && rangeSlotIndices[1] === lastIdx;
+}
+
 export function DisplayReservationsModule() {
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
@@ -99,7 +119,9 @@ export function DisplayReservationsModule() {
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [listDensity, setListDensity] = useState<ListDensity>("comfortable");
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [rangeSlotIndices, setRangeSlotIndices] = useState<[number, number]>([0, 0]);
+  const [rangeSlotIndices, setRangeSlotIndices] = useState<[number, number] | null>(
+    null,
+  );
   const lastSlotsKeyRef = useRef("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -107,8 +129,17 @@ export function DisplayReservationsModule() {
     null,
   );
   const [editReservationId, setEditReservationId] = useState<string | null>(null);
+  const [selectedDayYmd, setSelectedDayYmd] = useState(() => localDayToYmd(new Date()));
 
-  const today = useMemo(() => new Date(), []);
+  const selectedDay = useMemo(() => {
+    const [y, m, d] = selectedDayYmd.split("-").map((v) => Number.parseInt(v, 10));
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+  }, [selectedDayYmd]);
+
+  const isSelectedToday = useMemo(() => {
+    const now = new Date();
+    return localDayToYmd(now) === selectedDayYmd;
+  }, [selectedDayYmd]);
   const bookingStep = normalizeBookingTimeStepMinutes(
     payload?.booking_time_step_minutes,
   );
@@ -116,10 +147,13 @@ export function DisplayReservationsModule() {
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     try {
-      const res = await fetch("/api/display/reservations", {
-        cache: "no-store",
-        credentials: "include",
-      });
+      const res = await fetch(
+        `/api/display/reservations?day=${encodeURIComponent(selectedDayYmd)}`,
+        {
+          cache: "no-store",
+          credentials: "include",
+        },
+      );
       const data = (await res.json()) as DayPayload & { error?: string };
       if (!res.ok) {
         toast.error(
@@ -134,7 +168,12 @@ export function DisplayReservationsModule() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, []);
+  }, [selectedDayYmd]);
+
+  useEffect(() => {
+    setRangeSlotIndices(null);
+    lastSlotsKeyRef.current = "";
+  }, [selectedDayYmd]);
 
   useEffect(() => {
     void load();
@@ -159,11 +198,11 @@ export function DisplayReservationsModule() {
   const hoursForDay = useMemo(() => {
     if (!payload) return null;
     return resolveHoursForLocalCalendarDay(
-      today,
+      selectedDay,
       payload.weekly_hours,
       payload.date_exceptions,
     );
-  }, [payload, today]);
+  }, [payload, selectedDay]);
 
   const slotMinutes = useMemo(() => {
     if (!hoursForDay) return [];
@@ -171,14 +210,14 @@ export function DisplayReservationsModule() {
       starts_at: r.starts_at,
       ends_at: r.ends_at,
     })) as never[];
-    const fallback = fallbackSlotRangeFromReservations(fallbackReservations, today);
+    const fallback = fallbackSlotRangeFromReservations(fallbackReservations, selectedDay);
     return openingDayBookableSlotStartsMinutes(
       hoursForDay,
       fallback,
       bookingStep,
       payload?.min_minutes_before_closing ?? 60,
     );
-  }, [hoursForDay, reservations, today, bookingStep, payload?.min_minutes_before_closing]);
+  }, [hoursForDay, reservations, selectedDay, bookingStep, payload?.min_minutes_before_closing]);
 
   useEffect(() => {
     if (slotMinutes.length === 0) return;
@@ -186,43 +225,52 @@ export function DisplayReservationsModule() {
     if (slotsKey === lastSlotsKeyRef.current) return;
     lastSlotsKeyRef.current = slotsKey;
 
-    const nowMin = today.getHours() * 60 + today.getMinutes();
-    let nowIdx = 0;
-    for (let i = 0; i < slotMinutes.length; i++) {
-      if (slotMinutes[i]! <= nowMin) nowIdx = i;
-    }
-    const lastIdx = slotMinutes.length - 1;
-    setRangeSlotIndices([nowIdx, lastIdx]);
-  }, [slotMinutes, today]);
+    setRangeSlotIndices(null);
+  }, [slotMinutes]);
 
-  const fromMin = slotMinutes[rangeSlotIndices[0]] ?? 0;
+  const lastSlotIdx = Math.max(slotMinutes.length - 1, 0);
+  const effectiveRangeSlotIndices: [number, number] =
+    rangeSlotIndices ?? [0, lastSlotIdx];
+
+  const fromMin = slotMinutes[effectiveRangeSlotIndices[0]] ?? 0;
   const toMin =
     slotMinutes[
-      Math.min(rangeSlotIndices[1], Math.max(slotMinutes.length - 1, 0))
+      Math.min(effectiveRangeSlotIndices[1], lastSlotIdx)
     ] ?? fromMin;
 
   const filteredReservations = useMemo(() => {
-    if (slotMinutes.length === 0) return reservations;
-    return reservations
-      .filter((r) =>
-        reservationOverlapsSlotRange(r, today, fromMin, toMin, bookingStep),
-      )
-      .sort(
-        (a, b) =>
-          new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-      );
-  }, [reservations, today, fromMin, toMin, bookingStep, slotMinutes.length]);
+    if (
+      slotMinutes.length === 0 ||
+      isFullDaySlotRange(slotMinutes, effectiveRangeSlotIndices)
+    ) {
+      return sortReservationsByStart(reservations);
+    }
+    return sortReservationsByStart(
+      reservations.filter((r) =>
+        reservationOverlapsSlotRange(r, selectedDay, fromMin, toMin, bookingStep),
+      ),
+    );
+  }, [
+    reservations,
+    selectedDay,
+    fromMin,
+    toMin,
+    bookingStep,
+    slotMinutes.length,
+    lastSlotIdx,
+    rangeSlotIndices,
+  ]);
 
   const occupancyInstant = useMemo(
-    () => localDateAtSlotMinutes(today, toMin),
-    [today, toMin],
+    () => localDateAtSlotMinutes(selectedDay, toMin),
+    [selectedDay, toMin],
   );
 
   const occupancyRange = useMemo(() => {
-    const rangeStart = localDateAtSlotMinutes(today, fromMin);
-    const rangeEnd = localDateAtSlotMinutes(today, toMin + bookingStep);
+    const rangeStart = localDateAtSlotMinutes(selectedDay, fromMin);
+    const rangeEnd = localDateAtSlotMinutes(selectedDay, toMin + bookingStep);
     return { rangeStart, rangeEnd };
-  }, [today, fromMin, toMin, bookingStep]);
+  }, [selectedDay, fromMin, toMin, bookingStep]);
 
   const occupancy = useMemo(() => {
     if (slotMinutes.length === 0) return new Map<string, DisplayReservationRow[]>();
@@ -585,6 +633,12 @@ export function DisplayReservationsModule() {
     );
   };
 
+  const shiftSelectedDay = (deltaDays: number) => {
+    const next = new Date(selectedDay);
+    next.setDate(next.getDate() + deltaDays);
+    setSelectedDayYmd(localDayToYmd(next));
+  };
+
   const viewChip = (id: ViewMode, label: string) => (
     <button
       key={id}
@@ -615,20 +669,69 @@ export function DisplayReservationsModule() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4 pb-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground">{formatDayHeadingDe(today)}</p>
-          <div className="mt-1 flex flex-wrap gap-4 text-lg">
-            <span>
-              <span className="font-semibold tabular-nums">{payload?.stats.count ?? 0}</span>{" "}
-              Reservierungen
-            </span>
-            <span className="flex items-center gap-1 text-muted-foreground">
-              <Users className="size-5" />
-              <span className="font-semibold tabular-nums text-foreground">
-                {payload?.stats.guests ?? 0}
-              </span>{" "}
-              Gäste
-            </span>
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-10 shrink-0 rounded-xl"
+              aria-label="Vorheriger Tag"
+              onClick={() => shiftSelectedDay(-1)}
+            >
+              <ChevronLeft className="size-5" />
+            </Button>
+            <DatePickerField
+              value={selectedDayYmd}
+              onChange={(v) => {
+                if (v) setSelectedDayYmd(v);
+              }}
+              size="compact"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-10 shrink-0 rounded-xl"
+              aria-label="Nächster Tag"
+              onClick={() => shiftSelectedDay(1)}
+            >
+              <ChevronRight className="size-5" />
+            </Button>
+            {!isSelectedToday ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-9 rounded-lg"
+                onClick={() => setSelectedDayYmd(localDayToYmd(new Date()))}
+              >
+                Heute
+              </Button>
+            ) : null}
+          </div>
+          <div>
+            {isSelectedToday ? (
+              <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                Heute
+              </p>
+            ) : null}
+            <p className="text-sm text-muted-foreground">
+              {formatDayHeadingDe(selectedDay)}
+            </p>
+            <div className="mt-1 flex flex-wrap gap-4 text-lg">
+              <span>
+                <span className="font-semibold tabular-nums">{payload?.stats.count ?? 0}</span>{" "}
+                Reservierungen
+              </span>
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Users className="size-5" />
+                <span className="font-semibold tabular-nums text-foreground">
+                  {payload?.stats.guests ?? 0}
+                </span>{" "}
+                Gäste
+              </span>
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -651,7 +754,7 @@ export function DisplayReservationsModule() {
       {slotMinutes.length > 1 ? (
         <DisplayTimeRangeSlider
           slotMinutes={slotMinutes}
-          value={rangeSlotIndices}
+          value={effectiveRangeSlotIndices}
           onChange={setRangeSlotIndices}
           hint={
             viewMode === "occupancy"
@@ -816,7 +919,9 @@ export function DisplayReservationsModule() {
           {filteredReservations.length === 0 ? (
             <p className="py-12 text-center text-lg text-muted-foreground">
               {reservations.length === 0
-                ? "Heute keine Reservierungen."
+                ? isSelectedToday
+                  ? "Heute keine Reservierungen."
+                  : "Keine Reservierungen an diesem Tag."
                 : "Keine Reservierungen in diesem Zeitraum."}
             </p>
           ) : (

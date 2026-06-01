@@ -1,0 +1,6 @@
+{
+  "title": "Display-Modus und Korrekturen",
+  "body": "- Reservierungen am Display: Datum wählen und durchblättern\n- Zeiterfassung: farbige Balken für Schicht und Pause wie im Dashboard\n- Zeiterfassung: Team-Anwesenheit (Berechtigung „Display: Team-Anwesenheit“) – wer ist eingestempelt oder in Pause\n- PIN-Maske ohne leeren Titelbild-Hintergrund, wenn kein Cover hinterlegt ist\n- Korrekturen: Reservierungsliste am Display, Koppel-URL auf Live, Changelog-Sync, Pausen in Arbeitszeiten",
+  "audience": "customers",
+  "version": "2026.06.01"
+}

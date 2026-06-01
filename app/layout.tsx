@@ -2,15 +2,14 @@ import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
 import { AppProviders } from "@/components/providers/app-providers";
 import { isTestEnvironment } from "@/lib/constants/app-environment";
-import { formatDocumentTitle } from "@/lib/constants/document-title";
-import { faviconMimeTypeFromPath } from "@/lib/platform/branding-asset-url";
+import {
+  DOCUMENT_TITLE_BRAND,
+  formatDocumentTitle,
+} from "@/lib/constants/document-title";
+import { faviconMimeTypeFromPath, platformFaviconHref } from "@/lib/platform/branding-asset-url";
+import { loadRootLayoutBranding } from "@/lib/platform/layout-branding-server";
 import { buildGwadaPublicEnvForScript } from "@/lib/public-env";
-import { resolveRequestOrigin } from "@/lib/navigation/request-origin";
-import { fetchPlatformAppBranding } from "@/lib/supabase/platform-app-settings-db";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import "./globals.css";
-
-export const dynamic = "force-dynamic";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
@@ -19,45 +18,13 @@ const dmSans = DM_Sans({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const sb = await createSupabaseServerClient();
-  const branding = sb
-    ? await fetchPlatformAppBranding(sb)
-    : {
-        appName: "gwada",
-        faviconUrl: null,
-        faviconPath: null,
-        logoUrl: null,
-        logoDarkUrl: null,
-        logoPath: null,
-        logoDarkPath: null,
-      };
-  const brand = branding.appName;
-  const documentTitleTemplate = isTestEnvironment()
-    ? `${brand} - %s - Testumgebung`
-    : `${brand} - %s`;
+  const branding = await loadRootLayoutBranding();
+  const resolvedBrand = branding.appName?.trim() || DOCUMENT_TITLE_BRAND;
 
   return {
-    title: {
-      template: documentTitleTemplate,
-      default: formatDocumentTitle("", brand),
-    },
+    title: formatDocumentTitle("", resolvedBrand),
     description:
       "Digitale Speisekarte für Restaurants – clean, modern und mandantenfähig.",
-    ...(branding.faviconUrl
-      ? {
-          icons: {
-            icon: [
-              {
-                url: branding.faviconUrl,
-                ...(faviconMimeTypeFromPath(branding.faviconPath)
-                  ? { type: faviconMimeTypeFromPath(branding.faviconPath) }
-                  : {}),
-              },
-            ],
-            shortcut: [branding.faviconUrl],
-          },
-        }
-      : {}),
   };
 }
 
@@ -66,16 +33,48 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const requestOrigin = await resolveRequestOrigin();
-  const publicEnv = buildGwadaPublicEnvForScript(requestOrigin);
+  const branding = await loadRootLayoutBranding();
+  const faviconHref = platformFaviconHref(branding.faviconPath);
+  const faviconMime = faviconMimeTypeFromPath(branding.faviconPath);
+
+  const publicEnv = buildGwadaPublicEnvForScript();
   const publicEnvJson =
     publicEnv.supabaseAnonKey?.trim()
       ? JSON.stringify(publicEnv).replace(/</g, "\\u003c")
       : null;
 
   return (
-    <html lang="de" suppressHydrationWarning className={dmSans.variable}>
+    <html
+      lang="de"
+      suppressHydrationWarning
+      className={dmSans.variable}
+      data-platform-favicon={faviconHref ?? undefined}
+    >
       <head>
+        {faviconHref ? (
+          <>
+            <link
+              rel="icon"
+              href={faviconHref}
+              sizes="any"
+              type={faviconMime ?? "image/png"}
+              data-platform-branding="favicon"
+            />
+            <link
+              rel="shortcut icon"
+              href={faviconHref}
+              type={faviconMime ?? "image/png"}
+              data-platform-branding="favicon"
+            />
+            <link
+              rel="apple-touch-icon"
+              href={faviconHref}
+              sizes="180x180"
+              type={faviconMime ?? "image/png"}
+              data-platform-branding="favicon"
+            />
+          </>
+        ) : null}
         {publicEnvJson ? (
           <script
             dangerouslySetInnerHTML={{
@@ -85,7 +84,9 @@ export default async function RootLayout({
         ) : null}
       </head>
       <body className="min-h-dvh font-sans">
-        <AppProviders>{children}</AppProviders>
+        <AppProviders serverFaviconHref={faviconHref}>
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

@@ -17,7 +17,7 @@ type Props = {
   onNavigateSection: (id: string) => void;
 };
 
-const dockItems = [
+const dockScrollItems = [
   { id: "home" as const, label: "Home", shortLabel: "Home", icon: Home },
   {
     id: "features" as const,
@@ -32,8 +32,11 @@ const dockItems = [
     shortLabel: "Kanäle",
     icon: Plug,
   },
+] as const;
+
+const dockLinkItems = [
   {
-    id: "docs" as const,
+    href: "/docs" as const,
     label: "Dokumentation",
     shortLabel: "Doku",
     icon: BookOpen,
@@ -74,15 +77,32 @@ export function LandingDock({ onNavigateSection }: Props) {
           className="relative z-[1] flex items-end gap-0.5 bg-transparent px-1 py-1.5 sm:px-1.5 sm:py-1.5"
           aria-label="Schnellnavigation"
         >
-          {dockItems.map((item) => (
+          {dockScrollItems.map((item) => (
             <Button
               key={item.id}
               type="button"
               variant="ghost"
               title={item.label}
               className={dockItemClass}
-              aria-label={item.label}
+              aria-label={item.shortLabel}
               onClick={() => onNavigateSection(item.id)}
+            >
+              <item.icon className="size-[17px] shrink-0 sm:size-[18px]" strokeWidth={1.85} />
+              <span className="w-full text-center text-[8px] font-medium leading-tight tracking-tight text-foreground/90 sm:text-[9px]">
+                {item.shortLabel}
+              </span>
+            </Button>
+          ))}
+
+          {dockLinkItems.map((item) => (
+            <Button
+              key={item.href}
+              variant="ghost"
+              title={item.label}
+              className={dockItemClass}
+              aria-label={item.shortLabel}
+              nativeButton={false}
+              render={<Link href={item.href} prefetch scroll={false} />}
             >
               <item.icon className="size-[17px] shrink-0 sm:size-[18px]" strokeWidth={1.85} />
               <span className="w-full text-center text-[8px] font-medium leading-tight tracking-tight text-foreground/90 sm:text-[9px]">

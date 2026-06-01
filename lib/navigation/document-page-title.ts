@@ -1,15 +1,15 @@
-import type { AppModuleChromeState } from "@/lib/contexts/app-module-chrome-context";
-import { isActiveModulePath } from "@/components/layout/module-subnav";
-
 function normalizePath(p: string): string {
   if (p.length > 1 && p.endsWith("/")) return p.slice(0, -1);
   return p;
 }
 
-/** Bekannte Routen → Tab-Titel (wenn kein Modul-Chip aktiv ist). */
+/** Bekannte Routen → lesbarer Abschnitt (pro Pfad-Präfix). */
 const PATH_PAGE_TITLES: Record<string, string> = {
   "/": "Startseite",
-  "/login": "Anmelden",
+  "/login": "Login",
+  "/docs": "Docs",
+  "/impressum": "Impressum",
+  "/datenschutz": "Datenschutz",
   "/dashboard": "Dashboard",
   "/menu": "Speisekarte",
   "/menu/uebersicht": "Speisekarte",
@@ -21,6 +21,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/kontakte/uebersicht": "Kontakte",
   "/kontakte/nachrichten": "Nachrichten",
   "/kontakte/export": "Export",
+  "/kontakte/einstellungen": "Einstellungen",
   "/dokumente": "Dokumente",
   "/dokumente/uebersicht": "Übersicht",
   "/dokumente/protokoll": "Protokoll",
@@ -28,10 +29,13 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/mitarbeiter/uebersicht": "Übersicht",
   "/mitarbeiter/vertraege": "Verträge",
   "/mitarbeiter/arbeitszeiten": "Arbeitszeiten",
+  "/mitarbeiter/export": "Export",
   "/reservierungen": "Reservierungen",
   "/reservierungen/uebersicht": "Übersicht",
   "/reservierungen/tischplan": "Tischplan",
+  "/reservierungen/statistiken": "Statistiken",
   "/reservierungen/einstellungen": "Einstellungen",
+  "/reservierungen/einbinden": "Einbinden",
   "/settings": "Einstellungen",
   "/settings/restaurant": "Übersicht",
   "/settings/team": "Team",
@@ -40,11 +44,15 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/settings/rollen": "Rollen",
   "/settings/integrationen": "Integrationen",
   "/settings/branding": "Branding",
+  "/settings/displays": "Displays",
   "/profile": "Profil",
   "/profile/persoenliche-daten": "Übersicht",
   "/profile/anmeldung": "Anmeldung",
-  "/workspace/restaurants": "Übersicht",
+  "/profile/arbeitszeiten": "Arbeitszeiten",
+  "/workspace": "Workspace",
+  "/workspace/restaurants": "Restaurants",
   "/workspace/team": "Team",
+  "/changelog": "Changelog",
   "/superadmin": "Superadmin",
   "/superadmin/allgemein": "Allgemein",
   "/superadmin/users": "User",
@@ -55,38 +63,74 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/superadmin/restaurants/statistiken": "Statistiken",
   "/superadmin/integrationen": "Integrationen",
   "/superadmin/datenbank": "Datenbank",
+  "/superadmin/changelog": "Changelog",
 };
 
-function pathnamePageTitle(pathname: string): string {
-  const path = normalizePath(pathname);
-  if (PATH_PAGE_TITLES[path]) return PATH_PAGE_TITLES[path];
-  const entries = Object.entries(PATH_PAGE_TITLES).sort(
-    (a, b) => b[0].length - a[0].length,
-  );
-  for (const [prefix, title] of entries) {
-    if (path.startsWith(`${prefix}/`) || path === prefix) {
-      return title;
-    }
-  }
-  return "App";
+const SEGMENT_SLUG_LABELS: Record<string, string> = {
+  superadmin: "Superadmin",
+  allgemein: "Allgemein",
+  reservierungen: "Reservierungen",
+  einstellungen: "Einstellungen",
+  uebersicht: "Übersicht",
+  tischplan: "Tischplan",
+  statistiken: "Statistiken",
+  einbinden: "Einbinden",
+  mitarbeiter: "Mitarbeiter",
+  vertraege: "Verträge",
+  arbeitszeiten: "Arbeitszeiten",
+  dokumente: "Dokumente",
+  protokoll: "Protokoll",
+  kontakte: "Kontakte",
+  nachrichten: "Nachrichten",
+  inventory: "Bestand",
+  bestellung: "Bestellung",
+  integrationen: "Integrationen",
+  datenbank: "Datenbank",
+  restaurants: "Restaurants",
+  users: "User",
+  dashboard: "Dashboard",
+  settings: "Einstellungen",
+  branding: "Branding",
+  displays: "Displays",
+  profile: "Profil",
+  workspace: "Workspace",
+  changelog: "Changelog",
+  menu: "Speisekarte",
+  export: "Export",
+  login: "Login",
+  impressum: "Impressum",
+  datenschutz: "Datenschutz",
+  docs: "Docs",
+};
+
+function humanizePathSegment(slug: string): string {
+  const key = slug.toLowerCase();
+  if (SEGMENT_SLUG_LABELS[key]) return SEGMENT_SLUG_LABELS[key];
+  if (PATH_PAGE_TITLES[`/${key}`]) return PATH_PAGE_TITLES[`/${key}`]!;
+  return slug
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
-/** Aktuelle Seite für den Tab-Titel (Subnav-Chip > Modul-Titel > Route). */
-export function resolveDocumentPageTitle(
-  pathname: string,
-  chrome: AppModuleChromeState,
-): string {
-  const subnav = chrome.subnav;
-  if (subnav?.items.length) {
-    const active = subnav.items.find((item) =>
-      isActiveModulePath(pathname, item),
-    );
-    if (active?.label.trim()) {
-      return active.label.trim();
+/**
+ * Tab-Inhalt aus URL-Pfad: jedes Segment nach `/` wird lesbar — z. B.
+ * `/superadmin/allgemein` → `Superadmin - Allgemein` (stabil, unabhängig vom Modul-Chrome).
+ */
+export function resolveDocumentPageTitle(pathname: string): string {
+  const path = normalizePath(pathname);
+  if (path === "/") return "Startseite";
+
+  const segments = path.split("/").filter(Boolean);
+  const parts: string[] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const prefix = `/${segments.slice(0, i + 1).join("/")}`;
+    const label = PATH_PAGE_TITLES[prefix] ?? humanizePathSegment(segments[i]!);
+    if (parts.length === 0 || parts[parts.length - 1] !== label) {
+      parts.push(label);
     }
   }
-  if (chrome.title.trim()) {
-    return chrome.title.trim();
-  }
-  return pathnamePageTitle(pathname);
+
+  return parts.join(" - ");
 }

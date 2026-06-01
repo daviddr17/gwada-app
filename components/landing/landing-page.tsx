@@ -4,11 +4,8 @@ import type Lenis from "lenis";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { LandingDock } from "@/components/landing/landing-dock";
-import { LandingFeatures } from "@/components/landing/landing-features";
 import { LandingHero } from "@/components/landing/landing-hero";
-import { LandingPricing } from "@/components/landing/landing-pricing";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
@@ -30,6 +27,14 @@ const LandingIntegrationsScrollStory = dynamic(
       }),
     ),
   { loading: () => <div className="min-h-[70vh]" aria-hidden /> },
+);
+
+const LandingPricing = dynamic(
+  () =>
+    import("@/components/landing/landing-pricing").then((m) => ({
+      default: m.LandingPricing,
+    })),
+  { loading: () => <div className="min-h-[65vh]" aria-hidden /> },
 );
 
 /**
@@ -78,34 +83,7 @@ export function LandingPage() {
       <main>
         <LandingHero mouse={mouse} onScrollToSection={navigateToSection} />
         <LandingScrollStory />
-        <LandingFeatures />
         <LandingIntegrationsScrollStory />
-
-        <section
-          id="docs"
-          className="scroll-mt-28 border-t border-border/50 bg-muted/15 py-28 dark:bg-muted/5"
-        >
-          <div className="mx-auto max-w-3xl px-6 text-center">
-            <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-              Dokumentation
-            </p>
-            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-4xl">
-              Alles, was du zum Start brauchst — gebündelt und klar.
-            </h2>
-            <p className="mt-5 text-pretty text-lg text-muted-foreground">
-              API-Hinweise, Datenmodell und Best Practices folgen hier als
-              lebendige Guides. Bis dahin: einloggen und im Dashboard
-              ausprobieren.
-            </p>
-            <Button
-              className="mt-10 rounded-full px-8"
-              size="lg"
-              render={<Link href="/login" prefetch />}
-            >
-              Zum Dashboard
-            </Button>
-          </div>
-        </section>
 
         <LandingPricing />
 
@@ -113,14 +91,14 @@ export function LandingPage() {
           <p suppressHydrationWarning>
             © {new Date().getFullYear()} {appName}. Mit Ruhe gebaut.
           </p>
-          <p className="mt-2">
+          <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Link
               href="/login"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Anmelden
             </Link>
-            <span className="mx-2 opacity-40" aria-hidden>
+            <span className="opacity-40" aria-hidden>
               ·
             </span>
             <Link
@@ -128,6 +106,33 @@ export function LandingPage() {
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               App öffnen
+            </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/docs"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Docs
+            </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/impressum"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Impressum
+            </Link>
+            <span className="opacity-40" aria-hidden>
+              ·
+            </span>
+            <Link
+              href="/datenschutz"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Datenschutz
             </Link>
           </p>
         </footer>

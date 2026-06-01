@@ -92,7 +92,7 @@ export function LandingPricing() {
               )}
             >
               Jährlich
-              <span className="ml-1.5 text-xs font-normal text-emerald-600 dark:text-emerald-400">
+              <span className="ml-1.5 text-xs font-normal text-emerald-700 dark:text-emerald-400">
                 −20%
               </span>
             </Label>

@@ -59,7 +59,7 @@ export function RegisterModuleChrome({
 }) {
   const { setChrome } = useAppModuleChrome();
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     setChrome({
       title,
       subnav:

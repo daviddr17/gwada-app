@@ -112,7 +112,7 @@ function StoryCopy({ scrollYProgress }: StoryCopyProps) {
   return (
     <div className="relative z-10 max-w-lg lg:pr-8">
       <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-        Im Fokus
+        Funktionen
       </p>
       <motion.h2
         key={feature.title}
@@ -163,6 +163,7 @@ export function LandingScrollStory() {
 
   return (
     <section
+      id="features"
       ref={ref}
       className="relative scroll-mt-28 bg-background"
       style={{ height: reduce ? "auto" : `${SCROLL_HEIGHT_VH}vh` }}
@@ -170,7 +171,7 @@ export function LandingScrollStory() {
       {reduce ? (
         <div className="mx-auto max-w-3xl space-y-8 px-6 py-24">
           <h2 className="text-center text-3xl font-semibold tracking-tight">
-            Funktionen im Überblick
+            Funktionen
           </h2>
           <ul className="space-y-6">
             {LANDING_FEATURE_ITEMS.map((f) => (

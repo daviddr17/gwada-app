@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import {
   faviconMimeTypeFromPath,
-  withBrandingAssetCacheBust,
+  platformFaviconHref,
 } from "@/lib/platform/branding-asset-url";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 
 const MANAGED_SELECTOR = 'link[data-platform-branding="favicon"]';
+const ICON_SELECTOR =
+  'link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]';
+
+function isLegacyNextFaviconLink(link: HTMLLinkElement): boolean {
+  const href = link.getAttribute("href") ?? "";
+  return (
+    /favicon\.[a-z0-9~_-]+\.ico/i.test(href) ||
+    (href.includes("/favicon.ico") &&
+      !href.includes("v=") &&
+      !href.startsWith("/api/platform/favicon"))
+  );
+}
 
 function upsertFaviconLink(rel: string, href: string, type?: string) {
   if (!document.head) return;
@@ -20,47 +32,54 @@ function upsertFaviconLink(rel: string, href: string, type?: string) {
     link.setAttribute("data-platform-branding", "favicon");
     document.head.appendChild(link);
   }
-  if (link.href !== href) {
-    link.href = href;
-  }
-  if (type) {
-    link.type = type;
-  } else {
-    link.removeAttribute("type");
-  }
+  link.href = href;
+  if (type) link.type = type;
+  else link.removeAttribute("type");
 }
 
-function clearManagedFaviconLinks() {
-  document.querySelectorAll(MANAGED_SELECTOR).forEach((el) => {
-    if (el.isConnected) {
-      el.remove();
+function applyDocumentFavicon(href: string, mime?: string) {
+  upsertFaviconLink("icon", href, mime);
+  upsertFaviconLink("shortcut icon", href, mime);
+  upsertFaviconLink("apple-touch-icon", href, mime);
+
+  document.querySelectorAll<HTMLLinkElement>(ICON_SELECTOR).forEach((link) => {
+    if (link.getAttribute("data-platform-branding") === "favicon") return;
+    if (isLegacyNextFaviconLink(link)) {
+      link.remove();
+      return;
     }
+    link.href = href;
+    if (mime) link.type = mime;
+    else link.removeAttribute("type");
   });
 }
 
+function readServerFaviconHref(): string | null {
+  if (typeof document === "undefined") return null;
+  const fromHtml = document.documentElement.getAttribute("data-platform-favicon");
+  return fromHtml?.trim() || null;
+}
+
 /**
- * Client-Favicon aus Plattform-Einstellungen.
- * Nur eigene <link>-Tags — keine Next/React-Icons entfernen (verhindert removeChild-Crashes).
+ * Hält Favicon-Links auf `/favicon.ico?v=…` (Rewrite → Plattform-PNG).
+ * Entfernt Next.js-Dreieck (`favicon.*.ico`).
  */
-export function PlatformFaviconSync() {
+export function PlatformFaviconSync({
+  serverFaviconHref,
+}: {
+  serverFaviconHref?: string | null;
+}) {
   const branding = usePlatformAppBrandingOptional();
-  const href = withBrandingAssetCacheBust(
-    branding?.faviconUrl ?? null,
-    branding?.faviconPath ?? null,
-  );
+  const href =
+    platformFaviconHref(branding?.faviconPath ?? null) ??
+    serverFaviconHref ??
+    readServerFaviconHref();
   const mime = faviconMimeTypeFromPath(branding?.faviconPath ?? null);
 
-  useEffect(() => {
-    if (!branding?.isReady) return;
-
-    if (!href) {
-      clearManagedFaviconLinks();
-      return;
-    }
-
-    upsertFaviconLink("icon", href, mime);
-    upsertFaviconLink("shortcut icon", href, mime);
-  }, [branding?.isReady, href, mime]);
+  useLayoutEffect(() => {
+    if (!href) return;
+    applyDocumentFavicon(href, mime);
+  }, [href, mime]);
 
   return null;
 }

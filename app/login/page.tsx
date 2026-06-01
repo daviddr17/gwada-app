@@ -1,6 +1,10 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
-import { DocumentTitle } from "@/components/layout/document-title";
 import { LoginForm } from "./login-form";
+
+export const metadata: Metadata = {
+  description: "Anmelden oder registrieren.",
+};
 
 export default function LoginPage() {
   return (
@@ -11,7 +15,6 @@ export default function LoginPage() {
         </div>
       }
     >
-      <DocumentTitle pageTitle="Anmelden" />
       <LoginForm />
     </Suspense>
   );

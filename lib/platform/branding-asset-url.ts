@@ -6,6 +6,17 @@ export function brandingAssetCacheKey(
   return path || null;
 }
 
+/**
+ * Kanonische Favicon-URL — Safari lädt bevorzugt `/favicon.ico` (nicht nur link rel=icon).
+ */
+export function platformFaviconHref(
+  storagePath: string | null | undefined,
+): string | null {
+  const key = brandingAssetCacheKey(storagePath);
+  if (!key) return null;
+  return `/favicon.ico?v=${encodeURIComponent(key)}`;
+}
+
 export function withBrandingAssetCacheBust(
   publicUrl: string | null | undefined,
   storagePath: string | null | undefined,

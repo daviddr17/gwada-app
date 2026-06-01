@@ -51,6 +51,16 @@ const nextConfig: NextConfig = {
       ...supabaseStoragePatterns,
     ],
   },
+  async rewrites() {
+    return {
+      beforeFiles: [
+        {
+          source: "/favicon.ico",
+          destination: "/api/platform/favicon",
+        },
+      ],
+    };
+  },
 };
 
 export default nextConfig;

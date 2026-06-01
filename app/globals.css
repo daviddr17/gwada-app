@@ -437,3 +437,48 @@
     transform: translate3d(-3vw, 4vh, 0) scale(1.03);
   }
 }
+
+/* Landing hero: transform-only entrance — LCP text stays opacity:1 without JS */
+@keyframes landing-hero-rise {
+  from {
+    transform: translate3d(0, var(--landing-hero-rise-y, 14px), 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.landing-hero-rise-logo {
+  --landing-hero-rise-y: 14px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-hero-rise-h1 {
+  --landing-hero-rise-y: 20px;
+  animation: landing-hero-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+.landing-hero-rise-sub {
+  --landing-hero-rise-y: 12px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.landing-hero-rise-modules {
+  --landing-hero-rise-y: 14px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+}
+
+.landing-hero-rise-cta {
+  --landing-hero-rise-y: 18px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-rise-logo,
+  .landing-hero-rise-h1,
+  .landing-hero-rise-sub,
+  .landing-hero-rise-modules,
+  .landing-hero-rise-cta {
+    animation: none;
+  }
+}

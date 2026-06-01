@@ -8,7 +8,6 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
-import { DocumentTitleSync } from "@/components/layout/document-title";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -63,7 +62,6 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarInset className="min-w-0">
-      <DocumentTitleSync />
       <header className="z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50 bg-app-chrome">
         <div className="flex shrink-0 items-center ps-4 pe-2">
           <SidebarTrigger className="-ms-1 shrink-0" />

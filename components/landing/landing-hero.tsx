@@ -1,7 +1,6 @@
 "use client";
 
 import { motion, useMotionTemplate, useSpring, useTransform } from "framer-motion";
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
 import { LANDING_APP_MODULES } from "@/components/landing/landing-app-modules";
@@ -59,44 +58,27 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
             className="pointer-events-none absolute inset-0 rounded-[2rem] opacity-70"
             style={{ background: glare }}
           />
-          <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-col items-center gap-3"
-          >
+          <div className="landing-hero-rise-logo flex flex-col items-center gap-3">
             {logoUrl ? (
-              <Image
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
                 src={logoUrl}
                 alt=""
                 width={120}
                 height={48}
-                unoptimized
+                decoding="async"
                 className="h-10 w-auto max-w-[10rem] object-contain md:h-12"
               />
             ) : null}
-          </motion.div>
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-5 text-balance text-4xl font-semibold tracking-tight text-neutral-950 md:text-6xl md:leading-[1.05] dark:text-white"
-          >
+          </div>
+          <h1 className="landing-hero-rise-h1 mt-5 text-balance text-4xl font-semibold tracking-tight text-neutral-950 md:text-6xl md:leading-[1.05] dark:text-white">
             Dein digitales Restaurant – alles in einer App.
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-5 text-sm font-medium text-neutral-500 dark:text-white/70"
-          >
+          </h1>
+          <p className="landing-hero-rise-sub mt-5 text-sm font-medium text-neutral-500 dark:text-white/70">
             Alles, was dein Betrieb braucht:
-          </motion.p>
-          <motion.ul
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-4 flex flex-wrap items-center justify-center gap-2"
+          </p>
+          <ul
+            className="landing-hero-rise-modules mt-4 flex flex-wrap items-center justify-center gap-2"
             aria-label="Module in Gwada"
           >
             {LANDING_APP_MODULES.map(({ label, icon: Icon }) => (
@@ -113,13 +95,8 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
                 </span>
               </li>
             ))}
-          </motion.ul>
-          <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row"
-          >
+          </ul>
+          <div className="landing-hero-rise-cta mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button
               size="lg"
               className="h-12 min-w-[11rem] rounded-full border-0 bg-neutral-900 px-8 text-base font-medium text-white shadow-lg hover:bg-neutral-800 dark:bg-white dark:text-neutral-900 dark:hover:bg-white/95"
@@ -136,7 +113,7 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
             >
               Funktionen
             </Button>
-          </motion.div>
+          </div>
         </motion.div>
       </div>
     </section>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
 import { Apple, ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { useDocumentTitleOverride } from "@/lib/contexts/document-title-override-context";
 import { useWorkspaceDatabaseGate } from "@/components/providers/supabase-database-gate";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
@@ -78,6 +79,7 @@ function humanizeLoginErrorMessage(raw: string | undefined | null): string {
 }
 
 export function LoginForm() {
+  const { setOverride: setDocumentTitleOverride } = useDocumentTitleOverride();
   const { status: dbStatus, ensureReachable } = useWorkspaceDatabaseGate();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -102,6 +104,11 @@ export function LoginForm() {
   const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [magicLinkBusy, setMagicLinkBusy] = useState(false);
+
+  useLayoutEffect(() => {
+    setDocumentTitleOverride(screen === "register" ? "Registrieren" : "Login");
+    return () => setDocumentTitleOverride(null);
+  }, [screen, setDocumentTitleOverride]);
 
   const loginToastError = (headline: string, detail?: string) => {
     const d = detail?.trim();

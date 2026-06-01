@@ -8,6 +8,9 @@ import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
   if (pathname === "/login" || pathname.startsWith("/login/")) return true;
+  if (pathname === "/docs" || pathname.startsWith("/docs/")) return true;
+  if (pathname === "/impressum" || pathname.startsWith("/impressum/")) return true;
+  if (pathname === "/datenschutz" || pathname.startsWith("/datenschutz/")) return true;
   if (pathname === "/auth/callback" || pathname.startsWith("/auth/")) return true;
   if (pathname.startsWith("/_next")) return true;
   if (pathname === "/favicon.ico" || pathname === "/robots.txt") return true;
@@ -39,6 +42,12 @@ export async function proxy(request: NextRequest) {
     pathname === "/" ||
     pathname === "/login" ||
     pathname.startsWith("/login/") ||
+    pathname === "/docs" ||
+    pathname.startsWith("/docs/") ||
+    pathname === "/impressum" ||
+    pathname.startsWith("/impressum/") ||
+    pathname === "/datenschutz" ||
+    pathname.startsWith("/datenschutz/") ||
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
     pathname.startsWith("/einladung/")

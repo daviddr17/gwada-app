@@ -717,7 +717,7 @@ export function SuperadminDatabasePanel() {
               label="Supabase Studio"
               value={
                 status.coolify.supabaseStudioHint ? (
-                  <span className="flex flex-col gap-1">
+                  <span className="flex flex-col items-end gap-1 text-right">
                     <InfoRowLink
                       href={status.coolify.supabaseStudioHint}
                       label={status.coolify.supabaseStudioHint}
@@ -729,7 +729,7 @@ export function SuperadminDatabasePanel() {
                     ) : null}
                   </span>
                 ) : status.coolify.supabaseStudioAccessNote ? (
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className="text-right text-xs font-normal text-muted-foreground">
                     {status.coolify.supabaseStudioAccessNote}
                   </span>
                 ) : (

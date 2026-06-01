@@ -19,7 +19,10 @@ GWADA_SSH_OPTS=(
   -o BatchMode=yes
 )
 
-: "${GWADA_SSH_IDENTITY:=${HOME}/.ssh/id_ed25519}"
+: "${GWADA_SSH_IDENTITY:=${HOME}/.ssh/gwada_vps_ed25519}"
+if [[ ! -f "${GWADA_SSH_IDENTITY}" ]]; then
+  GWADA_SSH_IDENTITY="${HOME}/.ssh/id_ed25519"
+fi
 if [[ -f "${GWADA_SSH_IDENTITY}" ]]; then
   GWADA_SSH_OPTS+=(-i "${GWADA_SSH_IDENTITY}")
 fi

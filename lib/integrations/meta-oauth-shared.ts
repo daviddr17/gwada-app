@@ -219,9 +219,23 @@ export function absoluteSitePath(req: Request, path: string): string {
   return new URL(normalized, req.url).href;
 }
 
+/** Response.redirect liefert in Production immutable Headers — Set-Cookie nur so. */
+export function redirectResponse(
+  location: string,
+  options?: { setCookie?: string },
+): Response {
+  const headers = new Headers({ Location: location });
+  if (options?.setCookie) {
+    headers.append("Set-Cookie", options.setCookie);
+  }
+  return new Response(null, { status: 302, headers });
+}
+
 export function redirectToSettingsIntegrations(
   req: Request,
   params?: Parameters<typeof settingsIntegrationsUrl>[0],
 ): Response {
-  return Response.redirect(absoluteSitePath(req, settingsIntegrationsUrl(params)));
+  return redirectResponse(
+    absoluteSitePath(req, settingsIntegrationsUrl(params)),
+  );
 }

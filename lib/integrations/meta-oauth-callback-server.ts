@@ -8,6 +8,7 @@ import {
 } from "@/lib/integrations/meta-oauth-pending";
 import {
   absoluteSitePath,
+  redirectResponse,
   settingsIntegrationsUrl,
 } from "@/lib/integrations/meta-oauth-shared";
 
@@ -17,7 +18,7 @@ export function redirectToMetaPageSelection(
 ): Response {
   const token = encodeMetaOAuthPending(payload);
   if (!token) {
-    return Response.redirect(
+    return redirectResponse(
       absoluteSitePath(
         req,
         settingsIntegrationsUrl({
@@ -29,25 +30,24 @@ export function redirectToMetaPageSelection(
     );
   }
 
-  const url = absoluteSitePath(
-    req,
-    settingsIntegrationsUrl({
-      provider: payload.provider,
-      result: "select_page",
-    }),
+  return redirectResponse(
+    absoluteSitePath(
+      req,
+      settingsIntegrationsUrl({
+        provider: payload.provider,
+        result: "select_page",
+      }),
+    ),
+    { setCookie: metaOAuthPendingCookieHeader(token) },
   );
-  const res = Response.redirect(url);
-  res.headers.append("Set-Cookie", metaOAuthPendingCookieHeader(token));
-  return res;
 }
 
 export function redirectWithClearedMetaPending(
   req: Request,
   params: Parameters<typeof settingsIntegrationsUrl>[0],
 ): Response {
-  const res = Response.redirect(
+  return redirectResponse(
     absoluteSitePath(req, settingsIntegrationsUrl(params)),
+    { setCookie: clearMetaOAuthPendingCookieHeader() },
   );
-  res.headers.append("Set-Cookie", clearMetaOAuthPendingCookieHeader());
-  return res;
 }

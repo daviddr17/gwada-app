@@ -63,7 +63,11 @@ export async function POST(req: Request) {
     provider: "facebook",
     result: "connected",
   });
-  const res = Response.json({ ok: true, redirectTo: path });
-  res.headers.append("Set-Cookie", clearMetaOAuthPendingCookieHeader());
-  return res;
+  return new Response(JSON.stringify({ ok: true, redirectTo: path }), {
+    status: 200,
+    headers: {
+      "Content-Type": "application/json",
+      "Set-Cookie": clearMetaOAuthPendingCookieHeader(),
+    },
+  });
 }

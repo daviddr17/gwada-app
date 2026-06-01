@@ -43,6 +43,9 @@ jobs:
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+          echo "VPS erreichbar unter: ${LIVE_VPS_HOST}"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "echo Remote-IPs: \$(hostname -I | tr -s ' ')"
 
       - name: Install dev SSH pubkey (optional)
         if: inputs.install_dev_pubkey != ''

@@ -2,8 +2,8 @@
 # Runs ON the VPS — clone main, docker build, swap Coolify compose image.
 set -euo pipefail
 
-APP_ORIGIN="${APP_ORIGIN:-http://95.111.229.250:3000}"
-UPSTREAM="${SUPABASE_UPSTREAM:-http://95.111.229.250:8001}"
+APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
+UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 REPO="${REPO:-https://github.com/daviddr17/gwada-app.git}"
 BRANCH="${BRANCH:-main}"
 IMAGE_TAG="${IMAGE_TAG:-d3cg1b54arvue2tcm8u34qty:0054bf9}"

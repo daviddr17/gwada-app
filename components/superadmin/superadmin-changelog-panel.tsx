@@ -225,31 +225,35 @@ export function SuperadminChangelogPanel() {
       ) : (
         <div className="space-y-4">
           {entries.map((entry) => (
-            <div key={entry.id} className="relative">
-              <ChangelogEntryCard entry={entry} showAudienceBadge />
-              <div className="absolute right-3 top-3 flex gap-1 sm:right-4 sm:top-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="size-8 rounded-xl bg-card/90 backdrop-blur-sm"
-                  aria-label="Eintrag bearbeiten"
-                  onClick={() => openEdit(entry)}
-                >
-                  <Pencil className="size-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="size-8 rounded-xl bg-card/90 text-destructive backdrop-blur-sm hover:text-destructive"
-                  aria-label="Eintrag löschen"
-                  onClick={() => void handleDelete(entry.id)}
-                >
-                  <Trash2 className="size-3.5" />
-                </Button>
-              </div>
-            </div>
+            <ChangelogEntryCard
+              key={entry.id}
+              entry={entry}
+              showAudienceBadge
+              actions={
+                <>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="rounded-xl"
+                    aria-label="Eintrag bearbeiten"
+                    onClick={() => openEdit(entry)}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="rounded-xl text-destructive hover:text-destructive"
+                    aria-label="Eintrag löschen"
+                    onClick={() => void handleDelete(entry.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </>
+              }
+            />
           ))}
         </div>
       )}

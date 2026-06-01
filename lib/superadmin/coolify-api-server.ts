@@ -2,6 +2,7 @@ import "server-only";
 
 import type {
   SuperadminCoolifyActiveDeployment,
+  SuperadminCoolifyLastDeploy,
   SuperadminCoolifyLiveDeployStatus,
 } from "@/lib/types/superadmin-ops-status";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
@@ -12,10 +13,16 @@ type CoolifyDeploymentRecord = {
   status?: string;
   commit?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+  finished_at?: string | null;
   deployment_uuid?: string | null;
   deployment_url?: string | null;
   commit_message?: string | null;
   application_name?: string | null;
+};
+
+type CoolifyApplicationDeploymentsPayload = {
+  deployments?: CoolifyDeploymentRecord[];
 };
 
 type CoolifyApplicationRecord = {
@@ -44,20 +51,11 @@ function coolifyApiToken(): string | null {
   return process.env.COOLIFY_API_TOKEN?.trim() || null;
 }
 
-function deploymentMatchesApp(
-  row: CoolifyDeploymentRecord,
-  appUuid: string,
-): boolean {
-  const url = row.deployment_url ?? "";
-  if (url.includes(appUuid)) return true;
-  return false;
-}
-
-function normalizeDeploymentsPayload(
-  body: unknown,
-): CoolifyDeploymentRecord[] {
+function normalizeDeploymentsPayload(body: unknown): CoolifyDeploymentRecord[] {
   if (Array.isArray(body)) return body as CoolifyDeploymentRecord[];
   if (body && typeof body === "object") {
+    const o = body as CoolifyApplicationDeploymentsPayload & Record<string, unknown>;
+    if (Array.isArray(o.deployments)) return o.deployments;
     return Object.values(body as Record<string, CoolifyDeploymentRecord>);
   }
   return [];
@@ -69,6 +67,29 @@ function summarizeActive(
   if (active.some((d) => d.status === "in_progress")) return "deploying";
   if (active.some((d) => d.status === "queued")) return "queued";
   return "idle";
+}
+
+function pickLastFinishedDeploy(
+  rows: CoolifyDeploymentRecord[],
+): SuperadminCoolifyLastDeploy {
+  const finished = rows
+    .filter((row) => row.status?.trim() === "finished")
+    .sort((a, b) => {
+      const aTs = a.finished_at ?? a.updated_at ?? a.created_at ?? "";
+      const bTs = b.finished_at ?? b.updated_at ?? b.created_at ?? "";
+      return bTs.localeCompare(aTs);
+    });
+
+  const last = finished[0];
+  if (!last) {
+    return { finishedAt: null, commit: null, status: null };
+  }
+
+  return {
+    finishedAt: last.finished_at ?? last.updated_at ?? last.created_at ?? null,
+    commit: last.commit?.trim() || null,
+    status: last.status?.trim() || null,
+  };
 }
 
 async function coolifyFetchJson(path: string): Promise<unknown> {
@@ -106,9 +127,36 @@ async function coolifyFetchJson(path: string): Promise<unknown> {
   }
 }
 
+function mapActiveRows(
+  rows: CoolifyDeploymentRecord[],
+): SuperadminCoolifyActiveDeployment[] {
+  return rows
+    .filter((row) => {
+      const status = row.status?.trim() ?? "";
+      return status === "in_progress" || status === "queued";
+    })
+    .sort((a, b) => {
+      const rank = (s: string | undefined) =>
+        s === "in_progress" ? 0 : s === "queued" ? 1 : 2;
+      return rank(a.status) - rank(b.status);
+    })
+    .map((row) => ({
+      status: row.status?.trim() ?? "unknown",
+      commit: row.commit?.trim() || null,
+      startedAt: row.created_at ?? null,
+      deploymentUuid: row.deployment_uuid ?? null,
+      deploymentUiPath: row.deployment_url ?? null,
+    }));
+}
+
 export async function fetchCoolifyLiveDeployStatus(): Promise<SuperadminCoolifyLiveDeployStatus> {
   const applicationUuid = coolifyAppUuid();
   const apiConfigured = Boolean(coolifyApiToken() && applicationUuid);
+  const emptyLastDeploy: SuperadminCoolifyLastDeploy = {
+    finishedAt: null,
+    commit: null,
+    status: null,
+  };
 
   if (!apiConfigured) {
     return {
@@ -117,6 +165,7 @@ export async function fetchCoolifyLiveDeployStatus(): Promise<SuperadminCoolifyL
       applicationUuid,
       appRuntimeStatus: null,
       active: [],
+      lastDeploy: emptyLastDeploy,
       summary: "unavailable",
       message:
         "COOLIFY_API_TOKEN und GWADA_COOLIFY_APP_UUID in der App-Env setzen.",
@@ -125,32 +174,14 @@ export async function fetchCoolifyLiveDeployStatus(): Promise<SuperadminCoolifyL
 
   try {
     const [deploymentsBody, appBody] = await Promise.all([
-      coolifyFetchJson("/api/v1/deployments"),
+      coolifyFetchJson(`/api/v1/deployments/applications/${applicationUuid}`),
       coolifyFetchJson(`/api/v1/applications/${applicationUuid}`),
     ]);
 
     const app = appBody as CoolifyApplicationRecord;
-    const rows = normalizeDeploymentsPayload(deploymentsBody).filter((row) =>
-      deploymentMatchesApp(row, applicationUuid!),
-    );
-
-    const active: SuperadminCoolifyActiveDeployment[] = rows
-      .filter((row) => {
-        const status = row.status?.trim() ?? "";
-        return status === "in_progress" || status === "queued";
-      })
-      .sort((a, b) => {
-        const rank = (s: string | undefined) =>
-          s === "in_progress" ? 0 : s === "queued" ? 1 : 2;
-        return rank(a.status) - rank(b.status);
-      })
-      .map((row) => ({
-        status: row.status?.trim() ?? "unknown",
-        commit: row.commit?.trim() || null,
-        startedAt: row.created_at ?? null,
-        deploymentUuid: row.deployment_uuid ?? null,
-        deploymentUiPath: row.deployment_url ?? null,
-      }));
+    const rows = normalizeDeploymentsPayload(deploymentsBody);
+    const active = mapActiveRows(rows);
+    const lastDeploy = pickLastFinishedDeploy(rows);
 
     return {
       apiConfigured: true,
@@ -158,6 +189,7 @@ export async function fetchCoolifyLiveDeployStatus(): Promise<SuperadminCoolifyL
       applicationUuid,
       appRuntimeStatus: app.status?.trim() || null,
       active,
+      lastDeploy,
       summary: summarizeActive(active),
       message: null,
     };
@@ -176,6 +208,7 @@ export async function fetchCoolifyLiveDeployStatus(): Promise<SuperadminCoolifyL
       applicationUuid,
       appRuntimeStatus: null,
       active: [],
+      lastDeploy: emptyLastDeploy,
       summary: "unavailable",
       message: hint,
     };

@@ -45,10 +45,12 @@ export function ChangelogEntryCard({
   entry,
   className,
   showAudienceBadge = false,
+  actions,
 }: {
   entry: PlatformChangelogEntry;
   className?: string;
   showAudienceBadge?: boolean;
+  actions?: React.ReactNode;
 }) {
   const isNew = isChangelogEntryNew(entry.publishedAt);
   const isSuperadminOnly = entry.audience === "superadmin";
@@ -60,8 +62,8 @@ export function ChangelogEntryCard({
         className,
       )}
     >
-      <header className="mb-3 flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0 flex-1 space-y-1 pr-16 sm:pr-20">
+      <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 space-y-1">
           <h2 className="text-base font-semibold tracking-tight text-foreground">
             {entry.title}
           </h2>
@@ -72,7 +74,7 @@ export function ChangelogEntryCard({
             ) : null}
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-1.5">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
           {showAudienceBadge && isSuperadminOnly ? (
             <span className="rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
               {CHANGELOG_AUDIENCE_LABELS.superadmin}
@@ -83,6 +85,7 @@ export function ChangelogEntryCard({
               Neu
             </span>
           ) : null}
+          {actions}
         </div>
       </header>
       <ChangelogEntryBody body={entry.body} />

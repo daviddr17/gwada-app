@@ -39,12 +39,20 @@ export type SuperadminCoolifyActiveDeployment = {
   deploymentUiPath: string | null;
 };
 
+export type SuperadminCoolifyLastDeploy = {
+  /** ISO-Zeitstempel des letzten abgeschlossenen Coolify-Deploys */
+  finishedAt: string | null;
+  commit: string | null;
+  status: string | null;
+};
+
 export type SuperadminCoolifyLiveDeployStatus = {
   apiConfigured: boolean;
   apiReachable: boolean;
   applicationUuid: string | null;
   appRuntimeStatus: string | null;
   active: SuperadminCoolifyActiveDeployment[];
+  lastDeploy: SuperadminCoolifyLastDeploy;
   summary: "idle" | "deploying" | "queued" | "unavailable";
   message: string | null;
 };

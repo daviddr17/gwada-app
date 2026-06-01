@@ -507,13 +507,35 @@ export function SuperadminDatabasePanel() {
               value={status.coolify.deployBranch ?? "—"}
             />
             <InfoRow
-              label="Build-Commit"
+              label="Letztes Coolify-Deploy"
+              value={
+                status.coolify.liveDeploy.lastDeploy.finishedAt ? (
+                  <span>
+                    {formatCheckedAt(
+                      status.coolify.liveDeploy.lastDeploy.finishedAt,
+                    )}
+                    {status.coolify.liveDeploy.lastDeploy.commit ? (
+                      <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                        {status.coolify.liveDeploy.lastDeploy.commit.slice(
+                          0,
+                          12,
+                        )}
+                      </span>
+                    ) : null}
+                  </span>
+                ) : (
+                  "—"
+                )
+              }
+            />
+            <InfoRow
+              label="Build-Commit (Container-Env)"
               value={
                 status.coolify.sourceCommit ? (
                   <span className="font-mono text-xs font-normal">
                     {status.coolify.sourceCommit.slice(0, 12)}
                     <span className="ml-1 font-sans text-muted-foreground">
-                      (SOURCE_COMMIT beim letzten Deploy)
+                      (SOURCE_COMMIT)
                     </span>
                   </span>
                 ) : (

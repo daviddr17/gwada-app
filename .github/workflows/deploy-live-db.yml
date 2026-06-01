@@ -58,12 +58,11 @@ jobs:
           chmod 700 "${HOME}/.ssh"
           touch "${auth}"
           chmod 600 "${auth}"
-          if grep -qF "${key}" "${auth}" 2>/dev/null; then
-            echo "Dev pubkey bereits hinterlegt."
-          else
-            echo "${key}" >> "${auth}"
-            echo "Dev pubkey hinzugefügt."
-          fi
+          tmp="${auth}.gwada.tmp"
+          grep -vF "${key}" "${auth}" > "${tmp}" 2>/dev/null || cp "${auth}" "${tmp}" || true
+          echo "${key}" >> "${tmp}"
+          mv "${tmp}" "${auth}"
+          echo "Dev pubkey gesetzt ($(grep -cF "${key}" "${auth}") Eintrag/Einträge)."
           REMOTE
 
       - name: Apply live DB migrations

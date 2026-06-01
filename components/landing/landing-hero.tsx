@@ -4,10 +4,11 @@ import { motion, useMotionTemplate, useSpring, useTransform } from "framer-motio
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect } from "react";
+import { LANDING_APP_MODULES } from "@/components/landing/landing-app-modules";
 import { Button } from "@/components/ui/button";
 import { StripeHeroCanvas } from "@/components/landing/stripe-hero-canvas";
-import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 import { useResolvedPlatformLogoSrc } from "@/lib/hooks/use-resolved-platform-logo-src";
+import { cn } from "@/lib/utils";
 
 type Props = {
   mouse: { x: number; y: number };
@@ -18,8 +19,6 @@ type Props = {
  * Full-viewport Hero: Stripe-Gradient + Glas-Card, starke Typo, CTAs.
  */
 export function LandingHero({ mouse, onScrollToSection }: Props) {
-  const branding = usePlatformAppBrandingOptional();
-  const appName = branding?.appName ?? "gwada";
   const logoUrl = useResolvedPlatformLogoSrc();
 
   const sx = useSpring(mouse.x, { stiffness: 80, damping: 24, mass: 0.4 });
@@ -76,9 +75,6 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
                 className="h-10 w-auto max-w-[10rem] object-contain md:h-12"
               />
             ) : null}
-            <p className="text-xs font-semibold tracking-[0.22em] text-neutral-500 uppercase dark:text-white/80">
-              {appName}
-            </p>
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
@@ -86,21 +82,42 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
             transition={{ duration: 0.65, delay: 0.06, ease: [0.22, 1, 0.36, 1] }}
             className="mt-5 text-balance text-4xl font-semibold tracking-tight text-neutral-950 md:text-6xl md:leading-[1.05] dark:text-white"
           >
-            Die digitale Speisekarte, die sich anfühlt wie ein Produkt von Apple.
+            Dein digitales Restaurant – alles in einer App.
           </motion.h1>
           <motion.p
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
-            className="mx-auto mt-6 max-w-xl text-pretty text-base leading-relaxed text-neutral-600 md:text-lg dark:text-white/85"
+            transition={{ duration: 0.55, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-5 text-sm font-medium text-neutral-500 dark:text-white/70"
           >
-            Reservierungen, Menü, Branding — ein ruhiges, hochwertiges Erlebnis für
-            Gäste und Team. Weniger Lärm, mehr Klarheit.
+            Alles, was dein Betrieb braucht:
           </motion.p>
+          <motion.ul
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, delay: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            className="mt-4 flex flex-wrap items-center justify-center gap-2"
+            aria-label="Module in Gwada"
+          >
+            {LANDING_APP_MODULES.map(({ label, icon: Icon }) => (
+              <li key={label}>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border border-neutral-200/80 bg-white/70 px-3 py-1.5",
+                    "text-sm font-medium text-neutral-700 shadow-sm",
+                    "dark:border-white/15 dark:bg-white/10 dark:text-white/90",
+                  )}
+                >
+                  <Icon className="size-3.5 shrink-0 opacity-80" strokeWidth={2} aria-hidden />
+                  {label}
+                </span>
+              </li>
+            ))}
+          </motion.ul>
           <motion.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.55, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.55, delay: 0.24, ease: [0.22, 1, 0.36, 1] }}
             className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row"
           >
             <Button

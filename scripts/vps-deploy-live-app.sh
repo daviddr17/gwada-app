@@ -12,6 +12,15 @@ COMMIT="${1:-${GWADA_DEPLOY_COMMIT:-}}"
 APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
 UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 LOG="${GWADA_DEPLOY_LOG:-/tmp/gwada-deploy-live-app.log}"
+LOCK="${GWADA_DEPLOY_LOCK:-/tmp/gwada-deploy-live-app.lock}"
+
+if [[ -f "${LOCK}" ]]; then
+  echo "Deploy läuft bereits (Lock ${LOCK}, PID $(cat "${LOCK}" 2>/dev/null || echo '?'))." >&2
+  echo "Parallele Builds (Coolify + GitHub Action) vermeiden — warten oder anderen abbrechen." >&2
+  exit 1
+fi
+echo "$$" > "${LOCK}"
+trap 'rm -f "${LOCK}"' EXIT
 
 exec > >(tee -a "$LOG") 2>&1
 echo "=== Gwada live app deploy $(date -Is) commit=${COMMIT:-latest} ==="

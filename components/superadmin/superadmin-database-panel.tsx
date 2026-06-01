@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,9 +12,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { fetchSuperadminDatabaseStatus } from "@/lib/superadmin/superadmin-ops-status-api";
-import type { SuperadminDatabaseStatus } from "@/lib/types/superadmin-ops-status";
+import {
+  fetchSuperadminDatabaseStatus,
+  triggerSuperadminLiveAppDeploy,
+} from "@/lib/superadmin/superadmin-ops-status-api";
+import type {
+  SuperadminDatabaseStatus,
+  SuperadminLiveAppDeploySyncState,
+} from "@/lib/types/superadmin-ops-status";
 import { cn } from "@/lib/utils";
 
 function StatusDot({ ok }: { ok: boolean }) {
@@ -106,6 +113,56 @@ function deploySummaryBadgeClass(
   }
 }
 
+function liveAppSyncLabel(state: SuperadminLiveAppDeploySyncState): string {
+  switch (state) {
+    case "in_sync":
+      return "Live ist aktuell";
+    case "out_of_sync":
+      return "Live ist veraltet";
+    case "deploying":
+      return "Deploy läuft";
+    default:
+      return "Status unklar";
+  }
+}
+
+function liveAppSyncBadgeClass(state: SuperadminLiveAppDeploySyncState): string {
+  switch (state) {
+    case "in_sync":
+      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200";
+    case "out_of_sync":
+      return "border-destructive/40 bg-destructive/10 text-destructive";
+    case "deploying":
+      return "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200";
+    default:
+      return "border-border/50 bg-muted/40 text-muted-foreground";
+  }
+}
+
+function githubRunStatusLabel(
+  status: string | null,
+  conclusion: string | null,
+): string {
+  if (status === "queued" || status === "waiting" || status === "pending") {
+    return "In Warteschlange";
+  }
+  if (status === "in_progress" || status === "requested") {
+    return "Läuft";
+  }
+  if (status === "completed") {
+    if (conclusion === "success") return "Erfolgreich";
+    if (conclusion === "failure") return "Fehlgeschlagen";
+    if (conclusion === "cancelled") return "Abgebrochen";
+    return conclusion ?? "Abgeschlossen";
+  }
+  return status ?? "—";
+}
+
+function formatSha(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value.length > 12 ? value.slice(0, 12) : value;
+}
+
 function coolifyDeploymentHref(
   dashboardUrl: string | null,
   deploymentUiPath: string | null,
@@ -136,6 +193,7 @@ export function SuperadminDatabasePanel() {
   const [status, setStatus] = useState<SuperadminDatabaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deploying, setDeploying] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading && !status);
 
   const load = useCallback(async (silent = false) => {
@@ -148,18 +206,36 @@ export function SuperadminDatabasePanel() {
     setRefreshing(false);
   }, []);
 
+  const handleDeploy = useCallback(async () => {
+    setDeploying(true);
+    const { ok, error } = await triggerSuperadminLiveAppDeploy();
+    if (ok) {
+      toast.success("Deploy gestartet — GitHub Actions baut jetzt auf dem VPS.");
+      void load(true);
+    } else {
+      toast.error(error ?? "Deploy fehlgeschlagen.");
+    }
+    setDeploying(false);
+  }, [load]);
+
   useEffect(() => {
     void load();
   }, [load]);
 
+  const shouldPollLive =
+    status?.liveApp.syncState === "deploying" ||
+    status?.liveApp.syncState === "out_of_sync" ||
+    status?.liveApp.githubWorkflow.activeRun != null ||
+    status?.coolify.liveDeploy.summary === "deploying" ||
+    status?.coolify.liveDeploy.summary === "queued";
+
   useEffect(() => {
-    const summary = status?.coolify.liveDeploy.summary;
-    if (summary !== "deploying" && summary !== "queued") return;
+    if (!shouldPollLive) return;
     const id = window.setInterval(() => {
       void load(true);
-    }, 12_000);
+    }, 8_000);
     return () => window.clearInterval(id);
-  }, [status?.coolify.liveDeploy.summary, load]);
+  }, [shouldPollLive, load]);
 
   if (showSkeleton) {
     return <DatabasePanelSkeleton />;
@@ -312,19 +388,200 @@ export function SuperadminDatabasePanel() {
       </Card>
 
       <Card className="border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base">Coolify / Deployment</CardTitle>
-          <CardDescription>
-            Laufzeit-Container und öffentliche Endpunkte auf dem VPS — keine
-            Secrets. „Coolify-Deploy“ = App läuft in Coolify (nicht die
-            Webapp-URL). „Phase“ leitet sich aus der App-Domain ab (Staging =
-            new.gwada.app vor Cutover auf gwada.app).
-          </CardDescription>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+          <div className="space-y-1">
+            <CardTitle className="text-base">Live-App & Deployment</CardTitle>
+            <CardDescription>
+              Welcher Git-Commit öffentlich läuft, ob ein Deploy aktiv ist, und
+              Infrastruktur auf dem VPS — ohne Secrets.
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              disabled={refreshing}
+              onClick={() => void load(true)}
+            >
+              <RefreshCw
+                className={cn("mr-1.5 size-4", refreshing && "animate-spin")}
+              />
+              Aktualisieren
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className={cn("rounded-xl", settingsAccentSaveButtonClassName)}
+              disabled={
+                deploying ||
+                !status.liveApp.triggerConfigured ||
+                status.liveApp.syncState === "deploying" ||
+                Boolean(status.liveApp.githubWorkflow.activeRun)
+              }
+              onClick={() => void handleDeploy()}
+            >
+              <Rocket
+                className={cn("mr-1.5 size-4", deploying && "animate-pulse")}
+              />
+              {deploying ? "Startet …" : "Deploy starten"}
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div
+            className={cn(
+              "rounded-xl border p-4",
+              liveAppSyncBadgeClass(status.liveApp.syncState),
+            )}
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold">
+                {liveAppSyncLabel(status.liveApp.syncState)}
+              </p>
+              {shouldPollLive ? (
+                <span className="text-xs opacity-80">Auto-Aktualisierung …</span>
+              ) : null}
+            </div>
+            {status.liveApp.message ? (
+              <p className="mt-1.5 text-xs leading-relaxed opacity-90">
+                {status.liveApp.message}
+              </p>
+            ) : null}
+          </div>
+
           <dl className="grid gap-3">
             <InfoRow
-              label="Deploy-Status (Live)"
+              label="Live (öffentlich)"
+              value={
+                <span className="font-mono text-xs">
+                  {formatSha(status.liveApp.liveShortSha ?? status.liveApp.liveSha)}
+                  {status.liveApp.siteUrl ? (
+                    <a
+                      href={`${status.liveApp.siteUrl.replace(/\/+$/, "")}/api/build-info`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 inline-flex items-center gap-1 font-sans text-foreground underline-offset-4 hover:underline"
+                    >
+                      build-info
+                      <ExternalLink className="size-3 opacity-60" aria-hidden />
+                    </a>
+                  ) : null}
+                </span>
+              }
+            />
+            <InfoRow
+              label="GitHub main"
+              value={
+                <span className="font-mono text-xs">
+                  {formatSha(
+                    status.liveApp.githubShortSha ?? status.liveApp.githubSha,
+                  )}
+                  {status.liveApp.githubCommitMessage ? (
+                    <span className="ml-2 font-sans text-muted-foreground">
+                      {status.liveApp.githubCommitMessage.length > 48
+                        ? `${status.liveApp.githubCommitMessage.slice(0, 48)}…`
+                        : status.liveApp.githubCommitMessage}
+                    </span>
+                  ) : null}
+                </span>
+              }
+            />
+            <InfoRow
+              label="Container (GWADA_BUILD_SHA)"
+              value={formatSha(status.liveApp.containerSha)}
+              mono
+            />
+            <InfoRow
+              label="GitHub Actions"
+              value={
+                status.liveApp.githubWorkflow.configured ? (
+                  status.liveApp.githubWorkflow.activeRun ? (
+                    <span>
+                      <span className="font-medium">
+                        {githubRunStatusLabel(
+                          status.liveApp.githubWorkflow.activeRun.status,
+                          status.liveApp.githubWorkflow.activeRun.conclusion,
+                        )}
+                      </span>
+                      {status.liveApp.githubWorkflow.activeRun.headSha ? (
+                        <span className="ml-2 font-mono text-xs text-muted-foreground">
+                          {formatSha(
+                            status.liveApp.githubWorkflow.activeRun.headSha,
+                          )}
+                        </span>
+                      ) : null}
+                      {status.liveApp.githubWorkflow.activeRun.htmlUrl ? (
+                        <a
+                          href={status.liveApp.githubWorkflow.activeRun.htmlUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+                        >
+                          Logs
+                          <ExternalLink className="size-3 opacity-60" aria-hidden />
+                        </a>
+                      ) : null}
+                    </span>
+                  ) : status.liveApp.githubWorkflow.latestRun ? (
+                    <span>
+                      <span className="font-medium">
+                        {githubRunStatusLabel(
+                          status.liveApp.githubWorkflow.latestRun.status,
+                          status.liveApp.githubWorkflow.latestRun.conclusion,
+                        )}
+                      </span>
+                      {status.liveApp.githubWorkflow.latestRun.updatedAt ? (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {formatCheckedAt(
+                            status.liveApp.githubWorkflow.latestRun.updatedAt,
+                          )}
+                        </span>
+                      ) : null}
+                      {status.liveApp.githubWorkflow.latestRun.htmlUrl ? (
+                        <a
+                          href={status.liveApp.githubWorkflow.latestRun.htmlUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ml-2 inline-flex items-center gap-1 text-xs underline-offset-4 hover:underline"
+                        >
+                          Logs
+                          <ExternalLink className="size-3 opacity-60" aria-hidden />
+                        </a>
+                      ) : null}
+                    </span>
+                  ) : (
+                    "Noch kein Lauf"
+                  )
+                ) : (
+                  "GITHUB_DEPLOY_TOKEN fehlt"
+                )
+              }
+            />
+            {!status.liveApp.triggerConfigured ? (
+              <p className="text-xs text-muted-foreground">
+                Für „Deploy starten“ und Actions-Status{" "}
+                <span className="font-mono">GITHUB_DEPLOY_TOKEN</span> in Coolify
+                setzen (repo + workflow). SSH-Deploy zusätzlich: GitHub Secrets{" "}
+                <span className="font-mono">LIVE_SSH_KEY</span> +{" "}
+                <span className="font-mono">LIVE_VPS_HOST</span>.
+              </p>
+            ) : null}
+            {status.liveApp.githubWorkflow.message ? (
+              <p className="text-xs text-muted-foreground">
+                {status.liveApp.githubWorkflow.message}
+              </p>
+            ) : null}
+          </dl>
+
+          <div className="border-t border-border/50 pt-4">
+            <p className="mb-3 text-xs font-medium text-muted-foreground">
+              Coolify & Infrastruktur
+            </p>
+            <dl className="grid gap-3">
+            <InfoRow
+              label="Coolify Deploy-Status"
               value={
                 <span
                   className={cn(
@@ -544,6 +801,7 @@ export function SuperadminDatabasePanel() {
               }
             />
           </dl>
+          </div>
         </CardContent>
       </Card>
     </div>

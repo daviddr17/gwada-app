@@ -3,6 +3,12 @@ name: Deploy app live
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git-Ref (Branch, Tag oder SHA)
+        required: false
+        default: main
 
 concurrency:
   group: deploy-live-app
@@ -13,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
 
       - name: Deploy on VPS (SSH)
         env:
@@ -20,9 +28,12 @@ jobs:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
-            echo "LIVE_SSH_KEY / LIVE_VPS_HOST nicht gesetzt — übersprungen."
-            echo "Hinweis: Coolify „finished“ tauscht den Container nicht zuverlässig."
-            echo "GitHub Secrets LIVE_SSH_KEY + LIVE_VPS_HOST hinterlegen oder lokal: npm run deploy:app:live"
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
+            echo "Einmalig: Deploy-Key auf VPS (ssh-copy-id), dann Secrets setzen."
+            echo "Alternativ lokal: npm run deploy:app:live"
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              exit 1
+            fi
             exit 0
           fi
           mkdir -p ~/.ssh
@@ -32,4 +43,5 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          bash scripts/deploy-app-live.sh "${{ github.sha }}"
+          DEPLOY_SHA="${{ github.event_name == 'push' && github.sha || inputs.ref }}"
+          bash scripts/deploy-app-live.sh "${DEPLOY_SHA}"

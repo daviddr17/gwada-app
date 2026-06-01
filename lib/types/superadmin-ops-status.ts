@@ -57,6 +57,52 @@ export type SuperadminCoolifyLiveDeployStatus = {
   message: string | null;
 };
 
+export type SuperadminGithubDeployWorkflowRun = {
+  id: number;
+  status: string | null;
+  conclusion: string | null;
+  htmlUrl: string | null;
+  headSha: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  event: string | null;
+};
+
+export type SuperadminGithubDeployWorkflowStatus = {
+  configured: boolean;
+  reachable: boolean;
+  repo: string;
+  branch: string;
+  latestRun: SuperadminGithubDeployWorkflowRun | null;
+  activeRun: SuperadminGithubDeployWorkflowRun | null;
+  message: string | null;
+};
+
+export type SuperadminLiveAppDeploySyncState =
+  | "in_sync"
+  | "out_of_sync"
+  | "deploying"
+  | "unknown";
+
+export type SuperadminLiveAppDeployStatus = {
+  siteUrl: string | null;
+  /** Öffentliche URL /api/build-info */
+  liveSha: string | null;
+  liveShortSha: string | null;
+  liveReachable: boolean;
+  /** GWADA_BUILD_SHA im laufenden Container */
+  containerSha: string | null;
+  githubSha: string | null;
+  githubShortSha: string | null;
+  githubCommitMessage: string | null;
+  githubReachable: boolean;
+  syncState: SuperadminLiveAppDeploySyncState;
+  message: string | null;
+  githubWorkflow: SuperadminGithubDeployWorkflowStatus;
+  triggerConfigured: boolean;
+  deployLogHint: string;
+};
+
 export type SuperadminDatabaseStatus = {
   ok: boolean;
   checkedAt: string;
@@ -79,6 +125,7 @@ export type SuperadminDatabaseStatus = {
     supabaseOnlyMode: boolean;
   };
   coolify: SuperadminCoolifyDeploymentInfo;
+  liveApp: SuperadminLiveAppDeployStatus;
   counts: {
     restaurants: number | null;
     profiles: number | null;

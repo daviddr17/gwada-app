@@ -28,6 +28,7 @@ import {
   type PlatformIntegrationKey,
 } from "@/lib/types/platform-integration";
 import { fetchCoolifyLiveDeployStatus } from "@/lib/superadmin/coolify-api-server";
+import { fetchLiveAppDeployStatus } from "@/lib/superadmin/live-app-deploy-status-server";
 import { DEFAULT_WEATHER_LOCATION } from "@/lib/weather/visual-crossing-location";
 import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key";
 
@@ -434,6 +435,7 @@ export async function buildSuperadminDatabaseStatus(): Promise<SuperadminDatabas
   const publicUrl = getPublicSupabaseUrl() ?? null;
   const liveDeploy = await fetchCoolifyLiveDeployStatus();
   const coolify = buildCoolifyDeploymentInfo(liveDeploy);
+  const liveApp = await fetchLiveAppDeployStatus(liveDeploy.summary);
   const basePayload = {
     api: {
       publicUrl,
@@ -451,6 +453,7 @@ export async function buildSuperadminDatabaseStatus(): Promise<SuperadminDatabas
       supabaseOnlyMode: isPublicGwadaSupabaseOnly(),
     },
     coolify,
+    liveApp,
   };
 
   if (!admin) {

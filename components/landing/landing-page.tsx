@@ -8,6 +8,7 @@ import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingFeatures } from "@/components/landing/landing-features";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { LandingPricing } from "@/components/landing/landing-pricing";
+import { LandingIntegrationsScrollStory } from "@/components/landing/landing-integrations-scroll-story";
 import { LandingScrollStory } from "@/components/landing/landing-scroll-story";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
@@ -60,6 +61,7 @@ export function LandingPage() {
         <LandingHero mouse={mouse} onScrollToSection={navigateToSection} />
         <LandingScrollStory />
         <LandingFeatures />
+        <LandingIntegrationsScrollStory />
 
         <section
           id="docs"

@@ -6,6 +6,7 @@ import {
   Home,
   LayoutGrid,
   LogIn,
+  Plug,
 } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties } from "react";
@@ -25,6 +26,12 @@ const dockItems = [
     icon: LayoutGrid,
   },
   { id: "pricing" as const, label: "Preise", shortLabel: "Preise", icon: CreditCard },
+  {
+    id: "integrations" as const,
+    label: "Integrationen",
+    shortLabel: "Kanäle",
+    icon: Plug,
+  },
   {
     id: "docs" as const,
     label: "Dokumentation",

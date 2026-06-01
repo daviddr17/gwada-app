@@ -8,29 +8,29 @@ import {
   useTransform,
   type MotionValue,
 } from "framer-motion";
-import { useRef, useState } from "react";
-import { LandingFeatureVisual } from "@/components/landing/landing-feature-visual";
-import { LANDING_FEATURE_ITEMS } from "@/components/landing/landing-feature-items";
+import { Plug } from "lucide-react";
+import { useId, useRef, useState } from "react";
+import { LandingIntegrationVisual } from "@/components/landing/landing-integration-visual";
+import { LANDING_INTEGRATION_ITEMS } from "@/components/landing/landing-integration-items";
 import {
   SCROLL_STORY_VH_PER_ITEM,
   scrollStoryItemRange,
 } from "@/lib/landing/scroll-story-range";
 import { cn } from "@/lib/utils";
 
-const FEATURE_COUNT = LANDING_FEATURE_ITEMS.length;
-const SCROLL_HEIGHT_VH = FEATURE_COUNT * SCROLL_STORY_VH_PER_ITEM;
+const ITEM_COUNT = LANDING_INTEGRATION_ITEMS.length;
+const SCROLL_HEIGHT_VH = ITEM_COUNT * SCROLL_STORY_VH_PER_ITEM;
 
-type FeatureSlideProps = {
+type IntegrationSlideProps = {
   index: number;
   scrollYProgress: MotionValue<number>;
 };
 
-function FeatureSlide({ index, scrollYProgress }: FeatureSlideProps) {
-  const feature = LANDING_FEATURE_ITEMS[index]!;
-  const [start, end] = scrollStoryItemRange(index, FEATURE_COUNT);
+function IntegrationSlide({ index, scrollYProgress }: IntegrationSlideProps) {
+  const item = LANDING_INTEGRATION_ITEMS[index]!;
+  const [start, end] = scrollStoryItemRange(index, ITEM_COUNT);
   const mid = (start + end) / 2;
   const span = end - start;
-  /** Kurzer Ein-/Ausblend — lange Plateau-Phase zum Erkennen der Szene */
   const fadeIn = span * 0.1;
   const fadeOut = span * 0.1;
   const clearIn = span * 0.2;
@@ -49,7 +49,6 @@ function FeatureSlide({ index, scrollYProgress }: FeatureSlideProps) {
   const scale = useTransform(scrollYProgress, [start, mid, end], [0.9, 1, 0.9]);
   const x = useTransform(scrollYProgress, [start, mid, end], [44, 0, -32]);
   const rotate = useTransform(scrollYProgress, [start, mid, end], [3, 0, -2]);
-  /** Leichter Blur — lange Phase bei 0, Ränder nur leicht weich */
   const blur = useTransform(
     scrollYProgress,
     [start, t1, t2, t3, t4, end],
@@ -73,15 +72,10 @@ function FeatureSlide({ index, scrollYProgress }: FeatureSlideProps) {
         <div
           className={cn(
             "pointer-events-none absolute inset-[6%] rounded-full bg-gradient-to-br opacity-80 blur-3xl",
-            feature.accent,
+            item.accent,
           )}
         />
-        <LandingFeatureVisual
-          visual={feature.visual}
-          icon={feature.icon}
-          active={active}
-          className="relative z-10"
-        />
+        <LandingIntegrationVisual item={item} active={active} className="relative z-10" />
       </div>
     </motion.div>
   );
@@ -91,51 +85,74 @@ type StoryCopyProps = {
   scrollYProgress: MotionValue<number>;
 };
 
-function StoryCopy({ scrollYProgress }: StoryCopyProps) {
+function IntegrationStoryCopy({ scrollYProgress }: StoryCopyProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
   useMotionValueEvent(scrollYProgress, "change", (v) => {
     let next = 0;
-    for (let i = 0; i < FEATURE_COUNT; i++) {
-      const [start, end] = scrollStoryItemRange(i, FEATURE_COUNT);
+    for (let i = 0; i < ITEM_COUNT; i++) {
+      const [start, end] = scrollStoryItemRange(i, ITEM_COUNT);
       if (v >= start && v < end) {
         next = i;
         break;
       }
-      if (i === FEATURE_COUNT - 1 && v >= end) next = i;
+      if (i === ITEM_COUNT - 1 && v >= end) next = i;
     }
     setActiveIndex((prev) => (prev === next ? prev : next));
   });
 
-  const feature = LANDING_FEATURE_ITEMS[activeIndex]!;
+  const item = LANDING_INTEGRATION_ITEMS[activeIndex]!;
+  const Glyph = item.Glyph;
+  const instagramGradId = useId();
 
   return (
     <div className="relative z-10 max-w-lg lg:pr-8">
-      <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-        Im Fokus
+      <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
+        <Plug className="size-3.5" aria-hidden />
+        Integrationen
       </p>
+      <motion.div
+        key={item.id}
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="mt-4 flex items-center gap-3"
+      >
+        <span className="flex size-11 items-center justify-center rounded-xl border border-border/50 bg-card shadow-sm">
+          <Glyph
+            className="size-6"
+            gradId={item.id === "instagram" ? instagramGradId : undefined}
+          />
+        </span>
+        <span className="text-sm font-medium text-muted-foreground">
+          {activeIndex + 1} / {ITEM_COUNT}
+        </span>
+      </motion.div>
       <motion.h2
-        key={feature.title}
+        key={item.title}
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-        className="mt-3 text-balance text-3xl font-semibold tracking-tight md:text-4xl"
+        className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-4xl"
       >
-        {feature.title}
+        {item.title}
       </motion.h2>
       <motion.p
-        key={feature.description}
+        key={item.description}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.04, ease: [0.22, 1, 0.36, 1] }}
         className="mt-5 text-pretty text-muted-foreground md:text-lg"
       >
-        {feature.description}
+        {item.description}
       </motion.p>
+      <p className="mt-6 text-sm text-muted-foreground/80">
+        Weitere Kanäle — z. B. E-Mail und Buchungsportale — folgen schrittweise.
+      </p>
       <div className="mt-8 flex gap-2">
-        {LANDING_FEATURE_ITEMS.map((item, i) => (
+        {LANDING_INTEGRATION_ITEMS.map((entry, i) => (
           <div
-            key={item.title}
+            key={entry.id}
             className={cn(
               "h-1.5 rounded-full transition-all duration-300",
               i === activeIndex
@@ -151,9 +168,9 @@ function StoryCopy({ scrollYProgress }: StoryCopyProps) {
 }
 
 /**
- * Sticky Scroll-Story: Features fahren beim Scroll ein und aus (Scale, Blur, Slide).
+ * Sticky Scroll-Story für Integrationen — gleicher Effekt wie Funktionen.
  */
-export function LandingScrollStory() {
+export function LandingIntegrationsScrollStory() {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({
@@ -163,35 +180,52 @@ export function LandingScrollStory() {
 
   return (
     <section
+      id="integrations"
       ref={ref}
-      className="relative scroll-mt-28 bg-background"
+      className="relative scroll-mt-28 border-t border-border/50 bg-muted/10 py-0 dark:bg-muted/5"
       style={{ height: reduce ? "auto" : `${SCROLL_HEIGHT_VH}vh` }}
     >
       {reduce ? (
         <div className="mx-auto max-w-3xl space-y-8 px-6 py-24">
           <h2 className="text-center text-3xl font-semibold tracking-tight">
-            Funktionen im Überblick
+            Integrationen
           </h2>
-          <ul className="space-y-6">
-            {LANDING_FEATURE_ITEMS.map((f) => (
-              <li key={f.title} className="rounded-2xl border border-border/60 p-6">
-                <h3 className="text-lg font-semibold">{f.title}</h3>
-                <p className="mt-2 text-muted-foreground">{f.description}</p>
-              </li>
-            ))}
+          <ul className="grid gap-4 sm:grid-cols-2">
+            {LANDING_INTEGRATION_ITEMS.map((entry) => {
+              const Glyph = entry.Glyph;
+              return (
+                <li
+                  key={entry.id}
+                  className="flex gap-4 rounded-2xl border border-border/60 bg-card p-5"
+                >
+                  <span className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-background">
+                    <Glyph className="size-7" />
+                  </span>
+                  <div>
+                    <h3 className="font-semibold">{entry.title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {entry.description}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
+          <p className="text-center text-sm text-muted-foreground">
+            Weitere Kanäle folgen.
+          </p>
         </div>
       ) : (
         <div className="sticky top-0 flex h-dvh items-center justify-center overflow-hidden px-6">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,var(--background)_68%)]" />
 
           <div className="relative mx-auto grid w-full max-w-6xl gap-10 lg:grid-cols-2 lg:items-center lg:gap-16">
-            <StoryCopy scrollYProgress={scrollYProgress} />
+            <IntegrationStoryCopy scrollYProgress={scrollYProgress} />
 
             <div className="relative aspect-square max-h-[min(72vw,460px)] w-full max-w-md justify-self-center lg:max-h-[min(48vw,480px)]">
-              {LANDING_FEATURE_ITEMS.map((item, index) => (
-                <FeatureSlide
-                  key={item.title}
+              {LANDING_INTEGRATION_ITEMS.map((entry, index) => (
+                <IntegrationSlide
+                  key={entry.id}
                   index={index}
                   scrollYProgress={scrollYProgress}
                 />

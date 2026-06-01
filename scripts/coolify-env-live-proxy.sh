@@ -94,7 +94,8 @@ if [[ -d "${compose_dir}" ]]; then
   done
   if [[ "${patched_host}" -eq 1 ]]; then
     echo "  ✓ Coolify .env gespeichert (wirksam nach Redeploy in Coolify / git push main)."
-    echo "  Kein compose recreate — vermeidet fehlende Image-Tags; laufender Container unverändert."
+    echo "  Kein compose recreate — nur Env. App-Deploy: npm run deploy:app:live (tauscht Image + Container)."
+    echo "  Warnung: Manuelles Image-Tag (z. B. :live-proxy) in docker-compose.yaml verhindert Coolify-Git-Deploys."
   fi
 else
   echo "  Kein Coolify-Verzeichnis ${compose_dir} — Container-Patch."

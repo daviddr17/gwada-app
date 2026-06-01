@@ -36,7 +36,10 @@
     "db:seed:reservations-today:local": "supabase db query --local -f scripts/insert-reservations-today-demo.sql",
     "gen:menu-seed": "node scripts/gen-menu-seed-sql.mjs",
     "changelog:sync": "node scripts/changelog-sync-from-git.mjs",
-    "bootstrap:new-gwada-app": "bash scripts/bootstrap-new-gwada-app.sh"
+    "bootstrap:new-gwada-app": "bash scripts/bootstrap-new-gwada-app.sh",
+    "deploy:app:live": "bash scripts/deploy-app-live.sh",
+    "deploy:app:live:dry-run": "bash scripts/deploy-app-live.sh --dry-run",
+    "deploy:app:live:verify": "curl -fsSL https://new.gwada.app/api/build-info"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

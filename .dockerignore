@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.cursor
+*.md
+.env*
+!.env.production.example
+supabase/.branches
+supabase/.temp

@@ -141,15 +141,15 @@ Studio per Tunnel (Fallback): `ssh -L 54323:127.0.0.1:54323 root@95.111.229.250`
 
 ---
 
-## Phase 6 — Deploy-Workflow (ohne „Live-Push-Button“)
+## Phase 6 — Deploy-Workflow
 
 1. Lokal entwickeln + `npm run db:push:local`
-2. Commit mit optional `Changelog:` im Body → Push `main`
-3. Coolify baut automatisch → `new.gwada.app`
+2. Commit → Push `main`
+3. **App live:** GitHub Action `deploy-live-app.yml` (Secrets `LIVE_SSH_KEY`, `LIVE_VPS_HOST`) **oder** `npm run deploy:app:live` — tauscht Container + prüft `/api/build-info`. Details: [docs/coolify-live-deploy.md](./coolify-live-deploy.md)
 4. Schema Live: `npm run deploy:live` (vom Mac, wenn SSH + `.env.production`)
 5. GitHub Action sync Changelog (wenn Secrets gesetzt)
 
-Kein Button in der Testumgebung nötig — **Git push = Deploy**.
+Coolify-„finished“ allein reicht **nicht** — ohne Force-Recreate kann ein altes Image (`:live-proxy`) weiterlaufen.
 
 ---
 

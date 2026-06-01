@@ -1,6 +1,7 @@
 "use client";
 
 import type Lenis from "lenis";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -8,11 +9,28 @@ import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingFeatures } from "@/components/landing/landing-features";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { LandingPricing } from "@/components/landing/landing-pricing";
-import { LandingIntegrationsScrollStory } from "@/components/landing/landing-integrations-scroll-story";
-import { LandingScrollStory } from "@/components/landing/landing-scroll-story";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
+
+/** Schwere Scroll-Sections erst nach First Paint — gleiche Optik, weniger initiales JS. */
+const LandingScrollStory = dynamic(
+  () =>
+    import("@/components/landing/landing-scroll-story").then((m) => ({
+      default: m.LandingScrollStory,
+    })),
+  { loading: () => <div className="min-h-[80vh]" aria-hidden /> },
+);
+
+const LandingIntegrationsScrollStory = dynamic(
+  () =>
+    import("@/components/landing/landing-integrations-scroll-story").then(
+      (m) => ({
+        default: m.LandingIntegrationsScrollStory,
+      }),
+    ),
+  { loading: () => <div className="min-h-[70vh]" aria-hidden /> },
+);
 
 /**
  * Marketing-Startseite: Lenis + Sektionen + Dock.

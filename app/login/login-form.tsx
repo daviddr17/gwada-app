@@ -54,12 +54,27 @@ function isLikelyNetworkAuthFailure(message: string): boolean {
 function isTechnicalLoginToastDetail(s: string): boolean {
   const t = s.trim();
   if (!t) return true;
+  if (t === "{}" || t === "[object Object]") return true;
   return (
     /Restaurant-|Workspace-|App-State|Supabase-Session|Erreichbarkeit|keine Antwort nach|\d+\s*s\b|Zeitüberschreitung|\bnpm\b|`npm|db:start|NEXT_PUBLIC|127\.0\.0\.1|localhost:\d+/i.test(
       t,
     ) ||     /^Anmeldung \(Passwort\):/i.test(t) ||
     /Missing NEXT_PUBLIC_SUPABASE/i.test(t)
   );
+}
+
+function humanizeLoginErrorMessage(raw: string | undefined | null): string {
+  const t = raw?.trim() ?? "";
+  if (!t || t === "{}" || t === "[object Object]") {
+    return "Anmeldung fehlgeschlagen. Bitte später erneut versuchen.";
+  }
+  if (isLikelyNetworkAuthFailure(t)) {
+    return "Keine Verbindung zum Anmeldedienst. Bitte Netzwerk prüfen und es später erneut versuchen.";
+  }
+  if (/supabase_upstream|upstream_unreachable|502|503|bad gateway|service unavailable/i.test(t)) {
+    return "Der Anmeldedienst ist gerade nicht erreichbar. Bitte in wenigen Minuten erneut versuchen.";
+  }
+  return t;
 }
 
 export function LoginForm() {
@@ -123,7 +138,7 @@ export function LoginForm() {
   useEffect(() => {
     const err = searchParams.get("error");
     if (!err?.trim()) return;
-    loginToastError("Anmeldung fehlgeschlagen.", err);
+    loginToastError(humanizeLoginErrorMessage(err));
     const params = new URLSearchParams(searchParams.toString());
     params.delete("error");
     const qs = params.toString();
@@ -198,15 +213,7 @@ export function LoginForm() {
       }
       const { error } = signResult;
       if (error) {
-        const em = error.message?.trim() || "";
-        if (isLikelyNetworkAuthFailure(em)) {
-          loginToastError(
-            "Keine Verbindung zum Anmeldedienst. Bitte Netzwerk prüfen und es später erneut versuchen.",
-            em,
-          );
-        } else {
-          loginToastError(em || "Anmeldung fehlgeschlagen.");
-        }
+        loginToastError(humanizeLoginErrorMessage(error.message));
         return;
       }
       const next = safeInternalPath(searchParams.get("next"));

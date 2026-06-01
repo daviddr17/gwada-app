@@ -84,3 +84,8 @@ PY
 cd "${COMPOSE_DIR}"
 docker compose up -d --force-recreate --remove-orphans
 echo "Container neu erstellt (Traefik-FQDN ${FQDN})."
+
+ENSURE_SB_NET="${BASH_SOURCE%/*}/vps-ensure-supabase-network.sh"
+if [[ -f "${ENSURE_SB_NET}" ]]; then
+  bash "${ENSURE_SB_NET}" "${COMPOSE_DIR}" "${APP_ID}"
+fi

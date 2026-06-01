@@ -1,0 +1,76 @@
+name: Deploy DB live
+
+on:
+  workflow_dispatch:
+    inputs:
+      install_dev_pubkey:
+        description: Optional — öffentlicher SSH-Key für lokales deploy:live (eine Zeile)
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-live-db
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Setup SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+
+      - name: Install dev SSH pubkey (optional)
+        if: inputs.install_dev_pubkey != ''
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          DEV_PUBKEY: ${{ inputs.install_dev_pubkey }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s -- "${DEV_PUBKEY}" <<'REMOTE'
+          set -euo pipefail
+          key="$1"
+          auth="${HOME}/.ssh/authorized_keys"
+          mkdir -p "${HOME}/.ssh"
+          chmod 700 "${HOME}/.ssh"
+          touch "${auth}"
+          chmod 600 "${auth}"
+          if grep -qF "${key}" "${auth}" 2>/dev/null; then
+            echo "Dev pubkey bereits hinterlegt."
+          else
+            echo "${key}" >> "${auth}"
+            echo "Dev pubkey hinzugefügt."
+          fi
+          REMOTE
+
+      - name: Apply live DB migrations
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/deploy-db-live-ci.sh

@@ -31,7 +31,7 @@ echo "Container: ${CONTAINER}"
 
 # Coolify-Compose-.env auf dem Host + optional /app/.env im Container; dann neu starten.
 # Hinweis: docker update unterstützt keine -e Env-Flags (nur docker run/create).
-gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" "${VPS}" "${COOLIFY_UI}" "${STUDIO_URL}" "${COOLIFY_APP_UUID}" "${COOLIFY_API_URL}" "${COOLIFY_API_TOKEN}" <<'REMOTE'
+gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${CONTAINER}" "${APP_ORIGIN}" "${SUPABASE_UPSTREAM}" "${VPS}" "${COOLIFY_UI}" "${STUDIO_URL}" "${COOLIFY_APP_UUID}" "${COOLIFY_API_URL}" "${COOLIFY_API_TOKEN}" "${GITHUB_DEPLOY_TOKEN:-}" <<'REMOTE'
 set -euo pipefail
 c="$1"
 origin="$2"
@@ -42,6 +42,7 @@ studio_url="$6"
 coolify_app_uuid="$7"
 coolify_api_url="$8"
 coolify_api_token="$9"
+github_deploy_token="${10:-}"
 
 patch_env_file() {
   local f="$1"
@@ -58,7 +59,8 @@ patch_env_file() {
     | grep -v '^GWADA_PLANNED_PRODUCTION_URL=' \
     | grep -v '^GWADA_COOLIFY_APP_UUID=' \
     | grep -v '^GWADA_COOLIFY_API_URL=' \
-    | grep -v '^COOLIFY_API_TOKEN=' > "${f}.tmp" || true
+    | grep -v '^COOLIFY_API_TOKEN=' \
+    | grep -v '^GITHUB_DEPLOY_TOKEN=' > "${f}.tmp" || true
   {
     cat "${f}.tmp" 2>/dev/null || true
     echo "NEXT_PUBLIC_SUPABASE_PROXY=true"
@@ -76,7 +78,10 @@ patch_env_file() {
     echo "GWADA_COOLIFY_APP_UUID=${coolify_app_uuid}"
     echo "GWADA_COOLIFY_API_URL=${coolify_api_url}"
     if [[ -n "${coolify_api_token}" ]]; then
-      echo "COOLIFY_API_TOKEN=${coolify_api_token}"
+      echo "COOLIFY_API_TOKEN=${coolify_api_token@Q}"
+    fi
+    if [[ -n "${github_deploy_token:-}" ]]; then
+      echo "GITHUB_DEPLOY_TOKEN=${github_deploy_token@Q}"
     fi
   } > "${f}"
   rm -f "${f}.tmp"

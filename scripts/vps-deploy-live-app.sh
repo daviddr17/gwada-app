@@ -76,6 +76,8 @@ docker build -t "${IMAGE}" \
   --build-arg "GWADA_BUILD_SHA=${SHA}" \
   -f Dockerfile .
 
+docker tag "${IMAGE}" "${COOLIFY_APP_ID}:${FULL_SHA}"
+
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yaml"
 if [[ ! -f "${COMPOSE_FILE}" ]]; then
   COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
@@ -83,11 +85,16 @@ fi
 
 sed -i "s|image: '${COOLIFY_APP_ID}:.*'|image: '${IMAGE}'|" "${COMPOSE_FILE}"
 
-cd "${COMPOSE_DIR}"
-docker compose up -d --force-recreate --remove-orphans
+ENSURE_TRAEFIK="${BUILD_DIR}/scripts/vps-ensure-coolify-traefik-fqdn.sh"
+if [[ -f "${ENSURE_TRAEFIK}" ]]; then
+  bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"
+else
+  cd "${COMPOSE_DIR}"
+  docker compose up -d --force-recreate --remove-orphans
+fi
 
 echo "Warte auf App …"
-for i in $(seq 1 30); do
+for i in $(seq 1 45); do
   if curl -fsSL "${APP_ORIGIN}/api/build-info" 2>/dev/null | grep -q "\"sha\":\"${SHA}\""; then
     echo "✓ Live bestätigt: ${APP_ORIGIN}/api/build-info → sha=${SHA}"
     docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep 3000 || true

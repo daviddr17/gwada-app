@@ -16,6 +16,10 @@ import {
   fetchStaffWorkEntriesInRange,
 } from "@/lib/supabase/staff-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import type {
+  RestaurantStaffRow,
+  StaffLivePresenceRow,
+} from "@/lib/types/staff";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
@@ -24,12 +28,16 @@ const REFRESH_MS = 30_000;
 export function useDashboardStaffStats() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const [summary, setSummary] = useState<DashboardStaffSummary | null>(null);
+  const [staff, setStaff] = useState<RestaurantStaffRow[]>([]);
+  const [presence, setPresence] = useState<StaffLivePresenceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const run = useCallback(async () => {
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       setSummary(null);
+      setStaff([]);
+      setPresence([]);
       setError(null);
       setLoading(false);
       return;
@@ -54,10 +62,14 @@ export function useDashboardStaffStats() {
       staffRes.error ?? presenceRes.error ?? entriesRes.error ?? null;
     if (err) {
       setSummary(null);
+      setStaff([]);
+      setPresence([]);
       setError(err);
       return;
     }
 
+    setStaff(staffRes.data);
+    setPresence(presenceRes.data);
     setSummary(
       computeDashboardStaffSummary({
         staff: staffRes.data,
@@ -80,6 +92,8 @@ export function useDashboardStaffStats() {
 
   return {
     summary,
+    staff,
+    presence,
     loading,
     error,
     ready: workspaceReady && Boolean(restaurantId && isUuidRestaurantId(restaurantId)),

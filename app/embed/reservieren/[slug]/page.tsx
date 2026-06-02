@@ -1,6 +1,14 @@
-import { EmbedReservationWidget } from "@/components/embed/embed-reservation-widget";
+import nextDynamic from "next/dynamic";
 import { publicCountries } from "@/lib/reservations/public-embed-shared";
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
+
+const EmbedReservationWidget = nextDynamic(
+  () =>
+    import("@/components/embed/embed-reservation-widget").then(
+      (m) => m.EmbedReservationWidget,
+    ),
+  { ssr: true },
+);
 
 export const dynamic = "force-dynamic";
 

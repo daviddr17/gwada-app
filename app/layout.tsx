@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { DM_Sans } from "next/font/google";
-import { AppProviders } from "@/components/providers/app-providers";
-import { isTestEnvironment } from "@/lib/constants/app-environment";
 import {
   DOCUMENT_TITLE_BRAND,
   formatDocumentTitle,
@@ -83,11 +81,7 @@ export default async function RootLayout({
           />
         ) : null}
       </head>
-      <body className="min-h-dvh font-sans">
-        <AppProviders serverFaviconHref={faviconHref}>
-          {children}
-        </AppProviders>
-      </body>
+      <body className="min-h-dvh font-sans">{children}</body>
     </html>
   );
 }

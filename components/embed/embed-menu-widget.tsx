@@ -1,0 +1,533 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
+import { UtensilsCrossed } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
+import { EmbedMenuCategoryTabs } from "@/components/embed/embed-menu-category-tabs";
+import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
+import { MenuSearchFilters } from "@/components/menu/menu-search-filters";
+import type { GwadaEmbedFrameViewportMessage } from "@/lib/embed/embed-protocol";
+import {
+  isGwadaEmbedHostMode,
+  offsetTopInEmbedDocument,
+  postEmbedScrollToHost,
+  postEmbedToolbarPinState,
+  readGwadaEmbedId,
+  scrollToMenuCategoryInPage,
+  subscribeEmbedHostViewport,
+} from "@/lib/embed/embed-menu-scroll";
+import {
+  activeCategoryForSpyLine,
+  applyEmbedMenuToolbarPinStyles,
+  computeEmbedMenuToolbarPin,
+  normalizeHostViewport,
+  resetEmbedMenuToolbarPinStyles,
+} from "@/lib/embed/embed-menu-toolbar-pin";
+import { labelForTagId } from "@/lib/constants/menu-labels";
+import { sortItemsInCategoryForDisplay } from "@/lib/menu/item-utils";
+import type {
+  MenuCategoryDefinition,
+  MenuItem,
+  MenuTaxonomyDefinition,
+} from "@/lib/types/menu";
+import { getTagChipVisual } from "@/lib/utils/tag-styles";
+import { fuzzyTextMatchesQuery } from "@/lib/utils/fuzzy-search";
+import { cn } from "@/lib/utils";
+
+const priceFormatter = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+});
+
+export type EmbedMenuWidgetProps = {
+  restaurantName: string;
+  accentHex: string;
+  categories: MenuCategoryDefinition[];
+  items: MenuItem[];
+  tagDefinitions: readonly MenuTaxonomyDefinition[];
+};
+
+function EmbedMenuItemRow({
+  item,
+  tagDefinitions,
+}: {
+  item: MenuItem;
+  tagDefinitions: readonly MenuTaxonomyDefinition[];
+}) {
+  return (
+    <article className="border-b border-border/40 py-4 last:border-b-0">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-semibold leading-snug tracking-tight">
+            {item.listNumber != null ? (
+              <span className="mr-1.5 tabular-nums text-muted-foreground">
+                {item.listNumber}.
+              </span>
+            ) : null}
+            {item.name}
+          </h3>
+          {item.description ? (
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              {item.description}
+            </p>
+          ) : null}
+          {item.tags.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {item.tags.map((tag) => {
+                const vis = getTagChipVisual(tag, tagDefinitions);
+                return (
+                  <Badge
+                    key={tag}
+                    variant="outline"
+                    className={cn(
+                      "h-6 rounded-full border px-2.5 text-[0.6875rem] font-medium",
+                      vis.className,
+                    )}
+                    style={vis.style}
+                  >
+                    {labelForTagId(tag, tagDefinitions)}
+                  </Badge>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+        <p className="shrink-0 text-base font-semibold tabular-nums text-accent">
+          {priceFormatter.format(item.price)}
+        </p>
+      </div>
+    </article>
+  );
+}
+
+function EmbedMenuToolbar({
+  outerRef,
+  toolbarRef,
+  sticky,
+  hostMode,
+  search,
+  onSearchChange,
+  hasSearch,
+  visibleCategories,
+  activeCategoryId,
+  onCategorySelect,
+}: {
+  outerRef?: RefObject<HTMLDivElement | null>;
+  toolbarRef: RefObject<HTMLDivElement | null>;
+  sticky?: boolean;
+  hostMode?: boolean;
+  search: string;
+  onSearchChange: (value: string) => void;
+  hasSearch: boolean;
+  visibleCategories: MenuCategoryDefinition[];
+  activeCategoryId: string;
+  onCategorySelect: (id: string) => void;
+}) {
+  return (
+    <div
+      ref={outerRef}
+      className={cn(sticky && "sticky top-0 z-20")}
+    >
+      <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
+        <div
+          ref={toolbarRef}
+          className={cn(
+            "border-b border-border/40 py-3 shadow-none dark:shadow-sm",
+            hostMode
+              ? "bg-background embed-menu-toolbar-pinned-inner"
+              : "bg-background/90 backdrop-blur-md",
+          )}
+        >
+          <div className="space-y-3">
+            <MenuSearchFilters
+              search={search}
+              onSearchChange={onSearchChange}
+              placeholder="Gerichte suchen"
+            />
+            {hasSearch ? (
+              <p className="text-xs text-muted-foreground">
+                Suche in Gericht und Beschreibung (ca. 80&nbsp;% Übereinstimmung).
+              </p>
+            ) : null}
+            <EmbedMenuCategoryTabs
+              categories={visibleCategories}
+              activeCategoryId={activeCategoryId}
+              onCategorySelect={onCategorySelect}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmbedMenuSections({
+  sections,
+  visibleCategories,
+  hasSearch,
+  anyFilteredMatch,
+  tagDefinitions,
+}: {
+  sections: { cat: MenuCategoryDefinition; items: MenuItem[] }[];
+  visibleCategories: MenuCategoryDefinition[];
+  hasSearch: boolean;
+  anyFilteredMatch: boolean;
+  tagDefinitions: readonly MenuTaxonomyDefinition[];
+}) {
+  if (hasSearch && !anyFilteredMatch) {
+    return (
+      <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-10 text-center">
+        <div className="flex size-12 items-center justify-center rounded-2xl bg-muted">
+          <UtensilsCrossed
+            className="size-6 text-muted-foreground"
+            aria-hidden
+          />
+        </div>
+        <p className="text-sm font-medium">Keine Treffer</p>
+        <p className="max-w-xs text-sm text-muted-foreground">
+          Passe die Suche an — für diesen Begriff gibt es keine Gerichte.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-10 pb-8 pt-6">
+      {sections.map(({ cat, items: secItems }) => {
+        const catIndex = visibleCategories.findIndex((c) => c.id === cat.id);
+        const pos = catIndex >= 0 ? catIndex + 1 : 0;
+        return (
+          <section
+            key={cat.id}
+            id={`menu-cat-${cat.id}`}
+            aria-labelledby={`menu-cat-heading-${cat.id}`}
+          >
+            <h2
+              id={`menu-cat-heading-${cat.id}`}
+              className="mb-3 flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight sm:text-xl"
+            >
+              <span className="rounded-full bg-muted/60 px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                {pos}
+              </span>
+              <span>{cat.name}</span>
+            </h2>
+            {secItems.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-border/50 bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                {hasSearch
+                  ? "In dieser Kategorie keine Treffer — Suche anpassen."
+                  : "Keine Gerichte in dieser Kategorie."}
+              </p>
+            ) : (
+              <div>
+                {secItems.map((item) => (
+                  <EmbedMenuItemRow
+                    key={item.id}
+                    item={item}
+                    tagDefinitions={tagDefinitions}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+export function EmbedMenuWidget({
+  restaurantName,
+  accentHex,
+  categories,
+  items,
+  tagDefinitions,
+}: EmbedMenuWidgetProps) {
+  const [hostMode, setHostMode] = useState(false);
+  const [embedId, setEmbedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setHostMode(isGwadaEmbedHostMode());
+    setEmbedId(readGwadaEmbedId());
+  }, []);
+
+  const itemsByCategory = useMemo(() => {
+    const map = new Map<string, MenuItem[]>();
+    for (const item of items) {
+      const list = map.get(item.category) ?? [];
+      list.push(item);
+      map.set(item.category, list);
+    }
+    return map;
+  }, [items]);
+
+  const visibleCategories = useMemo(
+    () =>
+      categories.filter(
+        (cat) =>
+          cat.active !== false &&
+          (itemsByCategory.get(cat.id)?.length ?? 0) > 0,
+      ),
+    [categories, itemsByCategory],
+  );
+
+  const [search, setSearch] = useState("");
+  const [activeCategoryId, setActiveCategoryId] = useState(
+    () => visibleCategories[0]?.id ?? "",
+  );
+  const [toolbarPinned, setToolbarPinned] = useState(false);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
+
+  const hostViewportRef = useRef<GwadaEmbedFrameViewportMessage | null>(null);
+  const frozenPinTopRef = useRef<number | null>(null);
+  const toolbarOuterRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const toolbarSentinelRef = useRef<HTMLDivElement>(null);
+  const toolbarPinnedRef = useRef(false);
+  const toolbarHeightRef = useRef(0);
+  const skipScrollSpyRef = useRef(false);
+  const visibleCategoriesRef = useRef(visibleCategories);
+
+  useEffect(() => {
+    visibleCategoriesRef.current = visibleCategories;
+  }, [visibleCategories]);
+
+  useEffect(() => {
+    toolbarHeightRef.current = toolbarHeight;
+  }, [toolbarHeight]);
+
+  const runHostPinUpdate = useCallback(() => {
+    const vp = hostViewportRef.current;
+    const sentinel = toolbarSentinelRef.current;
+    if (!hostMode || !embedId || !vp || !sentinel) return;
+
+    const h = toolbarHeightRef.current || toolbarRef.current?.offsetHeight || 0;
+    const pin = computeEmbedMenuToolbarPin(
+      vp,
+      sentinel,
+      h,
+      toolbarPinnedRef.current,
+      frozenPinTopRef.current,
+    );
+
+    frozenPinTopRef.current = pin.pinned ? pin.frozenPinTop : null;
+
+    applyEmbedMenuToolbarPinStyles(
+      toolbarOuterRef.current,
+      toolbarRef.current,
+      pin,
+    );
+
+    if (pin.pinned !== toolbarPinnedRef.current) {
+      toolbarPinnedRef.current = pin.pinned;
+      setToolbarPinned(pin.pinned);
+      postEmbedToolbarPinState(embedId, pin.pinned);
+    }
+
+    if (skipScrollSpyRef.current) return;
+
+    const current = activeCategoryForSpyLine(
+      visibleCategoriesRef.current,
+      pin.spyLine,
+      (id) => {
+        const el = document.getElementById(`menu-cat-${id}`);
+        if (!el) return Number.POSITIVE_INFINITY;
+        return vp.top + offsetTopInEmbedDocument(el);
+      },
+    );
+    if (current) {
+      setActiveCategoryId((prev) => (prev === current ? prev : current));
+    }
+  }, [hostMode, embedId]);
+
+  useEffect(() => {
+    if (!embedId) return;
+    return subscribeEmbedHostViewport(embedId, (raw) => {
+      hostViewportRef.current = normalizeHostViewport(raw);
+      runHostPinUpdate();
+    });
+  }, [embedId, runHostPinUpdate]);
+
+  useEffect(() => {
+    return () => {
+      if (embedId && hostMode) {
+        postEmbedToolbarPinState(embedId, false);
+      }
+      resetEmbedMenuToolbarPinStyles(
+        toolbarOuterRef.current,
+        toolbarRef.current,
+      );
+    };
+  }, [embedId, hostMode]);
+
+  useEffect(() => {
+    if (
+      visibleCategories.length > 0 &&
+      !visibleCategories.some((c) => c.id === activeCategoryId)
+    ) {
+      setActiveCategoryId(visibleCategories[0]!.id);
+    }
+  }, [visibleCategories, activeCategoryId]);
+
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setToolbarHeight(el.offsetHeight);
+    });
+    ro.observe(el);
+    setToolbarHeight(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [visibleCategories.length, search]);
+
+  const passItemFilters = useCallback(
+    (item: MenuItem) => {
+      const q = search.trim();
+      if (!q) return true;
+      return (
+        fuzzyTextMatchesQuery(item.name, q) ||
+        fuzzyTextMatchesQuery(item.description, q)
+      );
+    },
+    [search],
+  );
+
+  const sections = useMemo(() => {
+    return visibleCategories.map((cat) => ({
+      cat,
+      items: sortItemsInCategoryForDisplay(
+        (itemsByCategory.get(cat.id) ?? []).filter(passItemFilters),
+      ),
+    }));
+  }, [visibleCategories, itemsByCategory, passItemFilters]);
+
+  const hasSearch = search.trim().length > 0;
+  const anyFilteredMatch = sections.some((s) => s.items.length > 0);
+
+  useEffect(() => {
+    if (!hasSearch) return;
+    const mine =
+      sections.find((s) => s.cat.id === activeCategoryId)?.items.length ?? 0;
+    if (mine > 0) return;
+    const first = sections.find((s) => s.items.length > 0);
+    if (first) setActiveCategoryId(first.cat.id);
+  }, [hasSearch, sections, activeCategoryId]);
+
+  const updateScrollSpy = useCallback(() => {
+    if (skipScrollSpyRef.current) return;
+    if (hostMode && embedId) return;
+
+    const toolbar = toolbarRef.current;
+    if (!toolbar) return;
+
+    const line = toolbar.getBoundingClientRect().bottom + 4;
+    let current = visibleCategories[0]?.id;
+    for (const c of visibleCategories) {
+      const sec = document.getElementById(`menu-cat-${c.id}`);
+      if (!sec) continue;
+      if (sec.getBoundingClientRect().top <= line) current = c.id;
+    }
+    if (current) {
+      setActiveCategoryId((prev) => (prev === current ? prev : current!));
+    }
+  }, [visibleCategories, hostMode, embedId]);
+
+  useEffect(() => {
+    if (hostMode && embedId) return;
+    const onScroll = () => {
+      updateScrollSpy();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hostMode, embedId, updateScrollSpy]);
+
+  const scrollToCategory = useCallback(
+    (id: string) => {
+      skipScrollSpyRef.current = true;
+      setActiveCategoryId(id);
+      requestAnimationFrame(() => {
+        const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
+        if (hostMode && embedId) {
+          postEmbedScrollToHost(embedId, id, toolbarH);
+        } else {
+          scrollToMenuCategoryInPage(id, toolbarH);
+        }
+        window.setTimeout(() => {
+          skipScrollSpyRef.current = false;
+        }, 850);
+      });
+    },
+    [hostMode, embedId],
+  );
+
+  const resizeDeps = [
+    restaurantName,
+    visibleCategories.length,
+    items.length,
+    search,
+    anyFilteredMatch,
+    toolbarPinned,
+    toolbarHeight,
+  ];
+
+  const toolbarProps = {
+    toolbarRef,
+    search,
+    onSearchChange: setSearch,
+    hasSearch,
+    visibleCategories,
+    activeCategoryId,
+    onCategorySelect: scrollToCategory,
+  };
+
+  return (
+    <EmbedAccentRoot accentHex={accentHex}>
+      <EmbedResizeReporter deps={resizeDeps} widget="menu" />
+      <div className="mx-auto w-full max-w-2xl py-6">
+        <header className="mb-4 border-b border-border/50 px-4 pb-4 sm:px-6">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Speisekarte
+          </p>
+          <h1 className="mt-1 text-xl font-semibold tracking-tight">
+            {restaurantName}
+          </h1>
+        </header>
+
+        {visibleCategories.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">
+            Aktuell sind keine Gerichte veröffentlicht.
+          </p>
+        ) : (
+          <>
+            <div ref={toolbarSentinelRef} className="h-0 w-full" aria-hidden />
+            {hostMode && toolbarPinned && toolbarHeight > 0 ? (
+              <div style={{ height: toolbarHeight }} aria-hidden />
+            ) : null}
+            <EmbedMenuToolbar
+              {...toolbarProps}
+              outerRef={hostMode ? toolbarOuterRef : undefined}
+              sticky={!hostMode}
+              hostMode={hostMode}
+            />
+            <div className="px-4 sm:px-6">
+              <EmbedMenuSections
+                sections={sections}
+                visibleCategories={visibleCategories}
+                hasSearch={hasSearch}
+                anyFilteredMatch={anyFilteredMatch}
+                tagDefinitions={tagDefinitions}
+              />
+            </div>
+          </>
+        )}
+      </div>
+    </EmbedAccentRoot>
+  );
+}

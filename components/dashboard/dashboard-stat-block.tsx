@@ -11,6 +11,7 @@ export function DashboardStatBlock({
   secondary,
   highlight,
   href,
+  onClick,
 }: {
   label: string;
   primary: string;
@@ -18,6 +19,8 @@ export function DashboardStatBlock({
   highlight?: boolean;
   /** Optional: gesamte Kachel als Link (z. B. gefilterte Übersicht). */
   href?: string;
+  /** Optional: Kachel als Button (z. B. Bottom-Sheet öffnen). */
+  onClick?: () => void;
 }) {
   const inner = (
     <>
@@ -38,9 +41,17 @@ export function DashboardStatBlock({
     highlight
       ? "border-accent/35 bg-accent/8"
       : "border-border/50 bg-muted/15",
-    href &&
+    (href || onClick) &&
       "cursor-pointer hover:border-accent/40 hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        {inner}
+      </button>
+    );
+  }
 
   if (href) {
     return (

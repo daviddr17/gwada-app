@@ -62,7 +62,10 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarInset className="min-w-0">
-      <header className="z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50 bg-app-chrome">
+      <header
+        data-app-chrome-header
+        className="z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50 bg-app-chrome"
+      >
         <div className="flex shrink-0 items-center ps-4 pe-2">
           <SidebarTrigger className="-ms-1 shrink-0" />
         </div>

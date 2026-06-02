@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EmbedProviders } from "@/components/providers/embed-providers";
 
 export const metadata: Metadata = {
   title: "Display",
@@ -9,6 +10,8 @@ export default function DisplayRootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="min-h-dvh bg-background text-foreground">{children}</div>
+    <EmbedProviders>
+      <div className="min-h-dvh bg-background text-foreground">{children}</div>
+    </EmbedProviders>
   );
 }

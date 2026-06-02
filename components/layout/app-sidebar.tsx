@@ -204,7 +204,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/inventory")}
                       tooltip="Bestand"
-                      render={<Link href="/inventory" prefetch />}
+                      render={<Link href="/inventory/uebersicht" prefetch />}
                     >
                       <Package />
                       <span>Bestand</span>

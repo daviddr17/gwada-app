@@ -11,12 +11,8 @@ import {
 
 export function useWorkspaceRestaurantUuid() {
   const supabaseEnvOk = supabasePublicEnvConfigured();
-  const [restaurantId, setRestaurantId] = useState<string | null>(() =>
-    peekCachedWorkspaceRestaurantId(),
-  );
-  const [ready, setReady] = useState(
-    () => !supabaseEnvOk || peekCachedWorkspaceRestaurantId() !== null,
-  );
+  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!supabaseEnvOk) {
@@ -30,6 +26,10 @@ export function useWorkspaceRestaurantUuid() {
   }, [supabaseEnvOk]);
 
   useEffect(() => {
+    const cached = peekCachedWorkspaceRestaurantId();
+    if (cached) {
+      setRestaurantId(cached);
+    }
     void refresh();
     const onChange = () => {
       void refresh();

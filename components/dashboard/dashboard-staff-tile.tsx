@@ -1,22 +1,35 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Coffee, UserCheck, Users } from "lucide-react";
 import {
   DashboardStatBlock,
   DashboardWidgetStatsGrid,
 } from "@/components/dashboard/dashboard-stat-block";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
+import {
+  StaffOverviewLivePresenceSheet,
+  type StaffLivePresenceSheetMode,
+} from "@/components/staff/staff-overview-live-presence-sheet";
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import { formatDashboardStaffTodayWorkLabel } from "@/lib/staff/compute-dashboard-staff-summary";
 
 export function DashboardStaffTile() {
-  const { summary, loading, error, ready } = useDashboardStaffStats();
+  const { summary, staff, presence, loading, error, ready } =
+    useDashboardStaffStats();
   const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const [presenceSheetMode, setPresenceSheetMode] =
+    useState<StaffLivePresenceSheetMode | null>(null);
   const active = summary?.activeStaff ?? 0;
   const onBreak = summary?.onBreakStaff ?? 0;
   const todayHours = summary?.todayWorkHours ?? 0;
+
+  const staffById = useMemo(
+    () => new Map(staff.map((row) => [row.id, row] as const)),
+    [staff],
+  );
 
   return (
     <DashboardWidgetShell
@@ -40,7 +53,7 @@ export function DashboardStaffTile() {
           primary={String(active)}
           secondary="Gerade in Schicht (Display)"
           highlight={active > 0}
-          href="/mitarbeiter/uebersicht"
+          onClick={() => setPresenceSheetMode("working")}
         />
         <DashboardStatBlock
           label="In Pause"
@@ -59,7 +72,7 @@ export function DashboardStaffTile() {
             )
           }
           highlight={onBreak > 0}
-          href="/mitarbeiter/uebersicht"
+          onClick={() => setPresenceSheetMode("on_break")}
         />
         <DashboardStatBlock
           label="Arbeitszeit heute"
@@ -75,6 +88,18 @@ export function DashboardStaffTile() {
           {summary.totalStaff === 1 ? "aktiver Mitarbeiter" : "aktive Mitarbeiter"}{" "}
           im Team
         </p>
+      ) : null}
+
+      {presenceSheetMode ? (
+        <StaffOverviewLivePresenceSheet
+          open={presenceSheetMode !== null}
+          onOpenChange={(open) => {
+            if (!open) setPresenceSheetMode(null);
+          }}
+          mode={presenceSheetMode}
+          presence={presence}
+          staffById={staffById}
+        />
       ) : null}
     </DashboardWidgetShell>
   );

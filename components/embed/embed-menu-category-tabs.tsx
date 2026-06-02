@@ -1,32 +1,24 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Layers, Pencil } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
-import { isCategoryActive } from "@/lib/menu/item-utils";
 import { scrollCategoryTabIntoView } from "@/lib/menu/category-tabs-scroll";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 import { cn } from "@/lib/utils";
 
-type MenuCategoryTabsProps = {
+type EmbedMenuCategoryTabsProps = {
   categories: MenuCategoryDefinition[];
   activeCategoryId: string;
   onCategorySelect: (id: string) => void;
-  onNewCategory: () => void;
-  onEditCategory: (cat: MenuCategoryDefinition) => void;
-  /** Öffnet Drawer mit Drag & Drop, Aktiv-Regler und Bearbeiten. */
-  onOpenManageCategories: () => void;
 };
 
-export function MenuCategoryTabs({
+export function EmbedMenuCategoryTabs({
   categories,
   activeCategoryId,
   onCategorySelect,
-  onNewCategory,
-  onEditCategory,
-  onOpenManageCategories,
-}: MenuCategoryTabsProps) {
+}: EmbedMenuCategoryTabsProps) {
   const scrollerRef = React.useRef<HTMLDivElement>(null);
   const tabBtnRefs = React.useRef<Map<string, HTMLButtonElement>>(new Map());
   const pointerFine = usePointerFine();
@@ -63,9 +55,8 @@ export function MenuCategoryTabs({
   const alignActiveTabHorizontally = React.useCallback(() => {
     const scroller = scrollerRef.current;
     const btn = tabBtnRefs.current.get(activeCategoryId);
-    const tabWrap = btn?.parentElement;
-    if (!scroller || !btn || !tabWrap) return;
-    scrollCategoryTabIntoView(scroller, tabWrap, {
+    if (!scroller || !btn) return;
+    scrollCategoryTabIntoView(scroller, btn, {
       behavior: pointerFine ? "smooth" : "auto",
     });
   }, [activeCategoryId, pointerFine]);
@@ -82,27 +73,11 @@ export function MenuCategoryTabs({
     el.scrollBy({ left: delta, behavior: "smooth" });
   };
 
-  if (categories.length === 0) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border/60 bg-muted/30 p-4">
-        <p className="mb-3 text-sm text-muted-foreground">
-          Noch keine Kategorien.
-        </p>
-        <Button
-          type="button"
-          variant="outline"
-          className="rounded-xl"
-          onClick={onNewCategory}
-        >
-          Neue Kategorie
-        </Button>
-      </div>
-    );
-  }
+  if (categories.length === 0) return null;
 
   return (
     <div className="flex max-h-11 items-center gap-1 sm:gap-1.5">
-      {pointerFine && hasOverflow && (
+      {pointerFine && hasOverflow ? (
         <Button
           type="button"
           variant="outline"
@@ -114,7 +89,7 @@ export function MenuCategoryTabs({
         >
           <ChevronLeft className="size-4" />
         </Button>
-      )}
+      ) : null}
 
       <div
         ref={scrollerRef}
@@ -128,58 +103,37 @@ export function MenuCategoryTabs({
         <div
           role="tablist"
           aria-orientation="horizontal"
+          aria-label="Kategorien"
           className="flex h-10 w-max min-w-full flex-nowrap items-center gap-1.5 pr-1"
         >
           {categories.map((cat) => {
             const selected = activeCategoryId === cat.id;
-            const catLive = isCategoryActive(cat);
             return (
-              <div
+              <button
                 key={cat.id}
-                className="flex shrink-0 items-stretch gap-0 rounded-full"
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                ref={(el) => {
+                  if (el) tabBtnRefs.current.set(cat.id, el);
+                  else tabBtnRefs.current.delete(cat.id);
+                }}
+                className={cn(
+                  "inline-flex max-w-[200px] shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                  selected
+                    ? "border-accent bg-accent text-accent-foreground shadow-none dark:shadow-sm"
+                    : "border-border/60 bg-card shadow-none dark:shadow-xs hover:bg-muted/80",
+                )}
+                onClick={() => onCategorySelect(cat.id)}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={selected}
-                  id={`category-pill-${cat.id}`}
-                  ref={(el) => {
-                    if (el) tabBtnRefs.current.set(cat.id, el);
-                    else tabBtnRefs.current.delete(cat.id);
-                  }}
-                  className={cn(
-                    "inline-flex max-w-[200px] items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                    selected
-                      ? "border-accent bg-accent text-accent-foreground shadow-none dark:shadow-sm"
-                      : "border-border/60 bg-card shadow-none dark:shadow-xs hover:bg-muted/80",
-                    !catLive && "opacity-70",
-                  )}
-                  onClick={() => onCategorySelect(cat.id)}
-                >
-                  <span className="truncate">{cat.name}</span>
-                </button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
-                  aria-label={`${cat.name} bearbeiten`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onEditCategory(cat);
-                  }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <Pencil className="size-3.5" />
-                </Button>
-              </div>
+                <span className="truncate">{cat.name}</span>
+              </button>
             );
           })}
         </div>
       </div>
 
-      {pointerFine && hasOverflow && (
+      {pointerFine && hasOverflow ? (
         <Button
           type="button"
           variant="outline"
@@ -191,18 +145,7 @@ export function MenuCategoryTabs({
         >
           <ChevronRight className="size-4" />
         </Button>
-      )}
-
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        className="shrink-0 rounded-full border-border/60 shadow-none dark:shadow-sm"
-        aria-label="Kategorien sortieren und verwalten"
-        onClick={() => onOpenManageCategories()}
-      >
-        <Layers className="size-4" />
-      </Button>
+      ) : null}
     </div>
   );
 }

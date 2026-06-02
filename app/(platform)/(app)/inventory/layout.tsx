@@ -4,29 +4,35 @@ import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
-const MENU_NAV: readonly ModuleSubnavItem[] = [
+const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
   {
-    href: "/menu/uebersicht",
+    href: "/inventory/uebersicht",
     label: "Übersicht",
     matchMode: "exact",
-    activeWhen: ["/menu"],
+    activeWhen: ["/inventory"],
   },
   {
-    href: "/menu/export",
+    href: "/inventory/bestellung",
+    label: "Bestellung",
+    matchMode: "prefix",
+    activeWhen: ["/inventory/bestellung"],
+  },
+  {
+    href: "/inventory/export",
     label: "Export",
     matchMode: "exact",
   },
 ];
 
-export default function MenuLayout({
+export default function InventoryLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
       <RegisterModuleChrome
-        title="Speisekarte"
-        subnavAriaLabel="Speisekarten-Bereiche"
-        subnavItems={MENU_NAV}
+        title="Bestand"
+        subnavAriaLabel="Bestand-Bereiche"
+        subnavItems={INVENTORY_NAV}
       />
       <AppMain>{children}</AppMain>
     </>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { EmbedProviders } from "@/components/providers/embed-providers";
 
 export const metadata: Metadata = {
   title: "Reservierung",
@@ -15,5 +16,11 @@ export async function headers() {
 export default function EmbedLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  return (
+    <EmbedProviders>
+      <div id="gwada-embed-root" className="bg-background text-foreground">
+        {children}
+      </div>
+    </EmbedProviders>
+  );
 }

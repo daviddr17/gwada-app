@@ -23,7 +23,7 @@ export function DashboardInventoryTile() {
       icon={
         <Package className="size-5 shrink-0 text-muted-foreground" aria-hidden />
       }
-      href="/inventory"
+      href="/inventory/uebersicht"
       linkLabel="Zum Bestand"
       ready={ready}
       loading={showSkeleton}

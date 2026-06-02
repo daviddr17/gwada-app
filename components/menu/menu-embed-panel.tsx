@@ -10,7 +10,8 @@ import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context"
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
-import { buildReservationEmbedSnippet } from "@/lib/embed/build-embed-snippet";
+import { buildMenuEmbedSnippet } from "@/lib/embed/build-embed-snippet";
+import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
 import {
   isGwadaEmbedLegacyResizeMessage,
   isGwadaEmbedResizeMessage,
@@ -26,13 +27,33 @@ async function copyText(text: string, label: string) {
   }
 }
 
+const MENU_PREVIEW_EMBED_ID = "gwada-menu-embed-preview";
+
 function EmbedPreviewFrame({ src }: { src: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const previewSrc = useMemo(() => {
+    if (!mounted) return src;
+    const url = new URL(src, window.location.origin);
+    url.searchParams.set("gwada_embed_id", MENU_PREVIEW_EMBED_ID);
+    url.searchParams.set("gwada_widget", "menu");
+    return url.toString();
+  }, [src, mounted]);
+
+  useEffect(() => {
+    const frame = iframeRef.current;
+    if (!frame) return;
+
+    const origin = window.location.origin;
+    const cleanupBridge = attachEmbedHostBridge(frame, origin);
+
     const onMessage = (event: MessageEvent) => {
-      const frame = iframeRef.current;
-      if (!frame || event.source !== frame.contentWindow) return;
+      if (event.source !== frame.contentWindow) return;
 
       let height: number | null = null;
       if (isGwadaEmbedResizeMessage(event.data)) {
@@ -46,22 +67,26 @@ function EmbedPreviewFrame({ src }: { src: string }) {
     };
 
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, []);
+    return () => {
+      cleanupBridge();
+      window.removeEventListener("message", onMessage);
+    };
+  }, [previewSrc]);
 
   return (
     <iframe
       ref={iframeRef}
-      src={src}
-      title="Reservierungsformular Vorschau"
-      className="block w-full min-h-[420px] border-0"
+      id={MENU_PREVIEW_EMBED_ID}
+      src={previewSrc}
+      title="Speisekarte Vorschau"
+      className="block w-full min-h-[480px] border-0"
       loading="lazy"
       referrerPolicy="strict-origin-when-cross-origin"
     />
   );
 }
 
-export function ReservationEmbedPanel() {
+export function MenuEmbedPanel() {
   const { restaurantId: restaurantUuid, ready } = useWorkspaceRestaurantUuid();
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
@@ -106,7 +131,7 @@ export function ReservationEmbedPanel() {
 
   const origin =
     typeof window !== "undefined" ? window.location.origin : undefined;
-  const snippet = slug ? buildReservationEmbedSnippet(slug, origin) : null;
+  const snippet = slug ? buildMenuEmbedSnippet(slug, origin) : null;
 
   const showSkeleton = useDeferredSkeleton(!ready || loadingMeta);
 
@@ -137,32 +162,17 @@ export function ReservationEmbedPanel() {
     <div className="space-y-6">
       {published === false ? (
         <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground">
-          Das Restaurant ist noch nicht veröffentlicht — das eingebettete Formular ist
+          Das Restaurant ist noch nicht veröffentlicht — die eingebettete Speisekarte ist
           für Gäste erst nach Veröffentlichung erreichbar.
         </p>
       ) : null}
-
-      <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
-        <div>
-          <h2 className="text-base font-semibold">Vorschau</h2>
-          <p className="text-sm text-muted-foreground">
-            Eingebettetes Formular mit automatischer Höhenanpassung (wie auf der
-            Gast-Website mit gwada.js).
-          </p>
-        </div>
-        <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-          {snippet ? <EmbedPreviewFrame src={snippet.embedUrl} /> : null}
-        </div>
-      </section>
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <div>
           <h2 className="text-base font-semibold">Code zum Einbinden</h2>
           <p className="text-sm text-muted-foreground">
-            Empfohlen: Platzhalter + ein Gwada-Script (wie Social-Media-Embeds). Höhe,
-            Lazy Load und mehrere Widgets auf einer Seite werden automatisch
-            übernommen. Später auch Speisekarte und Kontakt über{" "}
-            <code className="text-xs">data-gwada-widget</code>.
+            Empfohlen: Platzhalter + ein Gwada-Script. Höhe, Lazy Load und mehrere
+            Widgets auf einer Seite werden automatisch übernommen.
           </p>
         </div>
 
@@ -242,18 +252,31 @@ export function ReservationEmbedPanel() {
                 rel="noopener noreferrer"
                 className="text-accent underline-offset-2 hover:underline"
               >
-                Formular in neuem Tab
+                Speisekarte in neuem Tab
               </a>
             </p>
           </>
         ) : null}
       </section>
 
+      <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
+        <div>
+          <h2 className="text-base font-semibold">Vorschau</h2>
+          <p className="text-sm text-muted-foreground">
+            Eingebettete Speisekarte mit automatischer Höhenanpassung (wie auf der
+            Gast-Website mit gwada.js).
+          </p>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+          {snippet ? <EmbedPreviewFrame src={snippet.embedUrl} /> : null}
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         <p>
-          Gäste können im Tab „Ändern“ mit <strong>Reservierungsnummer</strong> und{" "}
-          <strong>PIN</strong> bestehende Buchungen anpassen. E-Mail- und WhatsApp-Hinweise
-          folgen deinen Einstellungen unter Reservierungen → Einstellungen.
+          Es werden nur <strong>aktive Kategorien</strong> und <strong>aktive Gerichte</strong>{" "}
+          angezeigt. Änderungen in der Speisekarte erscheinen nach dem nächsten Laden der
+          eingebetteten Seite.
         </p>
       </section>
     </div>

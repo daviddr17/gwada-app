@@ -724,7 +724,7 @@ export function EmbedReservationWidget({
         onOpenChange={setTermsSheetOpen}
         restaurantName={config.name}
       />
-      <EmbedResizeReporter deps={resizeDeps} />
+      <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
       <div className="w-full min-w-0 px-4 py-5 sm:px-5">
         <header className="mb-4 space-y-1">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

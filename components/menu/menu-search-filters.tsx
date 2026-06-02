@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 type MenuSearchFiltersProps = {
   search: string;
   onSearchChange: (value: string) => void;
+  placeholder?: string;
 };
 
 export function MenuSearchFilters({
   search,
   onSearchChange,
+  placeholder = "Gerichte oder Zutaten suchen",
 }: MenuSearchFiltersProps) {
   return (
     <div className="relative">
@@ -21,7 +23,7 @@ export function MenuSearchFilters({
       <Input
         id="menu-search"
         type="search"
-        placeholder="Gerichte oder Zutaten suchen"
+        placeholder={placeholder}
         value={search}
         onChange={(e) => onSearchChange(e.target.value)}
         className="h-12 rounded-2xl border-border/50 bg-card pl-11 text-base shadow-none dark:shadow-sm"

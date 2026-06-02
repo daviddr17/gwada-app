@@ -11,6 +11,8 @@ import {
   StaffOverviewTableSkeleton,
 } from "@/components/staff/staff-overview-skeleton";
 import { StaffOverviewCompletedShiftsSheet } from "@/components/staff/staff-overview-completed-shifts-sheet";
+import { StaffOverviewLivePresenceSheet } from "@/components/staff/staff-overview-live-presence-sheet";
+import type { StaffLivePresenceSheetMode } from "@/components/staff/staff-overview-live-presence-sheet";
 import { StaffOverviewWageSheet } from "@/components/staff/staff-overview-wage-sheet";
 import { StaffOverviewTable } from "@/components/staff/staff-overview-table";
 import { Button } from "@/components/ui/button";
@@ -33,6 +35,7 @@ import type {
   RestaurantStaffContractRow,
   RestaurantStaffRow,
   RestaurantStaffWorkEntryRow,
+  StaffLivePresenceRow,
 } from "@/lib/types/staff";
 import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
@@ -58,9 +61,12 @@ export function StaffOverviewScreen() {
   });
   const [workingIds, setWorkingIds] = useState<Set<string>>(new Set());
   const [breakIds, setBreakIds] = useState<Set<string>>(new Set());
+  const [presenceRows, setPresenceRows] = useState<StaffLivePresenceRow[]>([]);
   const [dayEntries, setDayEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
+  const [presenceSheetMode, setPresenceSheetMode] =
+    useState<StaffLivePresenceSheetMode | null>(null);
   const [wageSheetOpen, setWageSheetOpen] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
@@ -121,6 +127,7 @@ export function StaffOverviewScreen() {
 
     setWorkingIds(working);
     setBreakIds(onBreak);
+    setPresenceRows(presence);
     setDayEntries(entries);
   }, [restaurantId, dayDate]);
 
@@ -172,18 +179,38 @@ export function StaffOverviewScreen() {
             <StaffOverviewDayStatsSkeleton />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setPresenceSheetMode("working")}
+                className={cn(
+                  "rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-left transition-colors",
+                  "hover:border-accent/35 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45",
+                )}
+              >
                 <p className="text-xs text-muted-foreground">Aktiv</p>
                 <p className="text-2xl font-semibold tabular-nums">
                   {workingIds.size}
                 </p>
-              </div>
-              <div className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Display-Schicht · tippen für Details
+                </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresenceSheetMode("on_break")}
+                className={cn(
+                  "rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-left transition-colors",
+                  "hover:border-accent/35 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45",
+                )}
+              >
                 <p className="text-xs text-muted-foreground">In Pause</p>
                 <p className="text-2xl font-semibold tabular-nums">
                   {breakIds.size}
                 </p>
-              </div>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  Display-Pause · tippen für Details
+                </p>
+              </button>
               <button
                 type="button"
                 onClick={() => setCompletedSheetOpen(true)}
@@ -385,6 +412,18 @@ export function StaffOverviewScreen() {
         shifts={completedShifts}
         staffById={staffById}
       />
+
+      {presenceSheetMode ? (
+        <StaffOverviewLivePresenceSheet
+          open={presenceSheetMode !== null}
+          onOpenChange={(open) => {
+            if (!open) setPresenceSheetMode(null);
+          }}
+          mode={presenceSheetMode}
+          presence={presenceRows}
+          staffById={staffById}
+        />
+      ) : null}
 
       <StaffOverviewWageSheet
         open={wageSheetOpen}

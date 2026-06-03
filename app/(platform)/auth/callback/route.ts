@@ -6,6 +6,7 @@ import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
+import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
 
 function loginRedirect(
   origin: string,
@@ -15,7 +16,9 @@ function loginRedirect(
   const url = new URL("/login", origin);
   url.searchParams.set("error", message);
   if (next) url.searchParams.set("next", safeInternalPath(next));
-  return NextResponse.redirect(url);
+  const headers = new Headers({ Location: url.toString() });
+  appendAuthEntryCookieCleanup(headers);
+  return new NextResponse(null, { status: 302, headers });
 }
 
 export async function GET(request: NextRequest) {
@@ -58,10 +61,11 @@ export async function GET(request: NextRequest) {
     return loginRedirect(origin, error.message, searchParams.get("next"));
   }
 
-  return NextResponse.redirect(
-    new URL(
-      `/auth/enter?next=${encodeURIComponent(next)}`,
-      origin,
-    ),
+  const enterUrl = new URL(
+    `/auth/enter?next=${encodeURIComponent(next)}`,
+    origin,
   );
+  const headers = new Headers({ Location: enterUrl.toString() });
+  appendAuthEntryCookieCleanup(headers);
+  return new NextResponse(null, { status: 302, headers });
 }

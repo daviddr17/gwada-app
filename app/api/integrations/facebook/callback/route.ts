@@ -99,7 +99,7 @@ export async function GET(req: Request) {
   }
 
   if (eligible.length > 1) {
-    return redirectToMetaPageSelection(req, {
+    return await redirectToMetaPageSelection(req, {
       provider: "facebook",
       restaurantId: state.restaurantId,
       userAccessToken: tokenResult.accessToken,

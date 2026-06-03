@@ -1,53 +1,26 @@
 import "server-only";
 
+import type { GoogleOAuthPendingPayload } from "@/lib/integrations/google-oauth-pending";
 import {
-  clearGoogleOAuthPendingCookieHeader,
-  encodeGoogleOAuthPending,
-  googleOAuthPendingCookieHeader,
-  type GoogleOAuthPendingPayload,
-} from "@/lib/integrations/google-oauth-pending";
-import {
-  absoluteSitePath,
-  redirectResponse,
-  settingsIntegrationsUrl,
-} from "@/lib/integrations/meta-oauth-shared";
+  redirectToOAuthIntegrationSelection,
+  redirectWithClearedOAuthPending,
+} from "@/lib/integrations/oauth-pending-response";
 
-export function redirectToGoogleLocationSelection(
+export async function redirectToGoogleLocationSelection(
   req: Request,
   payload: Omit<GoogleOAuthPendingPayload, "exp">,
-): Response {
-  const token = encodeGoogleOAuthPending(payload);
-  if (!token) {
-    return redirectResponse(
-      absoluteSitePath(
-        req,
-        settingsIntegrationsUrl({
-          provider: "google_business",
-          result: "error",
-          message: "server_misconfigured",
-        }),
-      ),
-    );
-  }
-
-  return redirectResponse(
-    absoluteSitePath(
-      req,
-      settingsIntegrationsUrl({
-        provider: "google_business",
-        result: "select_location",
-      }),
-    ),
-    { setCookie: googleOAuthPendingCookieHeader(token) },
-  );
+): Promise<Response> {
+  return redirectToOAuthIntegrationSelection(req, {
+    provider: "google_business",
+    restaurantId: payload.restaurantId,
+    payload,
+    result: "select_location",
+  });
 }
 
 export function redirectWithClearedGooglePending(
   req: Request,
-  params: Parameters<typeof settingsIntegrationsUrl>[0],
+  params: Parameters<typeof redirectWithClearedOAuthPending>[1],
 ): Response {
-  return redirectResponse(
-    absoluteSitePath(req, settingsIntegrationsUrl(params)),
-    { setCookie: clearGoogleOAuthPendingCookieHeader() },
-  );
+  return redirectWithClearedOAuthPending(req, params);
 }

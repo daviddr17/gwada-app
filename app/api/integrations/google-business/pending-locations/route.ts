@@ -1,9 +1,9 @@
-import { readGoogleOAuthPendingFromRequest } from "@/lib/integrations/google-oauth-pending";
+import { loadGoogleOAuthPendingFromRequest } from "@/lib/integrations/oauth-pending-load";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const pending = readGoogleOAuthPendingFromRequest(req);
+  const pending = await loadGoogleOAuthPendingFromRequest(req);
   if (!pending) {
     return Response.json({ error: "pending_not_found" }, { status: 404 });
   }

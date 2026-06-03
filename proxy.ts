@@ -4,6 +4,15 @@ import { getSupabaseAnonKey } from "@/lib/public-env";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
+import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
+
+function isAuthEntryPath(pathname: string): boolean {
+  if (pathname === "/") return true;
+  if (pathname === "/login" || pathname.startsWith("/login/")) return true;
+  if (pathname === "/auth/callback" || pathname === "/auth/enter") return true;
+  if (pathname.startsWith("/auth/")) return true;
+  return false;
+}
 
 function isPublicPath(pathname: string): boolean {
   if (pathname === "/") return true;
@@ -18,6 +27,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/embed/")) return true;
   if (pathname.startsWith("/display/")) return true;
   if (pathname.startsWith("/einladung/")) return true;
+  if (pathname.startsWith("/bewertung/")) return true;
   if (pathname.startsWith("/sb")) return true;
   return false;
 }
@@ -37,11 +47,12 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  /* Landing + Login: kein getUser → schnellerer First Paint, weniger Auth-Roundtrips */
+  if (isAuthEntryPath(pathname)) {
+    appendAuthEntryCookieCleanup(response.headers);
+  }
+
   if (
-    pathname === "/" ||
-    pathname === "/login" ||
-    pathname.startsWith("/login/") ||
+    isAuthEntryPath(pathname) ||
     pathname === "/docs" ||
     pathname.startsWith("/docs/") ||
     pathname === "/impressum" ||
@@ -50,7 +61,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/datenschutz/") ||
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
-    pathname.startsWith("/einladung/")
+    pathname.startsWith("/einladung/") ||
+    pathname.startsWith("/bewertung/")
   ) {
     return response;
   }

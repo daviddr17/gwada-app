@@ -1,29 +1,12 @@
-import {
-  readMetaOAuthPendingFromRequest,
-} from "@/lib/integrations/meta-oauth-pending";
-import {
-  metaPagesEligibleForInstagram,
-  metaPagesEligibleForMessenger,
-} from "@/lib/integrations/meta-oauth-shared";
-import { authorizeFacebookRestaurantRoute } from "@/lib/integrations/oauth-route-auth";
+import { loadMetaOAuthPendingFromRequest } from "@/lib/integrations/oauth-pending-load";
+import { metaPagesEligibleForMessenger } from "@/lib/integrations/meta-oauth-shared";
 
 export const dynamic = "force-dynamic";
 
-export type MetaOAuthPendingPageOption = {
-  id: string;
-  name: string;
-  secondaryLabel: string | null;
-};
-
 export async function GET(req: Request) {
-  const pending = readMetaOAuthPendingFromRequest(req);
-  if (!pending || pending.provider !== "facebook") {
+  const pending = await loadMetaOAuthPendingFromRequest(req, "facebook");
+  if (!pending) {
     return Response.json({ error: "pending_not_found" }, { status: 404 });
-  }
-
-  const auth = await authorizeFacebookRestaurantRoute(pending.restaurantId);
-  if (!auth.ok) {
-    return Response.json({ error: auth.error }, { status: auth.status });
   }
 
   const pages = metaPagesEligibleForMessenger(pending.pages).map((p) => ({
@@ -31,10 +14,6 @@ export async function GET(req: Request) {
     name: p.name,
     secondaryLabel: null as string | null,
   }));
-
-  if (pages.length === 0) {
-    return Response.json({ error: "no_pages" }, { status: 400 });
-  }
 
   return Response.json({
     provider: "facebook" as const,

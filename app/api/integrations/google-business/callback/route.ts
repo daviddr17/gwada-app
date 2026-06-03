@@ -90,7 +90,7 @@ export async function GET(req: Request) {
   const locations = locationsResult.locations;
 
   if (locations.length > 1) {
-    return redirectToGoogleLocationSelection(req, {
+    return await redirectToGoogleLocationSelection(req, {
       restaurantId: state.restaurantId,
       accessToken: tokenResult.accessToken,
       refreshToken: tokenResult.refreshToken,

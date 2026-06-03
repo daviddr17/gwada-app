@@ -114,6 +114,13 @@ export function LoginForm() {
     return () => setDocumentTitleOverride(null);
   }, [screen, setDocumentTitleOverride]);
 
+  /** Alte OAuth-Pending-Cookies (HttpOnly) serverseitig löschen — entlastet Login/Supabase-Requests. */
+  useEffect(() => {
+    void fetch("/api/auth/cleanup-cookies", { credentials: "include" }).catch(
+      () => undefined,
+    );
+  }, []);
+
   const loginToastError = (headline: string, detail?: string) => {
     const d = detail?.trim();
     if (d && !isTechnicalLoginToastDetail(d)) {

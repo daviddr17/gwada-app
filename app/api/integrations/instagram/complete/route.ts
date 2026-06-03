@@ -1,20 +1,21 @@
 import {
-  clearMetaOAuthPendingCookieHeader,
-  readMetaOAuthPendingFromRequest,
-} from "@/lib/integrations/meta-oauth-pending";
+  consumeOAuthPendingAfterComplete,
+  loadMetaOAuthPendingFromRequest,
+} from "@/lib/integrations/oauth-pending-load";
 import { finalizeInstagramIntegration } from "@/lib/integrations/meta-oauth-finalize-server";
 import {
   metaPagesEligibleForInstagram,
   settingsIntegrationsUrl,
 } from "@/lib/integrations/meta-oauth-shared";
+import { jsonResponseWithClearedOAuthPending } from "@/lib/integrations/oauth-pending-response";
 import { authorizeInstagramRestaurantRoute } from "@/lib/integrations/oauth-route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const pending = readMetaOAuthPendingFromRequest(req);
-  if (!pending || pending.provider !== "instagram") {
+  const pending = await loadMetaOAuthPendingFromRequest(req, "instagram");
+  if (!pending) {
     return Response.json({ error: "pending_not_found" }, { status: 404 });
   }
 
@@ -59,15 +60,13 @@ export async function POST(req: Request) {
     return Response.json({ error }, { status: 500 });
   }
 
-  const path = settingsIntegrationsUrl({
-    provider: "instagram",
-    result: "connected",
-  });
-  return new Response(JSON.stringify({ ok: true, redirectTo: path }), {
-    status: 200,
-    headers: {
-      "Content-Type": "application/json",
-      "Set-Cookie": clearMetaOAuthPendingCookieHeader(),
-    },
+  await consumeOAuthPendingAfterComplete(req, "instagram");
+
+  return jsonResponseWithClearedOAuthPending({
+    ok: true,
+    redirectTo: settingsIntegrationsUrl({
+      provider: "instagram",
+      result: "connected",
+    }),
   });
 }

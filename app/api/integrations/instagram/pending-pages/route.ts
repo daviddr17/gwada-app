@@ -1,31 +1,23 @@
-import { readMetaOAuthPendingFromRequest } from "@/lib/integrations/meta-oauth-pending";
+import { loadMetaOAuthPendingFromRequest } from "@/lib/integrations/oauth-pending-load";
 import { metaPagesEligibleForInstagram } from "@/lib/integrations/meta-oauth-shared";
-import { authorizeInstagramRestaurantRoute } from "@/lib/integrations/oauth-route-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const pending = readMetaOAuthPendingFromRequest(req);
-  if (!pending || pending.provider !== "instagram") {
+  const pending = await loadMetaOAuthPendingFromRequest(req, "instagram");
+  if (!pending) {
     return Response.json({ error: "pending_not_found" }, { status: 404 });
   }
 
-  const auth = await authorizeInstagramRestaurantRoute(pending.restaurantId);
-  if (!auth.ok) {
-    return Response.json({ error: auth.error }, { status: auth.status });
-  }
-
-  const pages = metaPagesEligibleForInstagram(pending.pages).map((p) => ({
-    id: p.id,
-    name: p.name,
-    secondaryLabel: p.instagram_business_account?.username
-      ? `@${p.instagram_business_account.username}`
-      : null,
-  }));
-
-  if (pages.length === 0) {
-    return Response.json({ error: "no_pages" }, { status: 400 });
-  }
+  const pages = metaPagesEligibleForInstagram(pending.pages).map((p) => {
+    const ig = p.instagram_business_account;
+    const secondaryLabel = ig?.username ? `@${ig.username}` : null;
+    return {
+      id: p.id,
+      name: p.name,
+      secondaryLabel,
+    };
+  });
 
   return Response.json({
     provider: "instagram" as const,

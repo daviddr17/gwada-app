@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
+import { stripBloatedCookiesFromCookieHeader } from "@/lib/cookies/bloated-request-cookies";
 import { resolveSupabaseUpstreamUrl } from "@/lib/supabase/supabase-upstream-url";
 
 export const runtime = "nodejs";
@@ -15,6 +16,12 @@ async function proxyToSupabase(
   const headers = new Headers(request.headers);
   headers.delete("host");
   headers.delete("connection");
+
+  const strippedCookie = stripBloatedCookiesFromCookieHeader(
+    headers.get("cookie"),
+  );
+  if (strippedCookie) headers.set("cookie", strippedCookie);
+  else headers.delete("cookie");
 
   const init: RequestInit = {
     method: request.method,

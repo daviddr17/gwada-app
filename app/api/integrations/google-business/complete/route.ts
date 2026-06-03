@@ -1,9 +1,11 @@
 import { finalizeGoogleBusinessIntegration } from "@/lib/integrations/google-business-finalize-server";
+import type { GoogleBusinessLocationOption } from "@/lib/integrations/google-oauth-pending";
 import {
-  readGoogleOAuthPendingFromRequest,
-  type GoogleBusinessLocationOption,
-} from "@/lib/integrations/google-oauth-pending";
-import { redirectWithClearedGooglePending } from "@/lib/integrations/google-oauth-callback-server";
+  consumeOAuthPendingAfterComplete,
+  loadGoogleOAuthPendingFromRequest,
+} from "@/lib/integrations/oauth-pending-load";
+import { jsonResponseWithClearedOAuthPending } from "@/lib/integrations/oauth-pending-response";
+import { settingsIntegrationsUrl } from "@/lib/integrations/meta-oauth-shared";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "missing_location" }, { status: 400 });
   }
 
-  const pending = readGoogleOAuthPendingFromRequest(req);
+  const pending = await loadGoogleOAuthPendingFromRequest(req);
   if (!pending) {
     return Response.json({ error: "pending_not_found" }, { status: 404 });
   }
@@ -53,13 +55,13 @@ export async function POST(req: Request) {
     return Response.json({ error }, { status: 500 });
   }
 
-  const redirectTo = redirectWithClearedGooglePending(
-    req,
-    { provider: "google_business", result: "connected" },
-  ).headers.get("Location");
+  await consumeOAuthPendingAfterComplete(req, "google_business");
 
-  return Response.json({
+  return jsonResponseWithClearedOAuthPending({
     ok: true,
-    redirectTo: redirectTo ?? "/settings/integrationen?google_business=connected",
+    redirectTo: settingsIntegrationsUrl({
+      provider: "google_business",
+      result: "connected",
+    }),
   });
 }

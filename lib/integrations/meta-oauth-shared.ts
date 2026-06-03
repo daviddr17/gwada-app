@@ -222,11 +222,14 @@ export function absoluteSitePath(req: Request, path: string): string {
 /** Response.redirect liefert in Production immutable Headers — Set-Cookie nur so. */
 export function redirectResponse(
   location: string,
-  options?: { setCookie?: string },
+  options?: { setCookie?: string | string[] },
 ): Response {
   const headers = new Headers({ Location: location });
-  if (options?.setCookie) {
-    headers.append("Set-Cookie", options.setCookie);
+  const cookies = options?.setCookie;
+  if (cookies) {
+    for (const c of Array.isArray(cookies) ? cookies : [cookies]) {
+      headers.append("Set-Cookie", c);
+    }
   }
   return new Response(null, { status: 302, headers });
 }

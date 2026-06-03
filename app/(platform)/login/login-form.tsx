@@ -28,6 +28,7 @@ import {
   raceWithTimeout,
 } from "@/lib/supabase/race-timeout";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
+import { usePublicOAuthAvailability } from "@/lib/hooks/use-public-oauth-availability";
 import {
   startOAuthFlow,
   type GwadaOAuthProvider,
@@ -104,6 +105,7 @@ export function LoginForm() {
   const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [magicLinkBusy, setMagicLinkBusy] = useState(false);
+  const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
 
   useLayoutEffect(() => {
     setDocumentTitleOverride(screen === "register" ? "Registrieren" : "Login");
@@ -479,35 +481,43 @@ export function LoginForm() {
                 )}
               </Button>
 
-              <div className="relative py-1">
-                <Separator />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                  oder
-                </span>
-              </div>
+              {showOAuthSection ? (
+                <>
+                  <div className="relative py-1">
+                    <Separator />
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
+                      oder
+                    </span>
+                  </div>
 
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  disabled={busy}
-                  onClick={() => void handleOAuth("google")}
-                >
-                  <GoogleGlyph />
-                  Mit Google anmelden
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  disabled={busy}
-                  onClick={() => void handleOAuth("apple")}
-                >
-                  <Apple className="size-5 shrink-0" aria-hidden />
-                  Mit Apple anmelden
-                </Button>
-              </div>
+                  <div className="flex flex-col gap-2">
+                    {showGoogle ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                        disabled={busy}
+                        onClick={() => void handleOAuth("google")}
+                      >
+                        <GoogleGlyph />
+                        Mit Google anmelden
+                      </Button>
+                    ) : null}
+                    {showApple ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                        disabled={busy}
+                        onClick={() => void handleOAuth("apple")}
+                      >
+                        <Apple className="size-5 shrink-0" aria-hidden />
+                        Mit Apple anmelden
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
             </CardContent>
             <CardFooter className="flex flex-col gap-3 border-t border-border/40 bg-muted/20 px-6 py-4 sm:px-8">
               <p className="text-center text-sm text-muted-foreground">
@@ -614,35 +624,43 @@ export function LoginForm() {
                 )}
               </Button>
 
-              <div className="relative py-1">
-                <Separator />
-                <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                  oder
-                </span>
-              </div>
+              {showOAuthSection ? (
+                <>
+                  <div className="relative py-1">
+                    <Separator />
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
+                      oder
+                    </span>
+                  </div>
 
-              <div className="flex flex-col gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  disabled={busy}
-                  onClick={() => void handleOAuth("google")}
-                >
-                  <GoogleGlyph />
-                  Mit Google registrieren
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                  disabled={busy}
-                  onClick={() => void handleOAuth("apple")}
-                >
-                  <Apple className="size-5 shrink-0" aria-hidden />
-                  Mit Apple registrieren
-                </Button>
-              </div>
+                  <div className="flex flex-col gap-2">
+                    {showGoogle ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                        disabled={busy}
+                        onClick={() => void handleOAuth("google")}
+                      >
+                        <GoogleGlyph />
+                        Mit Google registrieren
+                      </Button>
+                    ) : null}
+                    {showApple ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                        disabled={busy}
+                        onClick={() => void handleOAuth("apple")}
+                      >
+                        <Apple className="size-5 shrink-0" aria-hidden />
+                        Mit Apple registrieren
+                      </Button>
+                    ) : null}
+                  </div>
+                </>
+              ) : null}
             </CardContent>
           </>
         )}

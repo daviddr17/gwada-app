@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Apple, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +26,11 @@ import {
 } from "@/lib/auth/password-policy";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  anyOAuthProviderShownInLogin,
+  oauthProviderShownInLogin,
+  usePublicOAuthAvailability,
+} from "@/lib/hooks/use-public-oauth-availability";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
   identityHasProvider,
@@ -51,9 +57,12 @@ export default function ProfileAnmeldungPage() {
   const [identityCount, setIdentityCount] = useState(0);
   const [oauthBusy, setOauthBusy] = useState(false);
   const [authResolved, setAuthResolved] = useState(false);
-  const [googleOAuthEnabled, setGoogleOAuthEnabled] = useState(false);
-  const [appleOAuthEnabled, setAppleOAuthEnabled] = useState(false);
-  const [oauthFlagsResolved, setOauthFlagsResolved] = useState(false);
+  const { flags: oauthFlags, resolved: oauthFlagsResolved, reload: reloadOauthFlags } =
+    usePublicOAuthAvailability();
+  const showGoogleOAuth = oauthProviderShownInLogin(oauthFlags, "google");
+  const showAppleOAuth = oauthProviderShownInLogin(oauthFlags, "apple");
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const refreshAuthState = async () => {
     if (!workspacePersistenceConfigured()) {
@@ -90,38 +99,32 @@ export default function ProfileAnmeldungPage() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/platform/oauth-flags", {
-          cache: "no-store",
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          googleEnabled?: boolean;
-          appleEnabled?: boolean;
-        };
-        if (cancelled) return;
-        setGoogleOAuthEnabled(data.googleEnabled === true);
-        setAppleOAuthEnabled(data.appleEnabled === true);
-      } catch {
-        /* optional */
-      } finally {
-        if (!cancelled) setOauthFlagsResolved(true);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const linked = searchParams.get("oauth_linked");
+    const oauthError = searchParams.get("oauth_error");
+    if (linked === "google") {
+      toast.success("Google-Konto wurde verknüpft.");
+      void refreshAuthState();
+      void reloadOauthFlags();
+    } else if (oauthError?.trim()) {
+      toast.error("Google-Verknüpfung fehlgeschlagen.", {
+        description: oauthError.trim().slice(0, 300),
+      });
+    }
+    if (!linked && !oauthError?.trim()) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("oauth_linked");
+    params.delete("oauth_error");
+    const qs = params.toString();
+    router.replace(qs ? `/profile/anmeldung?${qs}` : "/profile/anmeldung");
+  }, [searchParams, router]);
 
   const authLoading = !authResolved;
   const showAuthSkeleton = useDeferredSkeleton(authLoading);
-  const showOAuthProviders = googleOAuthEnabled || appleOAuthEnabled;
+  const showOAuthProviders = anyOAuthProviderShownInLogin(oauthFlags);
   const oauthCardDescription =
-    googleOAuthEnabled && appleOAuthEnabled
+    showGoogleOAuth && showAppleOAuth
       ? "Google- und Apple-Konto mit deinem Profil verknüpfen oder trennen."
-      : googleOAuthEnabled
+      : showGoogleOAuth
         ? "Google-Konto mit deinem Profil verknüpfen oder trennen."
         : "Apple-Konto mit deinem Profil verknüpfen oder trennen.";
 
@@ -270,7 +273,7 @@ export default function ProfileAnmeldungPage() {
             <CardDescription>{oauthCardDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {googleOAuthEnabled ? (
+            {showGoogleOAuth ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
                   <span className="text-sm font-medium text-muted-foreground">
@@ -308,8 +311,8 @@ export default function ProfileAnmeldungPage() {
                 )}
               </div>
             ) : null}
-            {googleOAuthEnabled && appleOAuthEnabled ? <Separator /> : null}
-            {appleOAuthEnabled ? (
+            {showGoogleOAuth && showAppleOAuth ? <Separator /> : null}
+            {showAppleOAuth ? (
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
                   <span className="text-sm font-medium text-muted-foreground">

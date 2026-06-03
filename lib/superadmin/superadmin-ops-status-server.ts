@@ -31,6 +31,7 @@ import { fetchCoolifyLiveDeployStatus } from "@/lib/superadmin/coolify-api-serve
 import { fetchLiveAppDeployStatus } from "@/lib/superadmin/live-app-deploy-status-server";
 import { DEFAULT_WEATHER_LOCATION } from "@/lib/weather/visual-crossing-location";
 import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key";
+import { checkGotrueGoogleOAuthHealth } from "@/lib/superadmin/gotrue-google-oauth-health";
 
 const CHECK_TIMEOUT_MS = 8_000;
 const DB_PROBE_TIMEOUT_MS = 12_000;
@@ -400,10 +401,14 @@ async function checkOAuthIntegration(
     return verifyMetaCredentials(clientId, cfg.client_secret!.trim());
   }
 
-  if (key === "google_oauth" || key === "google_business") {
-    return checkGoogleReachability(
-      key === "google_oauth" ? "Google OAuth" : "Google Business",
-    );
+  if (key === "google_oauth") {
+    const gotrue = await checkGotrueGoogleOAuthHealth();
+    if (gotrue.state !== "ok") return gotrue;
+    return checkGoogleReachability("Google OAuth");
+  }
+
+  if (key === "google_business") {
+    return checkGoogleReachability("Google Business");
   }
 
   if (key === "apple_oauth") {

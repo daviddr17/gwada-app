@@ -49,7 +49,7 @@ const OAUTH_META: Record<
   google_oauth: {
     title: "Google OAuth",
     description:
-      "Anmeldung und Registrierung mit Google. Secrets werden in der Plattform gespeichert.",
+      "Anmeldung und Registrierung mit Google. Client-ID und Secret hier pflegen; Redirect in der Google Cloud Console: …/api/auth/google/callback. Dieselbe Client-ID zusätzlich am Auth-Server (SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID/SECRET, muss übereinstimmen).",
     icon: <GoogleGlyph />,
     configurable: true,
   },

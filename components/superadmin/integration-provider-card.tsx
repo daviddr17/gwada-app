@@ -96,7 +96,15 @@ export function IntegrationProviderCard({
       toast.error(error ?? "Speichern fehlgeschlagen.");
       return;
     }
-    toast.success(`${title} gespeichert.`);
+    if (row.key === "google_oauth") {
+      toast.success(`${title} gespeichert.`, {
+        description:
+          "Trage dieselbe Client-ID und dasselbe Secret am Auth-Server ein (SUPABASE_AUTH_EXTERNAL_GOOGLE_*). Redirect-URI: …/api/auth/google/callback",
+        duration: 12_000,
+      });
+    } else {
+      toast.success(`${title} gespeichert.`);
+    }
     setClientSecret("");
     onSaved();
   };

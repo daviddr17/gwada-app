@@ -14,6 +14,7 @@ import { DisplayModuleShell } from "@/components/display/display-module-shell";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
 import { DisplayTimeModule } from "@/components/display/modules/display-time-module";
 import { DisplayReservationsModule } from "@/components/display/modules/display-reservations-module";
+import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
@@ -306,6 +307,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             {currentModule === "recipes" ? (
               <DisplayRecipesModule />
             ) : null}
+            {currentModule === "inventory" ? <DisplayInventoryModule /> : null}
           </DisplayModuleShell>
         </div>
       );

@@ -18,6 +18,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.time_presence",
   "display.reservations",
   "display.recipes",
+  "display.inventory",
   "display.kds",
   "display.module_switch",
 ] as const;
@@ -141,6 +142,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "display.recipes",
       label: "Display: Rezepte",
       description: "Gerichte und Rezepte am Tablet ansehen.",
+      group: "display",
+    },
+    {
+      key: "display.inventory",
+      label: "Display: Bestand & Bestellung",
+      description:
+        "Bestand erfassen und Bestellmengen am Tablet eingeben (Touch-Inventur).",
       group: "display",
     },
     {

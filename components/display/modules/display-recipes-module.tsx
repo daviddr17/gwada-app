@@ -19,9 +19,14 @@ type Dish = {
   name: string;
   description: string;
   price: number;
+  category_id: string;
   category_name: string;
   recipe: RecipeLine[];
 };
+
+type CategoryChip = { id: string; name: string };
+
+const ALL_CATEGORIES = "all";
 
 const eur = new Intl.NumberFormat("de-DE", {
   style: "currency",
@@ -31,32 +36,75 @@ const eur = new Intl.NumberFormat("de-DE", {
 export function DisplayRecipesModule() {
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
-  const [dishes, setDishes] = useState<Dish[]>([]);
+  const [allDishes, setAllDishes] = useState<Dish[]>([]);
   const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const load = useCallback(async (q: string) => {
+  const [categories, setCategories] = useState<CategoryChip[]>([]);
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
-      const url = q
-        ? `/api/display/recipes?q=${encodeURIComponent(q)}`
-        : "/api/display/recipes";
-      const res = await fetch(url, { cache: "no-store" });
-      const data = (await res.json()) as { dishes?: Dish[] };
-      setDishes(data.dishes ?? []);
+      const res = await fetch("/api/display/recipes", { cache: "no-store" });
+      const data = (await res.json()) as {
+        dishes?: Dish[];
+        categories?: CategoryChip[];
+      };
+      setAllDishes(data.dishes ?? []);
+      setCategories(data.categories ?? []);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => void load(query), query ? 250 : 0);
-    return () => clearTimeout(t);
-  }, [query, load]);
+    void load();
+  }, [load]);
+
+  const dishes = useMemo(() => {
+    let rows = allDishes;
+    if (categoryFilter !== ALL_CATEGORIES) {
+      rows = rows.filter((d) => d.category_id === categoryFilter);
+    }
+    const q = query.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (d) =>
+          d.name.toLowerCase().includes(q) ||
+          d.description.toLowerCase().includes(q) ||
+          d.category_name.toLowerCase().includes(q) ||
+          d.recipe.some((r) => r.ingredient_name.toLowerCase().includes(q)),
+      );
+    }
+    return rows;
+  }, [allDishes, categoryFilter, query]);
+
+  useEffect(() => {
+    if (selectedId && !dishes.some((d) => d.id === selectedId)) {
+      setSelectedId(null);
+    }
+  }, [dishes, selectedId]);
 
   const selected = useMemo(
-    () => dishes.find((d) => d.id === selectedId) ?? null,
-    [dishes, selectedId],
+    () => allDishes.find((d) => d.id === selectedId) ?? null,
+    [allDishes, selectedId],
+  );
+
+  const categoryChip = (id: string, label: string) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setCategoryFilter(id)}
+      className={cn(
+        "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
+        categoryFilter === id
+          ? "border-accent bg-accent text-accent-foreground"
+          : "border-border/60 bg-muted/30 text-muted-foreground",
+      )}
+    >
+      {label}
+    </button>
   );
 
   if (selected) {
@@ -112,6 +160,13 @@ export function DisplayRecipesModule() {
           className="h-14 rounded-2xl pl-11 text-lg"
         />
       </div>
+
+      {!showSkeleton && categories.length > 0 ? (
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+          {categoryChip(ALL_CATEGORIES, "Alle")}
+          {categories.map((c) => categoryChip(c.id, c.name))}
+        </div>
+      ) : null}
 
       {showSkeleton ? (
         <div className="space-y-2">

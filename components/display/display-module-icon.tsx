@@ -6,6 +6,7 @@ import {
   ChefHat,
   Clock,
   MonitorPlay,
+  Package,
 } from "lucide-react";
 import type { DisplayModule } from "@/lib/display/display-types";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ const MODULE_ICONS: Record<DisplayModule, LucideIcon> = {
   time: Clock,
   reservations: CalendarDays,
   recipes: ChefHat,
+  inventory: Package,
   kds: MonitorPlay,
 };
 

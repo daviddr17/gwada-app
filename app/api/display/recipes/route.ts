@@ -97,5 +97,13 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ dishes });
+  const dishCategoryIds = new Set(dishes.map((d) => d.category_id));
+  const categoryList = (categories ?? [])
+    .filter(
+      (c) =>
+        (c.is_active as boolean) !== false && dishCategoryIds.has(c.id as string),
+    )
+    .map((c) => ({ id: c.id as string, name: c.name as string }));
+
+  return NextResponse.json({ dishes, categories: categoryList });
 }

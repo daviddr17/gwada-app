@@ -1,4 +1,9 @@
-export type DisplayModule = "time" | "reservations" | "recipes" | "kds";
+export type DisplayModule =
+  | "time"
+  | "reservations"
+  | "recipes"
+  | "inventory"
+  | "kds";
 
 export type DisplayModuleMeta = {
   id: DisplayModule;
@@ -21,6 +26,11 @@ export const DISPLAY_MODULES: readonly DisplayModuleMeta[] = [
     id: "recipes",
     label: "Rezepte",
     description: "Gerichte und Zutaten",
+  },
+  {
+    id: "inventory",
+    label: "Bestand & Bestellung",
+    description: "Bestand erfassen und Bestellmengen eingeben",
   },
   {
     id: "kds",

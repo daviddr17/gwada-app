@@ -1,6 +1,6 @@
 {
-  "title": "Display-Modus und Korrekturen",
-  "body": "- Reservierungen am Display: Datum wählen und durchblättern\n- Zeiterfassung: farbige Balken für Schicht und Pause wie im Dashboard\n- Zeiterfassung: Team-Anwesenheit (Berechtigung „Display: Team-Anwesenheit“) – wer ist eingestempelt oder in Pause\n- PIN-Maske ohne leeren Titelbild-Hintergrund, wenn kein Cover hinterlegt ist\n- Korrekturen: Reservierungsliste am Display, Koppel-URL auf Live, Changelog-Sync, Pausen in Arbeitszeiten",
+  "title": "Display: Bestand, Bestellung und Rezepte",
+  "body": "- Neues Display-Modul „Bestand & Bestellung“: Touch-Erfassung von Bestand und Bestellmengen, Filter nach Produktionsstelle, Lieferant und Kategorie (Berechtigung „Display: Bestand & Bestellung“)\n- Rezepte am Display: Kategorie-Chips zum schnellen Filtern\n- Bestätigung per Toast nach dem Speichern; Tab oder Enter springt zur nächsten Zutat",
   "audience": "customers",
-  "version": "2026.06.01"
+  "version": "2026.06.03"
 }

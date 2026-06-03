@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { Apple, Loader2 } from "lucide-react";
@@ -47,6 +47,14 @@ const oauthConnectedBadgeClassName = cn(
 );
 
 export default function ProfileAnmeldungPage() {
+  return (
+    <Suspense fallback={<ProfileAnmeldungSkeleton />}>
+      <ProfileAnmeldungContent />
+    </Suspense>
+  );
+}
+
+function ProfileAnmeldungContent() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");

@@ -1,7 +1,6 @@
 import "server-only";
 
 import { getSupabaseAnonKey } from "@/lib/public-env";
-import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 import { resolveSupabaseUpstreamUrl } from "@/lib/supabase/supabase-upstream-url";
 import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 
@@ -31,22 +30,23 @@ export async function checkGotrueGoogleOAuthHealth(): Promise<SuperadminIntegrat
   const url = `${upstream.replace(/\/+$/, "")}/auth/v1/settings`;
 
   try {
-    const { latencyMs } = await raceWithTimeout(CHECK_TIMEOUT_MS, async () => {
-      const res = await fetch(url, {
-        headers: { apikey: anonKey },
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        throw new Error(`Auth-Settings HTTP ${res.status}`);
-      }
-      const body = (await res.json()) as {
-        external?: AuthSettingsExternal;
-      };
-      const googleOn = body.external?.google === true;
-      if (!googleOn) {
-        throw new Error("google_provider_disabled");
-      }
+    const start = performance.now();
+    const res = await fetch(url, {
+      headers: { apikey: anonKey },
+      cache: "no-store",
+      signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
     });
+    if (!res.ok) {
+      throw new Error(`Auth-Settings HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as {
+      external?: AuthSettingsExternal;
+    };
+    const googleOn = body.external?.google === true;
+    if (!googleOn) {
+      throw new Error("google_provider_disabled");
+    }
+    const latencyMs = Math.round(performance.now() - start);
 
     return health(
       "ok",

@@ -8,10 +8,14 @@ import {
 } from "@/lib/whatsapp/reservation-whatsapp-message-config";
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
+import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
 import { isEmailSendConfigured } from "@/lib/email/is-email-send-configured";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
-import { resolveEmailSender } from "@/lib/n8n/n8n-send-reservation-email";
-import type { N8nEmailSender, N8nEmailSmtp } from "@/lib/n8n/n8n-send-reservation-email";
+import {
+  resolveEmailSender,
+  type EmailSender,
+  type EmailSmtpCredentials,
+} from "@/lib/email/email-delivery";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
@@ -106,7 +110,7 @@ async function fetchRestaurantName(
   return typeof name === "string" ? name.trim() || null : null;
 }
 
-type EmailDelivery = { sender: N8nEmailSender; smtp: N8nEmailSmtp } | null;
+type EmailDelivery = { sender: EmailSender; smtp: EmailSmtpCredentials } | null;
 
 /**
  * SMTP inkl. Passwort nur per Service-Role. Plattform-Fallback nicht für Nutzer lesbar.
@@ -573,7 +577,14 @@ export async function processDueEmailOutbox(
     }
 
     const ctx = messageContext(row, settings);
-    const text = buildText(kind, row, settings);
+    let text = buildText(kind, row, settings);
+    if (kind === "thanks") {
+      text = await appendReviewRequestToMessage(sb, {
+        restaurantId: row.restaurant_id,
+        reservationId: row.id,
+        text,
+      });
+    }
     const subject = buildEmailSubject(settings, kind, ctx);
     const fromName = resolveEmailSenderDisplayName(
       settings,

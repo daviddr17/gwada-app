@@ -61,7 +61,7 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
     {
       key: "integrations.email",
       label: "E-Mail-Absender",
-      description: "Eigene Absender-Adresse für Reservierungs-Mails (n8n).",
+      description: "Eigene Absender-Adresse für Reservierungs-Mails (SMTP).",
       group: "integrationen",
     },
     {

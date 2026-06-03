@@ -1,3 +1,4 @@
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type RestaurantOAuthStatus = "disconnected" | "working";
@@ -87,4 +88,21 @@ export async function upsertRestaurantOAuthIntegration<TConfig extends object>(
     { onConflict: "restaurant_id,integration_key" },
   );
   return { error: error?.message ?? null };
+}
+
+export async function fetchRestaurantOAuthIntegrationAdmin<TConfig>(
+  restaurantId: string,
+  integrationKey: RestaurantOAuthIntegrationKey,
+  parseConfig: (raw: unknown) => TConfig,
+): Promise<Awaited<
+  ReturnType<typeof fetchRestaurantOAuthIntegration<TConfig>>
+> | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+  return fetchRestaurantOAuthIntegration(
+    admin,
+    restaurantId,
+    integrationKey,
+    parseConfig,
+  );
 }

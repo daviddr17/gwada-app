@@ -160,7 +160,7 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
     setTesting(false);
   };
 
-  const sendReady = state?.n8nConfigured ?? false;
+  const sendReady = state?.emailSendConfigured ?? false;
   const currentLabel = useCustom
     ? fields.email.trim() || "eigene Verbindung"
     : GWADA_DEFAULT_FROM_EMAIL;

@@ -1,7 +1,7 @@
 import "server-only";
 
 import nodemailer from "nodemailer";
-import type { N8nEmailSmtp } from "@/lib/n8n/n8n-send-reservation-email";
+import type { EmailSmtpCredentials } from "@/lib/email/email-delivery";
 
 export type SmtpSendPayload = {
   to: string;
@@ -12,7 +12,7 @@ export type SmtpSendPayload = {
 };
 
 export async function sendViaSmtp(
-  smtp: N8nEmailSmtp,
+  smtp: EmailSmtpCredentials,
   payload: SmtpSendPayload,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const transporter = nodemailer.createTransport({

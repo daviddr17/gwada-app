@@ -20,7 +20,8 @@ export type RestaurantEmailIntegrationRow = {
 
 export type EmailIntegrationResponse = {
   configured: boolean;
-  n8nConfigured: boolean;
+  /** Plattform-SMTP (Service-Role) für Versand aus der App verfügbar. */
+  emailSendConfigured: boolean;
   platformEmailEnabled: boolean;
   status: RestaurantEmailStatus;
   fromEmail: string | null;

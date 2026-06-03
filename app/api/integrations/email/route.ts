@@ -56,7 +56,7 @@ export async function GET(req: Request) {
 
   const body: EmailIntegrationResponse = {
     configured: true,
-    n8nConfigured: sendConfigured,
+    emailSendConfigured: sendConfigured,
     platformEmailEnabled: true,
     status,
     fromEmail: pub.email ?? pub.from_email ?? null,

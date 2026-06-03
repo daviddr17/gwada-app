@@ -200,7 +200,7 @@ export function pickMetaPageForInstagram(
 
 export function settingsIntegrationsUrl(params?: {
   provider?: "facebook" | "instagram" | "google_business";
-  result?: "connected" | "error" | "select_page";
+  result?: "connected" | "error" | "select_page" | "select_location";
   message?: string;
 }): string {
   const base = "/settings/integrationen";

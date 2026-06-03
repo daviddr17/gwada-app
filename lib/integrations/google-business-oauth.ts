@@ -7,6 +7,7 @@ import {
   oauthConfigFromJson,
   type GoogleBusinessIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
+import type { GoogleBusinessLocationOption } from "@/lib/integrations/google-oauth-pending";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
 export type GoogleBusinessPlatformConfig = {
@@ -112,17 +113,9 @@ export function parseGoogleGrantedScopes(scopeString: string): string[] {
     .filter(Boolean);
 }
 
-export async function fetchGoogleBusinessAccount(params: {
+export async function fetchGoogleBusinessLocations(params: {
   accessToken: string;
-}): Promise<
-  | {
-      accountName: string;
-      accountTitle: string;
-      locationName?: string;
-      locationTitle?: string;
-    }
-  | { error: string }
-> {
+}): Promise<{ locations: GoogleBusinessLocationOption[] } | { error: string }> {
   const headers = { Authorization: `Bearer ${params.accessToken}` };
   const accountsRes = await fetch(
     "https://mybusinessaccountmanagement.googleapis.com/v1/accounts",
@@ -139,30 +132,69 @@ export async function fetchGoogleBusinessAccount(params: {
         "Kein Google-Business-Konto gefunden.",
     };
   }
-  const account = accountsBody.accounts[0]!;
-  const accountName = account.name;
-  const accountTitle = account.accountName ?? accountName;
 
-  let locationName: string | undefined;
-  let locationTitle: string | undefined;
-  try {
-    const locRes = await fetch(
-      `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`,
-      { headers, cache: "no-store" },
-    );
-    const locBody = (await locRes.json()) as {
-      locations?: Array<{ name: string; title?: string }>;
-    };
-    const loc = locBody.locations?.[0];
-    if (loc) {
-      locationName = loc.name;
-      locationTitle = loc.title;
+  const locations: GoogleBusinessLocationOption[] = [];
+  for (const account of accountsBody.accounts) {
+    const accountName = account.name;
+    const accountTitle = account.accountName ?? accountName;
+    try {
+      const locRes = await fetch(
+        `https://mybusinessbusinessinformation.googleapis.com/v1/${accountName}/locations?readMask=name,title`,
+        { headers, cache: "no-store" },
+      );
+      const locBody = (await locRes.json()) as {
+        locations?: Array<{ name: string; title?: string }>;
+        error?: { message?: string };
+      };
+      if (!locRes.ok) continue;
+      for (const loc of locBody.locations ?? []) {
+        if (!loc.name) continue;
+        locations.push({
+          accountName,
+          accountTitle,
+          locationName: loc.name,
+          locationTitle: loc.title?.trim() || loc.name,
+        });
+      }
+    } catch {
+      /* nächstes Konto */
     }
-  } catch {
-    /* Standort optional */
   }
 
-  return { accountName, accountTitle, locationName, locationTitle };
+  if (locations.length === 0) {
+    return { error: "Kein Google-Business-Standort gefunden." };
+  }
+
+  return { locations };
+}
+
+export async function refreshGoogleBusinessAccessToken(params: {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+}): Promise<{ accessToken: string } | { error: string }> {
+  const res = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      refresh_token: params.refreshToken,
+      grant_type: "refresh_token",
+    }),
+    cache: "no-store",
+  });
+  const body = (await res.json()) as {
+    access_token?: string;
+    error?: string;
+    error_description?: string;
+  };
+  if (!res.ok || !body.access_token) {
+    return {
+      error: body.error_description ?? body.error ?? `google_refresh_${res.status}`,
+    };
+  }
+  return { accessToken: body.access_token };
 }
 
 export function googleBusinessConfigFromJson(

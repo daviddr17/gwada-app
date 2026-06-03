@@ -86,5 +86,7 @@ export async function sendStaffInviteEmail(params: {
     to: params.to.trim(),
     subject,
     text,
+    headline: `Einladung — ${params.restaurantName}`,
+    intro: `${params.restaurantName} lädt dich ein, dich bei gwada zu registrieren.`,
   });
 }

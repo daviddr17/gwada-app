@@ -6,6 +6,7 @@ import {
 } from "@/lib/whatsapp/reservation-whatsapp-message-config";
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
+import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-append-server";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { fetchRestaurantWhatsappIntegration } from "@/lib/supabase/restaurant-integrations-db";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
@@ -481,10 +482,18 @@ export async function processDueWhatsappOutbox(
       continue;
     }
 
+    let text = buildText(kind, row, settings);
+    if (kind === "thanks") {
+      text = await appendReviewRequestToMessage(sb, {
+        restaurantId: row.restaurant_id,
+        reservationId: row.id,
+        text,
+      });
+    }
     const result = await wahaSendText({
       restaurantId: row.restaurant_id,
       chatId,
-      text: buildText(kind, row, settings),
+      text,
     });
 
     if (result.ok) {

@@ -114,7 +114,7 @@ In Google / Meta Developer Console **beide** Callbacks eintragen:
 - `https://new.gwada.app/api/integrations/.../callback`
 - später `https://gwada.app/api/integrations/.../callback`
 
-WAHA / n8n: Webhook-URLs prüfen, wenn sie feste Hosts erwarten.
+WAHA: Webhook-URLs prüfen, wenn sie feste Hosts erwarten.
 
 ---
 

@@ -1,26 +1,21 @@
 import { GOOGLE_BUSINESS_OAUTH_SCOPE_IDS } from "@/lib/constants/integration-oauth-scopes";
+import { finalizeGoogleBusinessIntegration } from "@/lib/integrations/google-business-finalize-server";
 import {
   decodeGoogleOAuthState,
   exchangeGoogleBusinessCode,
-  fetchGoogleBusinessAccount,
+  fetchGoogleBusinessLocations,
   getGoogleBusinessPlatformConfigAdmin,
-  googleBusinessConfigFromJson,
   googleBusinessOAuthCallbackUrl,
   parseGoogleGrantedScopes,
 } from "@/lib/integrations/google-business-oauth";
+import {
+  redirectToGoogleLocationSelection,
+  redirectWithClearedGooglePending,
+} from "@/lib/integrations/google-oauth-callback-server";
 import { redirectToSettingsIntegrations } from "@/lib/integrations/meta-oauth-shared";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { upsertRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
-import type { GoogleBusinessIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
 
 export const dynamic = "force-dynamic";
-
-function mergeGoogleConfig(
-  existing: GoogleBusinessIntegrationConfig,
-  patch: GoogleBusinessIntegrationConfig | undefined,
-): GoogleBusinessIntegrationConfig {
-  return { ...existing, ...patch };
-}
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
@@ -80,15 +75,28 @@ export async function GET(req: Request) {
   }
 
   const grantedScopes = parseGoogleGrantedScopes(tokenResult.scope);
-  const accountResult = await fetchGoogleBusinessAccount({
+  const locationsResult = await fetchGoogleBusinessLocations({
     accessToken: tokenResult.accessToken,
   });
 
-  if ("error" in accountResult) {
+  if ("error" in locationsResult) {
     return redirectToSettingsIntegrations(req, {
       provider: "google_business",
       result: "error",
-      message: accountResult.error,
+      message: locationsResult.error,
+    });
+  }
+
+  const locations = locationsResult.locations;
+
+  if (locations.length > 1) {
+    return redirectToGoogleLocationSelection(req, {
+      restaurantId: state.restaurantId,
+      accessToken: tokenResult.accessToken,
+      refreshToken: tokenResult.refreshToken,
+      grantedScopes:
+        grantedScopes.length > 0 ? grantedScopes : [...GOOGLE_BUSINESS_OAUTH_SCOPE_IDS],
+      locations,
     });
   }
 
@@ -101,35 +109,17 @@ export async function GET(req: Request) {
     });
   }
 
-  const displayName =
-    accountResult.locationTitle ??
-    accountResult.accountTitle ??
-    "Google Business";
-  const now = new Date().toISOString();
-
-  const { error } = await upsertRestaurantOAuthIntegration(
+  const location = locations[0]!;
+  const { error } = await finalizeGoogleBusinessIntegration(
     admin,
     state.restaurantId,
-    "google_business",
+    location,
     {
-      status: "working",
-      display_name: displayName,
-      connected_at: now,
-      last_error: null,
-      config: {
-        requested_scopes: [...GOOGLE_BUSINESS_OAUTH_SCOPE_IDS],
-        granted_scopes: grantedScopes,
-        scopes_checked_at: now,
-        account_name: accountResult.accountName,
-        account_title: accountResult.accountTitle,
-        location_name: accountResult.locationName,
-        location_title: accountResult.locationTitle,
-        refresh_token: tokenResult.refreshToken ?? undefined,
-        access_token: tokenResult.accessToken,
-      },
+      accessToken: tokenResult.accessToken,
+      refreshToken: tokenResult.refreshToken,
+      grantedScopes:
+        grantedScopes.length > 0 ? grantedScopes : [...GOOGLE_BUSINESS_OAUTH_SCOPE_IDS],
     },
-    googleBusinessConfigFromJson,
-    mergeGoogleConfig,
   );
 
   if (error) {
@@ -140,7 +130,7 @@ export async function GET(req: Request) {
     });
   }
 
-  return redirectToSettingsIntegrations(req, {
+  return redirectWithClearedGooglePending(req, {
     provider: "google_business",
     result: "connected",
   });

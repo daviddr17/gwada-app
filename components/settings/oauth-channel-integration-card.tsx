@@ -11,6 +11,7 @@ import {
   integrationStatusBadgeMuted,
 } from "@/components/settings/settings-integration-panel";
 import { IntegrationGrantedScopes } from "@/components/settings/integration-granted-scopes";
+import { GoogleLocationSelectDialog } from "@/components/settings/google-location-select-dialog";
 import { MetaPageSelectDialog } from "@/components/settings/meta-page-select-dialog";
 import { oauthScopeIdsForProvider } from "@/lib/constants/integration-oauth-scopes";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
@@ -54,6 +55,7 @@ export function OAuthChannelIntegrationCard({
   const [busy, setBusy] = useState(false);
   const [confirmDisconnectOpen, setConfirmDisconnectOpen] = useState(false);
   const [selectPageOpen, setSelectPageOpen] = useState(false);
+  const [selectLocationOpen, setSelectLocationOpen] = useState(false);
 
   const loadStatus = useCallback(async () => {
     if (!restaurantId) {
@@ -108,6 +110,10 @@ export function OAuthChannelIntegrationCard({
     if (result === "select_page") {
       if (provider === "facebook" || provider === "instagram") {
         setSelectPageOpen(true);
+      }
+    } else if (result === "select_location") {
+      if (provider === "google_business") {
+        setSelectLocationOpen(true);
       }
     } else if (result === "connected") {
       toast.success(`${title} verbunden.`);
@@ -271,6 +277,14 @@ export function OAuthChannelIntegrationCard({
           title={title}
           open={selectPageOpen}
           onOpenChange={setSelectPageOpen}
+          onCompleted={() => void loadStatus()}
+        />
+      ) : null}
+
+      {provider === "google_business" ? (
+        <GoogleLocationSelectDialog
+          open={selectLocationOpen}
+          onOpenChange={setSelectLocationOpen}
           onCompleted={() => void loadStatus()}
         />
       ) : null}

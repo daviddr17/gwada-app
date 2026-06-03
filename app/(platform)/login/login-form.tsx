@@ -105,6 +105,8 @@ export function LoginForm() {
   const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [magicLinkBusy, setMagicLinkBusy] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotBusy, setForgotBusy] = useState(false);
   const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
 
   useLayoutEffect(() => {
@@ -235,6 +237,61 @@ export function LoginForm() {
       loginToastError("Anmeldung fehlgeschlagen.", raw);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      toast.error("Bitte eine gültige E-Mail-Adresse eingeben.");
+      return;
+    }
+
+    if (isSupabaseOnlyMode()) {
+      let reach: { ok: boolean; message: string };
+      try {
+        reach = await ensureReachable();
+      } catch {
+        loginToastError("Die Datenbank konnte nicht geprüft werden.");
+        return;
+      }
+      if (!reach.ok) {
+        loginToastError(
+          "Aktuell gibt es Probleme mit der Datenbank. Ein Zurücksetzen ist zurzeit nicht möglich.",
+        );
+        return;
+      }
+    }
+
+    setForgotBusy(true);
+    try {
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok) {
+        loginToastError(
+          typeof data.error === "string"
+            ? data.error
+            : "Der Link konnte nicht gesendet werden.",
+        );
+        return;
+      }
+      toast.success("E-Mail zum Zurücksetzen gesendet.", {
+        description:
+          "Falls ein Konto mit dieser Adresse existiert, findest du den Link in deinem Postfach.",
+      });
+      setForgotMode(false);
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      loginToastError("Der Link konnte nicht gesendet werden.", raw);
+    } finally {
+      setForgotBusy(false);
     }
   };
 
@@ -407,10 +464,12 @@ export function LoginForm() {
             <>
               <CardHeader className="space-y-1">
                 <CardTitle className="text-2xl font-semibold tracking-tight">
-                  Anmelden
+                  {forgotMode ? "Passwort vergessen" : "Anmelden"}
                 </CardTitle>
                 <CardDescription>
-                  Melde dich an, um deine Restaurants zu verwalten.
+                  {forgotMode
+                    ? "Wir senden dir einen Link, mit dem du ein neues Passwort festlegen kannst."
+                    : "Melde dich an, um deine Restaurants zu verwalten."}
                 </CardDescription>
                 {isSupabaseOnlyMode() && dbStatus === "checking" ? (
                   <p className="text-sm text-muted-foreground">
@@ -435,51 +494,94 @@ export function LoginForm() {
                   className="h-11 rounded-xl"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="login-password">Passwort</Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleLogin();
-                  }}
-                  className="h-11 rounded-xl"
-                />
-              </div>
-              <Button
-                type="button"
-                className="h-11 w-full"
-                disabled={busy || isEntering}
-                onClick={() => void handleLogin()}
-              >
-                {busy ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Anmeldung…
-                  </>
-                ) : (
-                  "Weiter"
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 w-full rounded-xl border-border/80 bg-background font-normal"
-                disabled={busy || magicLinkBusy || isEntering}
-                onClick={() => void handleMagicLink()}
-              >
-                {magicLinkBusy ? (
-                  <>
-                    <Loader2 className="mr-2 size-4 animate-spin" />
-                    Link wird gesendet…
-                  </>
-                ) : (
-                  "Magic Link per E-Mail"
-                )}
-              </Button>
+              {!forgotMode ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="login-password">Passwort</Label>
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                      disabled={busy || isEntering}
+                      onClick={() => setForgotMode(true)}
+                    >
+                      Passwort vergessen?
+                    </button>
+                  </div>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void handleLogin();
+                    }}
+                    className="h-11 rounded-xl"
+                  />
+                </div>
+              ) : null}
+              {forgotMode ? (
+                <>
+                  <Button
+                    type="button"
+                    className="h-11 w-full"
+                    disabled={forgotBusy || isEntering}
+                    onClick={() => void handleForgotPassword()}
+                  >
+                    {forgotBusy ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Link wird gesendet…
+                      </>
+                    ) : (
+                      "Link zum Zurücksetzen senden"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="h-11 w-full rounded-xl font-normal"
+                    disabled={forgotBusy}
+                    onClick={() => setForgotMode(false)}
+                  >
+                    Zurück zur Anmeldung
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    className="h-11 w-full"
+                    disabled={busy || isEntering}
+                    onClick={() => void handleLogin()}
+                  >
+                    {busy ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Anmeldung…
+                      </>
+                    ) : (
+                      "Weiter"
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full rounded-xl border-border/80 bg-background font-normal"
+                    disabled={busy || magicLinkBusy || isEntering}
+                    onClick={() => void handleMagicLink()}
+                  >
+                    {magicLinkBusy ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Link wird gesendet…
+                      </>
+                    ) : (
+                      "Magic Link per E-Mail"
+                    )}
+                  </Button>
+                </>
+              )}
 
               {showOAuthSection ? (
                 <>

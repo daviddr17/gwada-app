@@ -13,6 +13,7 @@ import {
   Package,
   Plug,
   ScrollText,
+  Star,
   Settings,
   Settings2,
   Shield,
@@ -230,6 +231,16 @@ export function AppSidebar() {
                     >
                       <Contact />
                       <span>Kontakte</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/bewertungen")}
+                      tooltip="Bewertungen"
+                      render={<Link href="/bewertungen/gwada" prefetch />}
+                    >
+                      <Star />
+                      <span>Bewertungen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

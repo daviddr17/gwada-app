@@ -85,35 +85,54 @@ for dir in /data/coolify/services/* /data/coolify/applications/*; do
   patch_env_file "${dir}/.env"
 done
 
-echo "  Starte Auth/GoTrue neu (Compose + Container)…"
+echo "  Starte Auth/GoTrue neu (force-recreate mit neuer .env)…"
 restarted=0
-for dir in /data/coolify/services/*; do
-  [[ -d "${dir}" ]] || continue
-  [[ -f "${dir}/docker-compose.yml" || -f "${dir}/compose.yaml" ]] || continue
-  if ! grep -q 'GOTRUE_EXTERNAL_GOOGLE_ENABLED=true' "${dir}/.env" 2>/dev/null; then
-    continue
-  fi
-  echo "    Compose in ${dir}…"
-  if (cd "${dir}" && docker compose up -d --force-recreate --no-deps auth 2>/dev/null); then
-    restarted=1
-    echo "    ✓ compose recreate auth"
-  elif (cd "${dir}" && docker compose up -d --force-recreate --no-deps gotrue 2>/dev/null); then
-    restarted=1
-    echo "    ✓ compose recreate gotrue"
-  fi
-done
+auth_container="$(docker ps --format '{{.Names}}' | grep -iE 'supabase-auth' | head -1 || true)"
 
-auth_names="$(docker ps --format '{{.Names}}' | grep -iE 'supabase-auth|supabase.*-auth-|gotrue' || true)"
-while IFS= read -r c; do
-  [[ -z "${c}" ]] && continue
-  docker restart "${c}" >/dev/null 2>&1 && echo "    ✓ restart ${c}" && restarted=1 || echo "    ⚠ restart ${c}" >&2
-done <<< "${auth_names}"
-
-if [[ "${restarted}" != "1" ]]; then
-  echo "::warning::Kein Auth-Container neu gestartet — ggf. manuell: cd /data/coolify/services/<supabase> && docker compose up -d --force-recreate auth" >&2
+if [[ -n "${auth_container}" ]]; then
+  workdir="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "${auth_container}" 2>/dev/null || true)"
+  service="$(docker inspect -f '{{index .Config.Labels "com.docker.compose.service"}}' "${auth_container}" 2>/dev/null || true)"
+  if [[ -n "${workdir}" && -n "${service}" && -d "${workdir}" ]]; then
+    echo "    ${workdir} → Service ${service}"
+    if (cd "${workdir}" && docker compose up -d --force-recreate --no-deps "${service}"); then
+      restarted=1
+      echo "    ✓ compose force-recreate ${service}"
+    else
+      echo "    ⚠ compose recreate fehlgeschlagen" >&2
+    fi
+  fi
 fi
 
-sleep 5
+if [[ "${restarted}" != "1" ]]; then
+  for dir in /data/coolify/services/*; do
+    [[ -d "${dir}" ]] || continue
+    grep -q 'GOTRUE_EXTERNAL_GOOGLE_ENABLED=true' "${dir}/.env" 2>/dev/null || continue
+    for svc in auth gotrue supabase-auth; do
+      if (cd "${dir}" && docker compose up -d --force-recreate --no-deps "${svc}" 2>&1); then
+        restarted=1
+        echo "    ✓ compose recreate ${svc} in ${dir}"
+        break 2
+      fi
+    done
+  done
+fi
+
+if [[ -n "${auth_container}" ]]; then
+  enabled="$(docker exec "${auth_container}" printenv GOTRUE_EXTERNAL_GOOGLE_ENABLED 2>/dev/null || true)"
+  cid="$(docker exec "${auth_container}" printenv GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID 2>/dev/null || true)"
+  if [[ "${enabled}" == "true" && -n "${cid}" ]]; then
+    echo "    ✓ Container-Env: GOOGLE_ENABLED=true, CLIENT_ID=${cid:0:20}…"
+  else
+    echo "    ⚠ Container-Env noch ohne Google (enabled=${enabled:-leer})" >&2
+  fi
+fi
+
+if [[ "${restarted}" != "1" ]]; then
+  echo "::error::Auth-Container konnte nicht mit neuer Env neu erstellt werden." >&2
+  exit 1
+fi
+
+sleep 6
 REMOTE
 
 echo ""

@@ -61,6 +61,32 @@ const nextConfig: NextConfig = {
       ],
     };
   },
+  async headers() {
+    return [
+      {
+        source: "/embed/v1/gwada.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+        ],
+      },
+      {
+        source: "/embed/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=60, stale-while-revalidate=300",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

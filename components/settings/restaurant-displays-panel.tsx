@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Copy, Loader2, Monitor, Plus, QrCode, Trash2, Unlink } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Card,
   CardContent,
@@ -48,6 +49,8 @@ export function RestaurantDisplaysPanel() {
   const [pairingFor, setPairingFor] = useState<string | null>(null);
   const [pairing, setPairing] = useState<PairingInfo | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [confirmUnpairId, setConfirmUnpairId] = useState<string | null>(null);
+  const [confirmRePairId, setConfirmRePairId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!restaurantId) {
@@ -117,10 +120,23 @@ export function RestaurantDisplaysPanel() {
         body: JSON.stringify(patch),
       });
       if (!res.ok) {
-        toast.error("Speichern fehlgeschlagen.");
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(
+          data.error?.includes("invalid input value for enum")
+            ? "Module konnten nicht gespeichert werden (Datenbank-Migration fehlt evtl. auf Live)."
+            : "Speichern fehlgeschlagen.",
+        );
+        await load();
         return;
       }
       toast.success(patch.unpair ? "Tablet entkoppelt." : "Gespeichert.");
+      if (patch.unpair) {
+        setDisplays((prev) =>
+          prev.map((row) =>
+            row.id === id ? { ...row, is_paired: false } : row,
+          ),
+        );
+      }
       await load();
     } finally {
       setSavingId(null);
@@ -200,6 +216,50 @@ export function RestaurantDisplaysPanel() {
 
   return (
     <div className="space-y-6 pb-8">
+      <p className="text-sm text-muted-foreground">
+        Name, Module und Auto-Lock werden in der Datenbank gespeichert. Am
+        Tablet gibt es zusätzlich eine{" "}
+        <strong className="font-medium text-foreground">Geräte-ID</strong>{" "}
+        (im Browser gespeichert, kein MAC) und einen Cookie — nach Daten löschen
+        stellt sich das Tablet die Kopplung oft selbst wieder her. „Entkoppeln“
+        beendet alle Tablets; „Neu koppeln“ betrifft nur das Gerät, das den Code
+        eingibt.
+      </p>
+
+      <ConfirmDialog
+        open={confirmUnpairId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmUnpairId(null);
+        }}
+        title="Tablet entkoppeln?"
+        description="Das Display ist danach am Tablet nicht mehr nutzbar, bis du es erneut koppelst. Die Einstellungen (Name, Module) bleiben erhalten."
+        confirmLabel="Entkoppeln"
+        destructive
+        onConfirm={async () => {
+          const id = confirmUnpairId;
+          if (!id) return;
+          setConfirmUnpairId(null);
+          await saveDisplay(id, { unpair: true });
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmRePairId !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmRePairId(null);
+        }}
+        title="Neu koppeln?"
+        description="Sobald ein Tablet den neuen Code nutzt, funktionieren bereits gekoppelte Tablets mit diesem Display nicht mehr — sie brauchen dann ebenfalls den neuen Code."
+        confirmLabel="Kopplungscode anzeigen"
+        destructive={false}
+        onConfirm={async () => {
+          const id = confirmRePairId;
+          if (!id) return;
+          setConfirmRePairId(null);
+          await startPairing(id);
+        }}
+      />
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[12rem] flex-1 space-y-1.5">
           <Label htmlFor="new-display-name">Neues Display</Label>
@@ -258,7 +318,10 @@ export function RestaurantDisplaysPanel() {
                     variant="outline"
                     size="sm"
                     disabled={busy}
-                    onClick={() => void startPairing(d.id)}
+                    onClick={() => {
+                      if (d.is_paired) setConfirmRePairId(d.id);
+                      else void startPairing(d.id);
+                    }}
                   >
                     <QrCode className="mr-1.5 size-4" />
                     {d.is_paired ? "Neu koppeln" : "Koppeln"}
@@ -269,7 +332,7 @@ export function RestaurantDisplaysPanel() {
                       variant="outline"
                       size="sm"
                       disabled={busy}
-                      onClick={() => void saveDisplay(d.id, { unpair: true })}
+                      onClick={() => setConfirmUnpairId(d.id)}
                     >
                       <Unlink className="mr-1.5 size-4" />
                       Entkoppeln
@@ -364,6 +427,16 @@ export function RestaurantDisplaysPanel() {
                               const next = on
                                 ? [...d.allowed_modules, mod.id]
                                 : d.allowed_modules.filter((x) => x !== mod.id);
+                              setDisplays((prev) =>
+                                prev.map((row) =>
+                                  row.id === d.id
+                                    ? {
+                                        ...row,
+                                        allowed_modules: next as DisplayModule[],
+                                      }
+                                    : row,
+                                ),
+                              );
                               void saveDisplay(d.id, {
                                 allowed_modules: next as DisplayModule[],
                               });

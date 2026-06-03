@@ -67,8 +67,18 @@ export type DisplaySessionStaff = {
   position_name: string | null;
 };
 
+/** Warum das Tablet nicht eingeloggt ist (nur wenn paired=false). */
+export type DisplayPairingStatus =
+  | "no_device_cookie"
+  | "display_missing"
+  | "display_inactive"
+  | "not_paired_server"
+  | "token_revoked";
+
 export type DisplayContextResponse = {
   paired: boolean;
+  /** Nur gesetzt, wenn paired=false — für klare Tablet-Hinweise. */
+  pairing_status?: DisplayPairingStatus;
   restaurant: {
     id: string;
     name: string;

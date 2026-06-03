@@ -1,6 +1,6 @@
 {
-  "title": "Display: Bestand, Bestellung und Rezepte",
-  "body": "- Neues Display-Modul „Bestand & Bestellung“: Touch-Erfassung von Bestand und Bestellmengen, Filter nach Produktionsstelle, Lieferant und Kategorie (Berechtigung „Display: Bestand & Bestellung“)\n- Rezepte am Display: Kategorie-Chips zum schnellen Filtern\n- Bestätigung per Toast nach dem Speichern; Tab oder Enter springt zur nächsten Zutat",
+  "title": "Display: stabile Kopplung und Bestand",
+  "body": "- Tablet-Kopplung bleibt erhalten: stabile Geräte-ID (kein MAC) und automatische Wiederherstellung, wenn der Browser-Cookie fehlt\n- Mehrere Tablets pro Display möglich; „Neu koppeln“ betrifft nur das Gerät mit dem Code\n- Klarere Meldungen am Display, Bestätigung vor Entkoppeln\n- Modul „Bestand & Bestellung“ am Display (Touch-Inventur, Filter, Bestellmengen)\n- Rezepte am Display: Filter per Kategorie-Chips",
   "audience": "customers",
   "version": "2026.06.03"
 }

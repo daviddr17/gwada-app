@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import {
-  generateDisplayToken,
-  hashDisplayToken,
-} from "@/lib/display/display-auth-server";
+import { generateDisplayToken } from "@/lib/display/display-crypto";
+import { upsertDisplayInstallation } from "@/lib/display/display-installation-server";
 import {
   DISPLAY_DEVICE_COOKIE,
   displayCookieOptions,
@@ -17,11 +15,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  let body: { code?: string };
+  let body: { code?: string; installation_id?: string };
   try {
-    body = (await request.json()) as { code?: string };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const installationId = body.installation_id?.trim();
+  if (!installationId || installationId.length < 8) {
+    return NextResponse.json({ error: "invalid_installation_id" }, { status: 400 });
   }
 
   const code = body.code?.trim().toUpperCase();
@@ -70,15 +73,17 @@ export async function POST(request: Request) {
   }
 
   const deviceToken = generateDisplayToken();
-  const deviceHash = hashDisplayToken(deviceToken);
+  const userAgent = request.headers.get("user-agent");
 
-  const { error: updateError } = await admin
-    .from("restaurant_displays")
-    .update({ device_secret_hash: deviceHash })
-    .eq("id", display.id);
+  const installed = await upsertDisplayInstallation({
+    displayId: display.id as string,
+    installationId,
+    deviceToken,
+    userAgent,
+  });
 
-  if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  if (!installed.ok) {
+    return NextResponse.json({ error: installed.error }, { status: 500 });
   }
 
   await admin
@@ -98,6 +103,9 @@ export async function POST(request: Request) {
 
   return NextResponse.json({
     ok: true,
+    device_token: deviceToken,
+    display_id: display.id,
+    installation_id: installationId,
     display: {
       id: display.id,
       name: display.name,

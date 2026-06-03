@@ -22,6 +22,9 @@ import { normalizeHex } from "@/lib/theme/color-utils";
 import { cn } from "@/lib/utils";
 import { Loader2, MonitorOff } from "lucide-react";
 import Link from "next/link";
+import {
+  readDisplayDeviceCredential,
+} from "@/lib/display/display-device-storage";
 
 export function DisplayScreen({ slug }: { slug: string }) {
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
@@ -42,13 +45,34 @@ export function DisplayScreen({ slug }: { slug: string }) {
     return data;
   }, []);
 
+  const tryRestoreDeviceCookie = useCallback(async () => {
+    const cred = readDisplayDeviceCredential();
+    if (!cred) return false;
+    const res = await fetch("/api/display/device/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        display_id: cred.displayId,
+        installation_id: cred.installationId,
+        device_token: cred.token,
+      }),
+    });
+    return res.ok;
+  }, []);
+
   useEffect(() => {
     void (async () => {
       setLoading(true);
-      await refreshContext();
+      let data = await refreshContext();
+      if (!data.paired) {
+        const restored = await tryRestoreDeviceCookie();
+        if (restored) {
+          data = await refreshContext();
+        }
+      }
       setLoading(false);
     })();
-  }, [refreshContext]);
+  }, [refreshContext, tryRestoreDeviceCookie]);
 
   useEffect(() => {
     if (!context?.session) {
@@ -153,25 +177,59 @@ export function DisplayScreen({ slug }: { slug: string }) {
       </div>
     );
   } else if (!context?.paired) {
+    const pairingHint = (() => {
+      switch (context?.pairing_status) {
+        case "display_inactive":
+          return {
+            title: "Display deaktiviert",
+            body: "Dieses Display ist in den Einstellungen als inaktiv markiert. Aktiviere es dort wieder — eine erneute Kopplung ist dafür nicht nötig, sofern das Tablet schon gekoppelt war.",
+            showPairLink: false,
+          };
+        case "token_revoked":
+          return {
+            title: "Kopplung ungültig",
+            body: "Die Kopplung wurde ersetzt (z. B. „Neu koppeln“ oder anderes Tablet mit demselben Code). Bitte in den Einstellungen einen neuen Kopplungscode erzeugen und hier verbinden.",
+            showPairLink: true,
+          };
+        case "not_paired_server":
+          return {
+            title: "Noch nicht gekoppelt",
+            body: "Für dieses Display wurde noch kein Tablet verbunden. In den Einstellungen „Koppeln“ wählen, QR-Code oder Code am Tablet eingeben.",
+            showPairLink: true,
+          };
+        case "display_missing":
+          return {
+            title: "Display nicht gefunden",
+            body: "Dieses Display existiert nicht mehr. Bitte in den Einstellungen ein neues Display anlegen und koppeln.",
+            showPairLink: true,
+          };
+        case "no_device_cookie":
+        default:
+          return {
+            title: "Tablet nicht gekoppelt",
+            body: "Der Browser-Cookie fehlt. Wenn dieses Tablet schon einmal gekoppelt war, wird die Kopplung automatisch aus dem Gerätespeicher wiederhergestellt — sonst in den Einstellungen einen Code holen. (MAC-Adressen sind im Browser aus Datenschutzgründen nicht verfügbar; stattdessen eine stabile Geräte-ID pro Tablet.)",
+            showPairLink: true,
+          };
+      }
+    })();
+
     content = (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-6 p-8 text-center">
         <MonitorOff className="size-16 text-muted-foreground" />
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold">Kein Zugriff</h1>
-          <p className="max-w-md text-muted-foreground">
-            Dieses Gerät ist nicht mit einem Restaurant-Display gekoppelt.
-            Bitte in den Einstellungen einen Kopplungscode erzeugen und das
-            Tablet verbinden.
-          </p>
+          <h1 className="text-3xl font-semibold">{pairingHint.title}</h1>
+          <p className="max-w-md text-muted-foreground">{pairingHint.body}</p>
         </div>
-        <Link
-          href="/display/pair"
-          className={cn(
-            "inline-flex h-12 items-center justify-center rounded-xl bg-accent px-6 text-lg font-medium text-accent-foreground hover:bg-accent/90",
-          )}
-        >
-          Display koppeln
-        </Link>
+        {pairingHint.showPairLink ? (
+          <Link
+            href="/display/pair"
+            className={cn(
+              "inline-flex h-12 items-center justify-center rounded-xl bg-accent px-6 text-lg font-medium text-accent-foreground hover:bg-accent/90",
+            )}
+          >
+            Display koppeln
+          </Link>
+        ) : null}
       </div>
     );
   } else if (context.restaurant && context.restaurant.slug !== slug) {

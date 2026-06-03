@@ -44,6 +44,18 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const ids = (data ?? []).map((r) => r.id as string);
+  const pairedIds = new Set<string>();
+  if (ids.length > 0) {
+    const { data: instRows } = await auth.sb
+      .from("restaurant_display_installations")
+      .select("display_id")
+      .in("display_id", ids);
+    for (const row of instRows ?? []) {
+      pairedIds.add(row.display_id as string);
+    }
+  }
+
   const displays = (data ?? []).map((row) => ({
     id: row.id,
     restaurant_id: row.restaurant_id,
@@ -51,7 +63,8 @@ export async function GET(request: Request) {
     allowed_modules: row.allowed_modules,
     auto_lock_seconds: row.auto_lock_seconds,
     is_active: row.is_active,
-    is_paired: Boolean(row.device_secret_hash),
+    is_paired:
+      pairedIds.has(row.id as string) || Boolean(row.device_secret_hash),
     created_at: row.created_at,
   }));
 

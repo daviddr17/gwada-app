@@ -5,6 +5,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import {
+  getOrCreateDisplayInstallationId,
+  saveDisplayDeviceCredential,
+} from "@/lib/display/display-device-storage";
 
 export default function DisplayPairPageInner() {
   const router = useRouter();
@@ -24,14 +28,18 @@ export default function DisplayPairPageInner() {
     setBusy(true);
     setError(null);
     try {
+      const installationId = getOrCreateDisplayInstallationId();
       const res = await fetch("/api/display/pair", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: normalized }),
+        body: JSON.stringify({ code: normalized, installation_id: installationId }),
       });
       const data = (await res.json()) as {
         error?: string;
         restaurant?: { slug: string };
+        display_id?: string;
+        device_token?: string;
+        installation_id?: string;
       };
       if (!res.ok) {
         const msg =
@@ -48,6 +56,13 @@ export default function DisplayPairPageInner() {
                     : "Kopplung fehlgeschlagen.";
         setError(msg);
         return;
+      }
+      if (data.display_id && data.device_token && data.installation_id) {
+        saveDisplayDeviceCredential({
+          displayId: data.display_id,
+          token: data.device_token,
+          installationId: data.installation_id,
+        });
       }
       toast.success("Tablet gekoppelt.");
       router.replace(`/display/${data.restaurant?.slug ?? ""}`);

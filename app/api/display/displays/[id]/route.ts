@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { DisplayModule } from "@/lib/display/display-types";
+import { deleteDisplayInstallations } from "@/lib/display/display-installation-server";
 
 async function assertDisplayManageForDisplay(displayId: string) {
   const sb = await createSupabaseServerClient();
@@ -62,23 +63,24 @@ export async function PATCH(
     patch.auto_lock_seconds = body.auto_lock_seconds;
   }
   if (body.is_active !== undefined) patch.is_active = body.is_active;
-  if (body.unpair) patch.device_secret_hash = null;
-
-  const { error } = await auth.sb
-    .from("restaurant_displays")
-    .update(patch)
-    .eq("id", id);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
   if (body.unpair) {
+    await deleteDisplayInstallations(id);
     await auth.sb
       .from("restaurant_display_sessions")
       .update({ ended_at: new Date().toISOString() })
       .eq("display_id", id)
       .is("ended_at", null);
+  }
+
+  if (Object.keys(patch).length > 0) {
+    const { error } = await auth.sb
+      .from("restaurant_displays")
+      .update(patch)
+      .eq("id", id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ ok: true });

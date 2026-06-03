@@ -1,7 +1,15 @@
 import "server-only";
 
-import { createHash, randomBytes } from "crypto";
 import type { cookies } from "next/headers";
+import {
+  generateDisplayToken,
+  generatePairingCode,
+  hashDisplayToken,
+} from "@/lib/display/display-crypto";
+import {
+  displayHasInstallations,
+  findDisplayIdForDeviceToken,
+} from "@/lib/display/display-installation-server";
 import { resolveStaffDisplayModules } from "@/lib/display/display-modules";
 import {
   DISPLAY_DEVICE_COOKIE,
@@ -12,6 +20,7 @@ import {
 import type {
   DisplayContextResponse,
   DisplayModule,
+  DisplayPairingStatus,
   DisplaySessionStaff,
 } from "@/lib/display/display-types";
 import {
@@ -22,22 +31,7 @@ import { getStaffDisplayTimeState } from "@/lib/staff/staff-display-time-server"
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeHex } from "@/lib/theme/color-utils";
 
-export function hashDisplayToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
-}
-
-export function generateDisplayToken(): string {
-  return randomBytes(32).toString("hex");
-}
-
-export function generatePairingCode(): string {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let out = "";
-  for (let i = 0; i < 8; i++) {
-    out += alphabet[Math.floor(Math.random() * alphabet.length)]!;
-  }
-  return out;
-}
+export { generateDisplayToken, generatePairingCode, hashDisplayToken } from "@/lib/display/display-crypto";
 
 type DisplayDeviceRow = {
   id: string;
@@ -88,12 +82,21 @@ export async function assertDisplayDeviceFromCookies(
   }
 
   const display = await loadDisplayDevice(parsed.displayId);
-  if (!display || !display.is_active || !display.device_secret_hash) {
+  if (!display || !display.is_active) {
     return { ok: false, error: "device_not_paired", status: 401 };
   }
 
-  const hash = hashDisplayToken(parsed.token);
-  if (hash !== display.device_secret_hash) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { ok: false, error: "server_misconfigured", status: 503 };
+  }
+
+  const valid = await findDisplayIdForDeviceToken(
+    admin,
+    parsed.displayId,
+    parsed.token,
+  );
+  if (!valid) {
     return { ok: false, error: "device_invalid", status: 403 };
   }
 
@@ -232,19 +235,73 @@ export async function touchDisplaySession(sessionId: string): Promise<void> {
     .is("ended_at", null);
 }
 
+export async function resolveDisplayPairingStatus(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+): Promise<
+  | {
+      status: "ok";
+      display: DisplayDeviceRow;
+      deviceToken: string;
+    }
+  | { status: DisplayPairingStatus }
+> {
+  const parsed = parseDisplayDeviceCookie(
+    cookieStore.get(DISPLAY_DEVICE_COOKIE)?.value,
+  );
+  if (!parsed) {
+    return { status: "no_device_cookie" };
+  }
+
+  const display = await loadDisplayDevice(parsed.displayId);
+  if (!display) {
+    return { status: "display_missing" };
+  }
+  if (!display.is_active) {
+    return { status: "display_inactive" };
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { status: "not_paired_server" };
+  }
+
+  const hasInstallations = await displayHasInstallations(display.id);
+  if (!display.device_secret_hash && !hasInstallations) {
+    return { status: "not_paired_server" };
+  }
+
+  const valid = await findDisplayIdForDeviceToken(
+    admin,
+    display.id,
+    parsed.token,
+  );
+  if (!valid) {
+    return { status: "token_revoked" };
+  }
+
+  return { status: "ok", display, deviceToken: parsed.token };
+}
+
 export async function buildDisplayContext(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
 ): Promise<DisplayContextResponse> {
-  const deviceResult = await assertDisplayDeviceFromCookies(cookieStore);
-  if (!deviceResult.ok) {
+  const pairing = await resolveDisplayPairingStatus(cookieStore);
+  if (pairing.status !== "ok") {
     return {
       paired: false,
+      pairing_status: pairing.status,
       restaurant: null,
       display: null,
       session: null,
       time_session: null,
     };
   }
+
+  const deviceResult = {
+    ok: true as const,
+    display: pairing.display,
+    deviceToken: pairing.deviceToken,
+  };
 
   const admin = createSupabaseAdminClient();
   if (!admin) {

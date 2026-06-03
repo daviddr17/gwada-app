@@ -19,7 +19,10 @@ function readEmbedContext(): {
   const embedId = params.get("gwada_embed_id");
   const widgetRaw = params.get("gwada_widget");
   const widget =
-    widgetRaw === "menu" || widgetRaw === "contact" || widgetRaw === "reservation"
+    widgetRaw === "menu" ||
+    widgetRaw === "reviews" ||
+    widgetRaw === "contact" ||
+    widgetRaw === "reservation"
       ? widgetRaw
       : "reservation";
   return { embedId, widget };

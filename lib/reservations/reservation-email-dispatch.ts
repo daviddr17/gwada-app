@@ -583,6 +583,7 @@ export async function processDueEmailOutbox(
         restaurantId: row.restaurant_id,
         reservationId: row.id,
         text,
+        channel: "email",
       });
     }
     const subject = buildEmailSubject(settings, kind, ctx);

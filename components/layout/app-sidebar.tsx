@@ -237,7 +237,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/bewertungen")}
                       tooltip="Bewertungen"
-                      render={<Link href="/bewertungen/gwada" prefetch />}
+                      render={<Link href="/bewertungen/uebersicht" prefetch />}
                     >
                       <Star />
                       <span>Bewertungen</span>

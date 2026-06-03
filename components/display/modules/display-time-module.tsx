@@ -5,6 +5,10 @@ import { Loader2, Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import {
+  displayTimeActionButtonOutlineClassName,
+  displayTimeActionButtonPrimaryClassName,
+} from "@/lib/ui/display-time-action-button";
 import type { DisplayTeamPresenceMember } from "@/lib/types/staff";
 import type { StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -41,6 +45,7 @@ function DisplayTimeActionButton({
   stripeType,
   children,
   className,
+  variant = "default",
   ...props
 }: ComponentProps<typeof Button> & {
   stripeType?: StaffWorkEntryType;
@@ -48,8 +53,11 @@ function DisplayTimeActionButton({
   return (
     <Button
       {...props}
+      variant={variant}
       className={cn(
-        "relative h-16 overflow-hidden rounded-2xl pl-6 text-lg",
+        variant === "outline"
+          ? displayTimeActionButtonOutlineClassName
+          : displayTimeActionButtonPrimaryClassName,
         className,
       )}
     >

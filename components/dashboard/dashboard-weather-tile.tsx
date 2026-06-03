@@ -223,13 +223,13 @@ export function DashboardWeatherTile() {
 
   return (
     <Card className="h-full w-full min-w-0 border-border/50 shadow-card">
-      <CardHeader className="space-y-0 pb-1.5 pt-4">
+      <CardHeader className="space-y-0 px-4 pb-1.5 pt-3">
         <CardTitle className="text-base font-semibold tracking-tight">
           Wetter
         </CardTitle>
-        <CardDescription className="text-xs sm:text-sm">{subtitle}</CardDescription>
+        <CardDescription className="truncate text-xs">{subtitle}</CardDescription>
       </CardHeader>
-      <CardContent className="pb-4 pt-0">
+      <CardContent className="px-4 pb-4 pt-0">
         {err ? (
           <p className="text-xs text-muted-foreground sm:text-sm">{err}</p>
         ) : showSkeleton ? (
@@ -244,7 +244,7 @@ export function DashboardWeatherTile() {
               <div className="flex min-w-0 items-start gap-2.5">
                 <WeatherGlyph icon={cur.icon} />
                 <div>
-                  <p className="text-3xl font-semibold tracking-tight text-foreground tabular-nums">
+                  <p className="text-2xl font-semibold tracking-tight text-foreground tabular-nums">
                     {formatTemp(cur.temp)}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">

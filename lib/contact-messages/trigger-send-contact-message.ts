@@ -42,6 +42,8 @@ const CHANNEL_ERROR_DE: Record<string, string> = {
   "email:no_email": "Keine E-Mail-Adresse für den Gast hinterlegt.",
   "email:smtp_not_configured":
     "E-Mail-Versand ist nicht konfiguriert (SMTP / Server).",
+  contact_already_reviewed:
+    "Dieser Kontakt hat bereits eine Gwada-Bewertung abgegeben. Es kann kein neuer Einladungslink verschickt werden.",
 };
 
 function formatChannelErrors(errors: string[] | undefined): string | null {

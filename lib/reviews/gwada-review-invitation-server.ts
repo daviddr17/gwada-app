@@ -4,24 +4,27 @@ import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const INVITE_TTL_DAYS = 30;
+export const MANUAL_REVIEW_INVITE_TTL_HOURS = 24;
 
-export type ReviewRequestSettings = {
-  review_request_enabled: boolean;
-  review_request_include_gwada: boolean;
-  review_request_include_google: boolean;
-  review_request_include_facebook: boolean;
+import {
+  hasAnyReviewInclude,
+  reviewIncludesFromRow,
+  type ReviewRequestChannel,
+  type ReviewRequestIncludes,
+} from "@/lib/reviews/review-request-settings";
+
+export type ReviewRequestSettings = ReviewRequestIncludes & {
   review_google_url: string | null;
   review_facebook_url: string | null;
 };
 
 export function reviewRequestSettingsFromRow(
   row: Record<string, unknown> | null | undefined,
+  channel: ReviewRequestChannel,
 ): ReviewRequestSettings {
+  const includes = reviewIncludesFromRow(row, channel);
   return {
-    review_request_enabled: Boolean(row?.review_request_enabled),
-    review_request_include_gwada: row?.review_request_include_gwada !== false,
-    review_request_include_google: Boolean(row?.review_request_include_google),
-    review_request_include_facebook: Boolean(row?.review_request_include_facebook),
+    ...includes,
     review_google_url:
       typeof row?.review_google_url === "string"
         ? row.review_google_url.trim() || null
@@ -33,8 +36,17 @@ export function reviewRequestSettingsFromRow(
   };
 }
 
+export { hasAnyReviewInclude };
+
 function newToken(): string {
   return randomBytes(24).toString("base64url");
+}
+
+export function reviewInvitationPublicUrl(
+  origin: string,
+  token: string,
+): string {
+  return `${origin.replace(/\/$/, "")}/bewertung/${token}`;
 }
 
 export async function ensureGwadaReviewInvitation(
@@ -87,11 +99,11 @@ export function buildReviewRequestBlock(params: {
   googleReviewUrl?: string | null;
   facebookReviewUrl?: string | null;
 }): string {
-  if (!params.settings.review_request_enabled) return "";
+  if (!hasAnyReviewInclude(params.settings)) return "";
 
   const lines: string[] = ["", "⭐ Deine Bewertung hilft uns sehr:"];
 
-  if (params.settings.review_request_include_gwada && params.invitationToken) {
+  if (params.settings.includeGwada && params.invitationToken) {
     const url = `${params.origin.replace(/\/$/, "")}/bewertung/${params.invitationToken}`;
     lines.push(`Gwada: ${url}`);
   }
@@ -100,7 +112,7 @@ export function buildReviewRequestBlock(params: {
     params.settings.review_google_url?.trim() ||
     params.googleReviewUrl?.trim() ||
     null;
-  if (params.settings.review_request_include_google && googleUrl) {
+  if (params.settings.includeGoogle && googleUrl) {
     lines.push(`Google: ${googleUrl}`);
   }
 
@@ -108,8 +120,55 @@ export function buildReviewRequestBlock(params: {
     params.settings.review_facebook_url?.trim() ||
     params.facebookReviewUrl?.trim() ||
     null;
-  if (params.settings.review_request_include_facebook && fbUrl) {
+  if (params.settings.includeFacebook && fbUrl) {
     lines.push(`Facebook: ${fbUrl}`);
+  }
+
+  if (lines.length <= 2) return "";
+  return lines.join("\n");
+}
+
+/** Testversand: keine Einladungs-URLs, nur Anzeige welche Kanäle angehängt würden. */
+export function buildReviewRequestPreviewBlock(params: {
+  settings: ReviewRequestSettings;
+  googleReviewUrl?: string | null;
+  facebookReviewUrl?: string | null;
+}): string {
+  if (!hasAnyReviewInclude(params.settings)) return "";
+
+  const lines: string[] = [
+    "",
+    "Bewertungslinks (so bei echter Danke-Nachricht):",
+  ];
+
+  if (params.settings.includeGwada) {
+    lines.push(
+      "Gwada: persönlicher Einladungslink pro Reservierung (wird beim Versand erzeugt)",
+    );
+  }
+
+  const googleUrl =
+    params.settings.review_google_url?.trim() ||
+    params.googleReviewUrl?.trim() ||
+    null;
+  if (params.settings.includeGoogle) {
+    lines.push(
+      googleUrl
+        ? `Google: ${googleUrl}`
+        : "Google: Link aus Einstellung oder Google-Business-Integration",
+    );
+  }
+
+  const fbUrl =
+    params.settings.review_facebook_url?.trim() ||
+    params.facebookReviewUrl?.trim() ||
+    null;
+  if (params.settings.includeFacebook) {
+    lines.push(
+      fbUrl
+        ? `Facebook: ${fbUrl}`
+        : "Facebook: Link aus Einstellung oder Facebook-Integration",
+    );
   }
 
   if (lines.length <= 2) return "";

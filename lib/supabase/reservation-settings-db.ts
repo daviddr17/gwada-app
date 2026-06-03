@@ -50,6 +50,14 @@ export type RestaurantReservationSettingsRow = {
   email_cancelled_subject: string | null;
   email_declined_subject: string | null;
   email_no_show_subject: string | null;
+  whatsapp_review_include_gwada: boolean;
+  whatsapp_review_include_google: boolean;
+  whatsapp_review_include_facebook: boolean;
+  email_review_include_gwada: boolean;
+  email_review_include_google: boolean;
+  email_review_include_facebook: boolean;
+  review_google_url: string | null;
+  review_facebook_url: string | null;
 };
 
 const SETTINGS_SELECT = [
@@ -100,6 +108,14 @@ const SETTINGS_SELECT = [
   "email_cancelled_subject",
   "email_declined_subject",
   "email_no_show_subject",
+  "whatsapp_review_include_gwada",
+  "whatsapp_review_include_google",
+  "whatsapp_review_include_facebook",
+  "email_review_include_gwada",
+  "email_review_include_google",
+  "email_review_include_facebook",
+  "review_google_url",
+  "review_facebook_url",
 ].join(", ");
 
 const WHATSAPP_TEMPLATE_KEY: Record<
@@ -249,6 +265,14 @@ export type UpsertReservationSettingsParams = {
   emailCancelledSubject: string | null;
   emailDeclinedSubject: string | null;
   emailNoShowSubject: string | null;
+  whatsappReviewIncludeGwada: boolean;
+  whatsappReviewIncludeGoogle: boolean;
+  whatsappReviewIncludeFacebook: boolean;
+  emailReviewIncludeGwada: boolean;
+  emailReviewIncludeGoogle: boolean;
+  emailReviewIncludeFacebook: boolean;
+  reviewGoogleUrl: string | null;
+  reviewFacebookUrl: string | null;
 };
 
 export async function upsertReservationSettings(
@@ -304,6 +328,28 @@ export async function upsertReservationSettings(
       email_cancelled_subject: params.emailCancelledSubject,
       email_declined_subject: params.emailDeclinedSubject,
       email_no_show_subject: params.emailNoShowSubject,
+      whatsapp_review_include_gwada: params.whatsappReviewIncludeGwada,
+      whatsapp_review_include_google: params.whatsappReviewIncludeGoogle,
+      whatsapp_review_include_facebook: params.whatsappReviewIncludeFacebook,
+      email_review_include_gwada: params.emailReviewIncludeGwada,
+      email_review_include_google: params.emailReviewIncludeGoogle,
+      email_review_include_facebook: params.emailReviewIncludeFacebook,
+      review_google_url: params.reviewGoogleUrl,
+      review_facebook_url: params.reviewFacebookUrl,
+      review_request_enabled:
+        params.whatsappReviewIncludeGwada ||
+        params.whatsappReviewIncludeGoogle ||
+        params.whatsappReviewIncludeFacebook ||
+        params.emailReviewIncludeGwada ||
+        params.emailReviewIncludeGoogle ||
+        params.emailReviewIncludeFacebook,
+      review_request_include_gwada:
+        params.whatsappReviewIncludeGwada || params.emailReviewIncludeGwada,
+      review_request_include_google:
+        params.whatsappReviewIncludeGoogle || params.emailReviewIncludeGoogle,
+      review_request_include_facebook:
+        params.whatsappReviewIncludeFacebook ||
+        params.emailReviewIncludeFacebook,
     },
     { onConflict: "restaurant_id" },
   );

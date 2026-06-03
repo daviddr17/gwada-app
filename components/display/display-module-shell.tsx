@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { ModeToggle } from "@/components/theme/mode-toggle";
 
 export function DisplayModuleShell({
   restaurantName,
@@ -58,6 +59,7 @@ export function DisplayModuleShell({
           />
         </div>
         <div className="flex items-center gap-2">
+          <ModeToggle className="size-11 shrink-0 rounded-full sm:size-10" />
           {canSwitch && modules.length > 1 ? (
             <Select
               value={activeModule}

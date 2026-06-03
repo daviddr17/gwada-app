@@ -12,7 +12,6 @@ import {
 import {
   Download,
   Pause,
-  Pencil,
   Play,
   Plus,
   ZoomIn,
@@ -34,6 +33,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
+import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
+import {
+  reservationListRowButtonCompactClassName,
+  reservationListRowButtonDrawerFullClassName,
+} from "@/lib/ui/reservation-list-row-interactive";
+import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
+import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
 import { formatDayHeadingDe } from "@/lib/reservations/month-range";
 import {
   isConfirmedReservationStatus,
@@ -409,6 +416,20 @@ export function DayReservationsDrawer({
   /** Ab sm (640px) wie `sm:grid-cols-2` auf der Seite — sonst wirkt Grid wie Liste. */
   const [showGridOption, setShowGridOption] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [gwadaReviewSheet, setGwadaReviewSheet] = useState<{
+    review: ReservationGwadaReviewSummary;
+    guestLabel: string;
+    reservationNumber: number | null;
+  } | null>(null);
+
+  const reservationIds = useMemo(
+    () => reservations.map((r) => r.id),
+    [reservations],
+  );
+  const gwadaReviewsByReservation = useReservationGwadaReviews(
+    restaurantId,
+    reservationIds,
+  );
 
   useLayoutEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
@@ -672,23 +693,28 @@ export function DayReservationsDrawer({
     const tableLabel = compact
       ? reservationAssignedTableLabel(r)
       : reservationDiningTableLabel(r);
-    const editBtn = (
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="size-10 shrink-0 self-start rounded-xl"
-        aria-label={`${guest} bearbeiten`}
-        onClick={() => onEdit(r)}
-      >
-        <Pencil className="size-4" />
-      </Button>
-    );
+    const gwadaReview = gwadaReviewsByReservation.get(r.id);
+    const starBtn = gwadaReview ? (
+      <ReservationGwadaReviewStarButton
+        review={gwadaReview}
+        className={compact ? "shrink-0 self-start" : "shrink-0 self-center"}
+        onOpen={() => {
+          setGwadaReviewSheet({
+            review: gwadaReview,
+            guestLabel: guest,
+            reservationNumber: r.reservation_number,
+          });
+        }}
+      />
+    ) : null;
     if (compact) {
       return (
-        <div
+        <button
           key={r.id}
-          className="flex flex-col overflow-hidden rounded-2xl border border-border/50 bg-muted/10 transition-shadow duration-300"
+          type="button"
+          className={reservationListRowButtonCompactClassName}
+          aria-label={`Reservierung ${guest} bearbeiten`}
+          onClick={() => onEdit(r)}
         >
           <div className="flex w-full min-w-0 items-start gap-2 p-3 pt-4">
             <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -722,22 +748,35 @@ export function DayReservationsDrawer({
                 </p>
               </div>
             </div>
-            {editBtn}
+            {starBtn}
           </div>
-        </div>
+        </button>
       );
     }
     return (
-      <div
+      <button
         key={r.id}
-        className="flex gap-3 rounded-2xl border border-border/50 bg-muted/10 p-3 transition-shadow duration-300"
+        type="button"
+        className={cn(
+          reservationListRowButtonDrawerFullClassName,
+          gwadaReview && "pr-1",
+        )}
+        aria-label={`Reservierung ${guest} bearbeiten`}
+        onClick={() => onEdit(r)}
       >
         <div
           className="w-1 shrink-0 self-stretch rounded-full"
           style={{ backgroundColor: stripe }}
           aria-hidden
         />
-        <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr] grid-rows-2 items-center gap-x-3 gap-y-0.5">
+        <div
+          className={cn(
+            "grid min-w-0 flex-1 items-center gap-x-3 gap-y-0.5",
+            gwadaReview
+              ? "grid-cols-[auto_1fr_auto] grid-rows-2"
+              : "grid-cols-[auto_1fr] grid-rows-2",
+          )}
+        >
           <div className="row-span-2 flex items-center self-stretch">
             <span className="text-3xl font-semibold tabular-nums leading-none tracking-tight text-foreground">
               {t}
@@ -771,9 +810,21 @@ export function DayReservationsDrawer({
               </p>
             )}
           </div>
+          {gwadaReview ? (
+            <ReservationGwadaReviewStarButton
+              review={gwadaReview}
+              className="col-start-3 row-span-2 self-center justify-self-end"
+              onOpen={() => {
+                setGwadaReviewSheet({
+                  review: gwadaReview,
+                  guestLabel: guest,
+                  reservationNumber: r.reservation_number,
+                });
+              }}
+            />
+          ) : null}
         </div>
-        {editBtn}
-      </div>
+      </button>
     );
   };
 
@@ -1449,6 +1500,15 @@ export function DayReservationsDrawer({
       dayTitle={dayTitle}
       reservations={sorted}
       restaurantName={restaurantName}
+    />
+    <ReservationGwadaReviewSheet
+      open={gwadaReviewSheet !== null}
+      onOpenChange={(o) => {
+        if (!o) setGwadaReviewSheet(null);
+      }}
+      review={gwadaReviewSheet?.review ?? null}
+      guestLabel={gwadaReviewSheet?.guestLabel ?? ""}
+      reservationNumber={gwadaReviewSheet?.reservationNumber ?? null}
     />
     </>
   );

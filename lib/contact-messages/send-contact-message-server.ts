@@ -280,9 +280,11 @@ export async function sendContactMessageServer(
             admin,
           );
           if (delivery) {
+            const restaurantLabel =
+              input.restaurantName?.trim() || "Ihrem Restaurant";
             const subject = reservationMeta
               ? `Nachricht zu Reservierung #${reservationMeta.ctx.reservationNumber}`
-              : "Nachricht von Ihrem Restaurant";
+              : `Nachricht von ${restaurantLabel}`;
             const result = await sendReservationEmail(delivery, {
               to,
               subject,

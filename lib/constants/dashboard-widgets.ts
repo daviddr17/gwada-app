@@ -1,6 +1,7 @@
 export type DashboardWidgetId =
   | "menu"
   | "reservations"
+  | "reviews"
   | "staff"
   | "weather"
   | "contacts"
@@ -28,6 +29,7 @@ export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
 > = {
   menu: true,
   reservations: true,
+  reviews: false,
   staff: true,
   weather: true,
   contacts: true,
@@ -50,7 +52,13 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
     id: "reservations",
     label: "Reservierungen",
     description:
-      "Unbestätigt, Reservierungen und Personen heute sowie in der Kalenderwoche",
+      "Nächste Reservierungen, Unbestätigtes und Ø Personen in der Kalenderwoche",
+  },
+  {
+    id: "reviews",
+    label: "Bewertungen",
+    description:
+      "Neueste Bewertungen und Ø im Plattform-Vergleich (Gwada, Google, Facebook)",
   },
   {
     id: "staff",

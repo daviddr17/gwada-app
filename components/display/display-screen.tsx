@@ -7,6 +7,7 @@ import { DisplayBrandMark } from "@/components/display/display-brand-mark";
 import { DisplayLoggedInFooter } from "@/components/display/display-logged-in-footer";
 import { DisplayRestaurantProfileHero } from "@/components/display/display-restaurant-profile-hero";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
+import { DisplayThemeToggleSlot } from "@/components/display/display-theme-toggle-slot";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
@@ -214,7 +215,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
     })();
 
     content = (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-6 p-8 text-center">
+      <div className="relative flex min-h-dvh flex-col items-center justify-center gap-6 p-8 text-center">
+        <DisplayThemeToggleSlot />
         <MonitorOff className="size-16 text-muted-foreground" />
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold">{pairingHint.title}</h1>
@@ -249,7 +251,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
     );
   } else if (!context.session) {
     content = (
-      <div className="flex min-h-dvh flex-col bg-background">
+      <div className="relative flex min-h-dvh flex-col bg-background">
+        <DisplayThemeToggleSlot />
         <DisplayRestaurantProfileHero
           name={context.restaurant?.name ?? ""}
           avatarUrl={context.restaurant?.avatar_url}
@@ -293,7 +296,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
     if (!activeModule && modules.length > 1) {
       content = (
-        <div className="flex min-h-dvh flex-col bg-background">
+        <div className="relative flex min-h-dvh flex-col bg-background">
+          <DisplayThemeToggleSlot />
           <DisplayRestaurantProfileHero
             name={context.restaurant?.name ?? ""}
             avatarUrl={context.restaurant?.avatar_url}

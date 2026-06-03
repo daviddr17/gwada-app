@@ -1,12 +1,23 @@
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 
+export type DashboardReservationRecent = {
+  id: string;
+  guestLabel: string;
+  startsAt: string;
+  partySize: number;
+  statusName: string;
+  href: string;
+};
+
 export type DashboardReservationSummary = {
   unconfirmedCount: number;
   todayReservations: number;
   todayGuests: number;
   weekReservations: number;
   weekGuests: number;
+  avgPartySizeWeek: number | null;
+  recent: DashboardReservationRecent[];
 };
 
 function statusCode(row: ReservationListRow): string {
@@ -52,11 +63,40 @@ export function computeDashboardReservationSummary(
     }
   }
 
+  const avgPartySizeWeek =
+    weekReservations > 0
+      ? Math.round((weekGuests / weekReservations) * 10) / 10
+      : null;
+
+  const nowMs = today.getTime();
+  const recent = [...upcomingRows]
+    .filter(countsTowardGuestTotals)
+    .filter((row) => new Date(row.starts_at).getTime() >= nowMs)
+    .sort(
+      (a, b) =>
+        new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+    )
+    .slice(0, 4)
+    .map((row) => {
+      const guestLabel =
+        `${row.guest_first_name} ${row.guest_last_name}`.trim() || "Gast";
+      return {
+        id: row.id,
+        guestLabel,
+        startsAt: row.starts_at,
+        partySize: row.party_size,
+        statusName: row.reservation_statuses?.name ?? "—",
+        href: `/reservierungen/uebersicht?reservation=${row.id}`,
+      };
+    });
+
   return {
     unconfirmedCount,
     todayReservations,
     todayGuests,
     weekReservations,
     weekGuests,
+    avgPartySizeWeek,
+    recent,
   };
 }

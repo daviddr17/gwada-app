@@ -1,5 +1,5 @@
-import { ReviewsScreen } from "@/components/reviews/reviews-screen";
+import { redirect } from "next/navigation";
 
-export default function BewertungenGwadaPage() {
-  return <ReviewsScreen platform="gwada" />;
+export default function BewertungenGwadaRedirectPage() {
+  redirect("/bewertungen/uebersicht?platform=gwada");
 }

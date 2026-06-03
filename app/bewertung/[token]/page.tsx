@@ -90,71 +90,71 @@ export default function PublicReviewPage() {
   };
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle className="text-xl">Bewertung</CardTitle>
-          <CardDescription>
-            {loading
-              ? "Wird geladen…"
-              : completed
-                ? `Danke — deine Bewertung für ${restaurantName} ist eingegangen.`
-                : canSubmit
-                  ? `Wie war dein Besuch bei ${restaurantName}?`
-                  : "Dieser Bewertungslink ist nicht mehr gültig."}
-          </CardDescription>
-        </CardHeader>
-        {canSubmit && !completed ? (
-          <CardContent className="space-y-4">
-            <div className="flex justify-center gap-2">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  onClick={() => setRating(n)}
-                  className="rounded-lg p-1 transition-transform hover:scale-110"
-                  aria-label={`${n} Sterne`}
-                >
-                  <Star
-                    className={cn(
-                      "size-9",
-                      n <= rating
-                        ? "fill-amber-400 text-amber-400"
-                        : "text-muted-foreground/35",
-                    )}
-                  />
-                </button>
-              ))}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="guest-name">Name (optional)</Label>
-              <Input
-                id="guest-name"
-                value={guestName}
-                onChange={(e) => setGuestName(e.target.value)}
-                className="h-11 rounded-xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="comment">Kommentar (optional)</Label>
-              <Textarea
-                id="comment"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={3}
-              />
-            </div>
-            <Button
-              type="button"
-              className="h-11 w-full"
-              disabled={busy || rating < 1}
-              onClick={() => void submit()}
-            >
-              {busy ? "Senden…" : "Bewertung absenden"}
-            </Button>
-          </CardContent>
-        ) : null}
-      </Card>
-    </div>
+    <Card className="w-full max-w-md border-border/50 shadow-card">
+      <CardHeader>
+        <CardTitle className="text-xl">
+          {completed ? "Danke für deine Bewertung" : "Bewertung"}
+        </CardTitle>
+        <CardDescription>
+          {loading
+            ? "Wird geladen…"
+            : completed
+              ? `Deine Bewertung für ${restaurantName} ist eingegangen.`
+              : canSubmit
+                ? `Wie war dein Besuch bei ${restaurantName}? Der Link ist 24 Stunden gültig.`
+                : "Dieser Bewertungslink ist abgelaufen oder wurde bereits genutzt."}
+        </CardDescription>
+      </CardHeader>
+      {canSubmit && !completed ? (
+        <CardContent className="space-y-4">
+          <div className="flex justify-center gap-2">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setRating(n)}
+                className="rounded-lg p-1 transition-transform hover:scale-110"
+                aria-label={`${n} Sterne`}
+              >
+                <Star
+                  className={cn(
+                    "size-9",
+                    n <= rating
+                      ? "fill-amber-400 text-amber-400"
+                      : "text-muted-foreground/35",
+                  )}
+                />
+              </button>
+            ))}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="guest-name">Name (optional)</Label>
+            <Input
+              id="guest-name"
+              value={guestName}
+              onChange={(e) => setGuestName(e.target.value)}
+              className="h-11 rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="comment">Kommentar (optional)</Label>
+            <Textarea
+              id="comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <Button
+            type="button"
+            className="h-11 w-full"
+            disabled={busy || rating < 1}
+            onClick={() => void submit()}
+          >
+            {busy ? "Senden…" : "Bewertung absenden"}
+          </Button>
+        </CardContent>
+      ) : null}
+    </Card>
   );
 }

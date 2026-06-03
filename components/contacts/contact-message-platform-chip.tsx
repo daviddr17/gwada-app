@@ -2,6 +2,7 @@
 
 import { Mail, MessageCircle } from "lucide-react";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
+import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
@@ -24,6 +25,8 @@ function PlatformIcon({
       return <Mail className={cn("size-4", className)} aria-hidden />;
     case "facebook":
       return <FacebookGlyph className={cn("size-4", className)} />;
+    case "instagram":
+      return <InstagramGlyph className={cn("size-4", className)} />;
     case "gwada":
       return <GwadaFaviconIcon size="chip" className={className} />;
     default:
@@ -88,6 +91,13 @@ function PlatformIconMeta({
       );
     case "facebook":
       return <FacebookGlyph className={cn(META_ICON_CLASS, className)} />;
+    case "instagram":
+      return (
+        <InstagramGlyph
+          className={cn(META_ICON_CLASS, className)}
+          gradId="ig-grad-meta"
+        />
+      );
     case "gwada":
       return (
         <GwadaFaviconIcon

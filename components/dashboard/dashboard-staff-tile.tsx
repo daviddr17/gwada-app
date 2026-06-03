@@ -34,10 +34,9 @@ export function DashboardStaffTile() {
   return (
     <DashboardWidgetShell
       title="Mitarbeiter"
-      description="Live-Schichten vom Display und erfasste Arbeitszeit heute."
       icon={
         <UserCheck
-          className="size-5 shrink-0 text-muted-foreground"
+          className="size-4 shrink-0 text-muted-foreground"
           aria-hidden
         />
       }
@@ -47,8 +46,9 @@ export function DashboardStaffTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid>
+      <DashboardWidgetStatsGrid columns={2}>
         <DashboardStatBlock
+          size="compact"
           label="Aktiv"
           primary={String(active)}
           secondary="Gerade in Schicht (Display)"
@@ -56,6 +56,7 @@ export function DashboardStaffTile() {
           onClick={() => setPresenceSheetMode("working")}
         />
         <DashboardStatBlock
+          size="compact"
           label="In Pause"
           primary={String(onBreak)}
           secondary={
@@ -75,6 +76,7 @@ export function DashboardStaffTile() {
           onClick={() => setPresenceSheetMode("on_break")}
         />
         <DashboardStatBlock
+          size="compact"
           label="Arbeitszeit heute"
           primary={todayHours > 0 ? formatHoursDe(todayHours) : "0 h"}
           secondary={formatDashboardStaffTodayWorkLabel(todayHours)}

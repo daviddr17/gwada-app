@@ -1,14 +1,27 @@
 "use client";
 
-import { CalendarDays, ClipboardList, Users } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactList,
+  DashboardCompactListItem,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
+
+function formatReservationWhen(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export function DashboardReservationsTile() {
   const { summary, loading, error, ready } = useDashboardReservationStats();
@@ -18,10 +31,9 @@ export function DashboardReservationsTile() {
   return (
     <DashboardWidgetShell
       title="Reservierungen"
-      description="Unbestätigte Anfragen, heute und aktuelle Kalenderwoche (Mo–So)."
       icon={
         <CalendarDays
-          className="size-5 shrink-0 text-muted-foreground"
+          className="size-4 shrink-0 text-muted-foreground"
           aria-hidden
         />
       }
@@ -31,47 +43,48 @@ export function DashboardReservationsTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid>
-        <DashboardStatBlock
-          label="Unbestätigt"
-          primary={String(unconfirmed)}
-          secondary={
-            unconfirmed === 1
-              ? "Tippen für alle offenen · Änderung prüfen"
-              : "Tippen für alle offenen · Änderungen prüfen"
-          }
-          highlight={unconfirmed > 0}
-          href={reservationsUnconfirmedOverviewHref()}
-        />
-        <DashboardStatBlock
-          label="Heute"
-          primary={String(summary?.todayReservations ?? 0)}
-          secondary={
-            <>
-              <Users
-                className="mr-1 inline size-3.5 align-[-0.15em] text-muted-foreground"
-                aria-hidden
-              />
-              {summary?.todayGuests ?? 0}{" "}
-              {(summary?.todayGuests ?? 0) === 1 ? "Person" : "Personen"}
-            </>
-          }
-        />
-        <DashboardStatBlock
-          label="Diese Woche"
-          primary={String(summary?.weekReservations ?? 0)}
-          secondary={
-            <>
-              <ClipboardList
-                className="mr-1 inline size-3.5 align-[-0.15em] text-muted-foreground"
-                aria-hidden
-              />
-              {summary?.weekGuests ?? 0}{" "}
-              {(summary?.weekGuests ?? 0) === 1 ? "Person" : "Personen"}
-            </>
-          }
-        />
-      </DashboardWidgetStatsGrid>
+      {summary ? (
+        <div className="space-y-3">
+          <DashboardCompactInlineMetrics>
+            <DashboardCompactMetricPill
+              label="Unbestätigt"
+              value={String(unconfirmed)}
+              href={unconfirmed > 0 ? reservationsUnconfirmedOverviewHref() : undefined}
+              highlight={unconfirmed > 0}
+            />
+            <DashboardCompactMetricPill
+              label="Heute"
+              value={`${summary.todayReservations} · ${summary.todayGuests} Pers.`}
+            />
+            <DashboardCompactMetricPill
+              label="Ø Pers. (KW)"
+              value={
+                summary.avgPartySizeWeek != null
+                  ? String(summary.avgPartySizeWeek).replace(".", ",")
+                  : "—"
+              }
+            />
+          </DashboardCompactInlineMetrics>
+
+          {summary.recent.length > 0 ? (
+            <DashboardCompactList>
+              {summary.recent.map((row) => (
+                <DashboardCompactListItem
+                  key={row.id}
+                  href={row.href}
+                  title={row.guestLabel}
+                  meta={`${row.partySize} Pers. · ${row.statusName}`}
+                  trailing={formatReservationWhen(row.startsAt)}
+                />
+              ))}
+            </DashboardCompactList>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Keine anstehenden Reservierungen.
+            </p>
+          )}
+        </div>
+      ) : null}
     </DashboardWidgetShell>
   );
 }

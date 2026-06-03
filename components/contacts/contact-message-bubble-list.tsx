@@ -5,6 +5,7 @@ import { CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
+import { WhatsAppMessageAckMarks } from "@/components/contacts/whatsapp-message-ack-marks";
 import {
   groupContactMessageBubbles,
   platformsForBubbleGroup,
@@ -158,6 +159,12 @@ function MessageBubbleRow({
           <ContactMessagePlatformIcon key={p} platform={p} variant="meta" />
         ))}
         <span>{formatWhen(primary.created_at)}</span>
+        {primary.platform === "whatsapp" ? (
+          <WhatsAppMessageAckMarks
+            ack={primary.waha_ack}
+            outbound={outbound}
+          />
+        ) : null}
         {primary.reservation_id ? (
           onReservationOpen ? (
             <Badge

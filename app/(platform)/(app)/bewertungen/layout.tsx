@@ -4,13 +4,16 @@ import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 
 const BEWERTUNGEN_NAV: readonly ModuleSubnavItem[] = [
   {
-    href: "/bewertungen/gwada",
-    label: "Gwada",
+    href: "/bewertungen/uebersicht",
+    label: "Übersicht",
     matchMode: "exact",
     activeWhen: ["/bewertungen"],
   },
-  { href: "/bewertungen/facebook", label: "Facebook", matchMode: "exact" },
-  { href: "/bewertungen/google", label: "Google", matchMode: "exact" },
+  {
+    href: "/bewertungen/einbinden",
+    label: "Einbinden",
+    matchMode: "prefix",
+  },
 ];
 
 export default function BewertungenLayout({
@@ -22,7 +25,7 @@ export default function BewertungenLayout({
     <>
       <RegisterModuleChrome
         title="Bewertungen"
-        subnavAriaLabel="Bewertungs-Plattformen"
+        subnavAriaLabel="Bewertungen-Bereiche"
         subnavItems={BEWERTUNGEN_NAV}
       />
       <AppMain>{children}</AppMain>

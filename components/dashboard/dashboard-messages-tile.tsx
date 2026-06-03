@@ -16,10 +16,9 @@ export function DashboardMessagesTile() {
   return (
     <DashboardWidgetShell
       title="Nachrichten"
-      description="Ungelesene Chats über Gwada und WhatsApp."
       icon={
         <MessageCircle
-          className="size-5 shrink-0 text-muted-foreground"
+          className="size-4 shrink-0 text-muted-foreground"
           aria-hidden
         />
       }
@@ -29,18 +28,21 @@ export function DashboardMessagesTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid>
+      <DashboardWidgetStatsGrid columns={2}>
         <DashboardStatBlock
+          size="compact"
           label="Ungelesen gesamt"
           primary={String(summary?.total_unread ?? 0)}
           secondary="Alle aktiven Kanäle"
         />
         <DashboardStatBlock
+          size="compact"
           label="Gwada"
           primary={String(summary?.gwada_unread ?? 0)}
           secondary="Nachrichten im System"
         />
         <DashboardStatBlock
+          size="compact"
           label="WhatsApp"
           primary={String(summary?.whatsapp_unread ?? 0)}
           secondary="Vom verbundenen Konto"

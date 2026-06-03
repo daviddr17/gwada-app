@@ -126,3 +126,11 @@ export function buildMenuEmbedSnippet(
 ): GwadaEmbedSnippet {
   return buildGwadaEmbedSnippet({ widget: "menu", slug, origin });
 }
+
+/** Bewertungs-Widget — Gwada-Gästebewertungen auf der Restaurant-Website. */
+export function buildReviewsEmbedSnippet(
+  slug: string,
+  origin?: string,
+): GwadaEmbedSnippet {
+  return buildGwadaEmbedSnippet({ widget: "reviews", slug, origin });
+}

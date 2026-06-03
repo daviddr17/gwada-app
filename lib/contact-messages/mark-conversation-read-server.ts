@@ -68,7 +68,9 @@ export async function markConversationReadServer(
       contactId: params.conversationKey,
       seen: true,
     });
-    if (imap.error) return { error: imap.error };
+    if (imap.error && imap.error !== "no_contact_email") {
+      return { error: imap.error };
+    }
   }
 
   return { error: null };
@@ -117,7 +119,9 @@ export async function markConversationUnreadServer(
       contactId: params.conversationKey,
       seen: false,
     });
-    if (imap.error) return { error: imap.error };
+    if (imap.error && imap.error !== "no_contact_email") {
+      return { error: imap.error };
+    }
   }
 
   return { error: null };

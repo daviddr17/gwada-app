@@ -16,7 +16,11 @@ export const GWADA_EMBED_MSG_TOOLBAR_PIN = "gwada:embed:toolbar-pin" as const;
 /** @deprecated Legacy-Snippet; Loader akzeptiert weiterhin diese Nachricht. */
 export const GWADA_EMBED_MSG_RESIZE_LEGACY = "gwada-embed-resize" as const;
 
-export type GwadaEmbedWidgetId = "reservation" | "menu" | "contact";
+export type GwadaEmbedWidgetId =
+  | "reservation"
+  | "menu"
+  | "reviews"
+  | "contact";
 
 export type GwadaEmbedResizeMessage = {
   type: typeof GWADA_EMBED_MSG_RESIZE;

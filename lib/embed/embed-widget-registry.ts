@@ -36,6 +36,14 @@ export const GWADA_EMBED_WIDGETS: Record<
       `embed/speisekarte/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
+  reviews: {
+    id: "reviews",
+    title: "Bewertungen",
+    defaultMinHeightPx: 520,
+    embedPath: (slug) =>
+      `embed/bewertungen/${encodeURIComponent(normalizedSlug(slug))}`,
+    available: true,
+  },
   contact: {
     id: "contact",
     title: "Kontakt",

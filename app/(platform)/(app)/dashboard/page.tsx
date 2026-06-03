@@ -11,6 +11,7 @@ import { DashboardInventoryTile } from "@/components/dashboard/dashboard-invento
 import { DashboardMenuTile } from "@/components/dashboard/dashboard-menu-tile";
 import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile";
 import { DashboardReservationsTile } from "@/components/dashboard/dashboard-reservations-tile";
+import { DashboardReviewsTile } from "@/components/dashboard/dashboard-reviews-tile";
 import { DashboardWeatherTile } from "@/components/dashboard/dashboard-weather-tile";
 import { DashboardWidgetStatsSkeleton } from "@/components/dashboard/dashboard-stat-block";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
@@ -20,14 +21,13 @@ import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-
 function DashboardWidgetSkeleton() {
   return (
     <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
-      <div className="flex flex-col gap-3 pb-4 sm:flex-row sm:justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-36 rounded-md" />
-          <Skeleton className="h-4 w-72 max-w-full rounded-md" />
-        </div>
-        <Skeleton className="h-9 w-32 rounded-xl" />
+      <div className="flex items-center justify-between gap-2 px-4 py-3">
+        <Skeleton className="h-5 w-32 rounded-md" />
+        <Skeleton className="size-8 rounded-lg" />
       </div>
-      <DashboardWidgetStatsSkeleton />
+      <div className="px-4 pb-4">
+        <DashboardWidgetStatsSkeleton compact />
+      </div>
     </SkeletonCardFrame>
   );
 }
@@ -38,6 +38,8 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
       return <DashboardMenuTile />;
     case "reservations":
       return <DashboardReservationsTile />;
+    case "reviews":
+      return <DashboardReviewsTile />;
     case "staff":
       return <DashboardStaffTile />;
     case "weather":
@@ -67,9 +69,8 @@ export default function DashboardPage() {
 
   if (!widgetsReady) {
     return (
-      <div className="space-y-8 pt-2">
-        <Skeleton className="h-10 w-56 rounded-lg" />
-        {Array.from({ length: 3 }).map((_, i) => (
+      <div className="grid gap-4 pt-2 lg:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => (
           <DashboardWidgetSkeleton key={i} />
         ))}
       </div>
@@ -81,8 +82,8 @@ export default function DashboardPage() {
       <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <p className="max-w-md text-sm text-muted-foreground sm:text-base">
           Für das Dashboard sind aktuell keine Widgets aktiviert. Unter
-          Einstellungen kannst du           Speisekarte, Reservierungen, Mitarbeiter, Wetter, Kontakte, Nachrichten,
-          Integrationen und Bestand wieder einblenden.
+          Einstellungen kannst du           Speisekarte, Reservierungen, Bewertungen, Mitarbeiter, Wetter, Kontakte,
+          Nachrichten, Integrationen und Bestand wieder einblenden.
         </p>
         <Button render={<Link href="/settings/dashboard" prefetch />}>
           Dashboard-Einstellungen
@@ -92,7 +93,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8 pt-2">
+    <div className="grid gap-4 pt-2 lg:grid-cols-2">
       {orderedVisible.map((id) => (
         <div key={id} className="min-w-0">
           <DashboardWidgetById id={id} />

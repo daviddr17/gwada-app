@@ -19,9 +19,8 @@ export function DashboardInventoryTile() {
   return (
     <DashboardWidgetShell
       title="Bestand & Bestellung"
-      description="Lagerzutaten und offene Lieferantenbestellungen."
       icon={
-        <Package className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+        <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       }
       href="/inventory/uebersicht"
       linkLabel="Zum Bestand"
@@ -29,13 +28,15 @@ export function DashboardInventoryTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid>
+      <DashboardWidgetStatsGrid columns={2}>
         <DashboardStatBlock
+          size="compact"
           label="Zutaten aktiv"
           primary={String(summary?.ingredientsActive ?? 0)}
           secondary="Erfasste Bestandspositionen"
         />
         <DashboardStatBlock
+          size="compact"
           label="Leerer Bestand"
           primary={String(emptyStock)}
           secondary={
@@ -46,6 +47,7 @@ export function DashboardInventoryTile() {
           highlight={emptyStock > 0}
         />
         <DashboardStatBlock
+          size="compact"
           label="Offene Bestellungen"
           primary={String(openOrders)}
           secondary={

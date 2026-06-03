@@ -12,6 +12,7 @@ export function DashboardStatBlock({
   highlight,
   href,
   onClick,
+  size = "compact",
 }: {
   label: string;
   primary: string;
@@ -21,11 +22,19 @@ export function DashboardStatBlock({
   href?: string;
   /** Optional: Kachel als Button (z. B. Bottom-Sheet öffnen). */
   onClick?: () => void;
+  size?: "default" | "compact";
 }) {
+  const compact = size === "compact";
   const inner = (
     <>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-3xl">
+      <p
+        className={
+          compact
+            ? "text-lg font-semibold tabular-nums tracking-tight text-foreground"
+            : "text-2xl font-semibold tabular-nums tracking-tight text-foreground sm:text-3xl"
+        }
+      >
         {primary}
       </p>
       {secondary ? (
@@ -37,7 +46,8 @@ export function DashboardStatBlock({
   );
 
   const className = cn(
-    "flex min-w-0 flex-col gap-1 rounded-xl border p-4 text-left transition-colors",
+    "flex min-w-0 flex-col gap-1 rounded-xl border text-left transition-colors",
+    compact ? "p-2.5" : "p-4",
     highlight
       ? "border-accent/35 bg-accent/8"
       : "border-border/50 bg-muted/15",
@@ -66,19 +76,37 @@ export function DashboardStatBlock({
 
 export function DashboardWidgetStatsGrid({
   children,
+  columns = 3,
 }: {
   children: ReactNode;
+  columns?: 2 | 3;
 }) {
-  return <div className="grid gap-3 sm:grid-cols-3">{children}</div>;
+  return (
+    <div
+      className={cn(
+        "grid gap-2",
+        columns === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3",
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
-export function DashboardWidgetStatsSkeleton() {
+export function DashboardWidgetStatsSkeleton({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
   return (
-    <DashboardWidgetStatsGrid>
-      {Array.from({ length: 3 }).map((_, i) => (
+    <DashboardWidgetStatsGrid columns={compact ? 2 : 3}>
+      {Array.from({ length: compact ? 2 : 3 }).map((_, i) => (
         <div
           key={i}
-          className="space-y-2 rounded-xl border border-border/50 bg-muted/15 p-4"
+          className={cn(
+            "space-y-2 rounded-xl border border-border/50 bg-muted/15",
+            compact ? "p-2.5" : "p-4",
+          )}
         >
           <Skeleton className="h-3 w-24 rounded-md" />
           <Skeleton className="h-9 w-16 rounded-lg" />

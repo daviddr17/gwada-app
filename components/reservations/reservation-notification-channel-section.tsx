@@ -35,6 +35,10 @@ export function ReservationNotificationChannelSection({
   fieldsByKind,
   reminderHours,
   thanksHours,
+  thanksReviewExtras,
+  testRecipient,
+  onSendTest,
+  sendingTestKind,
   loading,
   channelDisabled,
   showEmailSubjects,
@@ -54,6 +58,17 @@ export function ReservationNotificationChannelSection({
   fieldsByKind: Record<ReservationNotificationKind, NotificationKindFieldState>;
   reminderHours: { value: string; onChange: (v: string) => void };
   thanksHours: { value: string; onChange: (v: string) => void };
+  /** Bewertungslinks unter „Danke & Bewertung“. */
+  thanksReviewExtras?: ReactNode;
+  testRecipient?: {
+    value: string;
+    onChange: (v: string) => void;
+    label: string;
+    placeholder: string;
+    inputMode?: "email" | "tel" | "text";
+  };
+  onSendTest?: (kind: ReservationNotificationKind) => void;
+  sendingTestKind?: ReservationNotificationKind | null;
   loading?: boolean;
   channelDisabled?: boolean;
   showEmailSubjects?: boolean;
@@ -66,6 +81,28 @@ export function ReservationNotificationChannelSection({
   const body = (
     <>
       {intro}
+      {testRecipient ? (
+        <div className="max-w-md space-y-1.5">
+          <Label className="text-xs text-muted-foreground">
+            {testRecipient.label}
+          </Label>
+          <Input
+            type={testRecipient.inputMode === "email" ? "email" : "text"}
+            inputMode={testRecipient.inputMode}
+            value={testRecipient.value}
+            disabled={disabled}
+            onChange={(e) => testRecipient.onChange(e.target.value)}
+            placeholder={testRecipient.placeholder}
+            className="h-10 rounded-xl text-sm"
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <p className="text-xs text-muted-foreground">
+            Für „Testnachricht senden“ bei jeder Nachricht — nutzt die aktuellen
+            Eingaben (auch ohne Speichern).
+          </p>
+        </div>
+      ) : null}
       {showEmailSubjects && onEmailSenderNameChange != null ? (
         <div className="max-w-md space-y-1.5">
           <Label
@@ -112,6 +149,11 @@ export function ReservationNotificationChannelSection({
             onSubjectChange={showEmailSubjects ? field.setSubject : undefined}
             loading={loading}
             disabled={disabled}
+            onSendTest={
+              onSendTest ? () => onSendTest(meta.kind) : undefined
+            }
+            sendTestBusy={sendingTestKind === meta.kind}
+            sendTestDisabled={!testRecipient?.value.trim()}
           />
         );
       })}
@@ -135,6 +177,11 @@ export function ReservationNotificationChannelSection({
               onSubjectChange={showEmailSubjects ? field.setSubject : undefined}
               loading={loading}
               disabled={disabled}
+              onSendTest={
+                onSendTest ? () => onSendTest("reminder") : undefined
+              }
+              sendTestBusy={sendingTestKind === "reminder"}
+              sendTestDisabled={!testRecipient?.value.trim()}
             />
             <div className="max-w-[8rem] space-y-1 -mt-1">
               <Label className="text-xs text-muted-foreground">Stunden vorher</Label>
@@ -172,6 +219,9 @@ export function ReservationNotificationChannelSection({
               onSubjectChange={showEmailSubjects ? field.setSubject : undefined}
               loading={loading}
               disabled={disabled}
+              onSendTest={onSendTest ? () => onSendTest("thanks") : undefined}
+              sendTestBusy={sendingTestKind === "thanks"}
+              sendTestDisabled={!testRecipient?.value.trim()}
             />
             <div className="max-w-[8rem] space-y-1 -mt-1">
               <Label className="text-xs text-muted-foreground">Stunden danach</Label>
@@ -186,6 +236,7 @@ export function ReservationNotificationChannelSection({
                 className="h-10 rounded-xl tabular-nums"
               />
             </div>
+            {thanksReviewExtras}
           </>
         );
       })()}

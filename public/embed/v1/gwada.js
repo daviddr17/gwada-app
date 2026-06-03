@@ -34,6 +34,14 @@
       },
       available: true,
     },
+    reviews: {
+      title: "Bewertungen",
+      minHeight: 520,
+      path: function (slug) {
+        return "/embed/bewertungen/" + encodeURIComponent(slug);
+      },
+      available: true,
+    },
     contact: {
       title: "Kontakt",
       minHeight: 360,

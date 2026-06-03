@@ -22,10 +22,9 @@ export function DashboardIntegrationsTile() {
   return (
     <DashboardWidgetShell
       title="Integrationen"
-      description="Freigeschaltete Kanäle im Überblick — verbunden in Farbe, offen ausgegraut."
       icon={
         <Plug
-          className="size-5 shrink-0 text-muted-foreground"
+          className="size-4 shrink-0 text-muted-foreground"
           aria-hidden
         />
       }
@@ -40,14 +39,16 @@ export function DashboardIntegrationsTile() {
           Derzeit sind keine Integrationen für euer Restaurant freigeschaltet.
         </p>
       ) : (
-        <div className="space-y-5">
-          <DashboardWidgetStatsGrid>
+        <div className="space-y-3">
+          <DashboardWidgetStatsGrid columns={2}>
             <DashboardStatBlock
+              size="compact"
               label="Verbunden"
               primary={String(connected)}
               secondary={`von ${total} Kanälen`}
             />
             <DashboardStatBlock
+              size="compact"
               label="Noch offen"
               primary={String(open)}
               secondary="In den Einstellungen verbinden"

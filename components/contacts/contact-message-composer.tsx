@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { setWahaTypingClient } from "@/lib/contact-messages/waha-typing-client";
 import { Mail, Send } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+
+const WHATSAPP_TYPING_DEBOUNCE_MS = 400;
 
 export function ContactMessageComposer({
   disabled,
@@ -21,6 +24,7 @@ export function ContactMessageComposer({
   onSend,
   placeholder = "Nachricht schreiben …",
   variant = "unified",
+  whatsappTyping,
 }: {
   disabled?: boolean;
   sending?: boolean;
@@ -38,8 +42,12 @@ export function ContactMessageComposer({
   placeholder?: string;
   /** `whatsapp-only` / `email-only`: direkt über den Kanal senden. */
   variant?: "unified" | "whatsapp-only" | "email-only";
+  /** WAHA: „tippt …“ an den Chat senden. */
+  whatsappTyping?: { restaurantId: string; chatId: string } | null;
 }) {
   const [body, setBody] = useState("");
+  const typingActiveRef = useRef(false);
+  const typingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sendWhatsapp, setSendWhatsapp] = useState(
     defaultSendWhatsapp ?? false,
   );
@@ -52,12 +60,59 @@ export function ContactMessageComposer({
     : whatsappEnabled && hasPhone;
   const canEmail = isEmailOnly ? emailEnabled : emailEnabled && hasEmail;
 
+  const stopWhatsappTyping = useCallback(() => {
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+    if (!whatsappTyping || !typingActiveRef.current) return;
+    typingActiveRef.current = false;
+    void setWahaTypingClient({
+      restaurantId: whatsappTyping.restaurantId,
+      chatId: whatsappTyping.chatId,
+      action: "stop",
+    });
+  }, [whatsappTyping]);
+
+  useEffect(() => {
+    typingActiveRef.current = false;
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+      typingDebounceRef.current = null;
+    }
+  }, [whatsappTyping?.restaurantId, whatsappTyping?.chatId]);
+
+  useEffect(() => () => stopWhatsappTyping(), [stopWhatsappTyping]);
+
+  const handleBodyChange = (value: string) => {
+    setBody(value);
+    if (!whatsappTyping) return;
+    if (!value.trim()) {
+      stopWhatsappTyping();
+      return;
+    }
+    if (typingDebounceRef.current) {
+      clearTimeout(typingDebounceRef.current);
+    }
+    typingDebounceRef.current = setTimeout(() => {
+      typingDebounceRef.current = null;
+      if (typingActiveRef.current) return;
+      typingActiveRef.current = true;
+      void setWahaTypingClient({
+        restaurantId: whatsappTyping.restaurantId,
+        chatId: whatsappTyping.chatId,
+        action: "start",
+      });
+    }, WHATSAPP_TYPING_DEBOUNCE_MS);
+  };
+
   return (
     <div className="space-y-3 border-t border-border/50 pt-3">
       <Textarea
         value={body}
         disabled={disabled || sending}
-        onChange={(e) => setBody(e.target.value)}
+        onChange={(e) => handleBodyChange(e.target.value)}
+        onBlur={() => stopWhatsappTyping()}
         placeholder={placeholder}
         rows={3}
         className="min-h-[4.5rem] resize-y rounded-xl"
@@ -127,6 +182,7 @@ export function ContactMessageComposer({
         onClick={() => {
           const text = body.trim();
           if (!text) return;
+          stopWhatsappTyping();
           void onSend({
             body: text,
             sendWhatsapp: isWhatsappOnly ? true : sendWhatsapp && canWhatsapp,

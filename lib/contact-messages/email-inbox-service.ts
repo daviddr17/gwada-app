@@ -10,6 +10,7 @@ import {
   type ImapEnvelopeMessage,
 } from "@/lib/email/imap-inbox";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
+import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
@@ -160,16 +161,32 @@ async function contactEmailsForThread(
   restaurantId: string,
   contactId: string,
 ): Promise<string[]> {
-  if (contactId.startsWith("email:")) {
-    return [contactId.slice(6).toLowerCase()];
-  }
-  const { data } = await admin
+  const pseudo = emailAddressFromPseudoContactId(contactId);
+  if (pseudo) return [pseudo];
+
+  const { data: rows } = await admin
     .from("contact_emails")
     .select("email")
     .eq("restaurant_id", restaurantId)
     .eq("contact_id", contactId);
-  return (data ?? [])
+
+  const fromTable = (rows ?? [])
     .map((r) => normalizeContactEmail((r as { email: string }).email))
+    .filter((e): e is string => Boolean(e));
+  if (fromTable.length > 0) return fromTable;
+
+  const { data: contact } = await admin
+    .from("contacts")
+    .select("contact_emails ( email )")
+    .eq("restaurant_id", restaurantId)
+    .eq("id", contactId)
+    .maybeSingle();
+
+  const nested = contact?.contact_emails;
+  if (!Array.isArray(nested)) return [];
+
+  return nested
+    .map((e) => normalizeContactEmail((e as { email: string }).email))
     .filter((e): e is string => Boolean(e));
 }
 

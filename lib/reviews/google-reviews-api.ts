@@ -5,6 +5,10 @@ import {
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
 
+import {
+  GOOGLE_REVIEWS_PAGE_SIZE,
+  type GoogleReviewsPaginationMeta,
+} from "@/lib/reviews/google-reviews-pagination";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 
 type GoogleReviewRaw = {
@@ -26,32 +30,10 @@ const STAR_MAP: Record<string, number> = {
   FIVE: 5,
 };
 
-export async function fetchGoogleReviewsForRestaurant(
-  restaurantId: string,
-): Promise<{ reviews: UnifiedReview[] } | { error: string }> {
-  const auth = await getGoogleBusinessAccessTokenForRestaurant(restaurantId);
-  if ("error" in auth) return auth;
-
-  const parent = googleReviewsParentPath(auth.config);
-  if (!parent) return { error: "google_location_missing" };
-
-  const url = `https://mybusiness.googleapis.com/v4/${parent}/reviews`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${auth.accessToken}` },
-    cache: "no-store",
-  });
-  const body = (await res.json()) as {
-    reviews?: GoogleReviewRaw[];
-    error?: { message?: string };
-  };
-
-  if (!res.ok) {
-    return {
-      error: body.error?.message ?? `google_reviews_${res.status}`,
-    };
-  }
-
-  const reviews: UnifiedReview[] = (body.reviews ?? []).map((r, i) => {
+function mapGoogleReviewRaw(
+  reviews: GoogleReviewRaw[] | undefined,
+): UnifiedReview[] {
+  return (reviews ?? []).map((r, i) => {
     const stars = r.starRating ? (STAR_MAP[r.starRating] ?? 0) : 0;
     return {
       id: r.name ?? r.reviewId ?? `google-${i}`,
@@ -65,8 +47,82 @@ export async function fetchGoogleReviewsForRestaurant(
       externalUrl: null,
     };
   });
+}
 
-  return { reviews };
+/** Standort-Aggregate von Google (kommen bei jedem reviews.list mit, auch bei pageSize=1). */
+export async function fetchGoogleReviewsLocationStats(
+  restaurantId: string,
+): Promise<
+  | Pick<GoogleReviewsPaginationMeta, "averageRating" | "totalReviewCount">
+  | { error: string }
+> {
+  const result = await fetchGoogleReviewsForRestaurant(restaurantId, {
+    pageToken: null,
+    pageSize: 1,
+  });
+  if ("error" in result) return result;
+  return {
+    averageRating: result.pagination.averageRating,
+    totalReviewCount: result.pagination.totalReviewCount,
+  };
+}
+
+export async function fetchGoogleReviewsForRestaurant(
+  restaurantId: string,
+  options?: { pageToken?: string | null; pageSize?: number },
+): Promise<
+  | {
+      reviews: UnifiedReview[];
+      pagination: GoogleReviewsPaginationMeta;
+    }
+  | { error: string }
+> {
+  const auth = await getGoogleBusinessAccessTokenForRestaurant(restaurantId);
+  if ("error" in auth) return auth;
+
+  const parent = googleReviewsParentPath(auth.config);
+  if (!parent) return { error: "google_location_missing" };
+
+  const pageSize = Math.min(
+    50,
+    Math.max(1, options?.pageSize ?? GOOGLE_REVIEWS_PAGE_SIZE),
+  );
+  const params = new URLSearchParams({
+    pageSize: String(pageSize),
+    orderBy: "updateTime desc",
+  });
+  const pageToken = options?.pageToken?.trim();
+  if (pageToken) params.set("pageToken", pageToken);
+
+  const url = `https://mybusiness.googleapis.com/v4/${parent}/reviews?${params}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${auth.accessToken}` },
+    cache: "no-store",
+  });
+  const body = (await res.json()) as {
+    reviews?: GoogleReviewRaw[];
+    averageRating?: number;
+    totalReviewCount?: number;
+    nextPageToken?: string;
+    error?: { message?: string };
+  };
+
+  if (!res.ok) {
+    return {
+      error: body.error?.message ?? `google_reviews_${res.status}`,
+    };
+  }
+
+  return {
+    reviews: mapGoogleReviewRaw(body.reviews),
+    pagination: {
+      pageSize,
+      totalReviewCount: Number(body.totalReviewCount ?? 0),
+      nextPageToken: body.nextPageToken?.trim() || null,
+      averageRating:
+        typeof body.averageRating === "number" ? body.averageRating : null,
+    },
+  };
 }
 
 export async function replyToGoogleReview(params: {

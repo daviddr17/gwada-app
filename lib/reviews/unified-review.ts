@@ -10,4 +10,6 @@ export type UnifiedReview = {
   reply: string | null;
   canReply: boolean;
   externalUrl: string | null;
+  /** Verknüpfter Kontakt (Gwada), falls ermittelbar */
+  contactId?: string | null;
 };

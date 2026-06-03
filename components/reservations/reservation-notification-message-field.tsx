@@ -48,6 +48,9 @@ export function ReservationNotificationMessageField({
   defaultSubject = DEFAULT_EMAIL_SUBJECT_BY_KIND[kind],
   loading,
   disabled,
+  onSendTest,
+  sendTestBusy,
+  sendTestDisabled,
   className,
 }: {
   kind: WhatsappMessageKind;
@@ -65,6 +68,9 @@ export function ReservationNotificationMessageField({
   defaultSubject?: string;
   loading?: boolean;
   disabled?: boolean;
+  onSendTest?: () => void;
+  sendTestBusy?: boolean;
+  sendTestDisabled?: boolean;
   className?: string;
 }) {
   const stripeHex = reservationStatusStripeHex(
@@ -149,6 +155,18 @@ export function ReservationNotificationMessageField({
           spellCheck={false}
         />
       </div>
+      {onSendTest ? (
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="h-9 rounded-xl"
+          disabled={loading || disabled || sendTestDisabled || sendTestBusy}
+          onClick={() => onSendTest()}
+        >
+          {sendTestBusy ? "Wird gesendet…" : "Testnachricht senden"}
+        </Button>
+      ) : null}
     </div>
   );
 }

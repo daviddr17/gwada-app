@@ -93,6 +93,7 @@ import {
   normalizeContactPhone,
 } from "@/lib/contacts/normalize-contact-identity";
 import { formatGuestPhone } from "@/lib/phone/guest-phone";
+import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
@@ -167,6 +168,28 @@ function platformInferredFromContact(
   return null;
 }
 
+function contactInboxMarkReadErrorMessage(error: string): string {
+  switch (error) {
+    case "no_contact_email":
+      return "Für diesen Chat ist keine E-Mail-Adresse hinterlegt.";
+    case "imap_not_configured":
+      return "E-Mail-Konto ist nicht verbunden.";
+    default:
+      return `Als gelesen markieren: ${error}`;
+  }
+}
+
+function contactInboxMarkUnreadErrorMessage(error: string): string {
+  switch (error) {
+    case "no_contact_email":
+      return "Für diesen Chat ist keine E-Mail-Adresse hinterlegt.";
+    case "imap_not_configured":
+      return "E-Mail-Konto ist nicht verbunden.";
+    default:
+      return `Als ungelesen markieren: ${error}`;
+  }
+}
+
 function resolveMessagesPlatform(
   platformParam: string | null,
   contactParam: string | null,
@@ -200,6 +223,8 @@ export function ContactsMessagesScreen() {
     emailEnabled,
     facebookEnabled,
     facebookConnected,
+    instagramEnabled,
+    instagramConnected,
   } = useRestaurantChannelConnections(restaurantId);
 
   const [platform, setPlatform] = useState<ContactMessagePlatform>(() =>
@@ -219,6 +244,9 @@ export function ContactsMessagesScreen() {
   const [whatsappThreadPhone, setWhatsappThreadPhone] = useState<string | null>(
     null,
   );
+  const [whatsappThreadChatId, setWhatsappThreadChatId] = useState<
+    string | null
+  >(null);
   const [contactDrawerOpen, setContactDrawerOpen] = useState(false);
   const [editContactId, setEditContactId] = useState<string | null>(null);
   const [contactCreateDraft, setContactCreateDraft] =
@@ -296,12 +324,22 @@ export function ContactsMessagesScreen() {
   const isPlatformAvailable = useCallback(
     (p: ContactMessagePlatform): boolean => {
       if (p === "gwada") return true;
-      if (p === "whatsapp") return whatsappConnected;
-      if (p === "email") return emailConnected;
-      if (p === "facebook") return facebookEnabled;
+      if (p === "whatsapp") return whatsappEnabled && whatsappConnected;
+      if (p === "email") return emailEnabled && emailConnected;
+      if (p === "facebook") return facebookEnabled && facebookConnected;
+      if (p === "instagram") return instagramEnabled && instagramConnected;
       return false;
     },
-    [whatsappConnected, emailConnected, facebookEnabled, facebookConnected],
+    [
+      whatsappEnabled,
+      whatsappConnected,
+      emailEnabled,
+      emailConnected,
+      facebookEnabled,
+      facebookConnected,
+      instagramEnabled,
+      instagramConnected,
+    ],
   );
 
   useEffect(() => {
@@ -313,7 +351,8 @@ export function ContactsMessagesScreen() {
     const explicitInboxTab =
       platformParam === "whatsapp" ||
       platformParam === "email" ||
-      platformParam === "facebook";
+      platformParam === "facebook" ||
+      platformParam === "instagram";
 
     let resolved = requested;
     if (!isPlatformAvailable(requested)) {
@@ -385,7 +424,12 @@ export function ContactsMessagesScreen() {
         );
         setConversations([]);
       } else {
-        setConversations(data);
+        const enriched = await enrichConversationsWithReadState({
+          restaurantId,
+          platform: "email",
+          conversations: data,
+        });
+        setConversations(enriched);
       }
     } else {
       const { data, error } = await fetchContactConversations({
@@ -442,12 +486,15 @@ export function ContactsMessagesScreen() {
         platform,
       });
       if (!ok && error) {
-        toast.error(`Als gelesen markieren: ${error}`);
+        toast.error(contactInboxMarkReadErrorMessage(error));
         return;
       }
       patchConversationReadState(conversationKey, false, 0);
+      if (platform === "email") {
+        void loadConversations({ silent: true });
+      }
     },
-    [restaurantId, platform, patchConversationReadState],
+    [restaurantId, platform, patchConversationReadState, loadConversations],
   );
 
   const markConversationUnread = useCallback(
@@ -459,7 +506,7 @@ export function ContactsMessagesScreen() {
         platform,
       });
       if (!ok && error) {
-        toast.error(`Als ungelesen markieren: ${error}`);
+        toast.error(contactInboxMarkUnreadErrorMessage(error));
         return;
       }
       patchConversationReadState(conversationKey, true, 1);
@@ -476,6 +523,7 @@ export function ContactsMessagesScreen() {
     }
     if (platform !== "whatsapp") {
       setWhatsappThreadPhone(null);
+      setWhatsappThreadChatId(null);
     }
     setLoadingThread(true);
     setInboxHint(null);
@@ -498,7 +546,13 @@ export function ContactsMessagesScreen() {
         contactId: contactParam,
       });
       if (error) {
-        toast.error(`E-Mail-Verlauf: ${error}`);
+        toast.error(
+          error === "no_contact_email"
+            ? "E-Mail-Verlauf: keine Adresse für diesen Kontakt."
+            : error === "imap_not_configured"
+              ? "E-Mail-Konto ist nicht verbunden."
+              : `E-Mail-Verlauf: ${error}`,
+        );
         setMessages([]);
       } else {
         setMessages(data);
@@ -619,6 +673,12 @@ export function ContactsMessagesScreen() {
           fetchResolvedPhone: fetchWahaResolvedPhoneClient,
         }),
       );
+
+      const pseudoChatId = wahaChatIdFromPseudoContactId(contactParam);
+      const linkedChatId = contactRow
+        ? guestPhoneToWhatsAppChatId(primaryPhone(contactRow)?.trim() ?? null)
+        : null;
+      setWhatsappThreadChatId(pseudoChatId ?? linkedChatId);
     } else if (
       !isWahaPseudoContactId(contactParam) &&
       !isEmailPseudoContactId(contactParam)
@@ -1039,6 +1099,16 @@ export function ContactsMessagesScreen() {
         </p>
       ) : null}
 
+      {!connectionsLoading &&
+      platform === "instagram" &&
+      instagramEnabled &&
+      !instagramConnected ? (
+        <p className="text-sm text-muted-foreground">
+          Instagram ist nicht verbunden. Unter Einstellungen → Integrationen das
+          Instagram-Business-Konto verknüpfen.
+        </p>
+      ) : null}
+
       {platform !== "gwada" &&
       platform !== "whatsapp" &&
       platform !== "email" ? (
@@ -1171,6 +1241,16 @@ export function ContactsMessagesScreen() {
                     : platform === "email"
                       ? "E-Mail schreiben …"
                       : undefined
+                }
+                whatsappTyping={
+                  platform === "whatsapp" &&
+                  restaurantId &&
+                  whatsappThreadChatId
+                    ? {
+                        restaurantId,
+                        chatId: whatsappThreadChatId,
+                      }
+                    : null
                 }
                 onSend={handleSend}
               />

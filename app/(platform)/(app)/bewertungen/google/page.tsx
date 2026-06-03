@@ -1,5 +1,5 @@
-import { ReviewsScreen } from "@/components/reviews/reviews-screen";
+import { redirect } from "next/navigation";
 
-export default function BewertungenGooglePage() {
-  return <ReviewsScreen platform="google" />;
+export default function BewertungenGoogleRedirectPage() {
+  redirect("/bewertungen/uebersicht?platform=google");
 }

@@ -30,6 +30,7 @@ import {
   type WahaChatMessage,
   type WahaChatOverviewItem,
 } from "@/lib/waha/waha-inbox";
+import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { wahaLastMessagePreview } from "@/lib/waha/waha-last-message-preview";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
@@ -348,18 +349,20 @@ export async function fetchWahaThreadMessages(
         parseReactionsFromWahaMessage(m),
         reactionsByMessageId,
       );
+      const fromMe = Boolean(m.fromMe);
       return {
         id: `waha:${m.id}`,
         restaurant_id: params.restaurantId,
         contact_id: params.contactId,
         platform: "whatsapp" as const,
-        direction: (m.fromMe ? "outbound" : "inbound") as ContactMessageRow["direction"],
+        direction: (fromMe ? "outbound" : "inbound") as ContactMessageRow["direction"],
         body,
         reservation_id: reservationByBody.get(body) ?? null,
         sent_by: null,
-        delivery_status: "delivered",
+        delivery_status: wahaAckToDeliveryStatus(m.ack, fromMe),
         created_at: wahaTimestampToIso(m.timestamp),
         waha_message_id: m.id,
+        waha_ack: typeof m.ack === "number" ? m.ack : null,
         reactions,
       };
     })

@@ -27,6 +27,8 @@ export type ContactMessageRow = {
   external_source_id?: string | null;
   /** WAHA-Nachrichten-ID (ohne `waha:`-Präfix) für Reactions. */
   waha_message_id?: string | null;
+  /** WAHA ACK (1 gesendet, 2 zugestellt, 3 gelesen, 4 abgespielt). */
+  waha_ack?: number | null;
   reactions?: ContactMessageReaction[];
 };
 

@@ -16,26 +16,28 @@ export function DashboardContactsTile() {
   return (
     <DashboardWidgetShell
       title="Kontakte"
-      description="Stammkunden und Gäste mit Reservierungsbezug."
-      icon={<Users className="size-5 shrink-0 text-muted-foreground" aria-hidden />}
+      icon={<Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
       href="/kontakte/uebersicht"
       linkLabel="Zu Kontakte"
       ready={ready}
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid>
+      <DashboardWidgetStatsGrid columns={2}>
         <DashboardStatBlock
+          size="compact"
           label="Kontakte gesamt"
           primary={String(summary?.total ?? 0)}
           secondary="Im Adressbuch des Restaurants"
         />
         <DashboardStatBlock
+          size="compact"
           label="Mit Reservierung"
           primary={String(summary?.withReservation ?? 0)}
           secondary="Mindestens eine verknüpfte Reservierung"
         />
         <DashboardStatBlock
+          size="compact"
           label="Firmenkontakte"
           primary={String(summary?.withCompany ?? 0)}
           secondary="Einträge mit Unternehmensname"

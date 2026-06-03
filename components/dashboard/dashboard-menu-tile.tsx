@@ -26,10 +26,9 @@ export function DashboardMenuTile() {
   return (
     <DashboardWidgetShell
       title="Speisekarte"
-      description="Überblick über Gerichte, Kategorien und Preise."
       icon={
         <UtensilsCrossed
-          className="size-5 shrink-0 text-muted-foreground"
+          className="size-4 shrink-0 text-muted-foreground"
           aria-hidden
         />
       }
@@ -40,8 +39,9 @@ export function DashboardMenuTile() {
       error={null}
     >
       {summary ? (
-        <DashboardWidgetStatsGrid>
+        <DashboardWidgetStatsGrid columns={2}>
           <DashboardStatBlock
+            size="compact"
             label="Gerichte aktiv"
             primary={String(summary.dishesActive)}
             secondary={
@@ -51,6 +51,7 @@ export function DashboardMenuTile() {
             }
           />
           <DashboardStatBlock
+            size="compact"
             label="Kategorien"
             primary={String(summary.categoriesActive)}
             secondary={
@@ -60,6 +61,7 @@ export function DashboardMenuTile() {
             }
           />
           <DashboardStatBlock
+            size="compact"
             label="Ø Preis"
             primary={
               summary.avgPrice != null

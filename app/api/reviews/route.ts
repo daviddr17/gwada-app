@@ -7,6 +7,7 @@ import {
   medianRating,
   ratingDistribution,
 } from "@/lib/reviews/review-stats";
+import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
 import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -39,7 +40,7 @@ export async function GET(req: Request) {
     const { data, error } = await auth.sb
       .from("gwada_reviews")
       .select(
-        "id, rating, comment, guest_display_name, created_at, reservation_id",
+        "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id",
       )
       .eq("restaurant_id", restaurantId)
       .order("created_at", { ascending: false })
@@ -49,7 +50,22 @@ export async function GET(req: Request) {
       return Response.json({ error: error.message }, { status: 500 });
     }
 
-    reviews = (data ?? []).map((r) => ({
+    const rows = data ?? [];
+    const admin = createSupabaseAdminClient();
+    const contactByReviewId =
+      admin && rows.length > 0
+        ? await enrichGwadaReviewsWithContactIds(
+            admin,
+            restaurantId,
+            rows.map((r) => ({
+              id: r.id as string,
+              reservation_id: (r.reservation_id as string | null) ?? null,
+              invitation_id: r.invitation_id as string,
+            })),
+          )
+        : new Map<string, string>();
+
+    reviews = rows.map((r) => ({
       id: r.id as string,
       platform: "gwada" as const,
       rating: Number(r.rating),
@@ -59,13 +75,31 @@ export async function GET(req: Request) {
       reply: null,
       canReply: false,
       externalUrl: null,
+      contactId: contactByReviewId.get(r.id as string) ?? null,
     }));
   } else if (platformRaw === "google") {
-    const result = await fetchGoogleReviewsForRestaurant(restaurantId);
+    const pageToken =
+      new URL(req.url).searchParams.get("googlePageToken")?.trim() || null;
+    const result = await fetchGoogleReviewsForRestaurant(restaurantId, {
+      pageToken,
+    });
     if ("error" in result) {
       loadError = result.error;
     } else {
       reviews = result.reviews;
+      return Response.json({
+        platform: platformRaw,
+        reviews,
+        summary: {
+          count: reviews.length,
+          average: averageRating(reviews),
+          median: medianRating(reviews),
+          distribution: ratingDistribution(reviews),
+          scope: "page" as const,
+        },
+        googlePagination: result.pagination,
+        loadError,
+      });
     }
   } else if (platformRaw === "facebook") {
     const result = await fetchFacebookReviewsForRestaurant(restaurantId);

@@ -1,9 +1,12 @@
 import "server-only";
 
 import { getPublicSiteUrl } from "@/lib/public-env";
+import type { ReviewRequestChannel } from "@/lib/reviews/review-request-settings";
+import { reservationGuestAlreadyReviewed } from "@/lib/reviews/contact-gwada-review-server";
 import {
   buildReviewRequestBlock,
   ensureGwadaReviewInvitation,
+  hasAnyReviewInclude,
   reviewRequestSettingsFromRow,
 } from "@/lib/reviews/gwada-review-invitation-server";
 import { oauthConfigFromJson, type MetaOAuthIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
@@ -23,6 +26,7 @@ export async function appendReviewRequestToMessage(
     reservationId: string;
     text: string;
     origin?: string;
+    channel: ReviewRequestChannel;
   },
 ): Promise<string> {
   const admin = createSupabaseAdminClient();
@@ -31,18 +35,26 @@ export async function appendReviewRequestToMessage(
   const { data: settingsRow } = await sb
     .from("restaurant_reservation_settings")
     .select(
-      "review_request_enabled, review_request_include_gwada, review_request_include_google, review_request_include_facebook, review_google_url, review_facebook_url",
+      "review_request_enabled, review_request_include_gwada, review_request_include_google, review_request_include_facebook, whatsapp_review_include_gwada, whatsapp_review_include_google, whatsapp_review_include_facebook, email_review_include_gwada, email_review_include_google, email_review_include_facebook, review_google_url, review_facebook_url",
     )
     .eq("restaurant_id", params.restaurantId)
     .maybeSingle();
 
   const settings = reviewRequestSettingsFromRow(
     settingsRow as Record<string, unknown> | null,
+    params.channel,
   );
-  if (!settings.review_request_enabled) return params.text;
+  if (!hasAnyReviewInclude(settings)) return params.text;
+
+  if (await reservationGuestAlreadyReviewed(admin, {
+    restaurantId: params.restaurantId,
+    reservationId: params.reservationId,
+  })) {
+    return params.text;
+  }
 
   let invitationToken: string | null = null;
-  if (settings.review_request_include_gwada) {
+  if (settings.includeGwada) {
     const inv = await ensureGwadaReviewInvitation(admin, {
       restaurantId: params.restaurantId,
       reservationId: params.reservationId,
@@ -50,7 +62,7 @@ export async function appendReviewRequestToMessage(
     invitationToken = inv?.token ?? null;
   }
 
-  const fbRow = settings.review_request_include_facebook
+  const fbRow = settings.includeFacebook
     ? await fetchRestaurantOAuthIntegrationAdmin(
         params.restaurantId,
         "facebook",

@@ -1,11 +1,12 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
 import { useTheme } from "@/components/providers/theme-provider";
+import { ThemeModeIcon } from "@/components/theme/theme-mode-icon";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
-export function ModeToggle() {
+export function ModeToggle({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -19,7 +20,10 @@ export function ModeToggle() {
       <Button
         variant="outline"
         size="icon"
-        className="size-10 rounded-full"
+        className={cn(
+          "size-10 shrink-0 rounded-full border-border/60 bg-card/80",
+          className,
+        )}
         aria-label="Theme laden"
         disabled
       />
@@ -33,11 +37,14 @@ export function ModeToggle() {
       type="button"
       variant="outline"
       size="icon"
-      className="size-10 shrink-0 rounded-full border-border/60 bg-card/80 shadow-none backdrop-blur-sm dark:shadow-sm"
-      aria-label={isDark ? "Light Mode" : "Dark Mode"}
+      className={cn(
+        "size-10 shrink-0 rounded-full border-border/60 bg-card/80 shadow-none backdrop-blur-sm dark:shadow-sm",
+        className,
+      )}
+      aria-label={isDark ? "Hellmodus" : "Dunkelmodus"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
     >
-      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <ThemeModeIcon isDark={isDark} />
     </Button>
   );
 }

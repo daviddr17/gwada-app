@@ -9,7 +9,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
-  Pencil,
   Plus,
   X,
 } from "lucide-react";
@@ -48,9 +47,14 @@ import {
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
+import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
+import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
+import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ReservationsFilterDrawer } from "@/components/reservations/reservations-filter-drawer";
 
@@ -155,6 +159,17 @@ export function ReservationsOverview() {
   /** Nur Auswirkung in Kombination mit aktuellem Monat + `visibleDays`. */
   const [hidePastReservations, setHidePastReservations] = useState(true);
   const [hideEmptyDays, setHideEmptyDays] = useState(false);
+  const [gwadaReviewSheet, setGwadaReviewSheet] = useState<{
+    review: ReservationGwadaReviewSummary;
+    guestLabel: string;
+    reservationNumber: number | null;
+  } | null>(null);
+
+  const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
+  const gwadaReviewsByReservation = useReservationGwadaReviews(
+    workspaceRestaurantId,
+    reservationIds,
+  );
 
   const router = useRouter();
   const pathname = usePathname();
@@ -822,17 +837,33 @@ export function ReservationsOverview() {
                       const timeLabel = timeDe.format(new Date(r.starts_at));
                       const endLabel = timeDe.format(new Date(r.ends_at));
                       const tableLabel = reservationDiningTableLabel(r);
+                      const gwadaReview = gwadaReviewsByReservation.get(r.id);
                       return (
-                        <div
+                        <button
                           key={r.id}
-                          className="flex gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-2"
+                          type="button"
+                          className={cn(
+                            "flex gap-3",
+                            reservationListRowButtonClassName,
+                          )}
+                          aria-label={`Reservierung ${guest} bearbeiten`}
+                          onClick={() => {
+                            pushReservationEdit(r.id);
+                          }}
                         >
                           <div
                             className="mt-0.5 w-0.5 shrink-0 self-stretch rounded-full sm:mt-0"
                             style={{ backgroundColor: stripe }}
                             aria-hidden
                           />
-                          <div className="grid min-w-0 flex-1 grid-cols-[auto_1fr_auto] grid-rows-2 items-center gap-x-3 gap-y-0.5">
+                          <div
+                            className={cn(
+                              "grid min-w-0 flex-1 items-center gap-x-3 gap-y-0.5",
+                              gwadaReview
+                                ? "grid-cols-[auto_1fr_auto] grid-rows-2"
+                                : "grid-cols-[auto_1fr] grid-rows-2",
+                            )}
+                          >
                             <div className="row-span-2 flex items-center self-stretch pr-0.5">
                               <span className="text-3xl font-semibold tabular-nums leading-none tracking-tight text-foreground sm:text-4xl">
                                 {timeLabel}
@@ -875,20 +906,21 @@ export function ReservationsOverview() {
                                 ) : null}
                               </div>
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="col-start-3 row-span-2 size-9 shrink-0 self-center justify-self-end rounded-lg"
-                              aria-label={`Reservierung ${guest} bearbeiten`}
-                              onClick={() => {
-                                pushReservationEdit(r.id);
-                              }}
-                            >
-                              <Pencil className="size-4" />
-                            </Button>
+                            {gwadaReview ? (
+                              <ReservationGwadaReviewStarButton
+                                review={gwadaReview}
+                                className="col-start-3 row-span-2 self-center justify-self-end"
+                                onOpen={() => {
+                                  setGwadaReviewSheet({
+                                    review: gwadaReview,
+                                    guestLabel: guest,
+                                    reservationNumber: r.reservation_number,
+                                  });
+                                }}
+                              />
+                            ) : null}
                           </div>
-                        </div>
+                        </button>
                       );
                     })}
                   </CardContent>
@@ -966,6 +998,16 @@ export function ReservationsOverview() {
           clearReservationUrl();
           consumePendingDaySheetReopen();
         }}
+      />
+
+      <ReservationGwadaReviewSheet
+        open={gwadaReviewSheet !== null}
+        onOpenChange={(o) => {
+          if (!o) setGwadaReviewSheet(null);
+        }}
+        review={gwadaReviewSheet?.review ?? null}
+        guestLabel={gwadaReviewSheet?.guestLabel ?? ""}
+        reservationNumber={gwadaReviewSheet?.reservationNumber ?? null}
       />
     </div>
   );

@@ -1,5 +1,5 @@
-import { ReviewsScreen } from "@/components/reviews/reviews-screen";
+import { redirect } from "next/navigation";
 
-export default function BewertungenFacebookPage() {
-  return <ReviewsScreen platform="facebook" />;
+export default function BewertungenFacebookRedirectPage() {
+  redirect("/bewertungen/uebersicht?platform=facebook");
 }

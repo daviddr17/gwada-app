@@ -10,6 +10,7 @@ import {
   reservationWhatsappSettingsSectionClassName,
   type NotificationKindFieldState,
 } from "@/components/reservations/reservation-notification-channel-section";
+import { ReviewRequestPlatformsField } from "@/components/reservations/review-request-platforms-field";
 import {
   Card,
   CardContent,
@@ -31,6 +32,12 @@ import {
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
 import { usePlatformMessagingFlags } from "@/lib/hooks/use-platform-messaging-flags";
+import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import {
+  defaultReviewRequestIncludes,
+  reviewIncludesFromRow,
+  type ReviewRequestIncludes,
+} from "@/lib/reviews/review-request-settings";
 import { validateGuestManageUrlTemplate } from "@/lib/reservations/guest-manage-url";
 import {
   BOOKING_TIME_STEP_LABELS,
@@ -110,6 +117,10 @@ type SettingsSnapshot = {
   emailSenderName: string;
   whatsapp: ChannelFormSlice;
   email: EmailChannelFormSlice;
+  whatsappReview: ReviewRequestIncludes;
+  emailReview: ReviewRequestIncludes;
+  reviewGoogleUrl: string;
+  reviewFacebookUrl: string;
 };
 
 function tmplFromRow(
@@ -199,6 +210,50 @@ function defaultEmailChannelSlice(): EmailChannelFormSlice {
   };
 }
 
+function channelTemplateForKind(
+  slice: ChannelFormSlice,
+  kind: WhatsappMessageKind,
+): string {
+  switch (kind) {
+    case "received":
+      return slice.tmplReceived;
+    case "confirmed":
+      return slice.tmplConfirmed;
+    case "reminder":
+      return slice.tmplReminder;
+    case "thanks":
+      return slice.tmplThanks;
+    case "cancelled":
+      return slice.tmplCancelled;
+    case "declined":
+      return slice.tmplDeclined;
+    case "no_show":
+      return slice.tmplNoShow;
+  }
+}
+
+function emailSubjectForKind(
+  slice: EmailChannelFormSlice,
+  kind: WhatsappMessageKind,
+): string {
+  switch (kind) {
+    case "received":
+      return slice.subjReceived;
+    case "confirmed":
+      return slice.subjConfirmed;
+    case "reminder":
+      return slice.subjReminder;
+    case "thanks":
+      return slice.subjThanks;
+    case "cancelled":
+      return slice.subjCancelled;
+    case "declined":
+      return slice.subjDeclined;
+    case "no_show":
+      return slice.subjNoShow;
+  }
+}
+
 function defaultChannelSlice(): ChannelFormSlice {
   return {
     received: true,
@@ -223,6 +278,7 @@ function defaultChannelSlice(): ChannelFormSlice {
 function rowToSnapshot(
   data: RestaurantReservationSettingsRow | null | undefined,
 ): SettingsSnapshot {
+  const row = data as Record<string, unknown> | null | undefined;
   return {
     minutes: String(data?.default_dwell_minutes ?? 120),
     leadTimeHours: String(data?.booking_lead_time_hours ?? 2),
@@ -235,6 +291,14 @@ function rowToSnapshot(
     emailSenderName: data?.email_sender_name?.trim() ?? "",
     whatsapp: channelFromRow(data, "whatsapp") as ChannelFormSlice,
     email: channelFromRow(data, "email") as EmailChannelFormSlice,
+    whatsappReview: reviewIncludesFromRow(row, "whatsapp"),
+    emailReview: reviewIncludesFromRow(row, "email"),
+    reviewGoogleUrl:
+      typeof data?.review_google_url === "string" ? data.review_google_url : "",
+    reviewFacebookUrl:
+      typeof data?.review_facebook_url === "string"
+        ? data.review_facebook_url
+        : "",
   };
 }
 
@@ -410,6 +474,25 @@ export function ReservationSettingsForm() {
   const [emailSenderName, setEmailSenderName] = useState("");
   const [whatsapp, setWhatsapp] = useState<ChannelFormSlice>(defaultChannelSlice);
   const [email, setEmail] = useState<EmailChannelFormSlice>(defaultEmailChannelSlice);
+  const [whatsappReview, setWhatsappReview] = useState<ReviewRequestIncludes>(
+    defaultReviewRequestIncludes,
+  );
+  const [emailReview, setEmailReview] = useState<ReviewRequestIncludes>(
+    defaultReviewRequestIncludes,
+  );
+  const [reviewGoogleUrl, setReviewGoogleUrl] = useState("");
+  const [reviewFacebookUrl, setReviewFacebookUrl] = useState("");
+  const [testWhatsappPhone, setTestWhatsappPhone] = useState("");
+  const [testEmailAddress, setTestEmailAddress] = useState("");
+  const [sendingTestKind, setSendingTestKind] = useState<{
+    channel: "whatsapp" | "email";
+    kind: WhatsappMessageKind;
+  } | null>(null);
+  const {
+    loading: reviewConnectionsLoading,
+    googleConnected,
+    facebookConnected,
+  } = useReviewPlatformConnections(restaurantId);
   const [statusColorsByCode, setStatusColorsByCode] = useState<Map<string, string>>(
     () => new Map(),
   );
@@ -434,6 +517,10 @@ export function ReservationSettingsForm() {
       emailSenderName,
       whatsapp,
       email,
+      whatsappReview,
+      emailReview,
+      reviewGoogleUrl,
+      reviewFacebookUrl,
     }),
     [
       minutes,
@@ -445,6 +532,10 @@ export function ReservationSettingsForm() {
       emailSenderName,
       whatsapp,
       email,
+      whatsappReview,
+      emailReview,
+      reviewGoogleUrl,
+      reviewFacebookUrl,
     ],
   );
 
@@ -487,6 +578,10 @@ export function ReservationSettingsForm() {
       setEmailSenderName(next.emailSenderName);
       setWhatsapp(next.whatsapp);
       setEmail(next.email);
+      setWhatsappReview(next.whatsappReview);
+      setEmailReview(next.emailReview);
+      setReviewGoogleUrl(next.reviewGoogleUrl);
+      setReviewFacebookUrl(next.reviewFacebookUrl);
       savedSnapshotRef.current = JSON.stringify(next);
     })();
     return () => {
@@ -538,6 +633,74 @@ export function ReservationSettingsForm() {
     },
     email,
   );
+
+  const sendNotificationTest = async (
+    channel: "whatsapp" | "email",
+    kind: WhatsappMessageKind,
+  ) => {
+    if (!restaurantId) return;
+    const to =
+      channel === "whatsapp"
+        ? testWhatsappPhone.trim()
+        : testEmailAddress.trim();
+    if (!to) {
+      toast.error(
+        channel === "whatsapp"
+          ? "Bitte eine WhatsApp-Nummer für den Testversand eingeben."
+          : "Bitte eine E-Mail-Adresse für den Testversand eingeben.",
+      );
+      return;
+    }
+
+    setSendingTestKind({ channel, kind });
+    try {
+      const slice = channel === "whatsapp" ? whatsapp : email;
+      const body: Record<string, unknown> = {
+        restaurantId,
+        kind,
+        to,
+        template: channelTemplateForKind(slice, kind),
+        guestManageUrlTemplate: guestManageUrl.trim() || null,
+      };
+      if (channel === "email") {
+        body.subject = emailSubjectForKind(email, kind);
+        body.emailSenderName = emailSenderName.trim() || null;
+      }
+      if (kind === "thanks") {
+        body.reviewIncludes =
+          channel === "whatsapp" ? whatsappReview : emailReview;
+        body.reviewGoogleUrl = reviewGoogleUrl.trim() || null;
+        body.reviewFacebookUrl = reviewFacebookUrl.trim() || null;
+      }
+
+      const res = await fetch(
+        `/api/reservations/notifications/test-${channel}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(
+          typeof data.error === "string"
+            ? data.error
+            : "Testnachricht konnte nicht gesendet werden.",
+        );
+        return;
+      }
+      toast.success(
+        channel === "whatsapp"
+          ? "Testnachricht per WhatsApp gesendet."
+          : "Test-E-Mail gesendet.",
+      );
+    } catch {
+      toast.error("Testnachricht konnte nicht gesendet werden.");
+    } finally {
+      setSendingTestKind(null);
+    }
+  };
 
   const save = () => {
     if (!restaurantId) return;
@@ -657,6 +820,14 @@ export function ReservationSettingsForm() {
         ),
         emailDeclinedSubject: emailSubjectFormValueToDb(email.subjDeclined, "declined"),
         emailNoShowSubject: emailSubjectFormValueToDb(email.subjNoShow, "no_show"),
+        whatsappReviewIncludeGwada: whatsappReview.includeGwada,
+        whatsappReviewIncludeGoogle: whatsappReview.includeGoogle,
+        whatsappReviewIncludeFacebook: whatsappReview.includeFacebook,
+        emailReviewIncludeGwada: emailReview.includeGwada,
+        emailReviewIncludeGoogle: emailReview.includeGoogle,
+        emailReviewIncludeFacebook: emailReview.includeFacebook,
+        reviewGoogleUrl: reviewGoogleUrl.trim() || null,
+        reviewFacebookUrl: reviewFacebookUrl.trim() || null,
       });
       setSaving(false);
       if (error) toast.error(error.message);
@@ -872,6 +1043,37 @@ export function ReservationSettingsForm() {
                 value: whatsapp.thanksHours,
                 onChange: (v) => patchWhatsapp({ thanksHours: v }),
               }}
+              testRecipient={{
+                value: testWhatsappPhone,
+                onChange: setTestWhatsappPhone,
+                label: "Testversand (WhatsApp-Nummer)",
+                placeholder: "+49 170 1234567",
+                inputMode: "tel",
+              }}
+              onSendTest={(kind) => void sendNotificationTest("whatsapp", kind)}
+              sendingTestKind={
+                sendingTestKind?.channel === "whatsapp"
+                  ? sendingTestKind.kind
+                  : null
+              }
+              thanksReviewExtras={
+                <ReviewRequestPlatformsField
+                  includes={whatsappReview}
+                  onIncludesChange={(patch) =>
+                    setWhatsappReview((r) => ({ ...r, ...patch }))
+                  }
+                  googleUrl={reviewGoogleUrl}
+                  facebookUrl={reviewFacebookUrl}
+                  onGoogleUrlChange={setReviewGoogleUrl}
+                  onFacebookUrlChange={setReviewFacebookUrl}
+                  showUrlFields
+                  thanksEnabled={whatsapp.thanks}
+                  loading={loading}
+                  googleConnected={googleConnected}
+                  facebookConnected={facebookConnected}
+                  connectionsLoading={reviewConnectionsLoading}
+                />
+              }
               loading={loading}
             />
             ) : null}
@@ -902,6 +1104,37 @@ export function ReservationSettingsForm() {
                 value: email.thanksHours,
                 onChange: (v) => patchEmail({ thanksHours: v }),
               }}
+              testRecipient={{
+                value: testEmailAddress,
+                onChange: setTestEmailAddress,
+                label: "Testversand (E-Mail)",
+                placeholder: "gast@beispiel.de",
+                inputMode: "email",
+              }}
+              onSendTest={(kind) => void sendNotificationTest("email", kind)}
+              sendingTestKind={
+                sendingTestKind?.channel === "email"
+                  ? sendingTestKind.kind
+                  : null
+              }
+              thanksReviewExtras={
+                <ReviewRequestPlatformsField
+                  includes={emailReview}
+                  onIncludesChange={(patch) =>
+                    setEmailReview((r) => ({ ...r, ...patch }))
+                  }
+                  googleUrl={reviewGoogleUrl}
+                  facebookUrl={reviewFacebookUrl}
+                  onGoogleUrlChange={setReviewGoogleUrl}
+                  onFacebookUrlChange={setReviewFacebookUrl}
+                  showUrlFields={!platformFlags.whatsappEnabled}
+                  thanksEnabled={email.thanks}
+                  loading={loading}
+                  googleConnected={googleConnected}
+                  facebookConnected={facebookConnected}
+                  connectionsLoading={reviewConnectionsLoading}
+                />
+              }
               loading={loading}
               showEmailSubjects
               emailSenderName={emailSenderName}

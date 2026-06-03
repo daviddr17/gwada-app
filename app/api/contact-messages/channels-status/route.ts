@@ -2,12 +2,18 @@ import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-i
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
 import { canSendStaffInviteEmail } from "@/lib/staff/staff-invite-send-server";
 import {
+  oauthConfigFromJson,
+  type MetaOAuthIntegrationConfig,
+} from "@/lib/integrations/oauth-integration-types";
+import {
   assertPlatformEmailEnabled,
   assertPlatformFacebookEnabled,
+  assertPlatformInstagramEnabled,
   assertPlatformWhatsappEnabled,
 } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantFacebookIntegration } from "@/lib/supabase/restaurant-facebook-integration-db";
+import { fetchRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
@@ -24,6 +30,7 @@ export async function GET(req: Request) {
   const waPlatform = await assertPlatformWhatsappEnabled(auth.supabase);
   const emPlatform = await assertPlatformEmailEnabled(auth.supabase);
   const fbPlatform = await assertPlatformFacebookEnabled(auth.supabase);
+  const igPlatform = await assertPlatformInstagramEnabled(auth.supabase);
 
   let whatsappConnected = false;
   if (waPlatform.ok) {
@@ -57,6 +64,17 @@ export async function GET(req: Request) {
     facebookConnected = fbRow?.status === "working";
   }
 
+  let instagramConnected = false;
+  if (igPlatform.ok) {
+    const igRow = await fetchRestaurantOAuthIntegration(
+      auth.supabase,
+      auth.restaurantId,
+      "instagram",
+      (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
+    );
+    instagramConnected = igRow?.status === "working";
+  }
+
   const staffInviteEmailAvailable =
     emPlatform.ok &&
     (await canSendStaffInviteEmail(auth.restaurantId, auth.supabase));
@@ -65,9 +83,11 @@ export async function GET(req: Request) {
     whatsappEnabled: waPlatform.ok,
     emailEnabled: emPlatform.ok,
     facebookEnabled: fbPlatform.ok,
+    instagramEnabled: igPlatform.ok,
     whatsappConnected,
     emailConnected,
     facebookConnected,
+    instagramConnected,
     staffInviteEmailAvailable,
   });
 }

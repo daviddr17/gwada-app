@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { DisplayThemeToggleSlot } from "@/components/display/display-theme-toggle-slot";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -80,7 +81,8 @@ export default function DisplayPairPageInner() {
   }, [codeParam, pair]);
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
+    <div className="relative flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
+      <DisplayThemeToggleSlot />
       <div className="max-w-md space-y-2 text-center">
         <h1 className="text-3xl font-semibold tracking-tight">Display koppeln</h1>
         <p className="text-muted-foreground">

@@ -488,6 +488,7 @@ export async function processDueWhatsappOutbox(
         restaurantId: row.restaurant_id,
         reservationId: row.id,
         text,
+        channel: "whatsapp",
       });
     }
     const result = await wahaSendText({

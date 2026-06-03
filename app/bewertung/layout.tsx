@@ -1,0 +1,22 @@
+import { PublicGwadaFooter } from "@/components/public/public-gwada-footer";
+import { loadRootLayoutBranding } from "@/lib/platform/layout-branding-server";
+import { resolvePlatformLogoSrc } from "@/lib/platform/resolve-platform-logo";
+
+export default async function BewertungLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const branding = await loadRootLayoutBranding();
+  const logoSrc = resolvePlatformLogoSrc(branding, "light");
+  const appName = branding.appName?.trim() || "gwada";
+
+  return (
+    <div className="flex min-h-dvh flex-col bg-background">
+      <main className="flex flex-1 flex-col items-center justify-center p-4">
+        {children}
+      </main>
+      <PublicGwadaFooter logoSrc={logoSrc} appName={appName} />
+    </div>
+  );
+}

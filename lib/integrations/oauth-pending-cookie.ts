@@ -4,10 +4,10 @@ import {
   authEntryCookieClearHeaders,
   clearCookieSetCookieHeader,
   LEGACY_OAUTH_PENDING_COOKIE_NAMES,
+  OAUTH_PENDING_ID_COOKIE,
 } from "@/lib/cookies/bloated-request-cookies";
 
-/** Kurzes Pending-ID-Cookie (~40 Bytes) — Payload liegt in oauth_integration_pending. */
-export const OAUTH_PENDING_ID_COOKIE = "gwada_oauth_pending_id";
+export { OAUTH_PENDING_ID_COOKIE };
 
 const PENDING_TTL_SEC = 15 * 60;
 

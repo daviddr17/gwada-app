@@ -1,7 +1,5 @@
 import "server-only";
 
-import { GOOGLE_AUTH_NONCE_COOKIE } from "@/lib/integrations/google-platform-oauth";
-import { OAUTH_PENDING_ID_COOKIE } from "@/lib/integrations/oauth-pending-cookie";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 
 /** Volles OAuth-JSON im Cookie — Hauptursache für „header/cookie too large“. */
@@ -9,6 +7,10 @@ export const LEGACY_OAUTH_PENDING_COOKIE_NAMES = [
   "gwada_meta_oauth_pending",
   "gwada_google_oauth_pending",
 ] as const;
+
+export const OAUTH_PENDING_ID_COOKIE = "gwada_oauth_pending_id";
+
+export const GOOGLE_AUTH_NONCE_COOKIE = "gwada_google_oauth_nonce";
 
 /** Beim Auth-Einstieg (Login, Callback) per Set-Cookie löschen. */
 export const AUTH_ENTRY_COOKIES_TO_CLEAR = [

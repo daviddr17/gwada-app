@@ -6,7 +6,7 @@ import { getPublicSiteUrl } from "@/lib/public-env";
 
 export const GOOGLE_AUTH_OAUTH_SCOPES = ["openid", "email", "profile"] as const;
 
-export const GOOGLE_AUTH_NONCE_COOKIE = "gwada_google_oauth_nonce";
+export { GOOGLE_AUTH_NONCE_COOKIE } from "@/lib/cookies/bloated-request-cookies";
 
 export type GoogleOAuthPlatformConfig = {
   clientId: string;

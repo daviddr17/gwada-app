@@ -8,13 +8,18 @@ import { ContactMessagePlatformIcon } from "@/components/contacts/contact-messag
 import { WhatsAppMessageAckMarks } from "@/components/contacts/whatsapp-message-ack-marks";
 import {
   groupContactMessageBubbles,
-  platformsForBubbleGroup,
   primaryMessageForGroup,
 } from "@/lib/contact-messages/group-message-bubbles";
+import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import {
+  displayPlatformsForMessage,
+  messageDisplayPlatform,
+} from "@/lib/contact-messages/message-display-platform";
 import {
   ContactMessageReactions,
   useMessageReactionLongPress,
 } from "@/components/contacts/contact-message-reactions";
+import { ContactMessageAttachments } from "@/components/contacts/contact-message-attachments";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
@@ -60,14 +65,21 @@ export function ContactMessageBubbleList({
 
   return (
     <ul className={cn("flex flex-col gap-3", className)}>
-      {groups.map((group) => {
+      {groups.map((group, index) => {
         const primary = primaryMessageForGroup(group);
-        const platforms = platformsForBubbleGroup(group);
+        const platforms =
+          group.kind === "single"
+            ? displayPlatformsForMessage(primary)
+            : [
+                ...new Set(
+                  group.messages.flatMap((m) => displayPlatformsForMessage(m)),
+                ),
+              ];
         const outbound = primary.direction === "outbound";
         const key =
           group.kind === "single"
             ? primary.id
-            : `batch-${primary.send_batch_id}`;
+            : `batch-${primary.send_batch_id ?? primary.id}-${index}`;
         const reactionMessageId = primary.waha_message_id ?? primary.id;
         const showReactions = Boolean(
           wahaReactions && primary.waha_message_id,
@@ -106,7 +118,7 @@ function MessageBubbleRow({
   onReservationOpen,
 }: {
   primary: ContactMessageRow;
-  platforms: ReturnType<typeof platformsForBubbleGroup>;
+  platforms: ContactMessagePlatform[];
   outbound: boolean;
   showReactions: boolean;
   wahaReactions?: ContactMessageWahaReactionsConfig;
@@ -134,7 +146,16 @@ function MessageBubbleRow({
           )}
           {...(showReactions ? longPress : {})}
         >
-          <p className="whitespace-pre-wrap break-words">{primary.body}</p>
+          {primary.attachments?.length ? (
+            <ContactMessageAttachments
+              attachments={primary.attachments}
+              outbound={outbound}
+              className={primary.body.trim() ? "mb-2" : undefined}
+            />
+          ) : null}
+          {primary.body.trim() ? (
+            <p className="whitespace-pre-wrap break-words">{primary.body}</p>
+          ) : null}
         </div>
         {showReactions && wahaReactions && primary.waha_message_id ? (
           <ContactMessageReactions
@@ -155,11 +176,15 @@ function MessageBubbleRow({
           outbound && "justify-end",
         )}
       >
-        {platforms.map((p) => (
-          <ContactMessagePlatformIcon key={p} platform={p} variant="meta" />
+        {platforms.map((p, platformIndex) => (
+          <ContactMessagePlatformIcon
+            key={`${p}-${platformIndex}`}
+            platform={p}
+            variant="meta"
+          />
         ))}
         <span>{formatWhen(primary.created_at)}</span>
-        {primary.platform === "whatsapp" ? (
+        {messageDisplayPlatform(primary) === "whatsapp" ? (
           <WhatsAppMessageAckMarks
             ack={primary.waha_ack}
             outbound={outbound}

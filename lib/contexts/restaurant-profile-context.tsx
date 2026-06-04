@@ -132,7 +132,8 @@ export function RestaurantProfileProvider({
       if (
         mem &&
         (!weeklyHoursEqualDefault(mem.weeklyHours) ||
-          mem.dateExceptions.length > 0)
+          mem.dateExceptions.length > 0 ||
+          mem.kitchenHoursEnabled)
       ) {
         const ok = await replaceOpeningHoursForRestaurant(rid, mem);
         if (!ok.ok) return;
@@ -152,6 +153,8 @@ export function RestaurantProfileProvider({
             ...base,
             weeklyHours: loaded.weeklyHours,
             dateExceptions: loaded.dateExceptions,
+            kitchenHoursEnabled: loaded.kitchenHoursEnabled,
+            kitchenWeeklyHours: loaded.kitchenWeeklyHours,
           },
         },
       };
@@ -304,6 +307,8 @@ export function RestaurantProfileProvider({
           ...base,
           weeklyHours: next.weeklyHours,
           dateExceptions: next.dateExceptions,
+          kitchenHoursEnabled: next.kitchenHoursEnabled,
+          kitchenWeeklyHours: next.kitchenWeeklyHours,
         };
       }
 
@@ -313,6 +318,8 @@ export function RestaurantProfileProvider({
         const result = await replaceOpeningHoursForRestaurant(rid, {
           weeklyHours: next.weeklyHours,
           dateExceptions: next.dateExceptions,
+          kitchenHoursEnabled: next.kitchenHoursEnabled,
+          kitchenWeeklyHours: next.kitchenWeeklyHours,
         });
         if (!result.ok) {
           setStore(snapshot);

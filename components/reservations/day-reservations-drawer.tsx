@@ -859,15 +859,14 @@ export function DayReservationsDrawer({
     >
       <DrawerContent
         className={cn(
-          "mx-auto flex h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 w-full flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+          "mx-auto flex h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 w-full max-w-[100dvw] flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
           viewMode === "floor"
-            ? "max-w-[min(100%,52rem)]"
-            : "max-w-[42rem]",
-          "data-[vaul-drawer-direction=bottom]:mt-4 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
-          "data-[vaul-drawer-direction=bottom]:inset-x-auto data-[vaul-drawer-direction=bottom]:left-1/2 data-[vaul-drawer-direction=bottom]:right-auto data-[vaul-drawer-direction=bottom]:-translate-x-1/2",
+            ? "md:max-w-[min(100%,52rem)]"
+            : "md:max-w-[42rem]",
+          "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:mt-4 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
         )}
       >
-        <DrawerHeader className="shrink-0 space-y-3 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className="min-w-0 shrink-0 space-y-3 overflow-x-hidden px-6 pt-2 pb-2 text-left">
           <div>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Tagesübersicht
@@ -937,8 +936,8 @@ export function DayReservationsDrawer({
         </DrawerHeader>
 
         {viewMode === "floor" && areas.length > 1 ? (
-          <div className="shrink-0 border-b border-border/40 px-6 pb-2">
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <div className="min-w-0 shrink-0 overflow-x-hidden border-b border-border/40 px-6 pb-2">
+            <div className="flex max-w-full gap-1.5 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch]">
               {areas.map((a) => (
                 <button
                   key={a.id}
@@ -960,16 +959,16 @@ export function DayReservationsDrawer({
 
         <div
           ref={viewMode === "floor" ? floorPlanMeasureRef : undefined}
-          data-vaul-no-drag={viewMode === "floor" ? true : undefined}
+          data-vaul-no-drag
           className={cn(
-            "min-h-0 flex-1 px-6",
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden px-6",
             viewMode === "floor"
-              ? "overflow-auto overscroll-contain"
+              ? "overflow-y-auto overscroll-x-none overscroll-y-contain touch-pan-y"
               : "overflow-hidden",
           )}
         >
           {viewMode === "list" && (
-            <div className="h-full space-y-2 overflow-y-auto pb-4">
+            <div className="h-full min-w-0 space-y-2 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y pb-4">
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   Keine Reservierungen an diesem Tag.
@@ -980,7 +979,7 @@ export function DayReservationsDrawer({
             </div>
           )}
           {viewMode === "grid" && showGridOption && (
-            <div className="h-full overflow-y-auto pb-4">
+            <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y pb-4">
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   Keine Reservierungen an diesem Tag.
@@ -993,7 +992,7 @@ export function DayReservationsDrawer({
             </div>
           )}
           {viewMode === "floor" && (
-            <div className="flex flex-col gap-1.5 pb-3">
+            <div className="flex min-w-0 max-w-full flex-col gap-1.5 pb-3">
               {!restaurantId ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   Kein Restaurant gewählt — Tischplan nicht verfügbar.
@@ -1076,9 +1075,9 @@ export function DayReservationsDrawer({
                         </span>
                       </p>
                     </div>
-                    <div className="relative w-full shrink-0 rounded-lg bg-muted/10 py-1">
+                    <div className="relative w-full max-w-full shrink-0 overflow-x-hidden rounded-lg bg-muted/10 py-1">
                       {floorCropFrame && floorPlanFitSize ? (
-                        <div className="box-border flex w-full justify-center p-0.5">
+                        <div className="box-border flex w-full max-w-full justify-center overflow-x-auto overscroll-x-contain touch-pan-x p-0.5 [-webkit-overflow-scrolling:touch]">
                           <div
                             className="relative shrink-0 overflow-visible rounded-xl bg-muted/15 shadow-sm ring-1 ring-border/50"
                             style={{
@@ -1424,7 +1423,7 @@ export function DayReservationsDrawer({
         {viewMode === "floor" && floorSlotStartsMinutes.length > 0 ? (
           <div
             data-vaul-no-drag
-            className="shrink-0 space-y-2 border-t border-border/50 bg-card px-6 py-3 touch-pan-y"
+            className="min-w-0 shrink-0 space-y-2 overflow-x-hidden border-t border-border/50 bg-card px-6 py-3 touch-pan-y"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs font-medium text-muted-foreground tabular-nums">

@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { computeDashboardContactsSummary } from "@/lib/contacts/compute-dashboard-contacts-summary";
 import type { DashboardContactsSummary } from "@/lib/contacts/compute-dashboard-contacts-summary";
-import { fetchContactsForRestaurant } from "@/lib/supabase/contacts-db";
+import { fetchDashboardSummaryClient } from "@/lib/dashboard/fetch-dashboard-summary-client";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
@@ -27,15 +26,19 @@ export function useDashboardContactsStats() {
     const run = async () => {
       setLoading(true);
       setError(null);
-      const { data, error: err } = await fetchContactsForRestaurant(restaurantId);
+      const { data, error: err } =
+        await fetchDashboardSummaryClient<DashboardContactsSummary>(
+          "/api/dashboard/contacts/summary",
+          restaurantId,
+        );
       if (cancel) return;
       setLoading(false);
       if (err) {
         setSummary(null);
-        setError(err.message);
+        setError(err);
         return;
       }
-      setSummary(computeDashboardContactsSummary(data));
+      setSummary(data);
     };
 
     void run();

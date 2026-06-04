@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Coffee, UserCheck, Users } from "lucide-react";
+import { UserCheck } from "lucide-react";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import {
   StaffOverviewLivePresenceSheet,
@@ -14,7 +14,6 @@ import {
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
-import { formatDashboardStaffTodayWorkLabel } from "@/lib/staff/compute-dashboard-staff-summary";
 
 export function DashboardStaffTile() {
   const { summary, staff, presence, loading, error, ready } =
@@ -46,51 +45,34 @@ export function DashboardStaffTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid columns={2}>
-        <DashboardStatBlock
-          size="compact"
+      <DashboardCompactInlineMetrics>
+        <DashboardCompactMetricPill
           label="Aktiv"
-          primary={String(active)}
-          secondary="Gerade in Schicht (Display)"
+          value={String(active)}
           highlight={active > 0}
+          stripeVariant="active"
           onClick={() => setPresenceSheetMode("working")}
         />
-        <DashboardStatBlock
-          size="compact"
+        <DashboardCompactMetricPill
           label="In Pause"
-          primary={String(onBreak)}
-          secondary={
-            onBreak > 0 ? (
-              <>
-                <Coffee
-                  className="mr-1 inline size-3.5 align-[-0.15em] text-muted-foreground"
-                  aria-hidden
-                />
-                Pause am Display
-              </>
-            ) : (
-              "Keine aktive Pause"
-            )
-          }
+          value={String(onBreak)}
           highlight={onBreak > 0}
+          stripeVariant="break"
           onClick={() => setPresenceSheetMode("on_break")}
         />
-        <DashboardStatBlock
-          size="compact"
-          label="Arbeitszeit heute"
-          primary={todayHours > 0 ? formatHoursDe(todayHours) : "0 h"}
-          secondary={formatDashboardStaffTodayWorkLabel(todayHours)}
+        <DashboardCompactMetricPill
+          label="Heute"
+          value={todayHours > 0 ? formatHoursDe(todayHours) : "0 h"}
           href="/mitarbeiter/arbeitszeiten"
         />
-      </DashboardWidgetStatsGrid>
-      {summary && summary.totalStaff > 0 ? (
-        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Users className="size-3.5 shrink-0" aria-hidden />
-          {summary.totalStaff}{" "}
-          {summary.totalStaff === 1 ? "aktiver Mitarbeiter" : "aktive Mitarbeiter"}{" "}
-          im Team
-        </p>
-      ) : null}
+        {summary && summary.totalStaff > 0 ? (
+          <DashboardCompactMetricPill
+            label="Team"
+            value={String(summary.totalStaff)}
+            href="/mitarbeiter/uebersicht"
+          />
+        ) : null}
+      </DashboardCompactInlineMetrics>
 
       {presenceSheetMode ? (
         <StaffOverviewLivePresenceSheet

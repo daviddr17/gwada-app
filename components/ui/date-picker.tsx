@@ -26,7 +26,7 @@ export const formScheduleTimeInputClassName = cn(
   "h-11 w-[7.75rem] shrink-0 rounded-xl border border-input bg-transparent px-2.5 py-1 text-base tabular-nums transition-colors outline-none",
   "placeholder:text-muted-foreground",
   "focus:border-ring focus:ring-3 focus:ring-ring/50",
-  "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80",
+  "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 dark:disabled:bg-input/80",
 )
 
 function parseYmdToDate(ymd: string | null | undefined): Date | undefined {

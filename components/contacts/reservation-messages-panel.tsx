@@ -59,10 +59,16 @@ export function ReservationMessagesPanel({
     body,
     sendWhatsapp,
     sendEmail,
+    notifyWhatsapp,
+    notifyEmail,
+    files,
   }: {
     body: string;
     sendWhatsapp: boolean;
     sendEmail: boolean;
+    notifyWhatsapp?: boolean;
+    notifyEmail?: boolean;
+    files?: File[];
   }) => {
     if (!contactId) {
       toast.error(
@@ -83,6 +89,9 @@ export function ReservationMessagesPanel({
       channels,
       reservationId,
       restaurantName,
+      files,
+      notifyWhatsapp,
+      notifyEmail,
     });
     setSending(false);
 
@@ -115,6 +124,7 @@ export function ReservationMessagesPanel({
           emailEnabled={emailEnabled && emailConnected}
           defaultSendWhatsapp={defaultSendWhatsapp}
           defaultSendEmail={defaultSendEmail}
+          showGuestNotify
           onSend={handleSend}
           placeholder="Antwort an den Gast …"
         />

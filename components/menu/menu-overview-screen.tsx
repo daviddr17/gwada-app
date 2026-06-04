@@ -59,6 +59,9 @@ import type {
   MenuTaxonomyDefinition,
   PriceRange,
 } from "@/lib/types/menu";
+import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
+import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
@@ -72,6 +75,11 @@ const MENU_BASE = "/menu/uebersicht";
 export function MenuOverviewScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
+  const {
+    loading: platformConnectionsLoading,
+    googleConnected,
+  } = useReviewPlatformConnections(workspaceRestaurantId);
   const {
     categories,
     addCategory,
@@ -511,10 +519,17 @@ export function MenuOverviewScreen() {
           </div>
         </div>
 
-        <div className="mb-6 mt-5 flex justify-end">
+        <div className="mb-6 mt-5 flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:flex-wrap">
+          <IntegrationPlatformSyncButton
+            target="menu_google"
+            restaurantId={workspaceRestaurantId}
+            connected={googleConnected}
+            connectionsLoading={platformConnectionsLoading}
+            className="w-full sm:w-auto"
+          />
           <Button
             size="lg"
-            className={modulePrimaryAddButtonClassName}
+            className={cn(modulePrimaryAddButtonClassName, "w-full sm:w-auto")}
             onClick={openCreateDrawer}
           >
             <Plus className="size-4" />

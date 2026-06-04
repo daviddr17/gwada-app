@@ -2,9 +2,9 @@
 
 import { Users } from "lucide-react";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardContactsStats } from "@/lib/hooks/use-dashboard-contacts-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -23,26 +23,20 @@ export function DashboardContactsTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid columns={2}>
-        <DashboardStatBlock
-          size="compact"
-          label="Kontakte gesamt"
-          primary={String(summary?.total ?? 0)}
-          secondary="Im Adressbuch des Restaurants"
+      <DashboardCompactInlineMetrics>
+        <DashboardCompactMetricPill
+          label="Gesamt"
+          value={String(summary?.total ?? 0)}
         />
-        <DashboardStatBlock
-          size="compact"
+        <DashboardCompactMetricPill
           label="Mit Reservierung"
-          primary={String(summary?.withReservation ?? 0)}
-          secondary="Mindestens eine verknüpfte Reservierung"
+          value={String(summary?.withReservation ?? 0)}
         />
-        <DashboardStatBlock
-          size="compact"
+        <DashboardCompactMetricPill
           label="Firmenkontakte"
-          primary={String(summary?.withCompany ?? 0)}
-          secondary="Einträge mit Unternehmensname"
+          value={String(summary?.withCompany ?? 0)}
         />
-      </DashboardWidgetStatsGrid>
+      </DashboardCompactInlineMetrics>
     </DashboardWidgetShell>
   );
 }

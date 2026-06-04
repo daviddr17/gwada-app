@@ -26,6 +26,8 @@ import Link from "next/link";
 import {
   readDisplayDeviceCredential,
 } from "@/lib/display/display-device-storage";
+import { syncDisplayReservationsLiveAfterPin } from "@/lib/display/display-reservations-live-events";
+import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
 
 export function DisplayScreen({ slug }: { slug: string }) {
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
@@ -94,6 +96,13 @@ export function DisplayScreen({ slug }: { slug: string }) {
     }
   }, [context?.session, activeModule]);
 
+  const reservationsLiveEnabled = Boolean(
+    context?.session &&
+      !locked &&
+      context.session.modules.includes("reservations"),
+  );
+  useDisplayReservationsLive(reservationsLiveEnabled);
+
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     if (!context?.display?.auto_lock_seconds || !context.session) return;
@@ -140,6 +149,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
       const mods = ctx.session?.modules ?? [];
       setActiveModule(mods.length === 1 ? mods[0]! : null);
       setLocked(false);
+      if (mods.includes("reservations")) {
+        window.setTimeout(() => syncDisplayReservationsLiveAfterPin(), 0);
+      }
     } finally {
       setPinBusy(false);
     }

@@ -5,6 +5,7 @@ import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-bran
 import { useResolvedPlatformLogoSrc } from "@/lib/hooks/use-resolved-platform-logo-src";
 import {
   isFaviconRenderableInImg,
+  platformFaviconHref,
   withBrandingAssetCacheBust,
 } from "@/lib/platform/branding-asset-url";
 import { cn } from "@/lib/utils";
@@ -17,24 +18,28 @@ const ICON_CLASS = "size-7 shrink-0 object-contain object-center md:size-8";
 export function AppChromeCenterFavicon({ className }: { className?: string }) {
   const branding = usePlatformAppBrandingOptional();
   const logoSrc = useResolvedPlatformLogoSrc();
-  const faviconSrc = withBrandingAssetCacheBust(
+  const faviconPath = branding?.faviconPath ?? null;
+  const faviconApiSrc = platformFaviconHref(faviconPath);
+  const faviconDirectSrc = withBrandingAssetCacheBust(
     branding?.faviconUrl ?? null,
-    branding?.faviconPath ?? null,
+    faviconPath,
   );
-  const faviconOkForImg = isFaviconRenderableInImg(branding?.faviconPath);
+  const faviconOkForImg =
+    Boolean(faviconApiSrc) || isFaviconRenderableInImg(faviconPath);
+  const faviconImgSrc = faviconApiSrc ?? faviconDirectSrc;
 
   const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
     setImgFailed(false);
-  }, [faviconSrc, faviconOkForImg]);
+  }, [faviconImgSrc, faviconOkForImg]);
 
   if (!branding?.isReady) {
     return null;
   }
 
-  const preferFavicon = Boolean(faviconSrc && faviconOkForImg && !imgFailed);
-  const src = preferFavicon ? faviconSrc : logoSrc;
+  const preferFavicon = Boolean(faviconImgSrc && faviconOkForImg && !imgFailed);
+  const src = preferFavicon ? faviconImgSrc : logoSrc;
 
   if (!src) {
     return null;

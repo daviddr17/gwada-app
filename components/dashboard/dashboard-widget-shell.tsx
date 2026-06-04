@@ -12,9 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
-import {
-  DashboardWidgetStatsSkeleton,
-} from "@/components/dashboard/dashboard-stat-block";
+import { DashboardCompactMetricsSkeleton } from "@/components/dashboard/dashboard-compact-list";
 
 export function DashboardWidgetShell({
   title,
@@ -48,7 +46,7 @@ export function DashboardWidgetShell({
           <Skeleton className="h-5 w-32 rounded-md" />
           <Skeleton className="size-8 rounded-lg" />
         </div>
-        <DashboardWidgetStatsSkeleton compact={isCompact} />
+        <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
       </SkeletonCardFrame>
     );
   }
@@ -103,7 +101,7 @@ export function DashboardWidgetShell({
           <p className="text-sm text-muted-foreground">{error}</p>
         ) : loading ? (
           <div aria-busy="true" aria-label={`${title} wird geladen`}>
-            <DashboardWidgetStatsSkeleton compact={isCompact} />
+            <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
           </div>
         ) : (
           children

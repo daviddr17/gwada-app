@@ -13,7 +13,7 @@ import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile"
 import { DashboardReservationsTile } from "@/components/dashboard/dashboard-reservations-tile";
 import { DashboardReviewsTile } from "@/components/dashboard/dashboard-reviews-tile";
 import { DashboardWeatherTile } from "@/components/dashboard/dashboard-weather-tile";
-import { DashboardWidgetStatsSkeleton } from "@/components/dashboard/dashboard-stat-block";
+import { DashboardCompactMetricsSkeleton } from "@/components/dashboard/dashboard-compact-list";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
@@ -26,7 +26,7 @@ function DashboardWidgetSkeleton() {
         <Skeleton className="size-8 rounded-lg" />
       </div>
       <div className="px-4 pb-4">
-        <DashboardWidgetStatsSkeleton compact />
+        <DashboardCompactMetricsSkeleton count={3} />
       </div>
     </SkeletonCardFrame>
   );
@@ -82,8 +82,9 @@ export default function DashboardPage() {
       <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <p className="max-w-md text-sm text-muted-foreground sm:text-base">
           Für das Dashboard sind aktuell keine Widgets aktiviert. Unter
-          Einstellungen kannst du           Speisekarte, Reservierungen, Bewertungen, Mitarbeiter, Wetter, Kontakte,
-          Nachrichten, Integrationen und Bestand wieder einblenden.
+          Einstellungen kannst du Speisekarte, Reservierungen, Bewertungen,
+          Mitarbeiter, Wetter, Nachrichten, Integrationen und Bestand wieder
+          einblenden.
         </p>
         <Button render={<Link href="/settings/dashboard" prefetch />}>
           Dashboard-Einstellungen

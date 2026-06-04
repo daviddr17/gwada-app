@@ -46,6 +46,9 @@ export type RestaurantProfile = {
   coverStoragePath: string | null;
   weeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
+  /** Eigener Wochenplan für die Küche (z. B. Google „Küchenzeiten“ / moreHours KITCHEN). */
+  kitchenHoursEnabled: boolean;
+  kitchenWeeklyHours: Record<Weekday, DayHours>;
 };
 
 export type RestaurantPersistenceV1 = {

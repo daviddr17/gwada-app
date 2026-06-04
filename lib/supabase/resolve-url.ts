@@ -34,7 +34,7 @@ export function getSupabaseUpstreamUrl(): string | null {
 
 /**
  * URL für createBrowserClient / createServerClient.
- * Browser: öffentliche `/sb`-Proxy-URL (HTTPS, kein Mixed Content).
+ * Browser mit Proxy: `/sb` (nur HTTP). Ohne Proxy: direkte `NEXT_PUBLIC_SUPABASE_URL` (Realtime/WebSocket).
  * Server hinter Proxy: direkt Kong/upstream — kein Hairpin über die öffentliche Domain
  * (sonst TLS-Fehler in Docker: ERR_SSL_PACKET_LENGTH_TOO_LONG → Login↔Dashboard-Schleife).
  *
@@ -46,6 +46,11 @@ export function resolveSupabaseUrl(origin?: string | null): string {
   }
 
   if (typeof window !== "undefined") {
+    if (isPublicSupabaseProxyEnabled()) {
+      return `${trimSlash(window.location.origin)}/sb`;
+    }
+    const direct = getPublicSupabaseUrl();
+    if (direct) return trimSlash(direct);
     return `${trimSlash(window.location.origin)}/sb`;
   }
 

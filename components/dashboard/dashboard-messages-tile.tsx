@@ -2,16 +2,40 @@
 
 import { MessageCircle } from "lucide-react";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactList,
+  DashboardCompactListItem,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
+function formatMessageWhen(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+
+  if (sameDay) {
+    return d.toLocaleTimeString("de-DE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  return d.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "short",
+  });
+}
+
 export function DashboardMessagesTile() {
   const { summary, loading, error, ready } = useDashboardMessagesStats();
   const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const total = summary?.total_unread ?? 0;
 
   return (
     <DashboardWidgetShell
@@ -22,32 +46,50 @@ export function DashboardMessagesTile() {
           aria-hidden
         />
       }
-      href="/kontakte/nachrichten?platform=gwada"
+      href="/kontakte/nachrichten?platform=all"
       linkLabel="Zu Nachrichten"
       ready={ready}
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid columns={2}>
-        <DashboardStatBlock
-          size="compact"
-          label="Ungelesen gesamt"
-          primary={String(summary?.total_unread ?? 0)}
-          secondary="Alle aktiven Kanäle"
-        />
-        <DashboardStatBlock
-          size="compact"
-          label="Gwada"
-          primary={String(summary?.gwada_unread ?? 0)}
-          secondary="Nachrichten im System"
-        />
-        <DashboardStatBlock
-          size="compact"
-          label="WhatsApp"
-          primary={String(summary?.whatsapp_unread ?? 0)}
-          secondary="Vom verbundenen Konto"
-        />
-      </DashboardWidgetStatsGrid>
+      {summary ? (
+        <div className="space-y-3">
+          <DashboardCompactInlineMetrics>
+            <DashboardCompactMetricPill
+              label="Ungelesen"
+              value={String(total)}
+              href={total > 0 ? "/kontakte/nachrichten?platform=all" : undefined}
+              highlight={total > 0}
+              stripeVariant="attention"
+            />
+          </DashboardCompactInlineMetrics>
+
+          {summary.unread.length > 0 ? (
+            <DashboardCompactList>
+              {summary.unread.map((row) => (
+                <DashboardCompactListItem
+                  key={row.contactId}
+                  href={row.href}
+                  title={row.contactName}
+                  meta={row.preview}
+                  stripeVariant="attention"
+                  trailing={
+                    <span className="tabular-nums">
+                      {row.unreadCount > 1
+                        ? `${row.unreadCount} · ${formatMessageWhen(row.lastAt)}`
+                        : formatMessageWhen(row.lastAt)}
+                    </span>
+                  }
+                />
+              ))}
+            </DashboardCompactList>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Keine ungelesenen Nachrichten.
+            </p>
+          )}
+        </div>
+      ) : null}
     </DashboardWidgetShell>
   );
 }

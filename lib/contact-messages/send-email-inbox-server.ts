@@ -6,6 +6,9 @@ import {
   resolveRestaurantImapCredentials,
   threadEnvelopesForContact,
 } from "@/lib/contact-messages/email-inbox-service";
+import { smtpPartsFromOutboundFiles } from "@/lib/contact-messages/send-channel-attachments";
+import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
+import { storeGwadaMessageAttachments } from "@/lib/contact-messages/gwada-message-attachments-server";
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
 import { resolveEmailDeliveryForRestaurant } from "@/lib/reservations/reservation-email-dispatch";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -76,11 +79,13 @@ export async function sendEmailInboxMessageServer(
     sentBy?: string | null;
     restaurantName?: string | null;
     storeUnderContact?: boolean;
+    attachmentFiles?: OutboundAttachmentFile[];
   },
 ): Promise<{ ok: boolean; errors?: string[] }> {
   const errors: string[] = [];
   const text = params.body.trim();
-  if (!text) {
+  const files = params.attachmentFiles ?? [];
+  if (!text && files.length === 0) {
     return { ok: false, errors: ["empty_body"] };
   }
 
@@ -111,7 +116,8 @@ export async function sendEmailInboxMessageServer(
   const result = await sendReservationEmail(delivery, {
     to,
     subject,
-    text,
+    text: text || " ",
+    attachments: files.length > 0 ? smtpPartsFromOutboundFiles(files) : undefined,
   });
 
   if (!result.ok) {
@@ -122,17 +128,29 @@ export async function sendEmailInboxMessageServer(
     params.storeUnderContact !== false &&
     isUuidRestaurantId(params.contactId)
   ) {
-    const { error } = await admin.from("contact_messages").insert({
-      restaurant_id: params.restaurantId,
-      contact_id: params.contactId,
-      platform: "email",
-      direction: "outbound",
-      body: text,
-      reservation_id: null,
-      sent_by: params.sentBy ?? null,
-      delivery_status: "sent",
-    });
+    const { data: inserted, error } = await admin
+      .from("contact_messages")
+      .insert({
+        restaurant_id: params.restaurantId,
+        contact_id: params.contactId,
+        platform: "email",
+        direction: "outbound",
+        body: text || " ",
+        reservation_id: null,
+        sent_by: params.sentBy ?? null,
+        delivery_status: "sent",
+      })
+      .select("id")
+      .single();
     if (error) errors.push(`email_db:${error.message}`);
+    else if (inserted?.id && files.length > 0) {
+      const stored = await storeGwadaMessageAttachments(admin, {
+        restaurantId: params.restaurantId,
+        messageId: inserted.id as string,
+        files,
+      });
+      if (stored.error) errors.push(`email_attachments:${stored.error}`);
+    }
   }
 
   return { ok: errors.length === 0, errors: errors.length ? errors : undefined };

@@ -51,6 +51,7 @@ export function DashboardReservationsTile() {
               value={String(unconfirmed)}
               href={unconfirmed > 0 ? reservationsUnconfirmedOverviewHref() : undefined}
               highlight={unconfirmed > 0}
+              stripeVariant={unconfirmed > 0 ? "attention" : undefined}
             />
             <DashboardCompactMetricPill
               label="Heute"
@@ -75,6 +76,7 @@ export function DashboardReservationsTile() {
                   title={row.guestLabel}
                   meta={`${row.partySize} Pers. · ${row.statusName}`}
                   trailing={formatReservationWhen(row.startsAt)}
+                  stripeVariant={row.unconfirmed ? "attention" : undefined}
                 />
               ))}
             </DashboardCompactList>

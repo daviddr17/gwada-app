@@ -111,7 +111,7 @@ export type ReservationListRow = {
   dining_tables: ReservationDiningTableJoin | null;
 };
 
-function mapRawToReservationListRow(
+export function mapRawToReservationListRow(
   row: Record<string, unknown>,
 ): ReservationListRow {
   const st = row.reservation_statuses;
@@ -131,7 +131,7 @@ function mapRawToReservationListRow(
   };
 }
 
-const RESERVATION_LIST_ROW_SELECT = `
+export const RESERVATION_LIST_ROW_SELECT = `
       id,
       restaurant_id,
       reservation_number,

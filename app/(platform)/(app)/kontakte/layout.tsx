@@ -4,16 +4,16 @@ import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
-const CONTACTS_NAV: readonly ModuleSubnavItem[] = [
-  {
-    href: "/kontakte/uebersicht",
-    label: "Übersicht",
-    matchMode: "exact",
-    activeWhen: ["/kontakte"],
-  },
+const MESSAGES_MODULE_NAV: readonly ModuleSubnavItem[] = [
   {
     href: "/kontakte/nachrichten",
     label: "Nachrichten",
+    matchMode: "prefix",
+    activeWhen: ["/kontakte"],
+  },
+  {
+    href: "/kontakte/uebersicht",
+    label: "Kontakte",
     matchMode: "prefix",
   },
   {
@@ -34,9 +34,9 @@ export default function KontakteLayout({
   return (
     <>
       <RegisterModuleChrome
-        title="Kontakte"
-        subnavAriaLabel="Kontakte-Bereiche"
-        subnavItems={CONTACTS_NAV}
+        title="Nachrichten"
+        subnavAriaLabel="Nachrichten-Bereiche"
+        subnavItems={MESSAGES_MODULE_NAV}
       />
       <AppMain>{children}</AppMain>
     </>

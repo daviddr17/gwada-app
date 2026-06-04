@@ -1,8 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
-  Contact,
   FileText,
+  MessageCircle,
   Package,
   Users,
   UtensilsCrossed,
@@ -16,7 +16,7 @@ export const LANDING_APP_MODULES: readonly {
   { label: "Speisekarte", icon: UtensilsCrossed },
   { label: "Bestand", icon: Package },
   { label: "Reservierungen", icon: CalendarDays },
-  { label: "Kontakte", icon: Contact },
+  { label: "Nachrichten", icon: MessageCircle },
   { label: "Dokumente", icon: FileText },
   { label: "Mitarbeiter", icon: Users },
 ];

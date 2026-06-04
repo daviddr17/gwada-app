@@ -46,7 +46,9 @@ import {
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
+import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { publicHolidayChipClassName } from "@/lib/ui/public-holiday-chip";
 import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
@@ -147,6 +149,15 @@ export function ReservationsOverview() {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+
+  const monthFromYmd = localDayKey(monthStart);
+  const monthToYmd = localDayKey(monthEnd);
+  const { byDate: holidaysByDate } = usePublicHolidaysByDate(
+    workspaceRestaurantId,
+    monthFromYmd,
+    monthToYmd,
+  );
+
   const [daySheetOpen, setDaySheetOpen] = useState(false);
   const [daySheetDay, setDaySheetDay] = useState<Date | null>(null);
   const pendingReopenDaySheetRef = useRef<Date | null>(null);
@@ -760,6 +771,7 @@ export function ReservationsOverview() {
         {visibleDays.map((d) => {
           const isToday = d.getTime() === today.getTime();
           const key = localDayKey(d);
+          const holidayName = holidaysByDate[key];
           const list = byDay.get(key) ?? [];
           const resCount = list.length;
           const partyTotal = list.reduce((sum, r) => sum + r.party_size, 0);
@@ -780,9 +792,19 @@ export function ReservationsOverview() {
                 ) : null}
                 <div className="flex items-start justify-between gap-3 sm:items-center">
                   <div className="min-w-0 flex-1 space-y-1">
-                    <CardTitle className="text-base font-semibold sm:text-lg">
-                      {formatDayHeadingDe(d)}
-                    </CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <CardTitle className="text-base font-semibold sm:text-lg">
+                        {formatDayHeadingDe(d)}
+                      </CardTitle>
+                      {holidayName ? (
+                        <Badge
+                          variant="outline"
+                          className={publicHolidayChipClassName}
+                        >
+                          {holidayName}
+                        </Badge>
+                      ) : null}
+                    </div>
                     <p className="text-xs text-muted-foreground sm:text-sm">
                       {resCount === 1
                         ? "1 Reservierung"

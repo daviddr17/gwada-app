@@ -9,6 +9,7 @@ import {
   wahaGetSession,
   wahaRestartSession,
   wahaStartSession,
+  wahaUpdateSessionWebhooks,
 } from "@/lib/waha/waha-client";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
@@ -80,6 +81,14 @@ export async function syncWhatsappFromWaha(
     connected_at: mapped.connected_at,
     last_error: null,
   });
+
+  if (session) {
+    void wahaUpdateSessionWebhooks(config, sessionName, restaurantId).catch(
+      (e) => {
+        console.warn("[waha] update webhooks", e);
+      },
+    );
+  }
 
   const needsReconnect =
     mapped.status === "failed" ||

@@ -8,6 +8,7 @@ import {
   DashboardCompactMetricPill,
 } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
+import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
 import { useDashboardReviewsStats } from "@/lib/hooks/use-dashboard-reviews-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -65,6 +66,7 @@ export function DashboardReviewsTile() {
               <DashboardCompactMetricPill
                 key={p.platform}
                 label={p.label}
+                icon={<ReviewPlatformIcon platform={p.platform} />}
                 value={
                   !p.connected && p.platform !== "gwada"
                     ? "—"

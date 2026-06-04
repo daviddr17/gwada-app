@@ -5,11 +5,11 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
   CalendarDays,
-  Contact,
   Database,
   FileText,
   LayoutDashboard,
   LogOut,
+  MessageCircle,
   Package,
   Plug,
   ScrollText,
@@ -226,11 +226,16 @@ export function AppSidebar() {
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/kontakte")}
-                      tooltip="Kontakte"
-                      render={<Link href="/kontakte/uebersicht" prefetch />}
+                      tooltip="Nachrichten"
+                      render={
+                        <Link
+                          href="/kontakte/nachrichten?platform=all"
+                          prefetch
+                        />
+                      }
                     >
-                      <Contact />
-                      <span>Kontakte</span>
+                      <MessageCircle />
+                      <span>Nachrichten</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

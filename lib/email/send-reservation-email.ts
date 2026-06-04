@@ -23,6 +23,8 @@ export type ReservationEmailPayload = Omit<
   /** Graue Intro-Zeile unter der Überschrift */
   intro?: string | null;
   footerNote?: string | null;
+  replyTo?: string;
+  attachments?: SmtpSendPayload["attachments"];
 };
 
 export async function sendReservationEmail(
@@ -60,5 +62,7 @@ export async function sendReservationEmail(
     text,
     html,
     fromName: delivery.sender.name,
+    replyTo: payload.replyTo,
+    attachments: payload.attachments,
   });
 }

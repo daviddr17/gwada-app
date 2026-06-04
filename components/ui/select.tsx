@@ -4,6 +4,7 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
+import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
@@ -61,7 +62,8 @@ function SelectTrigger({
       data-slot="select-trigger"
       data-size={size}
       className={cn(
-        "flex w-full min-w-0 touch-manipulation items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card px-3 py-2 text-sm font-medium text-foreground shadow-none transition-[color,box-shadow,background-color,border-color] outline-none select-none hover:border-border focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:min-h-11 data-[size=sm]:min-h-9 data-[size=sm]:rounded-xl data-[size=sm]:px-2.5 data-[size=sm]:text-sm *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:shrink *:data-[slot=select-value]:grow *:data-[slot=select-value]:basis-0 dark:border-border/80 dark:bg-input/25 dark:shadow-sm dark:hover:bg-input/40 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex w-full min-w-0 touch-manipulation items-center justify-between gap-2 rounded-2xl border border-border/70 bg-card px-3 py-2 font-medium text-foreground shadow-none transition-[color,box-shadow,background-color,border-color] outline-none select-none hover:border-border focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:min-h-11 data-[size=sm]:min-h-9 data-[size=sm]:rounded-xl data-[size=sm]:px-2.5 *:data-[slot=select-value]:min-w-0 *:data-[slot=select-value]:shrink *:data-[slot=select-value]:grow *:data-[slot=select-value]:basis-0 dark:border-border/80 dark:bg-input/25 dark:shadow-sm dark:hover:bg-input/40 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        mobileFormControlFontClassName,
         className
       )}
       {...props}

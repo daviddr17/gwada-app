@@ -347,4 +347,16 @@ export async function loadDisplayReservationDetail(
   };
 }
 
+/** Letzter Insert-Zeitstempel für Display-Live-Polling (Service-Role). */
+export async function loadDisplayReservationsLiveSignal(
+  restaurantId: string,
+): Promise<{ latestCreatedAt: string | null }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { latestCreatedAt: null };
+  const { fetchReservationsLiveSignal } = await import(
+    "@/lib/reservations/reservations-live-signal"
+  );
+  return fetchReservationsLiveSignal(admin, restaurantId);
+}
+
 export { WEEKDAY_ORDER };

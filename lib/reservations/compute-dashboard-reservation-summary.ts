@@ -8,6 +8,7 @@ export type DashboardReservationRecent = {
   partySize: number;
   statusName: string;
   href: string;
+  unconfirmed: boolean;
 };
 
 export type DashboardReservationSummary = {
@@ -87,6 +88,7 @@ export function computeDashboardReservationSummary(
         partySize: row.party_size,
         statusName: row.reservation_statuses?.name ?? "—",
         href: `/reservierungen/uebersicht?reservation=${row.id}`,
+        unconfirmed: isUnconfirmedReservation(row),
       };
     });
 

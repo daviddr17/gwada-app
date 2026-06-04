@@ -1,3 +1,4 @@
+import { wahaSessionWebhookConfig } from "@/lib/integrations/waha-webhook-url";
 import type { WahaServerConfig } from "@/lib/waha/waha-config";
 import type { WahaSessionStatus } from "@/lib/types/restaurant-integration";
 
@@ -80,6 +81,25 @@ export async function wahaGetSession(
   );
 }
 
+function sessionConfigForRestaurant(restaurantId: string): Record<string, unknown> {
+  const webhook = wahaSessionWebhookConfig(restaurantId);
+  return {
+    noweb: {
+      store: { enabled: true, fullSync: false },
+    },
+    ...(webhook
+      ? {
+          webhooks: webhook.webhooks,
+          metadata: webhook.metadata,
+        }
+      : {
+          metadata: {
+            "gwada.restaurant_id": restaurantId,
+          },
+        }),
+  };
+}
+
 export async function wahaCreateSession(
   config: WahaServerConfig,
   sessionName: string,
@@ -91,16 +111,28 @@ export async function wahaCreateSession(
     body: JSON.stringify({
       name: sessionName,
       start: true,
-      config: {
-        noweb: {
-          store: { enabled: true, fullSync: false },
-        },
-        metadata: {
-          "gwada.restaurant_id": restaurantId,
-        },
-      },
+      config: sessionConfigForRestaurant(restaurantId),
     }),
   });
+}
+
+/** Webhook-URL an bestehende Session hängen (z. B. nach Deploy). */
+export async function wahaUpdateSessionWebhooks(
+  config: WahaServerConfig,
+  sessionName: string,
+  restaurantId: string,
+): Promise<WahaFetchResult<WahaSessionPayload>> {
+  return wahaFetch<WahaSessionPayload>(
+    config,
+    `/api/sessions/${encodeURIComponent(sessionName)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        config: sessionConfigForRestaurant(restaurantId),
+      }),
+    },
+  );
 }
 
 export async function wahaStartSession(

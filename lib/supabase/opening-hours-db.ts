@@ -1,6 +1,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { ensureBrowserSupabaseSession } from "@/lib/supabase/ensure-browser-session";
 import {
+  defaultKitchenWeeklyHours,
   defaultWeeklyHours,
   WEEKDAY_ORDER,
 } from "@/lib/constants/restaurant-profile";
@@ -11,6 +12,8 @@ import type {
   RestaurantProfile,
   Weekday,
 } from "@/lib/types/restaurant";
+
+export type OpeningHoursScheduleRole = "business" | "kitchen";
 
 export function openingHoursDbEnabled(): boolean {
   return workspacePersistenceConfigured();
@@ -58,13 +61,41 @@ type OpeningHoursRow = {
   opens_at: string | null;
   closes_at: string | null;
   note: string | null;
+  schedule_role: OpeningHoursScheduleRole;
 };
+
+function mergeWeeklyFromRows(
+  rows: OpeningHoursRow[],
+  role: OpeningHoursScheduleRole,
+  fallback: Record<Weekday, DayHours>,
+): Record<Weekday, DayHours> {
+  const weekly = { ...fallback } as Record<Weekday, DayHours>;
+  for (const day of WEEKDAY_ORDER) {
+    weekly[day] = { ...fallback[day] };
+  }
+  for (const raw of rows) {
+    if (
+      raw.kind === "weekly" &&
+      raw.weekday &&
+      (raw.schedule_role ?? "business") === role
+    ) {
+      weekly[raw.weekday] = {
+        closed: raw.closed,
+        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
+        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
+      };
+    }
+  }
+  return weekly;
+}
 
 export async function loadOpeningHoursForRestaurant(
   restaurantId: string,
 ): Promise<{
   weeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
+  kitchenHoursEnabled: boolean;
+  kitchenWeeklyHours: Record<Weekday, DayHours>;
   wasEmpty: boolean;
 } | null> {
   if (!openingHoursDbEnabled()) return null;
@@ -72,7 +103,7 @@ export async function loadOpeningHoursForRestaurant(
   const { data, error } = await supabase
     .from("opening_hours")
     .select(
-      "id,restaurant_id,kind,weekday,exception_date,closed,opens_at,closes_at,note",
+      "id,restaurant_id,kind,weekday,exception_date,closed,opens_at,closes_at,note,schedule_role",
     )
     .eq("restaurant_id", restaurantId);
   if (error) {
@@ -80,18 +111,25 @@ export async function loadOpeningHoursForRestaurant(
     return null;
   }
 
-  const wasEmpty = !data?.length;
-  const weeklyHours = defaultWeeklyHours() as Record<Weekday, DayHours>;
-  const dateExceptions: DateHoursException[] = [];
+  const rows = (data ?? []) as OpeningHoursRow[];
+  const wasEmpty = !rows.length;
+  const weeklyHours = mergeWeeklyFromRows(
+    rows,
+    "business",
+    defaultWeeklyHours(),
+  );
+  const kitchenWeeklyHours = mergeWeeklyFromRows(
+    rows,
+    "kitchen",
+    defaultKitchenWeeklyHours(),
+  );
+  const kitchenHoursEnabled = rows.some(
+    (r) => r.kind === "weekly" && r.schedule_role === "kitchen",
+  );
 
-  for (const raw of (data ?? []) as OpeningHoursRow[]) {
-    if (raw.kind === "weekly" && raw.weekday) {
-      weeklyHours[raw.weekday] = {
-        closed: raw.closed,
-        open: raw.closed ? undefined : timeToHHmm(raw.opens_at),
-        close: raw.closed ? undefined : timeToHHmm(raw.closes_at),
-      };
-    } else if (raw.kind === "exception" && raw.exception_date) {
+  const dateExceptions: DateHoursException[] = [];
+  for (const raw of rows) {
+    if (raw.kind === "exception" && raw.exception_date) {
       dateExceptions.push({
         id: raw.id,
         date: raw.exception_date,
@@ -105,7 +143,13 @@ export async function loadOpeningHoursForRestaurant(
 
   dateExceptions.sort((a, b) => a.date.localeCompare(b.date));
 
-  return { weeklyHours, dateExceptions, wasEmpty };
+  return {
+    weeklyHours,
+    dateExceptions,
+    kitchenHoursEnabled,
+    kitchenWeeklyHours,
+    wasEmpty,
+  };
 }
 
 export function weeklyHoursEqualDefault(
@@ -120,11 +164,36 @@ export function weeklyHoursEqualDefault(
   );
 }
 
+function pushWeeklyInserts(
+  inserts: Record<string, unknown>[],
+  restaurantId: string,
+  scheduleRole: OpeningHoursScheduleRole,
+  weekly: Record<Weekday, DayHours>,
+) {
+  for (const day of WEEKDAY_ORDER) {
+    const h = weekly[day];
+    inserts.push({
+      restaurant_id: restaurantId,
+      kind: "weekly",
+      weekday: day,
+      exception_date: null,
+      closed: h.closed,
+      opens_at: h.closed ? null : hhmmToPgTime(h.open),
+      closes_at: h.closed ? null : hhmmToPgTime(h.close),
+      note: null,
+      schedule_role: scheduleRole,
+    });
+  }
+}
+
 export async function replaceOpeningHoursForRestaurant(
   restaurantId: string,
   profile: Pick<
     RestaurantProfile,
-    "weeklyHours" | "dateExceptions"
+    | "weeklyHours"
+    | "dateExceptions"
+    | "kitchenHoursEnabled"
+    | "kitchenWeeklyHours"
   >,
 ): Promise<OpeningHoursSaveResult> {
   if (!openingHoursDbEnabled()) {
@@ -148,18 +217,15 @@ export async function replaceOpeningHoursForRestaurant(
 
   const inserts: Record<string, unknown>[] = [];
 
-  for (const day of WEEKDAY_ORDER) {
-    const h = profile.weeklyHours[day];
-    inserts.push({
-      restaurant_id: restaurantId,
-      kind: "weekly",
-      weekday: day,
-      exception_date: null,
-      closed: h.closed,
-      opens_at: h.closed ? null : hhmmToPgTime(h.open),
-      closes_at: h.closed ? null : hhmmToPgTime(h.close),
-      note: null,
-    });
+  pushWeeklyInserts(inserts, restaurantId, "business", profile.weeklyHours);
+
+  if (profile.kitchenHoursEnabled) {
+    pushWeeklyInserts(
+      inserts,
+      restaurantId,
+      "kitchen",
+      profile.kitchenWeeklyHours,
+    );
   }
 
   for (const ex of profile.dateExceptions) {
@@ -173,6 +239,7 @@ export async function replaceOpeningHoursForRestaurant(
       opens_at: ex.closed ? null : hhmmToPgTime(ex.open),
       closes_at: ex.closed ? null : hhmmToPgTime(ex.close),
       note: ex.note?.trim() || null,
+      schedule_role: "business",
     };
     if (idOk) row.id = ex.id;
     inserts.push(row);

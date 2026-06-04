@@ -1,20 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  computeDashboardStaffSummary,
-  type DashboardStaffSummary,
-} from "@/lib/staff/compute-dashboard-staff-summary";
-import {
-  exclusiveUtcIsoAfterLocalVisibleEnd,
-  localDayStartToUtcIso,
-  startOfLocalDay,
-} from "@/lib/reservations/month-range";
-import {
-  fetchStaffForRestaurant,
-  fetchStaffLivePresence,
-  fetchStaffWorkEntriesInRange,
-} from "@/lib/supabase/staff-db";
+import { useEffect, useState } from "react";
+import type { DashboardStaffSummary } from "@/lib/staff/compute-dashboard-staff-summary";
+import type { DashboardStaffSummaryPayload } from "@/lib/dashboard/dashboard-staff-summary-types";
+import { fetchDashboardSummaryClient } from "@/lib/dashboard/fetch-dashboard-summary-client";
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
   RestaurantStaffRow,
@@ -22,8 +12,6 @@ import type {
 } from "@/lib/types/staff";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
-
-const REFRESH_MS = 30_000;
 
 export function useDashboardStaffStats() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -33,7 +21,7 @@ export function useDashboardStaffStats() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const run = useCallback(async () => {
+  useEffect(() => {
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       setSummary(null);
       setStaff([]);
@@ -43,52 +31,41 @@ export function useDashboardStaffStats() {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    let cancel = false;
 
-    const today = startOfLocalDay(new Date());
-    const rangeStart = localDayStartToUtcIso(today);
-    const rangeEnd = exclusiveUtcIsoAfterLocalVisibleEnd(today);
-
-    const [staffRes, presenceRes, entriesRes] = await Promise.all([
-      fetchStaffForRestaurant(restaurantId),
-      fetchStaffLivePresence(restaurantId),
-      fetchStaffWorkEntriesInRange(restaurantId, null, rangeStart, rangeEnd),
-    ]);
-
-    setLoading(false);
-
-    const err =
-      staffRes.error ?? presenceRes.error ?? entriesRes.error ?? null;
-    if (err) {
-      setSummary(null);
-      setStaff([]);
-      setPresence([]);
-      setError(err);
-      return;
-    }
-
-    setStaff(staffRes.data);
-    setPresence(presenceRes.data);
-    setSummary(
-      computeDashboardStaffSummary({
-        staff: staffRes.data,
-        presence: presenceRes.data,
-        todayEntries: entriesRes.data,
-      }),
-    );
-  }, [restaurantId]);
-
-  useEffect(() => {
-    void run();
-    const id = setInterval(() => void run(), REFRESH_MS);
-    const onChange = () => void run();
-    window.addEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onChange);
-    return () => {
-      clearInterval(id);
-      window.removeEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onChange);
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      const { data, error: err } =
+        await fetchDashboardSummaryClient<DashboardStaffSummaryPayload>(
+          "/api/dashboard/staff/summary",
+          restaurantId,
+        );
+      if (cancel) return;
+      setLoading(false);
+      if (err) {
+        setSummary(null);
+        setStaff([]);
+        setPresence([]);
+        setError(err);
+        return;
+      }
+      setSummary(data?.summary ?? null);
+      setStaff(data?.staff ?? []);
+      setPresence(data?.presence ?? []);
     };
-  }, [run]);
+
+    void run();
+
+    const onRefresh = () => void run();
+    window.addEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onRefresh);
+    window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
+    return () => {
+      cancel = true;
+      window.removeEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onRefresh);
+      window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
+    };
+  }, [restaurantId]);
 
   return {
     summary,

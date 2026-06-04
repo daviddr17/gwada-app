@@ -1,6 +1,7 @@
 import {
   createDefaultRestaurant,
   DEFAULT_RESTAURANT_ID,
+  defaultKitchenWeeklyHours,
   defaultWeeklyHours,
   WEEKDAY_LABEL_DE,
   WEEKDAY_ORDER,
@@ -37,6 +38,14 @@ export function mergeRestaurantProfile(
     };
   }
 
+  const kitchenWeekly: Record<Weekday, DayHours> = { ...base.kitchenWeeklyHours };
+  for (const day of WEEKDAY_ORDER) {
+    kitchenWeekly[day] = {
+      ...base.kitchenWeeklyHours[day],
+      ...partial.kitchenWeeklyHours?.[day],
+    };
+  }
+
   return {
     ...base,
     ...partial,
@@ -45,6 +54,9 @@ export function mergeRestaurantProfile(
     dateExceptions: Array.isArray(partial.dateExceptions)
       ? partial.dateExceptions
       : base.dateExceptions,
+    kitchenHoursEnabled:
+      partial.kitchenHoursEnabled ?? base.kitchenHoursEnabled,
+    kitchenWeeklyHours: kitchenWeekly,
   };
 }
 
@@ -65,6 +77,8 @@ export function persistenceStripOpeningHoursForRemote(
               ...prof,
               weeklyHours: defaultWeeklyHours(),
               dateExceptions: [],
+              kitchenHoursEnabled: false,
+              kitchenWeeklyHours: defaultKitchenWeeklyHours(),
             }
           : prof,
       ]),
@@ -131,12 +145,32 @@ export function validateRestaurantStammdaten(
   return validateRestaurantSlugInput(p.slug);
 }
 
-export function validateOpeningHours(p: RestaurantProfile): string | null {
+function validateWeeklyHoursBlock(
+  weekly: Record<Weekday, DayHours>,
+  label: string,
+): string | null {
   for (const day of WEEKDAY_ORDER) {
-    const h = p.weeklyHours[day];
+    const h = weekly[day];
     if (!h.closed && (!h.open?.trim() || !h.close?.trim())) {
-      return `Bitte Öffnungszeiten für ${WEEKDAY_LABEL_DE[day]} ergänzen oder als geschlossen markieren.`;
+      return `Bitte ${label} für ${WEEKDAY_LABEL_DE[day]} ergänzen oder als geschlossen markieren.`;
     }
+  }
+  return null;
+}
+
+export function validateOpeningHours(p: RestaurantProfile): string | null {
+  const restaurantMsg = validateWeeklyHoursBlock(
+    p.weeklyHours,
+    "Öffnungszeiten",
+  );
+  if (restaurantMsg) return restaurantMsg;
+
+  if (p.kitchenHoursEnabled) {
+    const kitchenMsg = validateWeeklyHoursBlock(
+      p.kitchenWeeklyHours,
+      "Küchenzeiten",
+    );
+    if (kitchenMsg) return kitchenMsg;
   }
 
   const seenDates = new Set<string>();
@@ -173,6 +207,16 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     };
   }
 
+  const kitchenWeeklyHours = { ...p.kitchenWeeklyHours };
+  for (const day of WEEKDAY_ORDER) {
+    const h = p.kitchenWeeklyHours[day];
+    kitchenWeeklyHours[day] = {
+      ...h,
+      open: h.closed ? undefined : normalizeScheduleHHmm(h.open),
+      close: h.closed ? undefined : normalizeScheduleHHmm(h.close),
+    };
+  }
+
   return {
     ...p,
     slug: normalizeRestaurantSlugInput(p.slug),
@@ -184,6 +228,7 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     website: normalizeWebsite(p.website),
     phone: p.phone.trim(),
     weeklyHours,
+    kitchenWeeklyHours,
     dateExceptions: [...p.dateExceptions]
       .map((ex) => {
         const trimmed = ex.date?.trim() ?? "";

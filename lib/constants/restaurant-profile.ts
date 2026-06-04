@@ -48,6 +48,24 @@ export function defaultWeeklyHours(): Record<Weekday, DayHours> {
   };
 }
 
+/** Startwerte für Küchenzeiten, wenn noch nicht konfiguriert. */
+export function defaultKitchenWeeklyHours(): Record<Weekday, DayHours> {
+  const kitchenDay: DayHours = {
+    closed: false,
+    open: "12:00",
+    close: "21:30",
+  };
+  return {
+    monday: { ...kitchenDay },
+    tuesday: { ...kitchenDay },
+    wednesday: { ...kitchenDay },
+    thursday: { ...kitchenDay },
+    friday: { ...kitchenDay },
+    saturday: { ...kitchenDay },
+    sunday: { closed: true, open: "12:00", close: "21:00" },
+  };
+}
+
 export function createDefaultRestaurant(id: string): RestaurantProfile {
   return {
     id,
@@ -63,5 +81,7 @@ export function createDefaultRestaurant(id: string): RestaurantProfile {
     coverStoragePath: null,
     weeklyHours: defaultWeeklyHours(),
     dateExceptions: [],
+    kitchenHoursEnabled: false,
+    kitchenWeeklyHours: defaultKitchenWeeklyHours(),
   };
 }

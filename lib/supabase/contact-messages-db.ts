@@ -3,8 +3,15 @@ import type {
   ContactMessageDirection,
   ContactMessagePlatform,
 } from "@/lib/constants/contact-message-platforms";
+import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
+import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
+import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
+import type {
+  ContactMessageAttachment,
+  ContactMessageAttachmentKind,
+} from "@/lib/types/contact-message-attachment";
 
 export type ContactMessageReaction = {
   emoji: string;
@@ -30,6 +37,7 @@ export type ContactMessageRow = {
   /** WAHA ACK (1 gesendet, 2 zugestellt, 3 gelesen, 4 abgespielt). */
   waha_ack?: number | null;
   reactions?: ContactMessageReaction[];
+  attachments?: ContactMessageAttachment[];
 };
 
 export type ContactConversationPreview = {
@@ -49,6 +57,12 @@ export type ContactConversationPreview = {
   inbound_since_preview?: number;
   /** WAHA: letzte Aktivität war eine Reaction (Emoji in der Liste). */
   last_is_reaction?: boolean;
+  /** Letzte Nachricht enthält Bild oder Datei (nicht bei Reactions). */
+  last_attachment_kind?: ContactMessageAttachmentKind;
+  /** Plattform der zuletzt sichtbaren Nachricht (Posteingang). */
+  last_message_platform?: ContactMessagePlatform;
+  /** Letzter eingehender Kanal des Gastes (Antwort-Default). */
+  last_inbound_platform?: ContactMessagePlatform;
 };
 
 const MESSAGE_SELECT = `
@@ -63,8 +77,50 @@ const MESSAGE_SELECT = `
   delivery_status,
   created_at,
   send_batch_id,
-  external_source_id
+  external_source_id,
+  contact_message_attachments (
+    id,
+    kind,
+    file_name,
+    mime_type,
+    byte_size
+  )
 `;
+
+type MessageAttachmentDbRow = {
+  id: string;
+  kind: string;
+  file_name: string;
+  mime_type: string;
+  byte_size: number | null;
+};
+
+function mapMessageRow(raw: Record<string, unknown>): ContactMessageRow {
+  const nested = raw.contact_message_attachments;
+  const attachmentRows = Array.isArray(nested)
+    ? (nested as MessageAttachmentDbRow[])
+    : [];
+  const restaurantId = raw.restaurant_id as string;
+  const messageId = raw.id as string;
+  const attachments: ContactMessageAttachment[] = attachmentRows.map((a) => ({
+    id: a.id,
+    kind: a.kind === "image" ? "image" : "file",
+    fileName: a.file_name,
+    mimeType: a.mime_type,
+    byteSize: a.byte_size,
+    url: gwadaAttachmentDownloadUrl({
+      restaurantId,
+      messageId,
+      attachmentId: a.id,
+    }),
+  }));
+
+  const { contact_message_attachments: _drop, ...rest } = raw;
+  return {
+    ...(rest as ContactMessageRow),
+    attachments: attachments.length > 0 ? attachments : undefined,
+  };
+}
 
 export async function fetchContactMessages(params: {
   restaurantId: string;
@@ -91,7 +147,12 @@ export async function fetchContactMessages(params: {
 
   const { data, error } = await q;
   if (error) return { data: [], error: new Error(error.message) };
-  return { data: (data ?? []) as ContactMessageRow[], error: null };
+  return {
+    data: (data ?? []).map((row) =>
+      mapMessageRow(row as Record<string, unknown>),
+    ),
+    error: null,
+  };
 }
 
 export async function fetchReservationContactMessages(params: {
@@ -113,7 +174,12 @@ export async function fetchReservationContactMessages(params: {
     .order("created_at", { ascending: true });
 
   if (error) return { data: [], error: new Error(error.message) };
-  return { data: (data ?? []) as ContactMessageRow[], error: null };
+  return {
+    data: (data ?? []).map((row) =>
+      mapMessageRow(row as Record<string, unknown>),
+    ),
+    error: null,
+  };
 }
 
 export async function fetchContactMessageCountsByContact(
@@ -170,6 +236,7 @@ export async function fetchContactConversations(params: {
   const countByContact = new Map<string, number>();
   const hasReservationByContact = new Map<string, boolean>();
   const previews = new Map<string, ContactConversationPreview>();
+  const lastInboundByContact = new Map<string, ContactMessagePlatform>();
 
   for (const raw of messages ?? []) {
     const row = raw as Record<string, unknown>;
@@ -178,6 +245,16 @@ export async function fetchContactConversations(params: {
     if (row.reservation_id) {
       hasReservationByContact.set(contactId, true);
     }
+
+    const mapped = mapMessageRow(row);
+    const msgPlatform = messageDisplayPlatform(mapped);
+    if (
+      mapped.direction === "inbound" &&
+      !lastInboundByContact.has(contactId)
+    ) {
+      lastInboundByContact.set(contactId, msgPlatform);
+    }
+
     if (previews.has(contactId)) continue;
 
     const contactRaw = row.contacts;
@@ -190,15 +267,18 @@ export async function fetchContactConversations(params: {
       contact_id: contactId,
       contact_name: contactDisplayName(contact),
       platform: params.platform,
-      last_body: (row.body as string).trim(),
-      last_at: row.created_at as string,
-      last_direction: row.direction as ContactMessageDirection,
+      last_body: mapped.body.trim(),
+      last_at: mapped.created_at,
+      last_direction: mapped.direction,
       message_count: 0,
       unread_count: 0,
       is_unread: false,
       has_reservation_link: false,
-      inbound_since_preview:
-        row.direction === "inbound" ? 1 : 0,
+      inbound_since_preview: mapped.direction === "inbound" ? 1 : 0,
+      last_attachment_kind: primaryAttachmentKind(
+        mapped.attachments?.map((a) => a.kind),
+      ),
+      last_message_platform: msgPlatform,
     });
   }
 
@@ -206,6 +286,7 @@ export async function fetchContactConversations(params: {
     preview.message_count = countByContact.get(contactId) ?? 0;
     preview.has_reservation_link =
       hasReservationByContact.get(contactId) ?? false;
+    preview.last_inbound_platform = lastInboundByContact.get(contactId);
   }
 
   const list = [...previews.values()].sort((a, b) =>

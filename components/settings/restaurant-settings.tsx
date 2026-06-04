@@ -19,16 +19,23 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
+import { WeekdayHoursGrid } from "@/components/settings/weekday-hours-grid";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { cn } from "@/lib/utils";
+import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
+import { OpeningHoursHolidaySuggestions } from "@/components/settings/opening-hours-holiday-suggestions";
 import {
-  WEEKDAY_LABEL_DE,
-  WEEKDAY_ORDER,
-} from "@/lib/constants/restaurant-profile";
+  OpeningHoursPlatformSyncStatusBadge,
+  OpeningHoursPlatformSyncStatusRow,
+} from "@/components/settings/opening-hours-platform-sync-status";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useOpeningHoursPlatformStatus } from "@/lib/hooks/use-opening-hours-platform-status";
+import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { cn } from "@/lib/utils";
+import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import {
   normalizeProfileForSave,
@@ -47,12 +54,15 @@ import type {
 
 function cloneProfile(p: RestaurantProfile): RestaurantProfile {
   const weeklyHours = { ...p.weeklyHours };
+  const kitchenWeeklyHours = { ...p.kitchenWeeklyHours };
   for (const d of WEEKDAY_ORDER) {
     weeklyHours[d] = { ...p.weeklyHours[d] };
+    kitchenWeeklyHours[d] = { ...p.kitchenWeeklyHours[d] };
   }
   return {
     ...p,
     weeklyHours,
+    kitchenWeeklyHours,
     dateExceptions: p.dateExceptions.map((ex) => ({ ...ex })),
   };
 }
@@ -98,6 +108,7 @@ export function RestaurantSettingsPanel({
   const [savedHoursFlash, setSavedHoursFlash] = useState(false);
   const [showPastExceptions, setShowPastExceptions] = useState(false);
   const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
+  const [platformStatusRefresh, setPlatformStatusRefresh] = useState(0);
 
   const pendingExceptionDateLabel = useMemo(() => {
     if (!exceptionDeleteId || !draft) return "";
@@ -149,8 +160,11 @@ export function RestaurantSettingsPanel({
     if (!ok) return;
     setDraft(cloneProfile({ ...normalized, id: draft.id }));
     setSavedHoursFlash(true);
+    setPlatformStatusRefresh((n) => n + 1);
     window.setTimeout(() => setSavedHoursFlash(false), 2000);
   };
+
+  const bumpPlatformStatus = () => setPlatformStatusRefresh((n) => n + 1);
 
   const updateDay = (day: Weekday, patch: Partial<RestaurantProfile["weeklyHours"][Weekday]>) => {
     setDraft((prev) => {
@@ -160,6 +174,22 @@ export function RestaurantSettingsPanel({
         weeklyHours: {
           ...prev.weeklyHours,
           [day]: { ...prev.weeklyHours[day], ...patch },
+        },
+      };
+    });
+  };
+
+  const updateKitchenDay = (
+    day: Weekday,
+    patch: Partial<RestaurantProfile["kitchenWeeklyHours"][Weekday]>,
+  ) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        kitchenWeeklyHours: {
+          ...prev.kitchenWeeklyHours,
+          [day]: { ...prev.kitchenWeeklyHours[day], ...patch },
         },
       };
     });
@@ -220,7 +250,10 @@ export function RestaurantSettingsPanel({
       JSON.stringify(draft.weeklyHours) !==
         JSON.stringify(profile.weeklyHours) ||
       JSON.stringify(draft.dateExceptions) !==
-        JSON.stringify(profile.dateExceptions)
+        JSON.stringify(profile.dateExceptions) ||
+      draft.kitchenHoursEnabled !== profile.kitchenHoursEnabled ||
+      JSON.stringify(draft.kitchenWeeklyHours) !==
+        JSON.stringify(profile.kitchenWeeklyHours)
     );
   }, [draft, profile, isReady]);
 
@@ -234,8 +267,52 @@ export function RestaurantSettingsPanel({
     });
   };
 
+  const addHolidayException = (date: string, name: string) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      if (prev.dateExceptions.some((ex) => ex.date === date)) return prev;
+      return {
+        ...prev,
+        dateExceptions: [
+          ...prev.dateExceptions,
+          {
+            id:
+              typeof crypto !== "undefined" && crypto.randomUUID
+                ? crypto.randomUUID()
+                : `ex-${Date.now()}`,
+            date,
+            closed: true,
+            note: name,
+          },
+        ],
+      };
+    });
+  };
+
+  const existingExceptionDates = useMemo(() => {
+    if (!draft) return new Set<string>();
+    return new Set(draft.dateExceptions.map((ex) => ex.date));
+  }, [draft?.dateExceptions]);
+
+  const hasFutureExceptions = useMemo(() => {
+    if (!draft) return false;
+    const today = todayDateString();
+    return draft.dateExceptions.some((ex) => ex.date >= today);
+  }, [draft?.dateExceptions]);
+
   const awaitingDraft = !isReady || draft === null;
   const showSkeleton = useDeferredSkeleton(awaitingDraft);
+  const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
+  const {
+    loading: platformConnectionsLoading,
+    googleConnected,
+    facebookConnected,
+  } = useReviewPlatformConnections(workspaceRestaurantId);
+  const { data: platformHoursStatus, loading: platformHoursStatusLoading } =
+    useOpeningHoursPlatformStatus(
+      workspaceRestaurantId,
+      platformStatusRefresh,
+    );
 
   if (!draft) {
     if (showSkeleton && awaitingDraft) {
@@ -415,53 +492,140 @@ export function RestaurantSettingsPanel({
               <p className="text-xs text-muted-foreground">
                 Standard pro Wochentag. „Geschlossen“ überschreibt Von–Bis.
               </p>
-              <div className="space-y-3 pt-1">
-          {WEEKDAY_ORDER.map((day) => {
-            const h = draft.weeklyHours[day];
-            return (
-              <div
-                key={day}
-                className="flex flex-col gap-3 rounded-xl border border-border/40 bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:gap-4"
-              >
-                <span className="min-w-[7.5rem] text-sm font-medium">
-                  {WEEKDAY_LABEL_DE[day]}
-                </span>
-                <div className="flex min-h-11 flex-wrap items-center gap-3 sm:flex-1">
-                  <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={h.closed}
-                      onCheckedChange={(v) =>
-                        updateDay(day, { closed: v === true })
-                      }
+              <WeekdayHoursGrid hours={draft.weeklyHours} onDayChange={updateDay} />
+              <OpeningHoursPlatformSyncStatusRow
+                badges={
+                  <>
+                    <OpeningHoursPlatformSyncStatusBadge
+                      platformLabel="Google"
+                      check={platformHoursStatus?.google.regular}
+                      loading={platformHoursStatusLoading}
+                      connected={googleConnected}
+                      hoursDirty={hoursDirty}
                     />
-                    Geschlossen
-                  </label>
-                  {!h.closed && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Input
-                        type="time"
-                        value={h.open ?? ""}
-                        onChange={(e) =>
-                          updateDay(day, { open: e.target.value })
+                    <OpeningHoursPlatformSyncStatusBadge
+                      platformLabel="Facebook"
+                      check={platformHoursStatus?.facebook.regular}
+                      loading={platformHoursStatusLoading}
+                      connected={facebookConnected}
+                      hoursDirty={hoursDirty}
+                    />
+                  </>
+                }
+              >
+                <IntegrationPlatformSyncButton
+                  target="opening_hours_google"
+                  restaurantId={workspaceRestaurantId}
+                  connected={googleConnected}
+                  connectionsLoading={platformConnectionsLoading}
+                  blockedReason={
+                    hoursDirty ? "Zuerst Öffnungszeiten speichern" : null
+                  }
+                  onSynced={bumpPlatformStatus}
+                  className="w-full sm:w-auto"
+                />
+                <IntegrationPlatformSyncButton
+                  target="opening_hours_facebook"
+                  restaurantId={workspaceRestaurantId}
+                  connected={facebookConnected}
+                  connectionsLoading={platformConnectionsLoading}
+                  blockedReason={
+                    hoursDirty ? "Zuerst Öffnungszeiten speichern" : null
+                  }
+                  onSynced={bumpPlatformStatus}
+                  className="w-full sm:w-auto"
+                />
+              </OpeningHoursPlatformSyncStatusRow>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1.5">
+                  <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                    Küchenzeiten
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Wann die Küche Gerichte zubereitet (kann kürzer sein als die
+                    Restaurant-Öffnungszeiten). Bei Google als „Küchenzeiten“ unter
+                    Zusatzzeiten.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1.5">
+                  <Label
+                    htmlFor="kitchen-hours-enabled"
+                    className="cursor-pointer text-xs text-muted-foreground"
+                  >
+                    Eigene Küchenzeiten
+                  </Label>
+                  <Switch
+                    id="kitchen-hours-enabled"
+                    checked={draft.kitchenHoursEnabled}
+                    onCheckedChange={(v) => {
+                      const enabled = v === true;
+                      setDraft((prev) => {
+                        if (!prev) return prev;
+                        if (!enabled) {
+                          return { ...prev, kitchenHoursEnabled: false };
                         }
-                        className={formScheduleTimeInputClassName}
-                      />
-                      <span className="text-muted-foreground">–</span>
-                      <Input
-                        type="time"
-                        value={h.close ?? ""}
-                        onChange={(e) =>
-                          updateDay(day, { close: e.target.value })
+                        const kitchenWeeklyHours = { ...prev.kitchenWeeklyHours };
+                        for (const d of WEEKDAY_ORDER) {
+                          kitchenWeeklyHours[d] = {
+                            ...prev.weeklyHours[d],
+                          };
                         }
-                        className={formScheduleTimeInputClassName}
-                      />
-                    </div>
-                  )}
+                        return {
+                          ...prev,
+                          kitchenHoursEnabled: true,
+                          kitchenWeeklyHours,
+                        };
+                      });
+                    }}
+                    size="sm"
+                  />
                 </div>
               </div>
-            );
-          })}
-              </div>
+              {draft.kitchenHoursEnabled ? (
+                <>
+                  <WeekdayHoursGrid
+                    hours={draft.kitchenWeeklyHours}
+                    onDayChange={updateKitchenDay}
+                  />
+                  <OpeningHoursPlatformSyncStatusRow
+                    badges={
+                      <OpeningHoursPlatformSyncStatusBadge
+                        platformLabel="Google Küche"
+                        check={platformHoursStatus?.google.kitchen}
+                        loading={platformHoursStatusLoading}
+                        connected={googleConnected}
+                        hoursDirty={hoursDirty}
+                      />
+                    }
+                  >
+                    <IntegrationPlatformSyncButton
+                      target="kitchen_hours_google"
+                      restaurantId={workspaceRestaurantId}
+                      connected={googleConnected}
+                      connectionsLoading={platformConnectionsLoading}
+                      blockedReason={
+                        hoursDirty
+                          ? "Zuerst Öffnungszeiten speichern"
+                          : !draft.kitchenHoursEnabled
+                            ? "Zuerst eigene Küchenzeiten aktivieren"
+                            : null
+                      }
+                      onSynced={bumpPlatformStatus}
+                      className="w-full sm:w-auto"
+                    />
+                  </OpeningHoursPlatformSyncStatusRow>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Deaktiviert — es gelten nur die Restaurant-Öffnungszeiten (keine
+                  separaten Küchenzeiten in Gwada oder bei Google).
+                </p>
+              )}
             </div>
 
             <Separator />
@@ -504,6 +668,13 @@ export function RestaurantSettingsPanel({
                   </Button>
                 </div>
               </div>
+
+              <OpeningHoursHolidaySuggestions
+                restaurantId={workspaceRestaurantId}
+                countryLabel={draft.country}
+                existingDates={existingExceptionDates}
+                onAddException={addHolidayException}
+              />
 
           {draft.dateExceptions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -594,9 +765,37 @@ export function RestaurantSettingsPanel({
               </div>
             </>
           )}
+
+              <OpeningHoursPlatformSyncStatusRow
+                badges={
+                  <OpeningHoursPlatformSyncStatusBadge
+                    platformLabel="Google Ausnahmen"
+                    check={platformHoursStatus?.google.exceptions}
+                    loading={platformHoursStatusLoading}
+                    connected={googleConnected}
+                    hoursDirty={hoursDirty}
+                  />
+                }
+              >
+                <IntegrationPlatformSyncButton
+                  target="opening_exceptions_google"
+                  restaurantId={workspaceRestaurantId}
+                  connected={googleConnected}
+                  connectionsLoading={platformConnectionsLoading}
+                  blockedReason={
+                    hoursDirty
+                      ? "Zuerst Öffnungszeiten speichern"
+                      : !hasFutureExceptions
+                        ? "Keine zukünftigen Ausnahmen vorhanden"
+                        : null
+                  }
+                  onSynced={bumpPlatformStatus}
+                  className="w-full sm:w-auto"
+                />
+              </OpeningHoursPlatformSyncStatusRow>
             </div>
           </CardContent>
-      </Card>
+        </Card>
         <SettingsStickySaveBar show={hoursDirty}>
           <Button
             type="submit"

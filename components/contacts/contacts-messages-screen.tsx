@@ -20,8 +20,10 @@ import { toast } from "sonner";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
+import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
-import { ContactMessagePlatformChip } from "@/components/contacts/contact-message-platform-chip";
+import { ContactInboxFilterChips } from "@/components/contacts/contact-inbox-filter-chips";
+import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,10 +35,24 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   CONTACT_MESSAGE_PLATFORM_LABELS,
-  CONTACT_MESSAGE_PLATFORM_ORDER,
-  isContactMessagePlatform,
+  INBOX_FILTER_ALL,
+  parseInboxPlatformFilter,
   type ContactMessagePlatform,
+  type InboxPlatformFilter,
 } from "@/lib/constants/contact-message-platforms";
+import { enrichMessagesWithWahaReactionIds } from "@/lib/contact-messages/enrich-message-waha-ids";
+import {
+  lastInboundPlatform,
+  inboxReplySendDefaults,
+} from "@/lib/contact-messages/last-inbound-channel";
+import { contactReplyChannels } from "@/lib/contact-messages/reply-channel-availability";
+import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
+import {
+  fetchUnifiedInboxConversations,
+  isUnifiedInboxFilter,
+  markUnifiedInboxConversationReadClient,
+} from "@/lib/contact-messages/unified-inbox-client";
 import {
   fetchEmailConversationsClient,
   fetchEmailMessagesClient,
@@ -133,10 +149,19 @@ function formatWhen(iso: string): string {
   });
 }
 
-function previewSnippet(body: string, max = 72): string {
+function previewSnippet(
+  body: string,
+  attachmentKind?: ContactConversationPreview["last_attachment_kind"],
+  max = 72,
+): string {
   const t = body.replace(/\s+/g, " ").trim();
-  if (t.length <= max) return t;
-  return `${t.slice(0, max - 1)}…`;
+  if (t) {
+    if (t.length <= max) return t;
+    return `${t.slice(0, max - 1)}…`;
+  }
+  if (attachmentKind === "image") return "Bild";
+  if (attachmentKind === "file") return "Datei";
+  return "—";
 }
 
 /** Verknüpfter Kontakt in der DB (kein WAHA-/E-Mail-Pseudo-Chat). */
@@ -190,18 +215,6 @@ function contactInboxMarkUnreadErrorMessage(error: string): string {
   }
 }
 
-function resolveMessagesPlatform(
-  platformParam: string | null,
-  contactParam: string | null,
-): ContactMessagePlatform {
-  const inferred = platformInferredFromContact(contactParam);
-  if (inferred) return inferred;
-  if (platformParam && isContactMessagePlatform(platformParam)) {
-    return platformParam;
-  }
-  return "gwada";
-}
-
 export function ContactsMessagesScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -225,10 +238,11 @@ export function ContactsMessagesScreen() {
     facebookConnected,
     instagramEnabled,
     instagramConnected,
+    staffInviteEmailAvailable,
   } = useRestaurantChannelConnections(restaurantId);
 
-  const [platform, setPlatform] = useState<ContactMessagePlatform>(() =>
-    resolveMessagesPlatform(platformParam, contactParam),
+  const [inboxFilter, setInboxFilter] = useState<InboxPlatformFilter>(() =>
+    parseInboxPlatformFilter(platformParam, contactParam),
   );
   const [conversations, setConversations] = useState<
     ContactConversationPreview[]
@@ -240,7 +254,6 @@ export function ContactsMessagesScreen() {
   const [loadingList, setLoadingList] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
   const [sending, setSending] = useState(false);
-  const [inboxHint, setInboxHint] = useState<string | null>(null);
   const [whatsappThreadPhone, setWhatsappThreadPhone] = useState<string | null>(
     null,
   );
@@ -265,15 +278,73 @@ export function ContactsMessagesScreen() {
   useEffect(() => {
     setChatSearch("");
     setReadFilter("all");
-  }, [platform]);
+  }, [inboxFilter]);
 
   const filteredConversations = useMemo(() => {
-    const searched = filterContactConversations(conversations, chatSearch);
+    const byPlatform = filterInboxConversationsByPlatform(
+      conversations,
+      inboxFilter,
+    );
+    const searched = filterContactConversations(byPlatform, chatSearch);
     return filterConversationsByRead(searched, readFilter);
-  }, [conversations, chatSearch, readFilter]);
+  }, [conversations, chatSearch, readFilter, inboxFilter]);
+
+  const linkedThread =
+    Boolean(contactParam) && isLinkedContactId(contactParam!);
+
+  const displayMessages = useMemo(
+    () => enrichMessagesWithWahaReactionIds(messages),
+    [messages],
+  );
+
+  const linkedReplyChannels = useMemo(() => {
+    if (!linkedThread || !contactParam) {
+      return {
+        canWhatsapp: false,
+        canEmail: false,
+        emailViaPlatformFallback: false,
+      };
+    }
+    return contactReplyChannels({
+      whatsappEnabled,
+      whatsappConnected,
+      emailEnabled,
+      emailConnected,
+      staffInviteEmailAvailable,
+      hasPhone: isWahaPseudoContactId(contactParam) ? true : hasPhone,
+      hasEmail: isEmailPseudoContactId(contactParam) ? true : hasEmail,
+    });
+  }, [
+    linkedThread,
+    contactParam,
+    whatsappEnabled,
+    whatsappConnected,
+    emailEnabled,
+    emailConnected,
+    staffInviteEmailAvailable,
+    hasPhone,
+    hasEmail,
+  ]);
+
+  const defaultReplySend = useMemo(
+    () =>
+      inboxReplySendDefaults(displayMessages, {
+        canWhatsapp: linkedReplyChannels.canWhatsapp,
+        canEmail: linkedReplyChannels.canEmail,
+      }),
+    [displayMessages, linkedReplyChannels],
+  );
+
+  const lastGuestPlatform = useMemo(
+    () => lastInboundPlatform(displayMessages),
+    [displayMessages],
+  );
 
   const whatsappHeaderSubtitle = useMemo(() => {
-    if (platform !== "whatsapp") return null;
+    if (!contactParam || linkedThread) return null;
+    if (inboxFilter !== "whatsapp" && !isWahaPseudoContactId(contactParam)) {
+      return null;
+    }
     const loaded = whatsappThreadPhone?.trim();
     if (loaded) return loaded;
 
@@ -290,15 +361,21 @@ export function ContactsMessagesScreen() {
 
     return null;
   }, [
-    platform,
+    inboxFilter,
     contactParam,
+    linkedThread,
     whatsappThreadPhone,
     contactName,
     defaultCountryIso2,
   ]);
 
   const showWhatsAppMissingPhoneHint = useMemo(() => {
-    if (platform !== "whatsapp" || loadingThread || whatsappHeaderSubtitle) {
+    if (
+      linkedThread ||
+      inboxFilter !== "whatsapp" ||
+      loadingThread ||
+      whatsappHeaderSubtitle
+    ) {
       return false;
     }
     const name = contactName.trim();
@@ -306,24 +383,29 @@ export function ContactsMessagesScreen() {
     return (
       needsWahaDisplayNameResolve(name) || isWhatsAppJidOrRawNumberLabel(name)
     );
-  }, [platform, loadingThread, whatsappHeaderSubtitle, contactName]);
+  }, [inboxFilter, linkedThread, loadingThread, whatsappHeaderSubtitle, contactName]);
 
   const unreadInList = useMemo(
     () => conversations.reduce((n, c) => n + (c.is_unread ? c.unread_count : 0), 0),
     [conversations],
   );
 
-  const showListSkeleton = useDeferredSkeleton(loadingList);
+  const showListSkeleton = useDeferredSkeleton(
+    loadingList && !refreshingInbox && conversations.length === 0,
+  );
 
   const showConversationList =
     !contactParam &&
-    (platform === "gwada" ||
-      (platform === "whatsapp" && whatsappConnected) ||
-      (platform === "email" && emailConnected));
+    (isUnifiedInboxFilter(inboxFilter) ||
+      (inboxFilter === "whatsapp" && whatsappConnected) ||
+      (inboxFilter === "email" && emailConnected) ||
+      inboxFilter === "facebook" ||
+      inboxFilter === "instagram");
 
-  const isPlatformAvailable = useCallback(
-    (p: ContactMessagePlatform): boolean => {
-      if (p === "gwada") return true;
+  const isInboxFilterAvailable = useCallback(
+    (p: InboxPlatformFilter): boolean => {
+      if (p === INBOX_FILTER_ALL) return true;
+      if (p === "gwada") return false;
       if (p === "whatsapp") return whatsappEnabled && whatsappConnected;
       if (p === "email") return emailEnabled && emailConnected;
       if (p === "facebook") return facebookEnabled && facebookConnected;
@@ -345,38 +427,22 @@ export function ContactsMessagesScreen() {
   useEffect(() => {
     if (connectionsLoading || !workspaceReady || !restaurantId) return;
 
-    const inferred = platformInferredFromContact(contactParam);
-    const requested = resolveMessagesPlatform(platformParam, contactParam);
-
-    const explicitInboxTab =
-      platformParam === "whatsapp" ||
-      platformParam === "email" ||
-      platformParam === "facebook" ||
-      platformParam === "instagram";
-
-    let resolved = requested;
-    if (!isPlatformAvailable(requested)) {
-      if (inferred && contactParam) {
-        resolved = inferred;
-      } else if (explicitInboxTab) {
-        resolved = requested;
-      } else {
-        resolved =
-          CONTACT_MESSAGE_PLATFORM_ORDER.find((p) => isPlatformAvailable(p)) ??
-          "gwada";
-      }
+    const resolved = parseInboxPlatformFilter(platformParam, contactParam);
+    let next = resolved;
+    if (!isInboxFilterAvailable(resolved)) {
+      next = INBOX_FILTER_ALL;
     }
 
-    setPlatform((prev) => (prev === resolved ? prev : resolved));
+    setInboxFilter((prev) => (prev === next ? prev : next));
 
-    const needsPlatformInUrl =
-      platformParam !== resolved ||
-      (inferred && !platformParam) ||
+    const needsFilterInUrl =
+      platformParam !== next ||
+      (platformInferredFromContact(contactParam) && !platformParam) ||
       (contactParam && !searchParams.get("contact"));
 
-    if (needsPlatformInUrl) {
+    if (needsFilterInUrl) {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("platform", resolved);
+      params.set("platform", next);
       if (contactParam) params.set("contact", contactParam);
       router.replace(`/kontakte/nachrichten?${params.toString()}`);
     }
@@ -386,9 +452,7 @@ export function ContactsMessagesScreen() {
     restaurantId,
     platformParam,
     contactParam,
-    whatsappConnected,
-    emailConnected,
-    isPlatformAvailable,
+    isInboxFilterAvailable,
     router,
     searchParams,
   ]);
@@ -400,9 +464,34 @@ export function ContactsMessagesScreen() {
       return;
     }
     if (!opts?.silent) setLoadingList(true);
-    setInboxHint(null);
 
-    if (platform === "whatsapp" && whatsappConnected) {
+    if (isUnifiedInboxFilter(inboxFilter)) {
+      const cached = opts?.silent
+        ? null
+        : peekUnifiedInboxCache(restaurantId);
+      if (cached && cached.length > 0) {
+        setConversations(cached);
+        setLoadingList(false);
+        setRefreshingInbox(true);
+        const { data, error } = await fetchUnifiedInboxConversations({
+          restaurantId,
+          whatsappConnected,
+          emailConnected,
+        });
+        setRefreshingInbox(false);
+        if (error) toast.error(error.message);
+        else setConversations(data);
+        return;
+      }
+
+      const { data, error } = await fetchUnifiedInboxConversations({
+        restaurantId,
+        whatsappConnected,
+        emailConnected,
+      });
+      if (error) toast.error(error.message);
+      setConversations(data);
+    } else if (inboxFilter === "whatsapp" && whatsappConnected) {
       const { data, error } = await fetchWahaConversationsClient(restaurantId);
       if (error) {
         toast.error(
@@ -414,7 +503,7 @@ export function ContactsMessagesScreen() {
       } else {
         setConversations(data);
       }
-    } else if (platform === "email" && emailConnected) {
+    } else if (inboxFilter === "email" && emailConnected) {
       const { data, error } = await fetchEmailConversationsClient(restaurantId);
       if (error) {
         toast.error(
@@ -431,7 +520,8 @@ export function ContactsMessagesScreen() {
         });
         setConversations(enriched);
       }
-    } else {
+    } else if (inboxFilter === "facebook" || inboxFilter === "instagram") {
+      const platform = inboxFilter;
       const { data, error } = await fetchContactConversations({
         restaurantId,
         platform,
@@ -443,15 +533,10 @@ export function ContactsMessagesScreen() {
         conversations: data,
       });
       setConversations(enriched);
-      setInboxHint(
-        platform === "gwada"
-          ? "Alle Kanäle – Nachrichten aus Gwada, WhatsApp und E-Mail an einem Ort."
-          : null,
-      );
     }
 
     setLoadingList(false);
-  }, [restaurantId, platform, whatsappConnected, emailConnected]);
+  }, [restaurantId, inboxFilter, whatsappConnected, emailConnected]);
 
   const refreshInbox = useCallback(async () => {
     setRefreshingInbox(true);
@@ -461,8 +546,9 @@ export function ContactsMessagesScreen() {
 
   const showInboxRefresh =
     !contactParam &&
-    ((platform === "whatsapp" && whatsappConnected) ||
-      (platform === "email" && emailConnected));
+    (isUnifiedInboxFilter(inboxFilter) ||
+      (inboxFilter === "whatsapp" && whatsappConnected) ||
+      (inboxFilter === "email" && emailConnected));
 
   const patchConversationReadState = useCallback(
     (contactId: string, isUnread: boolean, unreadCount = 0) => {
@@ -480,30 +566,53 @@ export function ContactsMessagesScreen() {
   const markConversationRead = useCallback(
     async (conversationKey: string) => {
       if (!restaurantId) return;
-      const { ok, error } = await markConversationReadClient({
-        restaurantId,
-        conversationKey,
-        platform,
-      });
-      if (!ok && error) {
-        toast.error(contactInboxMarkReadErrorMessage(error));
+      const result = isLinkedContactId(conversationKey)
+        ? await markUnifiedInboxConversationReadClient({
+            restaurantId,
+            contactId: conversationKey,
+            whatsappConnected,
+            emailConnected,
+          })
+        : await markConversationReadClient({
+            restaurantId,
+            conversationKey,
+            platform: isWahaPseudoContactId(conversationKey)
+              ? "whatsapp"
+              : isEmailPseudoContactId(conversationKey)
+                ? "email"
+                : "gwada",
+          });
+      if (!result.ok && result.error) {
+        toast.error(contactInboxMarkReadErrorMessage(result.error));
         return;
       }
       patchConversationReadState(conversationKey, false, 0);
-      if (platform === "email") {
+      if (isEmailPseudoContactId(conversationKey) || inboxFilter === "email") {
         void loadConversations({ silent: true });
       }
     },
-    [restaurantId, platform, patchConversationReadState, loadConversations],
+    [
+      restaurantId,
+      inboxFilter,
+      whatsappConnected,
+      emailConnected,
+      patchConversationReadState,
+      loadConversations,
+    ],
   );
 
   const markConversationUnread = useCallback(
     async (conversationKey: string) => {
       if (!restaurantId) return;
+      const readPlatform = isWahaPseudoContactId(conversationKey)
+        ? "whatsapp"
+        : isEmailPseudoContactId(conversationKey)
+          ? "email"
+          : "gwada";
       const { ok, error } = await markConversationUnreadClient({
         restaurantId,
         conversationKey,
-        platform,
+        platform: readPlatform,
       });
       if (!ok && error) {
         toast.error(contactInboxMarkUnreadErrorMessage(error));
@@ -511,7 +620,7 @@ export function ContactsMessagesScreen() {
       }
       patchConversationReadState(conversationKey, true, 1);
     },
-    [restaurantId, platform, patchConversationReadState],
+    [restaurantId, patchConversationReadState],
   );
 
   const loadThread = useCallback(async () => {
@@ -521,16 +630,55 @@ export function ContactsMessagesScreen() {
       setLoadingThread(false);
       return;
     }
-    if (platform !== "whatsapp") {
+    if (!isWahaPseudoContactId(contactParam)) {
       setWhatsappThreadPhone(null);
+    }
+    if (!linkedThread) {
       setWhatsappThreadChatId(null);
     }
     setLoadingThread(true);
-    setInboxHint(null);
     let threadLoaded = false;
 
     const effectivePlatform =
-      platformInferredFromContact(contactParam) ?? platform;
+      platformInferredFromContact(contactParam) ??
+      (inboxFilter === INBOX_FILTER_ALL ? "gwada" : inboxFilter);
+
+    if (linkedThread) {
+      await fetch("/api/contact-messages/inbox-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          contactId: contactParam,
+        }),
+      }).catch(() => undefined);
+
+      const [{ data: msgs, error: msgErr }, { data: contact }] =
+        await Promise.all([
+          fetchContactMessages({
+            restaurantId,
+            contactId: contactParam,
+          }),
+          fetchContactById({ restaurantId, contactId: contactParam }),
+        ]);
+      if (msgErr) toast.error(msgErr.message);
+      else threadLoaded = true;
+      setMessages(msgs);
+      if (contact) {
+        setContactName(contactThreadDisplayName(contact));
+        setHasPhone(Boolean(primaryPhone(contact)?.trim()));
+        setHasEmail(Boolean(primaryEmail(contact)?.trim()));
+        const chatId = guestPhoneToWhatsAppChatId(
+          primaryPhone(contact)?.trim() ?? null,
+        );
+        setWhatsappThreadChatId(chatId);
+      }
+      setLoadingThread(false);
+      if (threadLoaded) {
+        void markConversationRead(contactParam);
+      }
+      return;
+    }
 
     const convPreview = conversationsRef.current.find(
       (c) => c.contact_id === contactParam,
@@ -556,7 +704,6 @@ export function ContactsMessagesScreen() {
         setMessages([]);
       } else {
         setMessages(data);
-        setInboxHint("Verlauf aus dem verbundenen E-Mail-Postfach.");
         threadLoaded = true;
       }
       if (
@@ -679,30 +826,6 @@ export function ContactsMessagesScreen() {
         ? guestPhoneToWhatsAppChatId(primaryPhone(contactRow)?.trim() ?? null)
         : null;
       setWhatsappThreadChatId(pseudoChatId ?? linkedChatId);
-    } else if (
-      !isWahaPseudoContactId(contactParam) &&
-      !isEmailPseudoContactId(contactParam)
-    ) {
-      const [{ data: msgs, error: msgErr }, { data: contact }] =
-        await Promise.all([
-          fetchContactMessages({
-            restaurantId,
-            contactId: contactParam,
-            platform: effectivePlatform === "gwada" ? "gwada" : platform,
-          }),
-          isWahaPseudoContactId(contactParam) ||
-          isEmailPseudoContactId(contactParam)
-            ? Promise.resolve({ data: null, error: null })
-            : fetchContactById({ restaurantId, contactId: contactParam }),
-        ]);
-      if (msgErr) toast.error(msgErr.message);
-      else threadLoaded = true;
-      setMessages(msgs);
-      if (contact) {
-        setContactName(contactThreadDisplayName(contact));
-        setHasPhone(Boolean(primaryPhone(contact)?.trim()));
-        setHasEmail(Boolean(primaryEmail(contact)?.trim()));
-      }
     } else if (isWahaPseudoContactId(contactParam)) {
       const conv = conversationsRef.current.find(
         (c) => c.contact_id === contactParam,
@@ -730,7 +853,8 @@ export function ContactsMessagesScreen() {
   }, [
     restaurantId,
     contactParam,
-    platform,
+    linkedThread,
+    inboxFilter,
     whatsappConnected,
     emailConnected,
     markConversationRead,
@@ -751,23 +875,40 @@ export function ContactsMessagesScreen() {
     loadConversations,
   ]);
 
-  const selectPlatform = (p: ContactMessagePlatform) => {
-    if (!isPlatformAvailable(p)) return;
-    setPlatform(p);
+  useEffect(() => {
+    if (!restaurantId || !contactParam || !linkedThread) return;
+
+    const pollInbox = () => {
+      void fetch("/api/contact-messages/inbox-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          contactId: contactParam,
+        }),
+      })
+        .then((res) => res.json())
+        .then((data: { imported?: number }) => {
+          if ((data.imported ?? 0) > 0) void loadThread();
+        })
+        .catch(() => undefined);
+    };
+
+    const intervalId = window.setInterval(pollInbox, 45_000);
+    return () => window.clearInterval(intervalId);
+  }, [restaurantId, contactParam, linkedThread, loadThread]);
+
+  const selectInboxFilter = (filter: InboxPlatformFilter) => {
+    if (!isInboxFilterAvailable(filter)) return;
+    setInboxFilter(filter);
     const params = new URLSearchParams();
-    params.set("platform", p);
+    params.set("platform", filter);
     router.replace(`/kontakte/nachrichten?${params.toString()}`);
   };
 
   const canOpenLinkedContact = useCallback(
-    (contactId: string) => {
-      if (!isLinkedContactId(contactId)) return false;
-      if (platform === "gwada") return true;
-      if (platform === "whatsapp" && whatsappConnected) return true;
-      if (platform === "email" && emailConnected) return true;
-      return false;
-    },
-    [platform, whatsappConnected, emailConnected],
+    (contactId: string) => isLinkedContactId(contactId),
+    [],
   );
 
   const openLinkedContact = useCallback(
@@ -818,7 +959,7 @@ export function ContactsMessagesScreen() {
             : `Chat mit „${existingDisplayName}“ verknüpft.`,
         );
         router.replace(
-          `/kontakte/nachrichten?platform=gwada&contact=${existingContactId}`,
+          `/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
         );
         return true;
       }
@@ -911,7 +1052,7 @@ export function ContactsMessagesScreen() {
                 `E-Mail ist bereits bei „${existing.displayName}“ hinterlegt — bestehender Kontakt wird geöffnet.`,
               );
               router.replace(
-                `/kontakte/nachrichten?platform=gwada&contact=${existing.contactId}`,
+                `/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
               );
               return;
             }
@@ -936,50 +1077,96 @@ export function ContactsMessagesScreen() {
 
   const openConversation = (contactId: string) => {
     const params = new URLSearchParams();
-    params.set("platform", platform);
+    params.set("platform", inboxFilter);
     params.set("contact", contactId);
     router.push(`/kontakte/nachrichten?${params.toString()}`);
   };
 
   const backToList = () => {
-    router.push(`/kontakte/nachrichten?platform=${platform}`);
+    router.push(`/kontakte/nachrichten?platform=${inboxFilter}`);
   };
 
   const restaurantName = profile.name.trim() || undefined;
+  const canSendViaExternal =
+    Boolean(contactParam) &&
+    linkedThread &&
+    (linkedReplyChannels.canWhatsapp || linkedReplyChannels.canEmail);
+
   const canReply =
     contactParam != null &&
-    (platform === "whatsapp"
-      ? whatsappConnected
-      : platform === "email"
-        ? emailConnected
-        : !isWahaPseudoContactId(contactParam) &&
-          !isEmailPseudoContactId(contactParam));
+    (linkedThread
+      ? canSendViaExternal
+      : isWahaPseudoContactId(contactParam)
+        ? whatsappConnected
+        : isEmailPseudoContactId(contactParam)
+          ? emailConnected
+          : false);
 
   const handleSend = async ({
     body,
     sendWhatsapp,
     sendEmail,
+    notifyWhatsapp,
+    notifyEmail,
+    files,
   }: {
     body: string;
     sendWhatsapp: boolean;
     sendEmail: boolean;
+    notifyWhatsapp?: boolean;
+    notifyEmail?: boolean;
+    files?: File[];
   }) => {
     if (!restaurantId || !contactParam || !canReply) return;
 
     setSending(true);
 
-    if (platform === "whatsapp") {
+    if (linkedThread) {
+      if (!sendWhatsapp && !sendEmail) {
+        setSending(false);
+        toast.error(
+          "Mindestens WhatsApp oder E-Mail auswählen — Antworten nur über externe Kanäle.",
+        );
+        return;
+      }
+      const channels: ("whatsapp" | "email")[] = [];
+      if (sendWhatsapp) channels.push("whatsapp");
+      if (sendEmail) channels.push("email");
+      const result = await triggerSendContactMessage({
+        restaurantId,
+        contactId: contactParam,
+        messageBody: body,
+        direction: "outbound",
+        channels,
+        restaurantName,
+        files,
+        notifyWhatsapp,
+        notifyEmail,
+      });
+      setSending(false);
+      const warn = sendContactMessageUserMessage(result);
+      if (warn) toast.warning(warn);
+      else if (result?.ok) toast.success("Nachricht gesendet.");
+      else toast.error("Senden fehlgeschlagen.");
+      void loadThread();
+      void loadConversations({ silent: true });
+      return;
+    }
+
+    if (isWahaPseudoContactId(contactParam)) {
       const result = isWahaPseudoContactId(contactParam)
         ? await triggerWahaSendMessage({
             restaurantId,
             wahaContactId: contactParam,
             messageBody: body,
+            files,
           })
         : await triggerWahaSendMessage({
             restaurantId,
             contactId: contactParam,
             messageBody: body,
             storeUnderContact: true,
+            files,
           });
       setSending(false);
       const warn = sendContactMessageUserMessage(result);
@@ -991,13 +1178,14 @@ export function ContactsMessagesScreen() {
       return;
     }
 
-    if (platform === "email") {
+    if (isEmailPseudoContactId(contactParam)) {
       const result = isEmailPseudoContactId(contactParam)
         ? await triggerEmailInboxSend({
             restaurantId,
             emailContactId: contactParam,
             messageBody: body,
             restaurantName,
+            files,
           })
         : await triggerEmailInboxSend({
             restaurantId,
@@ -1005,6 +1193,7 @@ export function ContactsMessagesScreen() {
             messageBody: body,
             restaurantName,
             storeUnderContact: true,
+            files,
           });
       setSending(false);
       const warn = sendContactMessageUserMessage(result);
@@ -1016,26 +1205,8 @@ export function ContactsMessagesScreen() {
       return;
     }
 
-    const channels: ("gwada" | "whatsapp" | "email")[] = ["gwada"];
-    if (sendWhatsapp) channels.push("whatsapp");
-    if (sendEmail) channels.push("email");
-
-    const result = await triggerSendContactMessage({
-      restaurantId,
-      contactId: contactParam,
-      messageBody: body,
-      direction: "outbound",
-      channels,
-      restaurantName,
-    });
     setSending(false);
-
-    const warn = sendContactMessageUserMessage(result);
-    if (warn) toast.warning(warn);
-    else if (result?.ok) toast.success("Nachricht gesendet.");
-    else toast.error("Senden fehlgeschlagen.");
-
-    void loadThread();
+    toast.error("Senden für diesen Chat nicht möglich.");
   };
 
   if (!supabaseEnvOk) {
@@ -1056,24 +1227,15 @@ export function ContactsMessagesScreen() {
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 pt-2">
-      <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {CONTACT_MESSAGE_PLATFORM_ORDER.map((p) => (
-          <ContactMessagePlatformChip
-            key={p}
-            platform={p}
-            selected={platform === p}
-            onSelect={() => selectPlatform(p)}
-            disabled={connectionsLoading || !isPlatformAvailable(p)}
-          />
-        ))}
-      </div>
-
-      {inboxHint && !contactParam ? (
-        <p className="text-sm text-muted-foreground">{inboxHint}</p>
-      ) : null}
+      <ContactInboxFilterChips
+        filter={inboxFilter}
+        onFilterChange={selectInboxFilter}
+        isPlatformAvailable={isInboxFilterAvailable}
+        disabled={connectionsLoading}
+      />
 
       {!connectionsLoading &&
-      platform === "whatsapp" &&
+      inboxFilter === "whatsapp" &&
       !whatsappConnected ? (
         <p className="text-sm text-muted-foreground">
           WhatsApp ist nicht verbunden. Unter Einstellungen → Integrationen
@@ -1081,7 +1243,7 @@ export function ContactsMessagesScreen() {
         </p>
       ) : null}
 
-      {!connectionsLoading && platform === "email" && !emailConnected ? (
+      {!connectionsLoading && inboxFilter === "email" && !emailConnected ? (
         <p className="text-sm text-muted-foreground">
           Kein eigenes E-Mail-Konto verbunden. Unter Einstellungen →
           Integrationen einen SMTP/IMAP-Zugang als „Eigene Verbindung“
@@ -1090,7 +1252,7 @@ export function ContactsMessagesScreen() {
       ) : null}
 
       {!connectionsLoading &&
-      platform === "facebook" &&
+      inboxFilter === "facebook" &&
       facebookEnabled &&
       !facebookConnected ? (
         <p className="text-sm text-muted-foreground">
@@ -1100,7 +1262,7 @@ export function ContactsMessagesScreen() {
       ) : null}
 
       {!connectionsLoading &&
-      platform === "instagram" &&
+      inboxFilter === "instagram" &&
       instagramEnabled &&
       !instagramConnected ? (
         <p className="text-sm text-muted-foreground">
@@ -1109,11 +1271,11 @@ export function ContactsMessagesScreen() {
         </p>
       ) : null}
 
-      {platform !== "gwada" &&
-      platform !== "whatsapp" &&
-      platform !== "email" ? (
+      {inboxFilter !== INBOX_FILTER_ALL &&
+      inboxFilter !== "whatsapp" &&
+      inboxFilter !== "email" ? (
         <p className="text-sm text-muted-foreground">
-          {CONTACT_MESSAGE_PLATFORM_LABELS[platform]} wird demnächst
+          {CONTACT_MESSAGE_PLATFORM_LABELS[inboxFilter]} wird demnächst
           angebunden.
         </p>
       ) : null}
@@ -1143,7 +1305,18 @@ export function ContactsMessagesScreen() {
               ) : (
                 <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
               )}
-              {platform === "whatsapp" ? (
+              {linkedThread && lastGuestPlatform ? (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <span>Zuletzt aktiv über</span>
+                  <ContactMessagePlatformIcon
+                    platform={lastGuestPlatform}
+                    variant="meta"
+                  />
+                  <span className="font-medium text-foreground">
+                    {CONTACT_MESSAGE_PLATFORM_LABELS[lastGuestPlatform]}
+                  </span>
+                </p>
+              ) : isWahaPseudoContactId(contactParam) ? (
                 whatsappHeaderSubtitle ? (
                   <p className="text-xs text-muted-foreground">
                     {whatsappHeaderSubtitle}
@@ -1152,23 +1325,21 @@ export function ContactsMessagesScreen() {
                   <p className="text-xs text-muted-foreground">
                     Nummer nicht verfügbar
                   </p>
-                ) : null
-              ) : (
-                <p className="text-xs text-muted-foreground">
-                  {CONTACT_MESSAGE_PLATFORM_LABELS[platform]}
-                </p>
-              )}
+                ) : (
+                  <p className="text-xs text-muted-foreground">WhatsApp</p>
+                )
+              ) : isEmailPseudoContactId(contactParam) ? (
+                <p className="text-xs text-muted-foreground">E-Mail</p>
+              ) : null}
             </div>
-            {contactParam &&
-            (platform === "whatsapp" || platform === "email") &&
-            isInboxPseudoContactId(contactParam) ? (
+            {contactParam && isInboxPseudoContactId(contactParam) ? (
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
                 className="shrink-0 rounded-full"
                 aria-label={
-                  platform === "email"
+                  isEmailPseudoContactId(contactParam)
                     ? "Kontakt aus E-Mail-Chat anlegen"
                     : "Kontakt aus WhatsApp-Chat anlegen"
                 }
@@ -1176,16 +1347,16 @@ export function ContactsMessagesScreen() {
                   openCreateContactFromPseudo(
                     contactParam,
                     contactName ||
-                      (platform === "email" ? "E-Mail" : "WhatsApp"),
+                      (isEmailPseudoContactId(contactParam)
+                        ? "E-Mail"
+                        : "WhatsApp"),
                   )
                 }
               >
                 <Plus className="size-4" />
               </Button>
             ) : null}
-            {contactParam &&
-            canOpenLinkedContact(contactParam) &&
-            (platform === "whatsapp" || platform === "email") ? (
+            {contactParam && canOpenLinkedContact(contactParam) ? (
               <Button
                 type="button"
                 variant="outline"
@@ -1198,62 +1369,109 @@ export function ContactsMessagesScreen() {
               </Button>
             ) : null}
           </div>
-          <CardContent className="flex h-[min(60dvh,560px)] max-h-[min(75dvh,680px)] flex-col gap-0 p-4 sm:p-6">
-            <ContactMessageChatViewport
-              messages={messages}
-              loading={loadingThread}
-              threadKey={`${platform}-${contactParam}`}
-              onReservationOpen={(id) => void openReservationFromMessage(id)}
-              wahaReactions={
-                platform === "whatsapp" && restaurantId
-                  ? {
-                      restaurantId,
-                      onReactionChange: () => {
-                        void loadThread();
-                        void loadConversations();
-                      },
-                    }
-                  : undefined
-              }
-            />
-            {canReply ? (
-              <ContactMessageComposer
-                disabled={loadingThread}
-                sending={sending}
-                hasPhone={platform === "whatsapp" ? true : hasPhone}
-                hasEmail={
-                  platform === "email" ? true : hasEmail
-                }
-                whatsappEnabled={whatsappEnabled && whatsappConnected}
-                emailEnabled={emailEnabled && emailConnected}
-                defaultSendWhatsapp={platform === "whatsapp"}
-                defaultSendEmail={platform === "email"}
-                variant={
-                  platform === "whatsapp"
-                    ? "whatsapp-only"
-                    : platform === "email"
-                      ? "email-only"
-                      : "unified"
-                }
-                placeholder={
-                  platform === "whatsapp"
-                    ? "WhatsApp-Nachricht …"
-                    : platform === "email"
-                      ? "E-Mail schreiben …"
-                      : undefined
-                }
-                whatsappTyping={
-                  platform === "whatsapp" &&
+          <CardContent className="flex h-[min(72dvh,680px)] max-h-[min(88dvh,820px)] flex-col gap-0 overflow-hidden p-0">
+            <div className="flex min-h-0 flex-1 flex-col px-4 pt-4 sm:px-6 sm:pt-5">
+              <ContactMessageChatViewport
+                messages={displayMessages}
+                loading={loadingThread}
+                threadKey={`${inboxFilter}-${contactParam}`}
+                className="min-h-0 flex-1"
+                onReservationOpen={(id) => void openReservationFromMessage(id)}
+                wahaReactions={
+                  linkedThread &&
                   restaurantId &&
-                  whatsappThreadChatId
+                  whatsappThreadChatId &&
+                  displayMessages.some((m) => m.waha_message_id)
                     ? {
                         restaurantId,
-                        chatId: whatsappThreadChatId,
+                        onReactionChange: () => {
+                          void loadThread();
+                          void loadConversations();
+                        },
                       }
-                    : null
+                    : isWahaPseudoContactId(contactParam) && restaurantId
+                      ? {
+                          restaurantId,
+                          onReactionChange: () => {
+                            void loadThread();
+                            void loadConversations();
+                          },
+                        }
+                      : undefined
                 }
-                onSend={handleSend}
               />
+            </div>
+            {canReply ? (
+              <div className="sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-card px-4 py-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] sm:px-6">
+                <ContactMessageComposer
+                  disabled={loadingThread}
+                  sending={sending}
+                  hasPhone={
+                    isWahaPseudoContactId(contactParam) ? true : hasPhone
+                  }
+                  hasEmail={
+                    isEmailPseudoContactId(contactParam) ? true : hasEmail
+                  }
+                  whatsappEnabled={whatsappEnabled && whatsappConnected}
+                  emailEnabled={
+                    emailEnabled &&
+                    (emailConnected || staffInviteEmailAvailable)
+                  }
+                  emailViaPlatformFallback={
+                    linkedReplyChannels.emailViaPlatformFallback
+                  }
+                  defaultSendWhatsapp={defaultReplySend.whatsapp}
+                  defaultSendEmail={defaultReplySend.email}
+                  variant={
+                    linkedThread
+                      ? "inbox-reply"
+                      : isWahaPseudoContactId(contactParam)
+                        ? "whatsapp-only"
+                        : isEmailPseudoContactId(contactParam)
+                          ? "email-only"
+                          : "unified"
+                  }
+                  stickyFooter
+                  placeholder={
+                    isWahaPseudoContactId(contactParam)
+                      ? "WhatsApp-Nachricht …"
+                      : isEmailPseudoContactId(contactParam)
+                        ? "E-Mail schreiben …"
+                        : "Antwort schreiben …"
+                  }
+                  whatsappTyping={
+                    restaurantId &&
+                    whatsappThreadChatId &&
+                    (linkedThread
+                      ? defaultReplySend.whatsapp
+                      : isWahaPseudoContactId(contactParam))
+                      ? {
+                          restaurantId,
+                          chatId: whatsappThreadChatId,
+                        }
+                      : null
+                  }
+                  onSend={handleSend}
+                />
+              </div>
+            ) : linkedThread ? (
+              <div className="sticky bottom-0 shrink-0 border-t border-border/50 bg-card px-4 py-4 sm:px-6">
+                <p className="text-sm text-muted-foreground">
+                  {!emailEnabled && !whatsappEnabled
+                    ? "Nachrichten-Kanäle sind für dieses Restaurant nicht freigeschaltet."
+                    : !staffInviteEmailAvailable &&
+                        !emailConnected &&
+                        !whatsappConnected
+                      ? "Antworten erst möglich, wenn WhatsApp oder ein E-Mail-Postfach unter Einstellungen → Integrationen verbunden ist — oder die Plattform-E-Mail (Gwada-Fallback) aktiv ist."
+                      : !hasEmail && !hasPhone
+                        ? "Kontakt braucht eine Telefonnummer (WhatsApp) oder E-Mail-Adresse."
+                        : !hasEmail
+                          ? "Für E-Mail-Antworten (auch über Gwada-Fallback) eine E-Mail am Kontakt hinterlegen."
+                          : !hasPhone && !whatsappConnected
+                            ? "Für WhatsApp-Antworten eine Telefonnummer am Kontakt hinterlegen und WhatsApp verbinden."
+                            : "Kein Versandweg verfügbar — Kanäle und Kontaktdaten prüfen."}
+                </p>
+              </div>
             ) : null}
           </CardContent>
         </Card>
@@ -1274,16 +1492,16 @@ export function ContactsMessagesScreen() {
                   variant="outline"
                   size="icon"
                   className="size-10 shrink-0 rounded-full"
-                  disabled={refreshingInbox}
                   aria-label="Chats aktualisieren"
-                  title="Chats aktualisieren"
+                  title={
+                    refreshingInbox
+                      ? "Posteingang wird aktualisiert …"
+                      : "Chats aktualisieren"
+                  }
                   onClick={() => void refreshInbox()}
                 >
                   <RefreshCw
-                    className={cn(
-                      "size-4",
-                      refreshingInbox && "animate-spin",
-                    )}
+                    className={cn("size-4", refreshingInbox && "animate-spin")}
                     aria-hidden
                   />
                 </Button>
@@ -1303,11 +1521,13 @@ export function ContactsMessagesScreen() {
               <ContactConversationsListSkeleton />
             ) : conversations.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-muted-foreground sm:px-6">
-                {platform === "whatsapp" && whatsappConnected
+                {inboxFilter === "whatsapp" && whatsappConnected
                   ? "Keine WhatsApp-Chats gefunden."
-                  : platform === "email" && emailConnected
+                  : inboxFilter === "email" && emailConnected
                     ? "Keine E-Mail-Konversationen im Postfach."
-                    : `Noch keine Chats auf ${CONTACT_MESSAGE_PLATFORM_LABELS[platform]}.`}
+                    : inboxFilter === INBOX_FILTER_ALL
+                      ? "Noch keine Konversationen im Posteingang."
+                      : `Noch keine Chats auf ${CONTACT_MESSAGE_PLATFORM_LABELS[inboxFilter]}.`}
               </p>
             ) : filteredConversations.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-muted-foreground sm:px-6">
@@ -1375,6 +1595,17 @@ export function ContactsMessagesScreen() {
                           </span>
                         )}
                         <div className="flex shrink-0 items-center gap-1.5">
+                          <ContactMessagePlatformIcon
+                            platform={
+                              c.last_message_platform ??
+                              (isWahaPseudoContactId(c.contact_id)
+                                ? "whatsapp"
+                                : isEmailPseudoContactId(c.contact_id)
+                                  ? "email"
+                                  : "gwada")
+                            }
+                            variant="meta"
+                          />
                           {unread && c.unread_count > 0 ? (
                             <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-accent-foreground">
                               {c.unread_count > 99 ? "99+" : c.unread_count}
@@ -1406,9 +1637,7 @@ export function ContactsMessagesScreen() {
                               <MoreVertical className="size-3.5" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-44">
-                              {(platform === "whatsapp" ||
-                                platform === "email") &&
-                              isInboxPseudoContactId(c.contact_id) ? (
+                              {isInboxPseudoContactId(c.contact_id) ? (
                                 <DropdownMenuItem
                                   onClick={() =>
                                     openCreateContactFromPseudo(
@@ -1473,10 +1702,22 @@ export function ContactsMessagesScreen() {
                               </span>
                             </span>
                           ) : (
-                            <>
-                              {c.last_direction === "outbound" ? "Sie: " : ""}
-                              {previewSnippet(c.last_body)}
-                            </>
+                            <span className="inline-flex max-w-full items-center gap-1 truncate">
+                              {c.last_attachment_kind ? (
+                                <ContactConversationAttachmentIcon
+                                  kind={c.last_attachment_kind}
+                                />
+                              ) : null}
+                              {c.last_direction === "outbound" ? (
+                                <span className="shrink-0">Sie: </span>
+                              ) : null}
+                              <span className="truncate">
+                                {previewSnippet(
+                                  c.last_body,
+                                  c.last_attachment_kind,
+                                )}
+                              </span>
+                            </span>
                           )}
                         </p>
                         {c.has_reservation_link ? (
@@ -1556,7 +1797,7 @@ export function ContactsMessagesScreen() {
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
                 router.replace(
-                  `/kontakte/nachrichten?platform=gwada&contact=${detail.contactId}`,
+                  `/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
               }

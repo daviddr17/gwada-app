@@ -165,10 +165,13 @@ export async function markConversationUnreadClient(params: {
 
 export async function fetchMessagesUnreadSummaryClient(
   restaurantId: string,
+  options?: { scope?: "dashboard" | "full" },
 ): Promise<{ data: MessagesUnreadSummary | null; error: string | null }> {
   try {
+    const q = new URLSearchParams({ restaurantId });
+    if (options?.scope === "dashboard") q.set("scope", "dashboard");
     const res = await fetch(
-      `/api/contact-messages/unread-summary?${new URLSearchParams({ restaurantId })}`,
+      `/api/contact-messages/unread-summary?${q}`,
     );
     const body = (await res.json()) as {
       data?: MessagesUnreadSummary;

@@ -4,6 +4,15 @@ export type SendContactMessageApiResult = {
   error?: string;
 };
 
+function appendSendFormFields(
+  fd: FormData,
+  fields: Record<string, string | undefined>,
+) {
+  for (const [key, value] of Object.entries(fields)) {
+    if (value != null && value !== "") fd.append(key, value);
+  }
+}
+
 export async function triggerSendContactMessage(body: {
   restaurantId: string;
   contactId: string;
@@ -12,12 +21,37 @@ export async function triggerSendContactMessage(body: {
   channels: ("gwada" | "whatsapp" | "email")[];
   reservationId?: string | null;
   restaurantName?: string | null;
+  files?: File[];
+  notifyWhatsapp?: boolean;
+  notifyEmail?: boolean;
 }): Promise<SendContactMessageApiResult | null> {
   try {
+    const hasFiles = (body.files?.length ?? 0) > 0;
+    let fetchBody: BodyInit;
+    let headers: HeadersInit | undefined;
+    if (hasFiles) {
+      const fd = new FormData();
+      appendSendFormFields(fd, {
+        restaurantId: body.restaurantId,
+        contactId: body.contactId,
+        messageBody: body.messageBody,
+        direction: body.direction,
+        channels: body.channels.join(","),
+        reservationId: body.reservationId ?? undefined,
+        restaurantName: body.restaurantName ?? undefined,
+        notifyWhatsapp: body.notifyWhatsapp ? "true" : undefined,
+        notifyEmail: body.notifyEmail ? "true" : undefined,
+      });
+      for (const file of body.files!) fd.append("files", file);
+      fetchBody = fd;
+    } else {
+      headers = { "Content-Type": "application/json" };
+      fetchBody = JSON.stringify(body);
+    }
     const res = await fetch("/api/contact-messages/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers,
+      body: fetchBody,
     });
     const data = (await res.json().catch(() => ({}))) as SendContactMessageApiResult;
     if (!res.ok) {
@@ -42,6 +76,18 @@ const CHANNEL_ERROR_DE: Record<string, string> = {
   "email:no_email": "Keine E-Mail-Adresse für den Gast hinterlegt.",
   "email:smtp_not_configured":
     "E-Mail-Versand ist nicht konfiguriert (SMTP / Server).",
+  "notify_whatsapp:session_not_working":
+    "WhatsApp-Benachrichtigung: Session nicht aktiv.",
+  "notify_whatsapp:no_phone":
+    "WhatsApp-Benachrichtigung: keine Telefonnummer.",
+  "notify_email:no_email":
+    "E-Mail-Benachrichtigung: keine E-Mail-Adresse.",
+  "notify_email:smtp_not_configured":
+    "E-Mail-Benachrichtigung: SMTP nicht konfiguriert.",
+  "guest_chat:no_access": "Gast-Chat-Link konnte nicht erzeugt werden.",
+  file_too_large: "Eine Datei ist zu groß (max. 15 MB).",
+  too_many_files: "Zu viele Dateien (max. 5).",
+  mime_not_allowed: "Dateityp nicht erlaubt.",
   contact_already_reviewed:
     "Dieser Kontakt hat bereits eine Gwada-Bewertung abgegeben. Es kann kein neuer Einladungslink verschickt werden.",
 };
@@ -50,6 +96,10 @@ function formatChannelErrors(errors: string[] | undefined): string | null {
   if (!errors?.length) return null;
   for (const code of errors) {
     if (CHANNEL_ERROR_DE[code]) return CHANNEL_ERROR_DE[code];
+  }
+  for (const code of errors) {
+    const bare = code.split(":").pop();
+    if (bare && CHANNEL_ERROR_DE[bare]) return CHANNEL_ERROR_DE[bare];
   }
   const wa = errors.find((e) => e.startsWith("whatsapp:"));
   if (wa) {
@@ -71,12 +121,33 @@ export async function triggerEmailInboxSend(body: {
   messageBody: string;
   restaurantName?: string | null;
   storeUnderContact?: boolean;
+  files?: File[];
 }): Promise<SendContactMessageApiResult | null> {
   try {
+    const hasFiles = (body.files?.length ?? 0) > 0;
+    let fetchBody: BodyInit;
+    let headers: HeadersInit | undefined;
+    if (hasFiles) {
+      const fd = new FormData();
+      appendSendFormFields(fd, {
+        restaurantId: body.restaurantId,
+        emailContactId: body.emailContactId,
+        contactId: body.contactId,
+        messageBody: body.messageBody,
+        restaurantName: body.restaurantName ?? undefined,
+        storeUnderContact:
+          body.storeUnderContact === false ? "false" : undefined,
+      });
+      for (const file of body.files!) fd.append("files", file);
+      fetchBody = fd;
+    } else {
+      headers = { "Content-Type": "application/json" };
+      fetchBody = JSON.stringify(body);
+    }
     const res = await fetch("/api/contact-messages/email/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers,
+      body: fetchBody,
     });
     const data = (await res.json().catch(() => ({}))) as SendContactMessageApiResult;
     if (!res.ok) {
@@ -95,12 +166,32 @@ export async function triggerWahaSendMessage(body: {
   contactId?: string;
   messageBody: string;
   storeUnderContact?: boolean;
+  files?: File[];
 }): Promise<SendContactMessageApiResult | null> {
   try {
+    const hasFiles = (body.files?.length ?? 0) > 0;
+    let fetchBody: BodyInit;
+    let headers: HeadersInit | undefined;
+    if (hasFiles) {
+      const fd = new FormData();
+      appendSendFormFields(fd, {
+        restaurantId: body.restaurantId,
+        wahaContactId: body.wahaContactId,
+        contactId: body.contactId,
+        messageBody: body.messageBody,
+        storeUnderContact:
+          body.storeUnderContact === false ? "false" : undefined,
+      });
+      for (const file of body.files!) fd.append("files", file);
+      fetchBody = fd;
+    } else {
+      headers = { "Content-Type": "application/json" };
+      fetchBody = JSON.stringify(body);
+    }
     const res = await fetch("/api/contact-messages/waha/send", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers,
+      body: fetchBody,
     });
     const data = (await res.json().catch(() => ({}))) as SendContactMessageApiResult;
     if (!res.ok) {

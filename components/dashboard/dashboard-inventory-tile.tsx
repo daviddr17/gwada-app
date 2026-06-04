@@ -1,10 +1,10 @@
 "use client";
 
-import { Package, ShoppingCart } from "lucide-react";
+import { Package } from "lucide-react";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -15,6 +15,7 @@ export function DashboardInventoryTile() {
 
   const emptyStock = summary?.emptyStock ?? 0;
   const openOrders = summary?.openOrders ?? 0;
+  const openLines = summary?.openOrderLines ?? 0;
 
   return (
     <DashboardWidgetShell
@@ -28,41 +29,28 @@ export function DashboardInventoryTile() {
       loading={showSkeleton}
       error={error}
     >
-      <DashboardWidgetStatsGrid columns={2}>
-        <DashboardStatBlock
-          size="compact"
+      <DashboardCompactInlineMetrics>
+        <DashboardCompactMetricPill
           label="Zutaten aktiv"
-          primary={String(summary?.ingredientsActive ?? 0)}
-          secondary="Erfasste Bestandspositionen"
+          value={String(summary?.ingredientsActive ?? 0)}
         />
-        <DashboardStatBlock
-          size="compact"
+        <DashboardCompactMetricPill
           label="Leerer Bestand"
-          primary={String(emptyStock)}
-          secondary={
-            emptyStock === 1
-              ? "Zutat mit Bestand 0"
-              : "Zutaten mit Bestand 0"
-          }
+          value={String(emptyStock)}
+          href="/inventory/uebersicht"
           highlight={emptyStock > 0}
         />
-        <DashboardStatBlock
-          size="compact"
+        <DashboardCompactMetricPill
           label="Offene Bestellungen"
-          primary={String(openOrders)}
-          secondary={
-            <>
-              <ShoppingCart
-                className="mr-1 inline size-3.5 align-[-0.15em] text-muted-foreground"
-                aria-hidden
-              />
-              {summary?.openOrderLines ?? 0}{" "}
-              {(summary?.openOrderLines ?? 0) === 1 ? "Position" : "Positionen"}
-            </>
+          value={
+            openOrders > 0
+              ? `${openOrders} · ${openLines} Pos.`
+              : String(openOrders)
           }
+          href="/inventory/bestellung"
           highlight={openOrders > 0}
         />
-      </DashboardWidgetStatsGrid>
+      </DashboardCompactInlineMetrics>
     </DashboardWidgetShell>
   );
 }

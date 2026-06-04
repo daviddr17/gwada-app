@@ -3,9 +3,9 @@
 import { Plug } from "lucide-react";
 import { DashboardIntegrationLogo } from "@/components/dashboard/dashboard-integration-logo";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardIntegrationsSummary } from "@/lib/hooks/use-dashboard-integrations-summary";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -35,34 +35,35 @@ export function DashboardIntegrationsTile() {
       error={error}
     >
       {total === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs text-muted-foreground">
           Derzeit sind keine Integrationen für euer Restaurant freigeschaltet.
         </p>
       ) : (
         <div className="space-y-3">
-          <DashboardWidgetStatsGrid columns={2}>
-            <DashboardStatBlock
-              size="compact"
+          <DashboardCompactInlineMetrics>
+            <DashboardCompactMetricPill
               label="Verbunden"
-              primary={String(connected)}
-              secondary={`von ${total} Kanälen`}
+              value={`${connected} / ${total}`}
+              href="/settings/integrationen"
+              stripeVariant="active"
             />
-            <DashboardStatBlock
-              size="compact"
+            <DashboardCompactMetricPill
               label="Noch offen"
-              primary={String(open)}
-              secondary="In den Einstellungen verbinden"
+              value={String(open)}
+              href="/settings/integrationen"
+              highlight={open > 0}
+              stripeVariant="attention"
             />
-          </DashboardWidgetStatsGrid>
+          </DashboardCompactInlineMetrics>
 
           <ul
-            className="flex list-none flex-wrap gap-4 p-0"
+            className="flex list-none flex-wrap gap-2 p-0"
             aria-label="Integrationen"
           >
             {summary?.items.map((item) => (
               <li
                 key={item.id}
-                className="flex min-w-[4.5rem] flex-col items-center gap-2"
+                className="flex min-w-[3.25rem] flex-col items-center gap-1"
               >
                 <DashboardIntegrationLogo
                   id={item.id}
@@ -70,7 +71,7 @@ export function DashboardIntegrationsTile() {
                 />
                 <span
                   className={cn(
-                    "max-w-[5.5rem] text-center text-xs font-medium leading-tight",
+                    "max-w-[4.5rem] truncate text-center text-[10px] font-medium leading-tight",
                     item.connected
                       ? "text-foreground"
                       : "text-muted-foreground",

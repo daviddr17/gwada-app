@@ -28,6 +28,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/display/")) return true;
   if (pathname.startsWith("/einladung/")) return true;
   if (pathname.startsWith("/bewertung/")) return true;
+  if (pathname.startsWith("/nachrichten/")) return true;
   if (pathname.startsWith("/sb")) return true;
   return false;
 }
@@ -62,7 +63,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
     pathname.startsWith("/einladung/") ||
-    pathname.startsWith("/bewertung/")
+    pathname.startsWith("/bewertung/") ||
+    pathname.startsWith("/nachrichten/")
   ) {
     return response;
   }

@@ -92,3 +92,13 @@ export function authorizeGoogleBusinessRestaurantRoute(
     assertPlatform: assertPlatformGoogleBusinessEnabled,
   });
 }
+
+export function authorizeOpeningHoursSettingsRoute(
+  restaurantIdRaw: string | null,
+) {
+  return authorizeRestaurantOAuthRoute({
+    restaurantIdRaw,
+    permission: "settings.opening_hours",
+    assertPlatform: async () => ({ ok: true as const }),
+  });
+}

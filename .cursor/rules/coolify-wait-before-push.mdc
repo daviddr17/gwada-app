@@ -1,0 +1,39 @@
+---
+description: Vor git push main Coolify-Build-Status prüfen — nicht pushen während Deploy läuft.
+alwaysApply: true
+---
+
+# Coolify: erst Build-Ende, dann push
+
+Bevor **`git push`** nach `main` (Coolify-Auto-Deploy) oder ein **zweiter Push** direkt danach:
+
+## 1. Immer zuerst prüfen (VPS / Coolify)
+
+- Läuft ein Deploy **`in_progress`** oder **`queued`**?
+- Läuft noch ein **`docker build`** für die Gwada-App auf dem VPS?
+
+**Prüfung (Beispiel):**
+
+```bash
+ssh -o BatchMode=yes root@95.111.229.250 'docker exec coolify php artisan tinker --execute="
+\$r = App\\Models\\ApplicationDeploymentQueue::where(\"application_id\",\"1\")->orderByDesc(\"id\")->first([\"id\",\"status\",\"commit\"]);
+echo \$r->id.\" \".\$r->status.\" \".substr(\$r->commit??\"\",0,7);
+"'
+```
+
+Optional: `ps aux | grep 'docker build.*d3cg1b54'` — sollte leer sein.
+
+## 2. Wenn Build noch läuft
+
+- **Nicht pushen** — Nutzer informieren: aktueller Deploy-Stand (ID, Commit, Status), warten bis **`finished`** oder klares **`failed`**.
+- Keinen parallelen **manuellen** Docker-Build auf dem VPS starten, während Coolify baut.
+
+## 3. Erst danach pushen
+
+- Ein Push → ein Coolify-Deploy. Mehrere schnelle Pushes erzeugen Queue-Stau und fehlgeschlagene Deployments (Port 3000, hängende Nixpacks).
+
+## 4. Nach fehlgeschlagenem Deploy
+
+- Erst Ursache klären (Logs, Port-Konflikt, Compose), nicht sofort erneut pushen.
+
+Gilt für alle Anfragen wie „live pushen“, „auf git deployen“, „push main“ — siehe auch `git-deploy-on-request.mdc`.

@@ -1,0 +1,17 @@
+# Formulare: Schriftgröße auf Mobilgeräten (kein Auto-Zoom)
+
+iOS Safari zoomt beim Fokus auf Inputs, wenn die berechnete Schriftgröße **unter 16px** liegt.
+
+## Vorgehen
+
+1. **Basis-Komponenten** (`components/ui/input.tsx`, `textarea.tsx`, `select.tsx` Trigger): `mobileFormControlFontClassName` aus `@/lib/ui/mobile-form-control-font` nutzen — auf Viewports unter `md` immer `text-base` (16px).
+2. **Eigene native Inputs** (Zeitfelder, Suche): ebenfalls mindestens `text-base` auf Mobile, nicht `text-sm` / `text-xs` allein.
+3. **Kein globales `!important`** auf alle Inputs, wenn eine Komponente die Basis-Klassen nutzt.
+
+## Anti-Pattern
+
+`text-sm` oder `md:text-sm` auf Formularfeldern ohne Mobile-Ausnahme — führt auf dem iPhone zum Zoomen.
+
+## Referenz
+
+`formScheduleTimeInputClassName` in `components/ui/date-picker.tsx`, `globals.css` Fallback für `[data-slot="input"]` / `textarea` / `select-trigger`.

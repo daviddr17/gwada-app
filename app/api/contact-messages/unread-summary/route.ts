@@ -23,11 +23,15 @@ export async function GET(req: Request) {
     resolveRestaurantImapCredentials(admin, auth.restaurantId),
   ]);
 
+  const scope = new URL(req.url).searchParams.get("scope");
+  const includeInboxConversations = scope !== "dashboard";
+
   const summary = await fetchMessagesUnreadSummary(admin, {
     restaurantId: auth.restaurantId,
     userId: auth.userId,
     whatsappConnected: Boolean(wahaConfig),
     emailConnected: Boolean(imapCreds),
+    includeInboxConversations,
   });
 
   return Response.json({ data: summary });

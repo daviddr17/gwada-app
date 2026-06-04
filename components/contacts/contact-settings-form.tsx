@@ -3,9 +3,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import {
+  GUEST_CHAT_URL_PLACEHOLDERS,
+  validateGuestChatUrlTemplate,
+} from "@/lib/contacts/guest-chat-url";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
@@ -25,13 +30,14 @@ export function ContactSettingsForm() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
   const [autoCreate, setAutoCreate] = useState(true);
+  const [guestChatUrl, setGuestChatUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedRef = useRef<string | null>(null);
 
   const snapshot = useMemo(
-    () => JSON.stringify({ autoCreate }),
-    [autoCreate],
+    () => JSON.stringify({ autoCreate, guestChatUrl }),
+    [autoCreate, guestChatUrl],
   );
 
   const dirty =
@@ -52,9 +58,14 @@ export function ContactSettingsForm() {
         toast.error(error.message);
         return;
       }
-      const next = data?.auto_create_from_reservations ?? true;
-      setAutoCreate(next);
-      savedRef.current = JSON.stringify({ autoCreate: next });
+      const nextAuto = data?.auto_create_from_reservations ?? true;
+      const nextUrl = data?.guest_chat_url_template ?? "";
+      setAutoCreate(nextAuto);
+      setGuestChatUrl(nextUrl);
+      savedRef.current = JSON.stringify({
+        autoCreate: nextAuto,
+        guestChatUrl: nextUrl,
+      });
     })();
     return () => {
       cancel = true;
@@ -63,11 +74,17 @@ export function ContactSettingsForm() {
 
   const save = () => {
     if (!restaurantId) return;
+    const urlErr = validateGuestChatUrlTemplate(guestChatUrl);
+    if (urlErr) {
+      toast.error(urlErr);
+      return;
+    }
     setSaving(true);
     void (async () => {
       const { error } = await upsertContactSettings({
         restaurantId,
         autoCreateFromReservations: autoCreate,
+        guestChatUrlTemplate: guestChatUrl.trim() || null,
       });
       setSaving(false);
       if (error) toast.error(error.message);
@@ -122,6 +139,22 @@ export function ContactSettingsForm() {
                 disabled={loading}
                 onCheckedChange={(v) => setAutoCreate(v === true)}
               />
+            </div>
+            <div className="mt-6 space-y-2">
+              <Label htmlFor="guest-chat-url">Gast-Chat-Link (Vorlage)</Label>
+              <Input
+                id="guest-chat-url"
+                value={guestChatUrl}
+                disabled={loading}
+                onChange={(e) => setGuestChatUrl(e.target.value)}
+                placeholder="https://…/nachrichten/kontakt?kontakt={kontakt}"
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground max-w-prose">
+                Platzhalter: {GUEST_CHAT_URL_PLACEHOLDERS.join(", ")} — ohne PIN
+                in der URL. Der Zugangscode wird separat versendet (Standard
+                48 h gültig). Leer = Standard-Link der App.
+              </p>
             </div>
           </CardContent>
         </Card>

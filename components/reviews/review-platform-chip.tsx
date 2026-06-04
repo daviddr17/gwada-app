@@ -1,30 +1,11 @@
 "use client";
 
-import { FacebookGlyph } from "@/components/icons/facebook-glyph";
-import { GoogleGlyph } from "@/components/icons/google-glyph";
-import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
+import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import {
   REVIEW_PLATFORM_LABELS,
   type ReviewPlatform,
 } from "@/lib/constants/review-platforms";
 import { cn } from "@/lib/utils";
-
-function PlatformIcon({
-  platform,
-  className,
-}: {
-  platform: ReviewPlatform;
-  className?: string;
-}) {
-  switch (platform) {
-    case "google":
-      return <GoogleGlyph className={cn("size-4", className)} />;
-    case "facebook":
-      return <FacebookGlyph className={cn("size-4", className)} />;
-    case "gwada":
-      return <GwadaFaviconIcon size="chip" className={className} />;
-  }
-}
 
 export function ReviewPlatformChip({
   platform,
@@ -51,7 +32,7 @@ export function ReviewPlatformChip({
       )}
       aria-pressed={selected}
     >
-      <PlatformIcon platform={platform} />
+      <ReviewPlatformIcon platform={platform} />
       {REVIEW_PLATFORM_LABELS[platform]}
     </button>
   );

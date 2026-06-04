@@ -22,7 +22,7 @@ export function DashboardIntegrationLogo({
   const muted = !connected;
 
   const wrapClass = cn(
-    "flex size-12 items-center justify-center rounded-xl border transition-[filter,opacity,border-color,background-color]",
+    "flex size-9 items-center justify-center rounded-lg border transition-[filter,opacity,border-color,background-color]",
     connected
       ? "border-border/50 bg-background shadow-sm"
       : "border-border/35 bg-muted/25",
@@ -30,7 +30,7 @@ export function DashboardIntegrationLogo({
     className,
   );
 
-  const iconClass = "size-7 shrink-0";
+  const iconClass = "size-5 shrink-0";
 
   switch (id) {
     case "whatsapp":

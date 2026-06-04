@@ -1,3 +1,8 @@
+import { parseMultipartSend } from "@/lib/contact-messages/parse-multipart-send";
+import {
+  parseOutboundAttachmentFiles,
+  type OutboundAttachmentFile,
+} from "@/lib/contact-messages/outbound-attachment-files";
 import { sendEmailInboxMessageServer } from "@/lib/contact-messages/send-email-inbox-server";
 import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
@@ -7,21 +12,48 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as {
-    restaurantId?: string;
-    emailContactId?: string;
-    contactId?: string;
-    messageBody?: string;
-    restaurantName?: string | null;
-    storeUnderContact?: boolean;
-  };
+  let restaurantId = "";
+  let messageBody = "";
+  let emailContactId = "";
+  let contactId = "";
+  let restaurantName: string | null = null;
+  let storeUnderContact = true;
+  let attachmentFiles: OutboundAttachmentFile[] = [];
 
-  const restaurantId = body.restaurantId?.trim() ?? "";
-  const messageBody = body.messageBody?.trim() ?? "";
-  const emailContactId = body.emailContactId?.trim() ?? "";
-  const contactId = body.contactId?.trim() ?? "";
+  const multipart = await parseMultipartSend(req);
+  if (multipart) {
+    const parsedFiles = await parseOutboundAttachmentFiles(multipart.files);
+    if (!parsedFiles.ok) {
+      return Response.json({ error: parsedFiles.error }, { status: 400 });
+    }
+    attachmentFiles = parsedFiles.files;
+    restaurantId = multipart.fields.restaurantId?.trim() ?? "";
+    messageBody = multipart.messageBody;
+    emailContactId = multipart.fields.emailContactId?.trim() ?? "";
+    contactId = multipart.fields.contactId?.trim() ?? "";
+    restaurantName = multipart.fields.restaurantName?.trim() || null;
+    storeUnderContact = multipart.fields.storeUnderContact !== "false";
+  } else {
+    const body = (await req.json().catch(() => ({}))) as {
+      restaurantId?: string;
+      emailContactId?: string;
+      contactId?: string;
+      messageBody?: string;
+      restaurantName?: string | null;
+      storeUnderContact?: boolean;
+    };
+    restaurantId = body.restaurantId?.trim() ?? "";
+    messageBody = body.messageBody?.trim() ?? "";
+    emailContactId = body.emailContactId?.trim() ?? "";
+    contactId = body.contactId?.trim() ?? "";
+    restaurantName = body.restaurantName?.trim() || null;
+    storeUnderContact = body.storeUnderContact !== false;
+  }
 
-  if (!isUuidRestaurantId(restaurantId) || !messageBody) {
+  if (
+    !isUuidRestaurantId(restaurantId) ||
+    (!messageBody && attachmentFiles.length === 0)
+  ) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
@@ -58,10 +90,9 @@ export async function POST(req: Request) {
     contactId: targetId,
     body: messageBody,
     sentBy: auth.userId,
-    restaurantName: body.restaurantName?.trim() || null,
-    storeUnderContact: isUuidRestaurantId(contactId)
-      ? body.storeUnderContact !== false
-      : false,
+    restaurantName,
+    storeUnderContact: isUuidRestaurantId(contactId) ? storeUnderContact : false,
+    attachmentFiles,
   });
 
   return Response.json(result);

@@ -1,5 +1,6 @@
 "use client";
 
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
@@ -133,9 +134,18 @@ export function StaffOverviewScreen() {
 
   useEffect(() => {
     void reloadDayStats();
-    const id = setInterval(() => void reloadDayStats(), 30_000);
-    return () => clearInterval(id);
+    const onRefresh = () => void reloadDayStats();
+    window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
+    return () =>
+      window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
   }, [reloadDayStats]);
+
+  useEffect(() => {
+    const onRefresh = () => void reload();
+    window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
+    return () =>
+      window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
+  }, [reload]);
 
   const activeTags = useMemo(
     () => positionTags.items.filter((t) => t.active),

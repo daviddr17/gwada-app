@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import { UtensilsCrossed } from "lucide-react";
 import {
-  DashboardStatBlock,
-  DashboardWidgetStatsGrid,
-} from "@/components/dashboard/dashboard-stat-block";
+  DashboardCompactInlineMetrics,
+  DashboardCompactMetricPill,
+} from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { computeDashboardMenuSummary } from "@/lib/menu/compute-dashboard-menu-summary";
 import { useCategoriesStorage } from "@/lib/hooks/use-categories-storage";
@@ -39,43 +39,41 @@ export function DashboardMenuTile() {
       error={null}
     >
       {summary ? (
-        <DashboardWidgetStatsGrid columns={2}>
-          <DashboardStatBlock
-            size="compact"
+        <DashboardCompactInlineMetrics>
+          <DashboardCompactMetricPill
             label="Gerichte aktiv"
-            primary={String(summary.dishesActive)}
-            secondary={
+            value={
               summary.dishesTotal !== summary.dishesActive
-                ? `${summary.dishesTotal} gesamt (inkl. inaktiv)`
-                : "Alle Gerichte aktiv"
+                ? `${summary.dishesActive} · ${summary.dishesTotal} ges.`
+                : String(summary.dishesActive)
             }
           />
-          <DashboardStatBlock
-            size="compact"
+          <DashboardCompactMetricPill
             label="Kategorien"
-            primary={String(summary.categoriesActive)}
-            secondary={
+            value={
               summary.topCategoryName && summary.topCategoryCount > 0
-                ? `Meiste Gerichte: ${summary.topCategoryName} (${summary.topCategoryCount})`
-                : "Noch keine Zuordnung"
+                ? `${summary.categoriesActive} · Top ${summary.topCategoryName}`
+                : String(summary.categoriesActive)
             }
           />
-          <DashboardStatBlock
-            size="compact"
+          <DashboardCompactMetricPill
             label="Ø Preis"
-            primary={
+            value={
               summary.avgPrice != null
                 ? `${summary.avgPrice.toFixed(2)} €`
                 : "—"
             }
-            secondary={
-              summary.withoutCategory > 0
-                ? `${summary.withoutCategory} ohne gültige Kategorie`
-                : "Aktive Gerichte mit Preis"
-            }
             highlight={summary.withoutCategory > 0}
           />
-        </DashboardWidgetStatsGrid>
+          {summary.withoutCategory > 0 ? (
+            <DashboardCompactMetricPill
+              label="Ohne Kategorie"
+              value={String(summary.withoutCategory)}
+              href="/menu/uebersicht"
+              highlight
+            />
+          ) : null}
+        </DashboardCompactInlineMetrics>
       ) : null}
     </DashboardWidgetShell>
   );

@@ -14,6 +14,13 @@ import {
 } from "@/lib/reservations/reservation-email-dispatch";
 import { fetchReservationForWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
+import { sendContactGuestChatNotifications } from "@/lib/contacts/contact-guest-notification-server";
+import { storeGwadaMessageAttachments } from "@/lib/contact-messages/gwada-message-attachments-server";
+import {
+  sendWhatsappAttachmentFiles,
+  smtpPartsFromOutboundFiles,
+} from "@/lib/contact-messages/send-channel-attachments";
+import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
@@ -31,6 +38,10 @@ export type SendContactMessageServerInput = {
   reservationId?: string | null;
   sentBy?: string | null;
   restaurantName?: string | null;
+  attachmentFiles?: OutboundAttachmentFile[];
+  /** Gwada: Gast per WhatsApp/E-Mail auf Chat-Link hinweisen (nicht Volltext). */
+  notifyWhatsapp?: boolean;
+  notifyEmail?: boolean;
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
@@ -143,9 +154,13 @@ async function insertMessage(
     send_batch_id?: string | null;
     external_source_id?: string | null;
   },
-): Promise<{ error: string | null }> {
-  const { error } = await admin.from("contact_messages").insert(row);
-  return { error: error?.message ?? null };
+): Promise<{ id: string | null; error: string | null }> {
+  const { data, error } = await admin
+    .from("contact_messages")
+    .insert(row)
+    .select("id")
+    .single();
+  return { id: (data as { id: string } | null)?.id ?? null, error: error?.message ?? null };
 }
 
 export async function sendContactMessageServer(
@@ -153,7 +168,8 @@ export async function sendContactMessageServer(
   input: SendContactMessageServerInput,
 ): Promise<{ ok: boolean; errors: string[] }> {
   const body = input.body.trim();
-  if (!body) {
+  const attachmentFiles = input.attachmentFiles ?? [];
+  if (!body && attachmentFiles.length === 0) {
     return { ok: false, errors: ["empty_body"] };
   }
 
@@ -183,18 +199,26 @@ export async function sendContactMessageServer(
 
   for (const channel of channels) {
     if (channel === "gwada") {
-      const { error } = await insertMessage(admin, {
+      const { id, error } = await insertMessage(admin, {
         restaurant_id: input.restaurantId,
         contact_id: input.contactId,
         platform: "gwada",
         direction: input.direction,
-        body,
+        body: body || " ",
         reservation_id: input.reservationId ?? null,
         sent_by: input.sentBy ?? null,
         delivery_status: "delivered",
         send_batch_id: sendBatchId,
       });
       if (error) errors.push(`gwada:${error}`);
+      else if (id && attachmentFiles.length > 0) {
+        const stored = await storeGwadaMessageAttachments(admin, {
+          restaurantId: input.restaurantId,
+          messageId: id,
+          files: attachmentFiles,
+        });
+        if (stored.error) errors.push(`gwada_attachments:${stored.error}`);
+      }
       continue;
     }
 
@@ -218,6 +242,20 @@ export async function sendContactMessageServer(
           deliveryStatus = "failed";
           sendError = "no_phone";
           errors.push("whatsapp:no_phone");
+        } else if (attachmentFiles.length > 0) {
+          const sent = await sendWhatsappAttachmentFiles({
+            restaurantId: input.restaurantId,
+            chatId,
+            files: attachmentFiles,
+            caption: externalText || undefined,
+          });
+          if (sent.ok) {
+            deliveryStatus = "sent";
+          } else {
+            deliveryStatus = "failed";
+            sendError = sent.errors[0] ?? "send_failed";
+            errors.push(...sent.errors);
+          }
         } else {
           const sent = await wahaSendText({
             restaurantId: input.restaurantId,
@@ -236,18 +274,26 @@ export async function sendContactMessageServer(
         deliveryStatus = "delivered";
       }
 
-      const { error } = await insertMessage(admin, {
+      const { id, error } = await insertMessage(admin, {
         restaurant_id: input.restaurantId,
         contact_id: input.contactId,
         platform: "whatsapp",
         direction: input.direction,
-        body,
+        body: body || " ",
         reservation_id: input.reservationId ?? null,
         sent_by: input.sentBy ?? null,
         delivery_status: deliveryStatus,
         send_batch_id: sendBatchId,
       });
       if (error) errors.push(`whatsapp_db:${error}`);
+      else if (id && attachmentFiles.length > 0 && input.direction === "outbound") {
+        const stored = await storeGwadaMessageAttachments(admin, {
+          restaurantId: input.restaurantId,
+          messageId: id,
+          files: attachmentFiles,
+        });
+        if (stored.error) errors.push(`whatsapp_attachments:${stored.error}`);
+      }
       if (sendError && deliveryStatus === "failed") {
         /* already in errors */
       }
@@ -288,7 +334,11 @@ export async function sendContactMessageServer(
             const result = await sendReservationEmail(delivery, {
               to,
               subject,
-              text: externalText,
+              text: externalText || " ",
+              attachments:
+                attachmentFiles.length > 0
+                  ? smtpPartsFromOutboundFiles(attachmentFiles)
+                  : undefined,
             });
             if (result.ok) {
               deliveryStatus = "sent";
@@ -308,18 +358,49 @@ export async function sendContactMessageServer(
         deliveryStatus = "delivered";
       }
 
-      const { error } = await insertMessage(admin, {
+      const { id, error } = await insertMessage(admin, {
         restaurant_id: input.restaurantId,
         contact_id: input.contactId,
         platform: "email",
         direction: input.direction,
-        body,
+        body: body || " ",
         reservation_id: input.reservationId ?? null,
         sent_by: input.sentBy ?? null,
         delivery_status: deliveryStatus,
         send_batch_id: sendBatchId,
       });
       if (error) errors.push(`email_db:${error}`);
+      else if (id && attachmentFiles.length > 0 && input.direction === "outbound") {
+        const stored = await storeGwadaMessageAttachments(admin, {
+          restaurantId: input.restaurantId,
+          messageId: id,
+          files: attachmentFiles,
+        });
+        if (stored.error) errors.push(`email_attachments:${stored.error}`);
+      }
+    }
+  }
+
+  const shouldNotify =
+    input.direction === "outbound" &&
+    channels.includes("gwada") &&
+    (input.notifyWhatsapp || input.notifyEmail);
+
+  if (shouldNotify) {
+    const preview =
+      body ||
+      (attachmentFiles.length > 0 ? "Neue Nachricht mit Anhang" : "");
+    const notifyResult = await sendContactGuestChatNotifications(admin, {
+      restaurantId: input.restaurantId,
+      contactId: input.contactId,
+      restaurantName: input.restaurantName,
+      messagePreview: preview,
+      notifyWhatsapp: Boolean(input.notifyWhatsapp),
+      notifyEmail: Boolean(input.notifyEmail),
+      reservationId: input.reservationId,
+    });
+    if (!notifyResult.ok) {
+      errors.push(...notifyResult.errors);
     }
   }
 

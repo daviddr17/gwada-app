@@ -495,3 +495,13 @@
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
+
+/** iOS: Fokus auf Felder unter 16px löst Auto-Zoom aus */
+@media (max-width: 767px) {
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"] {
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+}

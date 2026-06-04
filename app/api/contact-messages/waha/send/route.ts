@@ -1,3 +1,8 @@
+import { parseMultipartSend } from "@/lib/contact-messages/parse-multipart-send";
+import {
+  parseOutboundAttachmentFiles,
+  type OutboundAttachmentFile,
+} from "@/lib/contact-messages/outbound-attachment-files";
 import { sendWahaMessageServer } from "@/lib/contact-messages/send-waha-message-server";
 import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
@@ -8,20 +13,44 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as {
-    restaurantId?: string;
-    wahaContactId?: string;
-    contactId?: string;
-    messageBody?: string;
-    storeUnderContact?: boolean;
-  };
+  let restaurantId = "";
+  let messageBody = "";
+  let wahaContactId = "";
+  let contactId = "";
+  let storeUnderContact = true;
+  let attachmentFiles: OutboundAttachmentFile[] = [];
 
-  const restaurantId = body.restaurantId?.trim() ?? "";
-  const messageBody = body.messageBody?.trim() ?? "";
-  const wahaContactId = body.wahaContactId?.trim() ?? "";
-  const contactId = body.contactId?.trim() ?? "";
+  const multipart = await parseMultipartSend(req);
+  if (multipart) {
+    const parsedFiles = await parseOutboundAttachmentFiles(multipart.files);
+    if (!parsedFiles.ok) {
+      return Response.json({ error: parsedFiles.error }, { status: 400 });
+    }
+    attachmentFiles = parsedFiles.files;
+    restaurantId = multipart.fields.restaurantId?.trim() ?? "";
+    messageBody = multipart.messageBody;
+    wahaContactId = multipart.fields.wahaContactId?.trim() ?? "";
+    contactId = multipart.fields.contactId?.trim() ?? "";
+    storeUnderContact = multipart.fields.storeUnderContact !== "false";
+  } else {
+    const body = (await req.json().catch(() => ({}))) as {
+      restaurantId?: string;
+      wahaContactId?: string;
+      contactId?: string;
+      messageBody?: string;
+      storeUnderContact?: boolean;
+    };
+    restaurantId = body.restaurantId?.trim() ?? "";
+    messageBody = body.messageBody?.trim() ?? "";
+    wahaContactId = body.wahaContactId?.trim() ?? "";
+    contactId = body.contactId?.trim() ?? "";
+    storeUnderContact = body.storeUnderContact !== false;
+  }
 
-  if (!isUuidRestaurantId(restaurantId) || !messageBody) {
+  if (
+    !isUuidRestaurantId(restaurantId) ||
+    (!messageBody && attachmentFiles.length === 0)
+  ) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
@@ -35,7 +64,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  if (isUuidRestaurantId(contactId) && body.storeUnderContact !== false) {
+  if (isUuidRestaurantId(contactId) && storeUnderContact) {
     const { data: contact } = await auth.supabase
       .from("contacts")
       .select("id")
@@ -54,6 +83,7 @@ export async function POST(req: Request) {
       direction: "outbound",
       channels: ["whatsapp"],
       sentBy: auth.userId,
+      attachmentFiles,
     });
     return Response.json(result);
   }
@@ -66,6 +96,7 @@ export async function POST(req: Request) {
     restaurantId,
     wahaContactId,
     body: messageBody,
+    attachmentFiles,
   });
 
   return Response.json(result);

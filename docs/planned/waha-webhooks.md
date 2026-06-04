@@ -1,8 +1,7 @@
-# Geplant: WAHA-Webhooks (wenn Live-Domain steht)
+# WAHA-Webhooks (Kontakt-Inbox)
 
-- Öffentliche URL: `https://<GWADA-LIVE-DOMAIN>/api/integrations/waha/webhook`
-- Events: `session.status`, später `message` / `message.any`
-- WAHA-Session beim Verbinden mit Webhook-URL + Metadata `gwada.restaurant_id`
-- Danach: Session-Status ohne Polling; Nachrichten-Empfang in Schritt 2
-
-Bis dahin: Polling für QR/Status, Reservierungs-WhatsApp per `sendText` + Outbox-Cron.
+- URL: `https://<SITE>/api/integrations/waha/webhook` (`NEXT_PUBLIC_SITE_URL` / Runtime-Origin)
+- Event: `message` (eingehend) → Kontakt per Telefonnummer → `contact_messages` mit `platform: whatsapp`
+- Session: beim Connect/Update `wahaUpdateSessionWebhooks`, Metadata `gwada.restaurant_id`
+- Optional: `WAHA_WEBHOOK_HMAC_KEY` (HMAC-SHA512, Header `X-Webhook-Hmac`)
+- Fallback: Cron `GET /api/cron/contact-inbox-sync` + Client-Polling im Gwada-Thread (45s)

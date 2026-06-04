@@ -1,17 +1,52 @@
 "use client";
 
 import Link from "next/link";
+import { STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
+
+/** Blau: unbestätigte Reservierungen, ungelesene Nachrichten. */
+export type DashboardCompactStripeVariant = "attention" | "active" | "break";
+
+const STRIPE_COLOR: Record<DashboardCompactStripeVariant, string> = {
+  attention: "#3b82f6",
+  active: STAFF_WORK_ENTRY_COLORS.work,
+  break: STAFF_WORK_ENTRY_COLORS.break,
+};
+
+/** Höhe = nur Textblock (Label→Zahl bzw. Titel→Meta), nicht die ganze Zeile/Kachel. */
+function DashboardCompactStripe({
+  variant,
+  className,
+}: {
+  variant: DashboardCompactStripeVariant;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn("w-1 shrink-0 self-stretch rounded-full", className)}
+      style={{ backgroundColor: STRIPE_COLOR[variant] }}
+      aria-hidden
+    />
+  );
+}
 
 export function DashboardCompactList({
   children,
   className,
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   className?: string;
+  "aria-label"?: string;
 }) {
   return (
-    <ul className={cn("divide-y divide-border/50 rounded-xl border border-border/50", className)}>
+    <ul
+      aria-label={ariaLabel}
+      className={cn(
+        "overflow-hidden rounded-xl border border-border/50 divide-y divide-border/50",
+        className,
+      )}
+    >
       {children}
     </ul>
   );
@@ -22,30 +57,38 @@ export function DashboardCompactListItem({
   title,
   meta,
   trailing,
+  stripeVariant,
   className,
 }: {
   href?: string;
   title: React.ReactNode;
   meta?: React.ReactNode;
   trailing?: React.ReactNode;
+  stripeVariant?: DashboardCompactStripeVariant;
   className?: string;
 }) {
   const inner = (
     <>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">{title}</p>
-        {meta ? (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta}</p>
-        ) : null}
+      <div className="flex min-w-0 flex-1 items-stretch gap-2">
+        {stripeVariant ? <DashboardCompactStripe variant={stripeVariant} /> : null}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{title}</p>
+          {meta ? (
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">{meta}</p>
+          ) : null}
+        </div>
       </div>
       {trailing ? (
-        <div className="shrink-0 text-xs text-muted-foreground">{trailing}</div>
+        <div className="shrink-0 self-center pl-1 text-xs text-muted-foreground">
+          {trailing}
+        </div>
       ) : null}
     </>
   );
 
   const rowClass = cn(
-    "flex items-center gap-3 px-3 py-2.5 text-left transition-colors",
+    "flex items-center gap-3 py-2.5 text-left transition-colors",
+    stripeVariant ? "pl-2.5 pr-4" : "px-4",
     href && "hover:bg-muted/30",
     className,
   );
@@ -90,39 +133,76 @@ export function DashboardCompactMetricPill({
   label,
   value,
   href,
+  onClick,
   highlight,
+  stripeVariant,
+  icon,
 }: {
   label: string;
   value: string;
   href?: string;
+  onClick?: () => void;
   highlight?: boolean;
+  stripeVariant?: DashboardCompactStripeVariant;
+  icon?: React.ReactNode;
 }) {
-  const className = cn(
-    "inline-flex min-w-0 flex-col rounded-lg border px-2.5 py-1.5 text-left",
+  const shellClass = cn(
+    "inline-flex min-w-0 rounded-lg border text-left",
     highlight
       ? "border-accent/35 bg-accent/8"
       : "border-border/50 bg-muted/15",
-    href && "transition-colors hover:border-accent/40 hover:bg-muted/25",
+    (href || onClick) &&
+      "cursor-pointer transition-colors hover:border-accent/40 hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
   );
 
   const content = (
-    <>
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <span className="text-sm font-semibold tabular-nums text-foreground">
-        {value}
-      </span>
-    </>
+    <div
+      className={cn(
+        "flex items-stretch gap-2 py-1.5",
+        stripeVariant ? "pl-1.5 pr-2.5" : "px-2.5",
+      )}
+    >
+      {stripeVariant ? <DashboardCompactStripe variant={stripeVariant} /> : null}
+      <div className="flex min-w-0 flex-col">
+        <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          {icon ? <span className="shrink-0 [&_svg]:size-3.5">{icon}</span> : null}
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="text-sm font-semibold tabular-nums text-foreground">
+          {value}
+        </span>
+      </div>
+    </div>
   );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={shellClass}>
+        {content}
+      </button>
+    );
+  }
 
   if (href) {
     return (
-      <Link href={href} prefetch className={className}>
+      <Link href={href} prefetch className={shellClass}>
         {content}
       </Link>
     );
   }
 
-  return <div className={className}>{content}</div>;
+  return <div className={shellClass}>{content}</div>;
+}
+
+export function DashboardCompactMetricsSkeleton({ count = 3 }: { count?: number }) {
+  return (
+    <div className="flex flex-wrap gap-2" aria-hidden>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="h-[2.625rem] w-[5.5rem] animate-pulse rounded-lg border border-border/50 bg-muted/20"
+        />
+      ))}
+    </div>
+  );
 }

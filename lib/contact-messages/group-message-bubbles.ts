@@ -8,30 +8,30 @@ export type MessageBubbleGroup =
 export function groupContactMessageBubbles(
   messages: ContactMessageRow[],
 ): MessageBubbleGroup[] {
+  const byBatch = new Map<string, ContactMessageRow[]>();
+  for (const m of messages) {
+    const batchId = m.send_batch_id?.trim();
+    if (!batchId) continue;
+    const list = byBatch.get(batchId) ?? [];
+    list.push(m);
+    byBatch.set(batchId, list);
+  }
+
+  const emittedBatches = new Set<string>();
   const groups: MessageBubbleGroup[] = [];
-  let i = 0;
 
-  while (i < messages.length) {
-    const current = messages[i];
-    const batchId = current.send_batch_id;
-
+  for (const m of messages) {
+    const batchId = m.send_batch_id?.trim();
     if (batchId) {
-      const batch: ContactMessageRow[] = [current];
-      let j = i + 1;
-      while (
-        j < messages.length &&
-        messages[j].send_batch_id === batchId
-      ) {
-        batch.push(messages[j]);
-        j++;
-      }
+      if (emittedBatches.has(batchId)) continue;
+      emittedBatches.add(batchId);
+      const batch = [...(byBatch.get(batchId) ?? [m])].sort((a, b) =>
+        a.created_at.localeCompare(b.created_at),
+      );
       groups.push({ kind: "batch", messages: batch });
-      i = j;
       continue;
     }
-
-    groups.push({ kind: "single", message: current });
-    i++;
+    groups.push({ kind: "single", message: m });
   }
 
   return groups;

@@ -14,6 +14,8 @@ import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-ps
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
+import { emailAttachmentProxyUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
+import { attachmentKindFromMime } from "@/lib/contact-messages/outbound-attachment-files";
 import {
   fetchRestaurantEmailSmtpConfig,
 } from "@/lib/supabase/restaurant-email-integration-db";
@@ -116,6 +118,7 @@ export async function fetchEmailInboxConversations(
       existing.last_body = msg.snippet;
       existing.last_at = lastAt;
       existing.last_direction = msg.outbound ? "outbound" : "inbound";
+      existing.last_attachment_kind = undefined;
     }
   }
 
@@ -144,7 +147,8 @@ export async function fetchEmailInboxConversations(
       const preview = byKey.get(key);
       const snippet = snippets.get(uid);
       if (preview && snippet) {
-        preview.last_body = snippet;
+        preview.last_body = snippet.snippet;
+        preview.last_attachment_kind = snippet.attachmentKind;
       }
     }
   }
@@ -232,17 +236,30 @@ export async function fetchEmailInboxThread(
     const parsed = bodies.get(env.uid);
     const body = parsed?.body ?? env.subject;
     const outbound = parsed?.outbound ?? env.outbound;
+    const attachments = (parsed?.attachmentMeta ?? []).map((a) => ({
+      id: String(a.index),
+      kind: attachmentKindFromMime(a.mimeType),
+      fileName: a.fileName,
+      mimeType: a.mimeType,
+      byteSize: a.byteSize,
+      url: emailAttachmentProxyUrl({
+        restaurantId: params.restaurantId,
+        uid: env.uid,
+        index: a.index,
+      }),
+    }));
     return {
       id: `imap:${env.uid}`,
       restaurant_id: params.restaurantId,
       contact_id: params.contactId,
-      platform: "email",
+      platform: "email" as const,
       direction: outbound ? "outbound" : "inbound",
       body,
       reservation_id: null,
       sent_by: null,
       delivery_status: "delivered",
       created_at: (parsed?.date ?? env.date).toISOString(),
+      attachments: attachments.length > 0 ? attachments : undefined,
     };
   });
 

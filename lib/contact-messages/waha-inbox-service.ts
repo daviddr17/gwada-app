@@ -22,6 +22,11 @@ import {
   mergeReactionsOntoRow,
   parseReactionsFromWahaMessage,
 } from "@/lib/waha/waha-message-reactions";
+import { wahaMediaProxyUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
+import {
+  parseWahaMessageMedia,
+  wahaMessageHasDisplayableMedia,
+} from "@/lib/contact-messages/waha-message-media";
 import {
   wahaGetChatMessages,
   wahaEffectiveUnreadCount,
@@ -157,6 +162,7 @@ export async function fetchWahaInboxConversations(
     last_at: string;
     last_direction: ContactConversationPreview["last_direction"];
     last_is_reaction: boolean;
+    last_attachment_kind?: ContactConversationPreview["last_attachment_kind"];
     message_count: number;
     needsResolve: boolean;
   };
@@ -219,6 +225,9 @@ export async function fetchWahaInboxConversations(
       last_at: lastAt,
       last_direction: last?.fromMe ? "outbound" : "inbound",
       last_is_reaction: preview.isReaction,
+      last_attachment_kind: preview.isReaction
+        ? undefined
+        : preview.attachmentKind,
       message_count: wahaEffectiveUnreadCount(chat),
       needsResolve: needsApiResolve,
     });
@@ -266,6 +275,7 @@ export async function fetchWahaInboxConversations(
       last_at: p.last_at,
       last_direction: p.last_direction,
       last_is_reaction: p.last_is_reaction,
+      last_attachment_kind: p.last_attachment_kind,
       message_count: 0,
       unread_count: p.message_count,
       is_unread: (p.message_count ?? 0) > 0,
@@ -311,6 +321,7 @@ export async function fetchWahaThreadMessages(
     restaurantId: params.restaurantId,
     chatId,
     limit: 100,
+    downloadMedia: true,
   });
   if (!result.ok) {
     return { data: [], error: result.error };
@@ -340,10 +351,12 @@ export async function fetchWahaThreadMessages(
   const rows: ContactMessageRow[] = result.data
     .filter(
       (m) =>
-        !isWahaReactionEventMessage(m) && (m.body ?? "").trim().length > 0,
+        !isWahaReactionEventMessage(m) &&
+        ((m.body ?? "").trim().length > 0 || wahaMessageHasDisplayableMedia(m)),
     )
     .map((m: WahaChatMessage) => {
       const body = (m.body ?? "").trim();
+      const media = parseWahaMessageMedia(m);
       const reactions = mergeReactionsOntoRow(
         m.id,
         parseReactionsFromWahaMessage(m),
@@ -364,6 +377,21 @@ export async function fetchWahaThreadMessages(
         waha_message_id: m.id,
         waha_ack: typeof m.ack === "number" ? m.ack : null,
         reactions,
+        attachments: media
+          ? [
+              {
+                id: "0",
+                kind: media.kind,
+                fileName: media.filename,
+                mimeType: media.mimetype,
+                url: wahaMediaProxyUrl({
+                  restaurantId: params.restaurantId,
+                  chatId,
+                  messageId: m.id,
+                }),
+              },
+            ]
+          : undefined,
       };
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at));

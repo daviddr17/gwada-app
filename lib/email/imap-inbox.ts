@@ -2,6 +2,8 @@ import "server-only";
 
 import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail } from "mailparser";
+import { attachmentsFromParsedMail } from "@/lib/email/imap-message-attachments";
+import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import type { SmtpIntegrationConfig } from "@/lib/integrations/smtp-integration-config";
 import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
@@ -175,21 +177,28 @@ export async function fetchImapRecentEnvelopes(
   return { data: result.data, error: null };
 }
 
+export type ImapThreadBodyEntry = {
+  body: string;
+  subject: string;
+  date: Date;
+  outbound: boolean;
+  attachmentMeta: {
+    index: number;
+    fileName: string;
+    mimeType: string;
+    byteSize: number | null;
+  }[];
+};
+
 export async function fetchImapThreadBodies(
   creds: ImapCredentials,
   uids: number[],
 ): Promise<{
-  bodies: Map<
-    number,
-    { body: string; subject: string; date: Date; outbound: boolean }
-  >;
+  bodies: Map<number, ImapThreadBodyEntry>;
   error: string | null;
 }> {
   const account = creds.email.trim().toLowerCase();
-  const map = new Map<
-    number,
-    { body: string; subject: string; date: Date; outbound: boolean }
-  >();
+  const map = new Map<number, ImapThreadBodyEntry>();
   if (uids.length === 0) return { bodies: map, error: null };
 
   const result = await withImapClient(creds, async (client) => {
@@ -206,12 +215,19 @@ export async function fetchImapThreadBodies(
           extractEmailAddress(parsed.from?.text) ??
           extractEmailAddress(msg.envelope?.from?.[0]?.address) ??
           "";
+        const parsedAttachments = attachmentsFromParsedMail(parsed);
         map.set(msg.uid, {
           body: bodyTextFromParsed(parsed),
           subject:
             parsed.subject?.trim() || msg.envelope?.subject?.trim() || "",
           date: parsed.date ?? msg.envelope?.date ?? new Date(),
           outbound: from === account,
+          attachmentMeta: parsedAttachments.map((a) => ({
+            index: a.index,
+            fileName: a.fileName,
+            mimeType: a.mimeType,
+            byteSize: a.byteSize,
+          })),
         });
       }
     } finally {
@@ -223,12 +239,17 @@ export async function fetchImapThreadBodies(
   return { bodies: map, error: null };
 }
 
+export type ImapMessageSnippetPreview = {
+  snippet: string;
+  attachmentKind?: ContactMessageAttachmentKind;
+};
+
 /** Kurzvorschau für Listen (nur angegebene UIDs, begrenzte Größe). */
 export async function fetchImapMessageSnippets(
   creds: ImapCredentials,
   uids: number[],
-): Promise<Map<number, string>> {
-  const snippets = new Map<number, string>();
+): Promise<Map<number, ImapMessageSnippetPreview>> {
+  const snippets = new Map<number, ImapMessageSnippetPreview>();
   if (uids.length === 0) return snippets;
 
   const result = await withImapClient(creds, async (client) => {
@@ -245,7 +266,18 @@ export async function fetchImapMessageSnippets(
       )) {
         if (!msg.uid || !msg.source) continue;
         const parsed = await simpleParser(msg.source);
-        snippets.set(msg.uid, snippetFromParsed(parsed));
+        const attachments = attachmentsFromParsedMail(parsed);
+        const attachmentKind = attachments.some((a) =>
+          a.mimeType.toLowerCase().startsWith("image/"),
+        )
+          ? "image"
+          : attachments.length > 0
+            ? "file"
+            : undefined;
+        snippets.set(msg.uid, {
+          snippet: snippetFromParsed(parsed),
+          attachmentKind,
+        });
       }
     } finally {
       lock.release();
@@ -279,6 +311,44 @@ export async function imapSetMessagesSeen(
   });
 
   return { error: result.error };
+}
+
+/** Einzelnen Anhang einer Nachricht laden (für Download-Proxy). */
+export async function fetchImapAttachmentContent(
+  creds: ImapCredentials,
+  uid: number,
+  index: number,
+): Promise<{
+  data: { fileName: string; mimeType: string; bytes: Buffer } | null;
+  error: string | null;
+}> {
+  const result = await withImapClient(creds, async (client) => {
+    const lock = await client.getMailboxLock("INBOX");
+    try {
+      for await (const msg of client.fetch(
+        [uid],
+        { uid: true, source: true },
+        { uid: true },
+      )) {
+        if (!msg.uid || !msg.source) return null;
+        const parsed = await simpleParser(msg.source);
+        const attachments = attachmentsFromParsedMail(parsed);
+        const hit = attachments.find((a) => a.index === index);
+        if (!hit) return null;
+        return {
+          fileName: hit.fileName,
+          mimeType: hit.mimeType,
+          bytes: hit.content,
+        };
+      }
+      return null;
+    } finally {
+      lock.release();
+    }
+  });
+
+  if (result.error) return { data: null, error: result.error };
+  return { data: result.data, error: null };
 }
 
 /** Externe Gegenstelle einer Nachricht (nicht das Restaurant-Konto). */

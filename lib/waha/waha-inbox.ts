@@ -65,6 +65,13 @@ export type WahaChatMessage = {
   fromMe?: boolean;
   participant?: string;
   body?: string | null;
+  hasMedia?: boolean;
+  media?: {
+    url?: string | null;
+    mimetype?: string | null;
+    filename?: string | null;
+  } | null;
+  type?: string;
   ack?: number;
   ackName?: string;
   /** Reaction-Event: Zielnachricht + Emoji (leer = entfernt). */
@@ -101,13 +108,15 @@ export async function wahaGetChatMessages(params: {
   restaurantId: string;
   chatId: string;
   limit?: number;
+  downloadMedia?: boolean;
 }): Promise<WahaFetchJson<WahaChatMessage[]>> {
   const session = wahaSessionNameForRestaurant(params.restaurantId);
   const limit = params.limit ?? 80;
+  const downloadMedia = params.downloadMedia === true;
   const chatId = encodeURIComponent(params.chatId);
   const result = await wahaJsonGet<WahaChatMessage[] | { messages?: WahaChatMessage[] }>(
     params.config,
-    `/api/${encodeURIComponent(session)}/chats/${chatId}/messages?limit=${limit}&downloadMedia=false`,
+    `/api/${encodeURIComponent(session)}/chats/${chatId}/messages?limit=${limit}&downloadMedia=${downloadMedia}`,
   );
   if (!result.ok) return result;
   const raw = result.data;

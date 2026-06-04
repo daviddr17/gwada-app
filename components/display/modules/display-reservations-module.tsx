@@ -41,6 +41,7 @@ import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import type { DayHours, DateHoursException, Weekday } from "@/lib/types/restaurant";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT } from "@/lib/display/display-reservations-live-events";
 
 type ReservationStatus = {
   id: string;
@@ -175,11 +176,38 @@ export function DisplayReservationsModule() {
     lastSlotsKeyRef.current = "";
   }, [selectedDayYmd]);
 
+  const loadInFlightRef = useRef(false);
+  const lastSilentLoadAtRef = useRef(0);
+  const SILENT_LOAD_GAP_MS = 2_000;
+
+  const loadFromLive = useCallback(() => {
+    const now = Date.now();
+    if (
+      loadInFlightRef.current ||
+      now - lastSilentLoadAtRef.current < SILENT_LOAD_GAP_MS
+    ) {
+      return;
+    }
+    loadInFlightRef.current = true;
+    lastSilentLoadAtRef.current = now;
+    void load({ silent: true }).finally(() => {
+      loadInFlightRef.current = false;
+    });
+  }, [load]);
+
   useEffect(() => {
     void load();
-    const id = setInterval(() => void load({ silent: true }), 60_000);
-    return () => clearInterval(id);
-  }, [load]);
+    window.addEventListener(
+      GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
+      loadFromLive,
+    );
+    return () => {
+      window.removeEventListener(
+        GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
+        loadFromLive,
+      );
+    };
+  }, [load, loadFromLive]);
 
   const reservations = payload?.reservations ?? [];
   const statuses = payload?.statuses ?? [];

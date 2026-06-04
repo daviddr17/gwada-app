@@ -37,7 +37,6 @@ export function useVisibleIntervalPolling(intervalMs: number) {
     const onVisibility = () => {
       if (!activeRef.current || !tickRef.current) return;
       if (document.visibilityState === "visible") {
-        void tickRef.current();
         if (!timerRef.current) {
           timerRef.current = setInterval(() => {
             if (document.visibilityState === "visible") void tickRef.current?.();

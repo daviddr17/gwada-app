@@ -145,7 +145,7 @@ export function DashboardWeatherAmbience({
   return (
     <div
       className={cn(
-        "pointer-events-none absolute inset-0 overflow-hidden rounded-xl",
+        "pointer-events-none absolute inset-0 overflow-hidden",
         className,
       )}
       aria-hidden

@@ -18,7 +18,7 @@ import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 export function DashboardStaffTile() {
   const { summary, staff, presence, loading, error, ready } =
     useDashboardStaffStats();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const active = summary?.activeStaff ?? 0;

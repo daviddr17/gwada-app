@@ -11,7 +11,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
 export function DashboardContactsTile() {
   const { summary, loading, error, ready } = useDashboardContactsStats();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
 
   return (
     <DashboardWidgetShell

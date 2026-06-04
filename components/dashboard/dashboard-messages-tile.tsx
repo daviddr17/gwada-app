@@ -34,7 +34,7 @@ function formatMessageWhen(iso: string): string {
 
 export function DashboardMessagesTile() {
   const { summary, loading, error, ready } = useDashboardMessagesStats();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const total = summary?.total_unread ?? 0;
 
   return (

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 
 export function DashboardIntegrationsTile() {
   const { summary, loading, error, ready } = useDashboardIntegrationsSummary();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
 
   const total = summary?.totalCount ?? 0;
   const connected = summary?.connectedCount ?? 0;

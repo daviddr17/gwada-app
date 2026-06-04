@@ -42,7 +42,7 @@ function StarsCompact({ rating }: { rating: number }) {
 
 export function DashboardReviewsTile() {
   const { summary, loading, error, ready } = useDashboardReviewsStats();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
 
   return (
     <DashboardWidgetShell

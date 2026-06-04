@@ -25,7 +25,7 @@ function formatReservationWhen(iso: string): string {
 
 export function DashboardReservationsTile() {
   const { summary, loading, error, ready } = useDashboardReservationStats();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const unconfirmed = summary?.unconfirmedCount ?? 0;
 
   return (

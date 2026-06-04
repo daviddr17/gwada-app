@@ -1,21 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { DashboardIntegrationsSummary } from "@/lib/dashboard/dashboard-integration-channels";
 import {
   GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
   useDashboardHasDataRef,
 } from "@/lib/dashboard/dashboard-widget-refresh";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
-export function useDashboardIntegrationsSummary() {
-  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+export function useDashboardSummaryQuery<T>(options: {
+  restaurantId: string | null;
+  workspaceReady: boolean;
+  fetch: (
+    restaurantId: string,
+  ) => Promise<{ data: T | null; error: string | null }>;
+  /** Realtime o. Ä. — stilles Nachladen. */
+  extraRefreshEvents?: string[];
+}) {
+  const { restaurantId, workspaceReady, fetch, extraRefreshEvents = [] } =
+    options;
   const hasDataRef = useDashboardHasDataRef();
-  const [summary, setSummary] = useState<DashboardIntegrationsSummary | null>(
-    null,
-  );
+  const [summary, setSummary] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,39 +32,21 @@ export function useDashboardIntegrationsSummary() {
       if (!silent && initial) setLoading(true);
       if (!silent) setError(null);
 
-      try {
-        const res = await fetch(
-          `/api/dashboard/integrations?${new URLSearchParams({ restaurantId })}`,
-          { cache: "no-store", credentials: "include" },
-        );
-        const body = (await res.json()) as {
-          data?: DashboardIntegrationsSummary;
-          error?: string;
-        };
+      const { data, error: err } = await fetch(restaurantId);
 
-        if (!res.ok) {
-          if (!hasDataRef.current) {
-            setSummary(null);
-            setError(body.error ?? `http_${res.status}`);
-          }
-          if (!silent && initial) setLoading(false);
-          return;
-        }
-
-        setSummary(
-          body.data ?? { items: [], connectedCount: 0, totalCount: 0 },
-        );
-        hasDataRef.current = true;
-        if (!silent && initial) setLoading(false);
-      } catch {
+      if (err) {
         if (!hasDataRef.current) {
           setSummary(null);
-          setError("network_error");
+          setError(err);
         }
-        if (!silent && initial) setLoading(false);
+      } else {
+        setSummary(data);
+        hasDataRef.current = data != null;
       }
+
+      if (!silent && initial) setLoading(false);
     },
-    [restaurantId, hasDataRef],
+    [restaurantId, fetch, hasDataRef],
   );
 
   useEffect(() => {
@@ -71,13 +58,20 @@ export function useDashboardIntegrationsSummary() {
       return;
     }
 
+    let cancel = false;
     hasDataRef.current = false;
-    void run(false);
 
-    const onPoll = () => void run(true);
+    const load = async (silent: boolean) => {
+      if (cancel) return;
+      await run(silent);
+    };
+
+    void load(false);
+
+    const onPoll = () => void load(true);
     const onRestaurantChange = () => {
       hasDataRef.current = false;
-      void run(false);
+      void load(false);
     };
 
     window.addEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
@@ -85,22 +79,27 @@ export function useDashboardIntegrationsSummary() {
       GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
       onRestaurantChange,
     );
+    for (const ev of extraRefreshEvents) {
+      window.addEventListener(ev, onPoll);
+    }
 
     return () => {
+      cancel = true;
       window.removeEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
       window.removeEventListener(
         GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
         onRestaurantChange,
       );
+      for (const ev of extraRefreshEvents) {
+        window.removeEventListener(ev, onPoll);
+      }
     };
-  }, [restaurantId, run, hasDataRef]);
+  }, [restaurantId, run, extraRefreshEvents, hasDataRef]);
 
   return {
     summary,
     loading,
     error,
-    ready:
-      workspaceReady &&
-      Boolean(restaurantId && isUuidRestaurantId(restaurantId)),
+    ready: workspaceReady && Boolean(restaurantId && isUuidRestaurantId(restaurantId)),
   };
 }

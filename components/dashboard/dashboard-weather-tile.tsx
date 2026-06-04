@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CloudSun } from "lucide-react";
 import {
   DashboardCompactInlineMetrics,
@@ -14,6 +14,7 @@ import {
 } from "@/lib/weather/visual-crossing-location";
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types";
 import { DashboardWeatherAmbience } from "@/components/dashboard/dashboard-weather-ambience";
+import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { resolveWeatherAmbienceKind } from "@/lib/weather/weather-ambience-kind";
 
@@ -64,11 +65,13 @@ export function DashboardWeatherTile() {
   const [data, setData] = useState<VisualCrossingTimelineResponse | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const hasDataRef = useRef(false);
 
-  const load = useCallback(async (loc: string) => {
-    setLoading(true);
-    setErr(null);
-    setData(null);
+  const load = useCallback(async (loc: string, silent = false) => {
+    const initial = !hasDataRef.current;
+    if (!silent && initial) setLoading(true);
+    if (!silent) setErr(null);
+    if (!silent) setData(null);
     try {
       const u = new URL("/api/weather", window.location.origin);
       u.searchParams.set("location", loc);
@@ -79,33 +82,47 @@ export function DashboardWeatherTile() {
 
       if (!res.ok) {
         const code = "error" in json ? json.error : undefined;
-        if (code === "missing_api_key") {
-          setErr(
-            "Visual-Crossing-API-Key fehlt (Superadmin → Integrationen).",
-          );
-        } else {
-          setErr("Wetterdaten konnten nicht geladen werden.");
+        if (!hasDataRef.current) {
+          if (code === "missing_api_key") {
+            setErr(
+              "Visual-Crossing-API-Key fehlt (Superadmin → Integrationen).",
+            );
+          } else {
+            setErr("Wetterdaten konnten nicht geladen werden.");
+          }
         }
         return;
       }
 
       setData(json as VisualCrossingTimelineResponse);
+      hasDataRef.current = true;
     } catch {
-      setErr("Wetterdaten konnten nicht geladen werden.");
+      if (!hasDataRef.current) {
+        setErr("Wetterdaten konnten nicht geladen werden.");
+      }
     } finally {
-      setLoading(false);
+      if (!silent && initial) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     if (!profileReady) return;
-    void load(location);
+    hasDataRef.current = false;
+    void load(location, false);
+  }, [profileReady, location, load]);
+
+  useEffect(() => {
+    if (!profileReady) return;
+    const onPoll = () => void load(location, true);
+    window.addEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
+    return () =>
+      window.removeEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
   }, [profileReady, location, load]);
 
   const today = data?.days?.[0];
   const cur = data?.currentConditions;
   const showSkeleton = useDeferredSkeleton(
-    profileReady && (loading || (!data && !err)),
+    profileReady && loading && !data && !err,
   );
 
   const ambienceKind = useMemo(
@@ -134,16 +151,17 @@ export function DashboardWeatherTile() {
           aria-hidden
         />
       }
-      href="/settings/restaurant"
-      linkLabel="Restaurant-Stammdaten"
       ready={profileReady}
       loading={showSkeleton}
       error={err}
+      background={
+        cur ? (
+          <DashboardWeatherAmbience kind={ambienceKind} className="rounded-none" />
+        ) : undefined
+      }
     >
       {cur ? (
-        <div className="relative overflow-hidden rounded-xl">
-          <DashboardWeatherAmbience kind={ambienceKind} />
-          <div className="relative z-10 space-y-2 p-3">
+        <div className="space-y-2">
           <p className="truncate text-xs text-muted-foreground">
             {cur.conditions ?? "—"}
             {locationHint ? ` · ${locationHint}` : null}
@@ -184,7 +202,6 @@ export function DashboardWeatherTile() {
               />
             )}
           </DashboardCompactInlineMetrics>
-          </div>
         </div>
       ) : !err ? (
         <p className="text-xs text-muted-foreground">

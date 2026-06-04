@@ -5,6 +5,10 @@ import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-i
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
 import { fetchEmailInboxConversations } from "@/lib/contact-messages/email-inbox-service";
 import { fetchWahaInboxConversations } from "@/lib/contact-messages/waha-inbox-service";
+import {
+  fetchMessageAttachmentsForRestaurant,
+  groupAttachmentsByMessageId,
+} from "@/lib/contact-messages/fetch-message-attachments";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
@@ -20,6 +24,7 @@ async function fetchGwadaConversationsAdmin(
     .from("contact_messages")
     .select(
       `
+      id,
       contact_id,
       platform,
       direction,
@@ -28,19 +33,29 @@ async function fetchGwadaConversationsAdmin(
       reservation_id,
       external_source_id,
       waha_message_id,
-      contacts ( first_name, last_name ),
-      contact_message_attachments ( kind )
+      contacts ( first_name, last_name )
     `,
     )
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false });
 
+  const rawRows = (messages ?? []) as Record<string, unknown>[];
+  const { data: attachmentRows } = await fetchMessageAttachmentsForRestaurant(
+    admin,
+    {
+      restaurantId,
+      messageIds: rawRows.map((r) => r.id as string),
+    },
+  );
+  const attachmentsByMessage = groupAttachmentsByMessageId(attachmentRows);
+
   const previews = new Map<string, ContactConversationPreview>();
   const inboundAfter = new Map<string, number>();
   const lastInboundByContact = new Map<string, ContactMessagePlatform>();
 
-  for (const raw of messages ?? []) {
+  for (const raw of rawRows) {
     const row = raw as Record<string, unknown>;
+    const messageId = row.id as string;
     const contactId = row.contact_id as string;
     const createdAt = row.created_at as string;
     const direction = row.direction as ContactConversationPreview["last_direction"];
@@ -76,10 +91,9 @@ async function fetchGwadaConversationsAdmin(
       : (contactRaw as { first_name: string; last_name: string } | null);
     if (!contact) continue;
 
-    const attRaw = row.contact_message_attachments;
-    const attKinds: ContactMessageAttachmentKind[] = Array.isArray(attRaw)
-      ? attRaw.map((a) => (a as { kind: ContactMessageAttachmentKind }).kind)
-      : [];
+    const attKinds: ContactMessageAttachmentKind[] = (
+      attachmentsByMessage.get(messageId) ?? []
+    ).map((a) => (a.kind === "image" ? "image" : "file"));
 
     previews.set(contactId, {
       contact_id: contactId,

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -21,6 +22,7 @@ export function DashboardWidgetShell({
   href,
   linkLabel = "Öffnen",
   variant = "compact",
+  background,
   ready,
   loading,
   error,
@@ -29,9 +31,12 @@ export function DashboardWidgetShell({
   title: string;
   description?: string;
   icon?: ReactNode;
-  href: string;
+  /** Fehlt = reine Anzeige, kein Navigations-Pfeil. */
+  href?: string;
   linkLabel?: string;
   variant?: "default" | "compact";
+  /** Hintergrund über die gesamte Karte (z. B. Wetter-Ambience). */
+  background?: ReactNode;
   ready: boolean;
   loading: boolean;
   error: string | null;
@@ -51,14 +56,23 @@ export function DashboardWidgetShell({
     );
   }
 
+  const layered = Boolean(background);
+
   return (
-    <Card className="min-w-0 border-border/50 shadow-card">
+    <Card
+      className={cn(
+        "min-w-0 border-border/50 shadow-card",
+        layered && "relative overflow-hidden",
+      )}
+    >
+      {background}
       <CardHeader
-        className={
+        className={cn(
           isCompact
             ? "flex flex-row items-center justify-between gap-2 space-y-0 px-4 py-3"
-            : "flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0"
-        }
+            : "flex flex-col gap-3 pb-2 sm:flex-row sm:items-start sm:justify-between sm:space-y-0",
+          layered && "relative z-10",
+        )}
       >
         <div className={isCompact ? "min-w-0" : "space-y-1"}>
           <CardTitle
@@ -75,28 +89,32 @@ export function DashboardWidgetShell({
             <CardDescription>{description}</CardDescription>
           ) : null}
         </div>
-        <Button
-          variant="ghost"
-          size={isCompact ? "icon-sm" : "sm"}
-          className={
-            isCompact
-              ? "size-8 shrink-0 rounded-lg text-muted-foreground"
-              : "h-9 shrink-0 gap-1 rounded-xl"
-          }
-          aria-label={linkLabel}
-          render={<Link href={href} prefetch />}
-        >
-          {isCompact ? (
-            <ChevronRight className="size-4" aria-hidden />
-          ) : (
-            <>
-              {linkLabel}
+        {href ? (
+          <Button
+            variant="ghost"
+            size={isCompact ? "icon-sm" : "sm"}
+            className={
+              isCompact
+                ? "size-8 shrink-0 rounded-lg text-muted-foreground"
+                : "h-9 shrink-0 gap-1 rounded-xl"
+            }
+            aria-label={linkLabel}
+            render={<Link href={href} prefetch />}
+          >
+            {isCompact ? (
               <ChevronRight className="size-4" aria-hidden />
-            </>
-          )}
-        </Button>
+            ) : (
+              <>
+                {linkLabel}
+                <ChevronRight className="size-4" aria-hidden />
+              </>
+            )}
+          </Button>
+        ) : null}
       </CardHeader>
-      <CardContent className={isCompact ? "px-4 pb-4 pt-0" : "pt-0"}>
+      <CardContent
+        className={cn(isCompact ? "px-4 pb-4 pt-0" : "pt-0", layered && "relative z-10")}
+      >
         {error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
         ) : loading ? (

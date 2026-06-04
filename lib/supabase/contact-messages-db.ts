@@ -7,6 +7,11 @@ import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-p
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
+import {
+  fetchMessageAttachmentsForRestaurant,
+  groupAttachmentsByMessageId,
+  type RawMessageAttachmentRow,
+} from "@/lib/contact-messages/fetch-message-attachments";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import type {
   ContactMessageAttachment,
@@ -77,29 +82,13 @@ const MESSAGE_SELECT = `
   delivery_status,
   created_at,
   send_batch_id,
-  external_source_id,
-  contact_message_attachments (
-    id,
-    kind,
-    file_name,
-    mime_type,
-    byte_size
-  )
+  external_source_id
 `;
 
-type MessageAttachmentDbRow = {
-  id: string;
-  kind: string;
-  file_name: string;
-  mime_type: string;
-  byte_size: number | null;
-};
-
-function mapMessageRow(raw: Record<string, unknown>): ContactMessageRow {
-  const nested = raw.contact_message_attachments;
-  const attachmentRows = Array.isArray(nested)
-    ? (nested as MessageAttachmentDbRow[])
-    : [];
+function mapMessageRow(
+  raw: Record<string, unknown>,
+  attachmentRows: RawMessageAttachmentRow[] = [],
+): ContactMessageRow {
   const restaurantId = raw.restaurant_id as string;
   const messageId = raw.id as string;
   const attachments: ContactMessageAttachment[] = attachmentRows.map((a) => ({
@@ -115,11 +104,30 @@ function mapMessageRow(raw: Record<string, unknown>): ContactMessageRow {
     }),
   }));
 
-  const { contact_message_attachments: _drop, ...rest } = raw;
   return {
-    ...(rest as ContactMessageRow),
+    ...(raw as ContactMessageRow),
     attachments: attachments.length > 0 ? attachments : undefined,
   };
+}
+
+async function enrichMessageRowsWithAttachments(
+  sb: ReturnType<typeof createSupabaseBrowserClient>,
+  restaurantId: string,
+  rows: Record<string, unknown>[],
+): Promise<ContactMessageRow[]> {
+  if (rows.length === 0) return [];
+  const messageIds = rows.map((r) => r.id as string);
+  const { data: attachmentRows, error: attErr } =
+    await fetchMessageAttachmentsForRestaurant(sb, {
+      restaurantId,
+      messageIds,
+    });
+  const byMessage = attErr
+    ? new Map<string, RawMessageAttachmentRow[]>()
+    : groupAttachmentsByMessageId(attachmentRows);
+  return rows.map((row) =>
+    mapMessageRow(row, byMessage.get(row.id as string) ?? []),
+  );
 }
 
 export async function fetchContactMessages(params: {
@@ -147,12 +155,12 @@ export async function fetchContactMessages(params: {
 
   const { data, error } = await q;
   if (error) return { data: [], error: new Error(error.message) };
-  return {
-    data: (data ?? []).map((row) =>
-      mapMessageRow(row as Record<string, unknown>),
-    ),
-    error: null,
-  };
+  const enriched = await enrichMessageRowsWithAttachments(
+    sb,
+    params.restaurantId,
+    (data ?? []) as Record<string, unknown>[],
+  );
+  return { data: enriched, error: null };
 }
 
 export async function fetchReservationContactMessages(params: {
@@ -174,12 +182,12 @@ export async function fetchReservationContactMessages(params: {
     .order("created_at", { ascending: true });
 
   if (error) return { data: [], error: new Error(error.message) };
-  return {
-    data: (data ?? []).map((row) =>
-      mapMessageRow(row as Record<string, unknown>),
-    ),
-    error: null,
-  };
+  const enriched = await enrichMessageRowsWithAttachments(
+    sb,
+    params.restaurantId,
+    (data ?? []) as Record<string, unknown>[],
+  );
+  return { data: enriched, error: null };
 }
 
 export async function fetchContactMessageCountsByContact(
@@ -233,12 +241,22 @@ export async function fetchContactConversations(params: {
 
   if (msgErr) return { data: [], error: new Error(msgErr.message) };
 
+  const rawRows = (messages ?? []) as Record<string, unknown>[];
+  const { data: attachmentRows, error: attErr } =
+    await fetchMessageAttachmentsForRestaurant(sb, {
+      restaurantId: params.restaurantId,
+      messageIds: rawRows.map((r) => r.id as string),
+    });
+  const attachmentsByMessage = attErr
+    ? new Map<string, RawMessageAttachmentRow[]>()
+    : groupAttachmentsByMessageId(attachmentRows);
+
   const countByContact = new Map<string, number>();
   const hasReservationByContact = new Map<string, boolean>();
   const previews = new Map<string, ContactConversationPreview>();
   const lastInboundByContact = new Map<string, ContactMessagePlatform>();
 
-  for (const raw of messages ?? []) {
+  for (const raw of rawRows) {
     const row = raw as Record<string, unknown>;
     const contactId = row.contact_id as string;
     countByContact.set(contactId, (countByContact.get(contactId) ?? 0) + 1);
@@ -246,7 +264,10 @@ export async function fetchContactConversations(params: {
       hasReservationByContact.set(contactId, true);
     }
 
-    const mapped = mapMessageRow(row);
+    const mapped = mapMessageRow(
+      row,
+      attachmentsByMessage.get(row.id as string) ?? [],
+    );
     const msgPlatform = messageDisplayPlatform(mapped);
     if (
       mapped.direction === "inbound" &&

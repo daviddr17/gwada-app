@@ -34,14 +34,14 @@ npm run deploy:live:full
   (Passwort **nur lokal einmal** eingeben — nie ins Repo schreiben.)
 - Alternativ: manueller Tunnel (`npm run db:tunnel:live`) + `npm run db:push:live`.
 
-## 2. App (Git → Coolify)
+## 2. App (Git → GitHub Action)
 
-Wie `git-deploy-on-request.mdc`: `git status` / `diff` / `log`, Commit (keine `.env*`), Push nach **`main`**.
+Wie `git-deploy-on-request.mdc` und `live-app-deploy.mdc`: Commit, Push **`main`**, Live-App über **`deploy-live-app.yml`** oder `npm run deploy:app:live`.
 
 ## 3. Kurz bestätigen
 
-- Welche Migrationen liefen (oder dry-run)
+- Welche Migrationen liefen (oder warum nicht)
 - Commit-Hash + Branch
-- Coolify baut aus GitHub; Env-Vars liegen in Coolify
+- **`/api/build-info`**-SHA vs. Commit (nicht „Coolify-Deploy“)
 
 **Nie** ohne ausdrückliche Anfrage deployen.

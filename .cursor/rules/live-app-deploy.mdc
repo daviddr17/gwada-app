@@ -1,0 +1,38 @@
+---
+description: Live-App einheitlich über GitHub Action oder deploy:app:live — nicht Coolify-Auto-Deploy.
+alwaysApply: true
+---
+
+# Live-App deployen (einheitlich)
+
+**Autoritativer Weg** für `new.gwada.app` — Details: `docs/coolify-live-deploy.md`.
+
+| Schritt | Was |
+|--------|-----|
+| **1. Code** | Commit → `git push origin main` |
+| **2. App auf VPS** | Automatisch: GitHub Action **`deploy-live-app.yml`** (Push auf `main`). Manuell: `npm run deploy:app:live` |
+| **3. Prüfen** | `curl -s https://new.gwada.app/api/build-info` — Feld `sha` = kurzer Commit-Hash von `main` |
+| **4. Schema (nur bei DB-Änderungen)** | `npm run deploy:live` (Tunnel + Migrationen, kein Daten-Copy) |
+
+## Coolify
+
+- **Kein** App-Deploy über Coolify-Git-Webhook / Nixpacks-Queue.
+- Coolify = nur **Infrastruktur** auf dem VPS (Domain, TLS, Env, Compose-Pfad). Deploy-Script tauscht Image im bestehenden Compose.
+- **Nicht** vor jedem Push Coolify-Deployment-Queue prüfen oder „Coolify baut“ melden.
+- Coolify-API/Status nur erwähnen, wenn der Nutzer **explizit** Coolify/UI/Infra debuggt.
+
+## Vor erneutem manuellem App-Deploy (optional)
+
+Wenn gerade ein Deploy laufen könnte:
+
+- `gh run list --workflow=deploy-live-app.yml --limit 1` (falls `gh` verfügbar), oder
+- `/api/build-info` — noch alter `sha` → Action läuft noch oder Secrets/SSH fehlen.
+
+Parallele Pushes auf `main`: Action nutzt `concurrency` (`cancel-in-progress`) — kein Coolify-Queue-Stau.
+
+## Agent-Antwort nach Live-Push (Kurz)
+
+- Commit + Branch
+- `build-info`-SHA (Ziel vs. aktuell)
+- GitHub Action: Link/Status **oder** Hinweis `npm run deploy:app:live` wenn Secrets/SSH fehlen
+- Migrationen: nur wenn `deploy:live` (o. Ä.) lief — nicht „Coolify finished“

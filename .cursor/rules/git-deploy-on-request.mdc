@@ -1,5 +1,5 @@
 ---
-description: Auf ausdrückliche Anfrage alle Änderungen committen und nach GitHub pushen (Coolify-Deploy).
+description: Auf ausdrückliche Anfrage committen und nach GitHub pushen (Live-App via GitHub Action).
 alwaysApply: true
 ---
 
@@ -9,15 +9,18 @@ Wenn der Nutzer ausdrücklich will, dass Änderungen **live gehen**, **auf Git d
 
 **Vollständiges Live-Deploy:** zuerst `live-deploy-on-request.mdc` (DB + Git). Nur Code ohne DB: unten ab Schritt 2.
 
-**Vor jedem Push:** `coolify-wait-before-push.mdc` — Coolify-Deploy-Status auf dem VPS prüfen; **nicht pushen**, solange ein Build `in_progress` / `queued` ist oder `docker build` für die App läuft.
+**App-Deploy-Modell:** `live-app-deploy.mdc` — Push auf `main` → **GitHub Action** `deploy-live-app.yml`; Verifikation über **`/api/build-info`**. Kein Coolify-Auto-Deploy.
 
 1. **Nur dann** committen und pushen — nie proaktiv ohne diese Anfrage.
 2. Parallel ausführen: `git status`, `git diff` (staged + unstaged), `git log -1 --oneline`, prüfen ob Branch mit `origin` synchron ist.
-3. **Branch:** Standard **`main`** (Coolify deployt typischerweise `main`). Wenn der Nutzer einen anderen Branch nennt, diesen verwenden.
+3. **Branch:** Standard **`main`** (löst Live-Action aus). Anderer Branch nur, wenn der Nutzer ihn nennt.
 4. **Nicht committen:** `.env.local`, `.env.production`, Secrets, Credentials. Warnen, falls gewünscht.
 5. Sinnvolle Commit-Message (1–2 Sätze, „why“), via HEREDOC.
 6. `git add` für alle relevanten Änderungen → `git commit` → `git push -u origin <branch>` (Netzwerk/`git_write` nötig).
-7. Nach Erfolg kurz bestätigen: Branch, Commit-Hash, **`curl https://new.gwada.app/api/build-info`** (sha = Commit), dass **GitHub Action** oder **`npm run deploy:app:live`** den Container getauscht hat (Coolify „finished“ allein reicht nicht — siehe `docs/coolify-live-deploy.md`).
+7. Nach Erfolg kurz bestätigen (siehe `live-app-deploy.mdc`):
+   - Branch + Commit-Hash
+   - `curl https://new.gwada.app/api/build-info` — `sha` soll Commit entsprechen (Action kann Minuten brauchen)
+   - Optional: `gh run list --workflow=deploy-live-app.yml --limit 1` oder Hinweis auf `npm run deploy:app:live` bei fehlenden Secrets
 8. Bei Push-Fehlern (Auth, Reject): Fehler melden, Nutzer um Login/Token bitten — nicht force-pushen.
 
 Trigger-Beispiele: „jetzt live“, „alles auf git deployen“, „push to github“, „deployen“.

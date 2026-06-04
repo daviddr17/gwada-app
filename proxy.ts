@@ -5,6 +5,8 @@ import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
+import { isPublicRestaurantProfilePath } from "@/lib/restaurant/reserved-restaurant-slugs";
+import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
 
 function isAuthEntryPath(pathname: string): boolean {
   if (pathname === "/") return true;
@@ -30,6 +32,7 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/bewertung/")) return true;
   if (pathname.startsWith("/nachrichten/")) return true;
   if (pathname.startsWith("/sb")) return true;
+  if (isPublicRestaurantProfilePath(pathname)) return true;
   return false;
 }
 
@@ -64,7 +67,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/display/") ||
     pathname.startsWith("/einladung/") ||
     pathname.startsWith("/bewertung/") ||
-    pathname.startsWith("/nachrichten/")
+    pathname.startsWith("/nachrichten/") ||
+    isPublicRestaurantProfilePath(pathname)
   ) {
     return response;
   }
@@ -99,6 +103,13 @@ export async function proxy(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname + search);
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (isSuperadminAppPath(pathname)) {
+    const { data: isSuper, error } = await supabase.rpc("auth_is_superadmin");
+    if (error || !isSuper) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
   }
 
   return response;

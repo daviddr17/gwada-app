@@ -256,7 +256,7 @@ export function ContactMessageComposer({
   return (
     <div
       className={cn(
-        "space-y-2",
+        "min-w-0 space-y-2 overflow-x-hidden",
         !stickyFooter && "border-t border-border/50 pt-3",
       )}
     >
@@ -476,7 +476,9 @@ export function ContactMessageComposer({
         <p className="text-[10px] text-muted-foreground">
           {isGwadaOnly
             ? "Die Nachricht wird in Gwada gespeichert. Über die Schalter wird der vollständige Text zusätzlich per WhatsApp oder E-Mail versendet."
-            : "In Gwada wird die Nachricht immer gespeichert. Externe Kanäle hängen bei Reservierungen den Reservierungsblock an."}
+            : isInboxReply
+              ? "Antwort nur über die gewählten Kanäle."
+              : "In Gwada wird die Nachricht immer gespeichert. Optional zusätzlich per WhatsApp oder E-Mail — mit Reservierungskontext."}
         </p>
       </div>
       ) : null}

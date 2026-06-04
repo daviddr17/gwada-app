@@ -17,6 +17,7 @@ import {
   RESTAURANT_SLUG_TAKEN_MESSAGE,
   restaurantSlugFromName,
 } from "@/lib/restaurant/restaurant-slug";
+import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { isRestaurantSlugAvailable } from "@/lib/supabase/restaurant-stammdaten-db";
 import { seedRestaurantDefaultPositions } from "@/lib/supabase/restaurant-positions-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -32,6 +33,11 @@ async function pickUniqueRestaurantSlug(
   let candidate = baseSlug;
   let n = 2;
   for (let attempt = 0; attempt < 40; attempt += 1) {
+    if (isReservedRestaurantSlug(candidate)) {
+      candidate = `${baseSlug}-${n}`;
+      n += 1;
+      continue;
+    }
     const { available, error } = await isRestaurantSlugAvailable(sb, candidate);
     if (error) {
       console.warn("[gwada] pickUniqueRestaurantSlug", error);
@@ -99,7 +105,7 @@ export function NewRestaurantDrawer({
           owner_profile_id: user.id,
           timezone: "Europe/Berlin",
           country: "DE",
-          is_published: false,
+          is_published: true,
         })
         .select("id")
         .single();

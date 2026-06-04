@@ -1,3 +1,5 @@
+import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
+
 /** URL-safe slug for `restaurants.slug` (lowercase, hyphens, max length). */
 export function restaurantSlugFromName(name: string): string {
   const raw = name
@@ -25,6 +27,9 @@ export function validateRestaurantSlugInput(input: string): string | null {
   }
   if (slug === "restaurant") {
     return "Bitte einen spezifischeren Nickname wählen.";
+  }
+  if (isReservedRestaurantSlug(slug)) {
+    return "Dieser Nickname ist reserviert. Bitte einen anderen wählen.";
   }
   return null;
 }

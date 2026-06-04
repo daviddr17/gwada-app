@@ -59,15 +59,11 @@ export function ReservationMessagesPanel({
     body,
     sendWhatsapp,
     sendEmail,
-    notifyWhatsapp,
-    notifyEmail,
     files,
   }: {
     body: string;
     sendWhatsapp: boolean;
     sendEmail: boolean;
-    notifyWhatsapp?: boolean;
-    notifyEmail?: boolean;
     files?: File[];
   }) => {
     if (!contactId) {
@@ -90,8 +86,6 @@ export function ReservationMessagesPanel({
       reservationId,
       restaurantName,
       files,
-      notifyWhatsapp,
-      notifyEmail,
     });
     setSending(false);
 
@@ -104,7 +98,7 @@ export function ReservationMessagesPanel({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
+    <div className="min-w-0 space-y-3 overflow-x-hidden rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Nachrichten zur Reservierung
       </p>
@@ -112,7 +106,7 @@ export function ReservationMessagesPanel({
         messages={messages}
         loading={loading}
         threadKey={reservationId}
-        className="max-h-[min(28dvh,220px)]"
+        className="max-h-[min(28dvh,220px)] overflow-x-hidden overscroll-x-none"
       />
       {contactId ? (
         <ContactMessageComposer
@@ -124,7 +118,6 @@ export function ReservationMessagesPanel({
           emailEnabled={emailEnabled && emailConnected}
           defaultSendWhatsapp={defaultSendWhatsapp}
           defaultSendEmail={defaultSendEmail}
-          showGuestNotify
           onSend={handleSend}
           placeholder="Antwort an den Gast …"
         />

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingHero } from "@/components/landing/landing-hero";
-import { ModeToggle } from "@/components/theme/mode-toggle";
+import { PublicThemeToggleSlot } from "@/components/public/public-theme-toggle-slot";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 
@@ -74,11 +74,7 @@ export function LandingPage() {
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground antialiased">
-      <div className="pointer-events-none fixed right-5 top-5 z-[60] flex gap-2 md:right-8 md:top-8">
-        <div className="pointer-events-auto">
-          <ModeToggle />
-        </div>
-      </div>
+      <PublicThemeToggleSlot />
 
       <main>
         <LandingHero mouse={mouse} onScrollToSection={navigateToSection} />

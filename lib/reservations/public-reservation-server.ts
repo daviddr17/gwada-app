@@ -54,7 +54,7 @@ function timeToHHmm(t: string | null | undefined): string | undefined {
   return `${m[1]!.padStart(2, "0")}:${m[2]}`;
 }
 
-async function loadOpeningHoursAdmin(
+export async function loadOpeningHoursAdmin(
   admin: SupabaseClient,
   restaurantId: string,
 ): Promise<{

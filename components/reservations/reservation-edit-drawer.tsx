@@ -595,7 +595,7 @@ export function ReservationEditDrawer({
   const fieldClass =
     "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
 
-  const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
+  const drawerTwoColClass = "grid gap-3 sm:grid-cols-2 [&>*]:min-w-0";
 
   const canSave = isEdit || isCreate;
 
@@ -606,11 +606,12 @@ export function ReservationEditDrawer({
       onOpenChange={handleDrawerOpenChange}
       direction="bottom"
       repositionInputs={false}
+      handleOnly
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className="mx-auto flex h-[min(92dvh,720px)] max-h-[min(92dvh,720px)] min-h-0 w-full max-w-[100dvw] flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated md:max-w-lg"
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
+        <DrawerHeader className="min-w-0 shrink-0 overflow-x-hidden px-6 pt-2 pb-2">
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 text-left">
               <DrawerTitle className="text-xl font-semibold tracking-tight">
@@ -659,7 +660,10 @@ export function ReservationEditDrawer({
 
         {open ? (
           <>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+            <div
+              data-vaul-no-drag
+              className="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain touch-pan-y px-6 pb-4"
+            >
               {isEdit && reservation ? (
                 <ReservationChangeRequestPanel
                   reservation={reservation}
@@ -974,7 +978,10 @@ export function ReservationEditDrawer({
               </div>
             </div>
 
-            <div className="flex shrink-0 gap-2 border-t border-border/50 px-6 py-3">
+            <div
+              data-vaul-no-drag
+              className="flex min-w-0 shrink-0 gap-2 overflow-x-hidden border-t border-border/50 px-6 py-3 touch-pan-y"
+            >
               <Button
                 type="button"
                 variant="outline"

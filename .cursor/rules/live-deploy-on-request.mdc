@@ -1,47 +1,59 @@
 ---
-description: Bei „live deployen“ Git push + Live-DB-Migrationen (Tunnel, db push) ausführen.
+description: Bei „live deployen“ immer App (Git) + Live-DB (Migrationen) — DB bevorzugt per GitHub Action.
 alwaysApply: true
 ---
 
 # Live deployen (nur auf Anfrage)
 
-Wenn der Nutzer **live deployen**, **jetzt live**, **production deploy** o. Ä. sagt:
+Wenn der Nutzer **live deployen**, **jetzt live**, **alles live pushen**, **production deploy**, **commit und live** o. Ä. sagt — **immer vollständig: Datenbank + App**. Der Nutzer muss die DB **nicht** extra anfordern.
 
-## 1. Live-Datenbank
+Reihenfolge und Details für App: `live-app-deploy.mdc`, für Git-Commit/Push: `git-deploy-on-request.mdc`.
 
-**Standard (nur Schema, keine Einträge):**
+## 1. Live-Datenbank (Migrationen, nur Schema)
+
+**Standardweg (Agent / CI — immer zuerst versuchen nach Push auf `main`):**
 
 ```bash
-npm run deploy:live
+# Optional einmalig: Dev-Key auf VPS (wenn ~/.ssh/gwada_vps_ed25519.pub existiert)
+gh workflow run deploy-live-db.yml --ref main \
+  -f install_dev_pubkey="$(cat ~/.ssh/gwada_vps_ed25519.pub)"
+
+# Normal (nur Migrationen):
+gh workflow run deploy-live-db.yml --ref main
+gh run watch --workflow=deploy-live-db.yml --exit-status
 ```
 
-**Nur wenn der Nutzer ausdrücklich lokale Daten / Einträge mit will:**
+- Workflow: `.github/workflows/deploy-live-db.yml` (Secrets `LIVE_SSH_KEY`, `LIVE_VPS_HOST` auf GitHub).
+- Wendet alle ausstehenden Dateien unter `supabase/migrations/` an — **kein** `db reset`, **keine** Daten von lokal.
+- Nach Start: Run-Link mit `gh run list --workflow=deploy-live-db.yml --limit 1` melden; bei Erfolg kurz die angewendeten Migrationen aus dem Log nennen (oder „keine ausstehenden“).
+
+**Fallback lokal** (nur wenn SSH vom Agent-Rechner funktioniert):
+
+```bash
+npm run deploy:live          # Schema
+npm run deploy:live:dry-run  # optional vorher
+```
+
+Voraussetzung lokal: `SUPABASE_DB_URL` in `.env.production`, SSH mit `~/.ssh/gwada_vps_ed25519` oder `ssh-copy-id root@95.111.229.250`.
+
+**SSH schlägt lokal fehl:** nicht nur „bitte ssh-copy-id“ und stoppen — **trotzdem** `deploy-live-db.yml` per `gh` ausführen (wie oben).
+
+**Nur wenn der Nutzer ausdrücklich lokale Live-Daten will (destruktiv):**
 
 ```bash
 npm run deploy:live:full
 ```
 
-(Leert `public` auf Live, kopiert Daten von `127.0.0.1:54322` — destruktiv.)
+## 2. Live-App
 
-- Startet SSH-Tunnel automatisch (wenn Port 5433 frei), wendet Migrationen an, kein `db reset`.
-- Voraussetzung: `SUPABASE_DB_URL` in `.env.production`; SSH **ohne Passwort** (`ssh-copy-id root@95.111.229.250` einmalig).
-- Optional vorher prüfen: `npm run deploy:live:dry-run`
-- **SSH schlägt fehl (BatchMode / Passwort):** Immer explizit anweisen:
-  ```bash
-  ssh-copy-id root@95.111.229.250
-  ssh root@95.111.229.250 true
-  ```
-  (Passwort **nur lokal einmal** eingeben — nie ins Repo schreiben.)
-- Alternativ: manueller Tunnel (`npm run db:tunnel:live`) + `npm run db:push:live`.
+Commit → `git push origin main` → GitHub Action **`deploy-live-app.yml`** (automatisch).
 
-## 2. App (Git → GitHub Action)
+Verifikation: `curl -s https://new.gwada.app/api/build-info` (`sha` = kurzer Commit-Hash).
 
-Wie `git-deploy-on-request.mdc` und `live-app-deploy.mdc`: Commit, Push **`main`**, Live-App über **`deploy-live-app.yml`** oder `npm run deploy:app:live`.
+## 3. Kurz bestätigen (Pflicht)
 
-## 3. Kurz bestätigen
+- **DB:** GitHub Action `deploy-live-db` — Status + Link; welche Migrationen liefen
+- **App:** Commit + Branch; `build-info`-SHA vs. Ziel; `deploy-live-app`-Run
+- Kein „Coolify deployt“ — siehe `live-app-deploy.mdc`
 
-- Welche Migrationen liefen (oder warum nicht)
-- Commit-Hash + Branch
-- **`/api/build-info`**-SHA vs. Commit (nicht „Coolify-Deploy“)
-
-**Nie** ohne ausdrückliche Anfrage deployen.
+**Nie** ohne ausdrückliche Live-Anfrage deployen.

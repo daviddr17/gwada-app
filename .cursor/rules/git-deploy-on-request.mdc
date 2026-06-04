@@ -7,7 +7,7 @@ alwaysApply: true
 
 Wenn der Nutzer ausdrücklich will, dass Änderungen **live gehen**, **auf Git deployen**, **live deployen**, **pushen**, **nach GitHub** o. Ä.:
 
-**Vollständiges Live-Deploy:** zuerst `live-deploy-on-request.mdc` (DB + Git). Nur Code ohne DB: unten ab Schritt 2.
+**Vollständiges Live-Deploy:** immer `live-deploy-on-request.mdc` — **nach Push** zusätzlich **`deploy-live-db.yml`** per `gh` (Migrationen), nicht nur App. Nur wenn der Nutzer **ausdrücklich** „ohne DB“ / „nur Code“ sagt: unten ab Schritt 2 ohne DB-Schritt.
 
 **App-Deploy-Modell:** `live-app-deploy.mdc` — Push auf `main` → **GitHub Action** `deploy-live-app.yml`; Verifikation über **`/api/build-info`**. Kein Coolify-Auto-Deploy.
 
@@ -17,10 +17,12 @@ Wenn der Nutzer ausdrücklich will, dass Änderungen **live gehen**, **auf Git d
 4. **Nicht committen:** `.env.local`, `.env.production`, Secrets, Credentials. Warnen, falls gewünscht.
 5. Sinnvolle Commit-Message (1–2 Sätze, „why“), via HEREDOC.
 6. `git add` für alle relevanten Änderungen → `git commit` → `git push -u origin <branch>` (Netzwerk/`git_write` nötig).
-7. Nach Erfolg kurz bestätigen (siehe `live-app-deploy.mdc`):
-   - Branch + Commit-Hash
-   - `curl https://new.gwada.app/api/build-info` — `sha` soll Commit entsprechen (Action kann Minuten brauchen)
-   - Optional: `gh run list --workflow=deploy-live-app.yml --limit 1` oder Hinweis auf `npm run deploy:app:live` bei fehlenden Secrets
+7. Nach Push **Live-DB** (Pflicht bei Live-Anfrage, siehe `live-deploy-on-request.mdc`):
+   - `gh workflow run deploy-live-db.yml --ref main` und `gh run watch --workflow=deploy-live-db.yml --exit-status` (oder Run-Link + Status)
+8. Nach Erfolg kurz bestätigen (siehe `live-app-deploy.mdc`):
+   - **DB:** Migrationen / `deploy-live-db`-Run
+   - Branch + Commit-Hash; `curl https://new.gwada.app/api/build-info` — `sha` soll Commit entsprechen
+   - `gh run list --workflow=deploy-live-app.yml --limit 1` (App-Deploy)
 8. Bei Push-Fehlern (Auth, Reject): Fehler melden, Nutzer um Login/Token bitten — nicht force-pushen.
 
 Trigger-Beispiele: „jetzt live“, „alles auf git deployen“, „push to github“, „deployen“.

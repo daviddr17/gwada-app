@@ -78,6 +78,9 @@ function DockIconButton({
         onHover();
         onPreload?.();
       }}
+      onTouchStart={() => {
+        onPreload?.();
+      }}
     >
       <Icon className="size-[22px] shrink-0" strokeWidth={1.85} />
     </button>

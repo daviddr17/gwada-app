@@ -28,13 +28,14 @@ import {
   type ProfileAppDefinition,
   type ProfileAppId,
 } from "@/lib/public-profile/profile-app-config";
+import { useCoarsePointer } from "@/lib/hooks/use-coarse-pointer";
 import {
+  profileAppSwitchDirection,
   IOS_APP_CLOSE_TRANSITION,
   IOS_APP_DRAG_SNAP_BACK_TRANSITION,
   IOS_APP_OPEN_TRANSITION,
   IOS_APP_PAGER_SWITCH_TRANSITION,
   iosAppHorizontalPushVariants,
-  profileAppSwitchDirection,
 } from "@/lib/public-profile/profile-app-motion";
 import {
   DRAG_REVEAL_ICON_PROGRESS,
@@ -44,6 +45,7 @@ import {
   SWIPE_CLOSE_VELOCITY,
 } from "@/lib/public-profile/profile-sheet-gesture-constants";
 import { useProfileSheetContentGestures } from "@/lib/public-profile/use-profile-sheet-content-gestures";
+import { profileAppSheetClassName } from "@/lib/public-profile/profile-sheet-styles";
 import {
   preloadProfileWidgetChunks,
   scheduleProfileBackgroundWork,
@@ -79,18 +81,10 @@ const EmbedMenuWidget = dynamic(
   { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
 );
 
-const PROFILE_APP_SHEET_CLASS = cn(
-  "fixed z-[60] flex flex-col overflow-hidden",
-  "top-[max(3.5rem,env(safe-area-inset-top))]",
-  "bottom-[max(5.5rem,env(safe-area-inset-bottom))]",
-  "left-0 right-0 mx-auto w-[calc(100%-1.5rem)] md:w-[60vw]",
-  "border border-white/25 bg-background/95",
-  "shadow-[0_24px_80px_-12px_rgba(0,0,0,0.45)] backdrop-blur-2xl dark:border-white/10",
-);
-
 const IOS_SHEET_OPEN_RADIUS_PX = 44;
-/** Max. Backdrop-Blur beim geöffneten Sheet — wird über Motion Value animiert (nicht per Opacity-Snap). */
+/** Max. Backdrop-Blur beim geöffneten Sheet — Desktop only (iOS: zu teuer). */
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
+const IOS_SHEET_TOUCH_OPEN_MS = 0.2;
 
 type SheetRestLayout = {
   left: number;
@@ -238,6 +232,7 @@ function ProfileAppSheetOverlay({
   apps,
   accentHex,
   reduceMotion,
+  lightEffects,
   profile,
   reservation,
   menu,
@@ -253,6 +248,8 @@ function ProfileAppSheetOverlay({
   apps: ProfileAppDefinition[];
   accentHex: string;
   reduceMotion: boolean | null;
+  /** Touch/iOS — kein animiertes Backdrop-Blur, leichtere Open-Animation. */
+  lightEffects: boolean;
   profile: PublicRestaurantProfile;
   reservation: PublicEmbedRestaurant | null;
   menu: PublicEmbedMenu | null;
@@ -268,6 +265,7 @@ function ProfileAppSheetOverlay({
   const [dragEnabled, setDragEnabled] = useState(false);
   const [isDismissing, setIsDismissing] = useState(false);
   const [restLayout, setRestLayout] = useState<SheetRestLayout | null>(null);
+  const [openSettled, setOpenSettled] = useState(!lightEffects);
 
   const morphOrigin = useMemo(() => {
     const iconRect = resolveIconRect(activeApp, launchRect);
@@ -284,7 +282,10 @@ function ProfileAppSheetOverlay({
   const backdropOpacity = useMotionValue(0);
   const backdropBlur = useTransform(
     backdropOpacity,
-    (value) => `blur(${Math.max(0, value * IOS_SHEET_BACKDROP_BLUR_PX)}px)`,
+    (value) =>
+      lightEffects
+        ? "none"
+        : `blur(${Math.max(0, value * IOS_SHEET_BACKDROP_BLUR_PX)}px)`,
   );
   const borderRadius = useTransform(radius, (value) => `${value}px`);
   const dragRevealStarted = useRef(false);
@@ -392,6 +393,7 @@ function ProfileAppSheetOverlay({
     setIsDismissing(false);
     setDragEnabled(false);
     setRestLayout(null);
+    setOpenSettled(!lightEffects);
     dragRevealStarted.current = false;
     x.set(0);
     y.set(0);
@@ -407,6 +409,31 @@ function ProfileAppSheetOverlay({
           setRestLayout(captureSheetRestLayout(sheetRef.current));
         }
         setDragEnabled(true);
+        setOpenSettled(true);
+      });
+      return;
+    }
+
+    if (lightEffects) {
+      scale.set(1);
+      sheetOpacity.set(0);
+      backdropOpacity.set(0);
+
+      void Promise.all([
+        animate(sheetOpacity, 1, {
+          duration: IOS_SHEET_TOUCH_OPEN_MS,
+          ease: "easeOut",
+        }),
+        animate(backdropOpacity, 1, {
+          duration: IOS_SHEET_TOUCH_OPEN_MS,
+          ease: "easeOut",
+        }),
+      ]).then(() => {
+        if (sheetRef.current) {
+          setRestLayout(captureSheetRestLayout(sheetRef.current));
+        }
+        setDragEnabled(true);
+        setOpenSettled(true);
       });
       return;
     }
@@ -424,10 +451,11 @@ function ProfileAppSheetOverlay({
         setRestLayout(captureSheetRestLayout(sheetRef.current));
       }
       setDragEnabled(true);
+      setOpenSettled(true);
     });
     // Mount-only: do not re-run when switching modules inside the open sheet
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-  }, [reduceMotion]);
+  }, [reduceMotion, lightEffects]);
 
   const handleDrag = (_event: PointerEvent, info: PanInfo) => {
     if (isDismissing) return;
@@ -490,23 +518,35 @@ function ProfileAppSheetOverlay({
 
   return (
     <>
-      <m.div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 z-[54]"
-        style={{
-          backdropFilter: backdropBlur,
-          WebkitBackdropFilter: backdropBlur,
-        }}
-      />
+      {!lightEffects ? (
+        <m.div
+          aria-hidden
+          className="pointer-events-none fixed inset-0 z-[54]"
+          style={{
+            backdropFilter: backdropBlur,
+            WebkitBackdropFilter: backdropBlur,
+          }}
+        />
+      ) : null}
       <m.button
         type="button"
         aria-label="App schließen"
-        className="fixed inset-0 z-[55]"
-        style={{
-          ...brandedBackdrop,
-          opacity: backdropOpacity,
-          pointerEvents: isDismissing ? "none" : "auto",
-        }}
+        className={cn(
+          "fixed inset-0 z-[55]",
+          lightEffects && "bg-black/40",
+        )}
+        style={
+          lightEffects
+            ? {
+                opacity: backdropOpacity,
+                pointerEvents: isDismissing ? "none" : "auto",
+              }
+            : {
+                ...brandedBackdrop,
+                opacity: backdropOpacity,
+                pointerEvents: isDismissing ? "none" : "auto",
+              }
+        }
         onClick={() => void dismissToIcon()}
       />
       <m.div
@@ -519,7 +559,7 @@ function ProfileAppSheetOverlay({
         dragMomentum={false}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
-        className={PROFILE_APP_SHEET_CLASS}
+        className={profileAppSheetClassName(lightEffects)}
         style={{
           x,
           y,
@@ -593,6 +633,7 @@ function ProfileAppSheetOverlay({
                   mapsUrl={mapsUrl}
                   skipEnterAnimation
                   reduceMotion={reduceMotion}
+                  deferHeavyWidgets={lightEffects && !openSettled}
                 />
               </m.div>
             </AnimatePresence>
@@ -615,6 +656,7 @@ function ProfileAppContent({
   mapsUrl,
   skipEnterAnimation,
   reduceMotion,
+  deferHeavyWidgets = false,
 }: {
   appId: ProfileAppId;
   profile: PublicRestaurantProfile;
@@ -627,6 +669,7 @@ function ProfileAppContent({
   mapsUrl: string | null;
   skipEnterAnimation?: boolean;
   reduceMotion: boolean | null;
+  deferHeavyWidgets?: boolean;
 }) {
   if (appId === "info") {
     const infoClassName = "space-y-4 p-4 pb-8 sm:p-5";
@@ -669,7 +712,7 @@ function ProfileAppContent({
     return (
       <div className="p-4 pb-8 sm:p-5">
         <ModulePanel
-          showLoading={!reservation && loading.reservation}
+          showLoading={deferHeavyWidgets || (!reservation && loading.reservation)}
           error={errors.reservation}
         >
           {reservation ? (
@@ -688,7 +731,10 @@ function ProfileAppContent({
   if (appId === "menu") {
     return (
       <div className="px-4 pb-8 pt-0 sm:px-5 sm:pb-5">
-        <ModulePanel showLoading={!menu && loading.menu} error={errors.menu}>
+        <ModulePanel
+          showLoading={deferHeavyWidgets || (!menu && loading.menu)}
+          error={errors.menu}
+        >
           {menu ? (
             <div className="overflow-visible rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm">
               <EmbedMenuWidget
@@ -708,7 +754,10 @@ function ProfileAppContent({
 
   return (
     <div className="p-4 pb-8 sm:p-5">
-      <ModulePanel showLoading={!reviews && loading.reviews} error={errors.reviews}>
+      <ModulePanel
+        showLoading={deferHeavyWidgets || (!reviews && loading.reviews)}
+        error={errors.reviews}
+      >
         {reviews ? (
           <div className={cardClass}>
             <RestaurantPublicProfileReviews
@@ -732,6 +781,7 @@ export function RestaurantPublicProfileAppLauncher({
   logoIntro?: PublicProfileLogoIntro;
 }) {
   const reduceMotion = useReducedMotion();
+  const lightEffects = useCoarsePointer();
   const { cache, state, loadModule, preloadModules } = useProfileModuleCache(
     profile.slug,
   );
@@ -790,8 +840,12 @@ export function RestaurantPublicProfileAppLauncher({
   }, [apps, preloadModules]);
 
   useEffect(() => {
+    if (lightEffects) {
+      startBackgroundPreload();
+      return;
+    }
     return scheduleProfileBackgroundWork(startBackgroundPreload);
-  }, [startBackgroundPreload]);
+  }, [lightEffects, startBackgroundPreload]);
 
   useLayoutEffect(() => {
     setPortalReady(true);
@@ -864,6 +918,7 @@ export function RestaurantPublicProfileAppLauncher({
                 apps={apps}
                 accentHex={profile.accentHex}
                 reduceMotion={reduceMotion}
+                lightEffects={lightEffects}
                 profile={profile}
                 reservation={reservation}
                 menu={menu}

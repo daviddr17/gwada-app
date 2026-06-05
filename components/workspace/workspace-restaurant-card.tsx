@@ -7,11 +7,7 @@ import type { MyRestaurantRow } from "@/lib/hooks/use-my-restaurants";
 import { resolveRestaurantProfileImageSignedUrl } from "@/lib/restaurant/restaurant-profile-image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getAccentForeground, normalizeHex } from "@/lib/theme/color-utils";
-import {
-  restaurantLogoHeaderFrameClassName,
-  restaurantLogoImageClassName,
-  restaurantLogoPlateClassName,
-} from "@/lib/ui/profile-avatar-image";
+import { RestaurantLogoMark } from "@/components/ui/restaurant-logo-mark";
 import { cn } from "@/lib/utils";
 
 /** Shell für Restaurant-Karten in „Meine Restaurants“. */
@@ -126,30 +122,15 @@ export function WorkspaceRestaurantCard({
       </div>
 
       <div className="relative px-4 pb-4 pt-0">
-        <div
-          className={cn(
-            restaurantLogoHeaderFrameClassName,
-            restaurantLogoPlateClassName,
-            "relative -mt-10 mb-3 size-20",
-          )}
+        <RestaurantLogoMark
+          src={avatarUrl}
+          initials={initials}
+          alt=""
+          size="card"
+          variant="header"
+          className="relative -mt-10 mb-3"
           style={avatarRingStyle}
-        >
-          {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={avatarUrl}
-              alt=""
-              className={restaurantLogoImageClassName}
-            />
-          ) : (
-            <span
-              className="text-xl font-semibold text-muted-foreground"
-              style={brandHex ? { color: brandHex } : undefined}
-            >
-              {initials}
-            </span>
-          )}
-        </div>
+        />
 
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0 space-y-0.5">

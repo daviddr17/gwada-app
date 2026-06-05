@@ -16,7 +16,7 @@ export function DisplayAccentShell({
 
   return (
     <div
-      className="min-h-dvh bg-background text-foreground"
+      className="h-dvh overflow-hidden bg-background text-foreground"
       style={accentCssVariableStyle(resolved)}
     >
       {children}

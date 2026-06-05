@@ -13,12 +13,13 @@ import {
 import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
+import { withLocalPublicProfilePreview } from "@/lib/public-profile/local-public-profile-preview";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { DayHours, Weekday } from "@/lib/types/restaurant";
+import type { DayHours, DateHoursException, Weekday } from "@/lib/types/restaurant";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PublicRestaurantSocialLink = {
-  kind: "facebook" | "instagram" | "google" | "phone" | "email";
+  kind: "facebook" | "instagram" | "google";
   label: string;
   href: string;
 };
@@ -37,8 +38,10 @@ export type PublicRestaurantProfile = {
   country: string | null;
   phone: string | null;
   email: string | null;
+  website: string | null;
   socialLinks: PublicRestaurantSocialLink[];
   weeklyHours: Record<Weekday, DayHours>;
+  dateExceptions: DateHoursException[];
   modules: {
     reservation: boolean;
     menu: boolean;
@@ -59,8 +62,6 @@ function adminOrError(): SupabaseClient | { error: string; status: number } {
 async function loadSocialLinks(
   admin: SupabaseClient,
   restaurantId: string,
-  phone: string | null,
-  email: string | null,
 ): Promise<PublicRestaurantSocialLink[]> {
   const links: PublicRestaurantSocialLink[] = [];
 
@@ -89,25 +90,6 @@ async function loadSocialLinks(
       .eq("restaurant_id", restaurantId)
       .maybeSingle(),
   ]);
-
-  const phoneTrimmed = phone?.trim();
-  if (phoneTrimmed) {
-    const tel = phoneTrimmed.replace(/\s+/g, "");
-    links.push({
-      kind: "phone",
-      label: phoneTrimmed,
-      href: tel.startsWith("+") ? `tel:${tel}` : `tel:${tel}`,
-    });
-  }
-
-  const emailTrimmed = email?.trim();
-  if (emailTrimmed) {
-    links.push({
-      kind: "email",
-      label: emailTrimmed,
-      href: `mailto:${emailTrimmed}`,
-    });
-  }
 
   const fbRow = fbRes.data as { status?: string; config?: unknown } | null;
   if (fbRow?.status === "working") {
@@ -186,7 +168,7 @@ export async function fetchPublicRestaurantProfile(
   const { data: row, error } = await admin
     .from("restaurants")
     .select(
-      "id, name, slug, description, brand_accent_hex, is_published, address_line1, postal_code, city, country, phone, email, avatar_storage_path, cover_storage_path",
+      "id, name, slug, description, brand_accent_hex, is_published, address_line1, postal_code, city, country, phone, email, website, avatar_storage_path, cover_storage_path",
     )
     .eq("slug", slug)
     .maybeSingle();
@@ -202,16 +184,11 @@ export async function fetchPublicRestaurantProfile(
   const accentHex =
     normalizeHex(String(row.brand_accent_hex ?? "")) ?? DEFAULT_ACCENT_HEX;
 
-  const [avatarUrl, coverUrl, socialLinks, { weeklyHours }, menuCountRes] =
+  const [avatarUrl, coverUrl, socialLinks, { weeklyHours, dateExceptions }, menuCountRes] =
     await Promise.all([
       signRestaurantAvatarUrl(admin, row.avatar_storage_path as string | null),
       signRestaurantAvatarUrl(admin, row.cover_storage_path as string | null),
-      loadSocialLinks(
-        admin,
-        restaurantId,
-        typeof row.phone === "string" ? row.phone : null,
-        typeof row.email === "string" ? row.email : null,
-      ),
+      loadSocialLinks(admin, restaurantId),
       loadOpeningHoursAdmin(admin, restaurantId),
       admin
         .from("menu_categories")
@@ -223,7 +200,7 @@ export async function fetchPublicRestaurantProfile(
   const menuCount = menuCountRes.count ?? 0;
 
   return {
-    data: {
+    data: withLocalPublicProfilePreview({
       id: restaurantId,
       slug: row.slug as string,
       name: row.name as string,
@@ -256,14 +233,19 @@ export async function fetchPublicRestaurantProfile(
         typeof row.phone === "string" && row.phone.trim() ? row.phone.trim() : null,
       email:
         typeof row.email === "string" && row.email.trim() ? row.email.trim() : null,
+      website:
+        typeof row.website === "string" && row.website.trim()
+          ? row.website.trim()
+          : null,
       socialLinks,
       weeklyHours,
+      dateExceptions,
       modules: {
         reservation: true,
         menu: menuCount > 0,
         reviews: true,
       },
-    },
+    }),
     error: null,
   };
 }

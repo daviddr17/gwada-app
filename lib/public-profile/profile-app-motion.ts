@@ -31,6 +31,26 @@ export const IOS_APP_DRAG_SNAP_BACK_TRANSITION: Transition = {
   mass: 0.75,
 };
 
+/** Snappy pager snap after horizontal swipe */
+export const IOS_APP_PAGER_SNAP_TRANSITION: Transition = {
+  type: "spring",
+  stiffness: 920,
+  damping: 82,
+  mass: 0.34,
+  restDelta: 0.001,
+  restSpeed: 40,
+};
+
+/** Dock tap / programmatic pager move */
+export const IOS_APP_PAGER_SWITCH_TRANSITION: Transition = {
+  type: "spring",
+  stiffness: 820,
+  damping: 78,
+  mass: 0.38,
+  restDelta: 0.001,
+  restSpeed: 40,
+};
+
 export const IOS_APP_SWITCH_TRANSITION: Transition = {
   duration: 0.38,
   ease: APPLE_EASE,
@@ -40,14 +60,30 @@ export const IOS_APP_SWITCH_TRANSITION: Transition = {
 export const iosAppHorizontalPushVariants: Variants = {
   enter: (direction: number) => ({
     x: `${direction * 100}%`,
+    zIndex: 2,
   }),
   center: {
     x: 0,
+    zIndex: 1,
   },
   exit: (direction: number) => ({
     x: `${direction * -100}%`,
+    zIndex: 1,
   }),
 };
+
+export function profileAppSwitchDirection(
+  appIds: readonly string[],
+  fromAppId: string,
+  toAppId: string,
+): number {
+  const prevIdx = appIds.indexOf(fromAppId);
+  const nextIdx = appIds.indexOf(toAppId);
+  if (prevIdx >= 0 && nextIdx >= 0 && prevIdx !== nextIdx) {
+    return nextIdx > prevIdx ? 1 : -1;
+  }
+  return 0;
+}
 
 export const iosAppSwitchVariants: Variants = {
   enter: (direction: number) => ({

@@ -26,7 +26,7 @@ export function AppProviders({
       attribute="class"
       defaultTheme="light"
       enableSystem
-      disableTransitionOnChange={false}
+      disableTransitionOnChange
     >
       <SuppressExpectedSupabaseNetworkNoise />
       <DocumentTitleOverrideProvider>

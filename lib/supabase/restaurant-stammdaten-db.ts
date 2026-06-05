@@ -19,6 +19,7 @@ export function restaurantRowFromProfile(
     city: profile.city.trim() || null,
     country: profile.country.trim() || null,
     phone: profile.phone.trim() || null,
+    website: profile.website.trim() || null,
     timezone: resolveRestaurantTimezone({
       country: profile.country,
       street: profile.street,
@@ -42,7 +43,7 @@ export async function fetchRestaurantStammdatenFromDb(
   const { data, error } = await sb
     .from("restaurants")
     .select(
-      "name, slug, address_line1, postal_code, city, country, phone, avatar_storage_path, cover_storage_path",
+      "name, slug, address_line1, postal_code, city, country, phone, website, avatar_storage_path, cover_storage_path",
     )
     .eq("id", restaurantId)
     .maybeSingle();
@@ -59,6 +60,7 @@ export async function fetchRestaurantStammdatenFromDb(
     city: typeof data.city === "string" ? data.city : "",
     country: typeof data.country === "string" ? data.country : "",
     phone: typeof data.phone === "string" ? data.phone : "",
+    website: typeof data.website === "string" ? data.website : "",
     avatarStoragePath:
       typeof data.avatar_storage_path === "string"
         ? data.avatar_storage_path

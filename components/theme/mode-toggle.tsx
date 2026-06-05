@@ -4,7 +4,6 @@ import { useTheme } from "@/components/providers/theme-provider";
 import { ThemeModeIcon } from "@/components/theme/theme-mode-icon";
 import { runThemeTransition } from "@/lib/ui/theme-transition";
 import { useEffect, useState } from "react";
-import { flushSync } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -46,9 +45,7 @@ export function ModeToggle({ className }: { className?: string }) {
       aria-label={isDark ? "Hellmodus" : "Dunkelmodus"}
       onClick={() => {
         const next = isDark ? "light" : "dark";
-        runThemeTransition(() => {
-          flushSync(() => setTheme(next));
-        });
+        runThemeTransition(() => setTheme(next));
       }}
     >
       <ThemeModeIcon isDark={isDark} />

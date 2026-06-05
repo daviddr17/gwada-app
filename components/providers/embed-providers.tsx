@@ -10,7 +10,7 @@ export function EmbedProviders({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="system"
       enableSystem
-      disableTransitionOnChange={false}
+      disableTransitionOnChange
     >
       <TooltipProvider>{children}</TooltipProvider>
     </ThemeProvider>

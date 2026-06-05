@@ -1,12 +1,10 @@
 import "server-only";
 
 import { getPublicSiteUrl } from "@/lib/public-env";
-import {
-  fetchGithubDeployWorkflowStatus,
-  fetchGithubMainCommitSha,
-  type GithubDeployApiStatus,
-} from "@/lib/superadmin/github-deploy-api-server";
-import type { SuperadminLiveAppDeployStatus } from "@/lib/types/superadmin-ops-status";
+import type {
+  SuperadminGithubRepoStatus,
+  SuperadminLiveAppDeployStatus,
+} from "@/lib/types/superadmin-ops-status";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
 
 const BUILD_INFO_TIMEOUT_MS = 6_000;
@@ -75,14 +73,14 @@ async function fetchLiveBuildInfo(
 function deriveSyncState(input: {
   liveSha: string | null;
   githubSha: string | null;
-  githubWorkflow: GithubDeployApiStatus;
-  coolifySummary: "idle" | "deploying" | "queued" | "unavailable";
+  github: SuperadminGithubRepoStatus;
 }): SuperadminLiveAppDeployStatus["syncState"] {
-  const githubActive = Boolean(input.githubWorkflow.activeRun);
-  const coolifyActive =
-    input.coolifySummary === "deploying" || input.coolifySummary === "queued";
+  const githubActive = Boolean(
+    input.github.appDeployWorkflow.activeRun ||
+      input.github.dbDeployWorkflow.activeRun,
+  );
 
-  if (githubActive || coolifyActive) return "deploying";
+  if (githubActive) return "deploying";
 
   if (input.liveSha && input.githubSha) {
     return shasMatch(input.liveSha, input.githubSha) ? "in_sync" : "out_of_sync";
@@ -94,62 +92,59 @@ function deriveSyncState(input: {
 function buildMessage(input: {
   syncState: SuperadminLiveAppDeployStatus["syncState"];
   liveReachable: boolean;
-  githubReachable: boolean;
-  githubWorkflow: GithubDeployApiStatus;
+  github: SuperadminGithubRepoStatus;
 }): string | null {
   if (input.syncState === "in_sync") {
-    return "Live-App entspricht dem neuesten main-Commit auf GitHub.";
+    return "Live-App entspricht dem neuesten Commit auf GitHub main.";
   }
 
   if (input.syncState === "deploying") {
-    if (input.githubWorkflow.activeRun) {
-      return "GitHub Actions baut und deployt gerade auf den VPS.";
+    if (input.github.appDeployWorkflow.activeRun) {
+      return "GitHub Actions deployt gerade die App auf den VPS.";
+    }
+    if (input.github.dbDeployWorkflow.activeRun) {
+      return "GitHub Actions wendet gerade DB-Migrationen auf live an.";
     }
     return "Deploy läuft — Live-Commit wird gleich aktualisiert.";
   }
 
   if (input.syncState === "out_of_sync") {
-    return "Live-App ist veraltet: öffentliche URL liefert einen älteren Build als GitHub main. Deploy starten oder GitHub Secrets prüfen.";
+    return "Live-App ist veraltet: öffentliche URL liefert einen älteren Build als GitHub main. Push auf main oder Deploy starten.";
   }
 
   if (!input.liveReachable) {
     return "Live-Build konnte nicht geprüft werden.";
   }
 
-  if (!input.githubReachable) {
-    return "GitHub main-Commit konnte nicht abgerufen werden.";
+  if (!input.github.reachable && !input.github.headCommit.sha) {
+    return "GitHub-Commit konnte nicht abgerufen werden.";
   }
 
   return null;
 }
 
 export async function fetchLiveAppDeployStatus(
-  coolifySummary: "idle" | "deploying" | "queued" | "unavailable",
+  github: SuperadminGithubRepoStatus,
 ): Promise<SuperadminLiveAppDeployStatus> {
   const siteUrl = getPublicSiteUrl() ?? null;
   const containerSha = normalizeSha(process.env.GWADA_BUILD_SHA);
 
-  const [liveBuild, githubMain, githubWorkflow] = await Promise.all([
-    siteUrl
-      ? fetchLiveBuildInfo(siteUrl)
-      : Promise.resolve({
-          sha: null,
-          shortSha: null,
-          reachable: false,
-          message: "NEXT_PUBLIC_SITE_URL fehlt.",
-        }),
-    fetchGithubMainCommitSha(),
-    fetchGithubDeployWorkflowStatus(),
-  ]);
+  const liveBuild = siteUrl
+    ? await fetchLiveBuildInfo(siteUrl)
+    : {
+        sha: null,
+        shortSha: null,
+        reachable: false,
+        message: "NEXT_PUBLIC_SITE_URL fehlt.",
+      };
 
   const syncState = deriveSyncState({
     liveSha: liveBuild.sha,
-    githubSha: githubMain.sha,
-    githubWorkflow,
-    coolifySummary,
+    githubSha: github.headCommit.sha,
+    github,
   });
 
-  const triggerConfigured = githubWorkflow.configured;
+  const triggerConfigured = github.appDeployWorkflow.configured;
 
   return {
     siteUrl,
@@ -157,18 +152,12 @@ export async function fetchLiveAppDeployStatus(
     liveShortSha: liveBuild.shortSha,
     liveReachable: liveBuild.reachable,
     containerSha,
-    githubSha: githubMain.sha,
-    githubShortSha: githubMain.shortSha,
-    githubCommitMessage: githubMain.message,
-    githubReachable: githubMain.reachable,
     syncState,
     message: buildMessage({
       syncState,
       liveReachable: liveBuild.reachable,
-      githubReachable: githubMain.reachable,
-      githubWorkflow,
+      github,
     }),
-    githubWorkflow,
     triggerConfigured,
     deployLogHint: "/tmp/gwada-deploy-live-app.log (auf dem VPS)",
   };

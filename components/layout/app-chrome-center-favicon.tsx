@@ -57,7 +57,6 @@ export function AppChromeCenterFavicon({ className }: { className?: string }) {
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        key={src}
         src={src}
         alt=""
         decoding="async"

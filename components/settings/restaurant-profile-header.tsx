@@ -3,6 +3,7 @@
 import { Camera, Loader2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { RestaurantLogoMark } from "@/components/ui/restaurant-logo-mark";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { uploadRestaurantProfileImageClient } from "@/lib/restaurant/restaurant-profile-image-client";
@@ -10,11 +11,6 @@ import {
   resolveRestaurantProfileImageSignedUrl,
   type RestaurantProfileImageKind,
 } from "@/lib/restaurant/restaurant-profile-image";
-import {
-  restaurantLogoHeaderFrameClassName,
-  restaurantLogoImageClassName,
-  restaurantLogoPlateClassName,
-} from "@/lib/ui/profile-avatar-image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { cn } from "@/lib/utils";
@@ -207,37 +203,34 @@ export function RestaurantProfileHeader({
       <div className="relative px-5 pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <button
-              type="button"
-              disabled={!canUpload || avatarUploading}
-              className={cn(
-                restaurantLogoHeaderFrameClassName,
-                restaurantLogoPlateClassName,
-                "group -mt-12 size-24 sm:-mt-14",
-              )}
-              onClick={() => avatarInputRef.current?.click()}
-              aria-label="Profilbild ändern"
-            >
-              {avatarDisplayUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+            <div className="relative w-fit sm:-mt-14 -mt-12">
+              <button
+                type="button"
+                disabled={!canUpload || avatarUploading}
+                className="group relative block"
+                onClick={() => avatarInputRef.current?.click()}
+                aria-label="Profilbild ändern"
+              >
+                <RestaurantLogoMark
                   src={avatarDisplayUrl}
+                  initials={initials}
                   alt=""
-                  className={restaurantLogoImageClassName}
+                  size="header"
+                  variant="header"
                 />
-              ) : (
-                <span className="text-2xl font-semibold text-muted-foreground">
-                  {initials}
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-0">
+                  {avatarUploading ? (
+                    <Loader2 className="size-6 animate-spin text-white" aria-hidden />
+                  ) : (
+                    <Camera className="size-6 text-white" aria-hidden />
+                  )}
                 </span>
-              )}
-              <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-0">
-                {avatarUploading ? (
-                  <Loader2 className="size-6 animate-spin text-white" aria-hidden />
-                ) : (
-                  <Camera className="size-6 text-white" aria-hidden />
-                )}
-              </span>
-            </button>
+              </button>
+              <p className="mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground">
+                Quadratische Logos mit Hintergrund werden in einer abgerundeten Kachel
+                im Kreis angezeigt — ohne Abschnitt an den Ecken.
+              </p>
+            </div>
 
             <div className="space-y-3 pt-1">
               <div className="space-y-2">

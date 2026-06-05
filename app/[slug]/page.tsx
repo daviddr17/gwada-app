@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { preload } from "react-dom";
 import { DisplayAccentShell } from "@/components/display/display-accent-shell";
-import { RestaurantPublicProfileCoverStatic } from "@/components/public/restaurant-public-profile-cover-static";
-import { RestaurantPublicProfileHero } from "@/components/public/restaurant-public-profile-hero";
-import { RestaurantPublicProfileLauncherDeferred } from "@/components/public/restaurant-public-profile-launcher-deferred";
+import { LocalProfilePreviewBadge } from "@/components/public/local-profile-preview-badge";
+import { RestaurantPublicProfilePageShell } from "@/components/public/restaurant-public-profile-page-shell";
+import { isLocalPublicProfilePreviewEnabled } from "@/lib/public-profile/local-public-profile-preview";
+import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
+import { resolvePublicSplashIconSrc } from "@/lib/platform/resolve-public-splash-icon";
 import { getCachedPublicRestaurantProfile } from "@/lib/restaurant/cached-public-restaurant";
 import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
@@ -61,17 +64,27 @@ export default async function PublicRestaurantProfilePage({ params }: PageProps)
   }
 
   const profile = result.data;
+  const branding = await getCachedRootLayoutBranding();
+  const gwadaIconSrc = resolvePublicSplashIconSrc(branding);
+
+  const lcpImage = profile.coverUrl ?? profile.avatarUrl;
+  if (lcpImage) {
+    preload(lcpImage, { as: "image", fetchPriority: "high" });
+  }
+  if (profile.avatarUrl && profile.coverUrl) {
+    preload(profile.avatarUrl, { as: "image" });
+  }
+  if (gwadaIconSrc) {
+    preload(gwadaIconSrc, { as: "image" });
+  }
 
   return (
     <DisplayAccentShell accentHex={profile.accentHex}>
-      <div className="relative min-h-dvh">
-        <RestaurantPublicProfileCoverStatic
-          coverUrl={profile.coverUrl}
-          accentHex={profile.accentHex}
-        />
-        <RestaurantPublicProfileHero profile={profile} />
-        <RestaurantPublicProfileLauncherDeferred profile={profile} />
-      </div>
+      {isLocalPublicProfilePreviewEnabled() ? <LocalProfilePreviewBadge /> : null}
+      <RestaurantPublicProfilePageShell
+        profile={profile}
+        gwadaIconSrc={gwadaIconSrc}
+      />
     </DisplayAccentShell>
   );
 }

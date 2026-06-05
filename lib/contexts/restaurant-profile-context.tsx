@@ -267,6 +267,15 @@ export function RestaurantProfileProvider({
             );
             return false;
           }
+
+          const slug = profile.slug.trim();
+          if (slug) {
+            void fetch("/api/restaurant/revalidate-public", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ slug, restaurantId: saveId }),
+            }).catch(() => undefined);
+          }
         }
 
         toast.success("Restaurantprofil gespeichert");

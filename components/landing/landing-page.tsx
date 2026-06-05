@@ -9,6 +9,10 @@ import { LandingHero } from "@/components/landing/landing-hero";
 import { PublicThemeToggleSlot } from "@/components/public/public-theme-toggle-slot";
 import { useLandingLenis } from "@/components/landing/use-landing-lenis";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
+import {
+  THEME_TRANSITION_END_EVENT,
+  THEME_TRANSITION_START_EVENT,
+} from "@/lib/ui/theme-transition";
 
 /** Schwere Scroll-Sections erst nach First Paint — gleiche Optik, weniger initiales JS. */
 const LandingScrollStory = dynamic(
@@ -71,6 +75,24 @@ export function LandingPage() {
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => window.removeEventListener("mousemove", onMove);
   }, []);
+
+  useEffect(() => {
+    const pauseLenis = () => {
+      const lenis = lenisRef.current as (Lenis & { stop?: () => void }) | null;
+      lenis?.stop?.();
+    };
+    const resumeLenis = () => {
+      const lenis = lenisRef.current as (Lenis & { start?: () => void }) | null;
+      lenis?.start?.();
+    };
+
+    window.addEventListener(THEME_TRANSITION_START_EVENT, pauseLenis);
+    window.addEventListener(THEME_TRANSITION_END_EVENT, resumeLenis);
+    return () => {
+      window.removeEventListener(THEME_TRANSITION_START_EVENT, pauseLenis);
+      window.removeEventListener(THEME_TRANSITION_END_EVENT, resumeLenis);
+    };
+  }, [lenisRef]);
 
   return (
     <div className="relative min-h-dvh bg-background text-foreground antialiased">

@@ -1,29 +1,37 @@
-/** Personen-Avatar (rund) — Foto füllt den Kreis. */
-export const profileAvatarImageClassName =
-  "size-full object-cover object-center";
+/**
+ * Restaurant-Logo: runder Rahmen mit Innen-Padding + abgerundeter Kachel.
+ * Eckige Logos mit Hintergrund bleiben in der Kachel, der Kreis clippt außen.
+ */
+export const restaurantLogoOuterFrameClassName =
+  "relative inline-flex shrink-0 items-center justify-center aspect-square overflow-hidden rounded-full leading-none";
 
-/** Hintergrund unter Personenfotos (weiß / Card). */
-export const profileAvatarPlateClassName = "bg-card";
+/** Padding-Ring sichtbar; Logo sitzt in der inneren Kachel */
+export const restaurantLogoOuterPaddingClassName = "p-[13%]";
 
-/** Nur bei Initialen-Fallback. */
-export const profileAvatarFallbackPlateClassName = "bg-muted";
+export const restaurantLogoInnerTileClassName =
+  "flex size-full min-h-0 min-w-0 items-center justify-center overflow-hidden rounded-[22%] bg-white p-1 dark:bg-card";
 
-/** Kompakter Ring-Rahmen für Personen (Display, Listen). */
-export const profileAvatarRingFrameClassName =
-  "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-transparent aspect-square leading-none";
-
-/** Großer Personen-Avatar über Titelbild. */
-export const profileAvatarHeaderFrameClassName =
-  "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent shadow-card ring-4 ring-card";
-
-/** Restaurant-Logo — rund, Karten-Weiß (Light) / Card (Dark). */
 export const restaurantLogoImageClassName =
-  "size-full object-contain object-center p-1.5";
+  "max-h-full max-w-full object-contain object-center";
 
 export const restaurantLogoPlateClassName = "bg-card";
 
 export const restaurantLogoFrameClassName =
-  "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-transparent aspect-square leading-none";
+  `${restaurantLogoOuterFrameClassName} border border-border bg-transparent`;
 
 export const restaurantLogoHeaderFrameClassName =
-  "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full shadow-card ring-4 ring-card";
+  `${restaurantLogoOuterFrameClassName} shadow-card ring-4 ring-card`;
+
+/** Personen-Avatar (rund) — Foto füllt den Kreis. */
+export const profileAvatarImageClassName =
+  "size-full object-cover object-center";
+
+export const profileAvatarPlateClassName = "bg-card";
+
+export const profileAvatarFallbackPlateClassName = "bg-muted";
+
+export const profileAvatarRingFrameClassName =
+  "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-transparent aspect-square leading-none";
+
+export const profileAvatarHeaderFrameClassName =
+  "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-transparent shadow-card ring-4 ring-card";

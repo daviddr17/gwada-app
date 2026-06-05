@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -16,11 +17,13 @@ import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { MenuSearchFilters } from "@/components/menu/menu-search-filters";
 import type { GwadaEmbedFrameViewportMessage } from "@/lib/embed/embed-protocol";
 import {
+  findProfileScrollRootContaining,
   isGwadaEmbedHostMode,
   offsetTopInEmbedDocument,
   postEmbedScrollToHost,
   postEmbedToolbarPinState,
   readGwadaEmbedId,
+  scrollToMenuCategoryInContainer,
   scrollToMenuCategoryInPage,
   subscribeEmbedHostViewport,
 } from "@/lib/embed/embed-menu-scroll";
@@ -53,6 +56,8 @@ export type EmbedMenuWidgetProps = {
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  /** Profil-Sheet: kein Embed-Header, Sticky/Scroll am Sheet-Viewport. */
+  variant?: "embed" | "profileSheet";
 };
 
 function EmbedMenuItemRow({
@@ -113,6 +118,7 @@ function EmbedMenuToolbar({
   toolbarRef,
   sticky,
   hostMode,
+  profileSheet,
   search,
   onSearchChange,
   hasSearch,
@@ -124,6 +130,7 @@ function EmbedMenuToolbar({
   toolbarRef: RefObject<HTMLDivElement | null>;
   sticky?: boolean;
   hostMode?: boolean;
+  profileSheet?: boolean;
   search: string;
   onSearchChange: (value: string) => void;
   hasSearch: boolean;
@@ -134,16 +141,26 @@ function EmbedMenuToolbar({
   return (
     <div
       ref={outerRef}
-      className={cn(sticky && "sticky top-0 z-20")}
+      className={cn(
+        sticky && "sticky top-0 z-20",
+        profileSheet && "-mx-4 border-b border-border/40 bg-background/95 backdrop-blur-md sm:-mx-5",
+      )}
     >
-      <div className="mx-auto w-full max-w-2xl px-4 sm:px-6">
+      <div
+        className={cn(
+          "mx-auto w-full max-w-2xl",
+          profileSheet ? "px-4 sm:px-5" : "px-4 sm:px-6",
+        )}
+      >
         <div
           ref={toolbarRef}
           className={cn(
-            "border-b border-border/40 py-3 shadow-none dark:shadow-sm",
+            "py-3 shadow-none dark:shadow-sm",
             hostMode
-              ? "bg-background embed-menu-toolbar-pinned-inner"
-              : "bg-background/90 backdrop-blur-md",
+              ? "border-b border-border/40 bg-background embed-menu-toolbar-pinned-inner"
+              : profileSheet
+                ? "bg-transparent"
+                : "border-b border-border/40 bg-background/90 backdrop-blur-md",
           )}
         >
           <div className="space-y-3">
@@ -249,14 +266,27 @@ export function EmbedMenuWidget({
   categories,
   items,
   tagDefinitions,
+  variant = "embed",
 }: EmbedMenuWidgetProps) {
   const [hostMode, setHostMode] = useState(false);
   const [embedId, setEmbedId] = useState<string | null>(null);
+  const widgetRootRef = useRef<HTMLDivElement>(null);
+  const [profileScrollRoot, setProfileScrollRoot] = useState<HTMLElement | null>(
+    null,
+  );
 
   useEffect(() => {
     setHostMode(isGwadaEmbedHostMode());
     setEmbedId(readGwadaEmbedId());
   }, []);
+
+  useLayoutEffect(() => {
+    setProfileScrollRoot(
+      findProfileScrollRootContaining(widgetRootRef.current),
+    );
+  }, []);
+
+  const profileSheet = variant === "profileSheet" || profileScrollRoot !== null;
 
   const itemsByCategory = useMemo(() => {
     const map = new Map<string, MenuItem[]>();
@@ -441,12 +471,29 @@ export function EmbedMenuWidget({
 
   useEffect(() => {
     if (hostMode && embedId) return;
+
+    let ticking = false;
     const onScroll = () => {
-      updateScrollSpy();
+      if (skipScrollSpyRef.current) return;
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        ticking = false;
+        updateScrollSpy();
+      });
     };
+
+    const profileRoot = profileScrollRoot;
+    if (profileRoot) {
+      profileRoot.addEventListener("scroll", onScroll, { passive: true });
+      onScroll();
+      return () => profileRoot.removeEventListener("scroll", onScroll);
+    }
+
     window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
     return () => window.removeEventListener("scroll", onScroll);
-  }, [hostMode, embedId, updateScrollSpy]);
+  }, [hostMode, embedId, updateScrollSpy, profileScrollRoot]);
 
   const scrollToCategory = useCallback(
     (id: string) => {
@@ -454,8 +501,11 @@ export function EmbedMenuWidget({
       setActiveCategoryId(id);
       requestAnimationFrame(() => {
         const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
+        const profileRoot = profileScrollRoot;
         if (hostMode && embedId) {
           postEmbedScrollToHost(embedId, id, toolbarH);
+        } else if (profileRoot) {
+          scrollToMenuCategoryInContainer(profileRoot, id, toolbarH);
         } else {
           scrollToMenuCategoryInPage(id, toolbarH);
         }
@@ -464,7 +514,7 @@ export function EmbedMenuWidget({
         }, 850);
       });
     },
-    [hostMode, embedId],
+    [hostMode, embedId, profileScrollRoot],
   );
 
   const resizeDeps = [
@@ -490,15 +540,23 @@ export function EmbedMenuWidget({
   return (
     <EmbedAccentRoot accentHex={accentHex}>
       <EmbedResizeReporter deps={resizeDeps} widget="menu" />
-      <div className="mx-auto w-full max-w-2xl py-6">
-        <header className="mb-4 border-b border-border/50 px-4 pb-4 sm:px-6">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Speisekarte
-          </p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight">
-            {restaurantName}
-          </h1>
-        </header>
+      <div
+        ref={widgetRootRef}
+        className={cn(
+          "mx-auto w-full max-w-2xl",
+          profileSheet ? "pt-2 pb-6" : "py-6",
+        )}
+      >
+        {profileSheet ? null : (
+          <header className="mb-4 border-b border-border/50 px-4 pb-4 sm:px-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Speisekarte
+            </p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight">
+              {restaurantName}
+            </h1>
+          </header>
+        )}
 
         {visibleCategories.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
@@ -515,8 +573,9 @@ export function EmbedMenuWidget({
               outerRef={hostMode ? toolbarOuterRef : undefined}
               sticky={!hostMode}
               hostMode={hostMode}
+              profileSheet={profileSheet}
             />
-            <div className="px-4 sm:px-6">
+            <div className={cn(profileSheet ? "px-4 sm:px-5" : "px-4 sm:px-6")}>
               <EmbedMenuSections
                 sections={sections}
                 visibleCategories={visibleCategories}

@@ -185,7 +185,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   if (loading) {
     content = (
-      <div className="flex min-h-dvh items-center justify-center">
+      <div className="relative flex min-h-dvh items-center justify-center">
+        <DisplayThemeToggleSlot />
         <Loader2 className="size-10 animate-spin text-muted-foreground" />
       </div>
     );
@@ -248,7 +249,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
     );
   } else if (context.restaurant && context.restaurant.slug !== slug) {
     content = (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
+      <div className="relative flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
+        <DisplayThemeToggleSlot />
         <h1 className="text-2xl font-semibold">Falsches Restaurant</h1>
         <p className="text-muted-foreground">
           Dieses Tablet ist an „{context.restaurant.name}“ gekoppelt.

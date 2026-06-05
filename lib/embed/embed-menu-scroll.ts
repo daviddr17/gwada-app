@@ -6,6 +6,17 @@ import {
   type GwadaEmbedFrameViewportMessage,
 } from "@/lib/embed/embed-protocol";
 
+/** Scroll-Container im Profil-Modul-Sheet (iOS-App-Overlay). */
+export const PROFILE_APP_SCROLL_ROOT_SELECTOR = "[data-profile-app-scroll-root]";
+
+export function findProfileScrollRootContaining(
+  el: HTMLElement | null,
+): HTMLElement | null {
+  if (!el) return null;
+  const root = el.closest(PROFILE_APP_SCROLL_ROOT_SELECTOR);
+  return root instanceof HTMLElement ? root : null;
+}
+
 export function readGwadaEmbedId(): string | null {
   if (typeof window === "undefined") return null;
   return new URLSearchParams(window.location.search).get("gwada_embed_id");
@@ -87,6 +98,23 @@ export function scrollToMenuCategoryInPage(
   const rect = el.getBoundingClientRect();
   window.scrollTo({
     top: window.scrollY + rect.top - stickyHeight - pad,
+    behavior: "smooth",
+  });
+}
+
+export function scrollToMenuCategoryInContainer(
+  scrollRoot: HTMLElement,
+  categoryId: string,
+  stickyHeight: number,
+): void {
+  const el = document.getElementById(`menu-cat-${categoryId}`);
+  if (!el) return;
+  const pad = 8;
+  const elRect = el.getBoundingClientRect();
+  const rootRect = scrollRoot.getBoundingClientRect();
+  const delta = elRect.top - rootRect.top - stickyHeight - pad;
+  scrollRoot.scrollTo({
+    top: Math.max(0, scrollRoot.scrollTop + delta),
     behavior: "smooth",
   });
 }

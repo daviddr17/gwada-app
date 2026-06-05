@@ -1,8 +1,12 @@
 "use client";
 
+import type { CSSProperties, ReactNode } from "react";
 import {
   restaurantLogoFrameClassName,
+  restaurantLogoHeaderFrameClassName,
   restaurantLogoImageClassName,
+  restaurantLogoInnerTileClassName,
+  restaurantLogoOuterPaddingClassName,
   restaurantLogoPlateClassName,
 } from "@/lib/ui/profile-avatar-image";
 import { cn } from "@/lib/utils";
@@ -13,35 +17,90 @@ const sizeClasses = {
   lg: "size-14 text-base",
   card: "size-20 text-xl",
   header: "size-24 text-2xl",
+  profile:
+    "size-20 text-xl shadow-lg ring-[4px] ring-white/90 dark:ring-background sm:size-24 sm:text-2xl md:size-28 md:text-3xl lg:size-32",
 } as const;
+
+export type RestaurantLogoMarkSize = keyof typeof sizeClasses;
+
+export function RestaurantLogoFrame({
+  children,
+  variant = "default",
+  size = "md",
+  className,
+  style,
+  innerClassName,
+}: {
+  children: ReactNode;
+  variant?: "default" | "header" | "profile";
+  size?: RestaurantLogoMarkSize;
+  className?: string;
+  style?: CSSProperties;
+  innerClassName?: string;
+}) {
+  const outerFrameClassName =
+    variant === "header" || variant === "profile"
+      ? cn(
+          restaurantLogoHeaderFrameClassName,
+          restaurantLogoPlateClassName,
+          restaurantLogoOuterPaddingClassName,
+          variant === "profile" && sizeClasses.profile,
+        )
+      : cn(
+          restaurantLogoFrameClassName,
+          restaurantLogoPlateClassName,
+          restaurantLogoOuterPaddingClassName,
+        );
+
+  return (
+    <span
+      className={cn(
+        outerFrameClassName,
+        variant !== "profile" && sizeClasses[size],
+        className,
+      )}
+      style={style}
+    >
+      <span className={cn(restaurantLogoInnerTileClassName, innerClassName)}>
+        {children}
+      </span>
+    </span>
+  );
+}
 
 export function RestaurantLogoMark({
   src,
   initials,
   alt = "",
   size = "md",
+  variant = "default",
   className,
+  style,
   imageClassName,
+  innerClassName,
 }: {
   src: string | null | undefined;
   initials: string;
   alt?: string;
-  size?: keyof typeof sizeClasses;
+  size?: RestaurantLogoMarkSize;
+  variant?: "default" | "header" | "profile";
   className?: string;
+  style?: CSSProperties;
   imageClassName?: string;
+  innerClassName?: string;
 }) {
   const hasImage = Boolean(src);
 
   return (
-    <span
+    <RestaurantLogoFrame
+      variant={variant}
+      size={size}
       className={cn(
-        restaurantLogoFrameClassName,
-        restaurantLogoPlateClassName,
-        sizeClasses[size],
         !hasImage && "font-semibold text-muted-foreground",
         className,
       )}
-      aria-hidden={!alt}
+      style={style}
+      innerClassName={innerClassName}
     >
       {hasImage ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -49,11 +108,14 @@ export function RestaurantLogoMark({
           src={src!}
           alt={alt}
           decoding="async"
+          fetchPriority={variant === "profile" ? "high" : undefined}
           className={cn(restaurantLogoImageClassName, imageClassName)}
         />
       ) : (
         initials
       )}
-    </span>
+    </RestaurantLogoFrame>
   );
 }
+
+export { sizeClasses as restaurantLogoMarkSizeClasses };

@@ -34,7 +34,7 @@ export function DisplayRestaurantProfileHero({
             initials={initials}
             alt={name}
             className={cn(logoClassName, !avatarUrl && "text-lg sm:text-xl")}
-            imageClassName="p-2 sm:p-2.5"
+            imageClassName="p-0"
           />
           <div className="min-w-0 flex-1">
             <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
@@ -66,7 +66,7 @@ export function DisplayRestaurantProfileHero({
             logoClassName,
             !avatarUrl && "text-lg sm:text-xl",
           )}
-          imageClassName="p-2 sm:p-2.5"
+          imageClassName="p-0"
         />
         <div
           className={cn(

@@ -3,12 +3,14 @@ import "server-only";
 import nodemailer from "nodemailer";
 import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
 import {
-  getPublicGwadaWorkspaceSlug,
-  getPublicSiteUrl,
-  getPublicSupabaseUrl,
-  isPublicGwadaSupabaseOnly,
-  isPublicSupabaseProxyEnabled,
-} from "@/lib/public-env";
+  buildSuperadminCoolifyInfo,
+  buildSuperadminDatabaseDetails,
+  buildSuperadminVpsInfo,
+} from "@/lib/superadmin/dev-infrastructure-server";
+import {
+  buildSuperadminRepositoryGuide,
+  fetchSuperadminGithubRepoStatus,
+} from "@/lib/superadmin/github-repo-status-server";
 import {
   smtpCredentialsFromConfig,
   type SmtpIntegrationConfig,
@@ -27,7 +29,6 @@ import {
   integrationConfigFromJson,
   type PlatformIntegrationKey,
 } from "@/lib/types/platform-integration";
-import { fetchCoolifyLiveDeployStatus } from "@/lib/superadmin/coolify-api-server";
 import { fetchLiveAppDeployStatus } from "@/lib/superadmin/live-app-deploy-status-server";
 import { DEFAULT_WEATHER_LOCATION } from "@/lib/weather/visual-crossing-location";
 import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key";
@@ -35,159 +36,6 @@ import { checkGotrueGoogleOAuthHealth } from "@/lib/superadmin/gotrue-google-oau
 
 const CHECK_TIMEOUT_MS = 8_000;
 const DB_PROBE_TIMEOUT_MS = 12_000;
-
-function parseSafeHttpOrigin(raw: string | undefined): string | null {
-  const trimmed = raw?.trim();
-  if (!trimmed) return null;
-  try {
-    const u = new URL(trimmed);
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return trimmed.replace(/\/+$/, "");
-  }
-}
-
-function supabaseStudioHintFromLocalUpstream(upstream: string | null): string | null {
-  if (!upstream) return null;
-  try {
-    const u = new URL(upstream);
-    if (u.hostname === "127.0.0.1" || u.hostname === "localhost") {
-      u.port = "54323";
-      u.pathname = "";
-      u.search = "";
-      u.hash = "";
-      return u.toString().replace(/\/$/, "");
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function resolveSupabaseStudioDisplay(upstream: string | null): {
-  url: string | null;
-  note: string | null;
-} {
-  const explicit = parseSafeHttpOrigin(process.env.GWADA_SUPABASE_STUDIO_URL);
-  const dockerKong = Boolean(upstream?.includes("supabase-kong-"));
-  const studioSecureUrl = "https://studio.new.gwada.app";
-  const autheliaNote =
-    "Studio über Authelia (2FA): https://auth.new.gwada.app — Port 54323 bleibt localhost-only.";
-  const tunnelNote =
-    "Alternativ SSH-Tunnel: ssh -L 54323:127.0.0.1:54323 root@VPS → http://127.0.0.1:54323";
-
-  if (explicit) {
-    return {
-      url: explicit,
-      note: dockerKong ? autheliaNote : null,
-    };
-  }
-
-  if (dockerKong) {
-    const host = process.env.GWADA_VPS_PUBLIC_HOST?.trim()?.replace(
-      /^https?:\/\//,
-      "",
-    );
-    if (host) {
-      const vps = host.split("/")[0];
-      return {
-        url: studioSecureUrl,
-        note: `${autheliaNote} ${tunnelNote.replace("VPS", vps)}`,
-      };
-    }
-    return {
-      url: studioSecureUrl,
-      note: autheliaNote,
-    };
-  }
-
-  return {
-    url: supabaseStudioHintFromLocalUpstream(upstream),
-    note: null,
-  };
-}
-
-function resolveCoolifyDashboardUrl(): string | null {
-  const explicit = parseSafeHttpOrigin(process.env.GWADA_COOLIFY_DASHBOARD_URL);
-  if (explicit) return explicit;
-  const host = process.env.GWADA_VPS_PUBLIC_HOST?.trim()?.replace(
-    /^https?:\/\//,
-    "",
-  );
-  if (host) {
-    return `http://${host.split("/")[0]}:8000`;
-  }
-  return null;
-}
-
-function inferDeploymentPhase(
-  appUrl: string | null,
-): SuperadminDatabaseStatus["coolify"]["deploymentPhase"] {
-  if (!appUrl) return "development";
-  try {
-    const host = new URL(appUrl).hostname.toLowerCase();
-    if (host === "new.gwada.app" || host.startsWith("new.")) return "staging";
-    if (host === "gwada.app" || host === "www.gwada.app") return "production";
-    if (host === "127.0.0.1" || host === "localhost") return "development";
-    return "staging";
-  } catch {
-    return "staging";
-  }
-}
-
-function buildCoolifyDeploymentInfo(
-  liveDeploy: SuperadminDatabaseStatus["coolify"]["liveDeploy"],
-): SuperadminDatabaseStatus["coolify"] {
-  const runtime =
-    process.env.NODE_ENV === "production" ? "production" : "development";
-  const appUrl = getPublicSiteUrl() ?? null;
-  const plannedProductionUrl =
-    parseSafeHttpOrigin(process.env.GWADA_PLANNED_PRODUCTION_URL) ??
-    "https://gwada.app";
-  const supabasePublicUrl = getPublicSupabaseUrl() ?? null;
-  const supabaseUpstream = parseSafeHttpOrigin(
-    process.env.SUPABASE_UPSTREAM_URL,
-  );
-  const studio = resolveSupabaseStudioDisplay(supabaseUpstream);
-  const proxyEnabled = isPublicSupabaseProxyEnabled();
-  const dashboardUrl = resolveCoolifyDashboardUrl();
-  const deployBranch = process.env.COOLIFY_BRANCH?.trim() || null;
-  const sourceCommit =
-    process.env.SOURCE_COMMIT?.trim() ||
-    process.env.COOLIFY_COMMIT?.trim() ||
-    null;
-  const detected = Boolean(
-    deployBranch ||
-      sourceCommit ||
-      process.env.COOLIFY_FQDN?.trim() ||
-      process.env.COOLIFY_RESOURCE_UUID?.trim() ||
-      (runtime === "production" && proxyEnabled && supabaseUpstream),
-  );
-
-  const applicationUuid =
-    process.env.GWADA_COOLIFY_APP_UUID?.trim() ||
-    process.env.COOLIFY_RESOURCE_UUID?.trim() ||
-    null;
-
-  return {
-    detected,
-    runtime,
-    deploymentPhase:
-      runtime === "development" ? "development" : inferDeploymentPhase(appUrl),
-    appUrl,
-    plannedProductionUrl,
-    supabasePublicUrl,
-    supabaseUpstream,
-    supabaseStudioHint: studio.url,
-    supabaseStudioAccessNote: studio.note,
-    dashboardUrl,
-    deployBranch,
-    sourceCommit,
-    proxyEnabled,
-    applicationUuid,
-    liveDeploy,
-  };
-}
 
 function health(
   state: SuperadminIntegrationConnectionState,
@@ -437,28 +285,19 @@ export async function buildSuperadminDatabaseStatus(): Promise<SuperadminDatabas
   const totalStart = performance.now();
   const checkedAt = new Date().toISOString();
   const admin = createSupabaseAdminClient();
-  const publicUrl = getPublicSupabaseUrl() ?? null;
-  const liveDeploy = await fetchCoolifyLiveDeployStatus();
-  const coolify = buildCoolifyDeploymentInfo(liveDeploy);
-  const liveApp = await fetchLiveAppDeployStatus(liveDeploy.summary);
+  const database = buildSuperadminDatabaseDetails();
+  const vps = buildSuperadminVpsInfo();
+  const coolify = buildSuperadminCoolifyInfo();
+  const github = await fetchSuperadminGithubRepoStatus();
+  const liveApp = await fetchLiveAppDeployStatus(github);
+  const repository = buildSuperadminRepositoryGuide(github.defaultBranch);
   const basePayload = {
-    api: {
-      publicUrl,
-      proxyEnabled: isPublicSupabaseProxyEnabled(),
-      siteUrl: getPublicSiteUrl() ?? null,
-      workspaceSlug: getPublicGwadaWorkspaceSlug() ?? null,
-    },
-    server: {
-      serviceRoleConfigured: Boolean(
-        process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
-      ),
-      supabaseUpstreamConfigured: Boolean(
-        process.env.SUPABASE_UPSTREAM_URL?.trim(),
-      ),
-      supabaseOnlyMode: isPublicGwadaSupabaseOnly(),
-    },
+    database,
+    vps,
     coolify,
+    github,
     liveApp,
+    repository,
   };
 
   if (!admin) {
@@ -516,8 +355,8 @@ export async function buildSuperadminDatabaseStatus(): Promise<SuperadminDatabas
     totalCheckLatencyMs: Math.round(performance.now() - totalStart),
     message,
     ...basePayload,
-    server: {
-      ...basePayload.server,
+    database: {
+      ...basePayload.database,
       serviceRoleConfigured: true,
     },
     counts: {

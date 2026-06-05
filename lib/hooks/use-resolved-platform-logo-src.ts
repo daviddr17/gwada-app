@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useTheme } from "@/components/providers/theme-provider";
+import { useDeferredResolvedTheme } from "@/lib/hooks/use-deferred-resolved-theme";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 import { resolvePlatformLogoSrc } from "@/lib/platform/resolve-platform-logo";
 
 /** App-Logo passend zu Hell/Dunkel (Dark fällt auf Light-Logo zurück). */
 export function useResolvedPlatformLogoSrc(): string | null {
   const branding = usePlatformAppBrandingOptional();
-  const { resolvedTheme } = useTheme();
+  const deferredTheme = useDeferredResolvedTheme();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -19,7 +19,6 @@ export function useResolvedPlatformLogoSrc(): string | null {
     if (!mounted) {
       return resolvePlatformLogoSrc(branding, "light");
     }
-    const theme = resolvedTheme === "dark" ? "dark" : "light";
-    return resolvePlatformLogoSrc(branding, theme);
-  }, [branding, mounted, resolvedTheme]);
+    return resolvePlatformLogoSrc(branding, deferredTheme);
+  }, [branding, mounted, deferredTheme]);
 }

@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { WeatherAmbienceKind } from "@/lib/weather/weather-ambience-kind";
+import { useThemeTransitionActive } from "@/lib/hooks/use-theme-transition-active";
 import { cn } from "@/lib/utils";
 
 const PALETTES: Record<
@@ -49,8 +50,8 @@ const PALETTES: Record<
   },
 };
 
-function RainStreaks({ active }: { active: boolean }) {
-  if (!active) return null;
+function RainStreaks({ active, animate }: { active: boolean; animate: boolean }) {
+  if (!active || !animate) return null;
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-30" aria-hidden>
       {Array.from({ length: 14 }).map((_, i) => (
@@ -72,8 +73,8 @@ function RainStreaks({ active }: { active: boolean }) {
   );
 }
 
-function SnowFlakes({ active }: { active: boolean }) {
-  if (!active) return null;
+function SnowFlakes({ active, animate }: { active: boolean; animate: boolean }) {
+  if (!active || !animate) return null;
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-40" aria-hidden>
       {Array.from({ length: 10 }).map((_, i) => (
@@ -139,8 +140,9 @@ export function DashboardWeatherAmbience({
   className?: string;
 }) {
   const reduceMotion = useReducedMotion();
+  const themeTransitionActive = useThemeTransitionActive();
   const palette = PALETTES[kind];
-  const animate = !reduceMotion;
+  const animate = !reduceMotion && !themeTransitionActive;
 
   return (
     <div
@@ -179,8 +181,11 @@ export function DashboardWeatherAmbience({
           )}
         />
       ) : null}
-      <RainStreaks active={kind === "rain" || kind === "storm"} />
-      <SnowFlakes active={kind === "snow"} />
+      <RainStreaks
+        active={kind === "rain" || kind === "storm"}
+        animate={animate}
+      />
+      <SnowFlakes active={kind === "snow"} animate={animate} />
       <div className="absolute inset-0 bg-background/55 backdrop-blur-[1px] dark:bg-background/70" />
     </div>
   );

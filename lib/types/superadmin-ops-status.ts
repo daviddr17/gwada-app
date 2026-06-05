@@ -10,53 +10,6 @@ export type SuperadminIntegrationConnectionHealth = {
   latencyMs?: number;
 };
 
-export type SuperadminCoolifyDeploymentInfo = {
-  /** Coolify-Env oder typisches VPS-Proxy-Setup erkannt */
-  detected: boolean;
-  runtime: "production" | "development";
-  /** staging = new.gwada.app o. Ä.; production = finale Kunden-Domain */
-  deploymentPhase: "development" | "staging" | "production";
-  appUrl: string | null;
-  plannedProductionUrl: string | null;
-  supabasePublicUrl: string | null;
-  supabaseUpstream: string | null;
-  supabaseStudioHint: string | null;
-  /** z. B. SSH-Tunnel-Hinweis, wenn Studio nicht öffentlich erreichbar ist */
-  supabaseStudioAccessNote: string | null;
-  dashboardUrl: string | null;
-  deployBranch: string | null;
-  sourceCommit: string | null;
-  proxyEnabled: boolean;
-  applicationUuid: string | null;
-  liveDeploy: SuperadminCoolifyLiveDeployStatus;
-};
-
-export type SuperadminCoolifyActiveDeployment = {
-  status: string;
-  commit: string | null;
-  startedAt: string | null;
-  deploymentUuid: string | null;
-  deploymentUiPath: string | null;
-};
-
-export type SuperadminCoolifyLastDeploy = {
-  /** ISO-Zeitstempel des letzten abgeschlossenen Coolify-Deploys */
-  finishedAt: string | null;
-  commit: string | null;
-  status: string | null;
-};
-
-export type SuperadminCoolifyLiveDeployStatus = {
-  apiConfigured: boolean;
-  apiReachable: boolean;
-  applicationUuid: string | null;
-  appRuntimeStatus: string | null;
-  active: SuperadminCoolifyActiveDeployment[];
-  lastDeploy: SuperadminCoolifyLastDeploy;
-  summary: "idle" | "deploying" | "queued" | "unavailable";
-  message: string | null;
-};
-
 export type SuperadminGithubDeployWorkflowRun = {
   id: number;
   status: string | null;
@@ -71,10 +24,42 @@ export type SuperadminGithubDeployWorkflowRun = {
 export type SuperadminGithubDeployWorkflowStatus = {
   configured: boolean;
   reachable: boolean;
-  repo: string;
-  branch: string;
+  workflowFile: string;
+  label: string;
   latestRun: SuperadminGithubDeployWorkflowRun | null;
   activeRun: SuperadminGithubDeployWorkflowRun | null;
+  message: string | null;
+};
+
+export type SuperadminGithubBranchInfo = {
+  name: string;
+  shortSha: string;
+  isDefault: boolean;
+  protected: boolean;
+};
+
+export type SuperadminGithubHeadCommit = {
+  sha: string | null;
+  shortSha: string | null;
+  message: string | null;
+  author: string | null;
+  committedAt: string | null;
+  htmlUrl: string | null;
+};
+
+export type SuperadminGithubRepoStatus = {
+  configured: boolean;
+  reachable: boolean;
+  slug: string;
+  htmlUrl: string;
+  defaultBranch: string;
+  deployBranch: string;
+  description: string | null;
+  pushedAt: string | null;
+  branches: SuperadminGithubBranchInfo[];
+  headCommit: SuperadminGithubHeadCommit;
+  appDeployWorkflow: SuperadminGithubDeployWorkflowStatus;
+  dbDeployWorkflow: SuperadminGithubDeployWorkflowStatus;
   message: string | null;
 };
 
@@ -86,21 +71,57 @@ export type SuperadminLiveAppDeploySyncState =
 
 export type SuperadminLiveAppDeployStatus = {
   siteUrl: string | null;
-  /** Öffentliche URL /api/build-info */
   liveSha: string | null;
   liveShortSha: string | null;
   liveReachable: boolean;
-  /** GWADA_BUILD_SHA im laufenden Container */
   containerSha: string | null;
-  githubSha: string | null;
-  githubShortSha: string | null;
-  githubCommitMessage: string | null;
-  githubReachable: boolean;
   syncState: SuperadminLiveAppDeploySyncState;
   message: string | null;
-  githubWorkflow: SuperadminGithubDeployWorkflowStatus;
   triggerConfigured: boolean;
   deployLogHint: string;
+};
+
+export type SuperadminVpsInfo = {
+  provider: "Contabo";
+  publicHost: string | null;
+  sshUser: string;
+  siteUrl: string | null;
+  plannedProductionUrl: string | null;
+  deploymentPhase: "development" | "staging" | "production";
+  runtime: "production" | "development";
+  workspaceSlug: string | null;
+};
+
+export type SuperadminDatabaseDetails = {
+  publicUrl: string | null;
+  proxyEnabled: boolean;
+  upstreamConfigured: boolean;
+  upstreamHost: string | null;
+  studioUrl: string | null;
+  studioAccessNote: string | null;
+  serviceRoleConfigured: boolean;
+  supabaseOnlyMode: boolean;
+  migrationFilesCount: number | null;
+};
+
+export type SuperadminRepositoryGuideEntry = {
+  path: string;
+  description: string;
+};
+
+export type SuperadminRepositoryGuide = {
+  repoSlug: string;
+  repoUrl: string;
+  defaultBranch: string;
+  tree: SuperadminRepositoryGuideEntry[];
+  docLinks: { label: string; path: string }[];
+};
+
+/** Coolify: nur noch Infrastruktur/Hosting — kein App-Deploy mehr */
+export type SuperadminCoolifyInfo = {
+  hostingDetected: boolean;
+  supabaseDockerStack: boolean;
+  dashboardUrl: string | null;
 };
 
 export type SuperadminDatabaseStatus = {
@@ -113,19 +134,12 @@ export type SuperadminDatabaseStatus = {
   /** Gesamtdauer des Server-Status-Checks inkl. Counts */
   totalCheckLatencyMs: number | null;
   message?: string;
-  api: {
-    publicUrl: string | null;
-    proxyEnabled: boolean;
-    siteUrl: string | null;
-    workspaceSlug: string | null;
-  };
-  server: {
-    serviceRoleConfigured: boolean;
-    supabaseUpstreamConfigured: boolean;
-    supabaseOnlyMode: boolean;
-  };
-  coolify: SuperadminCoolifyDeploymentInfo;
+  database: SuperadminDatabaseDetails;
+  vps: SuperadminVpsInfo;
+  github: SuperadminGithubRepoStatus;
   liveApp: SuperadminLiveAppDeployStatus;
+  coolify: SuperadminCoolifyInfo;
+  repository: SuperadminRepositoryGuide;
   counts: {
     restaurants: number | null;
     profiles: number | null;

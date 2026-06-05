@@ -24,7 +24,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="skeleton"
       className={cn(
-        "skeleton-shimmer min-h-[0.5rem] rounded-xl",
+        "relative skeleton-shimmer min-h-[0.5rem] rounded-xl",
         className,
       )}
       {...props}

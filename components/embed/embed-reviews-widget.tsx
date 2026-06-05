@@ -135,14 +135,14 @@ export function EmbedReviewsWidget({
           ) : (
             <div>
               {reviews.map((r) => (
-                <EmbedReviewRow key={r.id} review={r} />
+                <EmbedReviewRow key={`${r.platform}-${r.id}`} review={r} />
               ))}
             </div>
           )}
         </section>
 
         <p className="mt-8 text-center text-[11px] text-muted-foreground/80">
-          Bewertungen über Gwada
+          Bewertungen über Gwada und verbundene Plattformen
         </p>
       </div>
     </EmbedAccentRoot>

@@ -136,6 +136,24 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html.theme-transition-active *,
+    html.theme-transition-active *::before,
+    html.theme-transition-active *::after {
+      transition-property: background-color, border-color, color, fill, stroke,
+        box-shadow, outline-color;
+      transition-duration: 420ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    html.theme-transition-active img,
+    html.theme-transition-active video {
+      transition-property: opacity;
+      transition-duration: 420ms;
+      transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  }
 }
 
 @layer utilities {
@@ -199,6 +217,23 @@
     .skeleton-shimmer::after {
       animation: none;
       opacity: 0;
+    }
+  }
+
+  /** Theme-Wechsel: Crossfade der gesamten Seite (View Transitions API). */
+  @media (prefers-reduced-motion: no-preference) {
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation-duration: 420ms;
+      animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    ::view-transition-old(root) {
+      animation-name: theme-view-fade-out;
+    }
+
+    ::view-transition-new(root) {
+      animation-name: theme-view-fade-in;
     }
   }
 }
@@ -438,6 +473,24 @@
   }
 }
 
+@keyframes theme-view-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes theme-view-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Landing hero: transform-only entrance — LCP text stays opacity:1 without JS */
 @keyframes landing-hero-rise {
   from {
@@ -480,6 +533,106 @@
   .landing-hero-rise-modules,
   .landing-hero-rise-cta {
     animation: none;
+  }
+}
+
+/* Öffentliches Restaurant-Profil: Gwada-Splash (LCP-neutral, transparentes Overlay) */
+.public-profile-splash-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  background: radial-gradient(
+    circle at center,
+    hsl(var(--background) / 0.92) 0%,
+    hsl(var(--background) / 0.55) 38%,
+    transparent 72%
+  );
+}
+
+.public-profile-splash-icon-wrap {
+  display: flex;
+  width: 6rem;
+  height: 6rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.92) translateZ(0);
+  filter: blur(8px);
+  backface-visibility: hidden;
+}
+
+.public-profile-splash-icon-enter {
+  animation: public-profile-splash-icon-in 0.58s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.public-profile-splash-icon-exit {
+  animation: public-profile-splash-icon-out 0.72s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.public-profile-splash-logo {
+  display: block;
+  width: 6rem;
+  height: 6rem;
+  object-fit: contain;
+  object-position: center;
+}
+
+.public-profile-splash-overlay-exit {
+  animation: public-profile-splash-overlay-out 0.72s cubic-bezier(0.32, 0.72, 0, 1)
+    forwards;
+  pointer-events: none;
+}
+
+@keyframes public-profile-splash-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateZ(0);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes public-profile-splash-icon-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateZ(0);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.08) translateZ(0);
+    filter: blur(8px);
+  }
+}
+
+@keyframes public-profile-splash-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-profile-splash-icon-enter,
+  .public-profile-splash-icon-exit,
+  .public-profile-splash-overlay-exit {
+    animation: none !important;
+  }
+
+  .public-profile-splash-overlay {
+    background: transparent;
   }
 }
 

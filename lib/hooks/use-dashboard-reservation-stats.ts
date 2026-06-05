@@ -7,6 +7,10 @@ import { GWADA_DASHBOARD_RESERVATIONS_REFRESH_EVENT } from "@/lib/dashboard/dash
 import { useDashboardSummaryQuery } from "@/lib/hooks/use-dashboard-summary-query";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
+const RESERVATION_DASHBOARD_REFRESH_EVENTS = [
+  GWADA_DASHBOARD_RESERVATIONS_REFRESH_EVENT,
+] as const;
+
 export function useDashboardReservationStats() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
 
@@ -23,6 +27,6 @@ export function useDashboardReservationStats() {
     restaurantId,
     workspaceReady,
     fetch,
-    extraRefreshEvents: [GWADA_DASHBOARD_RESERVATIONS_REFRESH_EVENT],
+    extraRefreshEvents: RESERVATION_DASHBOARD_REFRESH_EVENTS,
   });
 }

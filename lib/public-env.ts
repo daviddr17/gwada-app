@@ -1,6 +1,9 @@
+/** Attribut am `<html>`-Element im Root-Layout (React-19-kompatibel, kein Hydration-Mismatch). */
+export const GWADA_PUBLIC_ENV_HTML_ATTR = "data-gwada-public-env";
+
 /**
  * NEXT_PUBLIC_* wird beim `next build` eingebettet — Coolify setzt Keys oft erst zur Laufzeit.
- * Root-Layout (`app/layout.tsx`) injiziert dieselben Werte aus Server-Env in `window.__GWADA_PUBLIC_ENV__`.
+ * Root-Layout legt dieselben Werte als JSON in `data-gwada-public-env` am `<html>` ab.
  */
 
 export type GwadaPublicEnv = {
@@ -18,9 +21,24 @@ declare global {
   }
 }
 
+function readPublicEnvFromDom(): GwadaPublicEnv | undefined {
+  const raw = document.documentElement
+    .getAttribute(GWADA_PUBLIC_ENV_HTML_ATTR)
+    ?.trim();
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as GwadaPublicEnv;
+  } catch {
+    return undefined;
+  }
+}
+
 function runtimeEnv(): GwadaPublicEnv | undefined {
   if (typeof window === "undefined") return undefined;
-  return window.__GWADA_PUBLIC_ENV__;
+  if (window.__GWADA_PUBLIC_ENV__) return window.__GWADA_PUBLIC_ENV__;
+  const parsed = readPublicEnvFromDom();
+  if (parsed) window.__GWADA_PUBLIC_ENV__ = parsed;
+  return parsed;
 }
 
 function envTruthy(v: string | undefined): boolean {
@@ -82,7 +100,7 @@ function trimOrigin(origin: string): string {
   return origin.replace(/\/+$/, "");
 }
 
-/** Server: Werte für das Inline-Script (nur öffentliche Keys). */
+/** Server: Werte für das Env-Attribut am `<html>` (nur öffentliche Keys). */
 export function buildGwadaPublicEnvForScript(
   requestOrigin?: string | null,
 ): GwadaPublicEnv {

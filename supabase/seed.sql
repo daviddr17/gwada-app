@@ -5,7 +5,7 @@ insert into public.restaurants (slug, name, description, is_published, timezone)
 values (
   'gwada-demo',
   'Gwada Demo',
-  'Seed restaurant for local development.',
+  null,
   true,
   'America/Guadeloupe'
 )

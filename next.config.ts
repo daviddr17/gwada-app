@@ -13,30 +13,36 @@ const supabaseStoragePatterns = [
   {
     protocol: "https" as const,
     hostname: "**.supabase.co",
-    pathname: "/storage/v1/object/public/**",
+    pathname: "/storage/v1/object/**",
   },
   ...gwadaAppStorageHostnames.map((hostname) => ({
     protocol: "https" as const,
     hostname,
-    pathname: "/sb/storage/v1/object/public/**",
+    pathname: "/sb/storage/v1/object/**",
   })),
   {
     protocol: "http" as const,
     hostname: "127.0.0.1",
     port: "54321",
-    pathname: "/storage/v1/object/public/**",
+    pathname: "/storage/v1/object/**",
+  },
+  {
+    protocol: "http" as const,
+    hostname: "localhost",
+    port: "54321",
+    pathname: "/storage/v1/object/**",
   },
   {
     protocol: "http" as const,
     hostname: "95.111.229.250",
     port: "8001",
-    pathname: "/storage/v1/object/public/**",
+    pathname: "/storage/v1/object/**",
   },
   {
     protocol: "http" as const,
     hostname: "95.111.229.250",
     port: "3000",
-    pathname: "/sb/storage/v1/object/public/**",
+    pathname: "/sb/storage/v1/object/**",
   },
 ];
 

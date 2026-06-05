@@ -1,7 +1,15 @@
-import { EmbedReviewsWidget } from "@/components/embed/embed-reviews-widget";
+import nextDynamic from "next/dynamic";
 import { fetchPublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 
-export const dynamic = "force-dynamic";
+const EmbedReviewsWidget = nextDynamic(
+  () =>
+    import("@/components/embed/embed-reviews-widget").then(
+      (mod) => mod.EmbedReviewsWidget,
+    ),
+  { ssr: true },
+);
+
+export const revalidate = 60;
 
 export default async function EmbedBewertungenPage({
   params,

@@ -32,17 +32,33 @@ const PlatformAppBrandingContext =
 
 export function PlatformAppBrandingProvider({
   children,
+  initialBranding,
 }: {
   children: React.ReactNode;
+  initialBranding?: PlatformAppBranding | null;
 }) {
-  const [appName, setAppName] = useState(DEFAULT_PLATFORM_APP_NAME);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoDarkUrl, setLogoDarkUrl] = useState<string | null>(null);
-  const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
-  const [logoPath, setLogoPath] = useState<string | null>(null);
-  const [logoDarkPath, setLogoDarkPath] = useState<string | null>(null);
-  const [faviconPath, setFaviconPath] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const [appName, setAppName] = useState(
+    () => initialBranding?.appName?.trim() || DEFAULT_PLATFORM_APP_NAME,
+  );
+  const [logoUrl, setLogoUrl] = useState<string | null>(
+    () => initialBranding?.logoUrl ?? null,
+  );
+  const [logoDarkUrl, setLogoDarkUrl] = useState<string | null>(
+    () => initialBranding?.logoDarkUrl ?? null,
+  );
+  const [faviconUrl, setFaviconUrl] = useState<string | null>(
+    () => initialBranding?.faviconUrl ?? null,
+  );
+  const [logoPath, setLogoPath] = useState<string | null>(
+    () => initialBranding?.logoPath ?? null,
+  );
+  const [logoDarkPath, setLogoDarkPath] = useState<string | null>(
+    () => initialBranding?.logoDarkPath ?? null,
+  );
+  const [faviconPath, setFaviconPath] = useState<string | null>(
+    () => initialBranding?.faviconPath ?? null,
+  );
+  const [isReady, setIsReady] = useState(() => Boolean(initialBranding));
 
   const applyBranding = useCallback((next: PlatformAppBranding) => {
     setAppName(next.appName?.trim() || DEFAULT_PLATFORM_APP_NAME);
@@ -61,6 +77,7 @@ export function PlatformAppBrandingProvider({
   }, [applyBranding]);
 
   useEffect(() => {
+    if (initialBranding) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -74,7 +91,7 @@ export function PlatformAppBrandingProvider({
     return () => {
       cancelled = true;
     };
-  }, [applyBranding]);
+  }, [applyBranding, initialBranding]);
 
   const value = useMemo(
     () => ({

@@ -1,10 +1,7 @@
+import { PublicRestaurantImage } from "@/components/public/public-restaurant-image";
 import {
-  CalendarDays,
   Mail,
-  MapPin,
   Phone,
-  Star,
-  UtensilsCrossed,
 } from "lucide-react";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
@@ -70,8 +67,6 @@ export function RestaurantPublicProfileHero({
   profile: PublicRestaurantProfile;
 }) {
   const initials = restaurantInitials(profile.name);
-  const reviewAverage = profile.reviewSummary?.average;
-  const reviewCount = profile.reviewSummary?.count ?? 0;
 
   return (
     <div className="relative mx-auto max-w-3xl px-4 sm:px-6">
@@ -84,12 +79,13 @@ export function RestaurantPublicProfileHero({
             )}
           >
             {profile.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <PublicRestaurantImage
                 src={profile.avatarUrl}
                 alt=""
+                width={112}
+                height={112}
+                priority={!profile.coverUrl}
                 className={restaurantLogoImageClassName}
-                decoding="async"
               />
             ) : (
               <span className="text-2xl font-semibold text-muted-foreground sm:text-3xl">
@@ -111,15 +107,6 @@ export function RestaurantPublicProfileHero({
                 </p>
               ) : null}
             </div>
-            {reviewAverage != null && reviewCount > 0 ? (
-              <div className="flex shrink-0 items-center gap-1.5 rounded-full border border-border/50 bg-card px-3 py-1.5 text-sm shadow-card">
-                <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden />
-                <span className="font-semibold tabular-nums">
-                  {reviewAverage.toFixed(1)}
-                </span>
-                <span className="text-muted-foreground">({reviewCount})</span>
-              </div>
-            ) : null}
           </div>
 
           {profile.socialLinks.length > 0 ? (
@@ -133,10 +120,3 @@ export function RestaurantPublicProfileHero({
       </div>
   );
 }
-
-export const PROFILE_TAB_ICONS = {
-  reserve: CalendarDays,
-  menu: UtensilsCrossed,
-  reviews: Star,
-  info: MapPin,
-} as const;

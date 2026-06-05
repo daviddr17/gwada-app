@@ -27,7 +27,7 @@ export function PublicGwadaFooter({
             src={logoSrc}
             alt={label}
             decoding="async"
-            className="h-6 w-auto max-w-[7rem] object-contain opacity-70"
+            className="h-6 w-auto max-w-[7rem] object-contain"
           />
         ) : (
           <span className="text-xs font-medium tracking-tight text-muted-foreground/80">

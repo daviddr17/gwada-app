@@ -5,18 +5,18 @@ import {
   formatDocumentTitle,
 } from "@/lib/constants/document-title";
 import { faviconMimeTypeFromPath, platformFaviconHref } from "@/lib/platform/branding-asset-url";
-import { loadRootLayoutBranding } from "@/lib/platform/layout-branding-server";
-import { buildGwadaPublicEnvForScript } from "@/lib/public-env";
+import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
+import { buildGwadaPublicEnvForScript, GWADA_PUBLIC_ENV_HTML_ATTR } from "@/lib/public-env";
 import "./globals.css";
 
 const dmSans = DM_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600"],
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-  const branding = await loadRootLayoutBranding();
+  const branding = await getCachedRootLayoutBranding();
   const resolvedBrand = branding.appName?.trim() || DOCUMENT_TITLE_BRAND;
 
   return {
@@ -31,7 +31,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const branding = await loadRootLayoutBranding();
+  const branding = await getCachedRootLayoutBranding();
   const faviconHref = platformFaviconHref(branding.faviconPath);
   const faviconMime = faviconMimeTypeFromPath(branding.faviconPath);
 
@@ -47,6 +47,9 @@ export default async function RootLayout({
       suppressHydrationWarning
       className={dmSans.variable}
       data-platform-favicon={faviconHref ?? undefined}
+      {...(publicEnvJson
+        ? { [GWADA_PUBLIC_ENV_HTML_ATTR]: publicEnvJson }
+        : {})}
     >
       <head>
         {faviconHref ? (
@@ -72,13 +75,6 @@ export default async function RootLayout({
               data-platform-branding="favicon"
             />
           </>
-        ) : null}
-        {publicEnvJson ? (
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `window.__GWADA_PUBLIC_ENV__=${publicEnvJson};`,
-            }}
-          />
         ) : null}
       </head>
       <body className="min-h-dvh font-sans">{children}</body>

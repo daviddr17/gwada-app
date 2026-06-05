@@ -1,22 +1,31 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
+import type { ReviewPlatform } from "@/lib/constants/review-platforms";
+import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
+import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
+import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
 import {
   averageRating,
   medianRating,
   ratingDistribution,
 } from "@/lib/reviews/review-stats";
+import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PublicEmbedReview = {
   id: string;
+  platform: ReviewPlatform;
   rating: number;
   comment: string | null;
   authorName: string | null;
   createdAt: string;
+  reply: string | null;
 };
 
 export type PublicEmbedReviews = {
@@ -24,6 +33,7 @@ export type PublicEmbedReviews = {
   name: string;
   slug: string;
   accentHex: string;
+  connectedPlatforms: ReviewPlatform[];
   reviews: PublicEmbedReview[];
   summary: {
     count: number;
@@ -40,6 +50,112 @@ function adminOrError(): SupabaseClient | { error: string; status: number } {
   if (!admin) return { error: "server_misconfigured", status: 503 };
   return admin;
 }
+
+function toPublicReview(review: UnifiedReview): PublicEmbedReview {
+  return {
+    id: review.id,
+    platform: review.platform,
+    rating: review.rating,
+    comment: review.comment,
+    authorName: review.authorName,
+    createdAt: review.createdAt,
+    reply: review.reply,
+  };
+}
+
+async function loadConnectedPlatformReviewsUncached(
+  restaurantId: string,
+): Promise<{ reviews: UnifiedReview[]; connectedPlatforms: ReviewPlatform[] }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { reviews: [], connectedPlatforms: ["gwada"] };
+  }
+
+  const { data: reviewRows } = await admin
+    .from("gwada_reviews")
+    .select("id, rating, comment, guest_display_name, created_at")
+    .eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: false })
+    .limit(PUBLIC_REVIEW_LIMIT);
+
+  const gwadaReviews: UnifiedReview[] = (reviewRows ?? []).map((r) => {
+    const raw = r as {
+      id: string;
+      rating: number;
+      comment: string | null;
+      guest_display_name: string | null;
+      created_at: string;
+    };
+    return {
+      id: raw.id,
+      platform: "gwada" as const,
+      rating: Number(raw.rating),
+      comment: raw.comment?.trim() || null,
+      authorName: raw.guest_display_name?.trim() || null,
+      createdAt: raw.created_at,
+      reply: null,
+      canReply: false,
+      externalUrl: null,
+    };
+  });
+
+  const [googleIntegration, facebookIntegration] = await Promise.all([
+    fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
+      oauthConfigFromJson(raw),
+    ),
+    fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
+      oauthConfigFromJson(raw),
+    ),
+  ]);
+
+  const googleConnected = googleIntegration?.status === "working";
+  const facebookConnected = facebookIntegration?.status === "working";
+
+  const [googleResult, facebookResult] = await Promise.all([
+    googleConnected
+      ? fetchGoogleReviewsForRestaurant(restaurantId, {
+          pageToken: null,
+          pageSize: 50,
+        })
+      : Promise.resolve(null),
+    facebookConnected
+      ? fetchFacebookReviewsForRestaurant(restaurantId)
+      : Promise.resolve(null),
+  ]);
+
+  const googleReviews =
+    googleResult && !("error" in googleResult) ? googleResult.reviews : [];
+  const googleOk =
+    googleConnected &&
+    googleResult != null &&
+    !("error" in googleResult);
+
+  const facebookReviews =
+    facebookResult && !("error" in facebookResult)
+      ? facebookResult.reviews
+      : [];
+  const facebookOk =
+    facebookConnected &&
+    facebookResult != null &&
+    !("error" in facebookResult);
+
+  const connectedPlatforms: ReviewPlatform[] = ["gwada"];
+  if (googleOk) connectedPlatforms.push("google");
+  if (facebookOk) connectedPlatforms.push("facebook");
+
+  const reviews = [...gwadaReviews, ...googleReviews, ...facebookReviews].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  return { reviews, connectedPlatforms };
+}
+
+const loadConnectedPlatformReviews = (restaurantId: string) =>
+  unstable_cache(
+    async () => loadConnectedPlatformReviewsUncached(restaurantId),
+    ["public-platform-reviews", restaurantId],
+    { revalidate: 120 },
+  )();
 
 export async function fetchPublicEmbedReviews(
   slugInput: string,
@@ -72,34 +188,10 @@ export async function fetchPublicEmbedReviews(
 
   const restaurantId = row.id as string;
 
-  const { data: reviewRows, error: reviewsError } = await admin
-    .from("gwada_reviews")
-    .select("id, rating, comment, guest_display_name, created_at")
-    .eq("restaurant_id", restaurantId)
-    .order("created_at", { ascending: false })
-    .limit(PUBLIC_REVIEW_LIMIT);
+  const { reviews: unifiedReviews, connectedPlatforms } =
+    await loadConnectedPlatformReviews(restaurantId);
 
-  if (reviewsError) {
-    return { data: null, error: "db_error", status: 500 };
-  }
-
-  const reviews: PublicEmbedReview[] = (reviewRows ?? []).map((r) => {
-    const raw = r as {
-      id: string;
-      rating: number;
-      comment: string | null;
-      guest_display_name: string | null;
-      created_at: string;
-    };
-    const name = raw.guest_display_name?.trim() || null;
-    return {
-      id: raw.id,
-      rating: Number(raw.rating),
-      comment: raw.comment?.trim() || null,
-      authorName: name,
-      createdAt: raw.created_at,
-    };
-  });
+  const reviews = unifiedReviews.map(toPublicReview);
 
   const summary = {
     count: reviews.length,
@@ -116,6 +208,7 @@ export async function fetchPublicEmbedReviews(
       accentHex:
         normalizeHex((row.brand_accent_hex as string | null) ?? "") ??
         DEFAULT_ACCENT_HEX,
+      connectedPlatforms,
       reviews,
       summary,
     },

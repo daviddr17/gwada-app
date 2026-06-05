@@ -100,10 +100,12 @@ export function filterReviews(
   });
 }
 
-export function sortReviews(
-  reviews: UnifiedReview[],
+type ReviewSortable = Pick<UnifiedReview, "rating" | "createdAt" | "authorName">;
+
+export function sortReviews<T extends ReviewSortable>(
+  reviews: T[],
   sortKey: ReviewSortKey,
-): UnifiedReview[] {
+): T[] {
   const sorted = [...reviews];
   sorted.sort((a, b) => {
     switch (sortKey) {
@@ -130,7 +132,7 @@ export function sortReviews(
   return sorted;
 }
 
-function compareCreatedDesc(a: UnifiedReview, b: UnifiedReview): number {
+function compareCreatedDesc(a: ReviewSortable, b: ReviewSortable): number {
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }
 

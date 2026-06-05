@@ -7,7 +7,6 @@ import {
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
 import { loadOpeningHoursAdmin } from "@/lib/reservations/public-reservation-server";
-import { averageRating } from "@/lib/reviews/review-stats";
 import {
   normalizeRestaurantSlugInput,
 } from "@/lib/restaurant/restaurant-slug";
@@ -40,7 +39,6 @@ export type PublicRestaurantProfile = {
   email: string | null;
   socialLinks: PublicRestaurantSocialLink[];
   weeklyHours: Record<Weekday, DayHours>;
-  reviewSummary: { count: number; average: number | null } | null;
   modules: {
     reservation: boolean;
     menu: boolean;
@@ -204,7 +202,7 @@ export async function fetchPublicRestaurantProfile(
   const accentHex =
     normalizeHex(String(row.brand_accent_hex ?? "")) ?? DEFAULT_ACCENT_HEX;
 
-  const [avatarUrl, coverUrl, socialLinks, { weeklyHours }, menuCountRes, reviewRowsRes] =
+  const [avatarUrl, coverUrl, socialLinks, { weeklyHours }, menuCountRes] =
     await Promise.all([
       signRestaurantAvatarUrl(admin, row.avatar_storage_path as string | null),
       signRestaurantAvatarUrl(admin, row.cover_storage_path as string | null),
@@ -220,36 +218,23 @@ export async function fetchPublicRestaurantProfile(
         .select("id", { count: "exact", head: true })
         .eq("restaurant_id", restaurantId)
         .eq("is_active", true),
-      admin
-        .from("gwada_reviews")
-        .select("rating")
-        .eq("restaurant_id", restaurantId)
-        .limit(100),
     ]);
 
   const menuCount = menuCountRes.count ?? 0;
-  const reviewRatings = (reviewRowsRes.data ?? []).map((r) =>
-    Number((r as { rating: number }).rating),
-  );
-  const reviewSummary =
-    reviewRatings.length > 0
-      ? {
-          count: reviewRatings.length,
-          average: averageRating(
-            reviewRatings.map((rating) => ({ rating })),
-          ),
-        }
-      : null;
 
   return {
     data: {
       id: restaurantId,
       slug: row.slug as string,
       name: row.name as string,
-      description:
-        typeof row.description === "string" && row.description.trim()
-          ? row.description.trim()
-          : null,
+      description: (() => {
+        const raw =
+          typeof row.description === "string" && row.description.trim()
+            ? row.description.trim()
+            : null;
+        if (!raw || raw === "Seed restaurant for local development.") return null;
+        return raw;
+      })(),
       accentHex,
       avatarUrl,
       coverUrl,
@@ -273,7 +258,6 @@ export async function fetchPublicRestaurantProfile(
         typeof row.email === "string" && row.email.trim() ? row.email.trim() : null,
       socialLinks,
       weeklyHours,
-      reviewSummary,
       modules: {
         reservation: true,
         menu: menuCount > 0,

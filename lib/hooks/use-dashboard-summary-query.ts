@@ -8,6 +8,8 @@ import {
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
+const EMPTY_REFRESH_EVENTS: readonly string[] = [];
+
 export function useDashboardSummaryQuery<T>(options: {
   restaurantId: string | null;
   workspaceReady: boolean;
@@ -15,14 +17,19 @@ export function useDashboardSummaryQuery<T>(options: {
     restaurantId: string,
   ) => Promise<{ data: T | null; error: string | null }>;
   /** Realtime o. Ä. — stilles Nachladen. */
-  extraRefreshEvents?: string[];
+  extraRefreshEvents?: readonly string[];
 }) {
-  const { restaurantId, workspaceReady, fetch, extraRefreshEvents = [] } =
-    options;
+  const {
+    restaurantId,
+    workspaceReady,
+    fetch,
+    extraRefreshEvents = EMPTY_REFRESH_EVENTS,
+  } = options;
   const hasDataRef = useDashboardHasDataRef();
   const [summary, setSummary] = useState<T | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const refreshEventsKey = extraRefreshEvents.join("\0");
 
   const run = useCallback(
     async (silent: boolean) => {
@@ -46,7 +53,7 @@ export function useDashboardSummaryQuery<T>(options: {
 
       if (!silent && initial) setLoading(false);
     },
-    [restaurantId, fetch, hasDataRef],
+    [restaurantId, fetch],
   );
 
   useEffect(() => {
@@ -94,7 +101,7 @@ export function useDashboardSummaryQuery<T>(options: {
         window.removeEventListener(ev, onPoll);
       }
     };
-  }, [restaurantId, run, extraRefreshEvents, hasDataRef]);
+  }, [restaurantId, run, refreshEventsKey]);
 
   return {
     summary,

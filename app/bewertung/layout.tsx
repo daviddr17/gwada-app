@@ -1,5 +1,5 @@
 import { PublicGwadaFooter } from "@/components/public/public-gwada-footer";
-import { loadRootLayoutBranding } from "@/lib/platform/layout-branding-server";
+import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import { resolvePlatformLogoSrc } from "@/lib/platform/resolve-platform-logo";
 
 export default async function BewertungLayout({
@@ -7,7 +7,7 @@ export default async function BewertungLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const branding = await loadRootLayoutBranding();
+  const branding = await getCachedRootLayoutBranding();
   const logoSrc = resolvePlatformLogoSrc(branding, "light");
   const appName = branding.appName?.trim() || "gwada";
 

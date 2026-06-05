@@ -17,6 +17,8 @@ export type ProfilePublicDockState = {
   apps: ProfileAppDefinition[];
   activeApp: ProfileAppId | null;
   isAppOpen: boolean;
+  /** Sheet schließt gerade — Dock-Tap öffnet neu statt nur Modul zu wechseln. */
+  isSheetClosing: boolean;
   reduceMotion: boolean | null;
   onOpenApp: (appId: ProfileAppId, rect: DOMRect) => void;
   onSwitchModule: (appId: ProfileAppId) => void;
@@ -34,6 +36,7 @@ function ProfileIconDockPortal({
   apps,
   activeApp,
   isAppOpen,
+  isSheetClosing,
   reduceMotion,
   onOpenApp,
   onSwitchModule,
@@ -43,12 +46,12 @@ function ProfileIconDockPortal({
     <div className="pointer-events-auto">
       <ProfileIconDock
         apps={apps}
-        activeAppId={isAppOpen ? activeApp : null}
+        activeAppId={isAppOpen && !isSheetClosing ? activeApp : null}
         reduceMotion={reduceMotion}
         showIconTooltips
-        tooltipAboveSheet={isAppOpen}
+        tooltipAboveSheet={isAppOpen && !isSheetClosing}
         onSelectApp={(appId, rect) => {
-          if (isAppOpen) {
+          if (isAppOpen && !isSheetClosing) {
             onSwitchModule(appId);
             return;
           }

@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 export const publicProfileHeroSectionClassName =
   "relative z-[2] flex min-h-0 flex-1 flex-col justify-start overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-14";
 
-/** Breiten- / Padding-Stage um die Karte (identisch Skeleton + Live). */
+/** Breiten- / Padding-Stage — bei genug Höhe vertikal zentriert, sonst scrollbar. */
 export const publicProfileHeroStageClassName =
-  "relative z-[2] mx-auto flex w-full max-w-lg items-start justify-center px-4 sm:max-w-xl sm:px-6 md:max-w-2xl lg:max-w-3xl";
+  "relative z-[2] mx-auto flex w-full min-h-full max-w-lg flex-col items-center justify-center px-4 sm:max-w-xl sm:px-6 md:max-w-2xl lg:max-w-3xl";
 
 export const publicProfileHeroTitleClassName =
   "text-balance text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl";

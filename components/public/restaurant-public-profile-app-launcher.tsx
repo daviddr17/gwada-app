@@ -10,6 +10,7 @@ import {
   useMotionValue,
   useReducedMotion,
   useTransform,
+  type AnimationPlaybackControls,
   type PanInfo,
 } from "framer-motion";
 import dynamic from "next/dynamic";
@@ -84,7 +85,7 @@ const EmbedMenuWidget = dynamic(
 const IOS_SHEET_OPEN_RADIUS_PX = 44;
 /** Max. Backdrop-Blur beim geöffneten Sheet — Desktop only (iOS: zu teuer). */
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
-const IOS_SHEET_TOUCH_OPEN_MS = 0.2;
+const IOS_SHEET_SLIDE_OPEN_ORIGIN = "50% 100%";
 
 type SheetRestLayout = {
   left: number;
@@ -206,6 +207,14 @@ function resolveIconRect(
   return getLauncherIconRect(activeApp) ?? fallback;
 }
 
+function getSheetSlideOffsetPx(sheetEl: HTMLElement | null): number {
+  if (sheetEl?.offsetHeight) return sheetEl.offsetHeight;
+  if (typeof window !== "undefined") {
+    return Math.round(window.innerHeight * 0.55);
+  }
+  return 480;
+}
+
 function ModulePanel({
   showLoading,
   error,
@@ -241,6 +250,8 @@ function ProfileAppSheetOverlay({
   errors,
   addressLine,
   mapsUrl,
+  reopenRequest,
+  onClosingChange,
   onDismissComplete,
 }: {
   activeApp: ProfileAppId;
@@ -258,6 +269,9 @@ function ProfileAppSheetOverlay({
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
   mapsUrl: string | null;
+  /** Erhöht sich, wenn während des Schließens erneut geöffnet wird. */
+  reopenRequest: number;
+  onClosingChange: (closing: boolean) => void;
   onDismissComplete: () => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -266,6 +280,9 @@ function ProfileAppSheetOverlay({
   const [isDismissing, setIsDismissing] = useState(false);
   const [restLayout, setRestLayout] = useState<SheetRestLayout | null>(null);
   const [openSettled, setOpenSettled] = useState(!lightEffects);
+  const dismissGenerationRef = useRef(0);
+  const dismissControlsRef = useRef<AnimationPlaybackControls[]>([]);
+  const [morphToIcon, setMorphToIcon] = useState(false);
 
   const morphOrigin = useMemo(() => {
     const iconRect = resolveIconRect(activeApp, launchRect);
@@ -274,7 +291,7 @@ function ProfileAppSheetOverlay({
   }, [activeApp, launchRect, restLayout]);
 
   const x = useMotionValue(0);
-  const y = useMotionValue(0);
+  const y = useMotionValue(getSheetSlideOffsetPx(null));
   const scale = useMotionValue(1);
   const radius = useMotionValue(IOS_SHEET_OPEN_RADIUS_PX);
   const sheetOpacity = useMotionValue(1);
@@ -329,6 +346,7 @@ function ProfileAppSheetOverlay({
 
   const snapOpen = useCallback(() => {
     dragRevealStarted.current = false;
+    setMorphToIcon(false);
     void Promise.all([
       animate(x, 0, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
       animate(y, 0, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
@@ -339,44 +357,168 @@ function ProfileAppSheetOverlay({
     ]);
   }, [x, y, scale, radius, contentOpacity, backdropOpacity]);
 
-  const dismissToIcon = useCallback(async () => {
+  const stopDismissAnimations = useCallback(() => {
+    for (const control of dismissControlsRef.current) {
+      control.stop();
+    }
+    dismissControlsRef.current = [];
+  }, []);
+
+  const playSlideOpen = useCallback(() => {
+    setMorphToIcon(false);
+    dragRevealStarted.current = false;
+    x.set(0);
+    scale.set(1);
+    radius.set(IOS_SHEET_OPEN_RADIUS_PX);
+    contentOpacity.set(1);
+    sheetOpacity.set(1);
+    backdropOpacity.set(0);
+
+    const offset = getSheetSlideOffsetPx(sheetRef.current);
+    y.set(offset);
+
+    if (sheetRef.current) {
+      setRestLayout(captureSheetRestLayout(sheetRef.current));
+    }
+    setDragEnabled(true);
+
+    void Promise.all([
+      animate(y, 0, IOS_APP_OPEN_TRANSITION),
+      animate(backdropOpacity, 1, { duration: 0.28, ease: "easeOut" }),
+    ]).then(() => {
+      setOpenSettled(true);
+      if (sheetRef.current) {
+        setRestLayout(captureSheetRestLayout(sheetRef.current));
+      }
+    });
+  }, [
+    x,
+    y,
+    scale,
+    radius,
+    contentOpacity,
+    sheetOpacity,
+    backdropOpacity,
+  ]);
+
+  const cancelDismissAndOpen = useCallback(() => {
+    if (!isDismissing) return;
+    dismissGenerationRef.current += 1;
+    stopDismissAnimations();
+    setIsDismissing(false);
+    onClosingChange(false);
+    setDragEnabled(true);
+    setOpenSettled(true);
+    setMorphToIcon(false);
+    dragRevealStarted.current = false;
+    void Promise.all([
+      animate(x, 0, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
+      animate(y, 0, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
+      animate(scale, 1, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
+      animate(radius, IOS_SHEET_OPEN_RADIUS_PX, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
+      animate(contentOpacity, 1, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
+      animate(backdropOpacity, 1, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
+      animate(sheetOpacity, 1, { duration: 0.12, ease: "easeOut" }),
+    ]);
+  }, [
+    isDismissing,
+    onClosingChange,
+    stopDismissAnimations,
+    x,
+    y,
+    scale,
+    radius,
+    contentOpacity,
+    backdropOpacity,
+    sheetOpacity,
+  ]);
+
+  const dismissToIcon = useCallback(async (options?: { fromDrag?: boolean }) => {
     if (isDismissing) return;
+    const generation = dismissGenerationRef.current + 1;
+    dismissGenerationRef.current = generation;
     setIsDismissing(true);
+    onClosingChange(true);
     setDragEnabled(false);
     if (reduceMotion || !sheetRef.current) {
+      onClosingChange(false);
       onDismissComplete();
       return;
     }
 
     const iconRect = resolveIconRect(activeApp, launchRect);
-    const layout = restLayout ?? captureSheetRestLayout(sheetRef.current);
+    const layout =
+      restLayout ?? captureSheetRestLayout(sheetRef.current);
 
-    if (!iconRect) {
+    const slideDownClose = async () => {
+      setMorphToIcon(false);
+      const controls = [
+        animate(y, getSheetSlideOffsetPx(sheetRef.current), {
+          duration: 0.26,
+          ease: "easeIn",
+        }),
+        animate(backdropOpacity, 0, { duration: 0.22, ease: "easeOut" }),
+        animate(contentOpacity, 0, { duration: 0.14, ease: "easeOut" }),
+      ];
+      dismissControlsRef.current = controls;
+      await Promise.all(controls);
+      if (dismissGenerationRef.current !== generation) return;
+      dismissControlsRef.current = [];
+      const fadeOut = animate(sheetOpacity, 0, { duration: 0.08, ease: "easeOut" });
+      dismissControlsRef.current = [fadeOut];
+      await fadeOut;
+      if (dismissGenerationRef.current !== generation) return;
+      dismissControlsRef.current = [];
+      setMorphToIcon(false);
+      onClosingChange(false);
       onDismissComplete();
+    };
+
+    const useIconMorph =
+      options?.fromDrag &&
+      dragRevealStarted.current &&
+      iconRect != null;
+
+    if (!useIconMorph) {
+      await slideDownClose();
       return;
     }
 
+    setMorphToIcon(true);
+
     const { targetX, targetY, targetScale, targetRadius } = computeIconMorphTargets(
       layout,
-      iconRect,
+      iconRect!,
     );
 
-    await Promise.all([
+    const controls = [
       animate(x, targetX, IOS_APP_CLOSE_TRANSITION),
       animate(y, targetY, IOS_APP_CLOSE_TRANSITION),
       animate(scale, targetScale, IOS_APP_CLOSE_TRANSITION),
       animate(radius, targetRadius, IOS_APP_CLOSE_TRANSITION),
       animate(contentOpacity, 0, { duration: 0.12, ease: "easeOut" }),
       animate(backdropOpacity, 0, { duration: 0.28, ease: "easeOut" }),
-    ]);
+    ];
+    dismissControlsRef.current = controls;
 
-    await animate(sheetOpacity, 0, { duration: 0.08, ease: "easeOut" });
+    await Promise.all(controls);
+    if (dismissGenerationRef.current !== generation) return;
 
+    dismissControlsRef.current = [];
+    const fadeOut = animate(sheetOpacity, 0, { duration: 0.08, ease: "easeOut" });
+    dismissControlsRef.current = [fadeOut];
+    await fadeOut;
+    if (dismissGenerationRef.current !== generation) return;
+
+    dismissControlsRef.current = [];
+    setMorphToIcon(false);
+    onClosingChange(false);
     onDismissComplete();
   }, [
     activeApp,
     isDismissing,
     launchRect,
+    onClosingChange,
     onDismissComplete,
     reduceMotion,
     restLayout,
@@ -389,73 +531,44 @@ function ProfileAppSheetOverlay({
     backdropOpacity,
   ]);
 
+  const cancelDismissAndOpenRef = useRef(cancelDismissAndOpen);
+  cancelDismissAndOpenRef.current = cancelDismissAndOpen;
+
   useEffect(() => {
+    if (reopenRequest > 0) {
+      cancelDismissAndOpenRef.current();
+    }
+  }, [reopenRequest]);
+
+  useLayoutEffect(() => {
     setIsDismissing(false);
+    setMorphToIcon(false);
     setDragEnabled(false);
     setRestLayout(null);
     setOpenSettled(!lightEffects);
     dragRevealStarted.current = false;
+    stopDismissAnimations();
     x.set(0);
-    y.set(0);
     radius.set(IOS_SHEET_OPEN_RADIUS_PX);
     contentOpacity.set(1);
 
     if (reduceMotion) {
       scale.set(1);
+      y.set(0);
       sheetOpacity.set(1);
       backdropOpacity.set(1);
-      requestAnimationFrame(() => {
-        if (sheetRef.current) {
-          setRestLayout(captureSheetRestLayout(sheetRef.current));
-        }
-        setDragEnabled(true);
-        setOpenSettled(true);
-      });
-      return;
-    }
-
-    if (lightEffects) {
-      scale.set(1);
-      sheetOpacity.set(0);
-      backdropOpacity.set(0);
-
-      void Promise.all([
-        animate(sheetOpacity, 1, {
-          duration: IOS_SHEET_TOUCH_OPEN_MS,
-          ease: "easeOut",
-        }),
-        animate(backdropOpacity, 1, {
-          duration: IOS_SHEET_TOUCH_OPEN_MS,
-          ease: "easeOut",
-        }),
-      ]).then(() => {
-        if (sheetRef.current) {
-          setRestLayout(captureSheetRestLayout(sheetRef.current));
-        }
-        setDragEnabled(true);
-        setOpenSettled(true);
-      });
-      return;
-    }
-
-    scale.set(0.86);
-    sheetOpacity.set(0);
-    backdropOpacity.set(0);
-
-    void Promise.all([
-      animate(scale, 1, IOS_APP_OPEN_TRANSITION),
-      animate(sheetOpacity, 1, { duration: 0.22, ease: "easeOut" }),
-      animate(backdropOpacity, 1, { duration: 0.28, ease: "easeOut" }),
-    ]).then(() => {
       if (sheetRef.current) {
         setRestLayout(captureSheetRestLayout(sheetRef.current));
       }
       setDragEnabled(true);
       setOpenSettled(true);
-    });
+      return;
+    }
+
+    playSlideOpen();
     // Mount-only: do not re-run when switching modules inside the open sheet
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional
-  }, [reduceMotion, lightEffects]);
+  }, [reduceMotion]);
 
   const handleDrag = (_event: PointerEvent, info: PanInfo) => {
     if (isDismissing) return;
@@ -484,7 +597,7 @@ function ProfileAppSheetOverlay({
         false,
       )
     ) {
-      void dismissToIcon();
+      void dismissToIcon({ fromDrag: true });
       return;
     }
 
@@ -512,7 +625,7 @@ function ProfileAppSheetOverlay({
     onDragRevealIcon: () => {},
     snapOpen,
     dismissToIcon: () => {
-      void dismissToIcon();
+      void dismissToIcon({ fromDrag: true });
     },
   });
 
@@ -566,7 +679,7 @@ function ProfileAppSheetOverlay({
           scale,
           opacity: sheetOpacity,
           borderRadius,
-          transformOrigin: morphOrigin,
+          transformOrigin: morphToIcon ? morphOrigin : IOS_SHEET_SLIDE_OPEN_ORIGIN,
         }}
       >
         <header
@@ -797,6 +910,8 @@ export function RestaurantPublicProfileAppLauncher({
 
   const [activeApp, setActiveApp] = useState<ProfileAppId | null>(null);
   const [launchRect, setLaunchRect] = useState<DOMRect | null>(null);
+  const [isSheetClosing, setIsSheetClosing] = useState(false);
+  const [reopenRequest, setReopenRequest] = useState(0);
 
   const switchSheetModule = useCallback(
     (appId: ProfileAppId) => {
@@ -812,7 +927,11 @@ export function RestaurantPublicProfileAppLauncher({
       const app = apps.find((a) => a.id === appId);
       if (!app) return;
 
-      if (activeApp) {
+      if (isSheetClosing) {
+        setReopenRequest((n) => n + 1);
+      }
+
+      if (activeApp && !isSheetClosing) {
         const iconRect = getLauncherIconRect(appId);
         if (iconRect) setLaunchRect(iconRect);
       } else {
@@ -822,11 +941,17 @@ export function RestaurantPublicProfileAppLauncher({
       setActiveApp(appId);
       if (app.module) void loadModule(app.module);
     },
-    [activeApp, apps, loadModule],
+    [activeApp, apps, isSheetClosing, loadModule],
   );
 
   const handleDismissComplete = useCallback(() => {
+    setIsSheetClosing(false);
+    setReopenRequest(0);
     setActiveApp(null);
+  }, []);
+
+  const handleClosingChange = useCallback((closing: boolean) => {
+    setIsSheetClosing(closing);
   }, []);
 
   const startBackgroundPreload = useCallback(() => {
@@ -880,6 +1005,7 @@ export function RestaurantPublicProfileAppLauncher({
       apps,
       activeApp,
       isAppOpen,
+      isSheetClosing,
       reduceMotion,
       onOpenApp: openApp,
       onSwitchModule: switchSheetModule,
@@ -896,6 +1022,7 @@ export function RestaurantPublicProfileAppLauncher({
     apps,
     activeApp,
     isAppOpen,
+    isSheetClosing,
     reduceMotion,
     openApp,
     switchSheetModule,
@@ -927,6 +1054,8 @@ export function RestaurantPublicProfileAppLauncher({
                 errors={errors}
                 addressLine={addressLine}
                 mapsUrl={mapsUrl}
+                reopenRequest={reopenRequest}
+                onClosingChange={handleClosingChange}
                 onDismissComplete={handleDismissComplete}
               />
             ) : null}

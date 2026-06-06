@@ -4,6 +4,7 @@ import { resolveChangelogGitCommitLimit } from "@/lib/changelog/changelog-git-ra
 import { gitCommitToChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 import type { GitCommitChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
+import { resolveGithubRepoSlug } from "@/lib/changelog/github-repo-slug";
 
 const GITHUB_API_TIMEOUT_MS = 12_000;
 
@@ -17,13 +18,7 @@ function githubChangelogToken(): string | null {
 }
 
 function githubRepoSlug(): string {
-  return (
-    process.env.GWADA_GITHUB_REPO?.trim() ||
-    process.env.CHANGELOG_GIT_REPO?.trim()
-      ?.replace(/^https:\/\/github\.com\//, "")
-      ?.replace(/\.git$/, "") ||
-    "daviddr17/gwada-app"
-  );
+  return resolveGithubRepoSlug();
 }
 
 function githubChangelogBranch(): string {

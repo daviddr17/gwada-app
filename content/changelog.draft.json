@@ -1,6 +1,6 @@
 {
-  "title": "Profil-App-Sheet: Header, Swipe & Stabilität",
-  "body": "- App-Sheet-Header: Drag-Handle oben, Logo scrollt beim Scrollen kleiner weg, Restaurantname und Modul bleiben darunter sichtbar\n- Auf dem Handy zwischen Modulen wischen (Reservierung, Speisekarte, Bewertungen, Info) — am Desktop weiter über das Dock\n- Modulwechsel: nur der Inhalt animiert, der Header bleibt stehen\n- Speisekarte: Kategorie-Leiste klebt beim Scrollen mit gleitendem Akzent-Highlight\n- Reservierung: Bedingungen-Dialog im Profil zuverlässig; bei Zustimmung öffnet er sich automatisch\n- Bewertungen: Sortierung in eigener Zeile unter den Plattform-Chips\n- Fixes: Bottom Sheet schließt nicht mehr versehentlich bei leichten Berührungen (v. a. Reservierung)\n- Einheitlichere Akzent-Buttons und Toggle-Schalter bis zum Rand",
+  "title": "Profil-Sheet: smoother Dismiss & Header",
+  "body": "- Beim Schließen folgt das Sheet dem Finger 1:1; das Icon-Morphing startet weich und getrennt davon\n- Restaurantname und Modul kleben zuverlässig unter dem Drag-Handle — auch nach erneutem Öffnen\n- Changelog-Sync: Entwurf-Datei ist im Live-Container verfügbar; GitHub-Repo-Slug wird korrekt aufgelöst",
   "audience": "customers",
-  "version": "2026.06.06"
+  "version": "2026.06.07"
 }

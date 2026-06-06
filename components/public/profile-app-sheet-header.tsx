@@ -18,8 +18,10 @@ import {
   profileModuleLabelVariants,
 } from "@/lib/public-profile/profile-app-motion";
 import {
+  PROFILE_SHEET_HANDLE_FALLBACK_PX,
   PROFILE_SHEET_HANDLE_HEIGHT_VAR,
   PROFILE_SHEET_HEADER_HEIGHT_VAR,
+  profileSheetTitleStickyTopStyle,
 } from "@/lib/public-profile/profile-sheet-styles";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
 
@@ -55,7 +57,7 @@ function syncProfileSheetPinnedHeaderHeight(
   handle: HTMLElement,
   chrome: HTMLElement,
 ) {
-  const handleHeight = handle.offsetHeight;
+  const handleHeight = Math.ceil(handle.offsetHeight);
   root.style.setProperty(
     PROFILE_SHEET_HANDLE_HEIGHT_VAR,
     `${handleHeight}px`,
@@ -74,6 +76,13 @@ function syncProfileSheetPinnedHeaderHeight(
   return handleHeight;
 }
 
+function schedulePinnedHeaderResync(sync: () => void) {
+  requestAnimationFrame(() => {
+    sync();
+    requestAnimationFrame(sync);
+  });
+}
+
 export function ProfileAppSheetHeader({
   profile,
   activeApp,
@@ -83,6 +92,8 @@ export function ProfileAppSheetHeader({
   dragEnabled,
   isDismissing,
   scrollRootRef,
+  layoutEpoch,
+  layoutReady,
 }: {
   profile: PublicRestaurantProfile;
   activeApp: ProfileAppId;
@@ -92,13 +103,16 @@ export function ProfileAppSheetHeader({
   dragEnabled: boolean;
   isDismissing: boolean;
   scrollRootRef: RefObject<HTMLElement | null>;
+  /** Erhöht sich nach Open-/Reopen-Animation — erzwingt erneute Handle-Messung. */
+  layoutEpoch: number;
+  /** Sheet-Open-Animation abgeschlossen (Touch: etwas verzögert). */
+  layoutReady: boolean;
 }) {
   const headerApp = apps.find((app) => app.id === activeApp) ?? apps[0]!;
   const initials = restaurantInitials(profile.name);
   const handleRef = useRef<HTMLDivElement>(null);
   const stickyChromeRef = useRef<HTMLElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
-  const [handleHeightPx, setHandleHeightPx] = useState(0);
 
   const startSheetDrag = useCallback(
     (event: React.PointerEvent) => {
@@ -114,9 +128,14 @@ export function ProfileAppSheetHeader({
     const chrome = stickyChromeRef.current;
     if (!root || !handle || !chrome) return;
 
+    root.style.setProperty(
+      PROFILE_SHEET_HANDLE_HEIGHT_VAR,
+      `${PROFILE_SHEET_HANDLE_FALLBACK_PX}px`,
+    );
+
     const sync = () => {
-      const handleHeight = syncProfileSheetPinnedHeaderHeight(root, handle, chrome);
-      setHandleHeightPx(handleHeight);
+      if (isDismissing) return;
+      syncProfileSheetPinnedHeaderHeight(root, handle, chrome);
     };
 
     const onScroll = () => {
@@ -125,6 +144,10 @@ export function ProfileAppSheetHeader({
     };
 
     sync();
+    if (layoutReady) {
+      schedulePinnedHeaderResync(sync);
+    }
+
     root.addEventListener("scroll", onScroll, { passive: true });
     const ro = new ResizeObserver(sync);
     ro.observe(handle);
@@ -133,7 +156,7 @@ export function ProfileAppSheetHeader({
       root.removeEventListener("scroll", onScroll);
       ro.disconnect();
     };
-  }, [scrollRootRef, activeApp]);
+  }, [scrollRootRef, activeApp, layoutEpoch, layoutReady, isDismissing]);
 
   const logoProgress = reduceMotion ? 0 : logoCollapseProgress(scrollTop);
   const logoSize = lerp(LOGO_SIZE_EXPANDED_PX, LOGO_SIZE_COLLAPSED_PX, logoProgress);
@@ -204,7 +227,7 @@ export function ProfileAppSheetHeader({
           "sticky z-10 shrink-0 border-b border-border/40 py-2",
           profileSheetStickyChromeClassName,
         )}
-        style={{ top: handleHeightPx }}
+        style={profileSheetTitleStickyTopStyle()}
       >
         <div className="flex flex-col items-center px-4">
           <p className="max-w-full truncate text-sm font-semibold tracking-tight text-foreground">

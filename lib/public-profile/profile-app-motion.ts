@@ -26,9 +26,11 @@ export const IOS_APP_LAYOUT_CLOSE_TRANSITION: Transition = {
 
 export const IOS_APP_DRAG_SNAP_BACK_TRANSITION: Transition = {
   type: "spring",
-  stiffness: 520,
-  damping: 42,
-  mass: 0.75,
+  stiffness: 440,
+  damping: 46,
+  mass: 0.8,
+  restDelta: 0.001,
+  restSpeed: 40,
 };
 
 /** Snappy pager snap after horizontal swipe */

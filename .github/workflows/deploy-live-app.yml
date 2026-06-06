@@ -45,3 +45,15 @@ jobs:
           export LIVE_VPS_HOST
           DEPLOY_SHA="${{ github.event_name == 'push' && github.sha || inputs.ref }}"
           bash scripts/deploy-app-live.sh "${DEPLOY_SHA}"
+
+      - name: Changelog sync (optional)
+        env:
+          CHANGELOG_SYNC_URL: ${{ secrets.CHANGELOG_SYNC_URL }}
+          CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}
+          CHANGELOG_GIT_RANGE: ${{ github.event_name == 'push' && format('{0}..{1}', github.event.before, github.sha) || '' }}
+        run: |
+          if [ -z "$CHANGELOG_SYNC_URL" ] || [ -z "$CHANGELOG_SYNC_SECRET" ]; then
+            echo "CHANGELOG_SYNC_URL / CHANGELOG_SYNC_SECRET nicht gesetzt — Changelog-Sync übersprungen."
+            exit 0
+          fi
+          node scripts/changelog-sync-from-git.mjs

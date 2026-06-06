@@ -48,11 +48,18 @@ import {
   DRAG_REVEAL_ICON_PROGRESS,
   DRAG_TO_ICON_RANGE_PX,
   shouldDismissSheetPull,
-  SWIPE_CLOSE_OFFSET_PX,
-  SWIPE_CLOSE_VELOCITY,
 } from "@/lib/public-profile/profile-sheet-gesture-constants";
+import {
+  applyHybridSheetDrag,
+  captureSheetRestLayout,
+  computeIconMorphTargets,
+  hybridDragMorphProgress,
+  IOS_SHEET_OPEN_RADIUS_PX,
+  sheetTransformOriginFromLayout,
+  type SheetRestLayout,
+} from "@/lib/public-profile/profile-sheet-drag-physics";
 import { useProfileSheetContentGestures } from "@/lib/public-profile/use-profile-sheet-content-gestures";
-import { profileAppSheetClassName } from "@/lib/public-profile/profile-sheet-styles";
+import { profileAppSheetClassName, profileSheetScrollRootCssVars } from "@/lib/public-profile/profile-sheet-styles";
 import {
   preloadProfileWidgetChunks,
   scheduleProfileBackgroundWork,
@@ -88,117 +95,9 @@ const EmbedMenuWidget = dynamic(
   { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
 );
 
-const IOS_SHEET_OPEN_RADIUS_PX = 44;
 /** Max. Backdrop-Blur beim geöffneten Sheet — Desktop only (iOS: zu teuer). */
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
 const IOS_SHEET_SLIDE_OPEN_ORIGIN = "50% 100%";
-
-type SheetRestLayout = {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-};
-
-type IconMorphTargets = {
-  targetX: number;
-  targetY: number;
-  targetScale: number;
-  targetRadius: number;
-};
-
-function captureSheetRestLayout(sheetEl: HTMLElement): SheetRestLayout {
-  const rect = sheetEl.getBoundingClientRect();
-  return {
-    left: rect.left,
-    top: rect.top,
-    width: sheetEl.offsetWidth,
-    height: sheetEl.offsetHeight,
-  };
-}
-
-function computeIconMorphTargets(
-  restLayout: SheetRestLayout,
-  iconRect: DOMRect,
-): IconMorphTargets {
-  const sheetCx = restLayout.left + restLayout.width / 2;
-  const sheetCy = restLayout.top + restLayout.height / 2;
-  const iconCx = iconRect.left + iconRect.width / 2;
-  const iconCy = iconRect.top + iconRect.height / 2;
-
-  return {
-    targetX: iconCx - sheetCx,
-    targetY: iconCy - sheetCy,
-    targetScale: iconRect.width / restLayout.width,
-    targetRadius: iconRect.width * 0.22,
-  };
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function sheetTransformOriginFromLayout(
-  restLayout: SheetRestLayout,
-  iconRect: DOMRect,
-): string {
-  const iconCx = iconRect.left + iconRect.width / 2;
-  const iconCy = iconRect.top + iconRect.height / 2;
-  const originX = clamp(
-    ((iconCx - restLayout.left) / restLayout.width) * 100,
-    6,
-    94,
-  );
-  const originY = clamp(
-    ((iconCy - restLayout.top) / restLayout.height) * 100,
-    6,
-    94,
-  );
-  return `${originX}% ${originY}%`;
-}
-
-function applyDragTowardsIcon(
-  offsetY: number,
-  restLayout: SheetRestLayout | null,
-  iconRect: DOMRect | null,
-  values: {
-    x: ReturnType<typeof useMotionValue<number>>;
-    y: ReturnType<typeof useMotionValue<number>>;
-    scale: ReturnType<typeof useMotionValue<number>>;
-    radius: ReturnType<typeof useMotionValue<number>>;
-    contentOpacity: ReturnType<typeof useMotionValue<number>>;
-    backdropOpacity: ReturnType<typeof useMotionValue<number>>;
-  },
-): number {
-  const progress = Math.min(Math.max(offsetY, 0) / DRAG_TO_ICON_RANGE_PX, 1);
-
-  if (!iconRect || !restLayout) {
-    values.x.set(0);
-    values.y.set(offsetY);
-    values.scale.set(1 - progress * 0.22);
-    values.radius.set(IOS_SHEET_OPEN_RADIUS_PX - progress * 26);
-    values.contentOpacity.set(1 - progress * 0.85);
-    values.backdropOpacity.set(1 - progress * 0.7);
-    return progress;
-  }
-
-  const { targetX, targetY, targetScale, targetRadius } = computeIconMorphTargets(
-    restLayout,
-    iconRect,
-  );
-
-  values.x.set(targetX * progress);
-  values.y.set(offsetY * (1 - progress * 0.85) + targetY * progress);
-  values.scale.set(1 - progress * (1 - targetScale));
-  values.radius.set(
-    IOS_SHEET_OPEN_RADIUS_PX -
-      progress * (IOS_SHEET_OPEN_RADIUS_PX - targetRadius),
-  );
-  values.contentOpacity.set(1 - progress * 0.92);
-  values.backdropOpacity.set(1 - progress * 0.78);
-
-  return progress;
-}
 
 function getLauncherIconRect(appId: ProfileAppId): DOMRect | null {
   if (typeof document === "undefined") return null;
@@ -290,6 +189,7 @@ function ProfileAppSheetOverlay({
   const [isDismissing, setIsDismissing] = useState(false);
   const [restLayout, setRestLayout] = useState<SheetRestLayout | null>(null);
   const [openSettled, setOpenSettled] = useState(!lightEffects);
+  const [layoutEpoch, setLayoutEpoch] = useState(0);
   const dismissGenerationRef = useRef(0);
   const dismissControlsRef = useRef<AnimationPlaybackControls[]>([]);
   const [morphToIcon, setMorphToIcon] = useState(false);
@@ -413,6 +313,7 @@ function ProfileAppSheetOverlay({
       animate(backdropOpacity, 1, { duration: 0.28, ease: "easeOut" }),
     ]).then(() => {
       setOpenSettled(true);
+      setLayoutEpoch((epoch) => epoch + 1);
       if (sheetRef.current) {
         setRestLayout(captureSheetRestLayout(sheetRef.current));
       }
@@ -437,6 +338,7 @@ function ProfileAppSheetOverlay({
     setOpenSettled(true);
     setMorphToIcon(false);
     dragRevealStarted.current = false;
+    setLayoutEpoch((epoch) => epoch + 1);
     void Promise.all([
       animate(x, 0, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
       animate(y, 0, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
@@ -445,7 +347,9 @@ function ProfileAppSheetOverlay({
       animate(contentOpacity, 1, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
       animate(backdropOpacity, 1, IOS_APP_DRAG_SNAP_BACK_TRANSITION),
       animate(sheetOpacity, 1, { duration: 0.12, ease: "easeOut" }),
-    ]);
+    ]).then(() => {
+      setLayoutEpoch((epoch) => epoch + 1);
+    });
   }, [
     isDismissing,
     onClosingChange,
@@ -500,10 +404,14 @@ function ProfileAppSheetOverlay({
       onDismissComplete();
     };
 
+    const currentOffsetY = Math.max(0, y.get());
+    const morphAtRelease = hybridDragMorphProgress(currentOffsetY);
     const useIconMorph =
       options?.fromDrag &&
-      dragRevealStarted.current &&
-      iconRect != null;
+      iconRect != null &&
+      (dragRevealStarted.current ||
+        morphAtRelease > 0.05 ||
+        currentOffsetY > 52);
 
     if (!useIconMorph) {
       await slideDownClose();
@@ -588,6 +496,7 @@ function ProfileAppSheetOverlay({
       }
       setDragEnabled(true);
       setOpenSettled(true);
+      setLayoutEpoch((epoch) => epoch + 1);
       return;
     }
 
@@ -601,14 +510,18 @@ function ProfileAppSheetOverlay({
 
     const offsetY = Math.max(0, info.offset.y);
     const iconRect = resolveIconRect(activeApp, launchRect);
-    const progress = applyDragTowardsIcon(
+    const { dragProgress, morphProgress } = applyHybridSheetDrag(
       offsetY,
       restLayout,
       iconRect,
       dragMotionValues,
     );
 
-    if (progress >= DRAG_REVEAL_ICON_PROGRESS && !dragRevealStarted.current) {
+    if (
+      (dragProgress >= DRAG_REVEAL_ICON_PROGRESS ||
+        morphProgress > 0.04) &&
+      !dragRevealStarted.current
+    ) {
       dragRevealStarted.current = true;
     }
   };
@@ -639,7 +552,13 @@ function ProfileAppSheetOverlay({
   const applyContentPullDrag = useCallback(
     (offsetY: number, values: typeof dragMotionValues) => {
       const iconRect = resolveIconRect(activeApp, launchRect);
-      return applyDragTowardsIcon(offsetY, restLayout, iconRect, values);
+      const { dragProgress, morphProgress } = applyHybridSheetDrag(
+        offsetY,
+        restLayout,
+        iconRect,
+        values,
+      );
+      return Math.max(dragProgress, morphProgress);
     },
     [activeApp, launchRect, restLayout, dragMotionValues],
   );
@@ -707,7 +626,7 @@ function ProfileAppSheetOverlay({
         dragControls={dragControls}
         dragListener={false}
         dragConstraints={{ top: 0 }}
-        dragElastic={{ top: 0, bottom: 0.38 }}
+        dragElastic={0}
         dragMomentum={false}
         onDrag={handleDrag}
         onDragEnd={handleDragEnd}
@@ -730,6 +649,7 @@ function ProfileAppSheetOverlay({
               ref={viewportRef}
               data-profile-app-scroll-root
               className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain"
+              style={profileSheetScrollRootCssVars()}
             >
               <ProfileAppSheetHeader
                 profile={profile}
@@ -740,6 +660,8 @@ function ProfileAppSheetOverlay({
                 dragEnabled={dragEnabled}
                 isDismissing={isDismissing}
                 scrollRootRef={viewportRef}
+                layoutEpoch={layoutEpoch}
+                layoutReady={openSettled}
               />
               <div
                 data-profile-sheet-no-pull

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/utils";
 
 /** Scroll-Root: Höhe des Drag-Handle-Streifens (Name/Modul kleben darunter). */
@@ -5,6 +6,21 @@ export const PROFILE_SHEET_HANDLE_HEIGHT_VAR = "--profile-sheet-handle-h";
 
 /** Scroll-Root: Handle + Name/Modul ohne Logo (Toolbar klebt darunter). */
 export const PROFILE_SHEET_HEADER_HEIGHT_VAR = "--profile-sheet-header-h";
+
+/** pt-3 + h-1 + pb-2 im Sheet-Handle — Fallback bis zur ersten Messung. */
+export const PROFILE_SHEET_HANDLE_FALLBACK_PX = 24;
+
+export function profileSheetScrollRootCssVars(): CSSProperties {
+  return {
+    [PROFILE_SHEET_HANDLE_HEIGHT_VAR as string]: `${PROFILE_SHEET_HANDLE_FALLBACK_PX}px`,
+  };
+}
+
+export function profileSheetTitleStickyTopStyle(): CSSProperties {
+  return {
+    top: `var(${PROFILE_SHEET_HANDLE_HEIGHT_VAR}, ${PROFILE_SHEET_HANDLE_FALLBACK_PX}px)`,
+  };
+}
 
 /** Bottom-Sheet-Chrome — auf Touch ohne backdrop-filter (Safari/iOS). */
 export function profileAppSheetClassName(lightEffects = false) {

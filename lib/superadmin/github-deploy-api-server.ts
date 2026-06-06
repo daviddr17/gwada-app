@@ -1,6 +1,7 @@
 import "server-only";
 
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
+import { resolveGithubRepoSlug } from "@/lib/changelog/github-repo-slug";
 import type {
   SuperadminGithubBranchInfo,
   SuperadminGithubDeployWorkflowRun,
@@ -21,14 +22,7 @@ export function githubDeployToken(): string | null {
 }
 
 export function githubRepoSlug(): string {
-  return (
-    process.env.GWADA_GITHUB_REPO?.trim() ||
-    process.env.CHANGELOG_GIT_REPO?.trim()?.replace(
-      /^https:\/\/github\.com\//,
-      "",
-    )?.replace(/\.git$/, "") ||
-    "daviddr17/gwada-app"
-  );
+  return resolveGithubRepoSlug();
 }
 
 export function githubDeployBranch(): string {

@@ -58,11 +58,13 @@ export function useProfileSheetModuleSwipe({
     let velocitySamples: number[] = [];
     let lockedAxis: "horizontal" | "vertical" | null = null;
     let horizontalActive = false;
+    let touchTracking = false;
     let deferToNativeScroll = false;
 
     const resetGesture = () => {
       lockedAxis = null;
       horizontalActive = false;
+      touchTracking = false;
       deferToNativeScroll = false;
       velocityX = 0;
       velocitySamples = [];
@@ -132,15 +134,20 @@ export function useProfileSheetModuleSwipe({
       const touch = event.touches[0];
       if (!touch) return;
 
+      touchTracking = true;
       startX = touch.clientX;
       startY = touch.clientY;
       lastX = startX;
       lastT = performance.now();
-      resetGesture();
+      lockedAxis = null;
+      horizontalActive = false;
+      deferToNativeScroll = false;
+      velocityX = 0;
+      velocitySamples = [];
     };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (!enabledRef.current) return;
+      if (!enabledRef.current || !touchTracking) return;
 
       const touch = event.touches[0];
       if (!touch) return;
@@ -182,6 +189,7 @@ export function useProfileSheetModuleSwipe({
     };
 
     const onTouchEnd = (event: TouchEvent) => {
+      if (!touchTracking) return;
       const touch = event.changedTouches[0];
       if (!touch || !horizontalActive) {
         resetGesture();

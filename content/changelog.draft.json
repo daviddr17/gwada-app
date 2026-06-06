@@ -1,6 +1,6 @@
 {
-  "title": "Öffentliches Profil: App-Sheet & UI",
-  "body": "- App-Sheet-Header: Drag-Handle bleibt oben kleben, Logo wird beim Scrollen kleiner und scrollt weg, Restaurantname und aktives Modul bleiben darunter sichtbar\n- Modulwechsel (Speisekarte, Reservierung, Bewertungen …): Inhalt wechselt animiert, Header bleibt stehen\n- Speisekarte im Profil: Kategorie-Leiste klebt beim Scrollen mit gleitendem Akzent-Highlight\n- Reservierung im Profil: Bedingungen-Dialog öffnet zuverlässig; bei Zustimmung öffnet er sich automatisch\n- Bewertungen: Sortierung in eigener Zeile unter den Plattform-Chips\n- Einheitlichere Akzent-Buttons (weiches Tenant-Branding) in Profil, Kontakt und vielen Dialogen\n- Toggle-Schalter: Schieber fährt wieder bis zum Rand",
+  "title": "Profil-App-Sheet: Header, Swipe & Stabilität",
+  "body": "- App-Sheet-Header: Drag-Handle oben, Logo scrollt beim Scrollen kleiner weg, Restaurantname und Modul bleiben darunter sichtbar\n- Auf dem Handy zwischen Modulen wischen (Reservierung, Speisekarte, Bewertungen, Info) — am Desktop weiter über das Dock\n- Modulwechsel: nur der Inhalt animiert, der Header bleibt stehen\n- Speisekarte: Kategorie-Leiste klebt beim Scrollen mit gleitendem Akzent-Highlight\n- Reservierung: Bedingungen-Dialog im Profil zuverlässig; bei Zustimmung öffnet er sich automatisch\n- Bewertungen: Sortierung in eigener Zeile unter den Plattform-Chips\n- Fixes: Bottom Sheet schließt nicht mehr versehentlich bei leichten Berührungen (v. a. Reservierung)\n- Einheitlichere Akzent-Buttons und Toggle-Schalter bis zum Rand",
   "audience": "customers",
   "version": "2026.06.06"
 }

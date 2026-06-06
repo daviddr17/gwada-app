@@ -72,6 +72,8 @@ export function useProfileSheetContentGestures({
 
     let startY = 0;
     let verticalActive = false;
+    let touchTracking = false;
+    let pointerTracking = false;
     let lastY = 0;
     let lastT = 0;
     let velocityY = 0;
@@ -80,6 +82,8 @@ export function useProfileSheetContentGestures({
 
     const resetGesture = () => {
       verticalActive = false;
+      touchTracking = false;
+      pointerTracking = false;
       velocityY = 0;
       velocitySamples = [];
       scrolledContentDuringGesture = false;
@@ -164,18 +168,23 @@ export function useProfileSheetContentGestures({
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (!enabledRef.current || isIgnoredProfileSheetGestureTarget(event.target)) return;
+      if (!enabledRef.current || isIgnoredProfileSheetGestureTarget(event.target)) {
+        return;
+      }
       const touch = event.touches[0];
       if (!touch) return;
+      touchTracking = true;
       startY = touch.clientY;
       lastY = startY;
       lastT = performance.now();
-      resetGesture();
+      verticalActive = false;
+      velocityY = 0;
+      velocitySamples = [];
       scrolledContentDuringGesture = getScrollTopRef.current() > 0;
     };
 
     const onTouchMove = (event: TouchEvent) => {
-      if (!enabledRef.current) return;
+      if (!enabledRef.current || !touchTracking) return;
       const touch = event.touches[0];
       if (!touch) return;
 
@@ -206,8 +215,12 @@ export function useProfileSheetContentGestures({
     };
 
     const onTouchEnd = (event: TouchEvent) => {
+      if (!touchTracking) return;
       const touch = event.changedTouches[0];
-      if (!touch) return;
+      if (!touch) {
+        resetGesture();
+        return;
+      }
 
       if (verticalActive) {
         const dy = Math.max(0, touch.clientY - startY);
@@ -221,15 +234,20 @@ export function useProfileSheetContentGestures({
       if (!enabledRef.current || event.button !== 0) return;
       if (event.pointerType === "touch") return;
       if (isIgnoredProfileSheetGestureTarget(event.target)) return;
+      pointerTracking = true;
       startY = event.clientY;
       lastY = startY;
       lastT = performance.now();
-      resetGesture();
+      verticalActive = false;
+      velocityY = 0;
+      velocitySamples = [];
       scrolledContentDuringGesture = getScrollTopRef.current() > 0;
     };
 
     const onPointerMove = (event: PointerEvent) => {
-      if (!enabledRef.current || event.pointerType === "touch") return;
+      if (!enabledRef.current || event.pointerType === "touch" || !pointerTracking) {
+        return;
+      }
       if (event.buttons !== 1 && !verticalActive) return;
 
       if (getScrollTopRef.current() > 0) {
@@ -265,7 +283,7 @@ export function useProfileSheetContentGestures({
     };
 
     const finishPointer = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
+      if (event.pointerType === "touch" || !pointerTracking) return;
 
       if (verticalActive) {
         const dy = Math.max(0, event.clientY - startY);
@@ -279,12 +297,12 @@ export function useProfileSheetContentGestures({
     };
 
     const onPointerUp = (event: PointerEvent) => {
-      if (!verticalActive) return;
+      if (!pointerTracking || !verticalActive) return;
       finishPointer(event);
     };
 
     const onPointerCancel = (event: PointerEvent) => {
-      if (event.pointerType === "touch") return;
+      if (event.pointerType === "touch" || !pointerTracking) return;
       if (verticalActive) snapOpenRef.current();
       if (el.hasPointerCapture(event.pointerId)) {
         el.releasePointerCapture(event.pointerId);

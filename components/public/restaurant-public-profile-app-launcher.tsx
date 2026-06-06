@@ -622,9 +622,15 @@ function ProfileAppSheetOverlay({
   const handleDragEnd = (_event: PointerEvent, info: PanInfo) => {
     if (isDismissing) return;
 
+    const offsetY = Math.max(0, info.offset.y);
+    if (offsetY < 12) {
+      snapOpen();
+      return;
+    }
+
     if (
       shouldDismissSheetPull(
-        Math.max(0, info.offset.y),
+        offsetY,
         info.velocity.y,
         false,
       )
@@ -699,7 +705,8 @@ function ProfileAppSheetOverlay({
           lightEffects
             ? {
                 opacity: backdropOpacity,
-                pointerEvents: isDismissing ? "none" : "auto",
+                pointerEvents:
+                  isDismissing || !openSettled ? "none" : "auto",
               }
             : {
                 ...brandedBackdrop,

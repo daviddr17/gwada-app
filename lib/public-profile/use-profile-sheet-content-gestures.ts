@@ -1,9 +1,12 @@
 import { useEffect, useRef, type RefObject } from "react";
 import type { useMotionValue } from "framer-motion";
 import { shouldDismissSheetPull } from "@/lib/public-profile/profile-sheet-gesture-constants";
+import { isIgnoredProfileSheetGestureTarget } from "@/lib/public-profile/profile-sheet-gesture-targets";
 
-const PULL_ACTIVATE_PX = 8;
+const PULL_ACTIVATE_PX = 12;
 const PULL_CANCEL_UP_PX = 14;
+const PULL_VELOCITY_MIN_DT_MS = 8;
+const PULL_VELOCITY_SAMPLE_MAX = 5;
 
 type MotionValues = {
   x: ReturnType<typeof useMotionValue<number>>;
@@ -34,16 +37,7 @@ function isScrollAtTop(getScrollTop: () => number) {
   return getScrollTop() <= 1;
 }
 
-function isInteractiveGestureTarget(target: EventTarget | null) {
-  if (!(target instanceof Element)) return false;
-  return Boolean(
-    target.closest(
-      "button, a, input, textarea, select, label, [role=button], [role=switch], [data-profile-sheet-no-pull]",
-    ),
-  );
-}
-
-/** Pull-down zum Schließen — kein horizontales Paging mehr. */
+/** Pull-down zum Schließen; horizontales Modul-Paging separat (Touch). */
 export function useProfileSheetContentGestures({
   scrollRef,
   scrollKey,
@@ -81,11 +75,13 @@ export function useProfileSheetContentGestures({
     let lastY = 0;
     let lastT = 0;
     let velocityY = 0;
+    let velocitySamples: number[] = [];
     let scrolledContentDuringGesture = false;
 
     const resetGesture = () => {
       verticalActive = false;
       velocityY = 0;
+      velocitySamples = [];
       scrolledContentDuringGesture = false;
     };
 
@@ -123,8 +119,14 @@ export function useProfileSheetContentGestures({
 
     const trackVelocity = (y: number) => {
       const now = performance.now();
-      const dt = Math.max(now - lastT, 1);
-      velocityY = ((y - lastY) / dt) * 1000;
+      const dt = Math.max(now - lastT, PULL_VELOCITY_MIN_DT_MS);
+      velocitySamples.push(((y - lastY) / dt) * 1000);
+      if (velocitySamples.length > PULL_VELOCITY_SAMPLE_MAX) {
+        velocitySamples.shift();
+      }
+      velocityY =
+        velocitySamples.reduce((sum, sample) => sum + sample, 0) /
+        velocitySamples.length;
       lastY = y;
       lastT = now;
     };
@@ -162,7 +164,7 @@ export function useProfileSheetContentGestures({
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (!enabledRef.current || isInteractiveGestureTarget(event.target)) return;
+      if (!enabledRef.current || isIgnoredProfileSheetGestureTarget(event.target)) return;
       const touch = event.touches[0];
       if (!touch) return;
       startY = touch.clientY;
@@ -218,7 +220,7 @@ export function useProfileSheetContentGestures({
     const onPointerDown = (event: PointerEvent) => {
       if (!enabledRef.current || event.button !== 0) return;
       if (event.pointerType === "touch") return;
-      if (isInteractiveGestureTarget(event.target)) return;
+      if (isIgnoredProfileSheetGestureTarget(event.target)) return;
       startY = event.clientY;
       lastY = startY;
       lastT = performance.now();

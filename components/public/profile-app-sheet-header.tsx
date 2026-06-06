@@ -199,12 +199,12 @@ export function ProfileAppSheetHeader({
       <header
         ref={stickyChromeRef}
         data-profile-app-sheet-header
+        data-profile-sheet-no-pull
         className={cn(
-          "sticky z-10 shrink-0 touch-none cursor-grab border-b border-border/40 py-2 active:cursor-grabbing",
+          "sticky z-10 shrink-0 border-b border-border/40 py-2",
           profileSheetStickyChromeClassName,
         )}
         style={{ top: handleHeightPx }}
-        onPointerDown={startSheetDrag}
       >
         <div className="flex flex-col items-center px-4">
           <p className="max-w-full truncate text-sm font-semibold tracking-tight text-foreground">

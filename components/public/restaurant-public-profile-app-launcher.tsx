@@ -52,6 +52,7 @@ import {
   SWIPE_CLOSE_VELOCITY,
 } from "@/lib/public-profile/profile-sheet-gesture-constants";
 import { useProfileSheetContentGestures } from "@/lib/public-profile/use-profile-sheet-content-gestures";
+import { useProfileSheetModuleSwipe } from "@/lib/public-profile/use-profile-sheet-module-swipe";
 import { profileAppSheetClassName } from "@/lib/public-profile/profile-sheet-styles";
 import {
   preloadProfileWidgetChunks,
@@ -261,6 +262,7 @@ function ProfileAppSheetOverlay({
   reopenRequest,
   onClosingChange,
   onDismissComplete,
+  onSwitchApp,
 }: {
   activeApp: ProfileAppId;
   launchRect: DOMRect | null;
@@ -283,6 +285,7 @@ function ProfileAppSheetOverlay({
   reopenRequest: number;
   onClosingChange: (closing: boolean) => void;
   onDismissComplete: () => void;
+  onSwitchApp: (appId: ProfileAppId) => void;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
@@ -349,10 +352,13 @@ function ProfileAppSheetOverlay({
   }, [activeApp]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const modulePaneRef = useRef<HTMLDivElement>(null);
+  const modulePanX = useMotionValue(0);
 
   useLayoutEffect(() => {
     viewportRef.current?.scrollTo({ top: 0, behavior: "auto" });
-  }, [activeApp]);
+    modulePanX.set(0);
+  }, [activeApp, modulePanX]);
   const getScrollTop = useCallback(
     () => viewportRef.current?.scrollTop ?? 0,
     [],
@@ -655,6 +661,21 @@ function ProfileAppSheetOverlay({
     },
   });
 
+  useProfileSheetModuleSwipe({
+    containerRef: modulePaneRef,
+    enabled: Boolean(
+      lightEffects &&
+        dragEnabled &&
+        !isDismissing &&
+        !reduceMotion &&
+        !reservationTermsOpen,
+    ),
+    appIds,
+    activeApp,
+    onSwitchApp,
+    panX: modulePanX,
+  });
+
   return (
     <>
       {!lightEffects ? (
@@ -722,7 +743,7 @@ function ProfileAppSheetOverlay({
             <div
               ref={viewportRef}
               data-profile-app-scroll-root
-              className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y"
+              className="absolute inset-0 flex flex-col overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y"
             >
               <ProfileAppSheetHeader
                 profile={profile}
@@ -734,8 +755,17 @@ function ProfileAppSheetOverlay({
                 isDismissing={isDismissing}
                 scrollRootRef={viewportRef}
               />
-              <div className="grid min-h-0 *:col-start-1 *:row-start-1">
-                <AnimatePresence initial={false} custom={switchDirection}>
+              <div
+                ref={modulePaneRef}
+                data-profile-sheet-no-pull
+                data-profile-sheet-module-pane
+                className="grid min-h-0 flex-1 *:col-start-1 *:row-start-1 overflow-x-hidden"
+              >
+                <m.div
+                  style={{ x: modulePanX }}
+                  className="col-start-1 row-start-1 min-h-full w-full touch-pan-y"
+                >
+                  <AnimatePresence initial={false} custom={switchDirection}>
                   <m.div
                     key={activeApp}
                     custom={switchDirection}
@@ -754,7 +784,7 @@ function ProfileAppSheetOverlay({
                         ? PROFILE_MODULE_FADE_TRANSITION
                         : IOS_APP_PAGER_SWITCH_TRANSITION
                     }
-                    className="w-full min-w-0 bg-background"
+                    className="min-h-full w-full min-w-0 bg-background"
                   >
                     <ProfileAppContent
                       appId={activeApp}
@@ -775,6 +805,7 @@ function ProfileAppSheetOverlay({
                     />
                   </m.div>
                 </AnimatePresence>
+                </m.div>
               </div>
             </div>
           </m.div>
@@ -1127,6 +1158,7 @@ export function RestaurantPublicProfileAppLauncher({
                 reopenRequest={reopenRequest}
                 onClosingChange={handleClosingChange}
                 onDismissComplete={handleDismissComplete}
+                onSwitchApp={switchSheetModule}
               />
             ) : null}
           </AnimatePresence>,

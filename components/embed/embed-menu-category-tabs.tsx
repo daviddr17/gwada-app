@@ -277,6 +277,7 @@ function EmbedMenuCategoryTabsScroller({
 
       <div
         ref={scrollerRef}
+        data-profile-sheet-horizontal-scroll
         onScroll={updateScrollArrows}
         className={cn(
           "min-h-10 overflow-x-auto overflow-y-hidden overscroll-x-contain",

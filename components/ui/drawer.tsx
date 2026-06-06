@@ -54,9 +54,11 @@ function DrawerContent({
   className,
   children,
   showHandle = true,
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content> & {
   showHandle?: boolean
+  overlayClassName?: string
 }) {
   const [floatingHost, setFloatingHost] = React.useState<HTMLDivElement | null>(
     null,
@@ -64,7 +66,7 @@ function DrawerContent({
 
   return (
     <DrawerPortal data-slot="drawer-portal">
-      <DrawerOverlay />
+      <DrawerOverlay className={overlayClassName} />
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(

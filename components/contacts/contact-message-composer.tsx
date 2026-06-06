@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { setWahaTypingClient } from "@/lib/contact-messages/waha-typing-client";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { CONTACT_MESSAGE_ATTACHMENT_MAX_FILES } from "@/lib/constants/contact-message-attachments";
 import { Mail, Paperclip, Send, X } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
@@ -496,7 +497,7 @@ export function ContactMessageComposer({
         </Button>
         <Button
           type="button"
-          className="h-11 min-w-0 flex-1 gap-2 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+          className={cn("h-11 min-w-0 flex-1 gap-2 ", brandActionButtonRoundedClassName)}
           disabled={
             disabled ||
             sending ||

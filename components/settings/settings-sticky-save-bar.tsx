@@ -3,13 +3,11 @@
 import type { ReactNode } from "react"
 
 import { cn } from "@/lib/utils"
-
-/** Primär-Speichern in Einstellungen – gleiche Tenant-Akzent-Optik wie Speisekarte/Bestand. */
-export const settingsAccentSaveButtonClassName = cn(
-  "border-transparent bg-accent text-accent-foreground shadow-none",
-  "hover:bg-accent/90 dark:shadow-md",
-  "tap-scale",
-)
+export {
+  brandActionButtonClassName,
+  brandActionButtonRoundedClassName,
+  settingsAccentSaveButtonClassName,
+} from "@/lib/ui/brand-action-button"
 
 /**
  * Sticky unten im Scrollbereich der App, wenn Formulardaten geändert wurden.

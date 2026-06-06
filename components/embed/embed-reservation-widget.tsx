@@ -5,11 +5,16 @@ import { CalendarDays, Mail, Pencil } from "lucide-react";
 import { GuestPhoneCountrySelect } from "@/components/phone/guest-phone-country-select";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import {
+  EmbedSlidingSegmentTabs,
+  type EmbedSlidingSegmentTab,
+} from "@/components/embed/embed-sliding-segment-tabs";
+import {
   EmbedBookingSuccess,
   type EmbedBookingSuccessDetails,
 } from "@/components/embed/embed-booking-success";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
+import { isGwadaEmbedHostMode } from "@/lib/embed/embed-menu-scroll";
 import {
   EmbedSubmitButton,
   type EmbedSubmitPhase,
@@ -51,6 +56,22 @@ import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
 type Tab = "book" | "manage";
+
+export type EmbedReservationProfileTermsSheet = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+function scheduleTermsSheetOpen(onOpenChange: (open: boolean) => void) {
+  window.requestAnimationFrame(() => {
+    onOpenChange(true);
+  });
+}
+
+const RESERVATION_SEGMENT_TABS: readonly EmbedSlidingSegmentTab<Tab>[] = [
+  { id: "book", label: "Buchen", icon: CalendarDays },
+  { id: "manage", label: "Ändern", icon: Pencil },
+];
 
 type EmbedFieldErrors = {
   date?: boolean;
@@ -104,10 +125,28 @@ function hasGuestContactFilled(
 export function EmbedReservationWidget({
   config,
   countries,
+  variant = "embed",
+  profileTermsSheet,
 }: {
   config: PublicEmbedRestaurant;
   countries: CountryReference[];
+  variant?: "embed" | "profileSheet";
+  /** Profil-App-Sheet: Terms-Drawer auf Overlay-Ebene (nicht im Scroll-Inhalt). */
+  profileTermsSheet?: EmbedReservationProfileTermsSheet;
 }) {
+  const profileSheet = variant === "profileSheet";
+  const [hostMode, setHostMode] = useState(false);
+  const [internalTermsSheetOpen, setInternalTermsSheetOpen] = useState(false);
+
+  const termsSheetOpen = profileTermsSheet?.open ?? internalTermsSheetOpen;
+  const setTermsSheetOpen =
+    profileTermsSheet?.onOpenChange ?? setInternalTermsSheetOpen;
+  const renderTermsSheetInsideWidget = !profileSheet;
+
+  useEffect(() => {
+    setHostMode(isGwadaEmbedHostMode());
+  }, []);
+
   const [tab, setTab] = useState<Tab>("book");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<EmbedFieldErrors>({});
@@ -137,7 +176,6 @@ export function EmbedReservationWidget({
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [website, setWebsite] = useState("");
-  const [termsSheetOpen, setTermsSheetOpen] = useState(false);
 
   const [manageNumber, setManageNumber] = useState("");
   const [managePin, setManagePin] = useState("");
@@ -182,6 +220,18 @@ export function EmbedReservationWidget({
       setTimeHm(timeSlots[0]!);
     }
   }, [timeSlots, timeHm]);
+
+  const handleTabChange = useCallback((next: Tab) => {
+    setTab(next);
+    setError(null);
+    setFieldErrors({});
+    if (next === "manage") {
+      setBookSuccess(null);
+      setManageSuccess(null);
+      setBookPhase("idle");
+      setManagePhase("idle");
+    }
+  }, []);
 
   const resetBookForm = useCallback(() => {
     setFirstName("");
@@ -652,9 +702,12 @@ export function EmbedReservationWidget({
         </div>
       </div>
 
-      <div className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 p-3">
+      <div
+        className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 p-3"
+        data-profile-sheet-no-pull
+      >
         <span
-          id="embed-terms"
+          id="embed-terms-label"
           className="flex min-w-0 flex-1 items-center gap-2.5 text-sm leading-snug"
         >
           <TermsGlyph className="size-4 shrink-0 text-muted-foreground" />
@@ -662,7 +715,7 @@ export function EmbedReservationWidget({
             <button
               type="button"
               className="font-medium text-foreground underline decoration-foreground/50 underline-offset-2 hover:decoration-foreground"
-              onClick={() => setTermsSheetOpen(true)}
+              onClick={() => scheduleTermsSheetOpen(setTermsSheetOpen)}
             >
               Bedingungen
             </button>{" "}
@@ -670,15 +723,20 @@ export function EmbedReservationWidget({
           </span>
         </span>
         <Switch
-          id="embed-terms"
           checked={termsAccepted}
           aria-invalid={fieldErrors.terms || undefined}
           onCheckedChange={(v) => {
-            setTermsAccepted(v === true);
-            clearFieldError("terms");
+            const accepted = v === true;
+            setTermsAccepted(accepted);
+            if (accepted) {
+              scheduleTermsSheetOpen(setTermsSheetOpen);
+              clearFieldError("terms");
+            } else {
+              setTermsSheetOpen(false);
+            }
           }}
           size="sm"
-          aria-labelledby="embed-terms"
+          aria-labelledby="embed-terms-label"
         />
       </div>
       <input
@@ -719,60 +777,36 @@ export function EmbedReservationWidget({
 
   return (
     <EmbedAccentRoot accentHex={config.accentHex}>
-      <EmbedReservationTermsSheet
-        open={termsSheetOpen}
-        onOpenChange={setTermsSheetOpen}
-        restaurantName={config.name}
-      />
+      {renderTermsSheetInsideWidget ? (
+        <EmbedReservationTermsSheet
+          open={termsSheetOpen}
+          onOpenChange={setTermsSheetOpen}
+          restaurantName={config.name}
+        />
+      ) : null}
       <EmbedResizeReporter deps={resizeDeps} widget="reservation" />
-      <div className="w-full min-w-0 px-4 py-5 sm:px-5">
-        <header className="mb-4 space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Reservierung
-          </p>
-          <h1 className="text-xl font-semibold tracking-tight">{config.name}</h1>
-        </header>
+      <div
+        className={cn(
+          "w-full min-w-0 px-4 py-5 sm:px-5",
+          profileSheet && "pt-3",
+        )}
+      >
+        {!profileSheet ? (
+          <header className="mb-4 space-y-1">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Reservierung
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight">{config.name}</h1>
+          </header>
+        ) : null}
 
-        <div className="mb-4 flex gap-2 rounded-xl bg-muted/40 p-1">
-          <button
-            type="button"
-            onClick={() => {
-              setTab("book");
-              setError(null);
-              setFieldErrors({});
-            }}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors",
-              tab === "book"
-                ? "bg-accent text-accent-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <CalendarDays className="size-4" />
-            Buchen
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setTab("manage");
-              setError(null);
-              setFieldErrors({});
-              setBookSuccess(null);
-              setManageSuccess(null);
-              setBookPhase("idle");
-              setManagePhase("idle");
-            }}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-sm font-medium transition-colors",
-              tab === "manage"
-                ? "bg-accent text-accent-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <Pencil className="size-4" />
-            Ändern
-          </button>
-        </div>
+        <EmbedSlidingSegmentTabs
+          tabs={RESERVATION_SEGMENT_TABS}
+          value={tab}
+          onChange={handleTabChange}
+          className="mb-4"
+          aria-label="Reservierung"
+        />
 
         {error ? (
           <p className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -869,9 +903,11 @@ export function EmbedReservationWidget({
           </div>
         )}
 
-        <p className="mt-4 text-center text-[10px] text-muted-foreground">
-          Bereitgestellt von gwada
-        </p>
+        {hostMode ? (
+          <p className="mt-4 text-center text-[10px] text-muted-foreground">
+            Bereitgestellt von gwada
+          </p>
+        ) : null}
       </div>
     </EmbedAccentRoot>
   );

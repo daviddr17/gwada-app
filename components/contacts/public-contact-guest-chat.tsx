@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -362,7 +364,7 @@ export function PublicContactGuestChat() {
             </div>
             <Button
               type="button"
-              className="w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+              className={cn("w-full ", brandActionButtonRoundedClassName)}
               disabled={!contactId || code.length !== 6 || verifying}
               onClick={() => void verifyCode()}
             >
@@ -423,7 +425,7 @@ export function PublicContactGuestChat() {
             />
             <Button
               type="button"
-              className="h-11 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+              className={cn("h-11 w-full ", brandActionButtonRoundedClassName)}
               disabled={sending || !body.trim()}
               onClick={() => void send()}
             >

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 import {
   Drawer,
   DrawerContent,
@@ -173,7 +175,7 @@ export function DiningAreaDrawer({
             <Button
               type="submit"
               disabled={submitting}
-              className="h-12 flex-1 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 tap-scale"
+              className={cn("h-12 flex-1 ", brandActionButtonRoundedClassName)}
             >
               {mode === "edit" ? "Speichern" : "Anlegen"}
             </Button>

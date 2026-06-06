@@ -34,6 +34,15 @@ function isScrollAtTop(getScrollTop: () => number) {
   return getScrollTop() <= 1;
 }
 
+function isInteractiveGestureTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      "button, a, input, textarea, select, label, [role=button], [role=switch], [data-profile-sheet-no-pull]",
+    ),
+  );
+}
+
 /** Pull-down zum Schließen — kein horizontales Paging mehr. */
 export function useProfileSheetContentGestures({
   scrollRef,
@@ -153,7 +162,7 @@ export function useProfileSheetContentGestures({
     };
 
     const onTouchStart = (event: TouchEvent) => {
-      if (!enabledRef.current) return;
+      if (!enabledRef.current || isInteractiveGestureTarget(event.target)) return;
       const touch = event.touches[0];
       if (!touch) return;
       startY = touch.clientY;
@@ -209,6 +218,7 @@ export function useProfileSheetContentGestures({
     const onPointerDown = (event: PointerEvent) => {
       if (!enabledRef.current || event.button !== 0) return;
       if (event.pointerType === "touch") return;
+      if (isInteractiveGestureTarget(event.target)) return;
       startY = event.clientY;
       lastY = startY;
       lastT = performance.now();

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -264,7 +265,7 @@ export function DisplayReservationMessageSheet({
               </Button>
               <Button
                 type="button"
-                className="h-11 flex-1 gap-2 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+                className={cn("h-11 flex-1 gap-2 ", brandActionButtonRoundedClassName)}
                 disabled={sending || !body.trim()}
                 onClick={() => void handleSend()}
               >

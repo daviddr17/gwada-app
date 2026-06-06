@@ -26,7 +26,7 @@ import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
 const reviewsSortSelectClass = appSelectTriggerAccentCn(
-  "h-9 w-full min-w-[11rem] [&_[data-slot=select-value]]:truncate",
+  "h-auto min-h-0 w-full rounded-full px-3 py-1.5 text-sm font-medium leading-none sm:w-auto sm:min-w-[11rem] [&_[data-slot=select-value]]:truncate",
 );
 
 function StarsDisplay({ rating }: { rating: number }) {
@@ -116,7 +116,7 @@ export function RestaurantPublicProfileReviews({
 
   return (
     <div className="px-4 py-5 sm:px-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3">
         {showPlatformChips ? (
           <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
@@ -146,7 +146,8 @@ export function RestaurantPublicProfileReviews({
             ))}
           </div>
         ) : connectedPlatforms.length === 1 ? (
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <ReviewPlatformIcon platform={connectedPlatforms[0]!} className="size-3.5" />
             {REVIEW_PLATFORM_LABELS[connectedPlatforms[0]!]}
           </p>
         ) : null}
@@ -158,7 +159,7 @@ export function RestaurantPublicProfileReviews({
           <SelectTrigger className={reviewsSortSelectClass} aria-label="Sortieren">
             <SelectValue>{reviewSortOptionLabel(sortKey)}</SelectValue>
           </SelectTrigger>
-          <SelectContent align="end">
+          <SelectContent align="start">
             {REVIEW_SORT_OPTIONS.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}

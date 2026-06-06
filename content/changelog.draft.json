@@ -1,6 +1,6 @@
 {
-  "title": "Display: stabile Kopplung und Bestand",
-  "body": "- Tablet-Kopplung bleibt erhalten: stabile Geräte-ID (kein MAC) und automatische Wiederherstellung, wenn der Browser-Cookie fehlt\n- Mehrere Tablets pro Display möglich; „Neu koppeln“ betrifft nur das Gerät mit dem Code\n- Klarere Meldungen am Display, Bestätigung vor Entkoppeln\n- Modul „Bestand & Bestellung“ am Display (Touch-Inventur, Filter, Bestellmengen)\n- Rezepte am Display: Filter per Kategorie-Chips",
+  "title": "Öffentliches Profil: App-Sheet & UI",
+  "body": "- App-Sheet-Header: Drag-Handle bleibt oben kleben, Logo wird beim Scrollen kleiner und scrollt weg, Restaurantname und aktives Modul bleiben darunter sichtbar\n- Modulwechsel (Speisekarte, Reservierung, Bewertungen …): Inhalt wechselt animiert, Header bleibt stehen\n- Speisekarte im Profil: Kategorie-Leiste klebt beim Scrollen mit gleitendem Akzent-Highlight\n- Reservierung im Profil: Bedingungen-Dialog öffnet zuverlässig; bei Zustimmung öffnet er sich automatisch\n- Bewertungen: Sortierung in eigener Zeile unter den Plattform-Chips\n- Einheitlichere Akzent-Buttons (weiches Tenant-Branding) in Profil, Kontakt und vielen Dialogen\n- Toggle-Schalter: Schieber fährt wieder bis zum Rand",
   "audience": "customers",
-  "version": "2026.06.03"
+  "version": "2026.06.06"
 }

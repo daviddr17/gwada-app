@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
 export type EmbedSubmitPhase = "idle" | "loading" | "success";
@@ -34,7 +35,7 @@ export function EmbedSubmitButton({
         "relative h-11 w-full overflow-hidden rounded-xl transition-colors duration-500",
         isSuccess
           ? "bg-emerald-600 text-white hover:bg-emerald-600"
-          : "bg-accent text-accent-foreground hover:bg-accent/90",
+          : brandActionButtonRoundedClassName,
         className,
       )}
     >

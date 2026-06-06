@@ -11,13 +11,15 @@ import { cn } from "@/lib/utils";
 
 type Props = {
   mouse: { x: number; y: number };
+  /** Maus-Parallax nur bei feinem Pointer (Desktop/Maus), nicht auf Touch. */
+  parallaxEnabled: boolean;
   onScrollToSection: (id: string) => void;
 };
 
 /**
  * Full-viewport Hero: Stripe-Gradient + Glas-Card, starke Typo, CTAs.
  */
-export function LandingHero({ mouse, onScrollToSection }: Props) {
+export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props) {
   const logoUrl = useResolvedPlatformLogoSrc();
 
   const sx = useSpring(mouse.x, { stiffness: 80, damping: 24, mass: 0.4 });
@@ -51,13 +53,15 @@ export function LandingHero({ mouse, onScrollToSection }: Props) {
 
       <div className="relative z-[2] mx-auto flex w-full max-w-5xl flex-col items-center px-6 text-center">
         <motion.div
-          style={{ x: shiftX, y: shiftY }}
+          style={parallaxEnabled ? { x: shiftX, y: shiftY } : undefined}
           className="relative max-w-3xl rounded-[2rem] border border-neutral-200/70 bg-white/80 p-10 shadow-[0_24px_80px_-20px_rgba(0,0,0,0.12)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_24px_80px_-20px_rgba(0,0,0,0.6)] md:p-14"
         >
-          <motion.div
-            className="pointer-events-none absolute inset-0 rounded-[2rem] opacity-70"
-            style={{ background: glare }}
-          />
+          {parallaxEnabled ? (
+            <motion.div
+              className="pointer-events-none absolute inset-0 rounded-[2rem] opacity-70"
+              style={{ background: glare }}
+            />
+          ) : null}
           <div className="landing-hero-rise-logo flex flex-col items-center gap-3">
             {logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

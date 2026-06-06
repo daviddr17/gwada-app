@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
   Drawer,
   DrawerContent,
@@ -97,7 +98,7 @@ export function ReservationGwadaReviewSheet({
             )}
             <Button
               type="button"
-              className="h-11 w-full rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+              className={cn("h-11 w-full ", brandActionButtonRoundedClassName)}
               render={
                 <Link
                   href="/bewertungen/uebersicht?platform=gwada"

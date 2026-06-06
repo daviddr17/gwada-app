@@ -9,6 +9,7 @@ import {
 } from "framer-motion";
 import { MapPin, Phone } from "lucide-react";
 import { useEffect, useState } from "react";
+import { usePointerFine } from "@/hooks/use-pointer-fine";
 import { PublicProfileOpeningStatusChip } from "@/components/public/public-profile-opening-status-chip";
 import { PublicProfileSocialChip } from "@/components/public/public-profile-social-chip";
 import { PublicRestaurantImage } from "@/components/public/public-restaurant-image";
@@ -46,19 +47,23 @@ function restaurantInitials(name: string): string {
 export function RestaurantPublicProfileHeroCard({
   profile,
   logoIntro,
+  onOpeningStatusPress,
 }: {
   profile: PublicRestaurantProfile;
   logoIntro?: PublicProfileLogoIntro;
+  onOpeningStatusPress?: (launchRect: DOMRect) => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const pointerFine = usePointerFine();
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
   const [parallaxReady, setParallaxReady] = useState(false);
+  const parallaxEnabled = pointerFine && !reduceMotion;
 
   const sx = useSpring(mouse.x, { stiffness: 80, damping: 24, mass: 0.4 });
   const sy = useSpring(mouse.y, { stiffness: 80, damping: 24, mass: 0.4 });
 
   useEffect(() => {
-    if (reduceMotion) return;
+    if (!parallaxEnabled) return;
     const enable = () => setParallaxReady(true);
     if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(enable, { timeout: 2200 });
@@ -66,10 +71,10 @@ export function RestaurantPublicProfileHeroCard({
     }
     const id = globalThis.setTimeout(enable, 1200);
     return () => globalThis.clearTimeout(id);
-  }, [reduceMotion]);
+  }, [parallaxEnabled]);
 
   useEffect(() => {
-    if (reduceMotion || !parallaxReady) return;
+    if (!parallaxEnabled || !parallaxReady) return;
     const onMove = (e: MouseEvent) => {
       setMouse({
         x: (e.clientX / window.innerWidth) * 2 - 1,
@@ -78,7 +83,7 @@ export function RestaurantPublicProfileHeroCard({
     };
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => window.removeEventListener("mousemove", onMove);
-  }, [parallaxReady, reduceMotion]);
+  }, [parallaxEnabled, parallaxReady]);
 
   useEffect(() => {
     sx.set(mouse.x);
@@ -103,7 +108,7 @@ export function RestaurantPublicProfileHeroCard({
 
   const card = (
     <div className={publicProfileHeroCardShellClassName}>
-      {!reduceMotion ? (
+      {parallaxEnabled ? (
         <motion.div
           className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-70"
           style={{ background: glare }}
@@ -167,7 +172,17 @@ export function RestaurantPublicProfileHeroCard({
         </div>
 
         <div className={publicProfileHeroStatusBlockClassName}>
-          <PublicProfileOpeningStatusChip opening={opening} />
+          <PublicProfileOpeningStatusChip
+            opening={opening}
+            onPress={
+              onOpeningStatusPress
+                ? (event) =>
+                    onOpeningStatusPress(
+                      event.currentTarget.getBoundingClientRect(),
+                    )
+                : undefined
+            }
+          />
         </div>
 
         {(addressLine || phone) ? (
@@ -218,7 +233,7 @@ export function RestaurantPublicProfileHeroCard({
       <div className={publicProfileHeroStageClassName}>
         <motion.div
           style={
-            reduceMotion || !parallaxReady
+            !parallaxEnabled || !parallaxReady
               ? undefined
               : { x: shiftX, y: shiftY }
           }

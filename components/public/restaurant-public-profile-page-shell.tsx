@@ -12,7 +12,9 @@ import { ProfilePublicDockProvider } from "@/components/public/profile-public-do
 import { RestaurantProfileBrandedCanvas } from "@/components/public/restaurant-profile-branded-canvas";
 import { RestaurantPublicProfileLauncherSkeleton } from "@/components/public/restaurant-public-profile-launcher-skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { PlatformAppBrandingProvider } from "@/lib/contexts/platform-app-branding-context";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
+import type { PlatformAppBranding } from "@/lib/types/platform-app-settings";
 
 type LauncherComponent = ComponentType<{
   profile: PublicRestaurantProfile;
@@ -23,9 +25,11 @@ type LauncherComponent = ComponentType<{
 export function RestaurantPublicProfilePageShell({
   profile,
   gwadaIconSrc,
+  initialBranding,
 }: {
   profile: PublicRestaurantProfile;
   gwadaIconSrc: string | null;
+  initialBranding?: PlatformAppBranding | null;
 }) {
   const reduceMotion = useReducedMotion();
   const [Launcher, setLauncher] = useState<LauncherComponent | null>(null);
@@ -71,8 +75,9 @@ export function RestaurantPublicProfilePageShell({
         };
 
   return (
-    <ProfilePublicDockProvider>
-      <LazyMotion features={domAnimation}>
+    <PlatformAppBrandingProvider initialBranding={initialBranding}>
+      <ProfilePublicDockProvider>
+        <LazyMotion features={domAnimation}>
         <div className="relative flex h-dvh flex-col overflow-hidden">
           {showSkeletonOverlay ? (
             <>
@@ -102,7 +107,8 @@ export function RestaurantPublicProfilePageShell({
             </div>
           ) : null}
         </div>
-      </LazyMotion>
-    </ProfilePublicDockProvider>
+        </LazyMotion>
+      </ProfilePublicDockProvider>
+    </PlatformAppBrandingProvider>
   );
 }

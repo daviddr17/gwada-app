@@ -1,5 +1,11 @@
 import { cn } from "@/lib/utils";
 
+/** Scroll-Root: Höhe des Drag-Handle-Streifens (Name/Modul kleben darunter). */
+export const PROFILE_SHEET_HANDLE_HEIGHT_VAR = "--profile-sheet-handle-h";
+
+/** Scroll-Root: Handle + Name/Modul ohne Logo (Toolbar klebt darunter). */
+export const PROFILE_SHEET_HEADER_HEIGHT_VAR = "--profile-sheet-header-h";
+
 /** Bottom-Sheet-Chrome — auf Touch ohne backdrop-filter (Safari/iOS). */
 export function profileAppSheetClassName(lightEffects = false) {
   return cn(

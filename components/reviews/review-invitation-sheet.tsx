@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { Button } from "@/components/ui/button";
 import {
@@ -428,7 +429,7 @@ export function ReviewInvitationSheet({
               </Button>
               <Button
                 type="button"
-                className="h-11 flex-1 gap-2 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+                className={cn("h-11 flex-1 gap-2 ", brandActionButtonRoundedClassName)}
                 disabled={
                   sending ||
                   creating ||

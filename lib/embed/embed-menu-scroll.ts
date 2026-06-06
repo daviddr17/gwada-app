@@ -118,3 +118,27 @@ export function scrollToMenuCategoryInContainer(
     behavior: "smooth",
   });
 }
+
+/** Profil-Sheet: sichtbarer sticky Chrome (Handle + Name/Modul) + Menü-Toolbar. */
+export function profileSheetMenuStickyScrollOffset(
+  scrollRoot: HTMLElement,
+  toolbarHeight: number,
+): number {
+  const rootRect = scrollRoot.getBoundingClientRect();
+  let pinnedBottom = rootRect.top;
+
+  for (const selector of [
+    "[data-profile-app-sheet-handle]",
+    "[data-profile-app-sheet-header]",
+  ]) {
+    const el = scrollRoot.querySelector(selector);
+    if (el instanceof HTMLElement) {
+      pinnedBottom = Math.max(
+        pinnedBottom,
+        el.getBoundingClientRect().bottom,
+      );
+    }
+  }
+
+  return Math.max(0, pinnedBottom - rootRect.top) + toolbarHeight;
+}

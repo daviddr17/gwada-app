@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, Download } from "lucide-react";
 import { toast } from "sonner";
 import { DataExportSheet } from "@/components/export/data-export-sheet";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -260,7 +262,7 @@ export function StaffExportScreen() {
 
         <Button
           type="button"
-          className="h-12 w-full gap-2 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+          className={cn("h-12 w-full gap-2 ", brandActionButtonRoundedClassName)}
           disabled={loading || showSkeleton || rangeInvalid || count === 0}
           onClick={() => setExportOpen(true)}
         >

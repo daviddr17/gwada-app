@@ -3,6 +3,8 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   SearchableSelect,
@@ -504,7 +506,7 @@ export function DishForm({
         )}
         <Button
           type="submit"
-          className="h-12 flex-1 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 tap-scale"
+          className={cn("h-12 flex-1 ", brandActionButtonRoundedClassName)}
         >
           {mode === "edit" ? "Speichern" : "Hinzufügen"}
         </Button>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Drawer,
@@ -290,7 +291,7 @@ export function IngredientDrawer({
             <Button
               type="submit"
               className={cn(
-                "h-12 flex-1 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90 tap-scale",
+                cn("h-12 flex-1", brandActionButtonRoundedClassName),
               )}
             >
               Anlegen

@@ -19,10 +19,14 @@ import { createPortal } from "react-dom";
 import { RestaurantProfileBrandedCanvas, brandedProfileBackdropStyle } from "@/components/public/restaurant-profile-branded-canvas";
 import type { PublicProfileLogoIntro } from "@/components/public/public-profile-logo-crossfade";
 import { PublicProfileInfoSections } from "@/components/public/public-profile-info-sections";
+import type { PublicProfileInfoTab } from "@/components/public/public-profile-info-sections";
 import { useProfilePublicDockBridge } from "@/components/public/profile-public-dock-bridge";
 import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-public-profile-hero-card";
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
 import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
+import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
+import type { EmbedReservationProfileTermsSheet } from "@/components/embed/embed-reservation-widget";
+import { ProfileAppSheetHeader } from "@/components/public/profile-app-sheet-header";
 import type { PublicEmbedMenu } from "@/lib/menu/public-menu-server";
 import {
   profileAppsForModules,
@@ -37,6 +41,8 @@ import {
   IOS_APP_OPEN_TRANSITION,
   IOS_APP_PAGER_SWITCH_TRANSITION,
   iosAppHorizontalPushVariants,
+  PROFILE_MODULE_FADE_TRANSITION,
+  profileModuleFadeVariants,
 } from "@/lib/public-profile/profile-app-motion";
 import {
   DRAG_REVEAL_ICON_PROGRESS,
@@ -250,6 +256,8 @@ function ProfileAppSheetOverlay({
   errors,
   addressLine,
   mapsUrl,
+  infoTab,
+  onInfoTabChange,
   reopenRequest,
   onClosingChange,
   onDismissComplete,
@@ -269,6 +277,8 @@ function ProfileAppSheetOverlay({
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
   mapsUrl: string | null;
+  infoTab: PublicProfileInfoTab;
+  onInfoTabChange: (tab: PublicProfileInfoTab) => void;
   /** Erhöht sich, wenn während des Schließens erneut geöffnet wird. */
   reopenRequest: number;
   onClosingChange: (closing: boolean) => void;
@@ -283,6 +293,21 @@ function ProfileAppSheetOverlay({
   const dismissGenerationRef = useRef(0);
   const dismissControlsRef = useRef<AnimationPlaybackControls[]>([]);
   const [morphToIcon, setMorphToIcon] = useState(false);
+  const [reservationTermsOpen, setReservationTermsOpen] = useState(false);
+
+  useEffect(() => {
+    if (activeApp !== "reserve") {
+      setReservationTermsOpen(false);
+    }
+  }, [activeApp]);
+
+  const reservationTermsSheet = useMemo<EmbedReservationProfileTermsSheet>(
+    () => ({
+      open: reservationTermsOpen,
+      onOpenChange: setReservationTermsOpen,
+    }),
+    [reservationTermsOpen],
+  );
 
   const morphOrigin = useMemo(() => {
     const iconRect = resolveIconRect(activeApp, launchRect);
@@ -324,13 +349,14 @@ function ProfileAppSheetOverlay({
   }, [activeApp]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeApp]);
   const getScrollTop = useCallback(
     () => viewportRef.current?.scrollTop ?? 0,
     [],
   );
-
-  const headerApp =
-    apps.find((app) => app.id === activeApp) ?? apps[0]!;
 
   const dragMotionValues = useMemo(
     () => ({
@@ -660,7 +686,13 @@ function ProfileAppSheetOverlay({
                 pointerEvents: isDismissing ? "none" : "auto",
               }
         }
-        onClick={() => void dismissToIcon()}
+        onClick={() => {
+          if (reservationTermsOpen) {
+            setReservationTermsOpen(false);
+            return;
+          }
+          void dismissToIcon();
+        }}
       />
       <m.div
         ref={sheetRef}
@@ -682,77 +714,80 @@ function ProfileAppSheetOverlay({
           transformOrigin: morphToIcon ? morphOrigin : IOS_SHEET_SLIDE_OPEN_ORIGIN,
         }}
       >
-        <header
-          className="flex shrink-0 touch-none cursor-grab flex-col items-center border-b border-border/40 px-4 pb-3 pt-3 active:cursor-grabbing"
-          onPointerDown={(event) => {
-            if (reduceMotion || isDismissing || !dragEnabled) return;
-            dragControls.start(event);
-          }}
-        >
-          <div
-            className="mb-3 h-1 w-10 rounded-full bg-muted-foreground/45"
-            aria-hidden
-          />
-          <div className="relative mb-3 h-[2.75rem] w-full overflow-hidden">
-            <AnimatePresence initial={false} custom={switchDirection}>
-              <m.div
-                key={headerApp.id}
-                custom={switchDirection}
-                variants={reduceMotion ? undefined : iosAppHorizontalPushVariants}
-                initial={reduceMotion ? false : "enter"}
-                animate={reduceMotion ? undefined : "center"}
-                exit={reduceMotion ? undefined : "exit"}
-                transition={IOS_APP_PAGER_SWITCH_TRANSITION}
-                className="absolute inset-x-0 top-0 w-full text-center"
-              >
-                <h2 className="truncate text-base font-semibold tracking-tight">
-                  {headerApp.label}
-                </h2>
-                <p className="truncate text-xs text-muted-foreground">
-                  {headerApp.subtitle}
-                </p>
-              </m.div>
-            </AnimatePresence>
-          </div>
-        </header>
-
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <m.div
             className="relative h-full min-h-0"
             style={{ opacity: contentOpacity }}
           >
-            <AnimatePresence initial={false} custom={switchDirection}>
-              <m.div
-                key={activeApp}
-                custom={switchDirection}
-                variants={reduceMotion ? undefined : iosAppHorizontalPushVariants}
-                initial={reduceMotion ? false : "enter"}
-                animate={reduceMotion ? undefined : "center"}
-                exit={reduceMotion ? undefined : "exit"}
-                transition={IOS_APP_PAGER_SWITCH_TRANSITION}
-                ref={viewportRef}
-                data-profile-app-scroll-root
-                className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y"
-              >
-                <ProfileAppContent
-                  appId={activeApp}
-                  profile={profile}
-                  reservation={reservation}
-                  menu={menu}
-                  reviews={reviews}
-                  loading={loading}
-                  errors={errors}
-                  addressLine={addressLine}
-                  mapsUrl={mapsUrl}
-                  skipEnterAnimation
-                  reduceMotion={reduceMotion}
-                  deferHeavyWidgets={lightEffects && !openSettled}
-                />
-              </m.div>
-            </AnimatePresence>
+            <div
+              ref={viewportRef}
+              data-profile-app-scroll-root
+              className="absolute inset-0 overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y"
+            >
+              <ProfileAppSheetHeader
+                profile={profile}
+                activeApp={activeApp}
+                apps={apps}
+                reduceMotion={reduceMotion}
+                dragControls={dragControls}
+                dragEnabled={dragEnabled}
+                isDismissing={isDismissing}
+                scrollRootRef={viewportRef}
+              />
+              <div className="grid min-h-0 *:col-start-1 *:row-start-1">
+                <AnimatePresence initial={false} custom={switchDirection}>
+                  <m.div
+                    key={activeApp}
+                    custom={switchDirection}
+                    variants={
+                      reduceMotion
+                        ? undefined
+                        : activeApp === "menu"
+                          ? profileModuleFadeVariants
+                          : iosAppHorizontalPushVariants
+                    }
+                    initial={reduceMotion ? false : "enter"}
+                    animate={reduceMotion ? undefined : "center"}
+                    exit={reduceMotion ? undefined : "exit"}
+                    transition={
+                      activeApp === "menu"
+                        ? PROFILE_MODULE_FADE_TRANSITION
+                        : IOS_APP_PAGER_SWITCH_TRANSITION
+                    }
+                    className="w-full min-w-0 bg-background"
+                  >
+                    <ProfileAppContent
+                      appId={activeApp}
+                      profile={profile}
+                      reservation={reservation}
+                      menu={menu}
+                      reviews={reviews}
+                      loading={loading}
+                      errors={errors}
+                      addressLine={addressLine}
+                      mapsUrl={mapsUrl}
+                      infoTab={infoTab}
+                      onInfoTabChange={onInfoTabChange}
+                      skipEnterAnimation
+                      reduceMotion={reduceMotion}
+                      deferHeavyWidgets={lightEffects && !openSettled}
+                      reservationTermsSheet={reservationTermsSheet}
+                    />
+                  </m.div>
+                </AnimatePresence>
+              </div>
+            </div>
           </m.div>
         </div>
       </m.div>
+      {activeApp === "reserve" && reservation ? (
+        <EmbedReservationTermsSheet
+          open={reservationTermsOpen}
+          onOpenChange={setReservationTermsOpen}
+          restaurantName={reservation.name}
+          elevated
+        />
+      ) : null}
     </>
   );
 }
@@ -767,9 +802,12 @@ function ProfileAppContent({
   errors,
   addressLine,
   mapsUrl,
+  infoTab,
+  onInfoTabChange,
   skipEnterAnimation,
   reduceMotion,
   deferHeavyWidgets = false,
+  reservationTermsSheet,
 }: {
   appId: ProfileAppId;
   profile: PublicRestaurantProfile;
@@ -780,9 +818,12 @@ function ProfileAppContent({
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
   mapsUrl: string | null;
+  infoTab: PublicProfileInfoTab;
+  onInfoTabChange: (tab: PublicProfileInfoTab) => void;
   skipEnterAnimation?: boolean;
   reduceMotion: boolean | null;
   deferHeavyWidgets?: boolean;
+  reservationTermsSheet: EmbedReservationProfileTermsSheet;
 }) {
   if (appId === "info") {
     const infoClassName = "space-y-4 p-4 pb-8 sm:p-5";
@@ -795,6 +836,8 @@ function ProfileAppContent({
           profile={profile}
           addressLine={addressLine}
           mapsUrl={mapsUrl}
+          tab={infoTab}
+          onTabChange={onInfoTabChange}
           className={infoClassName}
           sectionClassName={sectionClassName}
         />
@@ -812,6 +855,8 @@ function ProfileAppContent({
           profile={profile}
           addressLine={addressLine}
           mapsUrl={mapsUrl}
+          tab={infoTab}
+          onTabChange={onInfoTabChange}
           sectionClassName={sectionClassName}
         />
       </m.div>
@@ -833,6 +878,8 @@ function ProfileAppContent({
               <EmbedReservationWidget
                 config={reservation}
                 countries={publicCountries()}
+                variant="profileSheet"
+                profileTermsSheet={reservationTermsSheet}
               />
             </div>
           ) : null}
@@ -910,11 +957,15 @@ export function RestaurantPublicProfileAppLauncher({
 
   const [activeApp, setActiveApp] = useState<ProfileAppId | null>(null);
   const [launchRect, setLaunchRect] = useState<DOMRect | null>(null);
+  const [infoTab, setInfoTab] = useState<PublicProfileInfoTab>("contact");
   const [isSheetClosing, setIsSheetClosing] = useState(false);
   const [reopenRequest, setReopenRequest] = useState(0);
 
   const switchSheetModule = useCallback(
     (appId: ProfileAppId) => {
+      if (appId === "info") {
+        setInfoTab("contact");
+      }
       setActiveApp(appId);
       const app = apps.find((a) => a.id === appId);
       if (app?.module) void loadModule(app.module);
@@ -923,9 +974,17 @@ export function RestaurantPublicProfileAppLauncher({
   );
 
   const openApp = useCallback(
-    (appId: ProfileAppId, rect: DOMRect) => {
+    (
+      appId: ProfileAppId,
+      rect: DOMRect,
+      options?: { infoTab?: PublicProfileInfoTab },
+    ) => {
       const app = apps.find((a) => a.id === appId);
       if (!app) return;
+
+      if (appId === "info") {
+        setInfoTab(options?.infoTab ?? "contact");
+      }
 
       if (isSheetClosing) {
         setReopenRequest((n) => n + 1);
@@ -942,6 +1001,15 @@ export function RestaurantPublicProfileAppLauncher({
       if (app.module) void loadModule(app.module);
     },
     [activeApp, apps, isSheetClosing, loadModule],
+  );
+
+  const openInfoAtTab = useCallback(
+    (tab: PublicProfileInfoTab, sourceRect?: DOMRect) => {
+      const rect = sourceRect ?? getLauncherIconRect("info");
+      if (!rect) return;
+      openApp("info", rect, { infoTab: tab });
+    },
+    [openApp],
   );
 
   const handleDismissComplete = useCallback(() => {
@@ -1054,6 +1122,8 @@ export function RestaurantPublicProfileAppLauncher({
                 errors={errors}
                 addressLine={addressLine}
                 mapsUrl={mapsUrl}
+                infoTab={infoTab}
+                onInfoTabChange={setInfoTab}
                 reopenRequest={reopenRequest}
                 onClosingChange={handleClosingChange}
                 onDismissComplete={handleDismissComplete}
@@ -1082,6 +1152,7 @@ export function RestaurantPublicProfileAppLauncher({
           <RestaurantPublicProfileHeroCard
             profile={profile}
             logoIntro={logoIntro}
+            onOpeningStatusPress={(rect) => openInfoAtTab("hours", rect)}
           />
         </div>
       ) : null}

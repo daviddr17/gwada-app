@@ -4,6 +4,7 @@ import type Lenis from "lenis";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { usePointerFine } from "@/hooks/use-pointer-fine";
 import { LandingDock } from "@/components/landing/landing-dock";
 import { LandingHero } from "@/components/landing/landing-hero";
 import { PublicThemeToggleSlot } from "@/components/public/public-theme-toggle-slot";
@@ -49,6 +50,7 @@ export function LandingPage() {
   const branding = usePlatformAppBrandingOptional();
   const appName = branding?.appName ?? "gwada";
   const lenisRef = useLandingLenis();
+  const pointerFine = usePointerFine();
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
 
   const navigateToSection = useCallback((id: string) => {
@@ -66,6 +68,7 @@ export function LandingPage() {
   }, [lenisRef]);
 
   useEffect(() => {
+    if (!pointerFine) return;
     const onMove = (e: MouseEvent) => {
       setMouse({
         x: (e.clientX / window.innerWidth) * 2 - 1,
@@ -74,7 +77,7 @@ export function LandingPage() {
     };
     window.addEventListener("mousemove", onMove, { passive: true });
     return () => window.removeEventListener("mousemove", onMove);
-  }, []);
+  }, [pointerFine]);
 
   useEffect(() => {
     const pauseLenis = () => {
@@ -99,7 +102,11 @@ export function LandingPage() {
       <PublicThemeToggleSlot />
 
       <main>
-        <LandingHero mouse={mouse} onScrollToSection={navigateToSection} />
+        <LandingHero
+          mouse={mouse}
+          parallaxEnabled={pointerFine}
+          onScrollToSection={navigateToSection}
+        />
         <LandingScrollStory />
         <LandingIntegrationsScrollStory />
 

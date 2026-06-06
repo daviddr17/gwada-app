@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { MenuExportSheet } from "@/components/menu/menu-export-sheet";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -97,7 +99,7 @@ export function MenuExportScreen() {
           </p>
           <Button
             type="button"
-            className="h-12 w-full gap-2 rounded-xl bg-accent text-accent-foreground hover:bg-accent/90"
+            className={cn("h-12 w-full gap-2 ", brandActionButtonRoundedClassName)}
             disabled={dishCount === 0}
             onClick={() => setExportOpen(true)}
           >

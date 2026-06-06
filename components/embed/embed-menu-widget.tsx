@@ -26,6 +26,7 @@ import {
   scrollToMenuCategoryInContainer,
   scrollToMenuCategoryInPage,
   subscribeEmbedHostViewport,
+  profileSheetMenuStickyScrollOffset,
 } from "@/lib/embed/embed-menu-scroll";
 import {
   activeCategoryForSpyLine,
@@ -142,7 +143,10 @@ function EmbedMenuToolbar({
     <div
       ref={outerRef}
       className={cn(
-        sticky && "sticky top-0 z-20",
+        sticky && "sticky z-20",
+        sticky && !profileSheet && "top-0",
+        profileSheet &&
+          "top-[var(--profile-sheet-header-h,0px)]",
         profileSheet && "-mx-4 border-b border-border/40 bg-background/95 backdrop-blur-md sm:-mx-5",
       )}
     >
@@ -178,6 +182,7 @@ function EmbedMenuToolbar({
               categories={visibleCategories}
               activeCategoryId={activeCategoryId}
               onCategorySelect={onCategorySelect}
+              variant={profileSheet ? "sliding" : "default"}
             />
           </div>
         </div>
@@ -284,7 +289,7 @@ export function EmbedMenuWidget({
     setProfileScrollRoot(
       findProfileScrollRootContaining(widgetRootRef.current),
     );
-  }, []);
+  }, [variant]);
 
   const profileSheet = variant === "profileSheet" || profileScrollRoot !== null;
 
@@ -500,12 +505,18 @@ export function EmbedMenuWidget({
       skipScrollSpyRef.current = true;
       setActiveCategoryId(id);
       requestAnimationFrame(() => {
-        const toolbarH = toolbarRef.current?.offsetHeight ?? 0;
+        const stickyEl =
+          toolbarOuterRef.current ?? toolbarRef.current;
+        const toolbarH = stickyEl?.offsetHeight ?? 0;
         const profileRoot = profileScrollRoot;
         if (hostMode && embedId) {
           postEmbedScrollToHost(embedId, id, toolbarH);
         } else if (profileRoot) {
-          scrollToMenuCategoryInContainer(profileRoot, id, toolbarH);
+          scrollToMenuCategoryInContainer(
+            profileRoot,
+            id,
+            profileSheetMenuStickyScrollOffset(profileRoot, toolbarH),
+          );
         } else {
           scrollToMenuCategoryInPage(id, toolbarH);
         }
@@ -570,7 +581,7 @@ export function EmbedMenuWidget({
             ) : null}
             <EmbedMenuToolbar
               {...toolbarProps}
-              outerRef={hostMode ? toolbarOuterRef : undefined}
+              outerRef={hostMode || profileSheet ? toolbarOuterRef : undefined}
               sticky={!hostMode}
               hostMode={hostMode}
               profileSheet={profileSheet}

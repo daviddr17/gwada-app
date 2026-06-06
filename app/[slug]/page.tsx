@@ -84,6 +84,7 @@ export default async function PublicRestaurantProfilePage({ params }: PageProps)
       <RestaurantPublicProfilePageShell
         profile={profile}
         gwadaIconSrc={gwadaIconSrc}
+        initialBranding={branding}
       />
     </DisplayAccentShell>
   );

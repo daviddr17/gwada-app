@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LayoutList, Loader2, MessageSquare, Plus, Rows3, Users, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { DisplayReservationDrawer } from "@/components/display/modules/display-reservation-drawer";
@@ -506,7 +507,7 @@ export function DisplayReservationsModule() {
         code !== "completed" ? (
           <Button
             size={compact ? "sm" : "lg"}
-            className={cn(btnClass, "bg-accent text-accent-foreground hover:bg-accent/90")}
+            className={cn(btnClass, brandActionButtonRoundedClassName)}
             disabled={isBusy}
             onClick={() => void setStatus(r.id, confirmedStatus)}
           >

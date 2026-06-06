@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Drawer,
   DrawerContent,
@@ -10,20 +11,38 @@ import {
 } from "@/components/ui/drawer";
 import { reservationBookingTermsSections } from "@/lib/legal/reservation-booking-terms-de";
 
+/** Über Profil-App-Sheet (z-[60]) und Dock (z-[9999]). */
+const profileElevatedDrawerClassName = "z-[10001]";
+
 export function EmbedReservationTermsSheet({
   open,
   onOpenChange,
   restaurantName,
+  elevated = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantName: string;
+  /** Nested drawer inside profile app sheet — above sheet chrome. */
+  elevated?: boolean;
 }) {
   const sections = reservationBookingTermsSections(restaurantName);
+  const elevatedClassName = elevated ? profileElevatedDrawerClassName : undefined;
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-      <DrawerContent className="mx-auto flex max-h-[min(88dvh,640px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      direction="bottom"
+      repositionInputs={false}
+    >
+      <DrawerContent
+        overlayClassName={elevatedClassName}
+        className={cn(
+          "mx-auto flex max-h-[min(88dvh,640px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+          elevatedClassName,
+        )}
+      >
         <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Bedingungen zur Reservierung

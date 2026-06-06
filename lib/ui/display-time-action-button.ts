@@ -1,4 +1,4 @@
-import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
+import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
 /** Große Touch-Aktionen in Display-Zeiterfassung — Akzent wie andere Display-CTAs. */
@@ -7,7 +7,7 @@ export const displayTimeActionButtonBaseClassName =
 
 export const displayTimeActionButtonPrimaryClassName = cn(
   displayTimeActionButtonBaseClassName,
-  settingsAccentSaveButtonClassName,
+  brandActionButtonClassName,
 );
 
 export const displayTimeActionButtonOutlineClassName = cn(

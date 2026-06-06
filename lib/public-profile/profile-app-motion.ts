@@ -56,6 +56,50 @@ export const IOS_APP_SWITCH_TRANSITION: Transition = {
   ease: APPLE_EASE,
 };
 
+/** Modul-Titel im Profil-Sheet-Header — weicher Crossfade */
+export const PROFILE_MODULE_LABEL_TRANSITION: Transition = {
+  duration: 0.34,
+  ease: APPLE_EASE,
+};
+
+export const profileModuleLabelVariants: Variants = {
+  enter: {
+    opacity: 0,
+    y: 6,
+  },
+  center: {
+    opacity: 1,
+    y: 0,
+  },
+  exit: {
+    opacity: 0,
+    y: -6,
+  },
+};
+
+/** Speisekarte im Profil — kein transform (sonst kein CSS-sticky für Toolbar). */
+export const PROFILE_MODULE_FADE_TRANSITION: Transition = {
+  duration: 0.32,
+  ease: APPLE_EASE,
+};
+
+export const profileModuleFadeVariants: Variants = {
+  enter: {
+    opacity: 0,
+    zIndex: 2,
+  },
+  center: {
+    opacity: 1,
+    zIndex: 1,
+  },
+  exit: {
+    opacity: 0,
+    zIndex: 1,
+    position: "absolute",
+    width: "100%",
+  },
+};
+
 /** Full-width horizontal push — sheet content only */
 export const iosAppHorizontalPushVariants: Variants = {
   enter: (direction: number) => ({

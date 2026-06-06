@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DisplayContextResponse, DisplayModule } from "@/lib/display/display-types";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { DISPLAY_MODULES } from "@/lib/display/display-types";
 import { DisplayBrandMark } from "@/components/display/display-brand-mark";
 import { DisplayLoggedInFooter } from "@/components/display/display-logged-in-footer";
@@ -239,7 +240,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
           <Link
             href="/display/pair"
             className={cn(
-              "inline-flex h-12 items-center justify-center rounded-xl bg-accent px-6 text-lg font-medium text-accent-foreground hover:bg-accent/90",
+              "inline-flex h-12 items-center justify-center px-6 text-lg font-medium",
+              brandActionButtonRoundedClassName,
             )}
           >
             Display koppeln
@@ -257,7 +259,10 @@ export function DisplayScreen({ slug }: { slug: string }) {
         </p>
         <Link
           href={`/display/${context.restaurant.slug}`}
-          className="inline-flex h-10 items-center justify-center rounded-xl bg-accent px-4 text-sm font-medium text-accent-foreground hover:bg-accent/90"
+          className={cn(
+            "inline-flex h-10 items-center justify-center px-4 text-sm font-medium",
+            brandActionButtonRoundedClassName,
+          )}
         >
           Weiter
         </Link>

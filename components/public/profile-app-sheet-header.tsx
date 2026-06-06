@@ -146,7 +146,7 @@ export function ProfileAppSheetHeader({
         ref={handleRef}
         data-profile-app-sheet-handle
         className={cn(
-          "sticky top-0 z-20 shrink-0 touch-none cursor-grab active:cursor-grabbing",
+          "sticky top-0 z-20 shrink-0 cursor-grab active:cursor-grabbing",
           profileSheetStickyChromeClassName,
         )}
         onPointerDown={startSheetDrag}

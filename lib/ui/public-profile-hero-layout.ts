@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /** Volle Hero-Section — scrollt bei kurzer Viewport-Höhe (Dock bleibt fix). */
 export const publicProfileHeroSectionClassName =
-  "relative z-[2] flex min-h-0 flex-1 flex-col justify-start overflow-x-hidden overflow-y-auto overscroll-contain touch-pan-y pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-14";
+  "relative z-[2] flex min-h-0 flex-1 flex-col justify-start overflow-x-hidden overflow-y-auto overscroll-contain pb-[calc(5.25rem+env(safe-area-inset-bottom))] pt-14";
 
 /** Breiten- / Padding-Stage — bei genug Höhe vertikal zentriert, sonst scrollbar. */
 export const publicProfileHeroStageClassName =

@@ -30,7 +30,7 @@ jobs:
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
             echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
             echo "Einmalig: Deploy-Key auf VPS (ssh-copy-id), dann Secrets setzen."
-            echo "Alternativ lokal: npm run deploy:app:live"
+            echo "Alternativ lokal: pnpm deploy:app:live"
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               exit 1
             fi

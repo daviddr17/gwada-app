@@ -1,10 +1,13 @@
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-// Explizit dieselbe Ladereihenfolge wie Next (dev → .env.local + .env.development*;
-// production → .env.local + .env.production*). Siehe .env.example.
-const projectDir = process.cwd();
-loadEnvConfig(projectDir);
+// Monorepo: Env-Dateien weiterhin am Repo-Root (.env.local), optional zusätzlich in apps/web.
+const appDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(appDir, "../..");
+loadEnvConfig(repoRoot);
+loadEnvConfig(appDir);
 
 /** Hostnames für Production-Image-Optimizer via remotePatterns. */
 const gwadaAppStorageHostnames = ["new.gwada.app", "gwada.app"] as const;
@@ -47,6 +50,9 @@ const supabaseStoragePatterns = [
 ];
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: repoRoot,
+  },
   images: {
     remotePatterns: [
       {

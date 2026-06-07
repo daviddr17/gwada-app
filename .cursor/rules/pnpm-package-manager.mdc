@@ -1,0 +1,28 @@
+---
+description: pnpm als einziger Package Manager — Monorepo-Workspaces, CI und Skripte
+alwaysApply: true
+---
+
+# Package Manager: pnpm
+
+Das Repo nutzt **pnpm** — nicht npm oder yarn.
+
+## Vorgehen
+
+1. **Erstes Setup / nach Node-Update:** `bash scripts/ensure-pnpm.sh` (aktiviert `pnpm@9.15.0` via Corepack — behebt „Cannot find matching keyid“ bei veraltetem Corepack).
+2. **Installation / Dependencies:** `pnpm install` (Root oder `-w` / `--filter` für Workspace-Pakete).
+2. **Skripte:** `pnpm run <script>` bzw. Kurzform `pnpm <script>` — Root-Scripts delegieren an Workspaces (`pnpm --filter web dev`).
+3. **Monorepo (ab Staff-Integration):** `pnpm-workspace.yaml` mit `apps/*` und `packages/*`; Lockfile **`pnpm-lock.yaml`** committen, kein `package-lock.json` / `yarn.lock`.
+4. **Root `package.json`:** `"packageManager": "pnpm@<version>"` setzen (Corepack-kompatibel).
+5. **CI / Docker / Deploy:** `pnpm install --frozen-lockfile`, Build über `pnpm --filter web build` (bzw. aktueller App-Name) — nicht `npm ci` / `npm run build`.
+6. **Neue Pakete:** `pnpm add <pkg> -w` (Root) oder `pnpm add <pkg> --filter <workspace>` — nicht `npm install`.
+
+## Anti-Pattern
+
+- `npm install`, `npm run`, `npx` für App-/Workspace-Abhängigkeiten (Ausnahme: CLI-Tools ohne Projekt-Dep, z. B. `npx supabase …`).
+- Parallele Lockfiles (`package-lock.json` neben `pnpm-lock.yaml`).
+- Yarn / Bun als Package Manager in diesem Repo.
+
+## Migration (Web → Monorepo)
+
+Beim Start von Phase 1 (Expo-Integration): Root von npm auf pnpm umstellen, `package-lock.json` entfernen, `pnpm-lock.yaml` erzeugen, Dockerfile und GitHub Actions auf pnpm anpassen — **ohne** inhaltliche Änderungen an App-Code.

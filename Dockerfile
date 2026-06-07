@@ -1,13 +1,21 @@
-# Production-Image für Coolify / VPS (git-SHA als Tag, kein festes live-proxy).
-FROM node:22-bookworm-slim AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci
+# Production-Image für Coolify / VPS (git-SHA als Tag, Monorepo apps/web).
+FROM node:22-bookworm-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
-FROM node:22-bookworm-slim AS build
+FROM base AS deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/web/package.json ./apps/web/
+RUN pnpm install --frozen-lockfile
+
+FROM base AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY apps/web ./apps/web
 
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SITE_URL=https://new.gwada.app
@@ -27,10 +35,11 @@ ENV NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=$NEXT_PUBLIC_GWADA_WORKSPACE_SLUG
 ENV SUPABASE_UPSTREAM_URL=$SUPABASE_UPSTREAM_URL
 ENV GWADA_BUILD_SHA=$GWADA_BUILD_SHA
 
-RUN npm run build
+WORKDIR /app/apps/web
+RUN pnpm build
 
-FROM node:22-bookworm-slim AS runner
-WORKDIR /app
+FROM base AS runner
+WORKDIR /app/apps/web
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
@@ -53,11 +62,12 @@ ENV NEXT_PUBLIC_GWADA_SUPABASE_ONLY=$NEXT_PUBLIC_GWADA_SUPABASE_ONLY
 ENV NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=$NEXT_PUBLIC_GWADA_WORKSPACE_SLUG
 ENV SUPABASE_UPSTREAM_URL=$SUPABASE_UPSTREAM_URL
 
-COPY --from=build /app/.next ./.next
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/public ./public
-COPY --from=build /app/content ./content
+COPY --from=build /app/apps/web/.next ./.next
+COPY --from=build /app/apps/web/public ./public
+COPY --from=build /app/apps/web/content ./content
+COPY --from=build /app/apps/web/package.json ./package.json
+COPY --from=deps /app/node_modules /app/node_modules
+COPY --from=deps /app/apps/web/node_modules ./node_modules
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["pnpm", "start"]

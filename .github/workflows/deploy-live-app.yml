@@ -48,6 +48,7 @@ jobs:
           bash scripts/deploy-app-live.sh "${DEPLOY_SHA}"
 
       - name: Changelog sync (optional)
+        continue-on-error: true
         env:
           CHANGELOG_SYNC_URL: ${{ secrets.CHANGELOG_SYNC_URL }}
           CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}

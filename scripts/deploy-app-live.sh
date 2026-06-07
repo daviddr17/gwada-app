@@ -37,5 +37,10 @@ if ! gwada_ssh "${SSH_USER}@${VPS}" true; then
   exit 1
 fi
 
-gwada_ssh "${SSH_USER}@${VPS}" "bash -s -- '${COMMIT}'" \
+REMOTE_PREFIX=""
+if [[ -n "${CHANGELOG_SYNC_SECRET:-}" ]]; then
+  REMOTE_PREFIX="CHANGELOG_SYNC_SECRET=$(printf '%q' "${CHANGELOG_SYNC_SECRET}") "
+fi
+
+gwada_ssh "${SSH_USER}@${VPS}" "${REMOTE_PREFIX}bash -s -- '${COMMIT}'" \
   < "${ROOT}/scripts/vps-deploy-live-app.sh"

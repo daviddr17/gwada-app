@@ -85,6 +85,16 @@ fi
 
 sed -i "s|image: '${COOLIFY_APP_ID}:.*'|image: '${IMAGE}'|" "${COMPOSE_FILE}"
 
+if [[ -n "${CHANGELOG_SYNC_SECRET:-}" ]]; then
+  for env_file in "${COMPOSE_DIR}/.env" "${COMPOSE_DIR}/.env.production"; do
+    [[ -f "${env_file}" ]] || continue
+    grep -v '^CHANGELOG_SYNC_SECRET=' "${env_file}" > "${env_file}.tmp" || true
+    printf 'CHANGELOG_SYNC_SECRET=%s\n' "${CHANGELOG_SYNC_SECRET}" >> "${env_file}.tmp"
+    mv "${env_file}.tmp" "${env_file}"
+    echo "CHANGELOG_SYNC_SECRET in ${env_file} gesetzt."
+  done
+fi
+
 ENSURE_TRAEFIK="${BUILD_DIR}/scripts/vps-ensure-coolify-traefik-fqdn.sh"
 if [[ -f "${ENSURE_TRAEFIK}" ]]; then
   bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"

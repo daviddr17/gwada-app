@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,11 @@ function formatEuro(cents: number | null): string {
 }
 
 export function StaffContractsScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const contractIdFromUrl = searchParams.get("contract");
+
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { selectedStaff, selectedStaffId } = useStaffModuleSelection();
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
@@ -64,6 +70,32 @@ export function StaffContractsScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const clearContractQuery = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!params.has("contract")) return;
+    params.delete("contract");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!contractIdFromUrl || loading || showSkeleton) return;
+
+    const match = contracts.find((c) => c.id === contractIdFromUrl);
+    clearContractQuery();
+
+    if (match) {
+      setEditContract(match);
+      setDrawerOpen(true);
+    }
+  }, [
+    contractIdFromUrl,
+    loading,
+    showSkeleton,
+    contracts,
+    clearContractQuery,
+  ]);
 
   const openNew = () => {
     setEditContract(null);
@@ -141,6 +173,12 @@ export function StaffContractsScreen() {
               {c.vacation_days_per_year != null ? (
                 <p>{c.vacation_days_per_year} Urlaubstage/Jahr</p>
               ) : null}
+              {c.target_weekly_minutes != null ? (
+                <p>
+                  Soll:{" "}
+                  {Math.round((c.target_weekly_minutes / 60) * 10) / 10} h/Woche
+                </p>
+              ) : null}
               {c.note?.trim() ? (
                 <p className="line-clamp-2 text-xs">{c.note.trim()}</p>
               ) : null}
@@ -155,9 +193,13 @@ export function StaffContractsScreen() {
 
       <StaffContractDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setEditContract(null);
+        }}
         restaurantId={restaurantId}
         staffId={selectedStaffId!}
+        staffName={selectedStaff ? staffDisplayName(selectedStaff) : null}
         contract={editContract}
         existingContracts={contracts}
         onSaved={() => void reload()}

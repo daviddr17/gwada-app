@@ -11,7 +11,7 @@ export function moduleHomeHref(items: readonly ModuleSubnavItem[]): string {
   return withRoot?.href ?? items[0]?.href ?? "/dashboard";
 }
 
-/** Gemeinsames URL-Präfix des Moduls, z. B. `/menu` aus `/menu/uebersicht`. */
+/** Gemeinsames URL-Präfix des Moduls, z. B. `/menu` aus `/dashboard/menu/uebersicht`. */
 export function modulePrefixFromSubnav(
   items: readonly ModuleSubnavItem[],
 ): string | null {

@@ -46,7 +46,16 @@ import {
   inboxReplySendDefaults,
 } from "@/lib/contact-messages/last-inbound-channel";
 import { contactReplyChannels } from "@/lib/contact-messages/reply-channel-availability";
-import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import {
+  GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+  peekUnifiedInboxCache,
+} from "@/lib/contact-messages/unified-inbox-cache";
+import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
+import {
+  getUnifiedInboxRefreshInflight,
+  refreshUnifiedInboxCache,
+  UNIFIED_INBOX_BACKGROUND_POLL_MS,
+} from "@/lib/contact-messages/unified-inbox-background-sync";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
   fetchUnifiedInboxConversations,
@@ -444,7 +453,7 @@ export function ContactsMessagesScreen() {
       const params = new URLSearchParams(searchParams.toString());
       params.set("platform", next);
       if (contactParam) params.set("contact", contactParam);
-      router.replace(`/kontakte/nachrichten?${params.toString()}`);
+      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
     }
   }, [
     connectionsLoading,
@@ -457,33 +466,38 @@ export function ContactsMessagesScreen() {
     searchParams,
   ]);
 
-  const loadConversations = useCallback(async (opts?: { silent?: boolean }) => {
+  const loadConversations = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     if (!restaurantId) {
       setConversations([]);
       setLoadingList(false);
       return;
     }
+
+    if (isUnifiedInboxFilter(inboxFilter)) {
+      if (!opts?.force) {
+        const cached = peekUnifiedInboxCache(restaurantId);
+        if (cached) {
+          setConversations(cached);
+          setLoadingList(false);
+          return;
+        }
+
+        const inflight = getUnifiedInboxRefreshInflight();
+        if (inflight) {
+          if (!opts?.silent) setLoadingList(true);
+          const data = await inflight;
+          if (data) {
+            setConversations(data);
+            setLoadingList(false);
+            return;
+          }
+        }
+      }
+    }
+
     if (!opts?.silent) setLoadingList(true);
 
     if (isUnifiedInboxFilter(inboxFilter)) {
-      const cached = opts?.silent
-        ? null
-        : peekUnifiedInboxCache(restaurantId);
-      if (cached && cached.length > 0) {
-        setConversations(cached);
-        setLoadingList(false);
-        setRefreshingInbox(true);
-        const { data, error } = await fetchUnifiedInboxConversations({
-          restaurantId,
-          whatsappConnected,
-          emailConnected,
-        });
-        setRefreshingInbox(false);
-        if (error) toast.error(error.message);
-        else setConversations(data);
-        return;
-      }
-
       const { data, error } = await fetchUnifiedInboxConversations({
         restaurantId,
         whatsappConnected,
@@ -539,10 +553,29 @@ export function ContactsMessagesScreen() {
   }, [restaurantId, inboxFilter, whatsappConnected, emailConnected]);
 
   const refreshInbox = useCallback(async () => {
+    if (!restaurantId) return;
     setRefreshingInbox(true);
-    await loadConversations({ silent: true });
-    setRefreshingInbox(false);
-  }, [loadConversations]);
+    try {
+      if (isUnifiedInboxFilter(inboxFilter)) {
+        await refreshUnifiedInboxCache(
+          { restaurantId, whatsappConnected, emailConnected },
+          { force: true },
+        );
+        const cached = peekUnifiedInboxCache(restaurantId);
+        if (cached) setConversations(cached);
+      } else {
+        await loadConversations({ silent: true, force: true });
+      }
+    } finally {
+      setRefreshingInbox(false);
+    }
+  }, [
+    restaurantId,
+    inboxFilter,
+    whatsappConnected,
+    emailConnected,
+    loadConversations,
+  ]);
 
   const showInboxRefresh =
     !contactParam &&
@@ -623,7 +656,7 @@ export function ContactsMessagesScreen() {
     [restaurantId, patchConversationReadState],
   );
 
-  const loadThread = useCallback(async () => {
+  const loadThread = useCallback(async (opts?: { silent?: boolean }) => {
     if (!restaurantId || !contactParam) {
       setMessages([]);
       setWhatsappThreadPhone(null);
@@ -636,7 +669,7 @@ export function ContactsMessagesScreen() {
     if (!linkedThread) {
       setWhatsappThreadChatId(null);
     }
-    setLoadingThread(true);
+    if (!opts?.silent) setLoadingThread(true);
     let threadLoaded = false;
 
     const effectivePlatform =
@@ -862,6 +895,42 @@ export function ContactsMessagesScreen() {
   ]);
 
   useEffect(() => {
+    if (!restaurantId || contactParam) return;
+    if (!isUnifiedInboxFilter(inboxFilter)) return;
+
+    const onCacheUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;
+      if (detail?.restaurantId !== restaurantId) return;
+      const cached = peekUnifiedInboxCache(restaurantId);
+      if (cached) setConversations(cached);
+    };
+
+    window.addEventListener(
+      GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+      onCacheUpdated,
+    );
+    return () => {
+      window.removeEventListener(
+        GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+        onCacheUpdated,
+      );
+    };
+  }, [restaurantId, contactParam, inboxFilter]);
+
+  useEffect(() => {
+    if (!restaurantId || !contactParam) return;
+
+    const onLive = () => {
+      void loadThread({ silent: true });
+    };
+
+    window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onLive);
+    return () => {
+      window.removeEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onLive);
+    };
+  }, [restaurantId, contactParam, loadThread]);
+
+  useEffect(() => {
     if (connectionsLoading) return;
     if (contactParam) {
       void loadThread();
@@ -894,7 +963,7 @@ export function ContactsMessagesScreen() {
         .catch(() => undefined);
     };
 
-    const intervalId = window.setInterval(pollInbox, 45_000);
+    const intervalId = window.setInterval(pollInbox, UNIFIED_INBOX_BACKGROUND_POLL_MS);
     return () => window.clearInterval(intervalId);
   }, [restaurantId, contactParam, linkedThread, loadThread]);
 
@@ -903,7 +972,7 @@ export function ContactsMessagesScreen() {
     setInboxFilter(filter);
     const params = new URLSearchParams();
     params.set("platform", filter);
-    router.replace(`/kontakte/nachrichten?${params.toString()}`);
+    router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
   };
 
   const canOpenLinkedContact = useCallback(
@@ -959,7 +1028,7 @@ export function ContactsMessagesScreen() {
             : `Chat mit „${existingDisplayName}“ verknüpft.`,
         );
         router.replace(
-          `/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
+          `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
         );
         return true;
       }
@@ -1052,7 +1121,7 @@ export function ContactsMessagesScreen() {
                 `E-Mail ist bereits bei „${existing.displayName}“ hinterlegt — bestehender Kontakt wird geöffnet.`,
               );
               router.replace(
-                `/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
+                `/dashboard/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
               );
               return;
             }
@@ -1079,11 +1148,11 @@ export function ContactsMessagesScreen() {
     const params = new URLSearchParams();
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
-    router.push(`/kontakte/nachrichten?${params.toString()}`);
+    router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
   };
 
   const backToList = () => {
-    router.push(`/kontakte/nachrichten?platform=${inboxFilter}`);
+    router.push(`/dashboard/kontakte/nachrichten?platform=${inboxFilter}`);
   };
 
   const restaurantName = profile.name.trim() || undefined;
@@ -1797,7 +1866,7 @@ export function ContactsMessagesScreen() {
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
                 router.replace(
-                  `/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
+                  `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
               }
@@ -1806,7 +1875,7 @@ export function ContactsMessagesScreen() {
               setPendingInboxLink(null);
               setContactCreateDraft(null);
               router.replace(
-                `/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
+                `/dashboard/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
               );
               return;
             }

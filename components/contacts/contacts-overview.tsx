@@ -152,7 +152,7 @@ export function ContactsOverview() {
     const p = new URLSearchParams(searchParams.toString());
     p.delete("contact");
     const q = p.toString();
-    router.replace(q ? `/kontakte/uebersicht?${q}` : "/kontakte/uebersicht");
+    router.replace(q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht");
   }, [contactParam, router, searchParams]);
 
   const toggleSort = (key: SortKey) => {

@@ -44,7 +44,7 @@ function messagesHref(contactId: string, platform: string): string {
     contact: contactId,
     platform: platform === "whatsapp" || platform === "email" ? platform : "gwada",
   });
-  return `/kontakte/nachrichten?${params.toString()}`;
+  return `/dashboard/kontakte/nachrichten?${params.toString()}`;
 }
 
 function extractReviewTokenFromBody(body: string): string | null {
@@ -147,7 +147,7 @@ export async function loadGwadaReviewProtocol(
         description: guest
           ? `#${res.reservation_number} · ${guest}`
           : `Reservierung #${res.reservation_number}`,
-        href: `/reservierungen/uebersicht?reservation=${encodeURIComponent(res.id as string)}`,
+        href: `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(res.id as string)}`,
         hrefLabel: "Reservierung öffnen",
       });
     }
@@ -368,7 +368,7 @@ export async function loadGwadaReviewsOverviewProtocol(
           description: guest
             ? `#${res.reservation_number} · ${guest}`
             : `Reservierung #${res.reservation_number}`,
-          href: `/reservierungen/uebersicht?reservation=${encodeURIComponent(res.id)}`,
+          href: `/dashboard/reservierungen/uebersicht?reservation=${encodeURIComponent(res.id)}`,
           hrefLabel: "Reservierung öffnen",
         });
       }
@@ -459,7 +459,7 @@ export async function loadGwadaReviewsOverviewProtocol(
         .filter(Boolean)
         .join(" · "),
       actorName: guest,
-      href: `/bewertungen/uebersicht?platform=gwada&reviewProtocol=${encodeURIComponent(rev.id as string)}`,
+      href: `/dashboard/bewertungen/uebersicht?platform=gwada&reviewProtocol=${encodeURIComponent(rev.id as string)}`,
       hrefLabel: "Einzelprotokoll",
     });
   }

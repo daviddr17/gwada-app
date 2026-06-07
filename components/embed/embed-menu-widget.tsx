@@ -152,8 +152,7 @@ function EmbedMenuToolbar({
     >
       <div
         className={cn(
-          "mx-auto w-full max-w-2xl",
-          profileSheet ? "px-4 sm:px-5" : "px-4 sm:px-6",
+          profileSheet ? "w-full min-w-0 px-4 sm:px-5" : "mx-auto w-full max-w-2xl px-4 sm:px-6",
         )}
       >
         <div
@@ -554,8 +553,7 @@ export function EmbedMenuWidget({
       <div
         ref={widgetRootRef}
         className={cn(
-          "mx-auto w-full max-w-2xl",
-          profileSheet ? "pt-2 pb-6" : "py-6",
+          profileSheet ? "w-full min-w-0 pt-2 pb-6" : "mx-auto w-full max-w-2xl py-6",
         )}
       >
         {profileSheet ? null : (

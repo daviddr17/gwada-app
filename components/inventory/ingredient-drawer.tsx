@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Drawer,
@@ -20,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
 import type {
   IngredientStockUnit,
@@ -277,26 +275,11 @@ export function IngredientDrawer({
             </div>
           </div>
 
-          <Separator className="mb-4" />
-
-          <div className="flex gap-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 flex-1 rounded-xl tap-scale"
-              onClick={() => onOpenChange(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="submit"
-              className={cn(
-                cn("h-12 flex-1", brandActionButtonRoundedClassName),
-              )}
-            >
-              Anlegen
-            </Button>
-          </div>
+          <DrawerFormFooter
+            onCancel={() => onOpenChange(false)}
+            submitType="submit"
+            submitLabel="Anlegen"
+          />
         </form>
       </DrawerContent>
     </Drawer>

@@ -35,6 +35,10 @@ import {
   isDisplayWorkEntry,
 } from "@/lib/staff/staff-work-hours-display";
 import {
+  findStaffAbsenceOnDay,
+  isShiftPlanAbsenceEntry,
+} from "@/lib/staff/shift-plan-absence";
+import {
   STAFF_SUMMARY_LOGGED_COLOR,
   STAFF_WORK_ENTRY_LABELS,
   staffDisplayName,
@@ -170,6 +174,15 @@ export function StaffWorkHoursView({
     () => summarizeStaffWorkEntries(entries, new Date()),
     [entries],
   );
+
+  const absenceByDayKey = useMemo(() => {
+    const map = new Map<string, "vacation" | "sick">();
+    for (const e of entries) {
+      if (!isShiftPlanAbsenceEntry(e)) continue;
+      map.set(dayKeyFromIso(e.starts_at), e.entry_type);
+    }
+    return map;
+  }, [entries]);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
   const yearMin = today.getFullYear() - 1;
@@ -338,13 +351,15 @@ export function StaffWorkHoursView({
             {monthDays.map((day) => {
               const key = localDayKey(day);
               const dayEntries = byDay.get(key) ?? [];
+              const dayAbsence = findStaffAbsenceOnDay(entries, staffId, key);
+              const blockNewTimeEntry = dayAbsence != null;
               return (
                 <Card key={key} className="border-border/50 shadow-card">
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="text-base">
                       {formatDayHeadingDe(day)}
                     </CardTitle>
-                    {allowEdit ? (
+                    {allowEdit && !blockNewTimeEntry ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -442,6 +457,7 @@ export function StaffWorkHoursView({
               staffId={staffId}
               entry={editEntry}
               defaultDay={dayForNew}
+              absenceByDayKey={absenceByDayKey}
               onSaved={() => void reload()}
               onDelete={async (id) => {
                 const ok = await deleteStaffWorkEntry(id);

@@ -16,11 +16,6 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "prefix",
   },
   {
-    href: "/settings/rollen",
-    label: "Rollen",
-    matchMode: "prefix",
-  },
-  {
     href: "/settings/oeffnungszeiten",
     label: "Öffnungszeiten",
     matchMode: "prefix",
@@ -33,11 +28,6 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
   {
     href: "/settings/integrationen",
     label: "Integrationen",
-    matchMode: "prefix",
-  },
-  {
-    href: "/settings/branding",
-    label: "Branding",
     matchMode: "prefix",
   },
   {

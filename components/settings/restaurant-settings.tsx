@@ -2,6 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { SettingsBrandingCard } from "@/components/settings/settings-branding-panel";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
 import { WeekdayHoursGrid } from "@/components/settings/weekday-hours-grid";
@@ -37,6 +39,9 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { cn } from "@/lib/utils";
 import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useAccentColor } from "@/lib/contexts/accent-color-context";
+import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
+import { normalizeHex } from "@/lib/theme/color-utils";
 import {
   normalizeProfileForSave,
   validateOpeningHours,
@@ -102,8 +107,11 @@ export function RestaurantSettingsPanel({
   section: RestaurantSettingsSection;
 }) {
   const { profile, saveProfile, saveOpeningHours, patchProfile, isReady } = useRestaurantProfile();
+  const { accentHex, persistAccentHex, isReady: accentReady } = useAccentColor();
   const [draft, setDraft] = useState<RestaurantProfile | null>(null);
+  const [accentDraft, setAccentDraft] = useState(DEFAULT_ACCENT_HEX);
   const [error, setError] = useState<string | null>(null);
+  const [accentError, setAccentError] = useState<string | null>(null);
   const [savedRestaurantFlash, setSavedRestaurantFlash] = useState(false);
   const [savedHoursFlash, setSavedHoursFlash] = useState(false);
   const [showPastExceptions, setShowPastExceptions] = useState(false);
@@ -132,20 +140,11 @@ export function RestaurantSettingsPanel({
     return () => cancelAnimationFrame(frame);
   }, [isReady, profile]);
 
-  const handleSaveRestaurant = async () => {
-    if (!draft) return;
-    const normalized = normalizeProfileForSave(draft);
-    const msg = validateRestaurantStammdaten(normalized);
-    if (msg) {
-      setError(msg);
-      return;
-    }
-    setError(null);
-    const ok = await saveProfile({ ...normalized, id: draft.id });
-    if (!ok) return;
-    setSavedRestaurantFlash(true);
-    window.setTimeout(() => setSavedRestaurantFlash(false), 2000);
-  };
+  useEffect(() => {
+    if (!accentReady) return;
+    const frame = requestAnimationFrame(() => setAccentDraft(accentHex));
+    return () => cancelAnimationFrame(frame);
+  }, [accentHex, accentReady]);
 
   const handleSaveHours = async () => {
     if (!draft) return;
@@ -244,6 +243,67 @@ export function RestaurantSettingsPanel({
     );
   }, [draft, profile, isReady]);
 
+  const brandingDirty = useMemo(() => {
+    if (!accentReady) return false;
+    return normalizeHex(accentDraft) !== normalizeHex(accentHex);
+  }, [accentDraft, accentHex, accentReady]);
+
+  const overviewDirty = stammdatenDirty || brandingDirty;
+
+  const handleSaveOverview = async () => {
+    if (!draft) return;
+
+    const saveStammdaten = stammdatenDirty;
+    const saveBranding = brandingDirty;
+    if (!saveStammdaten && !saveBranding) return;
+
+    if (saveStammdaten) {
+      const normalized = normalizeProfileForSave(draft);
+      const msg = validateRestaurantStammdaten(normalized);
+      if (msg) {
+        setError(msg);
+        return;
+      }
+    }
+
+    if (saveBranding) {
+      const normalizedAccent = normalizeHex(accentDraft);
+      if (!normalizedAccent) {
+        setAccentError("Ungültiger Hex-Wert (z. B. #eab308)");
+        return;
+      }
+      setAccentError(null);
+    }
+
+    setError(null);
+
+    const notifyTogether = saveStammdaten && saveBranding;
+
+    if (saveStammdaten) {
+      const normalized = normalizeProfileForSave(draft);
+      const ok = await saveProfile(
+        { ...normalized, id: draft.id },
+        { notify: !notifyTogether },
+      );
+      if (!ok) return;
+    }
+
+    if (saveBranding) {
+      const normalizedAccent = normalizeHex(accentDraft)!;
+      const ok = await persistAccentHex(normalizedAccent, {
+        notify: !notifyTogether,
+      });
+      if (!ok) return;
+    }
+
+    if (notifyTogether) {
+      toast.success("Gespeichert");
+    }
+
+    setSavedRestaurantFlash(true);
+    window.setTimeout(() => setSavedRestaurantFlash(false), 2000);
+  };
+
   const hoursDirty = useMemo(() => {
     if (!draft || !isReady) return false;
     return (
@@ -338,14 +398,15 @@ export function RestaurantSettingsPanel({
         </p>
       )}
       {section === "restaurant" && (
-      <section className="space-y-6">
+      <section>
         <form
-          className="contents"
+          className="flex flex-col"
           onSubmit={(e) => {
             e.preventDefault();
-            handleSaveRestaurant();
+            void handleSaveOverview();
           }}
         >
+        <div className="flex flex-col gap-6">
         <RestaurantProfileHeader
           restaurantId={draft.id}
           name={draft.name}
@@ -364,7 +425,13 @@ export function RestaurantSettingsPanel({
           }}
         />
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-4 pt-6">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Adresse & Kontakt</CardTitle>
+            <CardDescription>
+              Standort, Website und Telefon für Gäste und öffentliche Profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="rs-street">Straße & Hausnummer</Label>
             <Input
@@ -452,7 +519,14 @@ export function RestaurantSettingsPanel({
           </div>
         </CardContent>
       </Card>
-        <SettingsStickySaveBar show={stammdatenDirty}>
+        <SettingsBrandingCard
+          draft={accentDraft}
+          onDraftChange={setAccentDraft}
+          savedHex={accentHex}
+          error={accentError}
+        />
+        </div>
+        <SettingsStickySaveBar show={overviewDirty}>
           <Button
             type="submit"
             className={cn(

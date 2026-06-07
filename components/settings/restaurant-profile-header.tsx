@@ -1,8 +1,7 @@
 "use client";
 
-import { Camera, Loader2 } from "lucide-react";
+import { Camera } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { RestaurantLogoMark } from "@/components/ui/restaurant-logo-mark";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,6 +12,7 @@ import {
 } from "@/lib/restaurant/restaurant-profile-image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { cn } from "@/lib/utils";
 
 const ACCEPT = "image/jpeg,image/png,image/webp";
@@ -130,14 +130,21 @@ export function RestaurantProfileHeader({
     setUploading(true);
 
     try {
-      const { path, error } = await uploadRestaurantProfileImageClient({
-        restaurantId,
-        kind,
-        file,
-      });
+      const { path, error } = await trackDashboardFileUpload(
+        () =>
+          uploadRestaurantProfileImageClient({
+            restaurantId,
+            kind,
+            file,
+          }),
+        {
+          successMessage:
+            kind === "avatar" ? "Logo hochgeladen." : "Titelbild hochgeladen.",
+          errorMessage: (code) => uploadErrorMessage(kind, code),
+        },
+      );
 
       if (error || !path) {
-        toast.error(uploadErrorMessage(kind, error));
         setLocalPreview(null);
         return;
       }
@@ -191,12 +198,8 @@ export function RestaurantProfileHeader({
             <span className="text-sm text-muted-foreground">Titelbild hinzufügen</span>
           </div>
         )}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-0">
-          {coverUploading ? (
-            <Loader2 className="size-7 animate-spin text-white" aria-hidden />
-          ) : (
-            <Camera className="size-7 text-white" aria-hidden />
-          )}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-60">
+          <Camera className="size-7 text-white" aria-hidden />
         </span>
       </button>
 
@@ -218,12 +221,8 @@ export function RestaurantProfileHeader({
                   size="header"
                   variant="header"
                 />
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-0">
-                  {avatarUploading ? (
-                    <Loader2 className="size-6 animate-spin text-white" aria-hidden />
-                  ) : (
-                    <Camera className="size-6 text-white" aria-hidden />
-                  )}
+                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-60">
+                  <Camera className="size-6 text-white" aria-hidden />
                 </span>
               </button>
               <p className="mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground">

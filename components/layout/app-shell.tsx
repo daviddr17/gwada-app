@@ -8,6 +8,8 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
+import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
@@ -95,6 +97,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               aria-hidden
             />
             <div className="flex shrink-0 items-center gap-2">
+              <AppChromeRestaurantProfileLink />
               <Button
                 variant="outline"
                 size="icon-sm"
@@ -159,6 +162,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AppModuleChromeProvider>
         <AppSidebar />
         <AppInsetWithChrome>{children}</AppInsetWithChrome>
+        <DashboardUploadOverlay />
       </AppModuleChromeProvider>
     </SidebarProvider>
   );

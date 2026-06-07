@@ -376,7 +376,7 @@ export async function fetchStaffLogEntries(
 const STAFF_CONTRACT_SELECT_BASE =
   "id, restaurant_id, staff_id, valid_from, valid_to, pay_type, hourly_rate_cents, fixed_salary_cents, currency, note";
 
-const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type, vacation_days_per_year`;
+const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type, vacation_days_per_year, target_weekly_minutes`;
 
 export async function fetchStaffContracts(
   restaurantId: string,
@@ -414,13 +414,25 @@ export async function fetchStaffContracts(
   };
 }
 
+function normalizeStaffContractTargetWeeklyMinutes(
+  value: unknown,
+): number | null {
+  if (value == null || value === "") return null;
+  const minutes = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  return Math.round(minutes);
+}
+
 function mapStaffContractRow(r: Record<string, unknown>): RestaurantStaffContractRow {
+  const validFrom = String(r.valid_from ?? "").slice(0, 10);
+  const validToRaw = r.valid_to as string | null | undefined;
+  const validTo = validToRaw ? validToRaw.slice(0, 10) : null;
   return {
     id: r.id as string,
     restaurant_id: r.restaurant_id as string,
     staff_id: r.staff_id as string,
-    valid_from: r.valid_from as string,
-    valid_to: (r.valid_to as string | null) ?? null,
+    valid_from: validFrom,
+    valid_to: validTo,
     pay_type: r.pay_type as RestaurantStaffContractRow["pay_type"],
     hourly_rate_cents: r.hourly_rate_cents as number | null,
     fixed_salary_cents: r.fixed_salary_cents as number | null,
@@ -431,6 +443,9 @@ function mapStaffContractRow(r: Record<string, unknown>): RestaurantStaffContrac
       null,
     vacation_days_per_year:
       (r.vacation_days_per_year as number | null) ?? null,
+    target_weekly_minutes: normalizeStaffContractTargetWeeklyMinutes(
+      r.target_weekly_minutes,
+    ),
   };
 }
 
@@ -497,11 +512,13 @@ export async function fetchStaffContractLogEntries(
 }
 
 export type UpsertStaffContractResult =
-  | { ok: true; id: string }
+  | { ok: true; id: string; usedLegacyFields?: boolean }
   | { ok: false; error: string };
 
 function isMissingStaffContractColumnError(message: string): boolean {
-  return /employment_type|vacation_days_per_year|contract_log/i.test(message);
+  return /employment_type|vacation_days_per_year|target_weekly_minutes|contract_log/i.test(
+    message,
+  );
 }
 
 function buildStaffContractRow(
@@ -528,6 +545,7 @@ function buildStaffContractRow(
     ...base,
     employment_type: payload.employment_type,
     vacation_days_per_year: payload.vacation_days_per_year,
+    target_weekly_minutes: payload.target_weekly_minutes,
   };
 }
 
@@ -588,10 +606,8 @@ export async function upsertStaffContract(
       payload.id,
       legacyRow as Record<string, unknown>,
     );
-    if (result.ok && (payload.note?.trim() || payload.employment_type)) {
-      console.warn(
-        "[gwada] Vertrag gespeichert ohne erweiterte Felder — Migration 20260521120000 ausführen.",
-      );
+    if (result.ok) {
+      return { ok: true, id: result.id, usedLegacyFields: true };
     }
   }
   return result;

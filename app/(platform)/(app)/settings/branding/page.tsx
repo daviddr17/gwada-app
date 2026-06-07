@@ -1,5 +1,5 @@
-import { SettingsBrandingPanel } from "@/components/settings/settings-branding-panel";
+import { redirect } from "next/navigation";
 
 export default function SettingsBrandingPage() {
-  return <SettingsBrandingPanel />;
+  redirect("/settings/restaurant");
 }

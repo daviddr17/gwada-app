@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Skeleton } from "@/components/ui/skeleton";
 import { STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
@@ -194,15 +195,69 @@ export function DashboardCompactMetricPill({
   return <div className={shellClass}>{content}</div>;
 }
 
+export function DashboardCompactMetricPillSkeleton() {
+  return (
+    <Skeleton className="h-[2.625rem] w-[5.5rem] shrink-0 rounded-lg border border-border/50" />
+  );
+}
+
+export function DashboardCompactListItemSkeleton({
+  stripe = false,
+}: {
+  stripe?: boolean;
+}) {
+  return (
+    <li>
+      <div
+        className={cn(
+          "flex items-center gap-3 py-2.5",
+          stripe ? "pl-2.5 pr-4" : "px-4",
+        )}
+      >
+        <div className="flex min-w-0 flex-1 items-stretch gap-2">
+          {stripe ? (
+            <Skeleton className="w-1 shrink-0 self-stretch rounded-full" />
+          ) : null}
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-4 w-3/5 rounded-md" />
+            <Skeleton className="h-3 w-4/5 rounded-md" />
+          </div>
+        </div>
+        <Skeleton className="h-3 w-10 shrink-0 rounded-md" />
+      </div>
+    </li>
+  );
+}
+
+export function DashboardCompactListSkeleton({ count = 2 }: { count?: number }) {
+  return (
+    <DashboardCompactList>
+      {Array.from({ length: count }).map((_, i) => (
+        <DashboardCompactListItemSkeleton key={i} stripe />
+      ))}
+    </DashboardCompactList>
+  );
+}
+
+export function DashboardMessagesTileSkeleton() {
+  return (
+    <div className="space-y-3">
+      <DashboardCompactInlineMetrics>
+        <DashboardCompactMetricPillSkeleton />
+      </DashboardCompactInlineMetrics>
+      <DashboardCompactListSkeleton count={2} />
+    </div>
+  );
+}
+
 export function DashboardCompactMetricsSkeleton({ count = 3 }: { count?: number }) {
   return (
-    <div className="flex flex-wrap gap-2" aria-hidden>
-      {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          className="h-[2.625rem] w-[5.5rem] animate-pulse rounded-lg border border-border/50 bg-muted/20"
-        />
-      ))}
+    <div aria-hidden>
+      <DashboardCompactInlineMetrics>
+        {Array.from({ length: count }).map((_, i) => (
+          <DashboardCompactMetricPillSkeleton key={i} />
+        ))}
+      </DashboardCompactInlineMetrics>
     </div>
   );
 }

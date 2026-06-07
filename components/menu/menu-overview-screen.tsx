@@ -70,7 +70,7 @@ import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
 
 const APP_HEADER_PX = 53; /* --app-chrome-header-h: p-2 + h-9 + p-2 + border */
 
-const MENU_BASE = "/menu/uebersicht";
+const MENU_BASE = "/dashboard/menu/uebersicht";
 
 export function MenuOverviewScreen() {
   const router = useRouter();

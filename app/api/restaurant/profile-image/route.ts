@@ -1,5 +1,11 @@
 import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
 import {
+  legacyRestaurantProfileImagePaths,
+  processRestaurantProfileImageUpload,
+  RESTAURANT_PROFILE_IMAGE_OUTPUT_EXT,
+  RESTAURANT_PROFILE_IMAGE_OUTPUT_MIME,
+} from "@/lib/images/process-restaurant-profile-image";
+import {
   RESTAURANT_PROFILE_IMAGES_BUCKET,
   restaurantProfileImageStoragePath,
   type RestaurantProfileImageKind,
@@ -40,27 +46,41 @@ export async function POST(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const ext =
-    file.type === "image/png"
-      ? "png"
-      : file.type === "image/webp"
-        ? "webp"
-        : "jpg";
-
-  const path = restaurantProfileImageStoragePath({ restaurantId, kind, ext });
+  const path = restaurantProfileImageStoragePath({
+    restaurantId,
+    kind,
+    ext: RESTAURANT_PROFILE_IMAGE_OUTPUT_EXT,
+  });
   const userSb = await createSupabaseServerClient();
-  const buf = Buffer.from(await file.arrayBuffer());
+
+  let processed: Buffer;
+  try {
+    processed = await processRestaurantProfileImageUpload(
+      Buffer.from(await file.arrayBuffer()),
+      kind,
+    );
+  } catch {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
+
+  if (!processed.byteLength) {
+    return Response.json({ error: "invalid_file" }, { status: 400 });
+  }
 
   const { error: uploadError } = await userSb.storage
     .from(RESTAURANT_PROFILE_IMAGES_BUCKET)
-    .upload(path, buf, {
-      contentType: file.type,
+    .upload(path, processed, {
+      contentType: RESTAURANT_PROFILE_IMAGE_OUTPUT_MIME,
       upsert: true,
     });
 
   if (uploadError) {
     return Response.json({ error: uploadError.message }, { status: 500 });
   }
+
+  await userSb.storage
+    .from(RESTAURANT_PROFILE_IMAGES_BUCKET)
+    .remove(legacyRestaurantProfileImagePaths(restaurantId, kind));
 
   const column =
     kind === "avatar" ? "avatar_storage_path" : "cover_storage_path";

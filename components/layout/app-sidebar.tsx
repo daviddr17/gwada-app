@@ -39,6 +39,7 @@ import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AppSidebarBrandLogo } from "@/components/layout/app-sidebar-brand-logo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
+import { crossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -193,9 +194,9 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/menu")}
+                      isActive={pathname.startsWith("/dashboard/menu")}
                       tooltip="Speisekarte"
-                      render={<Link href="/menu/uebersicht" prefetch />}
+                      render={<Link href="/dashboard/menu/uebersicht" prefetch />}
                     >
                       <UtensilsCrossed />
                       <span>Speisekarte</span>
@@ -203,9 +204,9 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/inventory")}
+                      isActive={pathname.startsWith("/dashboard/inventory")}
                       tooltip="Bestand"
-                      render={<Link href="/inventory/uebersicht" prefetch />}
+                      render={<Link href="/dashboard/inventory/uebersicht" prefetch />}
                     >
                       <Package />
                       <span>Bestand</span>
@@ -213,10 +214,10 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/reservierungen")}
+                      isActive={pathname.startsWith("/dashboard/reservierungen")}
                       tooltip="Reservierungen"
                       render={
-                        <Link href="/reservierungen/uebersicht" prefetch />
+                        <Link href="/dashboard/reservierungen/uebersicht" prefetch />
                       }
                     >
                       <CalendarDays />
@@ -225,11 +226,11 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/kontakte")}
+                      isActive={pathname.startsWith("/dashboard/kontakte")}
                       tooltip="Nachrichten"
                       render={
                         <Link
-                          href="/kontakte/nachrichten?platform=all"
+                          href="/dashboard/kontakte/nachrichten?platform=all"
                           prefetch
                         />
                       }
@@ -240,9 +241,9 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/bewertungen")}
+                      isActive={pathname.startsWith("/dashboard/bewertungen")}
                       tooltip="Bewertungen"
-                      render={<Link href="/bewertungen/uebersicht" prefetch />}
+                      render={<Link href="/dashboard/bewertungen/uebersicht" prefetch />}
                     >
                       <Star />
                       <span>Bewertungen</span>
@@ -250,9 +251,9 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/dokumente")}
+                      isActive={pathname.startsWith("/dashboard/dokumente")}
                       tooltip="Dokumente"
-                      render={<Link href="/dokumente/uebersicht" prefetch />}
+                      render={<Link href="/dashboard/dokumente/uebersicht" prefetch />}
                     >
                       <FileText />
                       <span>Dokumente</span>
@@ -260,10 +261,10 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/mitarbeiter")}
+                      isActive={pathname.startsWith("/dashboard/mitarbeiter")}
                       tooltip="Mitarbeiter"
                       render={
-                        <Link href="/mitarbeiter/uebersicht" prefetch />
+                        <Link href="/dashboard/mitarbeiter/uebersicht" prefetch />
                       }
                     >
                       <Users />
@@ -285,7 +286,20 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith("/superadmin")}
                 tooltip="Superadmin"
-                render={<Link href="/superadmin" prefetch />}
+                render={
+                  <Link
+                    href="/superadmin/allgemein"
+                    prefetch={false}
+                    onClick={(e) => {
+                      if (
+                        crossAppWorkspaceZone(pathname, "/superadmin/allgemein")
+                      ) {
+                        e.preventDefault();
+                        window.location.assign("/superadmin/allgemein");
+                      }
+                    }}
+                  />
+                }
               >
                 <Shield />
                 <span>Superadmin</span>
@@ -297,7 +311,18 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname === "/dashboard"}
                 tooltip="Dashboard"
-                render={<Link href="/dashboard" prefetch />}
+                render={
+                  <Link
+                    href="/dashboard"
+                    prefetch={false}
+                    onClick={(e) => {
+                      if (crossAppWorkspaceZone(pathname, "/dashboard")) {
+                        e.preventDefault();
+                        window.location.assign("/dashboard");
+                      }
+                    }}
+                  />
+                }
               >
                 <LayoutDashboard />
                 <span>Dashboard</span>

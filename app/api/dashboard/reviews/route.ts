@@ -27,7 +27,11 @@ export async function GET(req: Request) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const summary = await loadDashboardReviewsSummary(restaurantId);
+  const summary = await loadDashboardReviewsSummary(
+    restaurantId,
+    user.id,
+    sb,
+  );
 
   return Response.json(
     { data: summary },

@@ -87,7 +87,7 @@ export function computeDashboardReservationSummary(
         startsAt: row.starts_at,
         partySize: row.party_size,
         statusName: row.reservation_statuses?.name ?? "—",
-        href: `/reservierungen/uebersicht?reservation=${row.id}`,
+        href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
         unconfirmed: isUnconfirmedReservation(row),
       };
     });

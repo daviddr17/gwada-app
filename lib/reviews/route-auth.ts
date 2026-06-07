@@ -6,7 +6,11 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 export async function authorizeReviewsRestaurant(
   restaurantId: string,
 ): Promise<
-  | { ok: true; sb: Awaited<ReturnType<typeof createSupabaseServerClient>> }
+  | {
+      ok: true;
+      sb: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+      userId: string;
+    }
   | { ok: false; status: number }
 > {
   if (!isUuidRestaurantId(restaurantId)) {
@@ -24,5 +28,5 @@ export async function authorizeReviewsRestaurant(
   });
   if (!staff) return { ok: false, status: 403 };
 
-  return { ok: true, sb };
+  return { ok: true, sb, userId: user.id };
 }

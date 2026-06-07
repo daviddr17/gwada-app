@@ -55,6 +55,10 @@ export function RestaurantSettingsSkeleton({
         </div>
       </div>
       <SkeletonCardFrame className="shadow-card">
+        <div className="space-y-2 border-b border-border/30 pb-4">
+          <Skeleton className="h-7 w-44 rounded-md" />
+          <Skeleton className="h-4 w-full max-w-md rounded-md" />
+        </div>
         <div className="space-y-4 pt-4">
           <FieldRow />
           <FieldRow />
@@ -65,6 +69,16 @@ export function RestaurantSettingsSkeleton({
           <FieldRow />
           <FieldRow />
           <FieldRow />
+        </div>
+      </SkeletonCardFrame>
+      <SkeletonCardFrame className="shadow-card">
+        <div className="space-y-2 border-b border-border/30 pb-4">
+          <Skeleton className="h-7 w-32 rounded-md" />
+          <Skeleton className="h-4 w-full max-w-md rounded-md" />
+        </div>
+        <div className="flex items-center gap-3 pt-5">
+          <Skeleton className="size-12 shrink-0 rounded-lg" />
+          <Skeleton className="h-12 flex-1 rounded-xl" />
         </div>
       </SkeletonCardFrame>
     </div>

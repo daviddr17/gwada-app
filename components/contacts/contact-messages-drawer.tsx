@@ -101,7 +101,7 @@ export function ContactMessagesDrawer({
               variant="outline"
               className="h-11 w-full rounded-xl"
               render={
-                <a href={`/kontakte/nachrichten?contact=${contactId}`} />
+                <a href={`/dashboard/kontakte/nachrichten?contact=${contactId}`} />
               }
               onClick={() => onOpenChange(false)}
             >

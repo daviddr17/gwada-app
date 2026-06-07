@@ -739,7 +739,7 @@ export function ContactEditDrawer({
                     className="h-8 shrink-0 gap-1.5"
                     render={
                       <Link
-                        href={`/kontakte/nachrichten?contact=${detail.id}`}
+                        href={`/dashboard/kontakte/nachrichten?contact=${detail.id}`}
                         prefetch
                       />
                     }
@@ -781,7 +781,7 @@ export function ContactEditDrawer({
                         className="h-8 shrink-0"
                         render={
                           <Link
-                            href={`/reservierungen/uebersicht?reservation=${r.id}`}
+                            href={`/dashboard/reservierungen/uebersicht?reservation=${r.id}`}
                             prefetch
                           />
                         }

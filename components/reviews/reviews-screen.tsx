@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Link2, ScrollText, Search, Star } from "lucide-react";
+import { ReviewReadFilterChips } from "@/components/reviews/review-read-filter-chips";
 import { ReviewPlatformChip } from "@/components/reviews/review-platform-chip";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,13 @@ import {
   type ReviewReplyFilter,
   type ReviewSortKey,
 } from "@/lib/reviews/filter-sort-reviews";
+import {
+  markAllReviewsReadClient,
+  markReviewReadBatchClient,
+  markReviewUnreadClient,
+} from "@/lib/reviews/fetch-review-read-client";
+import type { ReviewReadFilter } from "@/lib/reviews/review-read-state";
+import { reviewReadLookupKey } from "@/lib/reviews/review-read-state";
 import type { GoogleReviewsPaginationMeta } from "@/lib/reviews/google-reviews-pagination";
 import { googleReviewsTotalPages } from "@/lib/reviews/google-reviews-pagination";
 import {
@@ -124,11 +132,15 @@ function StarsDisplay({ rating }: { rating: number }) {
 
 function ReviewCard({
   review,
+  isUnread = false,
+  onMarkUnread,
   onReply,
   onProtocol,
   onOpenContact,
 }: {
   review: UnifiedReview;
+  isUnread?: boolean;
+  onMarkUnread?: () => void;
   onReply?: () => void;
   onProtocol?: () => void;
   onOpenContact?: () => void;
@@ -140,12 +152,36 @@ function ReviewCard({
   });
 
   return (
-    <Card className="border-border/50 shadow-card">
+    <Card
+      className={cn(
+        "border-border/50 shadow-card",
+        isUnread && "border-accent/35 bg-accent/[0.03]",
+      )}
+    >
       <CardHeader className="space-y-2 pb-2">
         <div className="flex items-start justify-between gap-2">
-          <StarsDisplay rating={review.rating} />
+          <div className="flex min-w-0 items-center gap-2">
+            {isUnread ? (
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full bg-accent"
+                aria-hidden
+              />
+            ) : null}
+            <StarsDisplay rating={review.rating} />
+          </div>
           <div className="flex shrink-0 items-center gap-1">
             <span className="text-xs text-muted-foreground">{date}</span>
+            {!isUnread && onMarkUnread ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[10px] text-muted-foreground"
+                onClick={onMarkUnread}
+              >
+                Ungelesen
+              </Button>
+            ) : null}
             {onProtocol ? (
               <Button
                 type="button"
@@ -170,7 +206,9 @@ function ReviewCard({
               {review.authorName}
             </button>
           ) : (
-            <p className="text-sm font-medium">{review.authorName}</p>
+            <p className={cn("text-sm font-medium", isUnread && "font-semibold")}>
+              {review.authorName}
+            </p>
           )
         ) : null}
       </CardHeader>
@@ -244,6 +282,8 @@ export function ReviewsScreen() {
   const [commentFilter, setCommentFilter] =
     useState<ReviewCommentFilter>("all");
   const [replyFilter, setReplyFilter] = useState<ReviewReplyFilter>("all");
+  const [readFilter, setReadFilter] = useState<ReviewReadFilter>("all");
+  const [readLocal, setReadLocal] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<ReviewSortKey>("created_desc");
   const [googlePage, setGooglePage] = useState(1);
   const [googleTokenByPage, setGoogleTokenByPage] = useState<
@@ -263,6 +303,28 @@ export function ReviewsScreen() {
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
   const showSkeleton = useDeferredSkeleton(loading);
+  const readAllStartedRef = useRef<string | null>(null);
+
+  const markLoadedReviewsRead = useCallback(
+    (reviews: UnifiedReview[]) => {
+      if (!restaurantId || reviews.length === 0) return;
+      setReadLocal((prev) => {
+        const next = { ...prev };
+        for (const review of reviews) {
+          next[reviewReadLookupKey(review.platform, review.id)] = false;
+        }
+        return next;
+      });
+      void markReviewReadBatchClient({
+        restaurantId,
+        items: reviews.map((review) => ({
+          platform: review.platform,
+          reviewId: review.id,
+        })),
+      });
+    },
+    [restaurantId],
+  );
 
   const restaurantProfile = useMemo(() => {
     if (!restaurantId || !profileReady) return null;
@@ -319,7 +381,7 @@ export function ReviewsScreen() {
     if (platformParam !== resolved) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("platform", resolved);
-      router.replace(`/bewertungen/uebersicht?${params.toString()}`);
+      router.replace(`/dashboard/bewertungen/uebersicht?${params.toString()}`);
     }
   }, [
     connectionsLoading,
@@ -336,7 +398,7 @@ export function ReviewsScreen() {
     setPlatform(p);
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", p);
-    router.replace(`/bewertungen/uebersicht?${params.toString()}`);
+    router.replace(`/dashboard/bewertungen/uebersicht?${params.toString()}`);
   };
 
   const load = useCallback(
@@ -366,7 +428,12 @@ export function ReviewsScreen() {
           setData(null);
           return;
         }
-        setData(json);
+        const reviewsRead = json.reviews.map((review) => ({
+          ...review,
+          isUnread: false,
+        }));
+        setData({ ...json, reviews: reviewsRead });
+        markLoadedReviewsRead(reviewsRead);
 
         if (isGooglePaginated && json.googlePagination) {
           const page = opts?.googlePage ?? 1;
@@ -384,7 +451,7 @@ export function ReviewsScreen() {
         setLoading(false);
       }
     },
-    [restaurantId, platform, isGooglePaginated, googleTokenByPage],
+    [restaurantId, platform, isGooglePaginated, googleTokenByPage, markLoadedReviewsRead],
   );
 
   const loadRef = useRef(load);
@@ -456,6 +523,8 @@ export function ReviewsScreen() {
     setRatingFilter("all");
     setCommentFilter("all");
     setReplyFilter("all");
+    setReadFilter("all");
+    setReadLocal({});
     setSortKey("created_desc");
     if (platform === "google") {
       void loadGoogleStats();
@@ -468,6 +537,28 @@ export function ReviewsScreen() {
     connectionsLoading,
     platformReady,
   ]);
+
+  useEffect(() => {
+    if (!restaurantId || !platformReady) return;
+    if (readAllStartedRef.current === restaurantId) return;
+    readAllStartedRef.current = restaurantId;
+    void markAllReviewsReadClient(restaurantId).then(({ ok }) => {
+      if (ok) {
+        setReadLocal({});
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                reviews: prev.reviews.map((review) => ({
+                  ...review,
+                  isUnread: false,
+                })),
+              }
+            : prev,
+        );
+      }
+    });
+  }, [restaurantId, platformReady]);
 
   const submitReply = async () => {
     if (!restaurantId || !replyTarget || !replyText.trim()) return;
@@ -522,22 +613,69 @@ export function ReviewsScreen() {
   const loadError = data?.loadError;
   const allReviews = data?.reviews ?? [];
 
+  const reviewIsUnread = useCallback(
+    (review: UnifiedReview) => {
+      const key = reviewReadLookupKey(review.platform, review.id);
+      if (key in readLocal) return readLocal[key]!;
+      return review.isUnread !== false;
+    },
+    [readLocal],
+  );
+
+  const markReviewUnread = useCallback(
+    async (review: UnifiedReview) => {
+      if (!restaurantId || reviewIsUnread(review)) return;
+      const key = reviewReadLookupKey(review.platform, review.id);
+      setReadLocal((prev) => ({ ...prev, [key]: true }));
+      const { ok, error } = await markReviewUnreadClient({
+        restaurantId,
+        platform: review.platform,
+        reviewId: review.id,
+      });
+      if (!ok) {
+        setReadLocal((prev) => {
+          const next = { ...prev };
+          delete next[key];
+          return next;
+        });
+        toast.error(error ?? "Konnte nicht als ungelesen markieren.");
+      }
+    },
+    [restaurantId, reviewIsUnread],
+  );
+
+  const reviewsWithReadState = useMemo(
+    () =>
+      allReviews.map((review) => ({
+        ...review,
+        isUnread: reviewIsUnread(review),
+      })),
+    [allReviews, reviewIsUnread],
+  );
+
+  const unreadCount = useMemo(
+    () => reviewsWithReadState.filter((r) => r.isUnread).length,
+    [reviewsWithReadState],
+  );
+
   const filteredSortedReviews = useMemo(() => {
-    const filtered = filterReviews(allReviews, {
+    const filtered = filterReviews(reviewsWithReadState, {
       search,
       ratingFilter,
       commentFilter,
       replyFilter,
       showReplyFilter,
+      readFilter,
     });
     return sortReviews(filtered, sortKey);
   }, [
-    allReviews,
+    reviewsWithReadState,
     search,
     ratingFilter,
     commentFilter,
     replyFilter,
     showReplyFilter,
+    readFilter,
     sortKey,
   ]);
 
@@ -558,6 +696,7 @@ export function ReviewsScreen() {
     commentFilter,
     replyFilter,
     showReplyFilter,
+    readFilter,
   });
 
   const summaryForCard = useMemo(() => {
@@ -579,7 +718,7 @@ export function ReviewsScreen() {
     setRatingFilter("all");
     setCommentFilter("all");
     setReplyFilter("all");
-    setSortKey("created_desc");
+    setReadFilter("all");
   };
 
   return (
@@ -620,7 +759,7 @@ export function ReviewsScreen() {
             hier manuell Einladungslinks (24 Stunden gültig). Automatik und Kanäle
             unter{" "}
             <a
-              href="/reservierungen/einstellungen"
+              href="/dashboard/reservierungen/einstellungen"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Reservierungen → Einstellungen
@@ -696,6 +835,11 @@ export function ReviewsScreen() {
                   />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  <ReviewReadFilterChips
+                    value={readFilter}
+                    onChange={setReadFilter}
+                    unreadTotal={unreadCount}
+                  />
                   <SearchableSelect
                     options={REVIEW_RATING_FILTER_OPTIONS}
                     value={ratingFilter}
@@ -812,6 +956,8 @@ export function ReviewsScreen() {
                   <ReviewCard
                     key={review.id}
                     review={review}
+                    isUnread={review.isUnread}
+                    onMarkUnread={() => void markReviewUnread(review)}
                     onProtocol={
                       platform === "gwada"
                         ? () => setProtocolReview(review)
@@ -908,8 +1054,8 @@ export function ReviewsScreen() {
               const q = params.toString();
               router.replace(
                 q
-                  ? `/bewertungen/uebersicht?${q}`
-                  : "/bewertungen/uebersicht?platform=gwada",
+                  ? `/dashboard/bewertungen/uebersicht?${q}`
+                  : "/dashboard/bewertungen/uebersicht?platform=gwada",
               );
             }
           }

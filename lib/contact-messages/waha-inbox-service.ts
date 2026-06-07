@@ -78,6 +78,7 @@ async function mapPool<T, R>(
 export async function fetchWahaInboxConversations(
   admin: SupabaseClient,
   restaurantId: string,
+  options?: { skipDisplayNameResolve?: boolean },
 ): Promise<{ data: ContactConversationPreview[]; error: string | null }> {
   const config = await getWahaServerConfigAdmin();
   if (!config) {
@@ -233,7 +234,9 @@ export async function fetchWahaInboxConversations(
     });
   }
 
-  const toResolve = pending.filter((p) => p.needsResolve);
+  const toResolve = options?.skipDisplayNameResolve
+    ? []
+    : pending.filter((p) => p.needsResolve);
   if (toResolve.length > 0) {
     await mapPool(toResolve, DISPLAY_NAME_CONCURRENCY, async (item) => {
       const overviewId = (item.chat.id ?? "").trim();

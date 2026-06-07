@@ -799,6 +799,10 @@ function ProfileAppContent({
   const cardClass =
     "overflow-hidden rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm";
 
+  /** Speisekarte: overflow-visible — sonst bricht CSS-sticky für Suche/Kategorien. */
+  const menuProfileCardClass =
+    "overflow-visible rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm";
+
   if (appId === "reserve") {
     return (
       <div className="p-4 pb-8 sm:p-5">
@@ -823,13 +827,13 @@ function ProfileAppContent({
 
   if (appId === "menu") {
     return (
-      <div className="px-4 pb-8 pt-0 sm:px-5 sm:pb-5">
+      <div className="p-4 pb-8 sm:p-5">
         <ModulePanel
           showLoading={deferHeavyWidgets || (!menu && loading.menu)}
           error={errors.menu}
         >
           {menu ? (
-            <div className="overflow-visible rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm">
+            <div className={menuProfileCardClass}>
               <EmbedMenuWidget
                 variant="profileSheet"
                 restaurantName={menu.name}

@@ -17,19 +17,12 @@ export const RESERVED_RESTAURANT_SLUGS = new Set([
   "docs",
   "impressum",
   "datenschutz",
-  // App-Module (eingeloggt)
+  // App-Zonen (eingeloggt)
   "dashboard",
-  "kontakte",
-  "bewertungen",
-  "reservierungen",
-  "menu",
-  "inventory",
-  "mitarbeiter",
   "profile",
   "settings",
   "superadmin",
   "workspace",
-  "dokumente",
   "changelog",
   // Geplant / generisch
   "kontakt",

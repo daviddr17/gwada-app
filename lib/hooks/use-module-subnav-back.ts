@@ -8,6 +8,7 @@ import {
   recordModuleNavPath,
   resolveModuleSubnavBackTarget,
 } from "@/lib/navigation/module-subnav-back";
+import { navigateAppPath } from "@/lib/navigation/app-zone-navigation";
 
 /**
  * Zurück im Chip-Untermenü: Modul-interne Historie statt `router.back()`
@@ -28,11 +29,11 @@ export function useModuleSubnavBack(
 
   const goBack = useCallback(() => {
     if (!subnavItems?.length) {
-      router.push("/dashboard");
+      navigateAppPath(router, pathname, "/dashboard");
       return;
     }
     const target = resolveModuleSubnavBackTarget(subnavItems, pathname);
-    router.push(target);
+    navigateAppPath(router, pathname, target);
   }, [pathname, router, subnavItems]);
 
   return goBack;

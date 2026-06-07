@@ -20,6 +20,11 @@ const PROFILE_NAV: readonly ModuleSubnavItem[] = [
     label: "Arbeitszeiten",
     matchMode: "exact",
   },
+  {
+    href: "/profile/dienstplan",
+    label: "Dienstplan",
+    matchMode: "exact",
+  },
 ];
 
 export default function ProfileLayout({

@@ -1,6 +1,6 @@
 {
-  "title": "Profil-Sheet: smoother Dismiss & Header",
-  "body": "- Beim Schließen folgt das Sheet dem Finger 1:1; das Icon-Morphing startet weich und getrennt davon\n- Restaurantname und Modul kleben zuverlässig unter dem Drag-Handle — auch nach erneutem Öffnen\n- Changelog-Sync: Entwurf-Datei ist im Live-Container verfügbar; GitHub-Repo-Slug wird korrekt aufgelöst",
+  "title": "Schichtplan, Bewertungen & Dashboard-Navigation",
+  "body": "- **Schichtplan (neu):** Tages-, Wochen- und Monatsansicht mit Schichtvorlagen, Kopieren zwischen Zeiträumen, Wetter in den Spaltenköpfen sowie Summe geplanter Stunden und Lohn\n- **Schichtplan:** Mitarbeiternamen öffnen das Profil direkt im Drawer; Krankheit und Urlaub erscheinen im Plan\n- **Profil:** Eigener Dienstplan für Mitarbeiter unter „Dienstplan“\n- **Arbeitszeiten:** An Krank- und Urlaubstagen keine Arbeitszeit eintragen (wie im Schichtplan)\n- **Verträge:** Soll-Wochenstunden pro Vertrag hinterlegen\n- **Bewertungen:** Gelesen/Ungelesen pro Person — Filter in der Übersicht, Dashboard zeigt nur Ungelesene; beim Öffnen der Bewertungs-Übersicht gelten alle als gelesen\n- **Navigation:** Alle Module liegen unter `/dashboard/…` — bestehende Lesezeichen und Links leiten automatisch weiter\n- **Nachrichten:** Schnellere Ungelesen-Anzeige durch Hintergrund-Sync der Inbox",
   "audience": "customers",
-  "version": "2026.06.07"
+  "version": "2026.06.09"
 }

@@ -1,42 +1,82 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchMessagesUnreadSummaryClient } from "@/lib/contact-messages/fetch-inbox-client";
-import type { MessagesUnreadSummary } from "@/lib/contact-messages/messages-unread-summary";
-import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
-import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import {
-  GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
-  useDashboardHasDataRef,
-} from "@/lib/dashboard/dashboard-widget-refresh";
+  deriveMessagesUnreadSummaryFromConversations,
+  type MessagesUnreadSummary,
+} from "@/lib/contact-messages/messages-unread-summary";
+import {
+  GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+  clearUnifiedInboxCache,
+  peekUnifiedInboxCache,
+} from "@/lib/contact-messages/unified-inbox-cache";
+import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
+import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
+const EMPTY_SUMMARY: MessagesUnreadSummary = {
+  total_unread: 0,
+  unread: [],
+  inboxConversations: [],
+};
+
+function summaryFromCache(
+  restaurantId: string,
+): MessagesUnreadSummary | null {
+  const conversations = peekUnifiedInboxCache(restaurantId);
+  if (!conversations) return null;
+  return deriveMessagesUnreadSummaryFromConversations(conversations);
+}
+
 export function useDashboardMessagesStats() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const hasDataRef = useDashboardHasDataRef();
+  const hasDataRef = useRef(false);
   const [summary, setSummary] = useState<MessagesUnreadSummary | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const ready =
+    workspaceReady &&
+    Boolean(restaurantId && isUuidRestaurantId(restaurantId));
 
   useEffect(() => {
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
       setSummary(null);
       setError(null);
-      setLoading(false);
+      setIsLoading(true);
       return;
     }
 
     let cancel = false;
-    hasDataRef.current = false;
 
-    const run = async (silent: boolean) => {
+    const applyCache = (): boolean => {
+      const next = summaryFromCache(restaurantId);
+      if (!next) return false;
+      setSummary(next);
+      hasDataRef.current = true;
+      setError(null);
+      setIsLoading(false);
+      return true;
+    };
+
+    const hadCache = applyCache();
+    if (!hadCache) {
+      setSummary(null);
+      setError(null);
+      setIsLoading(true);
+      hasDataRef.current = false;
+    }
+
+    const refreshSummary = async (opts?: { silent?: boolean }) => {
       if (cancel) return;
-      const initial = !hasDataRef.current;
-      if (!silent && initial) setLoading(true);
-      if (!silent) setError(null);
+
+      if (!opts?.silent && !hasDataRef.current) {
+        setIsLoading(true);
+      }
 
       const { data, error: err } = await fetchMessagesUnreadSummaryClient(
         restaurantId,
@@ -49,32 +89,39 @@ export function useDashboardMessagesStats() {
         if (!hasDataRef.current) {
           setSummary(null);
           setError(err);
+          setIsLoading(false);
         }
-        if (!silent && initial) setLoading(false);
         return;
       }
 
-      const next = data ?? {
-        total_unread: 0,
-        unread: [],
-        inboxConversations: [],
-      };
-      setSummary(next);
+      setSummary(data ?? EMPTY_SUMMARY);
       hasDataRef.current = true;
-      if (!silent && initial) setLoading(false);
-      if (next.inboxConversations.length > 0) {
-        setUnifiedInboxCache(restaurantId, next.inboxConversations);
-      }
+      setError(null);
+      setIsLoading(false);
     };
 
-    void run(false);
+    void refreshSummary({ silent: hadCache });
 
-    const onPoll = () => void run(true);
+    const onCacheUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;
+      if (detail?.restaurantId !== restaurantId) return;
+      applyCache();
+    };
+
+    const onPoll = () => void refreshSummary({ silent: true });
     const onRestaurantChange = () => {
+      clearUnifiedInboxCache(restaurantId);
       hasDataRef.current = false;
-      void run(false);
+      setSummary(null);
+      setError(null);
+      setIsLoading(true);
+      void refreshSummary();
     };
 
+    window.addEventListener(
+      GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+      onCacheUpdated,
+    );
     window.addEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
     window.addEventListener(
       GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
@@ -84,6 +131,10 @@ export function useDashboardMessagesStats() {
 
     return () => {
       cancel = true;
+      window.removeEventListener(
+        GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+        onCacheUpdated,
+      );
       window.removeEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
       window.removeEventListener(
         GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
@@ -91,12 +142,12 @@ export function useDashboardMessagesStats() {
       );
       window.removeEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onPoll);
     };
-  }, [restaurantId, hasDataRef]);
+  }, [restaurantId]);
 
   return {
     summary,
-    loading,
     error,
-    ready: workspaceReady && Boolean(restaurantId && isUuidRestaurantId(restaurantId)),
+    ready,
+    loading: error == null && (isLoading || summary === null),
   };
 }

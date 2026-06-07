@@ -6,7 +6,10 @@ import {
   dashboardMessageThreadHref,
   type MessagesUnreadSummary,
 } from "@/lib/contact-messages/messages-unread-summary";
-import { fetchUnifiedInboxConversationsServer } from "@/lib/contact-messages/unified-inbox-server";
+import {
+  fetchUnifiedInboxConversationsForDashboard,
+  fetchUnifiedInboxConversationsServer,
+} from "@/lib/contact-messages/unified-inbox-server";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -29,7 +32,9 @@ export async function fetchMessagesUnreadSummary(
   },
 ): Promise<MessagesUnreadSummary> {
   const includeInbox = params.includeInboxConversations !== false;
-  const conversations = await fetchUnifiedInboxConversationsServer(admin, params);
+  const conversations = includeInbox
+    ? await fetchUnifiedInboxConversationsServer(admin, params)
+    : await fetchUnifiedInboxConversationsForDashboard(admin, params);
   const total_unread = sumUnread(conversations);
 
   const unread = conversations

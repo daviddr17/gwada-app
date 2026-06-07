@@ -12,4 +12,6 @@ export type UnifiedReview = {
   externalUrl: string | null;
   /** Verknüpfter Kontakt (Gwada), falls ermittelbar */
   contactId?: string | null;
+  /** Pro Nutzer — fehlt in API = ungelesen. */
+  isUnread?: boolean;
 };

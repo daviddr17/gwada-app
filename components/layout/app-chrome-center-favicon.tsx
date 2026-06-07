@@ -1,13 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
-import { useResolvedPlatformLogoSrc } from "@/lib/hooks/use-resolved-platform-logo-src";
-import {
-  isFaviconRenderableInImg,
-  platformFaviconHref,
-  withBrandingAssetCacheBust,
-} from "@/lib/platform/branding-asset-url";
+import { useAppFaviconDisplay } from "@/lib/hooks/use-app-favicon-src";
 import { cn } from "@/lib/utils";
 
 const ICON_CLASS = "size-7 shrink-0 object-contain object-center md:size-8";
@@ -17,31 +11,9 @@ const ICON_CLASS = "size-7 shrink-0 object-contain object-center md:size-8";
  */
 export function AppChromeCenterFavicon({ className }: { className?: string }) {
   const branding = usePlatformAppBrandingOptional();
-  const logoSrc = useResolvedPlatformLogoSrc();
-  const faviconPath = branding?.faviconPath ?? null;
-  const faviconApiSrc = platformFaviconHref(faviconPath);
-  const faviconDirectSrc = withBrandingAssetCacheBust(
-    branding?.faviconUrl ?? null,
-    faviconPath,
-  );
-  const faviconOkForImg =
-    Boolean(faviconApiSrc) || isFaviconRenderableInImg(faviconPath);
-  const faviconImgSrc = faviconApiSrc ?? faviconDirectSrc;
+  const { src, onImageError } = useAppFaviconDisplay();
 
-  const [imgFailed, setImgFailed] = useState(false);
-
-  useEffect(() => {
-    setImgFailed(false);
-  }, [faviconImgSrc, faviconOkForImg]);
-
-  if (!branding?.isReady) {
-    return null;
-  }
-
-  const preferFavicon = Boolean(faviconImgSrc && faviconOkForImg && !imgFailed);
-  const src = preferFavicon ? faviconImgSrc : logoSrc;
-
-  if (!src) {
+  if (!branding?.isReady || !src) {
     return null;
   }
 
@@ -61,11 +33,7 @@ export function AppChromeCenterFavicon({ className }: { className?: string }) {
         alt=""
         decoding="async"
         className={ICON_CLASS}
-        onError={() => {
-          if (preferFavicon && logoSrc) {
-            setImgFailed(true);
-          }
-        }}
+        onError={onImageError}
       />
       <span className="sr-only">{appName}</span>
     </div>

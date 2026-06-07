@@ -33,6 +33,7 @@ import {
   updateRestaurantDocumentClient,
   uploadRestaurantDocumentClient,
 } from "@/lib/documents/documents-api";
+import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { formatStorageBytes } from "@/lib/documents/format-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -649,18 +650,23 @@ export function DocumentsOverview() {
         canEditNotes={canEditDocumentNotes}
         onNotesChanged={() => void reload()}
         onUpload={async ({ file, title, tagId }) => {
-          const { documentId, error } = await uploadRestaurantDocumentClient({
-            restaurantId,
-            file,
-            title,
-            tagId,
-          });
+          const { documentId, error } = await trackDashboardFileUpload(
+            () =>
+              uploadRestaurantDocumentClient({
+                restaurantId,
+                file,
+                title,
+                tagId,
+              }),
+            {
+              successMessage: "Dokument hochgeladen.",
+              errorMessage: uploadErrorMessage,
+            },
+          );
           if (error) {
-            toast.error(uploadErrorMessage(error));
             return false;
           }
           if (documentId) {
-            toast.success("Dokument hochgeladen");
             await reload();
             return true;
           }

@@ -53,7 +53,10 @@ type RestaurantProfileContextValue = {
   profile: RestaurantProfile;
   /** Stammdaten + Öffnungszeiten für eine beliebige Restaurant-ID (z. B. Workspace-UUID). */
   getProfileForRestaurantId: (id: string) => RestaurantProfile;
-  saveProfile: (next: RestaurantProfile) => Promise<boolean>;
+  saveProfile: (
+    next: RestaurantProfile,
+    options?: { notify?: boolean },
+  ) => Promise<boolean>;
   /** Öffnungszeiten: relationale Tabelle `opening_hours` (bei UUID-Restaurant + Supabase). */
   saveOpeningHours: (next: RestaurantProfile) => Promise<boolean>;
   /** Teilupdate im Store (z. B. nach Bild-Upload ohne vollständiges Speichern). */
@@ -232,7 +235,11 @@ export function RestaurantProfileProvider({
   }, [supabaseOnly, workspaceReloadToken, applyOpeningHoursOverlay]);
 
   const saveProfile = useCallback(
-    (next: RestaurantProfile): Promise<boolean> => {
+    (
+      next: RestaurantProfile,
+      options?: { notify?: boolean },
+    ): Promise<boolean> => {
+      const notify = options?.notify !== false;
       const prev = storeRef.current;
       return (async () => {
         const workspaceId = await getWorkspaceRestaurantId();
@@ -278,7 +285,9 @@ export function RestaurantProfileProvider({
           }
         }
 
-        toast.success("Restaurantprofil gespeichert");
+        if (notify) {
+          toast.success("Restaurantprofil gespeichert");
+        }
         notifyWorkspaceRestaurantChanged();
         return true;
       })();

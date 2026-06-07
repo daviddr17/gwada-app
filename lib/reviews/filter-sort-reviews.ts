@@ -1,3 +1,4 @@
+import type { ReviewReadFilter } from "@/lib/reviews/review-read-state";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 
 export type ReviewSortKey =
@@ -76,10 +77,14 @@ export function filterReviews(
     commentFilter: ReviewCommentFilter;
     replyFilter: ReviewReplyFilter;
     showReplyFilter: boolean;
+    readFilter?: ReviewReadFilter;
   },
 ): UnifiedReview[] {
   return reviews.filter((review) => {
     if (!reviewMatchesSearch(review, params.search)) return false;
+
+    if (params.readFilter === "unread" && review.isUnread === false) return false;
+    if (params.readFilter === "read" && review.isUnread !== false) return false;
 
     if (params.ratingFilter !== "all") {
       const target = Number(params.ratingFilter);
@@ -142,8 +147,10 @@ export function hasActiveReviewFilters(params: {
   commentFilter: ReviewCommentFilter;
   replyFilter: ReviewReplyFilter;
   showReplyFilter: boolean;
+  readFilter?: ReviewReadFilter;
 }): boolean {
   if (params.search.trim()) return true;
+  if (params.readFilter && params.readFilter !== "all") return true;
   if (params.ratingFilter !== "all") return true;
   if (params.commentFilter !== "all") return true;
   if (params.showReplyFilter && params.replyFilter !== "all") return true;

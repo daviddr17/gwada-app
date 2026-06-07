@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
+import { LEGACY_MODULE_REDIRECTS } from "./lib/navigation/app-routes";
 
 // Explizit dieselbe Ladereihenfolge wie Next (dev → .env.local + .env.development*;
 // production → .env.local + .env.production*). Siehe .env.example.
@@ -66,6 +67,13 @@ const nextConfig: NextConfig = {
         },
       ],
     };
+  },
+  async redirects() {
+    return LEGACY_MODULE_REDIRECTS.map(({ source, destination }) => ({
+      source,
+      destination,
+      permanent: true,
+    }));
   },
   async headers() {
     return [

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -19,7 +18,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formScheduleTimeInputClassName } from "@/components/ui/date-picker";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { upsertStaffWorkEntry } from "@/lib/supabase/staff-db";
+import {
+  absenceBlocksWorkTimeMessage,
+  isShiftPlanAbsenceEntry,
+  isStaffWorkTimeEntryType,
+  type ShiftPlanAbsenceEntryType,
+} from "@/lib/staff/shift-plan-absence";
 import type {
   RestaurantStaffWorkEntryRow,
   StaffWorkEntryType,
@@ -30,9 +37,9 @@ import {
   STAFF_WORK_ENTRY_TYPES,
 } from "@/lib/types/staff";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
-import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
+import { staffDrawerFieldClassName, staffDrawerScrollClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { cn } from "@/lib/utils";
 
 type StaffWorkEntryDrawerProps = {
   open: boolean;
@@ -41,6 +48,8 @@ type StaffWorkEntryDrawerProps = {
   staffId: string;
   entry: RestaurantStaffWorkEntryRow | null;
   defaultDay: Date | null;
+  /** Urlaub/Krank pro Tag — dort keine Arbeitszeit/Pause anlegen. */
+  absenceByDayKey?: ReadonlyMap<string, ShiftPlanAbsenceEntryType>;
   onSaved: () => void;
   onDelete: (id: string) => Promise<void>;
 };
@@ -66,6 +75,7 @@ export function StaffWorkEntryDrawer({
   staffId,
   entry,
   defaultDay,
+  absenceByDayKey,
   onSaved,
   onDelete,
 }: StaffWorkEntryDrawerProps) {
@@ -117,6 +127,18 @@ export function StaffWorkEntryDrawer({
       toast.error("Ende muss nach Beginn liegen.");
       return;
     }
+
+    const editingAbsence = entry != null && isShiftPlanAbsenceEntry(entry);
+    const absenceType = absenceByDayKey?.get(dateStr);
+    if (
+      isStaffWorkTimeEntryType(entryType) &&
+      absenceType != null &&
+      !editingAbsence
+    ) {
+      toast.error(absenceBlocksWorkTimeMessage(absenceType));
+      return;
+    }
+
     setPending(true);
     const res = await upsertStaffWorkEntry(restaurantId, staffId, {
       id: entry?.id,
@@ -144,24 +166,26 @@ export function StaffWorkEntryDrawer({
     entryType,
     onSaved,
     onOpenChange,
+    absenceByDayKey,
   ]);
 
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-        <DrawerContent className="mx-auto max-w-lg overflow-hidden rounded-t-[1.75rem] border-0 bg-card px-5 pb-6">
-          <DrawerHeader>
+        <DrawerContent className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
             <DrawerTitle>
               {entry ? "Eintrag bearbeiten" : "Arbeitszeit / Abwesenheit"}
             </DrawerTitle>
           </DrawerHeader>
           <form
-            className="space-y-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(e) => {
               e.preventDefault();
               void save();
             }}
           >
+            <div className={cn(staffDrawerScrollClassName, "space-y-4 px-6 pb-4")}>
             <div className="space-y-2">
               <Label>Art</Label>
               <Select
@@ -232,23 +256,15 @@ export function StaffWorkEntryDrawer({
                 />
               </div>
             </div>
-            <Button
-              type="submit"
-              className="w-full rounded-xl"
-              disabled={pending}
-            >
-              {pending ? "Speichern …" : "Speichern"}
-            </Button>
-            {entry ? (
-              <Button
-                type="button"
-                variant="destructive"
-                className="w-full rounded-xl"
-                onClick={() => setConfirmDelete(true)}
-              >
-                Löschen
-              </Button>
-            ) : null}
+            </div>
+            <DrawerFormFooter
+              onCancel={() => onOpenChange(false)}
+              submitType="submit"
+              submitPending={pending}
+              showDelete={!!entry}
+              onDelete={() => setConfirmDelete(true)}
+              deleteLabel="Eintrag löschen"
+            />
           </form>
         </DrawerContent>
       </Drawer>

@@ -15,6 +15,22 @@ import {
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { DashboardCompactMetricsSkeleton } from "@/components/dashboard/dashboard-compact-list";
 
+function DashboardWidgetSkeletonFrame({
+  isCompact,
+}: {
+  isCompact: boolean;
+}) {
+  return (
+    <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
+      <div className="flex items-center justify-between gap-2 pb-3">
+        <Skeleton className="h-5 w-32 rounded-md" />
+        <Skeleton className="size-8 rounded-lg" />
+      </div>
+      <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
+    </SkeletonCardFrame>
+  );
+}
+
 export function DashboardWidgetShell({
   title,
   description,
@@ -27,6 +43,10 @@ export function DashboardWidgetShell({
   loading,
   error,
   children,
+  /** Statischer Modultitel — Header sofort, Skeleton nur im Inhalt (z. B. Nachrichten). */
+  staticChrome = false,
+  /** Eigener Lade-Inhalt statt generischer Metrik-Pills. */
+  loadingContent,
 }: {
   title: string;
   description?: string;
@@ -41,19 +61,15 @@ export function DashboardWidgetShell({
   loading: boolean;
   error: string | null;
   children: ReactNode;
+  staticChrome?: boolean;
+  loadingContent?: ReactNode;
 }) {
   const isCompact = variant === "compact";
+  const hasContent = children != null && children !== false;
+  const showContentSkeleton = error == null && (loading || !hasContent);
 
-  if (!ready) {
-    return (
-      <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
-        <div className="flex items-center justify-between gap-2 pb-3">
-          <Skeleton className="h-5 w-32 rounded-md" />
-          <Skeleton className="size-8 rounded-lg" />
-        </div>
-        <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
-      </SkeletonCardFrame>
-    );
+  if (!staticChrome && !ready) {
+    return <DashboardWidgetSkeletonFrame isCompact={isCompact} />;
   }
 
   const layered = Boolean(background);
@@ -117,9 +133,11 @@ export function DashboardWidgetShell({
       >
         {error ? (
           <p className="text-sm text-muted-foreground">{error}</p>
-        ) : loading ? (
+        ) : showContentSkeleton ? (
           <div aria-busy="true" aria-label={`${title} wird geladen`}>
-            <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
+            {loadingContent ?? (
+              <DashboardCompactMetricsSkeleton count={isCompact ? 3 : 4} />
+            )}
           </div>
         ) : (
           children

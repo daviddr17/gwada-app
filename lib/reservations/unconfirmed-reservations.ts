@@ -12,7 +12,7 @@ export type UnconfirmedReservationStatusCode =
   (typeof UNCONFIRMED_RESERVATION_STATUS_CODES)[number];
 
 export function reservationsUnconfirmedOverviewHref(): string {
-  return `/reservierungen/uebersicht?${RESERVATIONS_UNCONFIRMED_QUERY}=1`;
+  return `/dashboard/reservierungen/uebersicht?${RESERVATIONS_UNCONFIRMED_QUERY}=1`;
 }
 
 export function isUnconfirmedReservation(

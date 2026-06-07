@@ -5,6 +5,12 @@ import type {
 
 const OPEN_CONTRACT_END = "9999-12-31";
 
+/** PostgREST liefert `date` teils als ISO-String — für Vergleiche nur YYYY-MM-DD. */
+export function staffContractDateYmd(value: string | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  return value.slice(0, 10);
+}
+
 export function formatStaffEuroCents(cents: number | null | undefined): string {
   if (cents == null) return "—";
   return new Intl.NumberFormat("de-DE", {
@@ -21,10 +27,10 @@ export function staffContractActiveOnDay(
   contract: RestaurantStaffContractRow,
   dayYmd: string,
 ): boolean {
-  return (
-    contract.valid_from <= dayYmd &&
-    dayYmd <= contractRangeEnd(contract.valid_to)
-  );
+  const from = staffContractDateYmd(contract.valid_from);
+  const to = staffContractDateYmd(contractRangeEnd(contract.valid_to));
+  if (!from || !to) return false;
+  return from <= dayYmd && dayYmd <= to;
 }
 
 export function findStaffContractForDay(

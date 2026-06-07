@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -38,6 +38,7 @@ import {
   formatStaffContractLogSummary,
   insertStaffContractLogEntry,
 } from "@/lib/staff/staff-contract-log";
+import { notifyStaffContractsUpdated } from "@/lib/staff/staff-contract-events";
 import {
   findOverlappingStaffContract,
   formatStaffContractDateDe,
@@ -72,6 +73,7 @@ type StaffContractDrawerProps = {
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   staffId: string;
+  staffName?: string | null;
   contract: RestaurantStaffContractRow | null;
   existingContracts: readonly RestaurantStaffContractRow[];
   onSaved: () => void;
@@ -83,6 +85,7 @@ export function StaffContractDrawer({
   onOpenChange,
   restaurantId,
   staffId,
+  staffName,
   contract,
   existingContracts,
   onSaved,
@@ -98,6 +101,7 @@ export function StaffContractDrawer({
     StaffEmploymentType | ""
   >("");
   const [vacationDays, setVacationDays] = useState("");
+  const [targetWeeklyHours, setTargetWeeklyHours] = useState("");
   const [note, setNote] = useState("");
   const [logEntries, setLogEntries] = useState<RestaurantStaffContractLogEntry[]>(
     [],
@@ -128,6 +132,11 @@ export function StaffContractDrawer({
           ? String(contract.vacation_days_per_year)
           : "",
       );
+      setTargetWeeklyHours(
+        contract.target_weekly_minutes != null
+          ? String(Math.round((contract.target_weekly_minutes / 60) * 10) / 10)
+          : "",
+      );
       setNote(contract.note ?? "");
     } else {
       setValidFrom(new Date().toISOString().slice(0, 10));
@@ -137,6 +146,7 @@ export function StaffContractDrawer({
       setFixed("");
       setEmploymentType("");
       setVacationDays("");
+      setTargetWeeklyHours("");
       setNote("");
     }
   }, [open, contract]);
@@ -182,6 +192,17 @@ export function StaffContractDrawer({
       vacationDaysPerYear = n;
     }
 
+    let targetWeeklyMinutes: number | null = null;
+    const targetRaw = targetWeeklyHours.trim();
+    if (targetRaw) {
+      const parsed = Number.parseFloat(targetRaw.replace(",", "."));
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        toast.error("Bitte gültige Soll-Wochenstunden angeben oder leer lassen.");
+        return;
+      }
+      targetWeeklyMinutes = Math.round(parsed * 60);
+    }
+
     let hourlyCents: number | null = null;
     let fixedCents: number | null = null;
 
@@ -221,6 +242,7 @@ export function StaffContractDrawer({
       note: note.trim() || null,
       employment_type: employmentType || null,
       vacation_days_per_year: vacationDaysPerYear,
+      target_weekly_minutes: targetWeeklyMinutes,
     };
 
     const overlap = findOverlappingStaffContract(
@@ -260,7 +282,18 @@ export function StaffContractDrawer({
     );
 
     setPending(false);
-    toast.success("Vertrag gespeichert");
+    if (res.usedLegacyFields && targetWeeklyMinutes != null) {
+      toast.warning(
+        "Vertrag gespeichert, aber Soll-Wochenstunden fehlen in der Datenbank — bitte Migration ausführen (npx supabase db push).",
+      );
+    } else if (res.usedLegacyFields) {
+      toast.warning(
+        "Vertrag gespeichert, einige Felder konnten nicht übernommen werden — bitte Migration ausführen.",
+      );
+    } else {
+      toast.success("Vertrag gespeichert");
+    }
+    notifyStaffContractsUpdated();
     onSaved();
     onOpenChange(false);
   };
@@ -268,10 +301,15 @@ export function StaffContractDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
       <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-5 pt-2 pb-0 text-left">
+        <DrawerHeader className="shrink-0 px-5 pt-2 pb-3 text-left">
           <DrawerTitle>
             {editId ? "Vertrag bearbeiten" : "Neuer Vertrag"}
           </DrawerTitle>
+          {editId && staffName?.trim() ? (
+            <DrawerDescription className="text-sm text-muted-foreground">
+              {staffName.trim()}
+            </DrawerDescription>
+          ) : null}
         </DrawerHeader>
         <div
           className={cn(staffDrawerScrollClassName, "space-y-4 px-5 pb-2")}
@@ -391,6 +429,20 @@ export function StaffContractDrawer({
           </div>
 
           <div className="space-y-2">
+            <Label>Soll-Wochenstunden</Label>
+            <Input
+              value={targetWeeklyHours}
+              onChange={(e) => setTargetWeeklyHours(e.target.value)}
+              inputMode="decimal"
+              placeholder="z. B. 40"
+              className={staffDrawerFieldClassName}
+            />
+            <p className="text-xs text-muted-foreground">
+              Wird im Schichtplan zum Abgleich der geplanten Stunden genutzt.
+            </p>
+          </div>
+
+          <div className="space-y-2">
             <Label>Notiz</Label>
             <Textarea
               value={note}
@@ -444,28 +496,14 @@ export function StaffContractDrawer({
           ) : null}
         </div>
 
-        <div className="shrink-0 space-y-2 border-t border-border/50 px-5 pt-4 pb-6">
-          <Button
-            type="button"
-            className="w-full rounded-xl"
-            disabled={pending}
-            onClick={() => void save()}
-          >
-            {pending ? "Speichern …" : "Speichern"}
-          </Button>
-          {editId ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="w-full gap-2 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={pending}
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 className="size-4" />
-              Löschen
-            </Button>
-          ) : null}
-        </div>
+        <DrawerFormFooter
+          onCancel={() => onOpenChange(false)}
+          submitType="button"
+          onSubmit={() => void save()}
+          submitPending={pending}
+          showDelete={!!editId}
+          onDelete={() => setConfirmDelete(true)}
+        />
       </DrawerContent>
 
       <ConfirmDialog

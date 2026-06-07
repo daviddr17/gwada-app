@@ -7,6 +7,7 @@ import { Contact, Mail, Trash2 } from "lucide-react";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { Button } from "@/components/ui/button";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Drawer,
@@ -814,7 +815,7 @@ export function ReservationEditDrawer({
                   <Contact className="size-3.5 shrink-0" aria-hidden />
                   Verknüpft mit{" "}
                   <Link
-                    href={`/kontakte/uebersicht?contact=${reservation.contact_id}`}
+                    href={`/dashboard/kontakte/uebersicht?contact=${reservation.contact_id}`}
                     className="font-medium text-foreground underline underline-offset-2"
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -978,27 +979,14 @@ export function ReservationEditDrawer({
               </div>
             </div>
 
-            <div
-              data-vaul-no-drag
-              className="flex min-w-0 shrink-0 gap-2 overflow-x-hidden border-t border-border/50 px-6 py-3 touch-pan-y"
-            >
-              <Button
-                type="button"
-                variant="outline"
-                className="h-11 flex-1 rounded-xl"
-                onClick={() => onOpenChange(false)}
-              >
-                Abbrechen
-              </Button>
-              <Button
-                type="button"
-                className="h-11 flex-1 rounded-xl"
-                disabled={saving || !canSave}
-                onClick={handleSave}
-              >
-                Speichern
-              </Button>
-            </div>
+            <DrawerFormFooter
+              onCancel={() => onOpenChange(false)}
+              submitType="button"
+              onSubmit={handleSave}
+              submitPending={saving}
+              submitDisabled={!canSave}
+              className="touch-pan-y"
+            />
           </>
         ) : null}
       </DrawerContent>

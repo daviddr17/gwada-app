@@ -3,7 +3,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -491,26 +491,12 @@ export function DishForm({
         </div>
       </div>
 
-      <Separator />
-
-      <div className="flex gap-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        {onCancel && (
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1 rounded-xl tap-scale"
-            onClick={onCancel}
-          >
-            Abbrechen
-          </Button>
-        )}
-        <Button
-          type="submit"
-          className={cn("h-12 flex-1 ", brandActionButtonRoundedClassName)}
-        >
-          {mode === "edit" ? "Speichern" : "Hinzufügen"}
-        </Button>
-      </div>
+      <DrawerFormFooter
+        onCancel={() => onCancel?.()}
+        showCancel={!!onCancel}
+        submitType="submit"
+        submitLabel={mode === "edit" ? "Speichern" : "Hinzufügen"}
+      />
     </form>
 
     <ConfirmDialog

@@ -23,7 +23,7 @@ export function DashboardInventoryTile() {
       icon={
         <Package className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       }
-      href="/inventory/uebersicht"
+      href="/dashboard/inventory/uebersicht"
       linkLabel="Zum Bestand"
       ready={ready}
       loading={showSkeleton}
@@ -37,7 +37,7 @@ export function DashboardInventoryTile() {
         <DashboardCompactMetricPill
           label="Leerer Bestand"
           value={String(emptyStock)}
-          href="/inventory/uebersicht"
+          href="/dashboard/inventory/uebersicht"
           highlight={emptyStock > 0}
         />
         <DashboardCompactMetricPill
@@ -47,7 +47,7 @@ export function DashboardInventoryTile() {
               ? `${openOrders} · ${openLines} Pos.`
               : String(openOrders)
           }
-          href="/inventory/bestellung"
+          href="/dashboard/inventory/bestellung"
           highlight={openOrders > 0}
         />
       </DashboardCompactInlineMetrics>

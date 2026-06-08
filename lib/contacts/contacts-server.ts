@@ -19,7 +19,10 @@ import {
   fetchContactLexofficeLinkForContact,
   upsertContactLexofficeLink,
 } from "@/lib/supabase/contact-lexoffice-links-db";
-import { fetchRestaurantLexofficeConfig } from "@/lib/supabase/restaurant-lexoffice-integration-db";
+import {
+  fetchRestaurantLexofficeConfig,
+  fetchRestaurantLexofficeConfigAdmin,
+} from "@/lib/supabase/restaurant-lexoffice-integration-db";
 import type {
   ContactEmailInput,
   ContactListRow,
@@ -37,23 +40,28 @@ export type LexofficeContactsIntegrationStatus = {
 export async function resolveLexofficeContactsIntegration(
   sb: SupabaseClient,
   restaurantId: string,
+  options?: { verifyProfile?: boolean },
 ): Promise<
   | { ok: true; apiKey: string }
-  | { ok: false; status: LexofficeContactsIntegrationStatus }
+  | { ok: false; status: LexofficeContactsIntegrationStatus; error?: string }
 > {
   const platform = await assertPlatformLexofficeEnabled(sb);
   if (!platform.ok) {
     return {
       ok: false,
       status: { platformEnabled: false, connected: false },
+      error: "Lexware ist auf Plattform-Ebene deaktiviert.",
     };
   }
 
-  const row = await fetchRestaurantLexofficeConfig(sb, restaurantId);
+  const row =
+    (await fetchRestaurantLexofficeConfigAdmin(restaurantId)) ??
+    (await fetchRestaurantLexofficeConfig(sb, restaurantId));
   if (!row || row.status !== "working") {
     return {
       ok: false,
       status: { platformEnabled: true, connected: false },
+      error: "Lexware Office ist für dieses Restaurant nicht verbunden.",
     };
   }
 
@@ -62,15 +70,19 @@ export async function resolveLexofficeContactsIntegration(
     return {
       ok: false,
       status: { platformEnabled: true, connected: false },
+      error: "Lexware API-Key fehlt in den Einstellungen.",
     };
   }
 
-  const profile = await fetchLexofficeProfile(apiKey);
-  if (!profile.ok) {
-    return {
-      ok: false,
-      status: { platformEnabled: true, connected: false },
-    };
+  if (options?.verifyProfile) {
+    const profile = await fetchLexofficeProfile(apiKey);
+    if (!profile.ok) {
+      return {
+        ok: false,
+        status: { platformEnabled: true, connected: false },
+        error: profile.error,
+      };
+    }
   }
 
   return { ok: true, apiKey };
@@ -512,13 +524,20 @@ export async function fetchContactsForRestaurantServer(
 export async function loadLexofficeContactsForRestaurant(
   sb: SupabaseClient,
   restaurantId: string,
+  apiKey?: string,
 ): Promise<
   | { ok: true; contacts: LexofficeContact[] }
-  | { ok: false; contacts: LexofficeContact[]; error?: string }
+  | { ok: false; contacts: LexofficeContact[]; error: string }
 > {
-  const resolved = await resolveLexofficeContactsIntegration(sb, restaurantId);
+  const resolved = apiKey
+    ? ({ ok: true as const, apiKey })
+    : await resolveLexofficeContactsIntegration(sb, restaurantId);
   if (!resolved.ok) {
-    return { ok: false, contacts: [] };
+    return {
+      ok: false,
+      contacts: [],
+      error: resolved.error ?? "Lexware-Verbindung nicht verfügbar.",
+    };
   }
   const result = await fetchAllLexofficeContacts(resolved.apiKey);
   if (!result.ok) {

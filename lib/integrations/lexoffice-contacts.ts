@@ -96,14 +96,34 @@ async function lexofficeFetch<T>(
   }
 
   if (!res.ok) {
+    let detail: string | null = null;
+    try {
+      const body = (await res.json()) as {
+        message?: string;
+        error?: string;
+        title?: string;
+      };
+      detail =
+        body.message?.trim() ||
+        body.error?.trim() ||
+        body.title?.trim() ||
+        null;
+    } catch {
+      detail = null;
+    }
+
     if (res.status === 401 || res.status === 403) {
       return {
         ok: false,
-        error: "Ungültiger oder abgelaufener API-Key.",
+        error: detail ?? "Ungültiger oder abgelaufener API-Key.",
         status: res.status,
       };
     }
-    return { ok: false, error: `Lexware API (${res.status})`, status: res.status };
+    return {
+      ok: false,
+      error: detail ?? `Lexware API (${res.status})`,
+      status: res.status,
+    };
   }
 
   const data = (await res.json()) as T;

@@ -3,6 +3,7 @@ import {
   lexofficeConfigToPublic,
   type LexofficeIntegrationConfig,
 } from "@/lib/integrations/lexoffice-integration-config";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   RestaurantLexofficeIntegrationRow,
   RestaurantLexofficeStatus,
@@ -43,16 +44,18 @@ export async function fetchRestaurantLexofficeIntegration(
   return rowToLexofficeIntegration(row as Record<string, unknown> | null);
 }
 
-export async function fetchRestaurantLexofficeConfig(
-  sb: SupabaseClient,
-  restaurantId: string,
-): Promise<{
+export type RestaurantLexofficeConfigRow = {
   status: RestaurantLexofficeStatus;
   config: LexofficeIntegrationConfig;
   display_name: string | null;
   connected_at: string | null;
   last_error: string | null;
-} | null> {
+};
+
+async function fetchRestaurantLexofficeConfigWithClient(
+  sb: SupabaseClient,
+  restaurantId: string,
+): Promise<RestaurantLexofficeConfigRow | null> {
   const { data, error } = await sb
     .from("restaurant_integrations")
     .select("status, config, display_name, connected_at, last_error")
@@ -68,6 +71,22 @@ export async function fetchRestaurantLexofficeConfig(
     connected_at: (data.connected_at as string | null) ?? null,
     last_error: (data.last_error as string | null) ?? null,
   };
+}
+
+export async function fetchRestaurantLexofficeConfig(
+  sb: SupabaseClient,
+  restaurantId: string,
+): Promise<RestaurantLexofficeConfigRow | null> {
+  return fetchRestaurantLexofficeConfigWithClient(sb, restaurantId);
+}
+
+/** Server-seitig: API-Key für Lexware-Aufrufe (Service Role). */
+export async function fetchRestaurantLexofficeConfigAdmin(
+  restaurantId: string,
+): Promise<RestaurantLexofficeConfigRow | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+  return fetchRestaurantLexofficeConfigWithClient(admin, restaurantId);
 }
 
 export async function upsertRestaurantLexofficeIntegration(

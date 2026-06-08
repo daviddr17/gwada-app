@@ -1,7 +1,7 @@
 import {
   fetchContactsForRestaurantServer,
-  getLexofficeContactsIntegrationStatus,
   loadLexofficeContactsForRestaurant,
+  resolveLexofficeContactsIntegration,
 } from "@/lib/contacts/contacts-server";
 import { buildUnifiedContactList } from "@/lib/contacts/build-unified-contacts-server";
 import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
@@ -24,10 +24,10 @@ export async function GET(req: Request) {
   }
 
   const sb = await createSupabaseServerClient();
-  const integration = await getLexofficeContactsIntegrationStatus(
-    sb,
-    restaurantId,
-  );
+  const resolved = await resolveLexofficeContactsIntegration(sb, restaurantId);
+  const integration = resolved.ok
+    ? { platformEnabled: true, connected: true }
+    : resolved.status;
 
   const { data: gwadaRows, error } = await fetchContactsForRestaurantServer(
     sb,
@@ -37,29 +37,30 @@ export async function GET(req: Request) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 
-  let lexofficeContacts: Awaited<
+  let lexofficeContactRows: Awaited<
     ReturnType<typeof loadLexofficeContactsForRestaurant>
-  > = { ok: false, contacts: [] };
+  >["contacts"] = [];
   let lexofficeError: string | null = null;
 
-  if (integration.connected) {
-    lexofficeContacts = await loadLexofficeContactsForRestaurant(
+  if (resolved.ok) {
+    const lexofficeContacts = await loadLexofficeContactsForRestaurant(
       sb,
       restaurantId,
+      resolved.apiKey,
     );
+    lexofficeContactRows = lexofficeContacts.contacts;
     if (!lexofficeContacts.ok) {
-      lexofficeError =
-        lexofficeContacts.error ?? "Lexware-Kontakte nicht ladbar.";
+      lexofficeError = lexofficeContacts.error;
     }
   }
 
-  const links = integration.connected
+  const links = resolved.ok
     ? await fetchContactLexofficeLinks(sb, restaurantId)
     : [];
 
   const items = buildUnifiedContactList({
     gwadaRows,
-    lexofficeContacts: lexofficeContacts.contacts,
+    lexofficeContacts: lexofficeContactRows,
     links,
   });
 

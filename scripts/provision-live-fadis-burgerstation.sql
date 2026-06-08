@@ -146,28 +146,28 @@ begin
   on conflict (id) do nothing;
 
   insert into public.menu_items (id, restaurant_id, category_id, name, description, price, image_url, is_active) values
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Classic Smash', 'Doppelter Rindfleisch-Patty, Cheddar, Haus-Sauce, Salat, Tomate, Brioche-Bun.', 12.9, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa02', v_rid, 'fad77777-7777-4777-8777-777777777701', 'BBQ Bacon Station', 'Smash-Patty, knuspriger Bacon, BBQ-Glasur, Röstzwiebeln, Cheddar.', 14.5, 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa03', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Green Garden Burger', 'Beyond-Patty, Avocado, Rucola, veganes Aioli — komplett pflanzlich.', 13.9, 'https://images.unsplash.com/photo-1520072959219-c480dc77466a?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa04', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Chili Cheese Melt', 'Doppel-Cheddar, Jalapeños, Chipotle-Mayo — scharf & cremig.', 13.5, 'https://images.unsplash.com/photo-1594212699903-ec8a3eca094f?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa05', v_rid, 'fad77777-7777-4777-8777-777777777702', 'Truffle Fries', 'Handgeschnittene Fries mit Trüffelöl, Parmesan und Kräutersalz.', 6.9, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa06', v_rid, 'fad77777-7777-4777-8777-777777777702', 'Onion Rings', 'Knusprig paniert, mit Ranch-Dip.', 5.5, 'https://images.unsplash.com/photo-1639024471283-03518883512f?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa07', v_rid, 'fad77777-7777-4777-8777-777777777703', 'Craft Cola', 'Hausgemachte Cola mit Limette & Rohrzucker.', 3.9, 'https://images.unsplash.com/photo-1629203851122-3726d08c1614?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa08', v_rid, 'fad77777-7777-4777-8777-777777777703', 'Milkshake Vanille', 'Cremig, mit echter Vanille und Sahnehaube.', 5.9, 'https://images.unsplash.com/photo-1572490122747-3969b75c99cf?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa09', v_rid, 'fad77777-7777-4777-8777-777777777704', 'Brownie Sundae', 'Warmes Brownie mit Vanilleeis und Karamell.', 7.5, 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&q=80', true)
+    ('fada0001-0001-4001-8001-000000000001', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Classic Smash', 'Doppelter Rindfleisch-Patty, Cheddar, Haus-Sauce, Salat, Tomate, Brioche-Bun.', 12.9, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000002', v_rid, 'fad77777-7777-4777-8777-777777777701', 'BBQ Bacon Station', 'Smash-Patty, knuspriger Bacon, BBQ-Glasur, Röstzwiebeln, Cheddar.', 14.5, 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000003', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Green Garden Burger', 'Beyond-Patty, Avocado, Rucola, veganes Aioli — komplett pflanzlich.', 13.9, 'https://images.unsplash.com/photo-1520072959219-c480dc77466a?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000004', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Chili Cheese Melt', 'Doppel-Cheddar, Jalapeños, Chipotle-Mayo — scharf & cremig.', 13.5, 'https://images.unsplash.com/photo-1594212699903-ec8a3eca094f?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000005', v_rid, 'fad77777-7777-4777-8777-777777777702', 'Truffle Fries', 'Handgeschnittene Fries mit Trüffelöl, Parmesan und Kräutersalz.', 6.9, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000006', v_rid, 'fad77777-7777-4777-8777-777777777702', 'Onion Rings', 'Knusprig paniert, mit Ranch-Dip.', 5.5, 'https://images.unsplash.com/photo-1639024471283-03518883512f?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000007', v_rid, 'fad77777-7777-4777-8777-777777777703', 'Craft Cola', 'Hausgemachte Cola mit Limette & Rohrzucker.', 3.9, 'https://images.unsplash.com/photo-1629203851122-3726d08c1614?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000008', v_rid, 'fad77777-7777-4777-8777-777777777703', 'Milkshake Vanille', 'Cremig, mit echter Vanille und Sahnehaube.', 5.9, 'https://images.unsplash.com/photo-1572490122747-3969b75c99cf?w=800&q=80', true),
+    ('fada0001-0001-4001-8001-000000000009', v_rid, 'fad77777-7777-4777-8777-777777777704', 'Brownie Sundae', 'Warmes Brownie mit Vanilleeis und Karamell.', 7.5, 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&q=80', true)
   on conflict (id) do nothing;
 
   insert into public.menu_item_tags (menu_item_id, tag_id) values
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad88888-8888-4888-8888-888888888803'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa02', 'fad88888-8888-4888-8888-888888888803'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa03', 'fad88888-8888-4888-8888-888888888801'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa04', 'fad88888-8888-4888-8888-888888888802')
+    ('fada0001-0001-4001-8001-000000000001', 'fad88888-8888-4888-8888-888888888803'),
+    ('fada0001-0001-4001-8001-000000000002', 'fad88888-8888-4888-8888-888888888803'),
+    ('fada0001-0001-4001-8001-000000000003', 'fad88888-8888-4888-8888-888888888801'),
+    ('fada0001-0001-4001-8001-000000000004', 'fad88888-8888-4888-8888-888888888802')
   on conflict (menu_item_id, tag_id) do nothing;
 
   insert into public.menu_item_allergens (menu_item_id, allergen_id) values
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad99999-9999-4999-8999-999999999901'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad99999-9999-4999-8999-999999999902'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad99999-9999-4999-8999-999999999903')
+    ('fada0001-0001-4001-8001-000000000001', 'fad99999-9999-4999-8999-999999999901'),
+    ('fada0001-0001-4001-8001-000000000001', 'fad99999-9999-4999-8999-999999999902'),
+    ('fada0001-0001-4001-8001-000000000001', 'fad99999-9999-4999-8999-999999999903')
   on conflict (menu_item_id, allergen_id) do nothing;
 
   -- Bestand

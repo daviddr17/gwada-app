@@ -7,7 +7,7 @@ do $$
 declare
   v_email text := 'fadih32@gmail.com';
   v_user_id uuid;
-  v_rid uuid := 'fad22222-2222-4222-8222-burger0001'::uuid;
+  v_rid uuid := 'fad22222-2222-4222-8222-222222222201'::uuid;
   v_tz text := 'Europe/Berlin';
   v_local_today date;
   st_pending uuid;
@@ -16,24 +16,24 @@ declare
   pos_owner uuid;
   pos_kitchen uuid;
   pos_service uuid;
-  tag_grill uuid := 'fad33333-3333-4333-8333-taggrill01'::uuid;
-  tag_service uuid := 'fad33333-3333-4333-8333-tagservi01'::uuid;
-  staff_fadi uuid := 'fad44444-4444-4444-8444-stafffadi01'::uuid;
-  staff_grill uuid := 'fad44444-4444-4444-8444-staffgril01'::uuid;
-  staff_service uuid := 'fad44444-4444-4444-8444-staffserv01'::uuid;
-  res1 uuid := 'fad55555-5555-4555-8555-reserv0001'::uuid;
-  res2 uuid := 'fad55555-5555-4555-8555-reserv0002'::uuid;
-  res3 uuid := 'fad55555-5555-4555-8555-reserv0003'::uuid;
-  res4 uuid := 'fad55555-5555-4555-8555-reserv0004'::uuid;
-  inv1 uuid := 'fad66666-6666-4666-8666-invit0001'::uuid;
-  inv2 uuid := 'fad66666-6666-4666-8666-invit0002'::uuid;
-  inv3 uuid := 'fad66666-6666-4666-8666-invit0003'::uuid;
-  inv4 uuid := 'fad66666-6666-4666-8666-invit0004'::uuid;
+  tag_grill uuid := 'fad33333-3333-4333-8333-333333333301'::uuid;
+  tag_service uuid := 'fad33333-3333-4333-8333-333333333302'::uuid;
+  staff_fadi uuid := 'fad44444-4444-4444-8444-444444444401'::uuid;
+  staff_grill uuid := 'fad44444-4444-4444-8444-444444444402'::uuid;
+  staff_service uuid := 'fad44444-4444-4444-8444-444444444403'::uuid;
+  res1 uuid := 'fad55555-5555-4555-8555-555555555501'::uuid;
+  res2 uuid := 'fad55555-5555-4555-8555-555555555502'::uuid;
+  res3 uuid := 'fad55555-5555-4555-8555-555555555503'::uuid;
+  res4 uuid := 'fad55555-5555-4555-8555-555555555504'::uuid;
+  inv1 uuid := 'fad66666-6666-4666-8666-666666666601'::uuid;
+  inv2 uuid := 'fad66666-6666-4666-8666-666666666602'::uuid;
+  inv3 uuid := 'fad66666-6666-4666-8666-666666666603'::uuid;
+  inv4 uuid := 'fad66666-6666-4666-8666-666666666604'::uuid;
 begin
   select id into v_user_id from auth.users where lower(email) = lower(v_email) limit 1;
 
   if v_user_id is null then
-    v_user_id := 'fad11111-1111-4111-8111-fadih320001'::uuid;
+    v_user_id := 'fad11111-1111-4111-8111-111111111101'::uuid;
     insert into auth.users (
       id, instance_id, aud, role, email, encrypted_password,
       email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
@@ -127,47 +127,47 @@ begin
 
   -- Speisekarte
   insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active) values
-    ('fad77777-7777-4777-8777-catburger01', v_rid, 'Burger', 0, true),
-    ('fad77777-7777-4777-8777-catside001', v_rid, 'Beilagen', 1, true),
-    ('fad77777-7777-4777-8777-catdrink01', v_rid, 'Getränke', 2, true),
-    ('fad77777-7777-4777-8777-catdess001', v_rid, 'Desserts', 3, true)
+    ('fad77777-7777-4777-8777-777777777701', v_rid, 'Burger', 0, true),
+    ('fad77777-7777-4777-8777-777777777702', v_rid, 'Beilagen', 1, true),
+    ('fad77777-7777-4777-8777-777777777703', v_rid, 'Getränke', 2, true),
+    ('fad77777-7777-4777-8777-777777777704', v_rid, 'Desserts', 3, true)
   on conflict (id) do nothing;
 
   insert into public.menu_tags (id, restaurant_id, name, background_color, sort_order, is_active) values
-    ('fad88888-8888-4888-8888-tagvegan01', v_rid, 'Vegan', '#059669', 0, true),
-    ('fad88888-8888-4888-8888-tagspicy01', v_rid, 'Spicy', '#ea580c', 1, true),
-    ('fad88888-8888-4888-8888-tagbests01', v_rid, 'Bestseller', '#ca8a04', 2, true)
+    ('fad88888-8888-4888-8888-888888888801', v_rid, 'Vegan', '#059669', 0, true),
+    ('fad88888-8888-4888-8888-888888888802', v_rid, 'Spicy', '#ea580c', 1, true),
+    ('fad88888-8888-4888-8888-888888888803', v_rid, 'Bestseller', '#ca8a04', 2, true)
   on conflict (id) do nothing;
 
   insert into public.menu_allergens (id, restaurant_id, name, background_color, sort_order, is_active) values
-    ('fad99999-9999-4999-8999-allgluten1', v_rid, 'Gluten', '#d97706', 0, true),
-    ('fad99999-9999-4999-8999-allmilch01', v_rid, 'Milch', '#0284c7', 1, true),
-    ('fad99999-9999-4999-8999-allsesam01', v_rid, 'Sesam', '#ca8a04', 2, true)
+    ('fad99999-9999-4999-8999-999999999901', v_rid, 'Gluten', '#d97706', 0, true),
+    ('fad99999-9999-4999-8999-999999999902', v_rid, 'Milch', '#0284c7', 1, true),
+    ('fad99999-9999-4999-8999-999999999903', v_rid, 'Sesam', '#ca8a04', 2, true)
   on conflict (id) do nothing;
 
   insert into public.menu_items (id, restaurant_id, category_id, name, description, price, image_url, is_active) values
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00001', v_rid, 'fad77777-7777-4777-8777-catburger01', 'Classic Smash', 'Doppelter Rindfleisch-Patty, Cheddar, Haus-Sauce, Salat, Tomate, Brioche-Bun.', 12.9, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00002', v_rid, 'fad77777-7777-4777-8777-catburger01', 'BBQ Bacon Station', 'Smash-Patty, knuspriger Bacon, BBQ-Glasur, Röstzwiebeln, Cheddar.', 14.5, 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00003', v_rid, 'fad77777-7777-4777-8777-catburger01', 'Green Garden Burger', 'Beyond-Patty, Avocado, Rucola, veganes Aioli — komplett pflanzlich.', 13.9, 'https://images.unsplash.com/photo-1520072959219-c480dc77466a?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00004', v_rid, 'fad77777-7777-4777-8777-catburger01', 'Chili Cheese Melt', 'Doppel-Cheddar, Jalapeños, Chipotle-Mayo — scharf & cremig.', 13.5, 'https://images.unsplash.com/photo-1594212699903-ec8a3eca094f?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00005', v_rid, 'fad77777-7777-4777-8777-catside001', 'Truffle Fries', 'Handgeschnittene Fries mit Trüffelöl, Parmesan und Kräutersalz.', 6.9, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00006', v_rid, 'fad77777-7777-4777-8777-catside001', 'Onion Rings', 'Knusprig paniert, mit Ranch-Dip.', 5.5, 'https://images.unsplash.com/photo-1639024471283-03518883512f?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00007', v_rid, 'fad77777-7777-4777-8777-catdrink01', 'Craft Cola', 'Hausgemachte Cola mit Limette & Rohrzucker.', 3.9, 'https://images.unsplash.com/photo-1629203851122-3726d08c1614?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00008', v_rid, 'fad77777-7777-4777-8777-catdrink01', 'Milkshake Vanille', 'Cremig, mit echter Vanille und Sahnehaube.', 5.9, 'https://images.unsplash.com/photo-1572490122747-3969b75c99cf?w=800&q=80', true),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00009', v_rid, 'fad77777-7777-4777-8777-catdess001', 'Brownie Sundae', 'Warmes Brownie mit Vanilleeis und Karamell.', 7.5, 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&q=80', true)
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Classic Smash', 'Doppelter Rindfleisch-Patty, Cheddar, Haus-Sauce, Salat, Tomate, Brioche-Bun.', 12.9, 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa02', v_rid, 'fad77777-7777-4777-8777-777777777701', 'BBQ Bacon Station', 'Smash-Patty, knuspriger Bacon, BBQ-Glasur, Röstzwiebeln, Cheddar.', 14.5, 'https://images.unsplash.com/photo-1553979459-d2229ba7433b?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa03', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Green Garden Burger', 'Beyond-Patty, Avocado, Rucola, veganes Aioli — komplett pflanzlich.', 13.9, 'https://images.unsplash.com/photo-1520072959219-c480dc77466a?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa04', v_rid, 'fad77777-7777-4777-8777-777777777701', 'Chili Cheese Melt', 'Doppel-Cheddar, Jalapeños, Chipotle-Mayo — scharf & cremig.', 13.5, 'https://images.unsplash.com/photo-1594212699903-ec8a3eca094f?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa05', v_rid, 'fad77777-7777-4777-8777-777777777702', 'Truffle Fries', 'Handgeschnittene Fries mit Trüffelöl, Parmesan und Kräutersalz.', 6.9, 'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa06', v_rid, 'fad77777-7777-4777-8777-777777777702', 'Onion Rings', 'Knusprig paniert, mit Ranch-Dip.', 5.5, 'https://images.unsplash.com/photo-1639024471283-03518883512f?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa07', v_rid, 'fad77777-7777-4777-8777-777777777703', 'Craft Cola', 'Hausgemachte Cola mit Limette & Rohrzucker.', 3.9, 'https://images.unsplash.com/photo-1629203851122-3726d08c1614?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa08', v_rid, 'fad77777-7777-4777-8777-777777777703', 'Milkshake Vanille', 'Cremig, mit echter Vanille und Sahnehaube.', 5.9, 'https://images.unsplash.com/photo-1572490122747-3969b75c99cf?w=800&q=80', true),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa09', v_rid, 'fad77777-7777-4777-8777-777777777704', 'Brownie Sundae', 'Warmes Brownie mit Vanilleeis und Karamell.', 7.5, 'https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=800&q=80', true)
   on conflict (id) do nothing;
 
   insert into public.menu_item_tags (menu_item_id, tag_id) values
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00001', 'fad88888-8888-4888-8888-tagbests01'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00002', 'fad88888-8888-4888-8888-tagbests01'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00003', 'fad88888-8888-4888-8888-tagvegan01'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00004', 'fad88888-8888-4888-8888-tagspicy01')
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad88888-8888-4888-8888-888888888803'),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa02', 'fad88888-8888-4888-8888-888888888803'),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa03', 'fad88888-8888-4888-8888-888888888801'),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa04', 'fad88888-8888-4888-8888-888888888802')
   on conflict (menu_item_id, tag_id) do nothing;
 
   insert into public.menu_item_allergens (menu_item_id, allergen_id) values
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00001', 'fad99999-9999-4999-8999-allgluten1'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00001', 'fad99999-9999-4999-8999-allmilch01'),
-    ('fadaaaaa-aaaa-4aaa-8aaa-item00001', 'fad99999-9999-4999-8999-allsesam01')
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad99999-9999-4999-8999-999999999901'),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad99999-9999-4999-8999-999999999902'),
+    ('fadaaaaa-aaaa-4aaa-8aaa-aaaaaaaaa01', 'fad99999-9999-4999-8999-999999999903')
   on conflict (menu_item_id, allergen_id) do nothing;
 
   -- Bestand
@@ -278,9 +278,9 @@ begin
 
   insert into public.gwada_reviews (id, restaurant_id, reservation_id, invitation_id, rating, comment, guest_display_name, created_at)
   values
-    ('fadbbbb-bbbb-4bbb-8bbb-rev000001', v_rid, res1, inv1, 5, 'Bester Smash Burger in Kreuzberg! Super schneller Service.', 'Tim Schneider', timezone('utc', now()) - interval '2 days'),
-    ('fadbbbb-bbbb-4bbb-8bbb-rev000002', v_rid, res3, inv2, 4, 'Leckere Fries, etwas voll am Abend — trotzdem top.', 'Markus Lehmann', timezone('utc', now()) - interval '1 day'),
-    ('fadbbbb-bbbb-4bbb-8bbb-rev000003', v_rid, res4, inv4, 5, 'BBQ Bacon Station ist der Hammer. Komme wieder!', 'Elena Vogt', timezone('utc', now()) - interval '5 days')
+    ('fadbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb01', v_rid, res1, inv1, 5, 'Bester Smash Burger in Kreuzberg! Super schneller Service.', 'Tim Schneider', timezone('utc', now()) - interval '2 days'),
+    ('fadbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb02', v_rid, res3, inv2, 4, 'Leckere Fries, etwas voll am Abend — trotzdem top.', 'Markus Lehmann', timezone('utc', now()) - interval '1 day'),
+    ('fadbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb03', v_rid, res4, inv4, 5, 'BBQ Bacon Station ist der Hammer. Komme wieder!', 'Elena Vogt', timezone('utc', now()) - interval '5 days')
   on conflict (id) do nothing;
 
   raise notice 'provision-fadis: OK user=% restaurant=%', v_user_id, v_rid;

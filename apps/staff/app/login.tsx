@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -45,9 +46,11 @@ export default function LoginScreen() {
       >
         <View style={styles.container}>
           <View style={styles.brand}>
-            <View style={styles.logo}>
-              <Text style={styles.logoText}>G</Text>
-            </View>
+            <Image
+              source={require("../../assets/images/icon.png")}
+              style={styles.logo}
+              accessibilityLabel="Gwada Staff"
+            />
             <Text style={styles.title}>Gwada Staff</Text>
             <Text style={styles.subtitle}>Mitarbeiter-Login</Text>
           </View>
@@ -103,14 +106,6 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 18,
-    backgroundColor: gwadaColors.accent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  logoText: {
-    color: gwadaColors.accentForeground,
-    fontSize: 32,
-    fontWeight: "700",
   },
   title: {
     fontSize: 26,

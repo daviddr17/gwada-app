@@ -11,9 +11,9 @@ import { Card, ScreenHeader } from "@/src/components/ui";
 import {
   fetchActiveOrders,
   fetchPaidTodayOrders,
-  PosApiError,
   type PosOrderDto,
 } from "@/src/lib/pos-api";
+import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { getGwadaApiBaseUrl } from "@/src/lib/env";
 import { useAuthStore } from "@/src/stores/auth-store";
@@ -28,9 +28,7 @@ function statusLabel(order: PosOrderDto, tab: OrdersTab): string {
 }
 
 function ordersErrorMessage(error: unknown): string {
-  if (error instanceof PosApiError) return error.message;
-  if (error instanceof Error) return error.message;
-  return "Bestellungen konnten nicht geladen werden.";
+  return posApiErrorMessage(error, "Bestellungen konnten nicht geladen werden.");
 }
 
 function receiptUrlFor(order: PosOrderDto): string | null {

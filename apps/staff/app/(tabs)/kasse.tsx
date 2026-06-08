@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
 import {
   Alert,
   ScrollView,
@@ -27,9 +26,9 @@ import {
   fetchZReportPdf,
   listRegisterSessions,
   openRegister,
-  PosApiError,
   type RegisterSessionSummary,
 } from "@/src/lib/pos-api";
+import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
 
@@ -50,7 +49,6 @@ function formatDateTime(iso: string | null): string {
 }
 
 export default function KasseScreen() {
-  const router = useRouter();
   const restaurantId = useAuthStore((s) => s.activeRestaurantId);
   const { has, loading: permsLoading } = useStaffPermissions();
   const canManage = has("pos.kasse.manage");
@@ -85,13 +83,7 @@ export default function KasseScreen() {
   const showSkeleton = useDeferredSkeleton(isLoading || permsLoading);
 
   const handleError = (err: unknown, fallback: string) => {
-    const message =
-      err instanceof PosApiError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : fallback;
-    Alert.alert("Fehler", message);
+    Alert.alert("Fehler", posApiErrorMessage(err, fallback));
   };
 
   const handleOpen = async () => {
@@ -209,7 +201,6 @@ export default function KasseScreen() {
           <Text style={styles.muted}>
             Für Kassenfunktionen brauchst du pos.kasse.manage oder pos.kasse.export.
           </Text>
-          <Button label="Zurück" variant="secondary" onPress={() => router.back()} />
         </View>
       </SafeAreaView>
     );

@@ -10,9 +10,9 @@ import { Card } from "@/src/components/ui";
 import {
   collectCash,
   fetchOrder,
-  PosApiError,
   retryFiskalySigning,
 } from "@/src/lib/pos-api";
+import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
@@ -50,14 +50,7 @@ export default function OrderDetailScreen() {
       await refetch();
       Alert.alert("TSE", "Signatur erneut angefordert.");
     } catch (err) {
-      Alert.alert(
-        "TSE fehlgeschlagen",
-        err instanceof PosApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unbekannter Fehler",
-      );
+      Alert.alert("TSE fehlgeschlagen", posApiErrorMessage(err, "Unbekannter Fehler"));
     } finally {
       setRetryingTse(false);
     }
@@ -79,11 +72,7 @@ export default function OrderDetailScreen() {
     } catch (err) {
       Alert.alert(
         "Zahlung fehlgeschlagen",
-        err instanceof PosApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Unbekannter Fehler",
+        posApiErrorMessage(err, "Unbekannter Fehler"),
       );
     } finally {
       setPaying(false);

@@ -85,7 +85,7 @@
 | 2 | Kasse öffnen (Anfangsbestand) | Register-Session `open` |
 | 3 | Zahlung TC-03 | TSE-Signatur erfolgreich |
 | 4 | Kasse schließen (Z-Bon, Endbestand) | Antwort **&lt; 10 s**, Erfolg-Toast; **kein** Timeout-Fehler |
-| 5 | Terminal-Log | `POST …/register/close` ohne 12-s-Blockade durch ZIP-Export |
+| 5 | Terminal-Log | `POST …/register/close` antwortet schnell (kein serverseitiger ZIP-Upload) |
 
 **Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
 
@@ -96,7 +96,7 @@
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
 | 1 | Nach TC-05 (Z-Bon) | Fiskaly-Export typisch nach wenigen Sekunden `COMPLETED` (kein Server-Cache) |
-| 2 | Staff → Kasse | Geschlossene Sitzung: Button **„ZIP teilen“** sichtbar |
+| 2 | Staff → Tab **Kasse** | Geschlossene Sitzung: Button **„ZIP teilen“** sichtbar |
 | 3 | **ZIP teilen** tippen | Ladevorgang (einige Sekunden), dann iOS Share-Sheet, Dateiname `dsfinvk-YYYY-MM-DD.zip` |
 | 4 | Terminal-Log | `GET …/register/sessions/{id}/dsfinvk-download` → **200**, `Content-Type: application/zip`, Header `X-Dsfinvk-Source` |
 | 5 | DB / Storage | **Kein** `dsfinvk_export_storage_path`, **keine** ZIP in `pos-receipts` (Runtime-only) |
@@ -119,9 +119,18 @@
 
 ---
 
+## Automatisierte Vorprüfung (Agent/CI)
+
+```bash
+pnpm --filter web exec tsc --noEmit
+pnpm --filter staff exec tsc --noEmit
+node scripts/test-dsfinvk-runtime-export.mjs
+node scripts/verify-dsfinvk-session-export.mjs
+```
+
 ## Bekannte Lücken (noch nicht in diesem Protokoll)
 
-- **Mollie-Zahlung** — Phase 4 Restarbeit (bewusst nach Cash+MVP)
+- **Mollie-Zahlung** — nach TestFlight/Staging-Domain (Webhook braucht öffentliche URL, localhost ungeeignet)
 - **Magic-Link-Login** — Staff nutzt aktuell Passwort
 - **TestFlight** — Apple Team ID + Bundle ID noch offen
 
@@ -131,4 +140,4 @@
 
 | Datum | Tester | TC-01 | TC-02 | TC-03 | TC-04 | TC-05 | TC-06 | TC-07 |
 |-------|--------|-------|-------|-------|-------|-------|-------|-------|
-| | | | | | | | | |
+| 2026-06-08 | Nutzer + Agent | ✓ | ✓ | ✓ | ✓ | ✓ | offen | ✓ (Runtime-Script + Share) |

@@ -226,6 +226,7 @@ Secrets nur über `platform_integrations` (Superadmin UI):
 - [x] TSE + PDF-Beleg über Web-API (Viewer + Teilen)
 - [x] Skeleton-Loader auf Hauptscreens (`useDeferredSkeleton`)
 - [x] iOS-Target: `app.gwada.staff`, Simulator-Script `scripts/staff-ios-simulator.sh`
+- [x] Kasse-Tab (bei `pos.kasse.*`), DSFinV-K Runtime-Export, Speisekarte nach Kategorien
 
 **UI:** komplett neu — kein Copy der alten Screens. Orientierung an Gwada-Web (Typografie, Akzent, Karten).
 
@@ -233,10 +234,10 @@ Secrets nur über `platform_integrations` (Superadmin UI):
 
 ### Phase 6 — Manuelle Releases ← **aktuell**
 
-- [ ] Expo lokal: `npx expo run:ios` / EAS optional später
+- [ ] Expo lokal: `npx expo run:ios` / EAS optional später — Anleitung [`staff-app-testflight.md`](./staff-app-testflight.md)
 - [ ] TestFlight manuell (kein CI für Mobile in Phase 1)
 - [x] Internes Testprotokoll: [`staff-app-e2e-test-protocol.md`](./staff-app-e2e-test-protocol.md)
-- [ ] Protokoll einmal vollständig durchspielen und Ergebnis-Log ausfüllen
+- [x] Protokoll TC-01–05 + TC-07 durchgespielt; TC-06 (TSE-Retry Fehlerfall) offen
 
 ---
 
@@ -286,7 +287,7 @@ Gwada portiert diese Logik nach **Next.js API Routes** + **Supabase** (kein Nest
 | Thema | Stand |
 |-------|-------|
 | **Ansatz** | Neubau + Salvage (Loyaro als Referenz) |
-| **Mollie** | ✅ **Option C (Hybrid)** — Ziel pro Restaurant, Plattform-Test-Key als Dev-Fallback, Bar+Fiskaly vor Mollie |
+| **Mollie** | ⏸️ **Zurückgestellt** — Option C (Hybrid); Webhook braucht öffentliche Domain (`new.gwada.app`), nicht localhost |
 | **Fiskaly TEST** | ✅ Credentials vorhanden |
 | **Apple / Bundle ID** | ⏳ wird später angelegt (Dev: Simulator / Expo Go) |
 | **Package Manager** | ✅ **pnpm** (Workspaces, Lockfile `pnpm-lock.yaml`) |
@@ -309,5 +310,6 @@ Details: [`expo-staff-salvage-audit.md` → Mollie-Strategie](./expo-staff-salva
 4. ~~Phase 3 POS-Schema~~ — erledigt
 5. ~~Phase 4 MVP~~ — Cash + Fiskaly + PDF; Mollie bewusst offen
 6. ~~Phase 5 MVP~~ — Staff-App lauffähig; Branding/Magic-Link offen
-7. **Phase 6:** E2E-Protokoll durchspielen → Blocker fixen → `expo run:ios` / TestFlight-Vorbereitung
-8. **Danach:** Mollie (Superadmin + Pay + Webhook) oder Gäste-App (Phase 7)
+7. **Phase 6 (läuft):** TC-06 abschließen → `expo run:ios` / TestFlight ([`staff-app-testflight.md`](./staff-app-testflight.md))
+8. **Danach:** Mollie auf Staging/Live-Domain (Superadmin + Pay + Webhook)
+9. **Später:** Gäste-App (Phase 7)

@@ -3,8 +3,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
-  FlatList,
   Pressable,
+  SectionList,
   StyleSheet,
   Text,
   View,
@@ -14,6 +14,7 @@ import { Button } from "@/src/components/Button";
 import { SkeletonList } from "@/src/components/Skeleton";
 import { Card } from "@/src/components/ui";
 import { createOrder } from "@/src/lib/pos-api";
+import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { getStaffSupabase } from "@/src/lib/supabase";
 import { useAuthStore } from "@/src/stores/auth-store";
@@ -24,6 +25,12 @@ type MenuItemRow = {
   name: string;
   price: number;
   is_active: boolean;
+  category_id: string;
+  menu_categories: {
+    id: string;
+    name: string;
+    sort_order: number;
+  } | null;
 };
 
 type CartLine = {
@@ -51,7 +58,9 @@ export default function NewOrderScreen() {
       const sb = getStaffSupabase();
       const { data, error } = await sb
         .from("menu_items")
-        .select("id, name, price, is_active")
+        .select(
+          "id, name, price, is_active, category_id, menu_categories(id, name, sort_order)",
+        )
         .eq("restaurant_id", restaurantId!)
         .eq("is_active", true)
         .order("name");
@@ -69,6 +78,30 @@ export default function NewOrderScreen() {
     () => cart.reduce((sum, line) => sum + line.quantity, 0),
     [cart],
   );
+
+  const menuSections = useMemo(() => {
+    const grouped = new Map<
+      string,
+      { title: string; sortOrder: number; data: MenuItemRow[] }
+    >();
+
+    for (const item of menuItems ?? []) {
+      const category = item.menu_categories;
+      const key = category?.id ?? "other";
+      const title = category?.name ?? "Sonstiges";
+      const sortOrder = category?.sort_order ?? 9999;
+      const bucket = grouped.get(key) ?? { title, sortOrder, data: [] };
+      bucket.data.push(item);
+      grouped.set(key, bucket);
+    }
+
+    return [...grouped.values()]
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))
+      .map((section) => ({
+        title: section.title,
+        data: section.data.sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+  }, [menuItems]);
 
   const showSkeleton = useDeferredSkeleton(isLoading);
 
@@ -122,7 +155,7 @@ export default function NewOrderScreen() {
     } catch (err) {
       Alert.alert(
         "Bestellung fehlgeschlagen",
-        err instanceof Error ? err.message : "Unbekannter Fehler",
+        posApiErrorMessage(err, "Unbekannter Fehler"),
       );
     } finally {
       setSubmitting(false);
@@ -138,8 +171,8 @@ export default function NewOrderScreen() {
       {showSkeleton ? (
         <SkeletonList count={8} />
       ) : (
-        <FlatList
-          data={menuItems ?? []}
+        <SectionList
+          sections={menuSections}
           keyExtractor={(item) => item.id}
           contentContainerStyle={[
             styles.list,
@@ -148,6 +181,9 @@ export default function NewOrderScreen() {
           ListEmptyComponent={
             <Text style={styles.empty}>Keine aktiven Gerichte in der Speisekarte.</Text>
           }
+          renderSectionHeader={({ section }) => (
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+          )}
           renderItem={({ item }) => (
             <Card onPress={() => addItem(item)}>
               <Text style={styles.itemName}>{item.name}</Text>
@@ -224,7 +260,16 @@ const styles = StyleSheet.create({
     color: gwadaColors.textMuted,
     marginBottom: gwadaSpacing.md,
   },
-  list: { gap: 10, paddingBottom: gwadaSpacing.lg },
+  list: { paddingBottom: gwadaSpacing.lg },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: gwadaColors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginTop: gwadaSpacing.md,
+    marginBottom: gwadaSpacing.sm,
+  },
   listWithCart: { paddingBottom: 220 },
   empty: { textAlign: "center", color: gwadaColors.textMuted, padding: 24 },
   itemName: { fontSize: 16, fontWeight: "600", color: gwadaColors.text },

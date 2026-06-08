@@ -5,7 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { SkeletonList } from "@/src/components/Skeleton";
 import { Card, ScreenHeader } from "@/src/components/ui";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
-import { openTableSession, PosApiError } from "@/src/lib/pos-api";
+import { openTableSession } from "@/src/lib/pos-api";
+import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { getStaffSupabase } from "@/src/lib/supabase";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
@@ -53,13 +54,10 @@ export default function TablesScreen() {
         },
       });
     } catch (err) {
-      const message =
-        err instanceof PosApiError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Tisch-Session konnte nicht geöffnet werden.";
-      Alert.alert("Tisch öffnen fehlgeschlagen", message);
+      Alert.alert(
+        "Tisch öffnen fehlgeschlagen",
+        posApiErrorMessage(err, "Tisch-Session konnte nicht geöffnet werden."),
+      );
     }
   };
 

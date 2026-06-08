@@ -1,5 +1,6 @@
 "use client";
 
+import { DashboardFab } from "@/components/dashboard/dashboard-fab";
 import { AppMain } from "@/components/layout/app-main";
 import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-inbox-background-sync-mount";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
@@ -19,6 +20,7 @@ export default function DashboardHomeLayout({
         subnavItems={null}
       />
       <AppMain>{children}</AppMain>
+      <DashboardFab />
     </>
   );
 }

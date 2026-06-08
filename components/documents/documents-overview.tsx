@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Download,
   FileText,
@@ -149,6 +150,9 @@ function DocumentTagChip({
 }
 
 export function DocumentsOverview() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has: hasPermission } = useRestaurantPermissions();
   const canEditDocumentNotes = hasPermission("documents.notes.edit");
@@ -183,6 +187,17 @@ export function DocumentsOverview() {
   const [protocolDoc, setProtocolDoc] = useState<RestaurantDocumentRow | null>(
     null,
   );
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setFormMode("upload");
+    setEditDoc(null);
+    setFormOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const activeTags = useMemo(
     () => documentTags.items.filter((t) => t.active !== false),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,9 @@ export function StaffWorkHoursView({
   staffId,
   allowEdit = true,
 }: StaffWorkHoursViewProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,6 +119,17 @@ export function StaffWorkHoursView({
     null,
   );
   const [dayForNew, setDayForNew] = useState<Date | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setEditEntry(null);
+    setDayForNew(startOfLocalDay(new Date()));
+    setDrawerOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const monthStart = useMemo(
     () => startOfLocalDay(new Date(cursor.year, cursor.month, 1)),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -94,6 +95,9 @@ export function StaffShiftPlanScreen({
   personalMode = false,
   personalStaffId = null,
 }: StaffShiftPlanScreenProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const positionTags = useStaffPositionTagsStorage(restaurantId);
 
@@ -138,6 +142,27 @@ export function StaffShiftPlanScreen({
   const [editTemplate, setEditTemplate] = useState<RestaurantShiftTemplateRow | null>(
     null,
   );
+
+  useEffect(() => {
+    const newParam = searchParams.get("new");
+    if (!newParam) return;
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    if (newParam === "template") {
+      setTemplateDrawerMode("create");
+      setEditTemplate(null);
+      setTemplateDrawerOpen(true);
+      return;
+    }
+    if (newParam === "1") {
+      setEditShift(null);
+      setDefaultStaffId(null);
+      setDefaultDay(new Date());
+      setDrawerOpen(true);
+    }
+  }, [searchParams, router, pathname]);
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shiftToDelete, setShiftToDelete] =

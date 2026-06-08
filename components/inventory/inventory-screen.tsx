@@ -11,6 +11,7 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient-stock-protocol-drawer";
@@ -527,6 +528,9 @@ function InventoryTableUnitSelect({
 }
 
 export function InventoryScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const suppliers = useInventoryTaxonomyStorage(
     INVENTORY_SUPPLIERS_KEY,
     SEED_SUPPLIERS,
@@ -593,6 +597,15 @@ export function InventoryScreen() {
       }
   >(null);
   const [ingredientDrawerOpen, setIngredientDrawerOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setIngredientDrawerOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const storeFor = useCallback(
     (kind: InventoryTaxonomyKind): TaxonomyStore => {

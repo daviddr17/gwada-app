@@ -1,6 +1,6 @@
 {
-  "title": "Lexware Office: Kontakte synchronisieren",
-  "body": "- **Lexware Office (neu):** Integration in den Einstellungen mit API-Key pro Restaurant — Kontakte aus Gwada und Lexware in einer Übersicht, Filter nach Quelle (Alle / Gwada / Lexware)\n- **Kontakte:** Beim Anlegen optional direkt in Lexware anlegen; bei bestehenden Kontakten im Drawer „In Lexware hinzufügen“ oder „Mit Lexware verknüpfen“, wenn dort bereits ein Treffer per E-Mail oder Telefon existiert\n- **Demnächst:** Angebote und Rechnungen aus Lexware Office in Gwada",
+  "title": "Dashboard: Schnellaktionen per Plus-Button",
+  "body": "- **Dashboard (neu):** Plus-Button unten rechts öffnet ein animiertes Menü mit Shortcuts — z. B. neue Reservierung, Gericht, Zutat, Kontakt, Schicht oder Arbeitszeit\n- **Einstellungen → Dashboard:** Bis zu 5 Shortcuts festlegen, Reihenfolge per Drag & Drop, einzelne Aktionen optional ausblenden\n- **Direktstart:** Shortcut öffnet das passende Modul und den Anlege-Dialog (Bottom Sheet / Drawer)",
   "audience": "customers",
-  "version": "2026.06.10"
+  "version": "2026.06.11"
 }

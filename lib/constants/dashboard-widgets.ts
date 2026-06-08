@@ -1,3 +1,8 @@
+import {
+  defaultDashboardShortcutPrefs,
+  type DashboardShortcutPrefs,
+} from "@/lib/constants/dashboard-shortcuts";
+
 export type DashboardWidgetId =
   | "menu"
   | "reservations"
@@ -19,6 +24,7 @@ const LEGACY_MENU_WIDGET_IDS = [
 export type DashboardWidgetPrefs = {
   visibility: Record<DashboardWidgetId, boolean>;
   order: DashboardWidgetId[];
+  shortcuts: DashboardShortcutPrefs;
 };
 
 export const DASHBOARD_WIDGET_STORAGE_KEY = "gwada-dashboard-widgets";
@@ -158,6 +164,14 @@ export function normalizeWidgetOrder(input: unknown): DashboardWidgetId[] {
     if (!seen.has(id)) out.push(id);
   }
   return out;
+}
+
+export function defaultDashboardWidgetPrefs(): DashboardWidgetPrefs {
+  return {
+    visibility: { ...DEFAULT_DASHBOARD_WIDGET_VISIBILITY },
+    order: [...DEFAULT_DASHBOARD_WIDGET_ORDER],
+    shortcuts: defaultDashboardShortcutPrefs(),
+  };
 }
 
 export function reorderDashboardWidgetOrder(

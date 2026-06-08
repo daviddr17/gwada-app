@@ -216,6 +216,20 @@ export function ContactsOverview() {
     router.replace(q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht");
   }, [contactParam, router, searchParams]);
 
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setCreateDraft(null);
+    setEditContactId(null);
+    setDrawerOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(
+      q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht",
+      { scroll: false },
+    );
+  }, [searchParams, router]);
+
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) {
       setSortKey(key);

@@ -2,6 +2,7 @@
 
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
@@ -51,6 +52,9 @@ function formatEuro(cents: number): string {
 }
 
 export function StaffOverviewScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const positionTags = useStaffPositionTagsStorage(restaurantId);
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
@@ -91,6 +95,17 @@ export function StaffOverviewScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setFormMode("create");
+    setEditStaff(null);
+    setFormOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const reloadContracts = useCallback(async () => {
     if (!restaurantId) return;

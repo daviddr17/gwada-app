@@ -8,6 +8,7 @@ import {
   MENU_TAXONOMY_ALLERGENS_KEY,
   MENU_TAXONOMY_TAGS_KEY,
 } from "@/lib/constants/menu-taxonomy-storage";
+import { defaultDashboardShortcutPrefs } from "@/lib/constants/dashboard-shortcuts";
 import {
   DASHBOARD_WIDGET_STORAGE_KEY,
   DEFAULT_DASHBOARD_WIDGET_ORDER,
@@ -157,6 +158,7 @@ export async function migrateDashboardWidgetsFromLegacyAppStateIfEmpty(
   await upsertUserRestaurantDashboardWidgets(profileId, restaurantId, {
     visibility,
     order,
+    shortcuts: defaultDashboardShortcutPrefs(),
   });
 }
 

@@ -283,6 +283,21 @@ export function ReviewsScreen() {
   const [googleStatsError, setGoogleStatsError] = useState<string | null>(null);
   const [googleStatsLoading, setGoogleStatsLoading] = useState(false);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "invite") return;
+    setPlatformFilter("gwada");
+    setInviteSheetOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    p.set("platform", "gwada");
+    const q = p.toString();
+    router.replace(
+      q ? `/dashboard/bewertungen/uebersicht?${q}` : "/dashboard/bewertungen/uebersicht",
+      { scroll: false },
+    );
+  }, [searchParams, router]);
+
   const [protocolReview, setProtocolReview] = useState<UnifiedReview | null>(null);
   const [overviewProtocolOpen, setOverviewProtocolOpen] = useState(false);
   const [contactDrawerOpen, setContactDrawerOpen] = useState(false);

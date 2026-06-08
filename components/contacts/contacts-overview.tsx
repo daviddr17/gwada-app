@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, MessageSquare, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
@@ -292,31 +293,32 @@ export function ContactsOverview() {
     <>
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-4 pt-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative max-w-md flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nachname, Vorname, E-Mail, Telefon, Adresse …"
-                className="h-10 rounded-xl pl-9"
-                aria-label="Kontakte durchsuchen"
-              />
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative min-w-0 flex-1 sm:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nachname, Vorname, E-Mail, Telefon, Adresse …"
+                  className="h-10 w-full rounded-xl pl-9"
+                  aria-label="Kontakte durchsuchen"
+                />
+              </div>
               <span className="text-xs text-muted-foreground tabular-nums">
                 {filteredSorted.length} Kontakt
                 {filteredSorted.length === 1 ? "" : "e"}
               </span>
-              <Button
-                type="button"
-                className="h-10 shrink-0 gap-2 rounded-xl"
-                onClick={openCreate}
-              >
-                <Plus className="size-4" />
-                Neuer Kontakt
-              </Button>
             </div>
+            <Button
+              type="button"
+              size="lg"
+              className={modulePrimaryAddButtonFullWidthClassName}
+              onClick={openCreate}
+            >
+              <Plus className="size-4" />
+              Neuer Kontakt
+            </Button>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-border/50">

@@ -58,6 +58,7 @@ export function DashboardCompactListItem({
   title,
   meta,
   trailing,
+  leading,
   stripeVariant,
   className,
 }: {
@@ -65,6 +66,7 @@ export function DashboardCompactListItem({
   title: React.ReactNode;
   meta?: React.ReactNode;
   trailing?: React.ReactNode;
+  leading?: React.ReactNode;
   stripeVariant?: DashboardCompactStripeVariant;
   className?: string;
 }) {
@@ -72,6 +74,9 @@ export function DashboardCompactListItem({
     <>
       <div className="flex min-w-0 flex-1 items-stretch gap-2">
         {stripeVariant ? <DashboardCompactStripe variant={stripeVariant} /> : null}
+        {leading ? (
+          <span className="flex shrink-0 self-center [&_svg]:size-4">{leading}</span>
+        ) : null}
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{title}</p>
           {meta ? (

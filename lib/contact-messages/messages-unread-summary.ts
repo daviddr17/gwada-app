@@ -1,3 +1,4 @@
+import type { ConversationReadFilter } from "@/lib/contact-messages/filter-conversations";
 import { inboxPreviewSnippet } from "@/lib/contact-messages/inbox-preview-snippet";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
@@ -18,6 +19,16 @@ export type MessagesUnreadSummary = {
   /** Vollständige Posteingang-Liste für sofortige Anzeige auf /kontakte/nachrichten. */
   inboxConversations: ContactConversationPreview[];
 };
+
+export function dashboardMessagesInboxHref(
+  opts?: { read?: ConversationReadFilter },
+): string {
+  const params = new URLSearchParams({ platform: "all" });
+  if (opts?.read && opts.read !== "all") {
+    params.set("read", opts.read);
+  }
+  return `/dashboard/kontakte/nachrichten?${params.toString()}`;
+}
 
 export function dashboardMessageThreadHref(contactId: string): string {
   return `/dashboard/kontakte/nachrichten?platform=all&contact=${encodeURIComponent(contactId)}`;

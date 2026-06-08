@@ -1,6 +1,7 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type {
   RestaurantStaffContractLogEntry,
+  RestaurantStaffWorkEntryLogEntry,
   RestaurantStaffContractRow,
   RestaurantStaffLogEntry,
   RestaurantStaffRow,
@@ -505,6 +506,40 @@ export async function fetchStaffContractLogEntries(
       actor_user_id: (r.actor_user_id as string | null) ?? null,
       action: r.action as RestaurantStaffContractLogEntry["action"],
       details: (r.details as RestaurantStaffContractLogEntry["details"]) ?? {},
+      created_at: r.created_at as string,
+    })),
+    error: null,
+  };
+}
+
+export async function fetchStaffWorkEntryLogEntries(
+  restaurantId: string,
+  workEntryIds: readonly string[],
+): Promise<{
+  data: RestaurantStaffWorkEntryLogEntry[];
+  error: string | null;
+}> {
+  if (workEntryIds.length === 0) {
+    return { data: [], error: null };
+  }
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("restaurant_staff_work_entry_log_entries")
+    .select(
+      "id, restaurant_id, work_entry_id, actor_user_id, action, details, created_at",
+    )
+    .eq("restaurant_id", restaurantId)
+    .in("work_entry_id", [...workEntryIds])
+    .order("created_at", { ascending: false });
+  if (error) return { data: [], error: error.message };
+  return {
+    data: (data ?? []).map((r) => ({
+      id: r.id as string,
+      restaurant_id: r.restaurant_id as string,
+      work_entry_id: r.work_entry_id as string,
+      actor_user_id: (r.actor_user_id as string | null) ?? null,
+      action: r.action as RestaurantStaffWorkEntryLogEntry["action"],
+      details: (r.details as RestaurantStaffWorkEntryLogEntry["details"]) ?? {},
       created_at: r.created_at as string,
     })),
     error: null,

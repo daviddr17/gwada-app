@@ -23,7 +23,7 @@ import {
   staffDisplayName,
 } from "@/lib/types/staff";
 import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -116,7 +116,7 @@ export function StaffContractsScreen() {
 
   return (
     <div className="pb-16">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 space-y-2">
         <p className="text-sm text-muted-foreground">
           Verträge für{" "}
           <span className="font-medium text-foreground">
@@ -125,7 +125,8 @@ export function StaffContractsScreen() {
         </p>
         <Button
           type="button"
-          className={modulePrimaryAddButtonClassName}
+          size="lg"
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={openNew}
         >
           <Plus className="size-4" />

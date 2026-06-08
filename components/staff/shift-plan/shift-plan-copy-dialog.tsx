@@ -3,24 +3,21 @@
 import { ArrowDown, Copy } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { SearchableSelect } from "@/components/ui/combobox";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { DatePickerField } from "@/components/ui/date-picker";
+import {
+  staffDrawerFieldClassName,
+  staffDrawerScrollClassName,
+} from "@/components/staff/staff-form-field-styles";
 import {
   copyScheduledShiftsToRange,
   fetchScheduledShiftsInRange,
@@ -30,9 +27,10 @@ import {
   daysInView,
   defaultCopyTargetYmd,
   formatShiftPlanPeriodLabel,
+  getShiftPlanCopyUiCopy,
   localDayKey,
   parseLocalDayKey,
-  SHIFT_SCHEDULE_VIEW_LABELS,
+  SHIFT_SCHEDULE_VIEW_SELECT_OPTIONS,
   viewRangeUtcIso,
 } from "@/lib/staff/shift-schedule-range";
 import type { ShiftScheduleViewMode } from "@/lib/types/staff-shift-schedule";
@@ -52,6 +50,10 @@ type ShiftPlanCopyDialogProps = {
 function periodDayCount(scope: ShiftScheduleViewMode, ymd: string): number {
   return daysInView(parseLocalDayKey(ymd), scope).length;
 }
+
+const shiftPlanCopyScopeSelectClassName = appSelectTriggerAccentCn(
+  cn(staffDrawerFieldClassName, "w-full min-w-0"),
+);
 
 export function ShiftPlanCopyDialog({
   open,
@@ -103,6 +105,16 @@ export function ShiftPlanCopyDialog({
     [targetScope, targetYmd],
   );
 
+  const uiCopy = useMemo(
+    () => getShiftPlanCopyUiCopy(sourceYmd, sourceScope, targetYmd, targetScope),
+    [sourceScope, sourceYmd, targetScope, targetYmd],
+  );
+
+  const summaryText = useMemo(
+    () => uiCopy.summary(sourceLabel, targetLabel),
+    [sourceLabel, targetLabel, uiCopy],
+  );
+
   const sourceDays = periodDayCount(sourceScope, sourceYmd);
   const targetDays = periodDayCount(targetScope, targetYmd);
 
@@ -145,7 +157,7 @@ export function ShiftPlanCopyDialog({
     }
     if (dayOffset === 0) {
       toast.error(
-        "Quelle und Ziel beginnen am selben Tag — bitte ein anderes Zieldatum wählen.",
+        "Quelle und Ziel liegen am selben Tag — bitte ein anderes Zieldatum wählen.",
       );
       return;
     }
@@ -175,167 +187,154 @@ export function ShiftPlanCopyDialog({
 
   const handleSourceScopeChange = (next: ShiftScheduleViewMode) => {
     setSourceScope(next);
+    setTargetScope(next);
     setTargetYmd(defaultCopyTargetYmd(sourceYmd, next));
   };
 
+  const handleSourceYmdChange = (ymd: string) => {
+    setSourceYmd(ymd);
+    setTargetYmd(defaultCopyTargetYmd(ymd, sourceScope));
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Schichten kopieren</DialogTitle>
-          <DialogDescription>
-            Wähle Quelle und Ziel — alle Schichten im Quellzeitraum werden
-            verschoben kopiert (Tag, Woche oder Monat).
-          </DialogDescription>
-        </DialogHeader>
+    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
+      <DrawerContent className="mx-auto flex max-h-[min(92dvh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+          <DrawerTitle className="text-xl font-semibold tracking-tight">
+            Schichten kopieren
+          </DrawerTitle>
+          <DrawerDescription className="text-base">{uiCopy.drawerHint}</DrawerDescription>
+        </DrawerHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Von
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="copy-source-scope">Zeitraum</Label>
-                <Select
-                  value={sourceScope}
-                  onValueChange={(v) =>
-                    handleSourceScopeChange(v as ShiftScheduleViewMode)
-                  }
-                >
-                  <SelectTrigger
+        <form
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void runCopy();
+          }}
+        >
+          <div className={cn(staffDrawerScrollClassName, "space-y-4 px-6 pb-4")}>
+            <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Von
+              </p>
+              <div className="grid min-w-0 grid-cols-1 gap-3">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="copy-source-scope">Zeitraum</Label>
+                  <SearchableSelect
                     id="copy-source-scope"
-                    className={appSelectTriggerAccentCn("h-10 w-full")}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(SHIFT_SCHEDULE_VIEW_LABELS) as ShiftScheduleViewMode[]).map(
-                      (mode) => (
-                        <SelectItem key={mode} value={mode}>
-                          {SHIFT_SCHEDULE_VIEW_LABELS[mode]}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                    options={SHIFT_SCHEDULE_VIEW_SELECT_OPTIONS}
+                    value={sourceScope}
+                    onValueChange={(v) =>
+                      handleSourceScopeChange(v as ShiftScheduleViewMode)
+                    }
+                    placeholder="Zeitraum wählen"
+                    searchPlaceholder="Zeitraum suchen…"
+                    aria-label="Quell-Zeitraum"
+                    className={shiftPlanCopyScopeSelectClassName}
+                  />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label>{uiCopy.sourceDateFieldLabel}</Label>
+                  <DatePickerField
+                    value={sourceYmd}
+                    fullWidth
+                    onChange={(v) => {
+                      if (!v) return;
+                      handleSourceYmdChange(v);
+                    }}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Datum</Label>
-                <DatePickerField
-                  value={sourceYmd}
-                  onChange={(v) => {
-                    if (!v) return;
-                    setSourceYmd(v);
-                  }}
-                />
-              </div>
+              <p className="text-sm text-foreground">{sourceLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {sourceDays} Tag{sourceDays === 1 ? "" : "e"}
+                {countLoading
+                  ? " · Schichten werden gezählt …"
+                  : shiftCount != null
+                    ? ` · ${shiftCount} Schicht${shiftCount === 1 ? "" : "en"}`
+                    : null}
+              </p>
             </div>
-            <p className="text-sm text-foreground">{sourceLabel}</p>
-            <p className="text-xs text-muted-foreground">
-              {sourceDays} Tag{sourceDays === 1 ? "" : "e"}
-              {countLoading
-                ? " · Schichten werden gezählt …"
-                : shiftCount != null
-                  ? ` · ${shiftCount} Schicht${shiftCount === 1 ? "" : "en"}`
-                  : null}
-            </p>
-          </div>
 
-          <div className="flex justify-center" aria-hidden>
-            <ArrowDown className="size-4 text-muted-foreground" />
-          </div>
+            <div className="flex justify-center" aria-hidden>
+              <ArrowDown className="size-4 text-muted-foreground" />
+            </div>
 
-          <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Nach
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="copy-target-scope">Zeitraum</Label>
-                <Select
-                  value={targetScope}
-                  onValueChange={(v) =>
-                    setTargetScope(v as ShiftScheduleViewMode)
-                  }
-                >
-                  <SelectTrigger
+            <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Nach
+              </p>
+              <div className="grid min-w-0 grid-cols-1 gap-3">
+                <div className="min-w-0 space-y-2">
+                  <Label htmlFor="copy-target-scope">Zeitraum</Label>
+                  <SearchableSelect
                     id="copy-target-scope"
-                    className={appSelectTriggerAccentCn("h-10 w-full")}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(SHIFT_SCHEDULE_VIEW_LABELS) as ShiftScheduleViewMode[]).map(
-                      (mode) => (
-                        <SelectItem key={mode} value={mode}>
-                          {SHIFT_SCHEDULE_VIEW_LABELS[mode]}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                    options={SHIFT_SCHEDULE_VIEW_SELECT_OPTIONS}
+                    value={targetScope}
+                    onValueChange={(v) =>
+                      setTargetScope(v as ShiftScheduleViewMode)
+                    }
+                    placeholder="Zeitraum wählen"
+                    searchPlaceholder="Zeitraum suchen…"
+                    aria-label="Ziel-Zeitraum"
+                    className={shiftPlanCopyScopeSelectClassName}
+                  />
+                </div>
+                <div className="min-w-0 space-y-2">
+                  <Label>{uiCopy.targetDateFieldLabel}</Label>
+                  <DatePickerField
+                    value={targetYmd}
+                    fullWidth
+                    onChange={(v) => {
+                      if (!v) return;
+                      setTargetYmd(v);
+                    }}
+                  />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Ziel ab</Label>
-                <DatePickerField
-                  value={targetYmd}
-                  onChange={(v) => {
-                    if (!v) return;
-                    setTargetYmd(v);
-                  }}
-                />
-              </div>
+              <p className="text-sm text-foreground">{targetLabel}</p>
+              <p className="text-xs text-muted-foreground">
+                {targetDays} Tag{targetDays === 1 ? "" : "e"}
+                {dayOffset !== 0 ? (
+                  <>
+                    {" "}
+                    · Verschiebung{" "}
+                    {dayOffset > 0 ? `+${dayOffset}` : dayOffset} Tag
+                    {Math.abs(dayOffset) === 1 ? "" : "e"}
+                  </>
+                ) : null}
+              </p>
             </div>
-            <p className="text-sm text-foreground">{targetLabel}</p>
-            <p className="text-xs text-muted-foreground">
-              {targetDays} Tag{targetDays === 1 ? "" : "e"}
-              {dayOffset !== 0 ? (
+
+            <div
+              className={cn(
+                "rounded-md border px-3 py-2 text-sm leading-relaxed",
+                samePeriod
+                  ? "border-destructive/40 bg-destructive/5 text-destructive"
+                  : "border-border/50 bg-card text-muted-foreground",
+              )}
+            >
+              {samePeriod ? (
+                "Quelle und Ziel sind identisch."
+              ) : (
                 <>
-                  {" "}
-                  · Verschiebung{" "}
-                  {dayOffset > 0 ? `+${dayOffset}` : dayOffset} Tag
-                  {Math.abs(dayOffset) === 1 ? "" : "e"}
+                  <Copy className="mr-1.5 inline size-3.5 shrink-0 align-text-bottom opacity-70" />
+                  {summaryText}
                 </>
-              ) : null}
-            </p>
+              )}
+            </div>
           </div>
 
-          <div
-            className={cn(
-              "rounded-md border px-3 py-2 text-sm",
-              samePeriod
-                ? "border-destructive/40 bg-destructive/5 text-destructive"
-                : "border-border/50 bg-card text-muted-foreground",
-            )}
-          >
-            {samePeriod ? (
-              "Quelle und Ziel sind identisch."
-            ) : (
-              <>
-                <Copy className="mr-1.5 inline size-3.5 align-text-bottom opacity-70" />
-                Schichten aus{" "}
-                <span className="font-medium text-foreground">{sourceLabel}</span>{" "}
-                werden ab{" "}
-                <span className="font-medium text-foreground">{targetLabel}</span>{" "}
-                eingetragen.
-              </>
-            )}
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Abbrechen
-          </Button>
-          <Button
-            onClick={() => void runCopy()}
-            disabled={pending || samePeriod || countLoading}
-          >
-            Kopieren
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DrawerFormFooter
+            onCancel={() => onOpenChange(false)}
+            submitType="submit"
+            submitLabel="Kopieren"
+            submitPending={pending}
+            submitDisabled={samePeriod || countLoading}
+          />
+        </form>
+      </DrawerContent>
+    </Drawer>
   );
 }

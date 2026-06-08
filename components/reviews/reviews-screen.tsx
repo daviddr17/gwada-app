@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Link2, ScrollText, Search, Star } from "lucide-react";
-import { ReviewReadFilterChips } from "@/components/reviews/review-read-filter-chips";
-import { ReviewPlatformChip } from "@/components/reviews/review-platform-chip";
+import { Filter, Link2, ScrollText, Search, Star } from "lucide-react";
+import {
+  countReviewsDrawerActiveFilters,
+  ReviewsFilterDrawer,
+} from "@/components/reviews/reviews-filter-drawer";
+import { ReviewInboxFilterChips } from "@/components/reviews/review-inbox-filter-chips";
+import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,15 +16,8 @@ import {
   CardContent,
   CardHeader,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { SearchableSelect } from "@/components/ui/combobox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -38,12 +35,15 @@ import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { GwadaReviewProtocolDrawer } from "@/components/reviews/gwada-review-protocol-drawer";
 import { ReviewInvitationSheet } from "@/components/reviews/review-invitation-sheet";
 import { ReviewSummaryCard } from "@/components/reviews/review-summary-card";
+import { ReviewsScreenSkeleton } from "@/components/reviews/reviews-screen-skeleton";
 import { ReviewsPagination } from "@/components/reviews/reviews-pagination";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import {
-  isReviewPlatform,
-  REVIEW_PLATFORM_ORDER,
+  parseReviewPlatformFilter,
+  REVIEW_FILTER_ALL,
   type ReviewPlatform,
+  REVIEW_PLATFORM_LABELS,
+  type ReviewPlatformFilter,
 } from "@/lib/constants/review-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
@@ -51,12 +51,8 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import {
   filterReviews,
+  filterReviewsByPlatform,
   hasActiveReviewFilters,
-  REVIEW_COMMENT_FILTER_OPTIONS,
-  REVIEW_RATING_FILTER_OPTIONS,
-  REVIEW_REPLY_FILTER_OPTIONS,
-  REVIEW_SORT_OPTIONS,
-  reviewSortOptionLabel,
   sortReviews,
   type ReviewCommentFilter,
   type ReviewRatingFilter,
@@ -82,13 +78,8 @@ import {
   COUNTRIES_REFERENCE_FALLBACK,
   resolveCountryIso2FromLabel,
 } from "@/lib/constants/countries";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
-
-const reviewsSortSelectClass = appSelectTriggerAccentCn(
-  "h-9 w-full min-w-[11rem] [&_[data-slot=select-value]]:truncate",
-);
 
 type ReviewsApiResponse = {
   reviews: UnifiedReview[];
@@ -133,6 +124,7 @@ function StarsDisplay({ rating }: { rating: number }) {
 function ReviewCard({
   review,
   isUnread = false,
+  showPlatform = false,
   onMarkUnread,
   onReply,
   onProtocol,
@@ -140,6 +132,7 @@ function ReviewCard({
 }: {
   review: UnifiedReview;
   isUnread?: boolean;
+  showPlatform?: boolean;
   onMarkUnread?: () => void;
   onReply?: () => void;
   onProtocol?: () => void;
@@ -161,10 +154,15 @@ function ReviewCard({
       <CardHeader className="space-y-2 pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
-            {isUnread ? (
-              <span
-                className="mt-1 size-2 shrink-0 rounded-full bg-accent"
-                aria-hidden
+            {showPlatform || isUnread ? (
+              <ReviewPlatformIcon
+                platform={review.platform}
+                className="size-4"
+                aria-label={
+                  isUnread
+                    ? `${REVIEW_PLATFORM_LABELS[review.platform]}, ungelesen`
+                    : REVIEW_PLATFORM_LABELS[review.platform]
+                }
               />
             ) : null}
             <StarsDisplay rating={review.rating} />
@@ -234,31 +232,6 @@ function ReviewCard({
   );
 }
 
-function ReviewsGridSkeleton() {
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {Array.from({ length: 6 }, (_, i) => (
-        <Card key={i} className="border-border/50 shadow-card">
-          <CardContent className="space-y-3 p-6">
-            <div className="skeleton-shimmer h-4 w-24 rounded" />
-            <div className="skeleton-shimmer h-3 w-full rounded" />
-            <div className="skeleton-shimmer h-3 w-4/5 rounded" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function resolveReviewsPlatform(
-  platformParam: string | null,
-): ReviewPlatform {
-  if (platformParam && isReviewPlatform(platformParam)) {
-    return platformParam;
-  }
-  return "gwada";
-}
-
 export function ReviewsScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -269,11 +242,16 @@ export function ReviewsScreen() {
     googleConnected,
     facebookConnected,
   } = useReviewPlatformConnections(restaurantId);
-  const [platform, setPlatform] = useState<ReviewPlatform>(() =>
-    resolveReviewsPlatform(platformParam),
+  const [platformFilter, setPlatformFilter] = useState<ReviewPlatformFilter>(() =>
+    parseReviewPlatformFilter(platformParam),
   );
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<ReviewsApiResponse | null>(null);
+  const [mergedLoading, setMergedLoading] = useState(true);
+  const [mergedReviews, setMergedReviews] = useState<UnifiedReview[]>([]);
+  const [mergedLoadErrors, setMergedLoadErrors] = useState<
+    Partial<Record<ReviewPlatform, string>>
+  >({});
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleData, setGoogleData] = useState<ReviewsApiResponse | null>(null);
   const [replyTarget, setReplyTarget] = useState<UnifiedReview | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyBusy, setReplyBusy] = useState(false);
@@ -285,6 +263,7 @@ export function ReviewsScreen() {
   const [readFilter, setReadFilter] = useState<ReviewReadFilter>("all");
   const [readLocal, setReadLocal] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<ReviewSortKey>("created_desc");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [googlePage, setGooglePage] = useState(1);
   const [googleTokenByPage, setGoogleTokenByPage] = useState<
     Record<number, string>
@@ -302,6 +281,8 @@ export function ReviewsScreen() {
   const [contactDrawerId, setContactDrawerId] = useState<string | null>(null);
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
+  const isGooglePaginated = platformFilter === "google";
+  const loading = isGooglePaginated ? googleLoading : mergedLoading;
   const showSkeleton = useDeferredSkeleton(loading);
   const readAllStartedRef = useRef<string | null>(null);
 
@@ -341,8 +322,10 @@ export function ReviewsScreen() {
     [restaurantProfile?.country],
   );
 
-  const showReplyFilter = platform === "google" || platform === "facebook";
-  const isGooglePaginated = platform === "google";
+  const showReplyFilter =
+    platformFilter === REVIEW_FILTER_ALL ||
+    platformFilter === "google" ||
+    platformFilter === "facebook";
 
   const isPlatformAvailable = useCallback(
     (p: ReviewPlatform): boolean => {
@@ -354,34 +337,58 @@ export function ReviewsScreen() {
     [googleConnected, facebookConnected],
   );
 
-  const platformReady = isPlatformAvailable(platform);
+  const platformViewReady =
+    platformFilter === REVIEW_FILTER_ALL ||
+    isPlatformAvailable(platformFilter);
 
   const reviewProtocolParam = searchParams.get("reviewProtocol")?.trim() ?? "";
 
+  const allReviews = useMemo(() => {
+    if (platformFilter === "google") {
+      return googleData?.reviews ?? [];
+    }
+    return filterReviewsByPlatform(mergedReviews, platformFilter);
+  }, [platformFilter, mergedReviews, googleData?.reviews]);
+
   useEffect(() => {
-    if (!reviewProtocolParam || platform !== "gwada" || !ready) return;
-    const match = data?.reviews.find((r) => r.id === reviewProtocolParam);
+    if (!reviewProtocolParam || platformFilter !== "gwada" || !ready) return;
+    const match = allReviews.find(
+      (r) => r.platform === "gwada" && r.id === reviewProtocolParam,
+    );
     if (match) {
       setProtocolReview(match);
     }
-  }, [reviewProtocolParam, platform, ready, data?.reviews]);
+  }, [reviewProtocolParam, platformFilter, ready, allReviews]);
 
   useEffect(() => {
     if (connectionsLoading || !ready || !restaurantId) return;
 
-    const requested = resolveReviewsPlatform(platformParam);
-    let resolved = requested;
-    if (!isPlatformAvailable(requested)) {
-      resolved =
-        REVIEW_PLATFORM_ORDER.find((p) => isPlatformAvailable(p)) ?? "gwada";
-    }
+    const requested = parseReviewPlatformFilter(platformParam);
+    const resolved =
+      requested !== REVIEW_FILTER_ALL && !isPlatformAvailable(requested)
+        ? REVIEW_FILTER_ALL
+        : requested;
 
-    setPlatform((prev) => (prev === resolved ? prev : resolved));
+    setPlatformFilter((prev) => (prev === resolved ? prev : resolved));
 
-    if (platformParam !== resolved) {
+    const paramMatches =
+      resolved === REVIEW_FILTER_ALL
+        ? !platformParam || platformParam === REVIEW_FILTER_ALL
+        : platformParam === resolved;
+
+    if (!paramMatches) {
       const params = new URLSearchParams(searchParams.toString());
-      params.set("platform", resolved);
-      router.replace(`/dashboard/bewertungen/uebersicht?${params.toString()}`);
+      if (resolved === REVIEW_FILTER_ALL) {
+        params.delete("platform");
+      } else {
+        params.set("platform", resolved);
+      }
+      const q = params.toString();
+      router.replace(
+        q
+          ? `/dashboard/bewertungen/uebersicht?${q}`
+          : "/dashboard/bewertungen/uebersicht",
+      );
     }
   }, [
     connectionsLoading,
@@ -393,50 +400,112 @@ export function ReviewsScreen() {
     searchParams,
   ]);
 
-  const selectPlatform = (p: ReviewPlatform) => {
-    if (!isPlatformAvailable(p)) return;
-    setPlatform(p);
+  const selectPlatformFilter = (filter: ReviewPlatformFilter) => {
+    if (filter !== REVIEW_FILTER_ALL && !isPlatformAvailable(filter)) return;
+    setPlatformFilter(filter);
     const params = new URLSearchParams(searchParams.toString());
-    params.set("platform", p);
-    router.replace(`/dashboard/bewertungen/uebersicht?${params.toString()}`);
+    if (filter === REVIEW_FILTER_ALL) {
+      params.delete("platform");
+    } else {
+      params.set("platform", filter);
+    }
+    const q = params.toString();
+    router.replace(
+      q
+        ? `/dashboard/bewertungen/uebersicht?${q}`
+        : "/dashboard/bewertungen/uebersicht",
+    );
   };
 
-  const load = useCallback(
+  const loadMerged = useCallback(async () => {
+    if (!restaurantId) {
+      setMergedLoading(false);
+      return;
+    }
+    setMergedLoading(true);
+    setMergedLoadErrors({});
+    try {
+      const platforms: ReviewPlatform[] = ["gwada"];
+      if (googleConnected) platforms.push("google");
+      if (facebookConnected) platforms.push("facebook");
+
+      const results = await Promise.all(
+        platforms.map(async (platform) => {
+          const params = new URLSearchParams({ restaurantId, platform });
+          const res = await fetch(`/api/reviews?${params}`);
+          const json = (await res.json()) as ReviewsApiResponse & {
+            error?: string;
+          };
+          return { platform, ok: res.ok, json };
+        }),
+      );
+
+      const reviews: UnifiedReview[] = [];
+      const errors: Partial<Record<ReviewPlatform, string>> = {};
+
+      for (const result of results) {
+        if (result.ok && Array.isArray(result.json.reviews)) {
+          reviews.push(
+            ...result.json.reviews.map((review) => ({
+              ...review,
+              isUnread: false,
+            })),
+          );
+        } else {
+          const err =
+            result.json.loadError ??
+            result.json.error ??
+            "Bewertungen konnten nicht geladen werden.";
+          errors[result.platform] = err;
+        }
+      }
+
+      setMergedReviews(reviews);
+      setMergedLoadErrors(errors);
+      if (reviews.length > 0) {
+        markLoadedReviewsRead(reviews);
+      }
+    } catch {
+      toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+      setMergedReviews([]);
+    } finally {
+      setMergedLoading(false);
+    }
+  }, [restaurantId, googleConnected, facebookConnected, markLoadedReviewsRead]);
+
+  const loadGoogle = useCallback(
     async (opts?: { googlePage?: number; googlePageToken?: string | null }) => {
       if (!restaurantId) {
-        setLoading(false);
+        setGoogleLoading(false);
         return;
       }
-      setLoading(true);
+      setGoogleLoading(true);
       try {
-        const params = new URLSearchParams({ restaurantId, platform });
-        if (isGooglePaginated) {
-          const page = opts?.googlePage ?? 1;
-          const token =
-            opts?.googlePageToken !== undefined
-              ? opts.googlePageToken
-              : page <= 1
-                ? null
-                : (googleTokenByPage[page] ?? null);
-          if (token) params.set("googlePageToken", token);
-        }
+        const params = new URLSearchParams({ restaurantId, platform: "google" });
+        const page = opts?.googlePage ?? 1;
+        const token =
+          opts?.googlePageToken !== undefined
+            ? opts.googlePageToken
+            : page <= 1
+              ? null
+              : (googleTokenByPage[page] ?? null);
+        if (token) params.set("googlePageToken", token);
 
         const res = await fetch(`/api/reviews?${params}`);
         const json = (await res.json()) as ReviewsApiResponse & { error?: string };
         if (!res.ok) {
           toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
-          setData(null);
+          setGoogleData(null);
           return;
         }
         const reviewsRead = json.reviews.map((review) => ({
           ...review,
           isUnread: false,
         }));
-        setData({ ...json, reviews: reviewsRead });
+        setGoogleData({ ...json, reviews: reviewsRead });
         markLoadedReviewsRead(reviewsRead);
 
-        if (isGooglePaginated && json.googlePagination) {
-          const page = opts?.googlePage ?? 1;
+        if (json.googlePagination) {
           setGooglePage(page);
           setGooglePagination(json.googlePagination);
           const next = json.googlePagination.nextPageToken;
@@ -446,16 +515,18 @@ export function ReviewsScreen() {
         }
       } catch {
         toast.error("Netzwerkfehler beim Laden der Bewertungen.");
-        setData(null);
+        setGoogleData(null);
       } finally {
-        setLoading(false);
+        setGoogleLoading(false);
       }
     },
-    [restaurantId, platform, isGooglePaginated, googleTokenByPage, markLoadedReviewsRead],
+    [restaurantId, googleTokenByPage, markLoadedReviewsRead],
   );
 
-  const loadRef = useRef(load);
-  loadRef.current = load;
+  const loadMergedRef = useRef(loadMerged);
+  loadMergedRef.current = loadMerged;
+  const loadGoogleRef = useRef(loadGoogle);
+  loadGoogleRef.current = loadGoogle;
 
   const loadGoogleStats = useCallback(async () => {
     if (!restaurantId || !isGooglePaginated) return;
@@ -495,30 +566,19 @@ export function ReviewsScreen() {
   }, [restaurantId, isGooglePaginated]);
 
   const reloadCurrent = useCallback(() => {
-    if (!isGooglePaginated) {
-      void load();
+    if (isGooglePaginated) {
+      void loadGoogle({
+        googlePage,
+        googlePageToken:
+          googlePage <= 1 ? null : (googleTokenByPage[googlePage] ?? null),
+      });
       return;
     }
-    void load({
-      googlePage,
-      googlePageToken:
-        googlePage <= 1 ? null : (googleTokenByPage[googlePage] ?? null),
-    });
-  }, [load, isGooglePaginated, googlePage, googleTokenByPage]);
+    void loadMerged();
+  }, [loadGoogle, loadMerged, isGooglePaginated, googlePage, googleTokenByPage]);
 
   useEffect(() => {
-    if (!restaurantId || connectionsLoading || !platformReady) {
-      if (!platformReady) {
-        setData(null);
-        setLoading(false);
-      }
-      return;
-    }
-    setGooglePage(1);
-    setGoogleTokenByPage({});
-    setGooglePagination(null);
-    setGoogleLocationSummary(null);
-    setGoogleStatsError(null);
+    if (!restaurantId || connectionsLoading) return;
     setSearch("");
     setRatingFilter("all");
     setCommentFilter("all");
@@ -526,26 +586,50 @@ export function ReviewsScreen() {
     setReadFilter("all");
     setReadLocal({});
     setSortKey("created_desc");
-    if (platform === "google") {
-      void loadGoogleStats();
+    setGooglePage(1);
+    setGoogleTokenByPage({});
+    setGooglePagination(null);
+    setGoogleLocationSummary(null);
+    setGoogleStatsError(null);
+    setGoogleData(null);
+    void loadMergedRef.current();
+  }, [restaurantId, connectionsLoading, googleConnected, facebookConnected]);
+
+  useEffect(() => {
+    if (!restaurantId || connectionsLoading || platformFilter !== "google") {
+      return;
     }
-    void loadRef.current({ googlePage: 1, googlePageToken: null });
+    if (!googleConnected) {
+      setGoogleData(null);
+      setGoogleLoading(false);
+      return;
+    }
+    setGooglePage(1);
+    setGoogleTokenByPage({});
+    setGooglePagination(null);
+    setGoogleLocationSummary(null);
+    setGoogleStatsError(null);
+    void loadGoogleStats();
+    void loadGoogleRef.current({ googlePage: 1, googlePageToken: null });
   }, [
     restaurantId,
-    platform,
-    loadGoogleStats,
+    platformFilter,
+    googleConnected,
     connectionsLoading,
-    platformReady,
+    loadGoogleStats,
   ]);
 
   useEffect(() => {
-    if (!restaurantId || !platformReady) return;
+    if (!restaurantId || !platformViewReady) return;
     if (readAllStartedRef.current === restaurantId) return;
     readAllStartedRef.current = restaurantId;
     void markAllReviewsReadClient(restaurantId).then(({ ok }) => {
       if (ok) {
         setReadLocal({});
-        setData((prev) =>
+        setMergedReviews((prev) =>
+          prev.map((review) => ({ ...review, isUnread: false })),
+        );
+        setGoogleData((prev) =>
           prev
             ? {
                 ...prev,
@@ -558,7 +642,7 @@ export function ReviewsScreen() {
         );
       }
     });
-  }, [restaurantId, platformReady]);
+  }, [restaurantId, platformViewReady]);
 
   const submitReply = async () => {
     if (!restaurantId || !replyTarget || !replyText.trim()) return;
@@ -596,7 +680,7 @@ export function ReviewsScreen() {
   const goGooglePrevious = () => {
     if (googlePage <= 1 || loading) return;
     const prev = googlePage - 1;
-    void load({
+    void loadGoogle({
       googlePage: prev,
       googlePageToken: prev <= 1 ? null : (googleTokenByPage[prev] ?? null),
     });
@@ -604,14 +688,31 @@ export function ReviewsScreen() {
 
   const goGoogleNext = () => {
     if (!googlePagination?.nextPageToken || loading) return;
-    void load({
+    void loadGoogle({
       googlePage: googlePage + 1,
       googlePageToken: googlePagination.nextPageToken,
     });
   };
 
-  const loadError = data?.loadError;
-  const allReviews = data?.reviews ?? [];
+  const loadError = useMemo(() => {
+    if (platformFilter === "google") {
+      return googleData?.loadError ?? null;
+    }
+    if (platformFilter === REVIEW_FILTER_ALL) {
+      return null;
+    }
+    return mergedLoadErrors[platformFilter] ?? null;
+  }, [platformFilter, googleData?.loadError, mergedLoadErrors]);
+
+  const mergedLoadErrorEntries = useMemo(
+    () =>
+      Object.entries(mergedLoadErrors) as [ReviewPlatform, string][],
+    [mergedLoadErrors],
+  );
+
+  const hasReviewData = isGooglePaginated
+    ? googleData !== null
+    : !mergedLoading;
 
   const reviewIsUnread = useCallback(
     (review: UnifiedReview) => {
@@ -653,11 +754,6 @@ export function ReviewsScreen() {
     [allReviews, reviewIsUnread],
   );
 
-  const unreadCount = useMemo(
-    () => reviewsWithReadState.filter((r) => r.isUnread).length,
-    [reviewsWithReadState],
-  );
-
   const filteredSortedReviews = useMemo(() => {
     const filtered = filterReviews(reviewsWithReadState, {
       search,
@@ -690,14 +786,35 @@ export function ReviewsScreen() {
     [filteredSortedReviews],
   );
 
-  const filtersActive = hasActiveReviewFilters({
-    search,
-    ratingFilter,
-    commentFilter,
-    replyFilter,
-    showReplyFilter,
-    readFilter,
-  });
+  const drawerFilterActiveCount = useMemo(
+    () =>
+      countReviewsDrawerActiveFilters({
+        readFilter,
+        ratingFilter,
+        commentFilter,
+        replyFilter,
+        showReplyFilter,
+        sortKey,
+      }),
+    [
+      readFilter,
+      ratingFilter,
+      commentFilter,
+      replyFilter,
+      showReplyFilter,
+      sortKey,
+    ],
+  );
+
+  const filtersActive =
+    hasActiveReviewFilters({
+      search,
+      ratingFilter,
+      commentFilter,
+      replyFilter,
+      showReplyFilter,
+      readFilter,
+    }) || sortKey !== "created_desc";
 
   const summaryForCard = useMemo(() => {
     if (isGooglePaginated && !filtersActive && googleLocationSummary) {
@@ -719,81 +836,77 @@ export function ReviewsScreen() {
     setCommentFilter("all");
     setReplyFilter("all");
     setReadFilter("all");
+    setSortKey("created_desc");
   };
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 pt-2">
-      <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {REVIEW_PLATFORM_ORDER.map((p) => (
-          <ReviewPlatformChip
-            key={p}
-            platform={p}
-            selected={platform === p}
-            onSelect={() => selectPlatform(p)}
-            disabled={connectionsLoading || !isPlatformAvailable(p)}
-          />
-        ))}
-      </div>
+      <ReviewInboxFilterChips
+        filter={platformFilter}
+        onFilterChange={selectPlatformFilter}
+        isPlatformAvailable={isPlatformAvailable}
+        disabled={connectionsLoading}
+      />
 
-      {!connectionsLoading && platform === "google" && !googleConnected ? (
+      {!connectionsLoading && platformFilter === "google" && !googleConnected ? (
         <p className="text-sm text-muted-foreground">
           Google Business ist nicht verbunden. Unter Einstellungen →
           Integrationen verknüpfen, dann erscheinen die Bewertungen hier.
         </p>
       ) : null}
 
-      {!connectionsLoading && platform === "facebook" && !facebookConnected ? (
+      {!connectionsLoading && platformFilter === "facebook" && !facebookConnected ? (
         <p className="text-sm text-muted-foreground">
           Facebook ist nicht verbunden. Unter Einstellungen → Integrationen
           verknüpfen, dann erscheinen die Empfehlungen hier.
         </p>
       ) : null}
 
-      {platformReady ? (
+      {platformViewReady ? (
       <div className="space-y-6">
-      {platform === "gwada" ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Gwada-Bewertungen können je nach Einstellung automatisch nach
-            Reservierungen angefragt werden — oder du erstellst und versendest
-            hier manuell Einladungslinks (24 Stunden gültig). Automatik und Kanäle
-            unter{" "}
-            <a
-              href="/dashboard/reservierungen/einstellungen"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              Reservierungen → Einstellungen
-            </a>
-            .
-          </p>
-          <div className="flex shrink-0 items-center gap-2 self-start">
+      {platformFilter === "gwada" && !loading && !showSkeleton ? (
+        <div className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <p className="max-w-2xl text-sm text-muted-foreground">
+              Gwada-Bewertungen können je nach Einstellung automatisch nach
+              Reservierungen angefragt werden — oder du erstellst und versendest
+              hier manuell Einladungslinks (24 Stunden gültig). Automatik und Kanäle
+              unter{" "}
+              <a
+                href="/dashboard/reservierungen/einstellungen"
+                className="font-medium text-foreground underline-offset-4 hover:underline"
+              >
+                Reservierungen → Einstellungen
+              </a>
+              .
+            </p>
             <Button
               type="button"
               variant="outline"
               size="icon"
-              className="size-11 rounded-xl"
+              className="size-11 shrink-0 rounded-xl"
               aria-label="Gesamtprotokoll Bewertungen"
               onClick={() => setOverviewProtocolOpen(true)}
             >
               <ScrollText className="size-4" />
             </Button>
-            <Button
-              type="button"
-              size="lg"
-              className={modulePrimaryAddButtonClassName}
-              onClick={() => setInviteSheetOpen(true)}
-            >
-              <Link2 className="size-4" />
-              Bewertungslink erstellen
-            </Button>
           </div>
+          <Button
+            type="button"
+            size="lg"
+            className={modulePrimaryAddButtonFullWidthClassName}
+            onClick={() => setInviteSheetOpen(true)}
+          >
+            <Link2 className="size-4" />
+            Bewertungslink erstellen
+          </Button>
         </div>
       ) : null}
 
       {loadError && !loading ? (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4 text-sm text-destructive">
-            {platform === "google"
+            {platformFilter === "google"
               ? "Google-Bewertungen konnten nicht geladen werden. Prüfe die Verbindung unter Einstellungen → Integrationen."
               : "Facebook-Empfehlungen konnten nicht geladen werden. Meta stellt Page-Ratings regional unterschiedlich bereit — Verbindung und Berechtigungen prüfen."}
             <span className="mt-1 block text-xs opacity-80">{loadError}</span>
@@ -801,7 +914,29 @@ export function ReviewsScreen() {
         </Card>
       ) : null}
 
-      {platform === "google" && googleStatsError && !googleStatsLoading ? (
+      {platformFilter === REVIEW_FILTER_ALL &&
+      mergedLoadErrorEntries.length > 0 &&
+      !loading ? (
+        <div className="space-y-2">
+          {mergedLoadErrorEntries.map(([platform, message]) => (
+            <Card
+              key={platform}
+              className="border-amber-500/30 bg-amber-500/5"
+            >
+              <CardContent className="p-4 text-sm text-foreground">
+                {platform === "google"
+                  ? "Google-Bewertungen konnten nicht geladen werden."
+                  : "Facebook-Empfehlungen konnten nicht geladen werden."}
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  {message}
+                </span>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : null}
+
+      {platformFilter === "google" && googleStatsError && !googleStatsLoading ? (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="p-4 text-sm text-foreground">
             Google-Durchschnitt konnte nicht geladen werden.
@@ -812,18 +947,19 @@ export function ReviewsScreen() {
         </Card>
       ) : null}
 
+      {loading && !showSkeleton ? (
+        <div className="min-h-[24rem]" aria-busy="true" />
+      ) : null}
+
       {showSkeleton ? (
-        <>
-          <div className="skeleton-shimmer h-28 rounded-2xl" />
-          <ReviewsGridSkeleton />
-        </>
-      ) : data ? (
+        <ReviewsScreenSkeleton />
+      ) : hasReviewData ? (
         <>
           <ReviewSummaryCard summary={summaryForCard} />
 
           {allReviews.length > 0 ? (
             <div className="space-y-3">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="flex items-center gap-2">
                 <div className="relative min-w-0 flex-1">
                   <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -834,67 +970,25 @@ export function ReviewsScreen() {
                     aria-label="Bewertungen durchsuchen"
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <ReviewReadFilterChips
-                    value={readFilter}
-                    onChange={setReadFilter}
-                    unreadTotal={unreadCount}
-                  />
-                  <SearchableSelect
-                    options={REVIEW_RATING_FILTER_OPTIONS}
-                    value={ratingFilter}
-                    onValueChange={(v) =>
-                      setRatingFilter(v as ReviewRatingFilter)
-                    }
-                    placeholder="Sterne"
-                    searchPlaceholder="Sterne …"
-                    aria-label="Nach Sternen filtern"
-                    className="w-full sm:w-[10.5rem]"
-                  />
-                  <SearchableSelect
-                    options={REVIEW_COMMENT_FILTER_OPTIONS}
-                    value={commentFilter}
-                    onValueChange={(v) =>
-                      setCommentFilter(v as ReviewCommentFilter)
-                    }
-                    placeholder="Kommentar"
-                    searchPlaceholder="Kommentar …"
-                    aria-label="Nach Kommentar filtern"
-                    className="w-full sm:w-[11.5rem]"
-                  />
-                  {showReplyFilter ? (
-                    <SearchableSelect
-                      options={REVIEW_REPLY_FILTER_OPTIONS}
-                      value={replyFilter}
-                      onValueChange={(v) =>
-                        setReplyFilter(v as ReviewReplyFilter)
-                      }
-                      placeholder="Antwort"
-                      searchPlaceholder="Antwort …"
-                      aria-label="Nach Antwortstatus filtern"
-                      className="w-full sm:w-[11.5rem]"
-                    />
-                  ) : null}
-                  <Select
-                    value={sortKey}
-                    onValueChange={(v) => setSortKey(v as ReviewSortKey)}
+                <div className="relative shrink-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon-sm"
+                    className="rounded-full border-border/60"
+                    aria-label="Filter und Sortierung"
+                    onClick={() => setFilterOpen(true)}
                   >
-                    <SelectTrigger
-                      className={reviewsSortSelectClass}
-                      aria-label="Sortierung"
+                    <Filter className="size-4" />
+                  </Button>
+                  {drawerFilterActiveCount > 0 ? (
+                    <Badge
+                      variant="secondary"
+                      className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
                     >
-                      <SelectValue placeholder="Sortieren">
-                        {reviewSortOptionLabel(sortKey)}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {REVIEW_SORT_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                      {drawerFilterActiveCount}
+                    </Badge>
+                  ) : null}
                 </div>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
@@ -930,7 +1024,9 @@ export function ReviewsScreen() {
           {allReviews.length === 0 ? (
             <Card className="border-border/50 shadow-card">
               <CardContent className="p-8 text-center text-sm text-muted-foreground">
-                Noch keine Bewertungen auf dieser Plattform.
+                {platformFilter === REVIEW_FILTER_ALL
+                  ? "Noch keine Bewertungen."
+                  : "Noch keine Bewertungen auf dieser Plattform."}
               </CardContent>
             </Card>
           ) : filteredSortedReviews.length === 0 ? (
@@ -954,12 +1050,13 @@ export function ReviewsScreen() {
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredSortedReviews.map((review) => (
                   <ReviewCard
-                    key={review.id}
+                    key={`${review.platform}:${review.id}`}
                     review={review}
                     isUnread={review.isUnread}
+                    showPlatform={platformFilter === REVIEW_FILTER_ALL}
                     onMarkUnread={() => void markReviewUnread(review)}
                     onProtocol={
-                      platform === "gwada"
+                      review.platform === "gwada"
                         ? () => setProtocolReview(review)
                         : undefined
                     }
@@ -1008,7 +1105,8 @@ export function ReviewsScreen() {
           <DialogHeader>
             <DialogTitle>Antwort verfassen</DialogTitle>
             <DialogDescription>
-              Deine Antwort wird bei {platform === "google" ? "Google" : "Facebook"}{" "}
+              Deine Antwort wird bei{" "}
+              {replyTarget?.platform === "google" ? "Google" : "Facebook"}{" "}
               veröffentlicht.
             </DialogDescription>
           </DialogHeader>
@@ -1088,6 +1186,22 @@ export function ReviewsScreen() {
           defaultCountryIso2={defaultCountryIso2}
         />
       ) : null}
+
+      <ReviewsFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        readFilter={readFilter}
+        onReadFilterChange={setReadFilter}
+        ratingFilter={ratingFilter}
+        onRatingFilterChange={setRatingFilter}
+        commentFilter={commentFilter}
+        onCommentFilterChange={setCommentFilter}
+        replyFilter={replyFilter}
+        onReplyFilterChange={setReplyFilter}
+        showReplyFilter={showReplyFilter}
+        sortKey={sortKey}
+        onSortKeyChange={setSortKey}
+      />
       </div>
       ) : null}
     </div>

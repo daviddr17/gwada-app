@@ -10,6 +10,7 @@ import {
 } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
+import { dashboardMessagesInboxHref } from "@/lib/contact-messages/messages-unread-summary";
 
 function formatMessageWhen(iso: string): string {
   const d = new Date(iso);
@@ -59,7 +60,7 @@ export function DashboardMessagesTile() {
             <DashboardCompactMetricPill
               label="Ungelesen"
               value={String(total)}
-              href={total > 0 ? "/dashboard/kontakte/nachrichten?platform=all" : undefined}
+              href={total > 0 ? dashboardMessagesInboxHref({ read: "unread" }) : undefined}
               highlight={total > 0}
               stripeVariant="attention"
             />

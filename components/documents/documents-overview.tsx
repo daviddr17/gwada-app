@@ -49,7 +49,7 @@ import type {
   DocumentTagDefinition,
   RestaurantDocumentRow,
 } from "@/lib/types/documents";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -404,11 +404,11 @@ export function DocumentsOverview() {
         </div>
       </div>
 
-      <div className="-mx-4 mb-6 flex justify-end px-4 sm:-mx-6 sm:px-6">
+      <div className="-mx-4 mb-6 px-4 sm:-mx-6 sm:px-6">
         <Button
           type="button"
           size="lg"
-          className={modulePrimaryAddButtonClassName}
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => {
             setFormMode("upload");
             setEditDoc(null);

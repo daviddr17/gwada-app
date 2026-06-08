@@ -1,3 +1,5 @@
+import type { ReviewPlatformFilter } from "@/lib/constants/review-platforms";
+import { REVIEW_FILTER_ALL } from "@/lib/constants/review-platforms";
 import type { ReviewReadFilter } from "@/lib/reviews/review-read-state";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 
@@ -57,6 +59,14 @@ export const REVIEW_REPLY_FILTER_OPTIONS: {
   { value: "answered", label: "Beantwortet" },
   { value: "open", label: "Offen (antwortbar)" },
 ];
+
+export function filterReviewsByPlatform(
+  reviews: UnifiedReview[],
+  platformFilter: ReviewPlatformFilter,
+): UnifiedReview[] {
+  if (platformFilter === REVIEW_FILTER_ALL) return reviews;
+  return reviews.filter((review) => review.platform === platformFilter);
+}
 
 export function reviewMatchesSearch(review: UnifiedReview, query: string): boolean {
   const q = query.trim().toLowerCase();

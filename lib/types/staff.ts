@@ -137,6 +137,16 @@ export type RestaurantStaffContractLogEntry = {
   created_at: string;
 };
 
+export type RestaurantStaffWorkEntryLogEntry = {
+  id: string;
+  restaurant_id: string;
+  work_entry_id: string;
+  actor_user_id: string | null;
+  action: StaffContractLogAction;
+  details: StaffContractLogDetails;
+  created_at: string;
+};
+
 export const STAFF_CONTRACT_PAY_LABELS: Record<StaffContractPayType, string> = {
   hourly: "Stundenlohn",
   fixed: "Festlohn (Monat)",

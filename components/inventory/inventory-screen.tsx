@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  Filter,
   Package,
   Plus,
   ScrollText,
@@ -14,13 +15,17 @@ import { toast } from "sonner";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
 import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient-stock-protocol-drawer";
 import { IngredientUsageDrawer } from "@/components/inventory/ingredient-usage-drawer";
+import {
+  countInventoryActiveFilters,
+  InventoryFilterDrawer,
+} from "@/components/inventory/inventory-filter-drawer";
 import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
 import type { CategoryDrawerLabels } from "@/components/menu/category-drawer";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -59,7 +64,7 @@ import type {
   InventoryTaxonomyDefinition,
 } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 
 export type InventoryTaxonomyKind =
@@ -562,6 +567,7 @@ export function InventoryScreen() {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterProduction, setFilterProduction] = useState<string>("all");
   const [filterBrand, setFilterBrand] = useState<string>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -754,6 +760,17 @@ export function InventoryScreen() {
     </th>
   );
 
+  const filterActiveCount = useMemo(
+    () =>
+      countInventoryActiveFilters({
+        filterSupplier,
+        filterCategory,
+        filterProduction,
+        filterBrand,
+      }),
+    [filterBrand, filterCategory, filterProduction, filterSupplier],
+  );
+
   const ready =
     ingredientsHydrated &&
     menuHydrated &&
@@ -795,19 +812,41 @@ export function InventoryScreen() {
       </div>
 
       <div className="mb-4 space-y-3">
-        <div className="relative max-w-xl">
-          <Package
-            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Zutaten suchen…"
-            className="h-11 rounded-2xl border-border/50 bg-card pl-10 shadow-none dark:shadow-sm"
-            aria-label="Zutaten suchen"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1 max-w-xl">
+            <Package
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Zutaten suchen…"
+              className="h-11 w-full rounded-2xl border-border/50 bg-card pl-10 shadow-none dark:shadow-sm"
+              aria-label="Zutaten suchen"
+            />
+          </div>
+          <div className="relative shrink-0">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              className="rounded-full border-border/60"
+              aria-label="Filter"
+              onClick={() => setFilterOpen(true)}
+            >
+              <Filter className="size-4" />
+            </Button>
+            {filterActiveCount > 0 ? (
+              <Badge
+                variant="secondary"
+                className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+              >
+                {filterActiveCount}
+              </Badge>
+            ) : null}
+          </div>
         </div>
         {search.trim() ? (
           <p className="text-xs text-muted-foreground">
@@ -815,74 +854,30 @@ export function InventoryScreen() {
             vorkommt (ca. 80% Übereinstimmung).
           </p>
         ) : null}
-        <div className="flex flex-wrap gap-2">
-          <SearchableSelect
-            options={[
-              { value: "all", label: "Alle Lieferanten" },
-              ...suppliers.items.map((s) => ({
-                value: s.id,
-                label: s.name,
-              })),
-            ]}
-            value={filterSupplier}
-            onValueChange={setFilterSupplier}
-            placeholder="Lieferant"
-            searchPlaceholder="Lieferant suchen…"
-            aria-label="Lieferant filtern"
-            className="max-w-[11rem] min-w-0 flex-1 sm:max-w-[13rem]"
-          />
-          <SearchableSelect
-            options={[
-              { value: "all", label: "Alle Kategorien" },
-              ...ingredientCategories.items.map((s) => ({
-                value: s.id,
-                label: s.name,
-              })),
-            ]}
-            value={filterCategory}
-            onValueChange={setFilterCategory}
-            placeholder="Kategorie"
-            searchPlaceholder="Kategorie suchen…"
-            aria-label="Kategorie filtern"
-            className="max-w-[11rem] min-w-0 flex-1 sm:max-w-[13rem]"
-          />
-          <SearchableSelect
-            options={[
-              { value: "all", label: "Alle Produktionsstellen" },
-              ...productionSites.items.map((s) => ({
-                value: s.id,
-                label: s.name,
-              })),
-            ]}
-            value={filterProduction}
-            onValueChange={setFilterProduction}
-            placeholder="Produktion"
-            searchPlaceholder="Stelle suchen…"
-            aria-label="Produktionsstelle filtern"
-            className="max-w-[11rem] min-w-0 flex-1 sm:max-w-[13rem]"
-          />
-          <SearchableSelect
-            options={[
-              { value: "all", label: "Alle Marken" },
-              ...brands.items.map((s) => ({
-                value: s.id,
-                label: s.name,
-              })),
-            ]}
-            value={filterBrand}
-            onValueChange={setFilterBrand}
-            placeholder="Marke"
-            searchPlaceholder="Marke suchen…"
-            aria-label="Marke filtern"
-            className="max-w-[11rem] min-w-0 flex-1 sm:max-w-[13rem]"
-          />
-        </div>
       </div>
 
-      <div className="mb-6 flex justify-end">
+      <InventoryFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        filterSupplier={filterSupplier}
+        onFilterSupplierChange={setFilterSupplier}
+        suppliers={suppliers.items}
+        filterCategory={filterCategory}
+        onFilterCategoryChange={setFilterCategory}
+        categories={ingredientCategories.items}
+        filterProduction={filterProduction}
+        onFilterProductionChange={setFilterProduction}
+        productionSites={productionSites.items}
+        filterBrand={filterBrand}
+        onFilterBrandChange={setFilterBrand}
+        brands={brands.items}
+      />
+
+      <div className="mb-6">
         <Button
+          type="button"
           size="lg"
-          className={modulePrimaryAddButtonClassName}
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => setIngredientDrawerOpen(true)}
         >
           <Plus className="size-4" />

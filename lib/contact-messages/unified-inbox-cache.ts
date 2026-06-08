@@ -41,6 +41,22 @@ export function peekUnifiedInboxCacheAgeMs(restaurantId: string): number | null 
   return Date.now() - entry.cachedAt;
 }
 
+/** Lesestatus einer Zeile im Cache anpassen (z. B. nach „gelesen“ / „ungelesen“). */
+export function patchUnifiedInboxCacheConversation(
+  restaurantId: string,
+  contactId: string,
+  patch: Pick<ContactConversationPreview, "is_unread" | "unread_count">,
+): void {
+  const entry = cache.get(restaurantId);
+  if (!entry) return;
+
+  const conversations = entry.conversations.map((c) =>
+    c.contact_id === contactId ? { ...c, ...patch } : c,
+  );
+
+  setUnifiedInboxCache(restaurantId, conversations);
+}
+
 export function clearUnifiedInboxCache(restaurantId?: string): void {
   if (restaurantId) cache.delete(restaurantId);
   else cache.clear();

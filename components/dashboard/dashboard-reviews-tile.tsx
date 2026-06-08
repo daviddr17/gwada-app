@@ -87,6 +87,14 @@ export function DashboardReviewsTile() {
                 <DashboardCompactListItem
                   key={`${row.platform}-${row.id}`}
                   href={row.href}
+                  leading={
+                    row.isUnread ? (
+                      <ReviewPlatformIcon
+                        platform={row.platform}
+                        aria-label={REVIEW_PLATFORM_LABELS[row.platform]}
+                      />
+                    ) : undefined
+                  }
                   title={
                     row.authorName?.trim() ||
                     REVIEW_PLATFORM_LABELS[row.platform]
@@ -98,15 +106,7 @@ export function DashboardReviewsTile() {
                   trailing={
                     <span className="flex flex-col items-end gap-1">
                       <StarsCompact rating={row.rating} />
-                      <span className="flex items-center gap-1.5">
-                        {row.isUnread ? (
-                          <span
-                            className="size-1.5 shrink-0 rounded-full bg-accent"
-                            aria-label="Ungelesen"
-                          />
-                        ) : null}
-                        <span>{formatReviewWhen(row.createdAt)}</span>
-                      </span>
+                      <span>{formatReviewWhen(row.createdAt)}</span>
                     </span>
                   }
                 />

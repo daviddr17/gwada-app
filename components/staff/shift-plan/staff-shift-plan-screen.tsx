@@ -11,8 +11,10 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { DataExportSheet } from "@/components/export/data-export-sheet";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ShiftPlanCopyDialog } from "@/components/staff/shift-plan/shift-plan-copy-dialog";
 import { ShiftPlanGrid, ShiftPlanMonthView } from "@/components/staff/shift-plan/shift-plan-grid";
@@ -27,6 +29,7 @@ import {
   parseShiftPlanCellDropId,
   type ShiftPlanDragData,
 } from "@/components/staff/shift-plan/shift-plan-template-palette";
+import { ShiftPlanSearchField } from "@/components/staff/shift-plan/shift-plan-search-field";
 import { ShiftPlanToolbar } from "@/components/staff/shift-plan/shift-plan-toolbar";
 import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
 import {
@@ -74,6 +77,7 @@ import {
   SHIFT_PLAN_ABSENCE_PRESETS,
 } from "@/lib/staff/shift-plan-absence";
 import { computeShiftPlanPeriodSummary } from "@/lib/staff/shift-plan-period-summary";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -642,8 +646,6 @@ export function StaffShiftPlanScreen({
           onPrev={() => setAnchor((a) => navigateAnchor(a, view, -1))}
           onNext={() => setAnchor((a) => navigateAnchor(a, view, 1))}
           onToday={() => setAnchor(new Date())}
-          search={search}
-          onSearchChange={setSearch}
           positionFilter={positionFilter}
           onPositionFilterChange={setPositionFilter}
           positionTags={positionTags.items}
@@ -652,7 +654,6 @@ export function StaffShiftPlanScreen({
           staffOptions={staffOptions}
           sortKey={sortKey}
           onSortKeyChange={setSortKey}
-          onAdd={() => openNew()}
           onCopy={() => setCopyOpen(true)}
           onExport={() => setExportOpen(true)}
           onSettings={() => setSettingsOpen(true)}
@@ -665,8 +666,6 @@ export function StaffShiftPlanScreen({
           onPrev={() => setAnchor((a) => navigateAnchor(a, view, -1))}
           onNext={() => setAnchor((a) => navigateAnchor(a, view, 1))}
           onToday={() => setAnchor(new Date())}
-          search=""
-          onSearchChange={() => {}}
           positionFilter="all"
           onPositionFilterChange={() => {}}
           positionTags={[]}
@@ -675,7 +674,6 @@ export function StaffShiftPlanScreen({
           staffOptions={[]}
           sortKey={sortKey}
           onSortKeyChange={setSortKey}
-          onAdd={() => {}}
           onCopy={() => {}}
           onExport={() => setExportOpen(true)}
           onSettings={() => {}}
@@ -696,6 +694,24 @@ export function StaffShiftPlanScreen({
           )}
           aria-busy={rangeFetching}
         >
+          <div className="space-y-2">
+            <ShiftPlanPeriodSummaryBar summary={periodSummary} />
+            {editable ? (
+              <>
+                <Button
+                  type="button"
+                  size="lg"
+                  className={modulePrimaryAddButtonFullWidthClassName}
+                  onClick={() => openNew()}
+                >
+                  <Plus className="size-4" />
+                  Schicht
+                </Button>
+                <ShiftPlanSearchField value={search} onChange={setSearch} />
+              </>
+            ) : null}
+          </div>
+
           {editable ? (
             <ShiftPlanTemplatePalette
               templates={templates}
@@ -704,8 +720,6 @@ export function StaffShiftPlanScreen({
               onEditTemplate={openEditTemplate}
             />
           ) : null}
-
-          <ShiftPlanPeriodSummaryBar summary={periodSummary} />
 
           {view === "month" ? (
             <ShiftPlanMonthView

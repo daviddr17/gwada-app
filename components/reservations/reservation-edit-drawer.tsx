@@ -6,6 +6,11 @@ import { toast } from "sonner";
 import { Contact, Mail, Trash2 } from "lucide-react";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import {
+  reservationNotifyRowMailIconClassName,
+  reservationNotifyRowTermsIconClassName,
+  reservationNotifyRowWhatsAppIconClassName,
+} from "@/components/reservations/reservation-notify-toggle-styles";
 import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -927,7 +932,7 @@ export function ReservationEditDrawer({
                     className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
                   >
                     <Mail
-                      className="size-4 shrink-0 text-muted-foreground"
+                      className={reservationNotifyRowMailIconClassName}
                       aria-hidden
                     />
                     E-Mail-Benachrichtigung
@@ -950,7 +955,9 @@ export function ReservationEditDrawer({
                     id="res-notify-whatsapp"
                     className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
                   >
-                    <WhatsAppGlyph className="text-[#25D366]" />
+                    <WhatsAppGlyph
+                      className={reservationNotifyRowWhatsAppIconClassName}
+                    />
                     WhatsApp-Benachrichtigung
                   </span>
                   <Switch
@@ -966,7 +973,9 @@ export function ReservationEditDrawer({
                     id="res-terms"
                     className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
                   >
-                    <TermsGlyph className="text-muted-foreground" />
+                    <TermsGlyph
+                      className={reservationNotifyRowTermsIconClassName}
+                    />
                     AGB akzeptiert
                   </span>
                   <Switch

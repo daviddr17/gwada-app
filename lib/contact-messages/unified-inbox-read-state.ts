@@ -71,13 +71,11 @@ function enrichOneConversation(
       unreadGwada.unread_count,
       unreadWa.unread_count,
       unreadEm.unread_count,
-      c.unread_count,
     );
     const is_unread =
       unreadGwada.is_unread ||
       unreadWa.is_unread ||
-      unreadEm.is_unread ||
-      c.is_unread;
+      unreadEm.is_unread;
     return { ...c, unread_count, is_unread };
   }
 

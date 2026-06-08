@@ -4,6 +4,14 @@ import { Download, FileText } from "lucide-react";
 import type { ContactMessageAttachment } from "@/lib/types/contact-message-attachment";
 import { cn } from "@/lib/utils";
 
+/** WhatsApp & Gwada: volle Bubble-Breite, höhere Vorschau. */
+export const contactMessageAttachmentImageDefaultClassName =
+  "max-h-56 w-full object-cover";
+
+/** E-Mail: Logos/Signaturen klein halten, Seitenverhältnis erhalten. */
+export const contactMessageAttachmentImageEmailClassName =
+  "mx-auto h-auto max-h-36 w-auto max-w-[min(100%,12rem)] object-contain";
+
 function formatByteSize(bytes: number | null | undefined): string | null {
   if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return null;
   if (bytes < 1024) return `${bytes} B`;
@@ -15,12 +23,24 @@ export function ContactMessageAttachments({
   attachments,
   outbound,
   className,
+  variant = "default",
 }: {
   attachments: ContactMessageAttachment[];
   outbound?: boolean;
   className?: string;
+  /** E-Mail-Anhänge (z. B. Firmenlogos) kompakter begrenzen. */
+  variant?: "default" | "email";
 }) {
   if (attachments.length === 0) return null;
+
+  const imageClassName =
+    variant === "email"
+      ? contactMessageAttachmentImageEmailClassName
+      : contactMessageAttachmentImageDefaultClassName;
+  const imageLinkClassName =
+    variant === "email"
+      ? "inline-flex max-w-full overflow-hidden rounded-lg border border-border/40"
+      : "block overflow-hidden rounded-lg border border-border/40";
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
@@ -31,14 +51,19 @@ export function ContactMessageAttachments({
             href={a.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block overflow-hidden rounded-lg border border-border/40"
+            className={imageLinkClassName}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={a.url}
               alt={a.fileName}
-              className="max-h-56 w-full object-cover"
+              className={imageClassName}
               loading="lazy"
+              onLoad={() => {
+                window.dispatchEvent(
+                  new CustomEvent("gwada:contact-chat-content-layout"),
+                );
+              }}
             />
           </a>
         ) : (

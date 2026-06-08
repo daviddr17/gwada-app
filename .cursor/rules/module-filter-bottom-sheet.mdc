@@ -1,0 +1,38 @@
+---
+description: Listen-Filter als Bottom Sheet (Icon + Badge); Ausnahme Plattform-Chips
+alwaysApply: true
+---
+
+# Modul-Filter: Bottom Sheet
+
+Listen- und Tabellen-Module filtern **einheitlich** über ein **Bottom Sheet** — nicht als Zeile von Dropdowns in der Hauptansicht.
+
+## Muster
+
+1. **Toolbar / Listenkopf:** rundes **Filter-Icon** (`Filter`, `variant="outline"`, `size="icon-sm"`, `rounded-full border-border/60`).
+2. **Badge** auf dem Icon, wenn aktive Filter (Anzahl ≠ Standardwerte).
+3. **Bottom Sheet** (`Drawer direction="bottom"`, `repositionInputs={false}`):
+   - Titel „Filter“ (ggf. „& Sortierung“)
+   - `SearchableSelect` / `Select` mit **Klarnamen** (`{ value, label }`)
+   - Footer: **Zurücksetzen** + **Fertig** (`brandActionButtonRoundedClassName`)
+4. **Textsuche** bleibt **sichtbar** in der Liste (nicht ins Filter-Sheet) — wie Speisekarte, Schichtplan, Bestand.
+
+## Referenzen
+
+- Speisekarte: `components/menu/filter-drawer.tsx`, Icon in `menu-overview-screen.tsx`
+- Schichtplan: `components/staff/shift-plan/shift-plan-filter-drawer.tsx`
+- Bestand: `components/inventory/inventory-filter-drawer.tsx`
+- Reservierungen: `components/reservations/reservations-filter-drawer.tsx`
+
+## Ausnahme: Plattform-Filter als Chips
+
+**Kanal-/Plattform-Umschalter** (WhatsApp, E-Mail, Google, …) bleiben **horizontale Chips** — kein Bottom Sheet:
+
+- `components/contacts/contact-inbox-filter-chips.tsx`
+- `components/reviews/review-read-filter-chips.tsx`
+
+Neue Plattform- oder Kanal-Filter an dieses Chip-Muster anbinden, nicht an das Filter-Sheet.
+
+## Anti-Pattern
+
+Mehrere `SearchableSelect`-Filter nebeneinander in der Haupt-Toolbar, wenn es kein Plattform-Chip-Szenario ist.

@@ -21,12 +21,8 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
+import { formatMenuPrice } from "@/lib/menu/format-menu-price";
 import type { DietFilter, PriceRange } from "@/lib/types/menu";
-
-const money = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-});
 
 type FilterDrawerProps = {
   open: boolean;
@@ -36,8 +32,9 @@ type FilterDrawerProps = {
   onDietFilterChange: (v: DietFilter) => void;
   priceRange: PriceRange;
   onPriceRangeChange: (r: PriceRange) => void;
-  /** Oberes Ende des Sliders (€) – aus Menüpreisen abgeleitet */
+  /** Oberes Ende des Sliders – aus Menüpreisen abgeleitet */
   priceMax: number;
+  currencyCode?: string;
 };
 
 export function FilterDrawer({
@@ -49,6 +46,7 @@ export function FilterDrawer({
   priceRange,
   onPriceRangeChange,
   priceMax,
+  currencyCode,
 }: FilterDrawerProps) {
   const safeMax = Math.max(priceMax, 1);
   const [lo, hi] = priceRange;
@@ -112,7 +110,7 @@ export function FilterDrawer({
                 Preisspanne
               </Label>
               <p className="text-sm font-medium tabular-nums text-foreground">
-                {money.format(lo)} – {money.format(hi)}
+                {formatMenuPrice(lo, currencyCode)} – {formatMenuPrice(hi, currencyCode)}
               </p>
             </div>
             <Slider
@@ -130,7 +128,7 @@ export function FilterDrawer({
               className="w-full py-2"
             />
             <p className="text-xs text-muted-foreground">
-              Von 0 bis {money.format(safeMax)} (abhängig von den höchsten Preisen in der Karte)
+              Von 0 bis {formatMenuPrice(safeMax, currencyCode)} (abhängig von den höchsten Preisen in der Karte)
             </p>
           </div>
         </div>

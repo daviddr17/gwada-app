@@ -21,6 +21,11 @@ const MENU_NAV: readonly ModuleSubnavItem[] = [
     label: "Einbinden",
     matchMode: "prefix",
   },
+  {
+    href: "/dashboard/menu/einstellungen",
+    label: "Einstellungen",
+    matchMode: "exact",
+  },
 ];
 
 export default function MenuLayout({

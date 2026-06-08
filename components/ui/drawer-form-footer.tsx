@@ -43,6 +43,8 @@ export type DrawerFormFooterProps = {
   showSeparator?: boolean;
   /** Abbrechen-Button ausblenden (nur Speichern, volle Breite). */
   showCancel?: boolean;
+  /** Speichern-Button ausblenden (nur Schließen). */
+  showSubmit?: boolean;
   className?: string;
   children?: ReactNode;
 };
@@ -62,6 +64,7 @@ export function DrawerFormFooter({
   deleteDisabled = false,
   showSeparator = false,
   showCancel = true,
+  showSubmit = true,
   className,
   children,
 }: DrawerFormFooterProps) {
@@ -69,7 +72,10 @@ export function DrawerFormFooter({
   const cancelProps = {
     type: "button" as const,
     variant: "outline" as const,
-    className: drawerFormFooterCancelButtonClassName,
+    className: cn(
+      drawerFormFooterCancelButtonClassName,
+      !showSubmit && "flex-1",
+    ),
     onClick: onCancel,
     disabled: cancelDisabled || submitPending,
   };
@@ -87,15 +93,17 @@ export function DrawerFormFooter({
         {showCancel ? (
           <Button {...cancelProps}>{cancelLabel}</Button>
         ) : null}
-        <Button
-          {...saveProps}
-          className={cn(
-            drawerFormFooterSaveButtonClassName,
-            !showCancel && "flex-1",
-          )}
-        >
-          {saveLabel}
-        </Button>
+        {showSubmit ? (
+          <Button
+            {...saveProps}
+            className={cn(
+              drawerFormFooterSaveButtonClassName,
+              !showCancel && "flex-1",
+            )}
+          >
+            {saveLabel}
+          </Button>
+        ) : null}
       </div>
       {showDelete && onDelete ? (
         <Button

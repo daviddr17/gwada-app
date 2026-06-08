@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  DEFAULT_MENU_CURRENCY_CODE,
+  normalizeMenuCurrencyCode,
+} from "@/lib/constants/menu-currencies";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
@@ -16,6 +20,7 @@ export type PublicEmbedMenu = {
   name: string;
   slug: string;
   accentHex: string;
+  currencyCode: string;
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: MenuTaxonomyDefinition[];
@@ -88,7 +93,8 @@ export async function fetchPublicEmbedMenu(
 
   const restaurantId = row.id as string;
 
-  const [categoriesRes, itemsRes, tagsRes, allergensRes] = await Promise.all([
+  const [categoriesRes, itemsRes, tagsRes, allergensRes, settingsRes] =
+    await Promise.all([
     admin
       .from("menu_categories")
       .select("id, name, is_active, sort_order")
@@ -118,9 +124,20 @@ export async function fetchPublicEmbedMenu(
       .select("id, name, is_active, background_color, sort_order")
       .eq("restaurant_id", restaurantId)
       .order("sort_order", { ascending: true }),
+    admin
+      .from("restaurant_menu_settings")
+      .select("currency_code")
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle(),
   ]);
 
-  if (categoriesRes.error || itemsRes.error || tagsRes.error || allergensRes.error) {
+  if (
+    categoriesRes.error ||
+    itemsRes.error ||
+    tagsRes.error ||
+    allergensRes.error ||
+    settingsRes.error
+  ) {
     return { data: null, error: "db_error", status: 500 };
   }
 
@@ -157,6 +174,10 @@ export async function fetchPublicEmbedMenu(
 
   const accentHex =
     normalizeHex(String(row.brand_accent_hex ?? "")) ?? DEFAULT_ACCENT_HEX;
+  const currencyCode = normalizeMenuCurrencyCode(
+    (settingsRes.data?.currency_code as string | undefined) ??
+      DEFAULT_MENU_CURRENCY_CODE,
+  );
 
   return {
     data: {
@@ -164,6 +185,7 @@ export async function fetchPublicEmbedMenu(
       name: String(row.name ?? ""),
       slug: String(row.slug ?? slug),
       accentHex,
+      currencyCode,
       categories,
       items,
       tagDefinitions,

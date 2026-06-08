@@ -175,7 +175,7 @@ export function formatShiftPlanPeriodLabel(
   return formatViewTitleDe(parseLocalDayKey(anchorYmd), view);
 }
 
-/** Vorschlag für Ziel-Anker: gleicher Umfang, eine Periode später. */
+/** Vorschlag für Ziel-Anker: gleicher Umfang, eine Periode später — Wochentag bleibt gleich. */
 export function defaultCopyTargetYmd(
   sourceYmd: string,
   sourceScope: ShiftScheduleViewMode,
@@ -185,20 +185,89 @@ export function defaultCopyTargetYmd(
   if (sourceScope === "day") return localDayKey(addDays(anchor, 1));
   const next = new Date(anchor);
   next.setMonth(next.getMonth() + 1);
-  return localDayKey(startOfLocalDay(new Date(next.getFullYear(), next.getMonth(), 1)));
+  return localDayKey(startOfLocalDay(next));
 }
 
-/** Erster Quelltag → erster Zieltag (Tagesverschiebung für copyScheduledShiftsToRange). */
+/**
+ * Verschiebung in Tagen: gewähltes Quell-Datum → gewähltes Ziel-Datum
+ * (z. B. Dienstag → Dienstag), unabhängig von Wochenanfang/Monatsanfang.
+ */
 export function copyPeriodDayOffset(
+  sourceYmd: string,
+  _sourceScope: ShiftScheduleViewMode,
+  targetYmd: string,
+  _targetScope: ShiftScheduleViewMode,
+): number {
+  return dayOffsetLocal(sourceYmd, targetYmd);
+}
+
+const shiftPlanCopyShortDateFmt = new Intl.DateTimeFormat("de-DE", {
+  day: "numeric",
+  month: "numeric",
+});
+
+/** Kompaktes Kalenderdatum für Kopier-Hinweise (z. B. „4.6.“). */
+export function formatShiftPlanCopyShortDateDe(ymd: string): string {
+  return shiftPlanCopyShortDateFmt.format(parseLocalDayKey(ymd));
+}
+
+export type ShiftPlanCopyUiCopy = {
+  drawerHint: string;
+  sourceDateFieldLabel: string;
+  targetDateFieldLabel: string;
+  summary: (sourceLabel: string, targetLabel: string) => string;
+};
+
+/** Lesbare Hinweise je nach Tag/Woche/Monat — Monat: Kalendertag, nicht Wochentag. */
+export function getShiftPlanCopyUiCopy(
   sourceYmd: string,
   sourceScope: ShiftScheduleViewMode,
   targetYmd: string,
   targetScope: ShiftScheduleViewMode,
-): number {
-  const sourceFirst = daysInView(parseLocalDayKey(sourceYmd), sourceScope)[0]!;
-  const targetFirst = daysInView(parseLocalDayKey(targetYmd), targetScope)[0]!;
-  return dayOffsetLocal(localDayKey(sourceFirst), localDayKey(targetFirst));
+): ShiftPlanCopyUiCopy {
+  const sourceWd = weekdayLabelShort(parseLocalDayKey(sourceYmd));
+  const targetWd = weekdayLabelShort(parseLocalDayKey(targetYmd));
+  const sourceShort = formatShiftPlanCopyShortDateDe(sourceYmd);
+  const targetShort = formatShiftPlanCopyShortDateDe(targetYmd);
+  const usesMonthScope = sourceScope === "month" || targetScope === "month";
+
+  if (usesMonthScope) {
+    return {
+      drawerHint:
+        "Beim Monat bleibt jedes Kalenderdatum erhalten — z. B. der 4.6. wird der 4.7., unabhängig vom Wochentag.",
+      sourceDateFieldLabel: "Tag im Quellmonat",
+      targetDateFieldLabel: "Tag im Zielmonat",
+      summary: (sourceLabel, targetLabel) =>
+        `Schichten aus ${sourceLabel} werden nach ${targetLabel} kopiert. Jeder Tag behält sein Kalenderdatum (z. B. ${sourceShort} → ${targetShort}).`,
+    };
+  }
+
+  if (sourceScope === "week" || targetScope === "week") {
+    return {
+      drawerHint: `Bei der Woche zählt der gewählte Wochentag als Anker — z. B. ${sourceWd} wird wieder ${targetWd}.`,
+      sourceDateFieldLabel: `Wochentag (${sourceWd})`,
+      targetDateFieldLabel: `Ziel ab (${targetWd})`,
+      summary: (sourceLabel, targetLabel) =>
+        `Schichten aus ${sourceLabel} werden ab ${targetLabel} eingetragen. ${sourceWd} (${sourceShort}) wird ${targetWd} (${targetShort}) — alle anderen Tage der Woche verschieben sich entsprechend.`,
+    };
+  }
+
+  return {
+    drawerHint: "Einzelner Tag wird auf das gewählte Zieldatum übernommen.",
+    sourceDateFieldLabel: `Quelltag (${sourceWd})`,
+    targetDateFieldLabel: `Zieltag (${targetWd})`,
+    summary: (sourceLabel, targetLabel) =>
+      `Schichten vom ${sourceLabel} werden auf ${targetLabel} übernommen (${sourceShort} → ${targetShort}).`,
+  };
 }
+
+export const SHIFT_SCHEDULE_VIEW_SELECT_OPTIONS: {
+  value: ShiftScheduleViewMode;
+  label: string;
+}[] = (["day", "week", "month"] as const).map((mode) => ({
+  value: mode,
+  label: SHIFT_SCHEDULE_VIEW_LABELS[mode],
+}));
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

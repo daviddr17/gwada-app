@@ -1,6 +1,10 @@
 import "server-only";
 
 import {
+  DEFAULT_MENU_CURRENCY_CODE,
+  normalizeMenuCurrencyCode,
+} from "@/lib/constants/menu-currencies";
+import {
   getGoogleBusinessAccessTokenForRestaurant,
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
@@ -16,7 +20,10 @@ type MenuRow = {
   menu_categories: { name: string; sort_order: number } | { name: string; sort_order: number }[] | null;
 };
 
-function eurosToGooglePrice(price: number): {
+function priceToGoogleMoney(
+  price: number,
+  currencyCode: string,
+): {
   currencyCode: string;
   units: string;
   nanos: number;
@@ -24,7 +31,7 @@ function eurosToGooglePrice(price: number): {
   const safe = Math.max(0, price);
   const units = Math.floor(safe);
   const nanos = Math.round((safe - units) * 1e9);
-  return { currencyCode: "EUR", units: String(units), nanos };
+  return { currencyCode, units: String(units), nanos };
 }
 
 export async function syncMenuToGoogleBusiness(
@@ -42,6 +49,15 @@ export async function syncMenuToGoogleBusiness(
   if (!parent) {
     return { ok: false, error: "google_location_missing" };
   }
+
+  const { data: settingsRow } = await admin
+    .from("restaurant_menu_settings")
+    .select("currency_code")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const currencyCode = normalizeMenuCurrencyCode(
+    (settingsRow?.currency_code as string | undefined) ?? DEFAULT_MENU_CURRENCY_CODE,
+  );
 
   const { data: rows, error: menuErr } = await admin
     .from("menu_items")
@@ -90,7 +106,7 @@ export async function syncMenuToGoogleBusiness(
       items: section.items.map((item) => ({
         labels: [{ displayName: item.name.trim(), languageCode: "de" }],
         attributes: {
-          price: eurosToGooglePrice(Number(item.price)),
+          price: priceToGoogleMoney(Number(item.price), currencyCode),
         },
         ...(item.description?.trim()
           ? {

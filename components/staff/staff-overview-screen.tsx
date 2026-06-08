@@ -41,7 +41,7 @@ import type {
 import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -258,19 +258,22 @@ export function StaffOverviewScreen() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 gap-2 rounded-full"
+            onClick={() => setManageTagsOpen(true)}
+          >
+            <Tags className="size-4" />
+            Positionen
+          </Button>
+        </div>
         <Button
           type="button"
-          variant="outline"
-          className="h-12 gap-2 rounded-full"
-          onClick={() => setManageTagsOpen(true)}
-        >
-          <Tags className="size-4" />
-          Positionen
-        </Button>
-        <Button
-          type="button"
-          className={modulePrimaryAddButtonClassName}
+          size="lg"
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => {
             setFormMode("create");
             setEditStaff(null);

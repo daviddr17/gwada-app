@@ -197,6 +197,35 @@ export function StaffWorkHoursView({
       ),
     [yearMax, yearMin],
   );
+  const openEntry = useCallback((e: RestaurantStaffWorkEntryRow) => {
+    setEditEntry(e);
+    setDayForNew(null);
+    setDrawerOpen(true);
+  }, []);
+
+  const openDisplayShift = useCallback(
+    (segments: RestaurantStaffWorkEntryRow[]) => {
+      const primary =
+        segments.find((s) => s.entry_type === "work") ?? segments[0];
+      if (primary) openEntry(primary);
+    },
+    [openEntry],
+  );
+
+  const entryRowClassName =
+    "flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45";
+
+  const siblingEntries = useMemo(() => {
+    if (!drawerOpen) return [];
+    const day = editEntry
+      ? startOfLocalDay(new Date(editEntry.starts_at))
+      : dayForNew
+        ? startOfLocalDay(dayForNew)
+        : null;
+    if (!day) return [];
+    return byDay.get(localDayKey(day)) ?? [];
+  }, [drawerOpen, editEntry, dayForNew, byDay]);
+
   const monthTitle = formatMonthTitleDe(cursor.year, cursor.month);
 
   return (
@@ -382,10 +411,14 @@ export function StaffWorkHoursView({
                       groupWorkHoursDayEntries(dayEntries).map((item) => {
                         if (item.kind === "display_shift") {
                           return (
-                            <StaffDisplayShiftRow
+                            <button
                               key={item.shiftId}
-                              segments={item.segments}
-                            />
+                              type="button"
+                              className={entryRowClassName}
+                              onClick={() => openDisplayShift(item.segments)}
+                            >
+                              <StaffDisplayShiftRow segments={item.segments} />
+                            </button>
                           );
                         }
 
@@ -394,8 +427,14 @@ export function StaffWorkHoursView({
                         const endLabel = e.is_open
                           ? "läuft"
                           : timeDe.format(endInstant);
-                        const row = (
-                          <>
+
+                        return (
+                          <button
+                            key={e.id}
+                            type="button"
+                            className={entryRowClassName}
+                            onClick={() => openEntry(e)}
+                          >
                             <StaffWorkEntryTypeStripe
                               type={e.entry_type}
                               className="mt-0.5 self-stretch"
@@ -413,32 +452,6 @@ export function StaffWorkHoursView({
                                 {timeDe.format(new Date(e.starts_at))} – {endLabel}
                               </span>
                             </span>
-                          </>
-                        );
-
-                        if (!allowEdit || e.is_open || isDisplayWorkEntry(e)) {
-                          return (
-                            <div
-                              key={e.id}
-                              className="flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-sm"
-                            >
-                              {row}
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <button
-                            key={e.id}
-                            type="button"
-                            className="flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-left text-sm hover:bg-muted/40"
-                            onClick={() => {
-                              setEditEntry(e);
-                              setDayForNew(null);
-                              setDrawerOpen(true);
-                            }}
-                          >
-                            {row}
                           </button>
                         );
                       })
@@ -449,26 +462,26 @@ export function StaffWorkHoursView({
             })}
           </div>
 
-          {allowEdit ? (
-            <StaffWorkEntryDrawer
-              open={drawerOpen}
-              onOpenChange={setDrawerOpen}
-              restaurantId={restaurantId}
-              staffId={staffId}
-              entry={editEntry}
-              defaultDay={dayForNew}
-              absenceByDayKey={absenceByDayKey}
-              onSaved={() => void reload()}
-              onDelete={async (id) => {
-                const ok = await deleteStaffWorkEntry(id);
-                if (!ok) toast.error("Löschen fehlgeschlagen.");
-                else {
-                  toast.success("Gelöscht");
-                  void reload();
-                }
-              }}
-            />
-          ) : null}
+          <StaffWorkEntryDrawer
+            open={drawerOpen}
+            onOpenChange={setDrawerOpen}
+            restaurantId={restaurantId}
+            staffId={staffId}
+            entry={editEntry}
+            defaultDay={dayForNew}
+            absenceByDayKey={absenceByDayKey}
+            allowEdit={allowEdit}
+            siblingEntries={siblingEntries}
+            onSaved={() => void reload()}
+            onDelete={async (id) => {
+              const ok = await deleteStaffWorkEntry(id);
+              if (!ok) toast.error("Löschen fehlgeschlagen.");
+              else {
+                toast.success("Gelöscht");
+                void reload();
+              }
+            }}
+          />
         </>
       )}
     </div>

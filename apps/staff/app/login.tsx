@@ -47,7 +47,7 @@ export default function LoginScreen() {
         <View style={styles.container}>
           <View style={styles.brand}>
             <Image
-              source={require("../../assets/images/icon.png")}
+              source={require("../assets/images/icon.png")}
               style={styles.logo}
               accessibilityLabel="Gwada Staff"
             />

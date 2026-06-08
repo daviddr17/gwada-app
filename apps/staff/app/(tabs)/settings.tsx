@@ -1,17 +1,22 @@
 import { StyleSheet, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
 import { Card, ScreenHeader } from "@/src/components/ui";
+import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const restaurants = useAuthStore((s) => s.restaurants);
   const activeRestaurantId = useAuthStore((s) => s.activeRestaurantId);
   const session = useAuthStore((s) => s.session);
   const signOut = useAuthStore((s) => s.signOut);
+  const { has } = useStaffPermissions();
 
   const active = restaurants.find((r) => r.restaurantId === activeRestaurantId);
+  const showKasse = has("pos.kasse.manage") || has("pos.kasse.export");
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -25,6 +30,14 @@ export default function SettingsScreen() {
           <Text style={[styles.label, styles.gapTop]}>Aktives Restaurant</Text>
           <Text style={styles.value}>{active?.name ?? "—"}</Text>
         </Card>
+
+        {showKasse ? (
+          <Button
+            label="Kasse"
+            onPress={() => router.push("/kasse")}
+            style={styles.btn}
+          />
+        ) : null}
 
         <Button
           label="Restaurant wechseln"

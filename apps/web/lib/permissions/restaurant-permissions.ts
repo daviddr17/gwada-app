@@ -21,6 +21,8 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.inventory",
   "display.kds",
   "display.module_switch",
+  "pos.kasse.manage",
+  "pos.kasse.export",
 ] as const;
 
 export type RestaurantPermissionKey =
@@ -35,7 +37,8 @@ export type RestaurantPermissionMeta = {
     | "einstellungen"
     | "integrationen"
     | "dokumente"
-    | "display";
+    | "display"
+    | "pos";
 };
 
 export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] =
@@ -162,6 +165,18 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "Display: Modulwechsel",
       description: "Zwischen erlaubten Display-Modulen wechseln.",
       group: "display",
+    },
+    {
+      key: "pos.kasse.manage",
+      label: "Kasse öffnen und schließen",
+      description: "Kassenöffnung mit Anfangsbestand und Z-Bon-Abschluss.",
+      group: "pos",
+    },
+    {
+      key: "pos.kasse.export",
+      label: "Kassenberichte und DSFinV-K",
+      description: "X-/Z-Berichte als PDF und DSFinV-K-Export (ZIP).",
+      group: "pos",
     },
   ] as const;
 

@@ -17,7 +17,9 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import { Input } from "@/components/ui/input";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { RestaurantFiscalOverview } from "@/lib/pos/restaurant-fiscal-overview-types";
 import { cn } from "@/lib/utils";
@@ -101,8 +103,18 @@ function formatSignedAt(iso: string | null): string {
   });
 }
 
+function parseEuroInputToCents(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const num = Number(normalized);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num * 100);
+}
+
 export function RestaurantFiscalPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const { has: hasPermission } = useRestaurantPermissions();
+  const canManageKasse = hasPermission("pos.kasse.manage");
   const [overview, setOverview] = useState<RestaurantFiscalOverview | null>(
     null,
   );
@@ -110,6 +122,8 @@ export function RestaurantFiscalPanel() {
   const [registerAction, setRegisterAction] = useState<"open" | "close" | null>(
     null,
   );
+  const [openingCashEuro, setOpeningCashEuro] = useState("");
+  const [closingCashEuro, setClosingCashEuro] = useState("");
   const showSkeleton = useDeferredSkeleton(!workspaceReady || loading);
 
   const load = useCallback(async () => {
@@ -143,12 +157,21 @@ export function RestaurantFiscalPanel() {
   }, [load]);
 
   const handleRegisterOpen = async () => {
-    if (!restaurantId) return;
+    if (!restaurantId || !canManageKasse) return;
+    const openingCashCents = parseEuroInputToCents(openingCashEuro);
+    if (openingCashCents == null) {
+      toast.error("Bitte einen gültigen Anfangsbestand eingeben.");
+      return;
+    }
     setRegisterAction("open");
     try {
       const res = await fetch(
         `/api/pos/fiskaly/register/open?restaurantId=${encodeURIComponent(restaurantId)}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ openingCashCents }),
+        },
       );
       const data = (await res.json()) as { error?: string; openedAt?: string };
       if (!res.ok) {
@@ -160,6 +183,7 @@ export function RestaurantFiscalPanel() {
         return;
       }
       toast.success("Kasse geöffnet.");
+      setOpeningCashEuro("");
       await load();
     } finally {
       setRegisterAction(null);
@@ -167,12 +191,21 @@ export function RestaurantFiscalPanel() {
   };
 
   const handleRegisterClose = async () => {
-    if (!restaurantId) return;
+    if (!restaurantId || !canManageKasse) return;
+    const closingCashCents = parseEuroInputToCents(closingCashEuro);
+    if (closingCashCents == null) {
+      toast.error("Bitte einen gültigen Endbestand eingeben.");
+      return;
+    }
     setRegisterAction("close");
     try {
       const res = await fetch(
         `/api/pos/fiskaly/register/close?restaurantId=${encodeURIComponent(restaurantId)}`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ closingCashCents }),
+        },
       );
       const data = (await res.json()) as {
         error?: string;
@@ -190,9 +223,10 @@ export function RestaurantFiscalPanel() {
       }
       toast.success(
         data.zNr != null
-          ? `Kassenabschluss erstellt (Z-Bon ${data.zNr}).`
-          : "Kassenabschluss erstellt.",
+          ? `Kasse geschlossen (Z${data.zNr}).`
+          : "Kasse geschlossen.",
       );
+      setClosingCashEuro("");
       await load();
     } finally {
       setRegisterAction(null);
@@ -312,47 +346,82 @@ export function RestaurantFiscalPanel() {
             />
           </div>
 
-          {overview.dsfinvkCashRegisterReady ? (
-            <div className="flex flex-wrap gap-2 border-t border-border/40 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-xl"
-                disabled={
-                  Boolean(overview.registerOpenedAt) || registerAction !== null
-                }
-                onClick={() => void handleRegisterOpen()}
-              >
-                {registerAction === "open" ? (
-                  <>
-                    <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
-                    Öffnet…
-                  </>
-                ) : (
-                  "Kasse öffnen"
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rounded-xl"
-                disabled={
-                  !overview.registerOpenedAt || registerAction !== null
-                }
-                onClick={() => void handleRegisterClose()}
-              >
-                {registerAction === "close" ? (
-                  <>
-                    <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
-                    Schließt…
-                  </>
-                ) : (
-                  "Kasse schließen (Z-Bon)"
-                )}
-              </Button>
+          {overview.dsfinvkCashRegisterReady && canManageKasse ? (
+            <div className="space-y-3 border-t border-border/40 pt-4">
+              {!overview.registerOpenedAt ? (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Anfangsbestand (EUR)
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={openingCashEuro}
+                    onChange={(e) => setOpeningCashEuro(e.target.value)}
+                    className="max-w-xs rounded-xl"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Endbestand gezählt (EUR)
+                  </Label>
+                  <Input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0,00"
+                    value={closingCashEuro}
+                    onChange={(e) => setClosingCashEuro(e.target.value)}
+                    className="max-w-xs rounded-xl"
+                  />
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={
+                    Boolean(overview.registerOpenedAt) || registerAction !== null
+                  }
+                  onClick={() => void handleRegisterOpen()}
+                >
+                  {registerAction === "open" ? (
+                    <>
+                      <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
+                      Öffnet…
+                    </>
+                  ) : (
+                    "Kasse öffnen"
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  disabled={
+                    !overview.registerOpenedAt || registerAction !== null
+                  }
+                  onClick={() => void handleRegisterClose()}
+                >
+                  {registerAction === "close" ? (
+                    <>
+                      <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
+                      Schließt…
+                    </>
+                  ) : (
+                    "Kasse schließen (Z-Bon)"
+                  )}
+                </Button>
+              </div>
             </div>
+          ) : overview.dsfinvkCashRegisterReady && !canManageKasse ? (
+            <p className="border-t border-border/40 pt-4 text-sm text-muted-foreground">
+              Kasse öffnen/schließen erfordert die Berechtigung „Kasse öffnen und schließen“.
+            </p>
           ) : null}
         </CardContent>
       </Card>

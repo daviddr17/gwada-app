@@ -1,6 +1,10 @@
 import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import {
+  ALL_RESTAURANT_PERMISSION_KEYS,
+  type RestaurantPermissionKey,
+} from "@/lib/permissions/restaurant-permissions";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { getSupabaseAnonKey } from "@/lib/public-env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -144,6 +148,47 @@ async function isActiveRestaurantStaff(
   return Boolean(row);
 }
 
+async function userRestaurantPermissionKeys(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  userId: string,
+): Promise<Set<string>> {
+  const { data: keys, error } = await supabase.rpc(
+    "auth_user_restaurant_permission_keys",
+    { p_restaurant_id: restaurantId },
+  );
+
+  const result = new Set<string>((keys as string[] | null) ?? []);
+
+  if (!error && result.size > 0) {
+    return result;
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return result;
+
+  const { data: employee } = await admin
+    .from("restaurant_employees")
+    .select("role, restaurant_positions(slug)")
+    .eq("restaurant_id", restaurantId)
+    .eq("profile_id", userId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  const positionSlug = (
+    employee as { restaurant_positions?: { slug?: string } | null } | null
+  )?.restaurant_positions?.slug;
+  const employeeRole = (employee as { role?: string } | null)?.role;
+
+  if (positionSlug === "owner" || employeeRole === "owner") {
+    for (const key of ALL_RESTAURANT_PERMISSION_KEYS) {
+      result.add(key);
+    }
+  }
+
+  return result;
+}
+
 async function supabaseFromRequest(
   request: Request,
 ): Promise<{ supabase: SupabaseClient; userId: string } | null> {
@@ -200,4 +245,28 @@ export async function authorizePosRestaurant(
       supabase: session.supabase,
     },
   };
+}
+
+export async function authorizePosRestaurantPermission(
+  request: Request,
+  restaurantIdRaw: string | null,
+  permissionKey: RestaurantPermissionKey,
+): Promise<
+  | { ok: true; auth: PosRouteAuth }
+  | { ok: false; status: number; error: string }
+> {
+  const base = await authorizePosRestaurant(request, restaurantIdRaw);
+  if (!base.ok) return base;
+
+  const keys = await userRestaurantPermissionKeys(
+    base.auth.supabase,
+    base.auth.restaurantId,
+    base.auth.userId,
+  );
+
+  if (!keys.has(permissionKey)) {
+    return { ok: false, status: 403, error: "forbidden" };
+  }
+
+  return base;
 }

@@ -55,6 +55,8 @@ export async function buildCashPointClosingPayload(params: {
   zNr: number;
   sessionOpenedAt: string;
   sessionClosedAt?: string;
+  /** Same YYYY-MM-DD as export filter (Loyaro: one date at close). */
+  businessDate: string;
 }): Promise<
   | { ok: true; payload: DsfinvkCashPointClosingPayload }
   | { ok: false; error: string }
@@ -307,6 +309,7 @@ export async function buildCashPointClosingPayload(params: {
       first_transaction_export_id: firstExportId,
       last_transaction_export_id: lastExportId,
       export_creation_date: unixSeconds(closedAt),
+      business_date: params.businessDate,
     },
     cash_statement: {
       business_cases: businessCases,

@@ -76,6 +76,14 @@ export default function RootLayout() {
                 headerBackTitle: "Zurück",
               }}
             />
+            <Stack.Screen
+              name="kasse/index"
+              options={{
+                headerShown: true,
+                title: "Kasse",
+                headerBackTitle: "Zurück",
+              }}
+            />
           </Stack>
           </AuthGate>
         </StaffThemeProvider>

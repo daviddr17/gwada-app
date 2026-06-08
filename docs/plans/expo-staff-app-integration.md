@@ -3,7 +3,7 @@
 > **Branch:** `plan/expo-iphone-integration`  
 > **Strategie:** A — Monorepo (`apps/web`, `apps/staff`, `packages/*`)  
 > **Ziel-PR:** gegen `main` (Teamkollege arbeitet auf `develop`, pusht regelmäßig auf `main`)  
-> **Stand:** Planung — kein App-Code in `apps/web` anfassen, bis Mobile-Integration abgeschlossen
+> **Stand:** Phase 4–5 MVP (Cash + Fiskaly + PDF-Beleg) implementiert — Phase 6 (E2E / Release) läuft
 
 ---
 
@@ -198,42 +198,45 @@ Nach `db:start`: `pnpm db:push:local` und `pnpm gen:types` ausführen.
 
 ---
 
-### Phase 4 — Server-APIs in `apps/web`
+### Phase 4 — Server-APIs in `apps/web` ✅ MVP (Cash + Fiskaly, 2026-06-08)
 
 Secrets nur über `platform_integrations` (Superadmin UI):
 
-- [ ] Integration-Typen: `mollie`, `fiskaly` in DB/Config
-- [ ] `POST /api/pos/orders` — Bestellung anlegen (optional: delegiert an Supabase RPC)
-- [ ] `POST /api/pos/orders/[id]/pay` — Mollie Payment anstoßen
-- [ ] `POST /api/pos/mollie/webhook` — Status-Update
-- [ ] `POST /api/pos/orders/[id]/fiscalize` — Fiskaly TSE-Transaktion
-- [ ] Auth-Middleware: Supabase-JWT + Staff-Check
-- [ ] Superadmin: `*_configured`-Flags, kein Klartext in UI
+- [x] Integration-Typ `fiskaly` in DB/Config + Superadmin-UI (`*_configured`)
+- [x] `mollie` in DB (Zeile); Superadmin-UI + Zahlungsflow **noch offen** (Option C: nach Cash-MVP)
+- [x] `POST /api/pos/orders` — Bestellung anlegen
+- [x] Barzahlung: `PATCH /api/pos/payments/collect-cash/[orderId]` (statt `…/pay`)
+- [x] TSE nach Zahlung in `pos-payment-pipeline` + `POST …/retry-signing` (statt `…/fiscalize`)
+- [ ] `POST /api/pos/orders/[id]/pay` — Mollie Payment (Stub: `POST /api/pos/payments` → 501)
+- [ ] `POST /api/pos/mollie/webhook` — echter Status-Update (aktuell Stub)
+- [x] Auth-Middleware: Supabase-JWT + Staff-Check (`pos-route-auth.ts`)
+- [x] Superadmin Fiskaly: `api_key_configured` / `api_secret_configured`, kein Klartext
 
 ---
 
-### Phase 5 — Expo App „Gwada Staff“ (Neubau)
+### Phase 5 — Expo App „Gwada Staff“ (Neubau) ✅ MVP (2026-06-08)
 
-- [ ] `apps/staff` — frisches Expo-Projekt (SDK-Version aus Audit oder aktuell LTS)
-- [ ] Branding: Gwada-Logo, Farben aus Tenant/`platform_app_settings`, Name „Gwada Staff“
-- [ ] Auth-Screen (Supabase, E-Mail/Magic Link + Deep Link)
-- [ ] Workspace-Restaurant-Auswahl (wie Web: aktives Restaurant)
-- [ ] Speisekarte (read-only aus `menu_items`)
-- [ ] Bestell-Flow: Tisch wählen → Positionen → senden
-- [ ] Bezahl-Flow: v1 Bar über Web-API; Mollie Phase 2
-- [ ] TSE-Abschluss über Web-API (Fiskaly)
-- [ ] Skeleton-Loader, kein Spinner für Screen-Laden
-- [ ] Nur iOS-Target initially (`ios.bundleIdentifier` festlegen)
+- [x] `apps/staff` — Expo SDK 56, expo-router, Monorepo-Pakete
+- [ ] Branding: echtes Gwada-Logo + `platform_app_settings` (aktuell: Platzhalter + `brand_accent_hex` teilweise)
+- [ ] Auth: Magic Link + Deep Link (`gwada-staff://`) — aktuell nur Passwort-Login
+- [x] Workspace-Restaurant-Auswahl (`active_restaurant_id`)
+- [x] Speisekarte read-only (`menu_items`; ohne Kategorien/Extras)
+- [x] Bestell-Flow: Tisch → Positionen → senden
+- [x] Bezahl-Flow v1 Bar über Web-API
+- [x] TSE + PDF-Beleg über Web-API (Viewer + Teilen)
+- [x] Skeleton-Loader auf Hauptscreens (`useDeferredSkeleton`)
+- [x] iOS-Target: `app.gwada.staff`, Simulator-Script `scripts/staff-ios-simulator.sh`
 
 **UI:** komplett neu — kein Copy der alten Screens. Orientierung an Gwada-Web (Typografie, Akzent, Karten).
 
 ---
 
-### Phase 6 — Manuelle Releases
+### Phase 6 — Manuelle Releases ← **aktuell**
 
 - [ ] Expo lokal: `npx expo run:ios` / EAS optional später
 - [ ] TestFlight manuell (kein CI für Mobile in Phase 1)
-- [ ] Internes Testprotokoll: Login → Bestellung → Zahlung → TSE-Beleg
+- [x] Internes Testprotokoll: [`staff-app-e2e-test-protocol.md`](./staff-app-e2e-test-protocol.md)
+- [ ] Protokoll einmal vollständig durchspielen und Ergebnis-Log ausfüllen
 
 ---
 
@@ -303,6 +306,8 @@ Details: [`expo-staff-salvage-audit.md` → Mollie-Strategie](./expo-staff-salva
 1. ~~Phase 0 Salvage-Audit~~ — erledigt
 2. ~~Phase 1 Monorepo-Scaffold~~ — erledigt
 3. ~~Phase 2 Shared Packages~~ — erledigt
-4. ~~Phase 3 POS-Schema~~ — Migration im Repo; lokal: `pnpm db:start && pnpm db:push:local && pnpm gen:types`
-5. **Phase 4:** Next.js POS-APIs (Fiskaly, Cash, Mollie-Vorbereitung)
-6. **Phase 5:** Expo „Gwada Staff“
+4. ~~Phase 3 POS-Schema~~ — erledigt
+5. ~~Phase 4 MVP~~ — Cash + Fiskaly + PDF; Mollie bewusst offen
+6. ~~Phase 5 MVP~~ — Staff-App lauffähig; Branding/Magic-Link offen
+7. **Phase 6:** E2E-Protokoll durchspielen → Blocker fixen → `expo run:ios` / TestFlight-Vorbereitung
+8. **Danach:** Mollie (Superadmin + Pay + Webhook) oder Gäste-App (Phase 7)

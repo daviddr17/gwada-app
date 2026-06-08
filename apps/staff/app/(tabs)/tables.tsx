@@ -4,6 +4,7 @@ import { Alert, FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { SkeletonList } from "@/src/components/Skeleton";
 import { Card, ScreenHeader } from "@/src/components/ui";
+import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { openTableSession, PosApiError } from "@/src/lib/pos-api";
 import { getStaffSupabase } from "@/src/lib/supabase";
 import { useAuthStore } from "@/src/stores/auth-store";
@@ -62,6 +63,8 @@ export default function TablesScreen() {
     }
   };
 
+  const showSkeleton = useDeferredSkeleton(isLoading);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
@@ -70,8 +73,10 @@ export default function TablesScreen() {
           subtitle="Tisch wählen und Bestellung starten"
         />
 
-        {isLoading ? (
+        {showSkeleton ? (
           <SkeletonList count={6} />
+        ) : isLoading ? (
+          <View style={styles.listPlaceholder} aria-busy />
         ) : (
           <FlatList
             data={data ?? []}
@@ -107,6 +112,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: gwadaColors.background },
   container: { flex: 1, padding: gwadaSpacing.lg },
   list: { gap: 12, paddingBottom: gwadaSpacing.xl },
+  listPlaceholder: { flex: 1, minHeight: 200 },
   tableName: { fontSize: 18, fontWeight: "600", color: gwadaColors.text },
   tableMeta: { fontSize: 14, color: gwadaColors.textMuted, marginTop: 4 },
   emptyBox: { padding: 24, gap: 8 },

@@ -159,6 +159,7 @@ export type DsfinvkCashPointClosingPayload = {
     first_transaction_export_id?: string;
     last_transaction_export_id?: string;
     export_creation_date?: number;
+    business_date?: string;
   };
   cash_statement?: Record<string, unknown>;
   /** Sibling of cash_statement per DSFinV-K closing structure (not nested inside it). */

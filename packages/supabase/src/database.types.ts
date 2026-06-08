@@ -1986,10 +1986,90 @@ export type Database = {
           },
         ]
       }
+      pos_register_sessions: {
+        Row: {
+          cash_difference_cents: number | null
+          cash_point_closing_id: string | null
+          closed_at: string | null
+          closed_by_profile_id: string | null
+          closing_cash_cents: number | null
+          created_at: string
+          dsfinvk_export_id: string | null
+          dsfinvk_export_storage_path: string | null
+          expected_cash_cents: number | null
+          id: string
+          opened_at: string
+          opened_by_profile_id: string | null
+          opening_cash_cents: number
+          restaurant_id: string
+          updated_at: string
+          z_nr: number | null
+        }
+        Insert: {
+          cash_difference_cents?: number | null
+          cash_point_closing_id?: string | null
+          closed_at?: string | null
+          closed_by_profile_id?: string | null
+          closing_cash_cents?: number | null
+          created_at?: string
+          dsfinvk_export_id?: string | null
+          dsfinvk_export_storage_path?: string | null
+          expected_cash_cents?: number | null
+          id?: string
+          opened_at?: string
+          opened_by_profile_id?: string | null
+          opening_cash_cents?: number
+          restaurant_id: string
+          updated_at?: string
+          z_nr?: number | null
+        }
+        Update: {
+          cash_difference_cents?: number | null
+          cash_point_closing_id?: string | null
+          closed_at?: string | null
+          closed_by_profile_id?: string | null
+          closing_cash_cents?: number | null
+          created_at?: string
+          dsfinvk_export_id?: string | null
+          dsfinvk_export_storage_path?: string | null
+          expected_cash_cents?: number | null
+          id?: string
+          opened_at?: string
+          opened_by_profile_id?: string | null
+          opening_cash_cents?: number
+          restaurant_id?: string
+          updated_at?: string
+          z_nr?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_register_sessions_closed_by_profile_id_fkey"
+            columns: ["closed_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_register_sessions_opened_by_profile_id_fkey"
+            columns: ["opened_by_profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_register_sessions_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_restaurant_fiscal_config: {
         Row: {
           cash_point_closing_counter: number
           created_at: string
+          current_register_session_id: string | null
           dsfinvk_cash_register_ready: boolean
           fiskaly_client_id: string | null
           fiskaly_client_serial: string | null
@@ -2008,6 +2088,7 @@ export type Database = {
         Insert: {
           cash_point_closing_counter?: number
           created_at?: string
+          current_register_session_id?: string | null
           dsfinvk_cash_register_ready?: boolean
           fiskaly_client_id?: string | null
           fiskaly_client_serial?: string | null
@@ -2026,6 +2107,7 @@ export type Database = {
         Update: {
           cash_point_closing_counter?: number
           created_at?: string
+          current_register_session_id?: string | null
           dsfinvk_cash_register_ready?: boolean
           fiskaly_client_id?: string | null
           fiskaly_client_serial?: string | null
@@ -2042,6 +2124,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "pos_restaurant_fiscal_config_current_register_session_id_fkey"
+            columns: ["current_register_session_id"]
+            isOneToOne: false
+            referencedRelation: "pos_register_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "pos_restaurant_fiscal_config_restaurant_id_fkey"
             columns: ["restaurant_id"]
@@ -3763,9 +3852,12 @@ export type Database = {
           owner_profile_id: string | null
           phone: string | null
           postal_code: string | null
+          receipt_footer: string | null
           slug: string
+          social_handle: string | null
           timezone: string
           updated_at: string
+          vat_number: string | null
           website: string | null
         }
         Insert: {
@@ -3785,9 +3877,12 @@ export type Database = {
           owner_profile_id?: string | null
           phone?: string | null
           postal_code?: string | null
+          receipt_footer?: string | null
           slug: string
+          social_handle?: string | null
           timezone?: string
           updated_at?: string
+          vat_number?: string | null
           website?: string | null
         }
         Update: {
@@ -3807,9 +3902,12 @@ export type Database = {
           owner_profile_id?: string | null
           phone?: string | null
           postal_code?: string | null
+          receipt_footer?: string | null
           slug?: string
+          social_handle?: string | null
           timezone?: string
           updated_at?: string
+          vat_number?: string | null
           website?: string | null
         }
         Relationships: [
@@ -3924,6 +4022,13 @@ export type Database = {
           google_business_enabled: boolean
           instagram_enabled: boolean
           whatsapp_enabled: boolean
+        }[]
+      }
+      pos_restaurant_today_bounds: {
+        Args: { p_restaurant_id: string }
+        Returns: {
+          end_at: string
+          start_at: string
         }[]
       }
       resolve_restaurant_staff_by_display_pin: {

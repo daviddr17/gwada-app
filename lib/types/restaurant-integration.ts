@@ -3,6 +3,7 @@ export type RestaurantIntegrationKey = "whatsapp" | "email" | "facebook";
 export type RestaurantEmailStatus = "default" | "custom";
 
 import type { SmtpIntegrationConfigPublic } from "@/lib/integrations/smtp-integration-config";
+import type { LexofficeIntegrationConfigPublic } from "@/lib/integrations/lexoffice-integration-config";
 
 export type RestaurantEmailIntegrationConfig = {
   from_email?: string;
@@ -95,5 +96,34 @@ export type FacebookConnectResponse = {
   pageName: string | null;
   pageId: string | null;
   connectedAt: string | null;
+  message?: string;
+};
+
+export type RestaurantLexofficeStatus = "disconnected" | "working";
+
+export type RestaurantLexofficeIntegrationRow = {
+  restaurant_id: string;
+  integration_key: "lexoffice";
+  status: RestaurantLexofficeStatus;
+  config: LexofficeIntegrationConfigPublic;
+  display_name: string | null;
+  connected_at: string | null;
+  last_error: string | null;
+  updated_at: string;
+};
+
+export type LexofficeIntegrationResponse = {
+  platformEnabled: boolean;
+  configured: boolean;
+  status: RestaurantLexofficeStatus;
+  companyName: string | null;
+  organizationId: string | null;
+  taxType: string | null;
+  businessFeatures: string[];
+  connectedUserName: string | null;
+  connectedUserEmail: string | null;
+  connectedAt: string | null;
+  apiKeyConfigured: boolean;
+  lastError: string | null;
   message?: string;
 };

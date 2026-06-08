@@ -39,6 +39,14 @@ import { ReviewsScreenSkeleton } from "@/components/reviews/reviews-screen-skele
 import { ReviewsPagination } from "@/components/reviews/reviews-pagination";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import {
+  moduleSearchFieldWrapClassName,
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+  moduleSearchInputClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
+import {
   parseReviewPlatformFilter,
   REVIEW_FILTER_ALL,
   type ReviewPlatform,
@@ -959,23 +967,23 @@ export function ReviewsScreen() {
 
           {allReviews.length > 0 ? (
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <div className="relative min-w-0 flex-1">
+              <div className={moduleSearchFilterRowClassName}>
+                <div className={moduleSearchFieldWrapClassName}>
                   <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Kommentar, Name oder Antwort …"
-                    className="h-11 rounded-2xl border-border/50 bg-card pl-10 shadow-none dark:shadow-sm"
+                    className={moduleSearchInputClassName}
                     aria-label="Bewertungen durchsuchen"
                   />
                 </div>
-                <div className="relative shrink-0">
+                <div className={moduleSearchFilterButtonWrapClassName}>
                   <Button
                     type="button"
                     variant="outline"
-                    size="icon-sm"
-                    className="rounded-full border-border/60"
+                    size="icon-lg"
+                    className={moduleSearchFilterButtonClassName}
                     aria-label="Filter und Sortierung"
                     onClick={() => setFilterOpen(true)}
                   >
@@ -984,7 +992,7 @@ export function ReviewsScreen() {
                   {drawerFilterActiveCount > 0 ? (
                     <Badge
                       variant="secondary"
-                      className="pointer-events-none absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-medium tabular-nums"
+                      className={moduleSearchFilterActiveBadgeClassName}
                     >
                       {drawerFilterActiveCount}
                     </Badge>

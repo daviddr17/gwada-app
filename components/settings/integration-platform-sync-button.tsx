@@ -5,16 +5,17 @@ import { toast } from "sonner";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { Button } from "@/components/ui/button";
+import {
+  integrationPlatformSyncLabel,
+  integrationSyncSuccessMessage,
+  postIntegrationPlatformSync,
+  type IntegrationPlatformSyncTarget,
+} from "@/lib/integrations/integration-platform-sync-client";
 import { integrationSyncErrorMessage } from "@/lib/integrations/integration-sync-user-messages";
 import { integrationPlatformSyncButtonClassName } from "@/lib/ui/integration-platform-sync-button";
 import { cn } from "@/lib/utils";
 
-type SyncTarget =
-  | "opening_hours_google"
-  | "opening_hours_facebook"
-  | "kitchen_hours_google"
-  | "opening_exceptions_google"
-  | "menu_google";
+type SyncTarget = IntegrationPlatformSyncTarget;
 
 const LABELS: Record<SyncTarget, string> = {
   opening_hours_google: "Öffnungszeiten an Google übertragen",
@@ -22,23 +23,6 @@ const LABELS: Record<SyncTarget, string> = {
   kitchen_hours_google: "Küchenzeiten an Google übertragen",
   opening_exceptions_google: "Ausnahmen an Google übertragen",
   menu_google: "Speisekarte an Google übertragen",
-};
-
-const ENDPOINTS: Record<SyncTarget, string> = {
-  opening_hours_google:
-    "/api/integrations/google-business/sync-opening-hours",
-  opening_hours_facebook: "/api/integrations/facebook/sync-opening-hours",
-  kitchen_hours_google:
-    "/api/integrations/google-business/sync-kitchen-hours",
-  opening_exceptions_google:
-    "/api/integrations/google-business/sync-opening-exceptions",
-  menu_google: "/api/integrations/google-business/sync-menu",
-};
-
-const SUCCESS_HINTS: Partial<Record<SyncTarget, string>> = {
-  opening_exceptions_google:
-    "Zukünftige Ausnahmen wurden an Google übertragen.",
-  kitchen_hours_google: "Küchenzeiten wurden an Google übertragen.",
 };
 
 function SyncButtonPlatformIcon({ target }: { target: SyncTarget }) {
@@ -86,30 +70,19 @@ export function IntegrationPlatformSyncButton({
     if (!restaurantId || !connected) return;
     setBusy(true);
     try {
-      const res = await fetch(ENDPOINTS[target], {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        itemCount?: number;
-      };
-      if (!res.ok || !data.ok) {
-        toast.error(integrationSyncErrorMessage(data.error ?? "sync_failed"));
+      const result = await postIntegrationPlatformSync(target, restaurantId);
+      if (!result.ok) {
+        toast.error(
+          `${integrationPlatformSyncLabel(target)}: ${integrationSyncErrorMessage(result.error)}`,
+        );
         return;
       }
-      if (target === "menu_google" && data.itemCount != null) {
-        toast.success(
-          `Speisekarte übertragen (${data.itemCount} ${data.itemCount === 1 ? "Gericht" : "Gerichte"}).`,
-        );
-      } else {
-        toast.success(SUCCESS_HINTS[target] ?? "Erfolgreich übertragen.");
-      }
+      toast.success(
+        `${integrationPlatformSyncLabel(target)}: ${integrationSyncSuccessMessage(target, result.itemCount)}`,
+      );
       onSynced?.();
     } catch {
-      toast.error("Übertragung fehlgeschlagen.");
+      toast.error(`${integrationPlatformSyncLabel(target)}: Übertragung fehlgeschlagen.`);
     } finally {
       setBusy(false);
     }

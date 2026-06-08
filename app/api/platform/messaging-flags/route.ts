@@ -20,6 +20,7 @@ export async function GET() {
       facebookEnabled: flags.facebookEnabled,
       instagramEnabled: flags.instagramEnabled,
       googleBusinessEnabled: flags.googleBusinessEnabled,
+      lexofficeEnabled: flags.lexofficeEnabled,
     },
     {
       headers: {

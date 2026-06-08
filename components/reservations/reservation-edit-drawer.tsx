@@ -7,6 +7,7 @@ import { Contact, Mail, Trash2 } from "lucide-react";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
+  reservationNotifyRowLabelClassName,
   reservationNotifyRowMailIconClassName,
   reservationNotifyRowTermsIconClassName,
   reservationNotifyRowWhatsAppIconClassName,
@@ -929,7 +930,7 @@ export function ReservationEditDrawer({
                 >
                   <span
                     id="res-notify-email"
-                    className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
+                    className={reservationNotifyRowLabelClassName}
                   >
                     <Mail
                       className={reservationNotifyRowMailIconClassName}
@@ -953,7 +954,7 @@ export function ReservationEditDrawer({
                 >
                   <span
                     id="res-notify-whatsapp"
-                    className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
+                    className={reservationNotifyRowLabelClassName}
                   >
                     <WhatsAppGlyph
                       className={reservationNotifyRowWhatsAppIconClassName}
@@ -971,7 +972,7 @@ export function ReservationEditDrawer({
                 <div className="flex items-center justify-between gap-3">
                   <span
                     id="res-terms"
-                    className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
+                    className={reservationNotifyRowLabelClassName}
                   >
                     <TermsGlyph
                       className={reservationNotifyRowTermsIconClassName}

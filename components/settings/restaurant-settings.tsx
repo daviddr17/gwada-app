@@ -28,10 +28,17 @@ import {
 } from "@/components/settings/settings-sticky-save-bar";
 import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
 import { OpeningHoursHolidaySuggestions } from "@/components/settings/opening-hours-holiday-suggestions";
+import { OpeningHoursPlatformSyncToggles } from "@/components/settings/opening-hours-platform-sync-toggles";
 import {
   OpeningHoursPlatformSyncStatusBadge,
   OpeningHoursPlatformSyncStatusRow,
 } from "@/components/settings/opening-hours-platform-sync-status";
+import {
+  integrationPlatformSyncLabel,
+  integrationSyncSuccessMessage,
+  postIntegrationPlatformSync,
+} from "@/lib/integrations/integration-platform-sync-client";
+import { integrationSyncErrorMessage } from "@/lib/integrations/integration-sync-user-messages";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useOpeningHoursPlatformStatus } from "@/lib/hooks/use-opening-hours-platform-status";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
@@ -117,6 +124,8 @@ export function RestaurantSettingsPanel({
   const [showPastExceptions, setShowPastExceptions] = useState(false);
   const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
   const [platformStatusRefresh, setPlatformStatusRefresh] = useState(0);
+  const [syncGoogleOnSave, setSyncGoogleOnSave] = useState(true);
+  const [syncFacebookOnSave, setSyncFacebookOnSave] = useState(true);
 
   const pendingExceptionDateLabel = useMemo(() => {
     if (!exceptionDeleteId || !draft) return "";
@@ -145,23 +154,6 @@ export function RestaurantSettingsPanel({
     const frame = requestAnimationFrame(() => setAccentDraft(accentHex));
     return () => cancelAnimationFrame(frame);
   }, [accentHex, accentReady]);
-
-  const handleSaveHours = async () => {
-    if (!draft) return;
-    const normalized = normalizeProfileForSave(draft);
-    const msg = validateOpeningHours(normalized);
-    if (msg) {
-      setError(msg);
-      return;
-    }
-    setError(null);
-    const ok = await saveOpeningHours({ ...normalized, id: draft.id });
-    if (!ok) return;
-    setDraft(cloneProfile({ ...normalized, id: draft.id }));
-    setSavedHoursFlash(true);
-    setPlatformStatusRefresh((n) => n + 1);
-    window.setTimeout(() => setSavedHoursFlash(false), 2000);
-  };
 
   const bumpPlatformStatus = () => setPlatformStatusRefresh((n) => n + 1);
 
@@ -373,6 +365,66 @@ export function RestaurantSettingsPanel({
       workspaceRestaurantId,
       platformStatusRefresh,
     );
+
+  const syncOpeningHoursToPlatforms = async (restaurantId: string) => {
+    const targets: Array<{
+      target: "opening_hours_google" | "opening_hours_facebook";
+      enabled: boolean;
+      connected: boolean;
+    }> = [
+      {
+        target: "opening_hours_google",
+        enabled: syncGoogleOnSave,
+        connected: googleConnected,
+      },
+      {
+        target: "opening_hours_facebook",
+        enabled: syncFacebookOnSave,
+        connected: facebookConnected,
+      },
+    ];
+
+    for (const { target, enabled, connected } of targets) {
+      if (!enabled || !connected) continue;
+      const label = integrationPlatformSyncLabel(target);
+      try {
+        const result = await postIntegrationPlatformSync(target, restaurantId);
+        if (!result.ok) {
+          toast.error(
+            `${label}: ${integrationSyncErrorMessage(result.error)}`,
+          );
+          continue;
+        }
+        toast.success(
+          `${label}: ${integrationSyncSuccessMessage(target, result.itemCount)}`,
+        );
+      } catch {
+        toast.error(`${label}: Übertragung fehlgeschlagen.`);
+      }
+    }
+  };
+
+  const handleSaveHours = async () => {
+    if (!draft) return;
+    const normalized = normalizeProfileForSave(draft);
+    const msg = validateOpeningHours(normalized);
+    if (msg) {
+      setError(msg);
+      return;
+    }
+    setError(null);
+    const ok = await saveOpeningHours({ ...normalized, id: draft.id });
+    if (!ok) return;
+    setDraft(cloneProfile({ ...normalized, id: draft.id }));
+    setSavedHoursFlash(true);
+    setPlatformStatusRefresh((n) => n + 1);
+    window.setTimeout(() => setSavedHoursFlash(false), 2000);
+
+    if (workspaceRestaurantId) {
+      await syncOpeningHoursToPlatforms(workspaceRestaurantId);
+      setPlatformStatusRefresh((n) => n + 1);
+    }
+  };
 
   if (!draft) {
     if (showSkeleton && awaitingDraft) {
@@ -871,15 +923,32 @@ export function RestaurantSettingsPanel({
           </CardContent>
         </Card>
         <SettingsStickySaveBar show={hoursDirty}>
-          <Button
-            type="submit"
+          <div
             className={cn(
-              "h-11 w-full min-w-[12rem] sm:w-auto",
-              settingsAccentSaveButtonClassName,
+              "flex w-full flex-col gap-3 sm:flex-row sm:items-center",
+              googleConnected || facebookConnected
+                ? "sm:justify-between"
+                : "sm:justify-end",
             )}
           >
-            {savedHoursFlash ? "Gespeichert" : "Öffnungszeiten speichern"}
-          </Button>
+            <OpeningHoursPlatformSyncToggles
+              googleConnected={googleConnected}
+              facebookConnected={facebookConnected}
+              syncGoogle={syncGoogleOnSave}
+              syncFacebook={syncFacebookOnSave}
+              onSyncGoogleChange={setSyncGoogleOnSave}
+              onSyncFacebookChange={setSyncFacebookOnSave}
+            />
+            <Button
+              type="submit"
+              className={cn(
+                "h-11 w-full min-w-[12rem] sm:w-auto sm:shrink-0",
+                settingsAccentSaveButtonClassName,
+              )}
+            >
+              {savedHoursFlash ? "Gespeichert" : "Öffnungszeiten speichern"}
+            </Button>
+          </div>
         </SettingsStickySaveBar>
         </form>
       </section>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { MessageSquare, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import {
   Drawer,
   DrawerContent,
@@ -109,6 +110,7 @@ export function ContactEditDrawer({
   restaurantId,
   defaultCountryIso2,
   initialDraft,
+  lexofficeConnected = false,
   onSaved,
 }: {
   open: boolean;
@@ -118,6 +120,7 @@ export function ContactEditDrawer({
   defaultCountryIso2: string;
   /** Vorausfüllung beim Anlegen (z. B. aus WhatsApp-Chat). */
   initialDraft?: ContactCreateDraft | null;
+  lexofficeConnected?: boolean;
   onSaved?: (detail?: { contactId: string; created: boolean }) => void;
 }) {
   const isEdit = contactId != null;
@@ -139,6 +142,14 @@ export function ContactEditDrawer({
     COUNTRIES_REFERENCE_FALLBACK,
   );
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [syncToLexoffice, setSyncToLexoffice] = useState(true);
+  const [lexofficeLinkStatus, setLexofficeLinkStatus] = useState<{
+    linked: boolean;
+    inLexoffice: boolean;
+    canAddToLexoffice: boolean;
+    canLinkToLexoffice: boolean;
+  } | null>(null);
+  const linkExistingLexofficeId = initialDraft?.linkExistingLexofficeId ?? null;
 
   useEffect(() => {
     if (!open) {
@@ -200,12 +211,15 @@ export function ContactEditDrawer({
       const draft = initialDraft;
       setFirstName(draft?.firstName ?? "");
       setLastName(draft?.lastName ?? "");
-      setCompany("");
-      setAddressStreet("");
-      setAddressPostalCode("");
-      setAddressCity("");
-      setAddressCountry("");
-      setNotes("");
+      setCompany(draft?.company ?? "");
+      setAddressStreet(draft?.addressStreet ?? "");
+      setAddressPostalCode(draft?.addressPostalCode ?? "");
+      setAddressCity(draft?.addressCity ?? "");
+      setAddressCountry(draft?.addressCountry ?? "");
+      setNotes(draft?.notes ?? "");
+      setSyncToLexoffice(
+        lexofficeConnected && !draft?.linkExistingLexofficeId,
+      );
       setEmails(
         draft?.emails?.length
           ? draft.emails.map((e) => ({
@@ -231,13 +245,30 @@ export function ContactEditDrawer({
     if (!contactId) return;
     let cancel = false;
     setLoading(true);
+    setLexofficeLinkStatus(null);
+    setSyncToLexoffice(false);
     void (async () => {
-      const { data, error } = await fetchContactById({
-        restaurantId,
-        contactId,
-      });
+      const lexofficeLinkPromise = lexofficeConnected
+        ? fetch(
+            `/api/contacts/lexoffice-link?restaurantId=${encodeURIComponent(restaurantId)}&contactId=${encodeURIComponent(contactId)}`,
+          ).then(async (res) => {
+            if (!res.ok) return null;
+            return (await res.json()) as {
+              linked: boolean;
+              inLexoffice: boolean;
+              canAddToLexoffice: boolean;
+              canLinkToLexoffice: boolean;
+            };
+          })
+        : Promise.resolve(null);
+
+      const [{ data, error }, lexStatus] = await Promise.all([
+        fetchContactById({ restaurantId, contactId }),
+        lexofficeLinkPromise,
+      ]);
       if (cancel) return;
       setLoading(false);
+      if (lexStatus) setLexofficeLinkStatus(lexStatus);
       if (error) {
         toast.error(error.message);
         return;
@@ -323,7 +354,16 @@ export function ContactEditDrawer({
     return () => {
       cancel = true;
     };
-  }, [open, isEdit, contactId, restaurantId, countries, defaultCountryIso2, onOpenChange]);
+  }, [
+    open,
+    isEdit,
+    contactId,
+    restaurantId,
+    countries,
+    defaultCountryIso2,
+    lexofficeConnected,
+    onOpenChange,
+  ]);
 
   const title = isEdit
     ? detail
@@ -407,16 +447,92 @@ export function ContactEditDrawer({
     void (async () => {
       if (isEdit && contactId) {
         const { error } = await updateContact(contactId, payload);
-        setSaving(false);
-        if (error) toast.error(error.message);
-        else {
+        if (error) {
+          setSaving(false);
+          toast.error(error.message);
+          return;
+        }
+
+        const shouldSyncToLexoffice =
+          lexofficeConnected &&
+          syncToLexoffice &&
+          (lexofficeLinkStatus?.canAddToLexoffice === true ||
+            lexofficeLinkStatus?.canLinkToLexoffice === true);
+
+        if (shouldSyncToLexoffice) {
+          const res = await fetch("/api/contacts/lexoffice-sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ restaurantId, contactId }),
+          });
+          const data = (await res.json()) as {
+            error?: string;
+            created?: boolean;
+            alreadyLinked?: boolean;
+          };
+          setSaving(false);
+          if (!res.ok) {
+            toast.error(
+              data.error ??
+                "Kontakt gespeichert, Lexware-Sync fehlgeschlagen.",
+            );
+            savedSnapshotRef.current = currentSnapshot;
+            onSaved?.({ contactId, created: false });
+            onOpenChange(false);
+            return;
+          }
+          toast.success(
+            data.created
+              ? "Kontakt gespeichert und in Lexware angelegt."
+              : data.alreadyLinked
+                ? "Kontakt gespeichert (bereits mit Lexware verknüpft)."
+                : "Kontakt gespeichert und mit Lexware verknüpft.",
+          );
+        } else {
+          setSaving(false);
           toast.success("Kontakt gespeichert.");
-          savedSnapshotRef.current = currentSnapshot;
-          onSaved?.({ contactId, created: false });
+        }
+
+        savedSnapshotRef.current = currentSnapshot;
+        onSaved?.({ contactId, created: false });
+        onOpenChange(false);
+        return;
+      }
+      const useLexofficeApi =
+        lexofficeConnected &&
+        (syncToLexoffice || Boolean(linkExistingLexofficeId));
+
+      if (useLexofficeApi) {
+        const res = await fetch("/api/contacts/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...payload,
+            syncToLexoffice: syncToLexoffice && !linkExistingLexofficeId,
+            linkExistingLexofficeId,
+          }),
+        });
+        const data = (await res.json()) as {
+          error?: string;
+          contactId?: string;
+        };
+        setSaving(false);
+        if (!res.ok) {
+          toast.error(data.error ?? "Anlegen fehlgeschlagen.");
+          return;
+        }
+        if (data.contactId) {
+          toast.success(
+            syncToLexoffice && !linkExistingLexofficeId
+              ? "Kontakt in Gwada und Lexware angelegt."
+              : "Kontakt in Gwada angelegt und mit Lexware verknüpft.",
+          );
+          onSaved?.({ contactId: data.contactId, created: true });
           onOpenChange(false);
         }
         return;
       }
+
       const { data: created, error } = await insertContact(payload);
       setSaving(false);
       if (error) toast.error(error.message);
@@ -710,6 +826,66 @@ export function ContactEditDrawer({
                   </div>
               ))}
             </div>
+
+            {!isEdit && lexofficeConnected ? (
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">In Lexware Office anlegen</p>
+                  <p className="text-xs text-muted-foreground">
+                    {linkExistingLexofficeId
+                      ? "Wird mit dem bestehenden Lexware-Kontakt verknüpft."
+                      : "Kontakt wird zusätzlich per API in Lexware gespeichert."}
+                  </p>
+                </div>
+                <Switch
+                  checked={syncToLexoffice && !linkExistingLexofficeId}
+                  disabled={loading || Boolean(linkExistingLexofficeId)}
+                  onCheckedChange={(v) => setSyncToLexoffice(v === true)}
+                  aria-label="In Lexware Office anlegen"
+                />
+              </div>
+            ) : null}
+
+            {isEdit && lexofficeConnected && !loading ? (
+              lexofficeLinkStatus?.linked ? (
+                <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
+                  Mit Lexware Office verknüpft.
+                </p>
+              ) : lexofficeLinkStatus?.canLinkToLexoffice ? (
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">Mit Lexware verknüpfen</p>
+                    <p className="text-xs text-muted-foreground">
+                      Gleiche E-Mail oder Telefonnummer ist bereits in Lexware
+                      hinterlegt.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={syncToLexoffice}
+                    disabled={loading || saving}
+                    onCheckedChange={(v) => setSyncToLexoffice(v === true)}
+                    aria-label="Mit Lexware verknüpfen"
+                  />
+                </div>
+              ) : lexofficeLinkStatus?.canAddToLexoffice ? (
+                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">
+                      In Lexware Office hinzufügen
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Kontakt wird beim Speichern zusätzlich in Lexware angelegt.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={syncToLexoffice}
+                    disabled={loading || saving}
+                    onCheckedChange={(v) => setSyncToLexoffice(v === true)}
+                    aria-label="In Lexware Office hinzufügen"
+                  />
+                </div>
+              ) : null
+            ) : null}
 
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Notizen</Label>

@@ -29,6 +29,8 @@ function platformEnabledForChannel(
       return flags.instagramEnabled;
     case "google_business":
       return flags.googleBusinessEnabled;
+    case "lexoffice":
+      return flags.lexofficeEnabled;
   }
 }
 
@@ -43,6 +45,7 @@ function isChannelConnected(
     case "facebook":
     case "instagram":
     case "google_business":
+    case "lexoffice":
       return row.status === "working";
     case "email": {
       if (row.status !== "custom") return false;

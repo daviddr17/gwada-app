@@ -105,7 +105,7 @@ export function WorkspaceRestaurantCard({
   return (
     <article className={workspaceRestaurantCardClassName}>
       <div
-        className="relative h-28 w-full overflow-hidden bg-muted/40 sm:h-32"
+        className="relative z-0 h-28 w-full overflow-hidden bg-muted/40 sm:h-32"
         style={coverUrl ? undefined : coverStyle}
       >
         {coverUrl ? (
@@ -121,15 +121,18 @@ export function WorkspaceRestaurantCard({
         ) : null}
       </div>
 
-      <div className="relative px-4 pb-4 pt-0">
+      <div className="relative z-10 px-4 pb-4 pt-0">
         <RestaurantLogoMark
           src={avatarUrl}
           initials={initials}
           alt=""
           size="card"
-          variant="header"
+          variant="card"
           className="relative -mt-10 mb-3"
-          style={avatarRingStyle}
+          style={{
+            ...avatarRingStyle,
+            ...(!avatarUrl && brandHex ? { color: brandHex } : {}),
+          }}
         />
 
         <div className="flex flex-wrap items-start justify-between gap-2">

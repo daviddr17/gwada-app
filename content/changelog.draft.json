@@ -1,6 +1,6 @@
 {
-  "title": "Schichtplan, Bewertungen & Dashboard-Navigation",
-  "body": "- **Schichtplan (neu):** Tages-, Wochen- und Monatsansicht mit Schichtvorlagen, Kopieren zwischen Zeiträumen, Wetter in den Spaltenköpfen sowie Summe geplanter Stunden und Lohn\n- **Schichtplan:** Mitarbeiternamen öffnen das Profil direkt im Drawer; Krankheit und Urlaub erscheinen im Plan\n- **Profil:** Eigener Dienstplan für Mitarbeiter unter „Dienstplan“\n- **Arbeitszeiten:** An Krank- und Urlaubstagen keine Arbeitszeit eintragen (wie im Schichtplan)\n- **Verträge:** Soll-Wochenstunden pro Vertrag hinterlegen\n- **Bewertungen:** Gelesen/Ungelesen pro Person — Filter in der Übersicht, Dashboard zeigt nur Ungelesene; beim Öffnen der Bewertungs-Übersicht gelten alle als gelesen\n- **Navigation:** Alle Module liegen unter `/dashboard/…` — bestehende Lesezeichen und Links leiten automatisch weiter\n- **Nachrichten:** Schnellere Ungelesen-Anzeige durch Hintergrund-Sync der Inbox",
+  "title": "Lexware Office: Kontakte synchronisieren",
+  "body": "- **Lexware Office (neu):** Integration in den Einstellungen mit API-Key pro Restaurant — Kontakte aus Gwada und Lexware in einer Übersicht, Filter nach Quelle (Alle / Gwada / Lexware)\n- **Kontakte:** Beim Anlegen optional direkt in Lexware anlegen; bei bestehenden Kontakten im Drawer „In Lexware hinzufügen“ oder „Mit Lexware verknüpfen“, wenn dort bereits ein Treffer per E-Mail oder Telefon existiert\n- **Demnächst:** Angebote und Rechnungen aus Lexware Office in Gwada",
   "audience": "customers",
-  "version": "2026.06.09"
+  "version": "2026.06.10"
 }

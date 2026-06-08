@@ -7,12 +7,20 @@ export const PROFILE_SHEET_HANDLE_HEIGHT_VAR = "--profile-sheet-handle-h";
 /** Scroll-Root: Handle + Name/Modul ohne Logo (Toolbar klebt darunter). */
 export const PROFILE_SHEET_HEADER_HEIGHT_VAR = "--profile-sheet-header-h";
 
+/** Scroll-Root: nur Restaurant-/Modulzeile (Speisekarte-Suche klebt direkt darunter). */
+export const PROFILE_SHEET_MODULE_TITLE_HEIGHT_VAR =
+  "--profile-sheet-module-title-h";
+
 /** pt-3 + h-1 + pb-2 im Sheet-Handle — Fallback bis zur ersten Messung. */
 export const PROFILE_SHEET_HANDLE_FALLBACK_PX = 24;
+
+/** py-2 + Name + Modulzeile — Fallback bis zur ersten Messung. */
+export const PROFILE_SHEET_MODULE_TITLE_FALLBACK_PX = 52;
 
 export function profileSheetScrollRootCssVars(): CSSProperties {
   return {
     [PROFILE_SHEET_HANDLE_HEIGHT_VAR as string]: `${PROFILE_SHEET_HANDLE_FALLBACK_PX}px`,
+    [PROFILE_SHEET_MODULE_TITLE_HEIGHT_VAR as string]: `${PROFILE_SHEET_MODULE_TITLE_FALLBACK_PX}px`,
   };
 }
 

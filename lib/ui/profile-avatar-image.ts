@@ -14,6 +14,10 @@ export const restaurantLogoInnerTileClassName =
 export const restaurantLogoImageClassName =
   "max-h-full max-w-full object-contain object-center";
 
+/** Kompakte Karten (z. B. Meine Restaurants) — Logo füllt den Kreis ohne Innen-Kachel. */
+export const restaurantLogoCardImageClassName =
+  "size-full object-contain object-center p-1.5";
+
 export const restaurantLogoPlateClassName = "bg-card";
 
 export const restaurantLogoFrameClassName =

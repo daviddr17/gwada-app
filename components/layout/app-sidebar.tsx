@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -32,6 +33,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
@@ -61,6 +63,7 @@ function profileInitials(firstName: string, lastName: string): string {
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { isMobile, setOpenMobile } = useSidebar();
   const { profile } = useRestaurantProfile();
   const { firstName, lastName } = usePersonalProfileNames();
   const { isSuperadmin } = useIsSuperadmin();
@@ -74,8 +77,30 @@ export function AppSidebar() {
   const initials = profileInitials(firstName, lastName);
   const headerTooltip = `${userFullName} · ${displayName}`;
 
+  useEffect(() => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  }, [pathname, isMobile, setOpenMobile]);
+
+  const closeMobileSidebarOnNav = useCallback(
+    (event: React.MouseEvent) => {
+      if (!isMobile) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest("a[href], button")) {
+        setOpenMobile(false);
+      }
+    },
+    [isMobile, setOpenMobile],
+  );
+
   return (
     <Sidebar collapsible="icon" variant="inset">
+      <div
+        className="flex h-full w-full flex-col"
+        onClickCapture={closeMobileSidebarOnNav}
+      >
       <SidebarHeader className="box-border flex h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] shrink-0 justify-center gap-0 border-b border-border/50 p-2">
         <SidebarMenu>
           <SidebarMenuItem>
@@ -373,6 +398,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      </div>
     </Sidebar>
   );
 }

@@ -11,6 +11,7 @@ import {
   integrationStatusBadgeMuted,
 } from "@/components/settings/settings-integration-panel";
 import { IntegrationGrantedScopes } from "@/components/settings/integration-granted-scopes";
+import { IntegrationPlatformProfileSummary } from "@/components/settings/integration-platform-profile-summary";
 import { GoogleLocationSelectDialog } from "@/components/settings/google-location-select-dialog";
 import { MetaPageSelectDialog } from "@/components/settings/meta-page-select-dialog";
 import { oauthScopeIdsForProvider } from "@/lib/constants/integration-oauth-scopes";
@@ -259,6 +260,15 @@ export function OAuthChannelIntegrationCard({
             grantedScopes={state?.grantedScopes ?? []}
           />
         )}
+
+        {connected && restaurantId ? (
+          <IntegrationPlatformProfileSummary
+            provider={provider}
+            restaurantId={restaurantId}
+            platformTitle={title}
+            onSaved={() => void loadStatus()}
+          />
+        ) : null}
       </SettingsIntegrationPanel>
 
       <ConfirmDialog

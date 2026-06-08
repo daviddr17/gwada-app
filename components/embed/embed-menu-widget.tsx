@@ -145,8 +145,9 @@ function EmbedMenuToolbar({
         sticky && "sticky z-20",
         sticky && !profileSheet && "top-0",
         profileSheet &&
-          "top-[var(--profile-sheet-header-h,0px)]",
-        profileSheet && "-mx-4 border-b border-border/40 bg-background/95 backdrop-blur-md sm:-mx-5",
+          "top-[var(--profile-sheet-module-title-h,0px)]",
+        profileSheet &&
+          "z-30 -mx-4 border-y border-border/40 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80 sm:-mx-5",
       )}
     >
       <div
@@ -157,7 +158,8 @@ function EmbedMenuToolbar({
         <div
           ref={toolbarRef}
           className={cn(
-            "py-3 shadow-none dark:shadow-sm",
+            "py-3",
+            "shadow-none dark:shadow-sm",
             hostMode
               ? "border-b border-border/40 bg-background embed-menu-toolbar-pinned-inner"
               : profileSheet
@@ -556,7 +558,7 @@ export function EmbedMenuWidget({
       <div
         ref={widgetRootRef}
         className={cn(
-          profileSheet ? "w-full min-w-0 pt-2 pb-6" : "mx-auto w-full max-w-2xl py-6",
+          profileSheet ? "w-full min-w-0 pb-6" : "mx-auto w-full max-w-2xl py-6",
         )}
       >
         {profileSheet ? null : (

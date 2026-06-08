@@ -9,6 +9,7 @@ import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { IntegrationProviderCard } from "@/components/superadmin/integration-provider-card";
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
+import { PlatformLexofficeFeatureCard } from "@/components/superadmin/platform-lexoffice-feature-card";
 import { PlatformWeatherFeatureCard } from "@/components/superadmin/platform-weather-feature-card";
 import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
     updated_at: "",
   },
   weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
+  lexoffice: { key: "lexoffice", enabled: false, config: {}, updated_at: "" },
 };
 
 function SuperadminIntegrationsContent() {
@@ -185,6 +187,10 @@ function SuperadminIntegrationsContent() {
         </p>
       ) : (
         <div className="space-y-4">
+          <PlatformLexofficeFeatureCard
+            row={byKey.get("lexoffice") ?? EMPTY_PLATFORM_ROW.lexoffice}
+            onSaved={() => void load()}
+          />
           <PlatformWeatherFeatureCard
             row={byKey.get("weather") ?? EMPTY_PLATFORM_ROW.weather}
             onSaved={() => void load()}

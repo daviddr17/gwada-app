@@ -14,6 +14,8 @@ export function isIgnoredProfileSheetGestureTarget(target: EventTarget | null) {
         "[role=tab]",
         "[role=tablist]",
         "[data-profile-sheet-no-pull]",
+        "[data-profile-app-sheet-handle]",
+        "[data-profile-app-sheet-drag-chrome]",
       ].join(", "),
     ),
   );

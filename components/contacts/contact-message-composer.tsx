@@ -6,6 +6,11 @@ import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button"
 import { CONTACT_MESSAGE_ATTACHMENT_MAX_FILES } from "@/lib/constants/contact-message-attachments";
 import { Mail, Paperclip, Send, X } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import {
+  reservationNotifyRowLabelClassName,
+  reservationNotifyRowMailIconClassName,
+  reservationNotifyRowWhatsAppIconClassName,
+} from "@/components/reservations/reservation-notify-toggle-styles";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -338,9 +343,11 @@ export function ContactMessageComposer({
           >
             <Label
               htmlFor="msg-notify-wa"
-              className="flex items-center gap-2 text-sm font-normal"
+              className={cn(reservationNotifyRowLabelClassName, "font-normal")}
             >
-              <WhatsAppGlyph className="text-[#25D366]" />
+              <WhatsAppGlyph
+                className={reservationNotifyRowWhatsAppIconClassName}
+              />
               WhatsApp
             </Label>
             <Switch
@@ -359,9 +366,12 @@ export function ContactMessageComposer({
           >
             <Label
               htmlFor="msg-notify-email"
-              className="flex items-center gap-2 text-sm font-normal"
+              className={cn(reservationNotifyRowLabelClassName, "font-normal")}
             >
-              <Mail className="size-4" aria-hidden />
+              <Mail
+                className={reservationNotifyRowMailIconClassName}
+                aria-hidden
+              />
               E-Mail
             </Label>
             <Switch
@@ -394,9 +404,14 @@ export function ContactMessageComposer({
                 />
                 <Label
                   htmlFor="reply-wa"
-                  className="flex cursor-pointer items-center gap-1.5 text-sm font-normal"
+                  className={cn(
+                    reservationNotifyRowLabelClassName,
+                    "cursor-pointer font-normal",
+                  )}
                 >
-                  <WhatsAppGlyph className="text-[#25D366]" />
+                  <WhatsAppGlyph
+                    className={reservationNotifyRowWhatsAppIconClassName}
+                  />
                   WhatsApp
                 </Label>
               </div>
@@ -412,9 +427,15 @@ export function ContactMessageComposer({
                 />
                 <Label
                   htmlFor="reply-email"
-                  className="flex cursor-pointer items-center gap-1.5 text-sm font-normal"
+                  className={cn(
+                    reservationNotifyRowLabelClassName,
+                    "cursor-pointer font-normal",
+                  )}
                 >
-                  <Mail className="size-4" aria-hidden />
+                  <Mail
+                    className={reservationNotifyRowMailIconClassName}
+                    aria-hidden
+                  />
                   E-Mail
                   {emailViaPlatformFallback ? (
                     <span className="text-[10px] text-muted-foreground">
@@ -440,9 +461,11 @@ export function ContactMessageComposer({
         >
           <Label
             htmlFor="msg-send-wa"
-            className="flex items-center gap-2 text-sm font-normal"
+            className={cn(reservationNotifyRowLabelClassName, "font-normal")}
           >
-            <WhatsAppGlyph className="text-[#25D366]" />
+            <WhatsAppGlyph
+              className={reservationNotifyRowWhatsAppIconClassName}
+            />
             WhatsApp
           </Label>
           <Switch
@@ -461,9 +484,12 @@ export function ContactMessageComposer({
         >
           <Label
             htmlFor="msg-send-email"
-            className="flex items-center gap-2 text-sm font-normal"
+            className={cn(reservationNotifyRowLabelClassName, "font-normal")}
           >
-            <Mail className="size-4" aria-hidden />
+            <Mail
+              className={reservationNotifyRowMailIconClassName}
+              aria-hidden
+            />
             E-Mail
           </Label>
           <Switch
@@ -514,7 +540,9 @@ export function ContactMessageComposer({
           {isEmailOnly || (isInboxReply && sendEmail && !sendWhatsapp) ? (
             <Mail className="size-4" aria-hidden />
           ) : isWhatsappOnly || (isInboxReply && sendWhatsapp && !sendEmail) ? (
-            <WhatsAppGlyph className="size-4" />
+            <WhatsAppGlyph
+              className={reservationNotifyRowWhatsAppIconClassName}
+            />
           ) : (
             <Send className="size-4" />
           )}

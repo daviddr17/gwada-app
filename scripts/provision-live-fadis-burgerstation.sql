@@ -278,9 +278,9 @@ begin
 
   insert into public.gwada_reviews (id, restaurant_id, reservation_id, invitation_id, rating, comment, guest_display_name, created_at)
   values
-    ('fadbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb01', v_rid, res1, inv1, 5, 'Bester Smash Burger in Kreuzberg! Super schneller Service.', 'Tim Schneider', timezone('utc', now()) - interval '2 days'),
-    ('fadbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb02', v_rid, res3, inv2, 4, 'Leckere Fries, etwas voll am Abend — trotzdem top.', 'Markus Lehmann', timezone('utc', now()) - interval '1 day'),
-    ('fadbbbbb-bbbb-4bbb-8bbb-bbbbbbbbb03', v_rid, res4, inv4, 5, 'BBQ Bacon Station ist der Hammer. Komme wieder!', 'Elena Vogt', timezone('utc', now()) - interval '5 days')
+    ('fadbbbbb-bbbb-4bbb-8bbb-000000000001', v_rid, res1, inv1, 5, 'Bester Smash Burger in Kreuzberg! Super schneller Service.', 'Tim Schneider', timezone('utc', now()) - interval '2 days'),
+    ('fadbbbbb-bbbb-4bbb-8bbb-000000000002', v_rid, res3, inv2, 4, 'Leckere Fries, etwas voll am Abend — trotzdem top.', 'Markus Lehmann', timezone('utc', now()) - interval '1 day'),
+    ('fadbbbbb-bbbb-4bbb-8bbb-000000000003', v_rid, res4, inv4, 5, 'BBQ Bacon Station ist der Hammer. Komme wieder!', 'Elena Vogt', timezone('utc', now()) - interval '5 days')
   on conflict (id) do nothing;
 
   raise notice 'provision-fadis: OK user=% restaurant=%', v_user_id, v_rid;

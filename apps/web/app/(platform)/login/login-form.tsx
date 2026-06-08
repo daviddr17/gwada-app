@@ -70,6 +70,9 @@ function humanizeLoginErrorMessage(raw: string | undefined | null): string {
   if (!t || t === "{}" || t === "[object Object]") {
     return "Anmeldung fehlgeschlagen. Bitte später erneut versuchen.";
   }
+  if (/invalid login credentials|invalid_credentials/i.test(t)) {
+    return "E-Mail oder Passwort ist falsch.";
+  }
   if (isLikelyNetworkAuthFailure(t)) {
     return "Keine Verbindung zum Anmeldedienst. Bitte Netzwerk prüfen und es später erneut versuchen.";
   }
@@ -209,10 +212,12 @@ export function LoginForm() {
         ReturnType<typeof sb.auth.signInWithPassword>
       >;
       try {
+        const normalizedEmail = email.trim().toLowerCase();
+        const normalizedPassword = password.trim();
         signResult = await raceWithTimeout(
           sb.auth.signInWithPassword({
-            email: email.trim(),
-            password,
+            email: normalizedEmail,
+            password: normalizedPassword,
           }),
           GWADA_SUPABASE_SIGNIN_TIMEOUT_MS,
           "Anmeldung (Passwort)",

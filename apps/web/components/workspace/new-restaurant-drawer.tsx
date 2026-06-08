@@ -152,6 +152,12 @@ export function NewRestaurantDrawer({
         return;
       }
 
+      void fetch(`/api/pos/fiskaly/provision?restaurantId=${encodeURIComponent(newId)}`, {
+        method: "POST",
+      }).catch((err) => {
+        console.warn("fiskaly provision after restaurant create", err);
+      });
+
       invalidateWorkspaceRestaurantCache();
       notifyWorkspaceRestaurantChanged();
       toast.success("Restaurant angelegt und als aktiv gesetzt.");

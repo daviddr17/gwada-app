@@ -227,6 +227,9 @@ export function normalizeProfileForSave(p: RestaurantProfile): RestaurantProfile
     country: p.country.trim() || "Deutschland",
     website: normalizeWebsite(p.website),
     phone: p.phone.trim(),
+    vatNumber: p.vatNumber.trim(),
+    receiptFooter: p.receiptFooter.trim(),
+    socialHandle: p.socialHandle.trim(),
     weeklyHours,
     kitchenWeeklyHours,
     dateExceptions: [...p.dateExceptions]

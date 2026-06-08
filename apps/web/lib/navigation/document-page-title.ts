@@ -48,6 +48,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/settings/dashboard": "Dashboard",
   "/settings/rollen": "Rollen",
   "/settings/integrationen": "Integrationen",
+  "/settings/kasse": "Kasse & TSE",
   "/settings/branding": "Branding",
   "/settings/displays": "Displays",
   "/profile": "Profil",

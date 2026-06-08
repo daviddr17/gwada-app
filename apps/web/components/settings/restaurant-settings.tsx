@@ -91,6 +91,9 @@ function pickStammdaten(p: RestaurantProfile) {
     country: p.country,
     website: p.website,
     phone: p.phone,
+    vatNumber: p.vatNumber,
+    receiptFooter: p.receiptFooter,
+    socialHandle: p.socialHandle,
   };
 }
 
@@ -447,6 +450,48 @@ export function RestaurantSettingsPanel({
                 setDraft((p) => (p ? { ...p, phone: e.target.value } : p))
               }
               placeholder="+49 30 1234567"
+              className="h-11 rounded-xl"
+            />
+          </div>
+          <Separator />
+          <p className="text-sm font-medium text-foreground">POS-Quittung</p>
+          <div className="space-y-2">
+            <Label htmlFor="rs-vat">USt-IdNr.</Label>
+            <Input
+              id="rs-vat"
+              value={draft.vatNumber}
+              onChange={(e) =>
+                setDraft((p) => (p ? { ...p, vatNumber: e.target.value } : p))
+              }
+              placeholder="DE123456789"
+              className="h-11 rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="rs-receipt-footer">Quittungs-Footer</Label>
+            <Input
+              id="rs-receipt-footer"
+              value={draft.receiptFooter}
+              onChange={(e) =>
+                setDraft((p) =>
+                  p ? { ...p, receiptFooter: e.target.value } : p,
+                )
+              }
+              placeholder="Vielen Dank für Ihren Besuch!"
+              className="h-11 rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="rs-social">Social-Handle</Label>
+            <Input
+              id="rs-social"
+              value={draft.socialHandle}
+              onChange={(e) =>
+                setDraft((p) =>
+                  p ? { ...p, socialHandle: e.target.value } : p,
+                )
+              }
+              placeholder="@restaurant"
               className="h-11 rounded-xl"
             />
           </div>

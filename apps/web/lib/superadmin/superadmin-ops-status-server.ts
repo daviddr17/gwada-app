@@ -16,6 +16,8 @@ import {
   type SmtpIntegrationConfig,
 } from "@/lib/integrations/smtp-integration-config";
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
+import { testFiskalyAuth } from "@/lib/pos/fiskaly-auth";
+import { fetchPlatformFiskalyConfigAdmin } from "@/lib/supabase/platform-fiskaly-secrets-db";
 import { fetchPlatformWeatherConfigAdmin } from "@/lib/supabase/platform-weather-secrets-db";
 import { fetchPlatformWhatsappWahaConfigAdmin } from "@/lib/supabase/platform-whatsapp-secrets-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -93,6 +95,37 @@ async function checkWeatherConnection(): Promise<SuperadminIntegrationConnection
     const msg = e instanceof Error ? e.message : "Verbindung fehlgeschlagen";
     return health("error", msg);
   }
+}
+
+async function checkFiskalyConnection(): Promise<SuperadminIntegrationConnectionHealth> {
+  const platform = await fetchPlatformFiskalyConfigAdmin();
+  if (!platform.enabled) {
+    return health("disabled", "Integration ist deaktiviert.");
+  }
+  if (!platform.apiKey || !platform.apiSecret) {
+    return health(
+      "not_configured",
+      "API-Key und Secret fehlen in Superadmin → Integrationen.",
+    );
+  }
+
+  const result = await testFiskalyAuth({
+    signDeBaseUrl: platform.signDeBaseUrl,
+    apiKey: platform.apiKey,
+    apiSecret: platform.apiSecret,
+    fetchFn: (input, init) => fetchWithTimeout(String(input), init),
+    signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
+  });
+
+  if (!result.ok) {
+    return health("error", result.message);
+  }
+
+  return health(
+    "ok",
+    `SIGN DE (${platform.env}) erreichbar.`,
+    result.latencyMs,
+  );
 }
 
 async function checkWhatsappConnection(): Promise<SuperadminIntegrationConnectionHealth> {
@@ -374,6 +407,7 @@ const HEALTH_CHECKERS: Partial<
   >
 > = {
   weather: checkWeatherConnection,
+  fiskaly: checkFiskalyConnection,
   whatsapp: checkWhatsappConnection,
   email: checkEmailConnection,
   google_oauth: () => checkOAuthIntegration("google_oauth"),

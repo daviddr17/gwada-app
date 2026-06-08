@@ -40,6 +40,12 @@ export type RestaurantProfile = {
   country: string;
   website: string;
   phone: string;
+  /** USt-IdNr. auf POS-Quittungen. */
+  vatNumber: string;
+  /** Dankeszeile / Footer auf Quittungen. */
+  receiptFooter: string;
+  /** z. B. @restaurant */
+  socialHandle: string;
   /** Storage-Pfad im Bucket `restaurant-profile-images`. */
   avatarStoragePath: string | null;
   /** Storage-Pfad im Bucket `restaurant-profile-images`. */

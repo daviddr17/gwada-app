@@ -4,6 +4,10 @@ import {
   whatsappConfigToUi,
 } from "@/lib/integrations/platform-whatsapp-config";
 import {
+  fiskalyConfigFromJson,
+  fiskalyConfigToUi,
+} from "@/lib/integrations/platform-fiskaly-config";
+import {
   weatherConfigFromJson,
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
@@ -22,6 +26,10 @@ export function platformIntegrationConfigForUi(
 
   if (key === "weather") {
     return weatherConfigToUi(weatherConfigFromJson(raw));
+  }
+
+  if (key === "fiskaly") {
+    return fiskalyConfigToUi(fiskalyConfigFromJson(raw));
   }
 
   if (key === "email") {

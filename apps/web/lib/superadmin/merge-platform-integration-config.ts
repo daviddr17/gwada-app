@@ -7,6 +7,10 @@ import {
   whatsappConfigFromJson,
 } from "@/lib/integrations/platform-whatsapp-config";
 import {
+  mergeFiskalySecretFields,
+  fiskalyConfigFromJson,
+} from "@/lib/integrations/platform-fiskaly-config";
+import {
   mergeWeatherApiKey,
   weatherConfigFromJson,
 } from "@/lib/integrations/platform-weather-config";
@@ -51,6 +55,44 @@ export function mergePlatformIntegrationConfig(
     merged.api_key = mergeWeatherApiKey(incKey, ex);
     delete merged.visual_crossing_api_key;
     return merged;
+  }
+
+  if (key === "fiskaly") {
+    const ex = fiskalyConfigFromJson(existing);
+    const withSecrets = mergeFiskalySecretFields(
+      {
+        api_key:
+          typeof incoming.api_key === "string" ? incoming.api_key : undefined,
+        api_secret:
+          typeof incoming.api_secret === "string"
+            ? incoming.api_secret
+            : undefined,
+      },
+      ex,
+    );
+    const incEnv =
+      typeof incoming.env === "string" ? incoming.env.trim() : undefined;
+    const env =
+      incEnv === "LIVE" ? "LIVE" : incEnv === "TEST" ? "TEST" : ex.env;
+    const signDe =
+      typeof incoming.sign_de_base_url === "string"
+        ? incoming.sign_de_base_url.trim() || undefined
+        : ex.sign_de_base_url;
+    const dsfinvk =
+      typeof incoming.dsfinvk_base_url === "string"
+        ? incoming.dsfinvk_base_url.trim() || undefined
+        : ex.dsfinvk_base_url;
+    const eReceipt =
+      typeof incoming.ereceipt_base_url === "string"
+        ? incoming.ereceipt_base_url.trim() || undefined
+        : ex.ereceipt_base_url;
+    return {
+      ...withSecrets,
+      env: env ?? "TEST",
+      sign_de_base_url: signDe,
+      dsfinvk_base_url: dsfinvk,
+      ereceipt_base_url: eReceipt,
+    };
   }
 
   if (key === "email") {

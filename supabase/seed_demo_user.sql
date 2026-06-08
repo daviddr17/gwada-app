@@ -1,14 +1,14 @@
 -- Demo account for local development (runs as DB superuser — RLS bypassed).
 -- Login: dreyer@techlion.de / GwadaLocal2026!
 -- Depends on public.restaurants slug gwada-demo (seed.sql).
-
-create extension if not exists pgcrypto;
+-- pgcrypto: already enabled via migrations (extensions schema).
 
 do $$
 declare
   v_user_id uuid := 'a1b2c3d4-e5f6-4789-a012-3456789abcde'::uuid;
+  v_existing_user_id uuid;
   v_demo_restaurant_id uuid;
-  v_encrypted_pw text := crypt('GwadaLocal2026!', gen_salt('bf'));
+  v_encrypted_pw text := extensions.crypt('GwadaLocal2026!', extensions.gen_salt('bf'));
 begin
   select id into v_demo_restaurant_id
   from public.restaurants
@@ -20,8 +20,32 @@ begin
     return;
   end if;
 
-  if exists (select 1 from auth.users where id = v_user_id or email = 'dreyer@techlion.de') then
-    raise notice 'seed_demo_user: user already exists, skip';
+  select id into v_existing_user_id
+  from auth.users
+  where id = v_user_id or email = 'dreyer@techlion.de'
+  limit 1;
+
+  if v_existing_user_id is not null then
+    v_user_id := v_existing_user_id;
+
+    update auth.users
+    set encrypted_password = v_encrypted_pw,
+        email_confirmed_at = coalesce(email_confirmed_at, timezone('utc', now()))
+    where id = v_user_id;
+
+    insert into public.restaurant_employees (restaurant_id, profile_id, role, is_active)
+    values (v_demo_restaurant_id, v_user_id, 'owner', true)
+    on conflict (restaurant_id, profile_id) do update set is_active = true, role = 'owner';
+
+    insert into public.platform_superadmins (profile_id)
+    values (v_user_id)
+    on conflict (profile_id) do nothing;
+
+    update public.profiles
+    set active_restaurant_id = v_demo_restaurant_id
+    where id = v_user_id;
+
+    raise notice 'seed_demo_user: user updated (password reset)';
     return;
   end if;
 
@@ -120,4 +144,8 @@ begin
     true
   )
   on conflict (restaurant_id, profile_id) do nothing;
+
+  insert into public.platform_superadmins (profile_id)
+  values (v_user_id)
+  on conflict (profile_id) do nothing;
 end $$;

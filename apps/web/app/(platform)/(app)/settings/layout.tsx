@@ -36,6 +36,11 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "prefix",
   },
   {
+    href: "/settings/kasse",
+    label: "Kasse & TSE",
+    matchMode: "prefix",
+  },
+  {
     href: "/settings/branding",
     label: "Branding",
     matchMode: "prefix",

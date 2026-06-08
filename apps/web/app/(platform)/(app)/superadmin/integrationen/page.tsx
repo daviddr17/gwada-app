@@ -9,6 +9,7 @@ import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { IntegrationProviderCard } from "@/components/superadmin/integration-provider-card";
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
+import { PlatformFiskalyFeatureCard } from "@/components/superadmin/platform-fiskaly-feature-card";
 import { PlatformWeatherFeatureCard } from "@/components/superadmin/platform-weather-feature-card";
 import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,7 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
     updated_at: "",
   },
   weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
+  fiskaly: { key: "fiskaly", enabled: false, config: { env: "TEST" }, updated_at: "" },
 };
 
 function SuperadminIntegrationsContent() {
@@ -149,8 +151,9 @@ function SuperadminIntegrationsContent() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight">Integrationen</h2>
           <p className="text-sm text-muted-foreground">
-            OAuth, WhatsApp (WAHA), Wetter-API und E-Mail — Zugangsdaten nur für
-            Superadmins, Versand und API-Calls nur serverseitig.
+            OAuth, Fiskaly (TSE), WhatsApp (WAHA), Wetter-API und E-Mail —
+            Zugangsdaten nur für Superadmins, Versand und API-Calls nur
+            serverseitig.
           </p>
           {healthCheckedAt ? (
             <p className="mt-1 text-xs text-muted-foreground">
@@ -185,6 +188,12 @@ function SuperadminIntegrationsContent() {
         </p>
       ) : (
         <div className="space-y-4">
+          <PlatformFiskalyFeatureCard
+            row={byKey.get("fiskaly") ?? EMPTY_PLATFORM_ROW.fiskaly}
+            onSaved={() => void load()}
+            connection={healthMap.fiskaly}
+            connectionChecking={healthLoading}
+          />
           <PlatformWeatherFeatureCard
             row={byKey.get("weather") ?? EMPTY_PLATFORM_ROW.weather}
             onSaved={() => void load()}

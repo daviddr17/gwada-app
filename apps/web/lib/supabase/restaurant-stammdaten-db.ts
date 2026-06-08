@@ -20,6 +20,9 @@ export function restaurantRowFromProfile(
     country: profile.country.trim() || null,
     phone: profile.phone.trim() || null,
     website: profile.website.trim() || null,
+    vat_number: profile.vatNumber.trim() || null,
+    receipt_footer: profile.receiptFooter.trim() || null,
+    social_handle: profile.socialHandle.trim() || null,
     timezone: resolveRestaurantTimezone({
       country: profile.country,
       street: profile.street,
@@ -43,7 +46,7 @@ export async function fetchRestaurantStammdatenFromDb(
   const { data, error } = await sb
     .from("restaurants")
     .select(
-      "name, slug, address_line1, postal_code, city, country, phone, website, avatar_storage_path, cover_storage_path",
+      "name, slug, address_line1, postal_code, city, country, phone, website, vat_number, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
     )
     .eq("id", restaurantId)
     .maybeSingle();
@@ -61,6 +64,11 @@ export async function fetchRestaurantStammdatenFromDb(
     country: typeof data.country === "string" ? data.country : "",
     phone: typeof data.phone === "string" ? data.phone : "",
     website: typeof data.website === "string" ? data.website : "",
+    vatNumber: typeof data.vat_number === "string" ? data.vat_number : "",
+    receiptFooter:
+      typeof data.receipt_footer === "string" ? data.receipt_footer : "",
+    socialHandle:
+      typeof data.social_handle === "string" ? data.social_handle : "",
     avatarStoragePath:
       typeof data.avatar_storage_path === "string"
         ? data.avatar_storage_path

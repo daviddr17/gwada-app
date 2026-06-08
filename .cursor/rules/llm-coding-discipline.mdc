@@ -1,0 +1,71 @@
+---
+description: Verhaltensrichtlinien zur Vermeidung häufiger LLM-Programmierfehler — Denken, Einfachheit, gezielte Änderungen, Verifikation
+alwaysApply: true
+---
+
+# LLM-Coding-Disziplin
+
+Verhaltensrichtlinien zur Vermeidung häufiger Programmierfehler bei LLMs. Bei Bedarf mit projektspezifischen Anweisungen kombinieren.
+
+**Abwägung:** Diese Richtlinien priorisieren Vorsicht vor Geschwindigkeit. Bei trivialen Aufgaben eigenes Urteilsvermögen nutzen.
+
+## 1. Nachdenken vor dem Programmieren
+
+**Keine Annahmen treffen. Unklarheiten nicht verbergen. Abwägungen offenlegen.**
+
+Vor der Implementierung:
+
+- Annahmen explizit darlegen. Bei Unsicherheit nachfragen.
+- Mehrere Interpretationen benennen — nicht stillschweigend eine wählen.
+- Einfacheren Ansatz ansprechen. Widersprechen, wenn angebracht.
+- Bei Unklarheit: innehalten, Punkt benennen, nachfragen.
+
+## 2. Einfachheit zuerst
+
+**Minimaler Code zur Problemlösung. Nichts Spekulatives.**
+
+- Keine Funktionen über die Anforderung hinaus.
+- Keine Abstraktionen für einmalig genutzten Code.
+- Keine „Flexibilität“ oder „Konfigurierbarkeit“, die nicht angefordert wurde.
+- Keine Fehlerbehandlung für unmögliche Szenarien.
+- Wenn 200 Zeilen nötig scheinen, obwohl 50 reichen: neu schreiben.
+
+Frage: „Würde ein Senior Engineer sagen, dass dies unnötig kompliziert ist?“ — wenn ja: vereinfachen.
+
+## 3. Gezielte Änderungen
+
+**Nur das Nötigste ändern. Nur das eigene Chaos beseitigen.**
+
+Beim Bearbeiten von vorhandenem Code:
+
+- Benachbarten Code, Kommentare oder Formatierung nicht ungefragt „verbessern“.
+- Funktionierenden Code nicht refaktorieren.
+- Vorhandenen Stil beibehalten, auch wenn man es anders machen würde.
+- Fremden Dead Code erwähnen, aber nicht löschen (außer explizit gewünscht).
+
+Wenn eigene Änderungen Verwaistes hinterlassen:
+
+- Importe, Variablen oder Funktionen entfernen, die durch *diese* Änderungen überflüssig wurden.
+- Bereits vorhandenen ungenutzten Code nicht entfernen, sofern nicht darum gebeten.
+
+**Test:** Jede geänderte Zeile muss sich direkt auf die Benutzeranfrage zurückführen lassen.
+
+## 4. Zielorientierte Umsetzung
+
+**Erfolgskriterien definieren. Schleife durchlaufen, bis die Verifizierung erfolgt ist.**
+
+Aufgaben in überprüfbare Ziele umwandeln:
+
+- „Validierung hinzufügen“ → Tests für ungültige Eingaben schreiben und bestehen lassen
+- „Fehler beheben“ → Test, der den Fehler reproduziert, schreiben und bestehen lassen
+- „X refaktorisieren“ → Tests vorher und nachher bestehen lassen
+
+Bei mehrstufigen Aufgaben kurzen Plan skizzieren:
+
+```
+1. [Schritt] → verifizieren: [Prüfung]
+2. [Schritt] → verifizieren: [Prüfung]
+3. [Schritt] → verifizieren: [Prüfung]
+```
+
+Klare Erfolgskriterien ermöglichen eigenständiges Arbeiten. Vage Kriterien (z. B. „es zum Laufen bringen“) erfordern ständige Rückfragen.

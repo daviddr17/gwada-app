@@ -2,6 +2,8 @@ import type { ExpoConfig } from "expo/config";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
+const EAS_PROJECT_ID = "d5cd3319-4636-4199-8dc4-877ccdb03665";
+
 /** Expo Metro inlined `process.env.EXPO_PUBLIC_*` unreliably in pnpm monorepos — load `.env` here. */
 function loadStaffDotEnv(): Record<string, string> {
   const envPath = join(__dirname, ".env");
@@ -40,6 +42,13 @@ export const staffEnv = {
   );
 }
 
+const buildProfile =
+  process.env.GWADA_STAFF_BUILD_PROFILE ??
+  process.env.EAS_BUILD_PROFILE ??
+  "";
+
+const isLanPreview = buildProfile === "preview-lan";
+
 const dotenv = loadStaffDotEnv();
 
 const supabaseUrl =
@@ -71,6 +80,16 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: "app.gwada.staff",
     buildNumber: "1",
+    infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
+      ...(isLanPreview
+        ? {
+            NSAppTransportSecurity: {
+              NSAllowsLocalNetworking: true,
+            },
+          }
+        : {}),
+    },
   },
   android: {
     versionCode: 1,
@@ -101,7 +120,11 @@ const config: ExpoConfig = {
     supabaseUrl,
     supabaseAnonKey,
     gwadaApiUrl,
+    eas: {
+      projectId: EAS_PROJECT_ID,
+    },
   },
+  owner: "atfadi17",
 };
 
 export default config;

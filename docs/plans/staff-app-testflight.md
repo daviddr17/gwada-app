@@ -1,62 +1,149 @@
-# Gwada Staff — TestFlight-Vorbereitung
+# Gwada Staff — TestFlight (LAN + Live)
 
-> **Branch:** `plan/expo-iphone-integration`  
-> **Bundle ID:** `app.gwada.staff` (siehe [`apps/staff/app.config.ts`](../../apps/staff/app.config.ts))
+> **Branch:** `feat/staff-ios-testflight` → `main`  
+> **Bundle ID:** `app.gwada.staff`  
+> **EAS-Projekt:** [@atfadi17/gwada-staff](https://expo.dev/accounts/atfadi17/projects/gwada-staff)  
+> **Konfiguration:** [`apps/staff/eas.json`](../../apps/staff/eas.json), [`apps/staff/app.config.ts`](../../apps/staff/app.config.ts)
 
-## Voraussetzungen (Apple)
+## Zwei Build-Profile
 
-| Punkt | Status | Notiz |
-|-------|--------|-------|
-| Apple Developer Program | offen | Team ID für Signing |
-| App ID `app.gwada.staff` | offen | In Apple Developer anlegen |
-| Provisioning Profile | offen | Nach App ID |
+| Profil | Zweck | API / Supabase | ATS (HTTP) |
+|--------|-------|----------------|------------|
+| `preview-lan` | iPhone im **gleichen WLAN** wie dein Mac | `http://<Mac-LAN-IP>:54321` + `:3000` | `NSAllowsLocalNetworking` |
+| `production` | Live / Teampartner überall | `https://new.gwada.app` + Live-Supabase | HTTPS, kein Extra |
 
-## Lokaler Dev Client (vor TestFlight)
+URLs werden beim **EAS Build** eingebakken (`staff-env.generated.ts`) — nicht zur Laufzeit umschaltbar.
 
-Simulator mit Expo Go (schnell):
+---
+
+## Voraussetzungen (einmalig)
+
+### Apple
+
+| Punkt | Aktion |
+|-------|--------|
+| Apple Developer Program | aktiv |
+| App ID | `app.gwada.staff` in [Apple Developer](https://developer.apple.com/account/resources/identifiers/list) |
+| App Store Connect | App „Gwada Staff“ anlegen, Internal Testing-Gruppe |
+
+### Expo / EAS
 
 ```bash
-pnpm run dev:staff:ios
-# oder: ./scripts/staff-ios-simulator.sh
+pnpm dlx eas-cli login    # bereits: atfadi17
+cd apps/staff
+pnpm dlx eas-cli init --non-interactive --force   # einmalig, projectId in app.config.ts
 ```
 
-Nativer Dev Client (näher an TestFlight):
+---
+
+## LAN-Profil (`preview-lan`) — lokale DB im WLAN
+
+### 1. Mac-Stack starten
+
+```bash
+pnpm db:start
+pnpm db:push:local
+pnpm dev                    # Network-URL z. B. http://192.168.x.x:3000
+```
+
+Mac-Firewall: eingehende Verbindungen für **3000** und **54321** erlauben.
+
+### 2. Staff-`.env` mit LAN-IP erzeugen
+
+```bash
+pnpm staff:env:lan
+```
+
+Schreibt `apps/staff/.env` (gitignored) mit LAN-IP statt `127.0.0.1`.
+
+### 3. EAS Environment `preview` befüllen
+
+```bash
+pnpm staff:eas-env:preview-lan
+```
+
+Überträgt die drei `EXPO_PUBLIC_*`-Variablen nach Expo (Environment **preview**).
+
+### 4. iOS-Build + TestFlight
+
+**Erstes Mal:** interaktiv (Apple-Anmeldung, Zertifikate, App Store Connect-App):
 
 ```bash
 cd apps/staff
-npx expo run:ios
+pnpm dlx eas-cli credentials --platform ios   # Profil preview-lan wählen
+pnpm staff:build:ios:preview-lan               # folgt Prompts
+pnpm staff:submit:ios:preview-lan
 ```
 
-Voraussetzungen: Xcode, CocoaPods, iOS Simulator oder angeschlossenes Gerät.
+Folge-Builds: gleiche Befehle; `ios.buildNumber` vor jedem Upload erhöhen.
 
-## EAS Build (optional, empfohlen für TestFlight)
+Oder manuell in [expo.dev](https://expo.dev) → Builds → Submit.
 
-1. `npm i -g eas-cli` (oder `pnpm dlx eas-cli`)
-2. In `apps/staff`: `eas login`
-3. `eas build:configure` (einmalig)
-4. `eas build --platform ios --profile preview`
-5. `eas submit --platform ios` nach erfolgreichem Build
+**Vor jedem neuen Upload:** `ios.buildNumber` in [`app.config.ts`](../../apps/staff/app.config.ts) erhöhen.
 
-`eas.json` ist noch nicht im Repo — bei erstem TestFlight-Lauf anlegen.
+### 5. Auf dem iPhone testen
 
-## API-URL für Geräte außerhalb localhost
+- TestFlight-App installieren
+- Gleiches WLAN wie der Mac
+- Mac: `pnpm db:start` + `pnpm dev` laufen lassen
+- Login z. B. `demo@gwada.app` — siehe [E2E-Protokoll](./staff-app-e2e-test-protocol.md)
 
-| Umgebung | `EXPO_PUBLIC_GWADA_API_URL` |
-|----------|----------------------------|
-| Simulator (Mac) | `http://127.0.0.1:3000` oder LAN-IP des Macs |
-| Physisches iPhone (dev) | `http://<mac-lan-ip>:3000` |
-| TestFlight / Staging | `https://new.gwada.app` |
+**LAN-IP geändert (DHCP)?** → `pnpm staff:env:lan`, `pnpm staff:eas-env:preview-lan`, neu bauen.
 
-Env generieren: `node apps/staff/scripts/generate-staff-env.js`
+---
+
+## Live-Profil (`production`)
+
+### EAS Environment `production` setzen (Secrets nicht ins Git)
+
+```bash
+cd apps/staff
+pnpm dlx eas-cli env:create production --name EXPO_PUBLIC_GWADA_API_URL \
+  --value "https://new.gwada.app" --type string --visibility plaintext --force --non-interactive
+
+pnpm dlx eas-cli env:create production --name EXPO_PUBLIC_SUPABASE_URL \
+  --value "https://<live-supabase-host>" --type string --visibility sensitive --force --non-interactive
+
+pnpm dlx eas-cli env:create production --name EXPO_PUBLIC_SUPABASE_ANON_KEY \
+  --value "<live-publishable-key>" --type string --visibility sensitive --force --non-interactive
+```
+
+Build + Submit:
+
+```bash
+pnpm staff:build:ios:production
+pnpm staff:submit:ios:production
+```
+
+**Hinweis:** Live-DB-Migrationen und App-Deploy sind separat (`deploy-live-db.yml`, Push auf `main`). Fiskaly LIVE nur bewusst aktivieren.
+
+---
+
+## Lokaler Simulator (ohne TestFlight)
+
+```bash
+pnpm run dev:staff:ios
+# .env mit 127.0.0.1 — cp apps/staff/.env.example apps/staff/.env + Keys aus supabase status
+```
+
+---
 
 ## Checkliste vor erstem TestFlight-Upload
 
-- [ ] E2E-Protokoll [`staff-app-e2e-test-protocol.md`](./staff-app-e2e-test-protocol.md) vollständig (inkl. TC-06)
-- [ ] App-Icon und Splash final ([`apps/staff/assets/images/`](../../apps/staff/assets/images/))
-- [ ] Bundle ID in Apple Developer registriert
-- [ ] Production-API-URL in EAS-Secrets / Build-Env
-- [ ] Fiskaly LIVE nur wenn bewusst gewünscht (aktuell TEST)
+- [ ] E2E-Protokoll [`staff-app-e2e-test-protocol.md`](./staff-app-e2e-test-protocol.md) (Simulator)
+- [ ] App-Icon / Splash ([`apps/staff/assets/images/`](../../apps/staff/assets/images/))
+- [ ] Apple App ID `app.gwada.staff`
+- [ ] `preview-lan`: EAS preview-Env mit LAN-IP (nicht localhost)
+- [ ] `production`: Live-URLs in EAS production-Env
+- [ ] `buildNumber` erhöht
 
-## Nach TestFlight
+## Scripts (Root)
 
-- Mollie-Integration (Webhook auf `new.gwada.app`) — siehe [`expo-staff-app-integration.md`](./expo-staff-app-integration.md)
+| Script | Beschreibung |
+|--------|--------------|
+| `pnpm staff:env:lan` | LAN-`.env` + `staff-env.generated.ts` |
+| `pnpm staff:eas-env:preview-lan` | `.env` → EAS preview |
+| `pnpm staff:build:ios:preview-lan` | EAS iOS-Build LAN |
+| `pnpm staff:build:ios:production` | EAS iOS-Build Live |
+| `pnpm staff:submit:ios:preview-lan` | TestFlight-Upload (letzter Build) |
+| `pnpm staff:submit:ios:production` | App Store Connect (Live) |

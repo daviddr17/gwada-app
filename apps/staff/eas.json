@@ -1,0 +1,43 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      }
+    },
+    "preview-lan": {
+      "distribution": "store",
+      "environment": "preview",
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "GWADA_STAFF_BUILD_PROFILE": "preview-lan"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "ios": {
+        "buildConfiguration": "Release"
+      },
+      "env": {
+        "GWADA_STAFF_BUILD_PROFILE": "production"
+      }
+    }
+  },
+  "submit": {
+    "preview-lan": {
+      "ios": {}
+    },
+    "production": {
+      "ios": {}
+    }
+  }
+}

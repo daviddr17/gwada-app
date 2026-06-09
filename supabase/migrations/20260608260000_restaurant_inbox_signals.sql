@@ -1,6 +1,6 @@
 -- Leichte Realtime-Signale für Inbox-Updates (z. B. WAHA-Webhook ohne verknüpften Kontakt).
 
-create table public.restaurant_inbox_signals (
+create table if not exists public.restaurant_inbox_signals (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null references public.restaurants (id) on delete cascade,
   source text not null,
@@ -10,11 +10,13 @@ create table public.restaurant_inbox_signals (
   )
 );
 
-create index restaurant_inbox_signals_restaurant_created_idx
+create index if not exists restaurant_inbox_signals_restaurant_created_idx
   on public.restaurant_inbox_signals (restaurant_id, created_at desc);
 
 alter table public.restaurant_inbox_signals enable row level security;
 
+drop policy if exists "restaurant_inbox_signals_staff_select"
+  on public.restaurant_inbox_signals;
 create policy "restaurant_inbox_signals_staff_select"
   on public.restaurant_inbox_signals for select
   using (public.auth_is_restaurant_staff(restaurant_id));

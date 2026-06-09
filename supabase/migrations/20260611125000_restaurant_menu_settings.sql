@@ -1,11 +1,15 @@
 -- Speisekarten-Einstellungen pro Restaurant (Währung, später weitere Optionen).
+-- Idempotent: auf Live war 20260611120000 bereits diese Tabelle (Timestamp-Umbenennung).
 
-create table public.restaurant_menu_settings (
+create table if not exists public.restaurant_menu_settings (
   restaurant_id uuid primary key references public.restaurants (id) on delete cascade,
   currency_code char(3) not null default 'EUR'
     check (currency_code ~ '^[A-Z]{3}$'),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+drop trigger if exists restaurant_menu_settings_set_updated_at
+  on public.restaurant_menu_settings;
 
 create trigger restaurant_menu_settings_set_updated_at
   before update on public.restaurant_menu_settings
@@ -18,6 +22,8 @@ comment on column public.restaurant_menu_settings.currency_code is
 
 alter table public.restaurant_menu_settings enable row level security;
 
+drop policy if exists "restaurant_menu_settings_staff_all"
+  on public.restaurant_menu_settings;
 create policy "restaurant_menu_settings_staff_all"
   on public.restaurant_menu_settings for all
   using (public.auth_is_restaurant_staff(restaurant_id))

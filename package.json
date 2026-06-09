@@ -37,6 +37,7 @@
     "sync:live:data:all": "SYNC_INCLUDE_AUTH=1 bash scripts/sync-live-data.sh",
     "sync:live:auth": "SYNC_INCLUDE_AUTH=1 SYNC_ONLY_AUTH=1 bash scripts/sync-live-data.sh",
     "fix:live:workspace": "bash scripts/fix-live-workspace.sh",
+    "provision:live:fadi": "bash scripts/provision-live-fadi.sh",
     "db:reset": "supabase db reset",
     "db:seed:reservations-demo": "supabase db query --linked -f scripts/insert-reservations-2026-05-demo.sql",
     "db:seed:reservations-demo:local": "supabase db query --local -f scripts/insert-reservations-2026-05-demo.sql",

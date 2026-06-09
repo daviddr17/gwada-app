@@ -1,13 +1,10 @@
 import { Tabs } from "expo-router";
 import { Platform, StyleSheet } from "react-native";
 import { staffTabIconOptions } from "@/src/navigation/tab-bar-config";
-import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import { useStaffTheme } from "@/src/theme/staff-theme";
 
 export default function TabLayout() {
   const { colors } = useStaffTheme();
-  const { has } = useStaffPermissions();
-  const showKasse = has("pos.kasse.manage") || has("pos.kasse.export");
 
   return (
     <Tabs
@@ -23,14 +20,11 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen name="tables" options={staffTabIconOptions("tables")} />
-      <Tabs.Screen name="orders" options={staffTabIconOptions("orders")} />
       <Tabs.Screen
-        name="kasse"
-        options={{
-          ...staffTabIconOptions("kasse"),
-          href: showKasse ? undefined : null,
-        }}
+        name="reservations"
+        options={staffTabIconOptions("reservations")}
       />
+      <Tabs.Screen name="orders" options={staffTabIconOptions("orders")} />
       <Tabs.Screen name="menu" options={staffTabIconOptions("menu")} />
     </Tabs>
   );

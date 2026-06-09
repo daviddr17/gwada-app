@@ -9,15 +9,15 @@ export const staffTabDefinitions = {
     iconOutline: "grid-outline" as IoniconName,
     iconFilled: "grid" as IoniconName,
   },
+  reservations: {
+    title: "Reservierungen",
+    iconOutline: "calendar-outline" as IoniconName,
+    iconFilled: "calendar" as IoniconName,
+  },
   orders: {
     title: "Bestellungen",
     iconOutline: "receipt-outline" as IoniconName,
     iconFilled: "receipt" as IoniconName,
-  },
-  kasse: {
-    title: "Kasse",
-    iconOutline: "cash-outline" as IoniconName,
-    iconFilled: "cash" as IoniconName,
   },
   menu: {
     title: "Menü",

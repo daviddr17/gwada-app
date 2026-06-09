@@ -1,4 +1,4 @@
-import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
+import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@gwada/shared";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";

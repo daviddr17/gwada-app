@@ -1,29 +1,29 @@
-import { formatDiningTableLabel } from "@/lib/supabase/dining-floor-db";
+import {
+  RESERVATION_STATUS_CONFIRMED,
+  RESERVATION_STATUS_SEATED,
+  formatDiningTableLabel,
+  isConfirmedReservationStatus,
+  isSeatedReservationStatus,
+  reservationContributesToTableOccupancy as reservationContributesToTableOccupancyShared,
+  reservationDiningTableLabel as reservationDiningTableLabelShared,
+} from "@gwada/shared";
 import type {
   ReservationListRow,
   ReservationStatusJoin,
 } from "@/lib/supabase/reservations-db";
 
-export const RESERVATION_STATUS_CONFIRMED = "confirmed" as const;
-export const RESERVATION_STATUS_SEATED = "seated" as const;
-
-export function isConfirmedReservationStatus(
-  status: Pick<ReservationStatusJoin, "code"> | null | undefined,
-): boolean {
-  return status?.code === RESERVATION_STATUS_CONFIRMED;
-}
-
-export function isSeatedReservationStatus(
-  status: Pick<ReservationStatusJoin, "code"> | null | undefined,
-): boolean {
-  return status?.code === RESERVATION_STATUS_SEATED;
-}
+export {
+  RESERVATION_STATUS_CONFIRMED,
+  RESERVATION_STATUS_SEATED,
+  isConfirmedReservationStatus,
+  isSeatedReservationStatus,
+};
 
 /** Tisch belegt oder zuordenbar (Bestätigt / Am Tisch). */
 export function reservationContributesToTableOccupancy(
   status: Pick<ReservationStatusJoin, "code"> | null | undefined,
 ): boolean {
-  return isConfirmedReservationStatus(status) || isSeatedReservationStatus(status);
+  return reservationContributesToTableOccupancyShared(status);
 }
 
 export function reservationStatusAllowsTableAssignment(
@@ -39,8 +39,7 @@ export function reservationDiningTableLabel(
     "dining_tables" | "dining_table_id" | "reservation_statuses"
   >,
 ): string | null {
-  if (!isConfirmedReservationStatus(r.reservation_statuses)) return null;
-  return reservationAssignedTableLabel(r);
+  return reservationDiningTableLabelShared(r);
 }
 
 /** Tisch-Label wenn ein Tisch zugewiesen ist (z. B. Gridansicht). */

@@ -15,7 +15,6 @@ import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { ReceiptViewerModal } from "@/src/components/ReceiptViewerModal";
 import { SkeletonList } from "@/src/components/Skeleton";
-import { ScreenHeader } from "@/src/components/ui";
 import { FormTextField } from "@/src/components/ui/FormTextField";
 import { GroupedList } from "@/src/components/ui/GroupedList";
 import { GroupedSection } from "@/src/components/ui/GroupedSection";
@@ -38,7 +37,7 @@ import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaSpacing } from "@/src/theme/tokens";
+import { gwadaSpacing, screenTypography } from "@/src/theme/tokens";
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -192,9 +191,8 @@ export default function KasseScreen() {
 
   if (!canManage && !canExport && !permsLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
         <View style={styles.container}>
-          <ScreenHeader title="Kasse" subtitle="Keine Berechtigung" />
           <Text style={styles.muted}>
             Für Kassenfunktionen brauchst du pos.kasse.manage oder pos.kasse.export.
           </Text>
@@ -204,7 +202,7 @@ export default function KasseScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["bottom"]}>
       <ScrollView
         contentContainerStyle={styles.container}
         refreshControl={
@@ -214,14 +212,11 @@ export default function KasseScreen() {
           />
         }
       >
-        <ScreenHeader
-          title="Kasse"
-          subtitle={
-            data?.isOpen
-              ? `Offen seit ${formatDateTime(data.openedAt)}`
-              : "Kasse geschlossen"
-          }
-        />
+        <Text allowFontScaling style={styles.pageSubtitle}>
+          {data?.isOpen
+            ? `Offen seit ${formatDateTime(data.openedAt)}`
+            : "Kasse geschlossen"}
+        </Text>
 
         {showSkeleton ? (
           <SkeletonList count={4} />
@@ -449,6 +444,11 @@ function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.groupedBackground },
     container: { padding: gwadaSpacing.lg, gap: gwadaSpacing.lg, paddingBottom: 40 },
+    pageSubtitle: {
+      ...screenTypography.subtitle,
+      color: colors.textMuted,
+      marginBottom: gwadaSpacing.sm,
+    },
     sectionBtn: { marginTop: gwadaSpacing.sm },
     cardTitle: {
       fontSize: 16,

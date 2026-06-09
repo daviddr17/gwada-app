@@ -44,7 +44,13 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (inAuth || inRestaurantSelect) {
+    if (inAuth) {
+      router.replace("/(tabs)/tables");
+      return;
+    }
+
+    // Erst-Login: nach Restaurantwahl weiter zu Tische (nicht beim Wechsel aus dem Menü).
+    if (inRestaurantSelect && activeRestaurantId && !router.canGoBack()) {
       router.replace("/(tabs)/tables");
     }
   }, [session, activeRestaurantId, isLoading, segments, router]);
@@ -78,6 +84,14 @@ function ThemedStack() {
     >
       <Stack.Screen name="login" />
       <Stack.Screen name="restaurant-select" />
+      <Stack.Screen
+        name="kasse"
+        options={{
+          headerShown: true,
+          title: "Kasse",
+          headerBackTitle: "Menü",
+        }}
+      />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen
         name="order/new"

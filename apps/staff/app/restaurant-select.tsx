@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ScreenHeader } from "@/src/components/ui";
@@ -10,9 +11,10 @@ import { useAuthStore } from "@/src/stores/auth-store";
 import { useStaffTheme } from "@/src/theme/staff-theme";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaSpacing } from "@/src/theme/tokens";
+import { gwadaSpacing, screenTypography } from "@/src/theme/tokens";
 
 export default function RestaurantSelectScreen() {
+  const router = useRouter();
   const restaurants = useAuthStore((s) => s.restaurants);
   const activeRestaurantId = useAuthStore((s) => s.activeRestaurantId);
   const setActiveRestaurant = useAuthStore((s) => s.setActiveRestaurant);
@@ -20,13 +22,36 @@ export default function RestaurantSelectScreen() {
   const { colors } = useStaffTheme();
   const styles = useThemedStyles(createStyles);
 
+  const switching = Boolean(activeRestaurantId);
+
+  const handleSelectRestaurant = async (restaurantId: string) => {
+    await setActiveRestaurant(restaurantId);
+    if (switching) {
+      router.back();
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
-        <ScreenHeader
-          title="Restaurant wählen"
-          subtitle="Aktives Workspace-Restaurant für POS und Speisekarte"
-        />
+    <>
+      <Stack.Screen
+        options={{
+          headerShown: switching,
+          title: "Restaurant wählen",
+          headerBackTitle: "Menü",
+        }}
+      />
+      <SafeAreaView style={styles.safe} edges={switching ? ["bottom"] : undefined}>
+        <ScrollView contentContainerStyle={styles.container}>
+          {switching ? (
+            <Text allowFontScaling style={styles.subtitle}>
+              Aktives Workspace-Restaurant für POS und Speisekarte
+            </Text>
+          ) : (
+            <ScreenHeader
+              title="Restaurant wählen"
+              subtitle="Aktives Workspace-Restaurant für POS und Speisekarte"
+            />
+          )}
 
         <GroupedSection title="Restaurants">
           {restaurants.length === 0 ? (
@@ -44,7 +69,7 @@ export default function RestaurantSelectScreen() {
                       label={item.name}
                       value={item.slug}
                       variant="value"
-                      onPress={() => void setActiveRestaurant(item.restaurantId)}
+                      onPress={() => void handleSelectRestaurant(item.restaurantId)}
                       accessory={
                         active ? (
                           <Ionicons
@@ -71,8 +96,9 @@ export default function RestaurantSelectScreen() {
             />
           </GroupedList>
         </GroupedSection>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </>
   );
 }
 
@@ -91,6 +117,11 @@ function createStyles(colors: GwadaColors) {
     },
     signOutSection: {
       marginTop: gwadaSpacing.md,
+    },
+    subtitle: {
+      ...screenTypography.subtitle,
+      color: colors.textMuted,
+      marginBottom: gwadaSpacing.md,
     },
   });
 }

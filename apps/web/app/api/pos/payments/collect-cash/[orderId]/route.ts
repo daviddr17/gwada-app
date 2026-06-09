@@ -1,5 +1,7 @@
-import { payPosOrderCash } from "@/lib/pos/pos-order-server";
-import { runPosPaymentPipeline } from "@/lib/pos/pos-payment-pipeline";
+import { openLineQuantity } from "@gwada/pos-domain";
+import {
+  collectCashAllocations,
+} from "@/lib/pos/pos-session-settlement-server";
 import { loadPosOrderDto, posError, posJson } from "@/lib/pos/pos-responses";
 import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -38,23 +40,35 @@ export async function PATCH(
     return posError("invalid_request", 400);
   }
 
-  const payResult = await payPosOrderCash({
+  const order = await loadPosOrderDto(authResult.auth.supabase, orderId);
+  if (!order) {
+    return posError("order_not_found", 404);
+  }
+
+  const allocations = order.lines
+    .map((line) => ({
+      orderLineId: line.id,
+      quantity: line.openQuantity ?? openLineQuantity(line.quantity, line.paidQuantity ?? 0),
+    }))
+    .filter((a) => a.quantity > 0);
+
+  if (allocations.length === 0) {
+    return posError("order_already_paid", 400);
+  }
+
+  const result = await collectCashAllocations({
     supabase: authResult.auth.supabase,
     restaurantId: authResult.auth.restaurantId,
-    orderId,
+    tableSessionId: order.tableSessionId,
+    allocations,
     tipCents: body.tipCents,
     receivedAmountCents: body.receivedAmountCents,
   });
 
-  if (!payResult.ok) {
-    return posError(payResult.error, payResult.status);
+  if (!result.ok) {
+    return posError(result.error, result.status);
   }
 
-  const pipeline = await runPosPaymentPipeline(orderId);
-  if (!pipeline.ok) {
-    return posError(pipeline.error, 500);
-  }
-
-  const order = await loadPosOrderDto(authResult.auth.supabase, orderId);
-  return posJson({ paymentId: payResult.paymentId, order });
+  const updatedOrder = await loadPosOrderDto(authResult.auth.supabase, orderId);
+  return posJson({ paymentId: result.paymentId, order: updatedOrder });
 }

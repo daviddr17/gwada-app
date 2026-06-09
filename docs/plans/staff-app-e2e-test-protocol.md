@@ -40,10 +40,39 @@
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | Tab **Tische** | Liste aktiver Tische (Skeleton nur bei >120ms Ladezeit) |
-| 2 | Tisch tippen | Session geöffnet → Screen „Neue Bestellung“ |
+| 1 | Tab **Tische** | Bereichs-Chips, Tische mit Kapazität + Status (Frei/Besetzt) |
+| 2 | Freien Tisch tippen (Kasse offen) | Sheet **Personen am Tisch** → Session starten → „Neue Bestellung“ |
 | 3 | Gerichte wählen, **Bestellung senden** | Redirect zu Bestelldetail, Status `open` / `submitted` |
 | 4 | Tab **Bestellungen → Offen** | Bestellung sichtbar |
+| 5 | Besetzten Tisch erneut tippen | **Tisch-Session**-Hub: Personen, Bestellliste, „Neue Bestellung“ |
+
+**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+
+---
+
+### TC-02c Session Split & Freigabe
+
+| Schritt | Aktion | Erwartung |
+|---------|--------|-----------|
+| 1 | 3 Bestellungen an einem Tisch (Getränke, Hauptgang, Dessert) | Session-Hub zeigt alle Bestellungen |
+| 2 | Einzelne Positionen/Mengen wählen, **Bar kassieren** | Teilzahlung, offener Rest bleibt sichtbar |
+| 3 | Restliche Positionen kassieren | `canReleaseTable`, **Tisch freigeben** aktiv |
+| 4 | **Tisch freigeben** | Session `closed`, Tisch in Liste **Frei** |
+| 5 | Freigabe vor vollständiger Zahlung versuchen | Fehler `session_has_open_lines` |
+| 6 | Bereichs-Chip „Innenraum“ | Text vollständig lesbar (kein Clipping links) |
+
+**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+
+---
+
+### TC-02b Kassen-Gate vor neuer Tisch-Session
+
+| Schritt | Aktion | Erwartung |
+|---------|--------|-----------|
+| 1 | Kasse schließen (Tab **Kasse** oder Web) | `register-status`: `isOpen: false` |
+| 2 | Freien Tisch tippen (User **ohne** `pos.kasse.manage`) | Alert „Kasse geschlossen“, **keine** neue `pos_table_sessions`-Zeile |
+| 3 | Mit `pos.kasse.manage`: freien Tisch tippen | Sheet **Kasse öffnen** mit Soll-Bar-Vorschlag → Personen → Session + Bestellung |
+| 4 | Kasse geschlossen, Bestellung senden (bestehende Session) | API-Fehler `register_closed` |
 
 **Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
 

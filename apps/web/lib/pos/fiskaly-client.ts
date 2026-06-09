@@ -11,6 +11,7 @@ import { fetchPlatformFiskalySecretsAdmin } from "@/lib/supabase/platform-fiskal
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 type SignOrderInput = {
+  txId: string;
   orderId: string;
   restaurantId: string;
   totalCents: number;
@@ -102,7 +103,7 @@ export async function signPosOrderWithFiskaly(
       "Content-Type": "application/json",
     };
     const signBase = normalizeFiskalySignDeBaseUrl(platform.signDeBaseUrl);
-    const txId = input.orderId;
+    const txId = input.txId;
 
     const activeRes = await fetch(
       `${signBase}/tss/${tssId}/tx/${txId}?tx_revision=1`,
@@ -198,6 +199,7 @@ export async function persistFiskalyTransaction(params: {
   txRevision: number;
   signature: string;
   signatureCounter: number;
+  splitGroup?: string | null;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const admin = createSupabaseAdminClient();
   if (!admin) return { ok: false, error: "admin_unavailable" };
@@ -206,6 +208,7 @@ export async function persistFiskalyTransaction(params: {
     {
       restaurant_id: params.restaurantId,
       order_id: params.orderId,
+      split_group: params.splitGroup ?? null,
       tx_id: params.txId,
       tss_id: params.tssId,
       client_id: params.clientId,

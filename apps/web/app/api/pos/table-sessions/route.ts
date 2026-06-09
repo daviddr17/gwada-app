@@ -1,6 +1,10 @@
+import { openRegisterSession } from "@/lib/pos/fiskaly-register-session";
 import { openPosTableSession } from "@/lib/pos/pos-order-server";
 import { posError, posJson } from "@/lib/pos/pos-responses";
-import { authorizePosRestaurant } from "@/lib/pos/pos-route-auth";
+import {
+  authorizePosRestaurant,
+  authorizePosRestaurantPermission,
+} from "@/lib/pos/pos-route-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +13,7 @@ type OpenSessionBody = {
   diningTableId?: string;
   coverCount?: number;
   reservationId?: string | null;
+  openingCashCents?: number;
 };
 
 export async function POST(request: Request) {
@@ -27,6 +32,34 @@ export async function POST(request: Request) {
   const diningTableId = body.diningTableId?.trim() ?? "";
   if (!diningTableId) {
     return posError("invalid_dining_table_id", 400);
+  }
+
+  if (body.openingCashCents != null) {
+    if (!Number.isFinite(body.openingCashCents)) {
+      return posError("invalid_opening_cash_cents", 400);
+    }
+
+    const permResult = await authorizePosRestaurantPermission(
+      request,
+      authResult.auth.restaurantId,
+      "pos.kasse.manage",
+    );
+    if (!permResult.ok) {
+      return posError(permResult.error, permResult.status);
+    }
+
+    const openResult = await openRegisterSession(authResult.auth.restaurantId, {
+      openingCashCents: body.openingCashCents,
+      openedByProfileId: authResult.auth.userId,
+    });
+    if (!openResult.ok) {
+      return posError(
+        openResult.error === "register_already_open"
+          ? openResult.error
+          : "register_open_failed",
+        openResult.status ?? 502,
+      );
+    }
   }
 
   const result = await openPosTableSession({

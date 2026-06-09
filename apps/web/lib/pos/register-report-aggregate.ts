@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  loadSessionPaymentContext,
+  sumSessionPaymentsByMethod,
+} from "@/lib/pos/register-session-payments";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type RegisterSessionRow = {
@@ -29,6 +33,8 @@ export type RegisterSessionAggregate = {
   totalSalesCents: number;
   totalCashSalesCents: number;
   totalNonCashSalesCents: number;
+  /** Sum of paid cash payments in session (Soll Bar − Anfangsbestand). */
+  cashPaymentsCents: number;
   vatByRate: Array<{ rate: number; grossCents: number }>;
   paymentTypeTotals: Array<{ type: string; amountCents: number }>;
 };
@@ -150,20 +156,18 @@ export async function loadRegisterSessionAggregate(
 
   const orderIds = (fiscalRows ?? []).map((r) => r.order_id as string);
 
-  const [{ data: lines }, { data: payments }] = await Promise.all([
+  const [{ data: lines }, paymentCtx] = await Promise.all([
     orderIds.length > 0
       ? admin
           .from("pos_order_lines")
           .select("order_id, line_total_cents, vat_rate")
           .in("order_id", orderIds)
       : Promise.resolve({ data: [] }),
-    orderIds.length > 0
-      ? admin
-          .from("pos_payments")
-          .select("order_id, method, amount_cents")
-          .in("order_id", orderIds)
-          .eq("status", "paid")
-      : Promise.resolve({ data: [] }),
+    loadSessionPaymentContext(admin, {
+      restaurantId: session.restaurant_id,
+      sessionOpenedAt: session.opened_at,
+      sessionClosedAt: session.closed_at ?? undefined,
+    }),
   ]);
 
   const vatTotals = new Map<number, number>();
@@ -173,8 +177,6 @@ export async function loadRegisterSessionAggregate(
     vatTotals.set(rate, (vatTotals.get(rate) ?? 0) + cents);
   }
 
-  const paymentTypeTotals = new Map<string, number>();
-  let totalCashSalesCents = 0;
   let totalSalesCents = 0;
 
   for (const row of fiscalRows ?? []) {
@@ -189,29 +191,11 @@ export async function loadRegisterSessionAggregate(
     totalSalesCents += grossCents;
   }
 
-  const paymentByOrder = new Map<string, { method: string; amount_cents: number }>();
-  for (const payment of payments ?? []) {
-    paymentByOrder.set(payment.order_id as string, {
-      method: payment.method as string,
-      amount_cents: Number(payment.amount_cents),
-    });
-  }
-
-  for (const row of fiscalRows ?? []) {
-    const payment = paymentByOrder.get(row.order_id as string);
-    const orderJoin = row.pos_orders as
-      | { total_cents?: number; tip_cents?: number }
-      | { total_cents?: number; tip_cents?: number }[]
-      | null;
-    const order = Array.isArray(orderJoin) ? orderJoin[0] : orderJoin;
-    if (!order) continue;
-
-    const grossCents = Number(order.total_cents ?? 0) + Number(order.tip_cents ?? 0);
-    const isCash = payment?.method === "cash";
-    const type = isCash ? "Bar" : "Unbar";
-    paymentTypeTotals.set(type, (paymentTypeTotals.get(type) ?? 0) + grossCents);
-    if (isCash) totalCashSalesCents += grossCents;
-  }
+  const {
+    cashCents: totalCashSalesCents,
+    nonCashCents: totalNonCashSalesCents,
+    paymentTypeTotals,
+  } = sumSessionPaymentsByMethod(paymentCtx.payments);
 
   const expectedCashCents =
     session.expected_cash_cents ??
@@ -222,12 +206,15 @@ export async function loadRegisterSessionAggregate(
       openingCashCents: Number(session.opening_cash_cents),
     }));
 
+  const openingCashCents = Number(session.opening_cash_cents);
+  const cashPaymentsCents = Math.max(0, expectedCashCents - openingCashCents);
+
   return {
     sessionId: session.id,
     restaurantId: session.restaurant_id,
     openedAt: session.opened_at,
     closedAt: session.closed_at,
-    openingCashCents: Number(session.opening_cash_cents),
+    openingCashCents,
     closingCashCents:
       session.closing_cash_cents == null
         ? null
@@ -241,12 +228,11 @@ export async function loadRegisterSessionAggregate(
     transactionCount: fiscalRows?.length ?? 0,
     totalSalesCents,
     totalCashSalesCents,
-    totalNonCashSalesCents: totalSalesCents - totalCashSalesCents,
+    totalNonCashSalesCents,
+    cashPaymentsCents,
     vatByRate: Array.from(vatTotals.entries())
       .map(([rate, grossCents]) => ({ rate, grossCents }))
       .sort((a, b) => b.rate - a.rate),
-    paymentTypeTotals: Array.from(paymentTypeTotals.entries()).map(
-      ([type, amountCents]) => ({ type, amountCents }),
-    ),
+    paymentTypeTotals,
   };
 }

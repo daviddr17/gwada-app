@@ -21,3 +21,14 @@ export {
   type SignDeVatAmount,
   type VatLineInput,
 } from "./vat";
+
+export {
+  allocationAmountCents,
+  canReleaseTableSession,
+  deriveLinePaymentState,
+  deriveSessionSettlementState,
+  openLineQuantity,
+  type PosLinePaymentState,
+  type PosSessionLineInput,
+  type PosSessionSettlementState,
+} from "./settlement";

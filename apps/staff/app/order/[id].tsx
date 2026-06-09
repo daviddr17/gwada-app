@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
 import { formatCentsEUR } from "@gwada/shared";
@@ -19,6 +19,7 @@ import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const router = useRouter();
   const restaurantId = useAuthStore((s) => s.activeRestaurantId);
   const queryClient = useQueryClient();
   const [paying, setPaying] = useState(false);
@@ -62,6 +63,9 @@ export default function OrderDetailScreen() {
     try {
       await collectCash({ restaurantId, orderId: id });
       await refetch();
+      await queryClient.invalidateQueries({
+        queryKey: ["session-summary", restaurantId],
+      });
       await queryClient.invalidateQueries({
         queryKey: ["pos-active-orders", restaurantId],
       });
@@ -115,16 +119,27 @@ export default function OrderDetailScreen() {
       </Card>
 
       <Text style={styles.section}>Positionen</Text>
-      {order.lines.map((line) => (
-        <Card key={line.id}>
-          <Text style={styles.lineName}>
-            {line.quantity}× {line.name}
-          </Text>
-          <Text style={styles.linePrice}>
-            {formatCentsEUR(line.lineTotalCents)}
-          </Text>
-        </Card>
-      ))}
+      {order.lines.map((line) => {
+        const paidQty = line.paidQuantity ?? 0;
+        const openQty =
+          line.openQuantity ??
+          Math.max(0, line.quantity - paidQty);
+        return (
+          <Card key={line.id}>
+            <Text style={styles.lineName}>
+              {line.quantity}× {line.name}
+            </Text>
+            <Text style={styles.linePrice}>
+              {formatCentsEUR(line.lineTotalCents)}
+              {openQty > 0 && openQty < line.quantity
+                ? ` · ${paidQty} bezahlt, ${openQty} offen`
+                : openQty === 0
+                  ? " · bezahlt"
+                  : " · offen"}
+            </Text>
+          </Card>
+        );
+      })}
 
       {order.fiskalyFailedAt ? (
         <View style={styles.warnBox}>
@@ -142,12 +157,25 @@ export default function OrderDetailScreen() {
       ) : null}
 
       {canPayCash ? (
-        <Button
-          label="Bar bezahlen"
-          loading={paying}
-          onPress={() => void handleCashPay()}
-          style={styles.payBtn}
-        />
+        <>
+          <Button
+            label="Rest der Bestellung bar bezahlen"
+            loading={paying}
+            onPress={() => void handleCashPay()}
+            style={styles.payBtn}
+          />
+          <Button
+            label="In Session kassieren (Split)"
+            variant="secondary"
+            onPress={() =>
+              router.push({
+                pathname: "/session/[sessionId]",
+                params: { sessionId: order.tableSessionId },
+              })
+            }
+            style={styles.payBtn}
+          />
+        </>
       ) : (
         <Text style={styles.paidHint}>Vollständig bezahlt</Text>
       )}
@@ -157,6 +185,18 @@ export default function OrderDetailScreen() {
           label="Beleg anzeigen"
           variant="secondary"
           onPress={() => setReceiptOpen(true)}
+          style={styles.receiptBtn}
+        />
+      ) : order.paymentState === "paid" ? (
+        <Button
+          label="Belege in Session (Zahlungen)"
+          variant="secondary"
+          onPress={() =>
+            router.push({
+              pathname: "/session/[sessionId]",
+              params: { sessionId: order.tableSessionId, tab: "payments" },
+            })
+          }
           style={styles.receiptBtn}
         />
       ) : null}
@@ -198,7 +238,7 @@ const styles = StyleSheet.create({
   linePrice: { fontSize: 14, color: gwadaColors.textMuted, marginTop: 4 },
   warnBox: { gap: gwadaSpacing.sm, marginTop: gwadaSpacing.sm },
   warn: { color: gwadaColors.destructive, fontSize: 14 },
-  payBtn: { marginTop: gwadaSpacing.lg },
+  payBtn: { marginTop: gwadaSpacing.sm },
   receiptBtn: { marginTop: gwadaSpacing.sm },
   paidHint: {
     textAlign: "center",

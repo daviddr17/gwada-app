@@ -2,6 +2,10 @@ import "server-only";
 
 import { buildSignDeVatAmounts } from "@gwada/pos-domain";
 import type { DsfinvkCashPointClosingPayload } from "@/lib/pos/fiskaly-dsfinvk";
+import {
+  loadSessionPaymentContext,
+  resolveFiscalTransactionPaymentMethod,
+} from "@/lib/pos/register-session-payments";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 /** DFKA taxonomy VAT definition export IDs (Germany). */
@@ -23,6 +27,7 @@ function unixSeconds(iso: string | null | undefined): number {
 type FiscalRow = {
   id: string;
   order_id: string;
+  split_group: string | null;
   tx_id: string;
   client_id: string;
   signature: string;
@@ -41,12 +46,6 @@ type OrderLineRow = {
   name: string;
   line_total_cents: number;
   vat_rate: number;
-};
-
-type PaymentRow = {
-  order_id: string;
-  method: string;
-  status: string;
 };
 
 export async function buildCashPointClosingPayload(params: {
@@ -69,7 +68,7 @@ export async function buildCashPointClosingPayload(params: {
   const { data: fiscalRows, error: fiscalError } = await admin
     .from("pos_fiscal_transactions")
     .select(
-      "id, order_id, tx_id, client_id, signature, signature_counter, signed_at, pos_orders(order_number, total_cents, tip_cents, closed_at)",
+      "id, order_id, split_group, tx_id, client_id, signature, signature_counter, signed_at, pos_orders(order_number, total_cents, tip_cents, closed_at)",
     )
     .eq("restaurant_id", params.restaurantId)
     .gte("signed_at", params.sessionOpenedAt)
@@ -89,6 +88,7 @@ export async function buildCashPointClosingPayload(params: {
     return {
       id: row.id as string,
       order_id: row.order_id as string,
+      split_group: (row.split_group as string | null) ?? null,
       tx_id: row.tx_id as string,
       client_id: row.client_id as string,
       signature: row.signature as string,
@@ -111,17 +111,17 @@ export async function buildCashPointClosingPayload(params: {
 
   const orderIds = rows.map((r) => r.order_id);
 
-  const [{ data: lines }, { data: payments }] = await Promise.all([
+  const [{ data: lines }, paymentCtx] = await Promise.all([
     admin
       .from("pos_order_lines")
       .select("order_id, name, line_total_cents, vat_rate")
       .in("order_id", orderIds)
       .order("position"),
-    admin
-      .from("pos_payments")
-      .select("order_id, method, status")
-      .in("order_id", orderIds)
-      .eq("status", "paid"),
+    loadSessionPaymentContext(admin, {
+      restaurantId: params.restaurantId,
+      sessionOpenedAt: params.sessionOpenedAt,
+      sessionClosedAt: closedAt,
+    }),
   ]);
 
   const linesByOrder = new Map<string, OrderLineRow[]>();
@@ -129,11 +129,6 @@ export async function buildCashPointClosingPayload(params: {
     const list = linesByOrder.get(line.order_id) ?? [];
     list.push(line);
     linesByOrder.set(line.order_id, list);
-  }
-
-  const paymentByOrder = new Map<string, PaymentRow>();
-  for (const payment of (payments ?? []) as PaymentRow[]) {
-    paymentByOrder.set(payment.order_id, payment);
   }
 
   let totalCashCents = 0;
@@ -149,8 +144,11 @@ export async function buildCashPointClosingPayload(params: {
     if (!order) continue;
 
     const orderLines = linesByOrder.get(row.order_id) ?? [];
-    const payment = paymentByOrder.get(row.order_id);
-    const isCash = payment?.method === "cash";
+    const method = resolveFiscalTransactionPaymentMethod(paymentCtx, {
+      order_id: row.order_id,
+      split_group: row.split_group,
+    });
+    const isCash = method === "cash";
     const paymentType = isCash ? "Bar" : "Unbar";
     const paymentName = isCash ? "Barzahlung" : "Unbarzahlung";
 

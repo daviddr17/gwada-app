@@ -119,9 +119,74 @@ export type PosOrderLineDto = {
   menuItemId: string | null;
   name: string;
   quantity: number;
+  paidQuantity?: number;
+  openQuantity?: number;
   unitPriceCents: number;
   vatRate: number;
   lineTotalCents: number;
+};
+
+export type SessionSummaryLineDto = {
+  id: string;
+  orderId: string;
+  orderNumber: number;
+  menuItemId: string | null;
+  name: string;
+  quantity: number;
+  paidQuantity: number;
+  openQuantity: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+  openAmountCents: number;
+  vatRate: number;
+  linePaymentState: "unpaid" | "partial" | "paid";
+  notes: string | null;
+  position: number;
+};
+
+export type SessionSummaryOrderDto = {
+  id: string;
+  orderNumber: number;
+  status: string;
+  totalCents: number;
+  lines: SessionSummaryLineDto[];
+};
+
+export type SessionSummaryPaymentAllocationDto = {
+  orderLineId: string;
+  orderNumber: number;
+  name: string;
+  quantity: number;
+  amountCents: number;
+};
+
+export type SessionSummaryPaymentDto = {
+  id: string;
+  orderId: string;
+  orderNumber: number;
+  method: string;
+  amountCents: number;
+  tipCents: number;
+  paidAt: string | null;
+  receiptUrl: string | null;
+  allocations: SessionSummaryPaymentAllocationDto[];
+};
+
+export type SessionSummaryDto = {
+  sessionId: string;
+  restaurantId: string;
+  diningTableId: string;
+  coverCount: number;
+  status: string;
+  isFullyPaid: boolean;
+  openedAt: string;
+  canReleaseTable: boolean;
+  openCents: number;
+  openLineCount: number;
+  totalCents: number;
+  paidCents: number;
+  orders: SessionSummaryOrderDto[];
+  payments: SessionSummaryPaymentDto[];
 };
 
 export type PosOrderDto = {
@@ -150,10 +215,48 @@ export async function openTableSession(params: {
   restaurantId: string;
   diningTableId: string;
   coverCount?: number;
+  openingCashCents?: number;
 }): Promise<{ sessionId: string }> {
   return posFetch("/table-sessions", {
     method: "POST",
     body: JSON.stringify(params),
+  });
+}
+
+export async function fetchOrdersBySession(
+  restaurantId: string,
+  sessionId: string,
+): Promise<{ orders: PosOrderDto[] }> {
+  return posFetch(`/orders/by-session/${sessionId}`, { restaurantId });
+}
+
+export async function fetchSessionSummary(
+  restaurantId: string,
+  sessionId: string,
+): Promise<{ summary: SessionSummaryDto }> {
+  return posFetch(`/table-sessions/${sessionId}/summary`, { restaurantId });
+}
+
+export async function collectCashAllocations(params: {
+  restaurantId: string;
+  tableSessionId: string;
+  allocations: Array<{ orderLineId: string; quantity: number }>;
+  tipCents?: number;
+  receivedAmountCents?: number;
+}): Promise<{ paymentId: string; summary: SessionSummaryDto | null }> {
+  return posFetch("/payments/collect-cash-allocations", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function closeTableSession(
+  restaurantId: string,
+  sessionId: string,
+): Promise<{ sessionId: string }> {
+  return posFetch(`/table-sessions/${sessionId}/close`, {
+    method: "POST",
+    restaurantId,
   });
 }
 
@@ -238,6 +341,7 @@ export type RegisterSessionAggregateDto = {
   totalSalesCents: number;
   totalCashSalesCents: number;
   totalNonCashSalesCents: number;
+  cashPaymentsCents: number;
 };
 
 export type RegisterStatusDto = {
@@ -247,6 +351,7 @@ export type RegisterStatusDto = {
   openingCashCents: number | null;
   lastClosingZNr: number | null;
   lastClosingAt: string | null;
+  suggestedOpeningCashCents: number | null;
   aggregate: RegisterSessionAggregateDto | null;
 };
 

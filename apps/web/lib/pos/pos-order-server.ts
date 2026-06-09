@@ -2,6 +2,7 @@ import "server-only";
 
 import { assertPosOrderStatusTransition, type PosOrderStatus } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 
 export type CreatePosOrderLineInput = {
   menuItemId: string;
@@ -52,6 +53,11 @@ export async function openPosTableSession(params: {
 
   if (existingOpen) {
     return { ok: true, sessionId: existingOpen.id as string };
+  }
+
+  const registerSession = await getOpenRegisterSession(params.restaurantId);
+  if (!registerSession) {
+    return { ok: false, error: "register_closed", status: 403 };
   }
 
   const { data, error } = await params.supabase
@@ -106,6 +112,11 @@ export async function createPosOrder(params: {
 
   if (session.status !== "open") {
     return { ok: false, error: "session_closed", status: 400 };
+  }
+
+  const registerSession = await getOpenRegisterSession(params.restaurantId);
+  if (!registerSession) {
+    return { ok: false, error: "register_closed", status: 403 };
   }
 
   const menuItemIds = [...new Set(params.items.map((i) => i.menuItemId))];

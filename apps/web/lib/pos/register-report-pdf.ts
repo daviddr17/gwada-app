@@ -81,8 +81,10 @@ export function buildRegisterReportPdfBuffer(
     doc.moveDown(0.4);
     row("Belege (TSE)", String(input.aggregate.transactionCount));
     row("Umsatz gesamt", `€ ${fmtCents(input.aggregate.totalSalesCents)}`);
-    row("davon Bar", `€ ${fmtCents(input.aggregate.totalCashSalesCents)}`);
-    row("davon Unbar", `€ ${fmtCents(input.aggregate.totalNonCashSalesCents)}`);
+    row("Barzahlungen", `€ ${fmtCents(input.aggregate.cashPaymentsCents)}`);
+    if (input.aggregate.totalNonCashSalesCents > 0) {
+      row("davon Unbar", `€ ${fmtCents(input.aggregate.totalNonCashSalesCents)}`);
+    }
 
     if (input.aggregate.paymentTypeTotals.length > 0) {
       doc.moveDown(0.3);

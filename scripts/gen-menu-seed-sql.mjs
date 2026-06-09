@@ -103,7 +103,7 @@ const items = [
     price: 18.9,
     category: "mains",
     imageUrl:
-      "https://images.unsplash.com/photo-1604908177524-90947bb293e3?w=800&q=80",
+      "https://images.unsplash.com/photo-1708782344490-9026aaa5eec7?w=800&q=80",
     tags: ["spicy", "halal"],
   },
   {

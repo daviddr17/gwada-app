@@ -1,0 +1,116 @@
+import { useQueryClient } from "@tanstack/react-query";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
+import { AppState } from "react-native";
+import { getStaffSupabase } from "@/src/lib/supabase";
+
+const POLL_MS = 60_000;
+
+export function useDiningFloorLive(restaurantId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const [realtimeOk, setRealtimeOk] = useState(false);
+
+  useEffect(() => {
+    if (!restaurantId) {
+      setRealtimeOk(false);
+      return;
+    }
+
+    const sb = getStaffSupabase();
+    let channel: RealtimeChannel | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let subscribing = false;
+
+    const invalidate = () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["dining-floor", restaurantId],
+      });
+    };
+
+    const clearRetry = () => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+    };
+
+    const unsubscribe = () => {
+      clearRetry();
+      subscribing = false;
+      if (channel) {
+        void sb.removeChannel(channel);
+        channel = null;
+      }
+      setRealtimeOk(false);
+    };
+
+    const matchesRestaurant = (row: { restaurant_id?: string } | undefined) =>
+      row?.restaurant_id === restaurantId;
+
+    const subscribe = () => {
+      if (channel || subscribing || AppState.currentState !== "active") {
+        return;
+      }
+
+      subscribing = true;
+      let ch = sb.channel(`staff-dining-floor-${restaurantId}`);
+      ch = ch
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "reservations" },
+          (payload) => {
+            const row = payload.new as { restaurant_id?: string } | undefined;
+            if (!matchesRestaurant(row)) return;
+            invalidate();
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "reservations" },
+          (payload) => {
+            const row = payload.new as { restaurant_id?: string } | undefined;
+            if (!matchesRestaurant(row)) return;
+            invalidate();
+          },
+        );
+
+      ch.subscribe((status) => {
+        subscribing = false;
+        if (status === "SUBSCRIBED") {
+          channel = ch;
+          setRealtimeOk(true);
+          return;
+        }
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setRealtimeOk(false);
+          void sb.removeChannel(ch);
+          channel = null;
+          clearRetry();
+          if (AppState.currentState === "active") {
+            retryTimer = setTimeout(subscribe, 3_000);
+          }
+        }
+      });
+    };
+
+    const onAppState = (nextState: string) => {
+      if (nextState === "active") {
+        subscribe();
+      } else {
+        unsubscribe();
+      }
+    };
+
+    subscribe();
+    const appStateSub = AppState.addEventListener("change", onAppState);
+
+    return () => {
+      appStateSub.remove();
+      unsubscribe();
+    };
+  }, [queryClient, restaurantId]);
+
+  return {
+    refetchInterval: realtimeOk ? (false as const) : POLL_MS,
+  };
+}

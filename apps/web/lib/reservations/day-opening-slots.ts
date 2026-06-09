@@ -156,10 +156,4 @@ export function localDateAtSlotMinutes(day: Date, minutesFromMidnight: number): 
   return new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m, 0, 0);
 }
 
-export function reservationActiveAtInstant(
-  r: { starts_at: string; ends_at: string },
-  instant: Date,
-): boolean {
-  const t = instant.getTime();
-  return new Date(r.starts_at).getTime() <= t && new Date(r.ends_at).getTime() > t;
-}
+export { reservationActiveAtInstant } from "@gwada/shared";

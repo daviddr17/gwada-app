@@ -1,5 +1,6 @@
 import "server-only";
 
+import { localDayBoundsIso } from "@gwada/shared";
 import { defaultWeeklyHours, WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { normalizeBookingTimeStepMinutes } from "@/lib/reservations/booking-time-step";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
@@ -51,42 +52,6 @@ async function loadOpeningHoursAdmin(
   }
 
   return { weeklyHours, dateExceptions };
-}
-
-function parseYmdToLocalDate(ymd: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
-  if (!m) return null;
-  const y = Number.parseInt(m[1]!, 10);
-  const mo = Number.parseInt(m[2]!, 10);
-  const d = Number.parseInt(m[3]!, 10);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-  const date = new Date(y, mo - 1, d, 12, 0, 0, 0);
-  if (
-    date.getFullYear() !== y ||
-    date.getMonth() !== mo - 1 ||
-    date.getDate() !== d
-  ) {
-    return null;
-  }
-  return date;
-}
-
-function localDayBoundsUtc(dayYmd?: string | null): {
-  start: string;
-  end: string;
-  day: string;
-} {
-  const base =
-    dayYmd != null && dayYmd.trim()
-      ? (parseYmdToLocalDate(dayYmd) ?? new Date())
-      : new Date();
-  const y = base.getFullYear();
-  const m = base.getMonth();
-  const d = base.getDate();
-  const start = new Date(y, m, d, 0, 0, 0, 0);
-  const end = new Date(y, m, d + 1, 0, 0, 0, 0);
-  const day = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-  return { start: start.toISOString(), end: end.toISOString(), day };
 }
 
 export type DisplayReservationRow = {
@@ -174,7 +139,7 @@ export async function loadDisplayReservationsDay(
   const admin = createSupabaseAdminClient();
   if (!admin) return { error: "server_misconfigured" as const };
 
-  const { start, end, day } = localDayBoundsUtc(dayYmd);
+  const { start, end, day } = localDayBoundsIso(dayYmd);
 
   const [
     { data: reservationRows, error: resError },

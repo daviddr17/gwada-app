@@ -28,17 +28,10 @@ import {
   openRegister,
   type RegisterSessionSummary,
 } from "@/src/lib/pos-api";
+import { parseEuroToCents } from "@/src/lib/money-input";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
-
-function parseEuroToCents(input: string): number | null {
-  const normalized = input.trim().replace(",", ".");
-  if (!normalized) return null;
-  const value = Number(normalized);
-  if (!Number.isFinite(value) || value < 0) return null;
-  return Math.round(value * 100);
-}
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -227,23 +220,49 @@ export default function KasseScreen() {
               <Text style={styles.row}>
                 Kasse: {data?.isOpen ? "Geöffnet" : "Geschlossen"}
               </Text>
-              {data?.openingCashCents != null ? (
-                <Text style={styles.row}>
-                  Anfangsbestand: {formatCentsEUR(data.openingCashCents)}
-                </Text>
-              ) : null}
               {data?.aggregate ? (
                 <>
+                  <Text style={styles.sectionLabel}>Umsatz (TSE)</Text>
                   <Text style={styles.row}>
-                    Umsatz: {formatCentsEUR(data.aggregate.totalSalesCents)}
+                    Umsatz gesamt:{" "}
+                    {formatCentsEUR(data.aggregate.totalSalesCents)}
                   </Text>
+                  <Text style={styles.row}>
+                    Barzahlungen:{" "}
+                    {formatCentsEUR(data.aggregate.cashPaymentsCents)}
+                  </Text>
+                  {data.aggregate.totalNonCashSalesCents > 0 ? (
+                    <Text style={styles.row}>
+                      davon Unbar:{" "}
+                      {formatCentsEUR(data.aggregate.totalNonCashSalesCents)}
+                    </Text>
+                  ) : null}
                   <Text style={styles.row}>
                     Belege: {data.aggregate.transactionCount}
                   </Text>
                   {data.aggregate.expectedCashCents != null ? (
-                    <Text style={styles.row}>
-                      Soll Bar: {formatCentsEUR(data.aggregate.expectedCashCents)}
-                    </Text>
+                    <>
+                      <View style={styles.sectionDivider} />
+                      <Text style={styles.sectionLabel}>Kassenbestand</Text>
+                      {data.openingCashCents != null ? (
+                        <Text style={styles.row}>
+                          Anfangsbestand:{" "}
+                          {formatCentsEUR(data.openingCashCents)}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.row}>
+                        + Barzahlungen:{" "}
+                        {formatCentsEUR(data.aggregate.cashPaymentsCents)}
+                      </Text>
+                      <Text style={styles.rowStrong}>
+                        = Soll Bar:{" "}
+                        {formatCentsEUR(data.aggregate.expectedCashCents)}
+                      </Text>
+                      <Text style={styles.hint}>
+                        Soll Bar = Anfangsbestand + Barzahlungen in dieser
+                        Session (ohne Karte/Unbar).
+                      </Text>
+                    </>
                   ) : null}
                 </>
               ) : null}
@@ -422,6 +441,32 @@ const styles = StyleSheet.create({
     marginBottom: gwadaSpacing.sm,
   },
   row: { fontSize: 15, color: gwadaColors.text, marginBottom: 4 },
+  rowStrong: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: gwadaColors.text,
+    marginBottom: 4,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: gwadaColors.textMuted,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+    marginTop: gwadaSpacing.xs,
+    marginBottom: 6,
+  },
+  sectionDivider: {
+    height: 1,
+    backgroundColor: gwadaColors.border,
+    marginVertical: gwadaSpacing.sm,
+  },
+  hint: {
+    fontSize: 12,
+    color: gwadaColors.textMuted,
+    lineHeight: 17,
+    marginTop: 2,
+  },
   muted: { fontSize: 13, color: gwadaColors.textMuted, marginTop: 4 },
   label: {
     fontSize: 13,

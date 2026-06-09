@@ -1,6 +1,6 @@
 import "server-only";
 
-import { derivePosPaymentState, type PosOrderStatus } from "@gwada/pos-domain";
+import { allocationAmountCents, derivePosPaymentState, type PosOrderStatus } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -48,6 +48,7 @@ type LineRow = {
   menu_item_id: string | null;
   name: string;
   quantity: number;
+  paid_quantity: number;
   unit_price_cents: number;
   vat_rate: number;
   line_total_cents: number;
@@ -98,6 +99,8 @@ export type PosOrderDto = {
     menuItemId: string | null;
     name: string;
     quantity: number;
+    paidQuantity: number;
+    openQuantity: number;
     unitPriceCents: number;
     vatRate: number;
     lineTotalCents: number;
@@ -129,9 +132,22 @@ function mapOrderDto(
   payments: PaymentRow[],
   fiscal: FiscalRow | null,
 ): PosOrderDto {
-  const paidTotal = payments
+  const paidFromLines = lines.reduce(
+    (sum, line) =>
+      sum +
+      allocationAmountCents(
+        Number(line.line_total_cents),
+        Number(line.quantity),
+        Number(line.paid_quantity ?? 0),
+      ),
+    0,
+  );
+
+  const paidTotalLegacy = payments
     .filter((p) => p.status === "paid")
     .reduce((sum, p) => sum + Number(p.amount_cents), 0);
+
+  const paidTotal = Math.max(paidFromLines, paidTotalLegacy);
 
   return {
     id: order.id,
@@ -151,17 +167,23 @@ function mapOrderDto(
     closedAt: order.closed_at,
     createdAt: order.created_at,
     updatedAt: order.updated_at,
-    lines: lines.map((line) => ({
+    lines: lines.map((line) => {
+      const quantity = Number(line.quantity);
+      const paidQuantity = Number(line.paid_quantity ?? 0);
+      return {
       id: line.id,
       menuItemId: line.menu_item_id,
       name: line.name,
-      quantity: Number(line.quantity),
+      quantity,
+      paidQuantity,
+      openQuantity: Math.max(0, quantity - paidQuantity),
       unitPriceCents: Number(line.unit_price_cents),
       vatRate: Number(line.vat_rate),
       lineTotalCents: Number(line.line_total_cents),
       notes: line.notes,
       position: line.position,
-    })),
+    };
+    }),
     payments: payments.map((payment) => ({
       id: payment.id,
       amountCents: Number(payment.amount_cents),
@@ -206,7 +228,7 @@ export async function loadPosOrderDto(
       supabase
         .from("pos_order_lines")
         .select(
-          "id, menu_item_id, name, quantity, unit_price_cents, vat_rate, line_total_cents, notes, position",
+          "id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, vat_rate, line_total_cents, notes, position",
         )
         .eq("order_id", orderId)
         .order("position"),

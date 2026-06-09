@@ -65,6 +65,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { readModuleChipStripHeightPx } from "@/lib/layout/module-chip-strip";
 import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
 
@@ -128,6 +129,14 @@ export function MenuOverviewScreen() {
     ingredientsHydrated &&
     menuTags.isHydrated &&
     menuAllergens.isHydrated;
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const overviewLoading = !mounted || !isHydrated;
+  const showOverviewSkeleton = useDeferredSkeleton(overviewLoading);
 
   const ingredientNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -411,11 +420,19 @@ export function MenuOverviewScreen() {
 
   const showCards = !viewReady || viewMode === "cards";
 
+  if (!mounted) {
+    return <MenuOverviewSkeleton />;
+  }
+
+  if (!isHydrated) {
+    if (showOverviewSkeleton) {
+      return <MenuOverviewSkeleton />;
+    }
+    return <div className="w-full min-h-[32rem] pb-16" aria-busy />;
+  }
+
   return (
     <>
-      {!isHydrated ? (
-        <MenuOverviewSkeleton />
-      ) : (
         <div className="w-full pb-16">
         <div className="-mx-4 mb-3 flex flex-wrap gap-2 px-4 sm:-mx-6 sm:px-6">
           <Button
@@ -646,7 +663,6 @@ export function MenuOverviewScreen() {
             </Card>
           )}
       </div>
-      )}
 
       <DishDrawer
         open={drawerOpen && (drawerMode === "create" || !!editItem)}

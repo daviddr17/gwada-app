@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@gwada/pos-domain": "workspace:*",
     "@gwada/shared": "workspace:*",
     "@gwada/supabase": "workspace:*",
     "@supabase/supabase-js": "^2.105.4",

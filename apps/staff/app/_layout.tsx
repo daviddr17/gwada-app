@@ -76,6 +76,14 @@ export default function RootLayout() {
                 headerBackTitle: "Zurück",
               }}
             />
+            <Stack.Screen
+              name="session/[sessionId]"
+              options={{
+                headerShown: true,
+                title: "Tisch-Session",
+                headerBackTitle: "Tische",
+              }}
+            />
           </Stack>
           </AuthGate>
         </StaffThemeProvider>

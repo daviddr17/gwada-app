@@ -13,6 +13,13 @@ export function posReceiptStoragePath(
   return `${restaurantId}/${orderId}.pdf`;
 }
 
+export function posPaymentReceiptStoragePath(
+  restaurantId: string,
+  paymentId: string,
+): string {
+  return `${restaurantId}/payments/${paymentId}.pdf`;
+}
+
 export async function uploadPosReceiptPdf(
   restaurantId: string,
   orderId: string,
@@ -24,6 +31,31 @@ export async function uploadPosReceiptPdf(
   }
 
   const path = posReceiptStoragePath(restaurantId, orderId);
+  const { error } = await admin.storage
+    .from(POS_RECEIPTS_BUCKET)
+    .upload(path, buffer, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return path;
+}
+
+export async function uploadPosPaymentReceiptPdf(
+  restaurantId: string,
+  paymentId: string,
+  buffer: Buffer,
+): Promise<string> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    throw new Error("admin_unavailable");
+  }
+
+  const path = posPaymentReceiptStoragePath(restaurantId, paymentId);
   const { error } = await admin.storage
     .from(POS_RECEIPTS_BUCKET)
     .upload(path, buffer, {

@@ -15,7 +15,9 @@ import {
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,6 +43,7 @@ export default function OrderDetailScreen() {
     },
   });
 
+  const styles = useThemedStyles(createStyles);
   const showSkeleton = useDeferredSkeleton(isLoading);
 
   const handleRetryTse = async () => {
@@ -213,55 +216,57 @@ export default function OrderDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: gwadaSpacing.lg,
-    gap: 10,
-    backgroundColor: gwadaColors.background,
-  },
-  orderNo: { fontSize: 20, fontWeight: "700", color: gwadaColors.text },
-  meta: { fontSize: 14, color: gwadaColors.textMuted, marginTop: 4 },
-  total: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: gwadaColors.text,
-    marginTop: 12,
-  },
-  section: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: gwadaColors.text,
-    marginTop: gwadaSpacing.md,
-    marginBottom: 4,
-  },
-  lineName: { fontSize: 15, fontWeight: "600", color: gwadaColors.text },
-  linePrice: { fontSize: 14, color: gwadaColors.textMuted, marginTop: 4 },
-  warnBox: { gap: gwadaSpacing.sm, marginTop: gwadaSpacing.sm },
-  warn: { color: gwadaColors.destructive, fontSize: 14 },
-  payBtn: { marginTop: gwadaSpacing.sm },
-  receiptBtn: { marginTop: gwadaSpacing.sm },
-  paidHint: {
-    textAlign: "center",
-    color: gwadaColors.success,
-    fontWeight: "600",
-    marginTop: gwadaSpacing.lg,
-  },
-  errorBox: {
-    gap: gwadaSpacing.sm,
-    padding: gwadaSpacing.lg,
-    borderRadius: gwadaRadii.card,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  errorText: {
-    fontSize: 14,
-    color: gwadaColors.destructive,
-    lineHeight: 20,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    container: {
+      padding: gwadaSpacing.lg,
+      gap: 10,
+      backgroundColor: colors.background,
+    },
+    orderNo: { fontSize: 20, fontWeight: "700", color: colors.text },
+    meta: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+    total: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: colors.text,
+      marginTop: 12,
+    },
+    section: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+      marginTop: gwadaSpacing.md,
+      marginBottom: 4,
+    },
+    lineName: { fontSize: 15, fontWeight: "600", color: colors.text },
+    linePrice: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+    warnBox: { gap: gwadaSpacing.sm, marginTop: gwadaSpacing.sm },
+    warn: { color: colors.destructive, fontSize: 14 },
+    payBtn: { marginTop: gwadaSpacing.sm },
+    receiptBtn: { marginTop: gwadaSpacing.sm },
+    paidHint: {
+      textAlign: "center",
+      color: colors.success,
+      fontWeight: "600",
+      marginTop: gwadaSpacing.lg,
+    },
+    errorBox: {
+      gap: gwadaSpacing.sm,
+      padding: gwadaSpacing.lg,
+      borderRadius: gwadaRadii.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    errorTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    errorText: {
+      fontSize: 14,
+      color: colors.destructive,
+      lineHeight: 20,
+    },
+  });
+}

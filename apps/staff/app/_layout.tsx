@@ -3,9 +3,12 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
-import { StatusBar } from "expo-status-bar";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { StaffThemeProvider } from "@/src/theme/staff-theme";
+import {
+  StaffThemeProvider,
+  ThemedStatusBar,
+  useStaffTheme,
+} from "@/src/theme/staff-theme";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -49,45 +52,72 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return children;
 }
 
+function ThemedRoot({ children }: { children: React.ReactNode }) {
+  const { colors } = useStaffTheme();
+  return (
+    <GestureHandlerRootView
+      style={{ flex: 1, backgroundColor: colors.background }}
+    >
+      {children}
+    </GestureHandlerRootView>
+  );
+}
+
+function ThemedStack() {
+  const { colors } = useStaffTheme();
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        headerStyle: { backgroundColor: colors.surface },
+        headerTintColor: colors.text,
+        headerTitleStyle: { color: colors.text },
+        contentStyle: { backgroundColor: colors.background },
+      }}
+    >
+      <Stack.Screen name="login" />
+      <Stack.Screen name="restaurant-select" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="order/new"
+        options={{
+          headerShown: true,
+          title: "Neue Bestellung",
+          headerBackTitle: "Zurück",
+        }}
+      />
+      <Stack.Screen
+        name="order/[id]"
+        options={{
+          headerShown: true,
+          title: "Bestellung",
+          headerBackTitle: "Zurück",
+        }}
+      />
+      <Stack.Screen
+        name="session/[sessionId]"
+        options={{
+          headerShown: true,
+          title: "Tisch-Session",
+          headerBackTitle: "Tische",
+        }}
+      />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <QueryClientProvider client={queryClient}>
-        <StaffThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <StaffThemeProvider>
+        <ThemedRoot>
           <AuthGate>
-            <StatusBar style="dark" />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="login" />
-            <Stack.Screen name="restaurant-select" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="order/new"
-              options={{
-                headerShown: true,
-                title: "Neue Bestellung",
-                headerBackTitle: "Zurück",
-              }}
-            />
-            <Stack.Screen
-              name="order/[id]"
-              options={{
-                headerShown: true,
-                title: "Bestellung",
-                headerBackTitle: "Zurück",
-              }}
-            />
-            <Stack.Screen
-              name="session/[sessionId]"
-              options={{
-                headerShown: true,
-                title: "Tisch-Session",
-                headerBackTitle: "Tische",
-              }}
-            />
-          </Stack>
+            <ThemedStatusBar />
+            <ThemedStack />
           </AuthGate>
-        </StaffThemeProvider>
-      </QueryClientProvider>
-    </GestureHandlerRootView>
+        </ThemedRoot>
+      </StaffThemeProvider>
+    </QueryClientProvider>
   );
 }

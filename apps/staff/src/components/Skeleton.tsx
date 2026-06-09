@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Animated, StyleSheet, View, type ViewStyle } from "react-native";
-import { gwadaColors, gwadaRadii } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii } from "@/src/theme/tokens";
 
 type SkeletonProps = {
   height?: number;
@@ -15,6 +17,7 @@ export function Skeleton({
   style,
   borderRadius = gwadaRadii.button,
 }: SkeletonProps) {
+  const styles = useThemedStyles(createStyles);
   const [opacity] = useState(() => new Animated.Value(0.35));
 
   useEffect(() => {
@@ -48,6 +51,8 @@ export function Skeleton({
 }
 
 export function SkeletonList({ count = 4 }: { count?: number }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.list}>
       {Array.from({ length: count }).map((_, i) => (
@@ -57,11 +62,13 @@ export function SkeletonList({ count = 4 }: { count?: number }) {
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    backgroundColor: gwadaColors.accent,
-  },
-  list: {
-    gap: 12,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    base: {
+      backgroundColor: colors.accent,
+    },
+    list: {
+      gap: 12,
+    },
+  });
+}

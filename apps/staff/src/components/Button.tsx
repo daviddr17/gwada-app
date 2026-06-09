@@ -7,6 +7,8 @@ import {
   type PressableProps,
 } from "react-native";
 import { useStaffTheme } from "@/src/theme/staff-theme";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
 import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 type ButtonProps = Omit<PressableProps, "style"> & {
@@ -25,6 +27,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   const { colors } = useStaffTheme();
+  const styles = useThemedStyles(createStyles);
   const isDisabled = disabled || loading;
 
   return (
@@ -64,33 +67,35 @@ export function Button({
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    minHeight: 48,
-    borderRadius: gwadaRadii.button,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: gwadaSpacing.md,
-  },
-  secondary: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.08)",
-  },
-  ghost: {
-    backgroundColor: "transparent",
-  },
-  pressed: {
-    opacity: 0.88,
-  },
-  disabled: {
-    opacity: 0.5,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  labelSecondary: {
-    color: "#0a0a0a",
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    base: {
+      minHeight: 48,
+      borderRadius: gwadaRadii.button,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: gwadaSpacing.md,
+    },
+    secondary: {
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    ghost: {
+      backgroundColor: "transparent",
+    },
+    pressed: {
+      opacity: 0.88,
+    },
+    disabled: {
+      opacity: 0.5,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: "600",
+    },
+    labelSecondary: {
+      color: colors.text,
+    },
+  });
+}

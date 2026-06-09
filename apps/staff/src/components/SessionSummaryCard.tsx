@@ -3,7 +3,9 @@ import { formatCentsEUR } from "@gwada/shared";
 import { Card } from "@/src/components/ui";
 import { useOccupiedDuration } from "@/src/lib/hooks/use-occupied-duration";
 import type { SessionSummaryDto } from "@/src/lib/pos-api";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", {
@@ -18,23 +20,24 @@ type SessionSummaryCardProps = {
   summary: SessionSummaryDto;
 };
 
-function StatCell({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.statCell}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-    </View>
-  );
-}
-
 export function SessionSummaryCard({
   tableLabel,
   capacity,
   summary,
 }: SessionSummaryCardProps) {
+  const styles = useThemedStyles(createStyles);
   const durationLabel = useOccupiedDuration(summary.openedAt);
   const orderCount = summary.orders.length;
   const paymentCount = summary.payments.length;
+
+  function StatCell({ label, value }: { label: string; value: string }) {
+    return (
+      <View style={styles.statCell}>
+        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.statValue}>{value}</Text>
+      </View>
+    );
+  }
 
   return (
     <Card>
@@ -74,76 +77,78 @@ export function SessionSummaryCard({
   );
 }
 
-const styles = StyleSheet.create({
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  meta: {
-    fontSize: 14,
-    color: gwadaColors.textMuted,
-    marginTop: 4,
-  },
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    marginTop: gwadaSpacing.md,
-    paddingTop: gwadaSpacing.md,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: gwadaColors.border,
-  },
-  timeCell: {
-    flex: 1,
-    gap: 2,
-  },
-  timeDivider: {
-    width: StyleSheet.hairlineWidth,
-    backgroundColor: gwadaColors.border,
-    marginHorizontal: gwadaSpacing.sm,
-  },
-  timeLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  timeValue: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: gwadaSpacing.md,
-  },
-  statCell: {
-    flex: 1,
-    backgroundColor: gwadaColors.background,
-    borderRadius: gwadaRadii.button,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    gap: 2,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  statValue: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  footerMeta: {
-    fontSize: 13,
-    color: gwadaColors.textMuted,
-    marginTop: gwadaSpacing.sm,
-    textAlign: "center",
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    title: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    meta: {
+      fontSize: 14,
+      color: colors.textMuted,
+      marginTop: 4,
+    },
+    timeRow: {
+      flexDirection: "row",
+      alignItems: "stretch",
+      marginTop: gwadaSpacing.md,
+      paddingTop: gwadaSpacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    timeCell: {
+      flex: 1,
+      gap: 2,
+    },
+    timeDivider: {
+      width: StyleSheet.hairlineWidth,
+      backgroundColor: colors.border,
+      marginHorizontal: gwadaSpacing.sm,
+    },
+    timeLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    timeValue: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    statsRow: {
+      flexDirection: "row",
+      gap: 8,
+      marginTop: gwadaSpacing.md,
+    },
+    statCell: {
+      flex: 1,
+      backgroundColor: colors.background,
+      borderRadius: gwadaRadii.button,
+      paddingVertical: 10,
+      paddingHorizontal: 8,
+      alignItems: "center",
+      gap: 2,
+    },
+    statLabel: {
+      fontSize: 11,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.3,
+    },
+    statValue: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    footerMeta: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginTop: gwadaSpacing.sm,
+      textAlign: "center",
+    },
+  });
+}

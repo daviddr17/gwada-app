@@ -1,7 +1,9 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 type CoverCountSheetProps = {
   visible: boolean;
@@ -25,6 +27,7 @@ export function CoverCountSheet({
   loading,
 }: CoverCountSheetProps) {
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
   const overCapacity = coverCount > capacity;
 
   return (
@@ -82,73 +85,75 @@ export function CoverCountSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  sheet: {
-    flex: 1,
-    backgroundColor: gwadaColors.background,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.lg,
-    gap: gwadaSpacing.md,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  close: {
-    fontSize: 16,
-    color: gwadaColors.textMuted,
-  },
-  tableLabel: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  hint: {
-    fontSize: 14,
-    color: gwadaColors.textMuted,
-    lineHeight: 20,
-  },
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 24,
-    marginVertical: gwadaSpacing.md,
-  },
-  stepBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: gwadaRadii.button,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  stepBtnText: {
-    fontSize: 28,
-    fontWeight: "500",
-    color: gwadaColors.text,
-  },
-  count: {
-    fontSize: 40,
-    fontWeight: "700",
-    color: gwadaColors.text,
-    minWidth: 56,
-    textAlign: "center",
-  },
-  warn: {
-    fontSize: 13,
-    color: gwadaColors.destructive,
-    textAlign: "center",
-  },
-  primary: {
-    marginTop: gwadaSpacing.sm,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    sheet: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.lg,
+      gap: gwadaSpacing.md,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    close: {
+      fontSize: 16,
+      color: colors.textMuted,
+    },
+    tableLabel: {
+      fontSize: 18,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    hint: {
+      fontSize: 14,
+      color: colors.textMuted,
+      lineHeight: 20,
+    },
+    stepperRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 24,
+      marginVertical: gwadaSpacing.md,
+    },
+    stepBtn: {
+      width: 52,
+      height: 52,
+      borderRadius: gwadaRadii.button,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    stepBtnText: {
+      fontSize: 28,
+      fontWeight: "500",
+      color: colors.text,
+    },
+    count: {
+      fontSize: 40,
+      fontWeight: "700",
+      color: colors.text,
+      minWidth: 56,
+      textAlign: "center",
+    },
+    warn: {
+      fontSize: 13,
+      color: colors.destructive,
+      textAlign: "center",
+    },
+    primary: {
+      marginTop: gwadaSpacing.sm,
+    },
+  });
+}

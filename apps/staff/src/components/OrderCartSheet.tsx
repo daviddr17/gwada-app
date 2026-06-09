@@ -9,7 +9,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export type OrderCartLine = {
   menuItemId: string;
@@ -40,6 +42,7 @@ export function OrderCartSheet({
   onSubmit,
 }: OrderCartSheetProps) {
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
 
   return (
     <Modal
@@ -118,84 +121,86 @@ export function OrderCartSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  sheet: {
-    flex: 1,
-    backgroundColor: gwadaColors.background,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingBottom: gwadaSpacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: gwadaColors.border,
-    gap: gwadaSpacing.sm,
-  },
-  headerText: { flex: 1, gap: 2 },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: gwadaColors.textMuted,
-  },
-  closeBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-  },
-  closeBtnText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: gwadaColors.accent,
-  },
-  listContent: {
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingVertical: gwadaSpacing.md,
-    flexGrow: 1,
-  },
-  lineSeparator: { height: gwadaSpacing.sm },
-  cartLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: gwadaSpacing.sm,
-    backgroundColor: gwadaColors.surface,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    borderRadius: gwadaRadii.card,
-    padding: gwadaSpacing.md,
-  },
-  cartLineText: { flex: 1 },
-  cartLineName: { fontSize: 15, fontWeight: "600", color: gwadaColors.text },
-  cartLinePrice: { fontSize: 13, color: gwadaColors.textMuted, marginTop: 2 },
-  qtyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  qtyBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: gwadaColors.background,
-  },
-  qtyBtnText: { fontSize: 18, fontWeight: "600", color: gwadaColors.text },
-  qtyValue: {
-    minWidth: 20,
-    textAlign: "center",
-    fontSize: 15,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  footer: {
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.md,
-    borderTopWidth: 1,
-    borderTopColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    sheet: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingBottom: gwadaSpacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: gwadaSpacing.sm,
+    },
+    headerText: { flex: 1, gap: 2 },
+    title: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    subtitle: {
+      fontSize: 14,
+      color: colors.textMuted,
+    },
+    closeBtn: {
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+    },
+    closeBtnText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.accent,
+    },
+    listContent: {
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingVertical: gwadaSpacing.md,
+      flexGrow: 1,
+    },
+    lineSeparator: { height: gwadaSpacing.sm },
+    cartLine: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: gwadaSpacing.sm,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: gwadaRadii.card,
+      padding: gwadaSpacing.md,
+    },
+    cartLineText: { flex: 1 },
+    cartLineName: { fontSize: 15, fontWeight: "600", color: colors.text },
+    cartLinePrice: { fontSize: 13, color: colors.textMuted, marginTop: 2 },
+    qtyRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+    qtyBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    qtyBtnText: { fontSize: 18, fontWeight: "600", color: colors.text },
+    qtyValue: {
+      minWidth: 20,
+      textAlign: "center",
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    footer: {
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.md,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+  });
+}

@@ -1,8 +1,11 @@
 import { Link, Stack } from "expo-router";
 import { StyleSheet, Text, View } from "react-native";
-import { gwadaColors } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
 
 export default function NotFoundScreen() {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <>
       <Stack.Screen options={{ title: "Nicht gefunden" }} />
@@ -16,19 +19,21 @@ export default function NotFoundScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 20,
-    backgroundColor: gwadaColors.background,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  link: { marginTop: 16 },
-  linkText: { fontSize: 16, color: gwadaColors.accent, fontWeight: "600" },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 20,
+      backgroundColor: colors.background,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    link: { marginTop: 16 },
+    linkText: { fontSize: 16, color: colors.accent, fontWeight: "600" },
+  });
+}

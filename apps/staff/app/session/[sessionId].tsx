@@ -27,7 +27,7 @@ import {
 } from "@/src/components/SessionFloatingChrome";
 import {
   SessionLineRow,
-  sessionOrderSectionStyles,
+  createSessionOrderSectionStyles,
 } from "@/src/components/SessionLineRow";
 import {
   buildAllocationsFromSelection,
@@ -49,7 +49,9 @@ import {
 } from "@/src/lib/pos-api";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 const AnimatedOrderFlatList = Animated.createAnimatedComponent(
   FlatList<SessionListItem>,
@@ -63,6 +65,7 @@ type SessionListItem =
   | { kind: "line"; line: SessionSummaryLineDto; key: string };
 
 function TabEmptyState({ message }: { message: string }) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.tabEmpty}>
       <Text style={styles.tabEmptyText}>{message}</Text>
@@ -71,6 +74,8 @@ function TabEmptyState({ message }: { message: string }) {
 }
 
 export default function TableSessionScreen() {
+  const styles = useThemedStyles(createStyles);
+  const orderSectionStyles = useThemedStyles(createSessionOrderSectionStyles);
   const router = useRouter();
   const queryClient = useQueryClient();
   const { sessionId, tableLabel, capacity, tab: tabParam } = useLocalSearchParams<{
@@ -361,7 +366,7 @@ export default function TableSessionScreen() {
             }
             renderItem={({ item }) =>
               item.kind === "order-header" ? (
-                <Text style={sessionOrderSectionStyles.header}>
+                <Text style={orderSectionStyles.header}>
                   Bestellung #{item.orderNumber}
                 </Text>
               ) : (
@@ -432,53 +437,55 @@ export default function TableSessionScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: gwadaColors.background },
-  flex: { flex: 1 },
-  expandable: {
-    gap: gwadaSpacing.md,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  actionBtn: { flex: 1 },
-  listContent: {
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingBottom: gwadaSpacing.lg,
-    flexGrow: 1,
-  },
-  tabEmpty: {
-    flex: 1,
-    minHeight: 120,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: gwadaSpacing.xl,
-  },
-  tabEmptyText: {
-    textAlign: "center",
-    color: gwadaColors.textMuted,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  placeholder: { flex: 1, minHeight: 120 },
-  errorBox: {
-    margin: gwadaSpacing.lg,
-    gap: gwadaSpacing.sm,
-    padding: gwadaSpacing.lg,
-    borderRadius: gwadaRadii.card,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  errorText: {
-    fontSize: 14,
-    color: gwadaColors.destructive,
-    lineHeight: 20,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    flex: { flex: 1 },
+    expandable: {
+      gap: gwadaSpacing.md,
+    },
+    actionsRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    actionBtn: { flex: 1 },
+    listContent: {
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingBottom: gwadaSpacing.lg,
+      flexGrow: 1,
+    },
+    tabEmpty: {
+      flex: 1,
+      minHeight: 120,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: gwadaSpacing.xl,
+    },
+    tabEmptyText: {
+      textAlign: "center",
+      color: colors.textMuted,
+      fontSize: 15,
+      lineHeight: 22,
+    },
+    placeholder: { flex: 1, minHeight: 120 },
+    errorBox: {
+      margin: gwadaSpacing.lg,
+      gap: gwadaSpacing.sm,
+      padding: gwadaSpacing.lg,
+      borderRadius: gwadaRadii.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    errorTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    errorText: {
+      fontSize: 14,
+      color: colors.destructive,
+      lineHeight: 20,
+    },
+  });
+}

@@ -11,7 +11,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { centsToEuroInput, parseEuroToCents } from "@/src/lib/money-input";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 type RegisterOpenSheetProps = {
   visible: boolean;
@@ -29,6 +31,7 @@ export function RegisterOpenSheet({
   loading,
 }: RegisterOpenSheetProps) {
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
   const [input, setInput] = useState("");
 
   useEffect(() => {
@@ -100,57 +103,59 @@ export function RegisterOpenSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  sheet: {
-    flex: 1,
-    backgroundColor: gwadaColors.background,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.lg,
-    gap: gwadaSpacing.md,
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  close: {
-    fontSize: 16,
-    color: gwadaColors.textMuted,
-  },
-  hint: {
-    fontSize: 15,
-    color: gwadaColors.textMuted,
-    lineHeight: 22,
-  },
-  suggestion: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    borderRadius: gwadaRadii.button,
-    backgroundColor: gwadaColors.surface,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 20,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  inputInvalid: {
-    borderColor: gwadaColors.destructive,
-  },
-  error: {
-    fontSize: 13,
-    color: gwadaColors.destructive,
-  },
-  primary: {
-    marginTop: gwadaSpacing.sm,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    sheet: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.lg,
+      gap: gwadaSpacing.md,
+    },
+    header: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    close: {
+      fontSize: 16,
+      color: colors.textMuted,
+    },
+    hint: {
+      fontSize: 15,
+      color: colors.textMuted,
+      lineHeight: 22,
+    },
+    suggestion: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: gwadaRadii.button,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 20,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    inputInvalid: {
+      borderColor: colors.destructive,
+    },
+    error: {
+      fontSize: 13,
+      color: colors.destructive,
+    },
+    primary: {
+      marginTop: gwadaSpacing.sm,
+    },
+  });
+}

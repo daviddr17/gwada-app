@@ -12,10 +12,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useStaffTheme } from "@/src/theme/staff-theme";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export default function LoginScreen() {
   const signIn = useAuthStore((s) => s.signIn);
+  const { colors } = useStaffTheme();
+  const styles = useThemedStyles(createStyles);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +69,7 @@ export default function LoginScreen() {
               keyboardType="email-address"
               textContentType="username"
               placeholder="name@restaurant.de"
-              placeholderTextColor={gwadaColors.textMuted}
+              placeholderTextColor={colors.textMuted}
               style={styles.input}
               value={email}
               onChangeText={setEmail}
@@ -78,7 +83,7 @@ export default function LoginScreen() {
               autoCorrect={false}
               textContentType="password"
               placeholder="••••••••"
-              placeholderTextColor={gwadaColors.textMuted}
+              placeholderTextColor={colors.textMuted}
               style={styles.input}
               value={password}
               onChangeText={setPassword}
@@ -92,52 +97,54 @@ export default function LoginScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: gwadaColors.background },
-  flex: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: gwadaSpacing.lg,
-    justifyContent: "center",
-    gap: gwadaSpacing.lg,
-  },
-  brand: { alignItems: "center", gap: gwadaSpacing.sm },
-  logo: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: gwadaColors.textMuted,
-  },
-  card: {
-    backgroundColor: gwadaColors.surface,
-    borderRadius: gwadaRadii.card,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    padding: gwadaSpacing.lg,
-    gap: gwadaSpacing.sm,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: gwadaColors.text,
-    marginTop: gwadaSpacing.sm,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    borderRadius: gwadaRadii.button,
-    paddingHorizontal: gwadaSpacing.md,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: gwadaColors.text,
-    backgroundColor: gwadaColors.background,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    flex: { flex: 1 },
+    container: {
+      flex: 1,
+      padding: gwadaSpacing.lg,
+      justifyContent: "center",
+      gap: gwadaSpacing.lg,
+    },
+    brand: { alignItems: "center", gap: gwadaSpacing.sm },
+    logo: {
+      width: 72,
+      height: 72,
+      borderRadius: 18,
+    },
+    title: {
+      fontSize: 26,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: colors.textMuted,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: gwadaRadii.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: gwadaSpacing.lg,
+      gap: gwadaSpacing.sm,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.text,
+      marginTop: gwadaSpacing.sm,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: gwadaRadii.button,
+      paddingHorizontal: gwadaSpacing.md,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: colors.text,
+      backgroundColor: colors.background,
+    },
+  });
+}

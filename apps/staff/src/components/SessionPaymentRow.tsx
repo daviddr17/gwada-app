@@ -3,7 +3,9 @@ import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { Card } from "@/src/components/ui";
 import type { SessionSummaryPaymentDto } from "@/src/lib/pos-api";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 const METHOD_LABELS: Record<string, string> = {
   cash: "Bar",
@@ -32,6 +34,8 @@ export function SessionPaymentRow({
   payment,
   onOpenReceipt,
 }: SessionPaymentRowProps) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.cardWrap}>
       <Card>
@@ -77,52 +81,54 @@ export function SessionPaymentRow({
   );
 }
 
-const styles = StyleSheet.create({
-  cardWrap: {
-    marginBottom: gwadaSpacing.md,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: gwadaSpacing.sm,
-  },
-  amount: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  method: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-    backgroundColor: gwadaColors.background,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: gwadaRadii.pill,
-    overflow: "hidden",
-  },
-  meta: {
-    fontSize: 13,
-    color: gwadaColors.textMuted,
-    marginTop: 4,
-  },
-  allocations: {
-    marginTop: gwadaSpacing.sm,
-    gap: 4,
-  },
-  allocationLine: {
-    fontSize: 14,
-    color: gwadaColors.text,
-    lineHeight: 20,
-  },
-  receiptBtn: {
-    marginTop: gwadaSpacing.sm,
-  },
-  noReceipt: {
-    marginTop: gwadaSpacing.sm,
-    fontSize: 13,
-    color: gwadaColors.textMuted,
-    fontStyle: "italic",
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    cardWrap: {
+      marginBottom: gwadaSpacing.md,
+    },
+    headerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: gwadaSpacing.sm,
+    },
+    amount: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    method: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textMuted,
+      backgroundColor: colors.background,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: gwadaRadii.pill,
+      overflow: "hidden",
+    },
+    meta: {
+      fontSize: 13,
+      color: colors.textMuted,
+      marginTop: 4,
+    },
+    allocations: {
+      marginTop: gwadaSpacing.sm,
+      gap: 4,
+    },
+    allocationLine: {
+      fontSize: 14,
+      color: colors.text,
+      lineHeight: 20,
+    },
+    receiptBtn: {
+      marginTop: gwadaSpacing.sm,
+    },
+    noReceipt: {
+      marginTop: gwadaSpacing.sm,
+      fontSize: 13,
+      color: colors.textMuted,
+      fontStyle: "italic",
+    },
+  });
+}

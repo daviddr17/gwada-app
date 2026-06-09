@@ -3,7 +3,9 @@ import {
   formatReservationGuestLabel,
   type TableReservationRow,
 } from "@/src/lib/dining-floor";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 const timeFmt = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -31,6 +33,8 @@ export function TableReservationMeta({
   next,
   onPressReservation,
 }: TableReservationMetaProps) {
+  const styles = useThemedStyles(createStyles);
+
   if (current.length === 0 && !next) return null;
 
   return (
@@ -62,26 +66,28 @@ export function TableReservationMeta({
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    marginTop: gwadaSpacing.sm,
-    gap: 4,
-  },
-  line: {
-    borderRadius: gwadaRadii.button,
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-    marginHorizontal: -4,
-  },
-  linePressed: {
-    backgroundColor: "rgba(0,0,0,0.04)",
-  },
-  lineText: {
-    fontSize: 13,
-    color: gwadaColors.textMuted,
-  },
-  lineTextActive: {
-    color: "#b45309",
-    fontWeight: "600",
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    wrap: {
+      marginTop: gwadaSpacing.sm,
+      gap: 4,
+    },
+    line: {
+      borderRadius: gwadaRadii.button,
+      paddingVertical: 2,
+      paddingHorizontal: 4,
+      marginHorizontal: -4,
+    },
+    linePressed: {
+      backgroundColor: "rgba(0,0,0,0.04)",
+    },
+    lineText: {
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+    lineTextActive: {
+      color: colors.warning,
+      fontWeight: "600",
+    },
+  });
+}

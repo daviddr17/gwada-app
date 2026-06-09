@@ -1,45 +1,84 @@
-import { createContext, useContext, useMemo, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  type ReactNode,
+} from "react";
+import { StatusBar } from "expo-status-bar";
+import { useColorScheme } from "react-native";
+import { useAppearanceStore } from "@/src/stores/appearance-store";
+import {
+  resolveColorScheme,
+  resolveGwadaColors,
+  gwadaColorsLight,
+  type ColorSchemePreference,
+  type GwadaColors,
+  type ResolvedColorScheme,
+} from "@/src/theme/tokens";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, type GwadaColors } from "@/src/theme/tokens";
 
 type StaffTheme = {
   colors: GwadaColors;
+  preference: ColorSchemePreference;
+  resolvedScheme: ResolvedColorScheme;
+  setColorSchemePreference: (preference: ColorSchemePreference) => void;
 };
 
 const StaffThemeContext = createContext<StaffTheme>({
-  colors: gwadaColors,
+  colors: gwadaColorsLight,
+  preference: "system",
+  resolvedScheme: "light",
+  setColorSchemePreference: () => {},
 });
-
-function parseHexColor(hex: string | null | undefined): string | null {
-  const raw = hex?.trim();
-  if (!raw || !/^#[0-9A-Fa-f]{6}$/.test(raw)) return null;
-  return raw;
-}
-
-function foregroundForBackground(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.62 ? "#0a0a0a" : "#ffffff";
-}
 
 export function StaffThemeProvider({ children }: { children: ReactNode }) {
   const restaurants = useAuthStore((s) => s.restaurants);
   const activeRestaurantId = useAuthStore((s) => s.activeRestaurantId);
+  const preference = useAppearanceStore((s) => s.preference);
+  const hydrated = useAppearanceStore((s) => s.hydrated);
+  const initAppearance = useAppearanceStore((s) => s.init);
+  const setPreference = useAppearanceStore((s) => s.setPreference);
+  const systemScheme = useColorScheme();
+
+  useEffect(() => {
+    if (!hydrated) void initAppearance();
+  }, [hydrated, initAppearance]);
+
+  const resolvedScheme = useMemo(
+    () =>
+      resolveColorScheme(
+        preference,
+        systemScheme === "dark" ? "dark" : "light",
+      ),
+    [preference, systemScheme],
+  );
 
   const colors = useMemo(() => {
     const active = restaurants.find((r) => r.restaurantId === activeRestaurantId);
-    const accent = parseHexColor(active?.brandAccentHex) ?? gwadaColors.accent;
-    return {
-      ...gwadaColors,
-      accent,
-      accentForeground: foregroundForBackground(accent),
-    };
-  }, [restaurants, activeRestaurantId]);
+    return resolveGwadaColors(resolvedScheme, active?.brandAccentHex);
+  }, [restaurants, activeRestaurantId, resolvedScheme]);
+
+  const setColorSchemePreference = useCallback(
+    (next: ColorSchemePreference) => {
+      void setPreference(next);
+    },
+    [setPreference],
+  );
+
+  const value = useMemo(
+    () => ({
+      colors,
+      preference,
+      resolvedScheme,
+      setColorSchemePreference,
+    }),
+    [colors, preference, resolvedScheme, setColorSchemePreference],
+  );
 
   return (
-    <StaffThemeContext.Provider value={{ colors }}>
+    <StaffThemeContext.Provider value={value}>
       {children}
     </StaffThemeContext.Provider>
   );
@@ -47,4 +86,9 @@ export function StaffThemeProvider({ children }: { children: ReactNode }) {
 
 export function useStaffTheme(): StaffTheme {
   return useContext(StaffThemeContext);
+}
+
+export function ThemedStatusBar() {
+  const { resolvedScheme } = useStaffTheme();
+  return <StatusBar style={resolvedScheme === "dark" ? "light" : "dark"} />;
 }

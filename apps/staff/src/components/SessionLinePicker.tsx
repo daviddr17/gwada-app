@@ -2,7 +2,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { formatCentsEUR } from "@gwada/shared";
 import { allocationAmountCents } from "@gwada/pos-domain";
 import type { SessionSummaryLineDto } from "@/src/lib/pos-api";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export type LineSelection = Record<string, number>;
 
@@ -25,6 +27,8 @@ export function SessionLinePicker({
   selection,
   onChangeSelection,
 }: SessionLinePickerProps) {
+  const styles = useThemedStyles(createStyles);
+
   const setQty = (line: SessionSummaryLineDto, qty: number) => {
     const next = { ...selection };
     if (qty <= 0) {
@@ -115,60 +119,62 @@ export function buildAllocationsFromSelection(
     .map(([orderLineId, quantity]) => ({ orderLineId, quantity }));
 }
 
-const styles = StyleSheet.create({
-  wrap: { gap: gwadaSpacing.md },
-  orderBlock: { gap: 8 },
-  orderTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  lineRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: gwadaRadii.card,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-  },
-  lineMain: { flex: 1, gap: 2 },
-  lineName: { fontSize: 15, fontWeight: "600", color: gwadaColors.text },
-  lineMeta: { fontSize: 13, color: gwadaColors.textMuted },
-  paidBadge: {
-    fontSize: 18,
-    color: gwadaColors.success,
-    fontWeight: "700",
-    paddingHorizontal: 8,
-  },
-  stepper: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  stepBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: gwadaRadii.button,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: gwadaColors.background,
-  },
-  stepBtnText: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  stepValue: {
-    minWidth: 24,
-    textAlign: "center",
-    fontSize: 16,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    wrap: { gap: gwadaSpacing.md },
+    orderBlock: { gap: 8 },
+    orderTitle: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    lineRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: gwadaRadii.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    lineMain: { flex: 1, gap: 2 },
+    lineName: { fontSize: 15, fontWeight: "600", color: colors.text },
+    lineMeta: { fontSize: 13, color: colors.textMuted },
+    paidBadge: {
+      fontSize: 18,
+      color: colors.success,
+      fontWeight: "700",
+      paddingHorizontal: 8,
+    },
+    stepper: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+    },
+    stepBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: gwadaRadii.button,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    stepBtnText: {
+      fontSize: 20,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    stepValue: {
+      minWidth: 24,
+      textAlign: "center",
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.text,
+    },
+  });
+}

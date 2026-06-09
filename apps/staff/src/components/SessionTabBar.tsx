@@ -1,5 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { gwadaColors, gwadaRadii } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii } from "@/src/theme/tokens";
 
 export type SessionTab = "orders" | "payments";
 
@@ -18,6 +20,8 @@ function SessionTabButton({
   isActive: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Pressable
       style={[styles.tab, isActive && styles.tabActive]}
@@ -63,29 +67,34 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
   },
-  tab: {
-    flex: 1,
-    borderRadius: gwadaRadii.button,
-    backgroundColor: gwadaColors.surface,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    overflow: "hidden",
-  },
-  tabActive: {
-    backgroundColor: gwadaColors.accent,
-    borderColor: gwadaColors.accent,
-  },
-  tabInner: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-  },
-  tabTextActive: {
-    color: gwadaColors.accentForeground,
-  },
 });
+
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    tab: {
+      flex: 1,
+      borderRadius: gwadaRadii.button,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: "hidden",
+    },
+    tabActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    tabInner: {
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: 10,
+    },
+    tabText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textMuted,
+    },
+    tabTextActive: {
+      color: colors.accentForeground,
+    },
+  });
+}

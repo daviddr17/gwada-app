@@ -5,7 +5,9 @@ import {
   formatOpenedSinceShort,
   useOccupiedDuration,
 } from "@/src/lib/hooks/use-occupied-duration";
-import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 type TableOccupiedMetaProps = {
   openedAt: string;
@@ -14,6 +16,7 @@ type TableOccupiedMetaProps = {
 
 export function TableOccupiedMeta({ openedAt, meta }: TableOccupiedMetaProps) {
   const duration = useOccupiedDuration(openedAt);
+  const styles = useThemedStyles(createStyles);
   const orderCount = meta?.orderCount ?? 0;
   const openCents = meta?.openCents ?? 0;
 
@@ -39,18 +42,20 @@ export function TableOccupiedMeta({ openedAt, meta }: TableOccupiedMetaProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    marginTop: gwadaSpacing.sm,
-    gap: 2,
-  },
-  timeLine: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  activityLine: {
-    fontSize: 13,
-    color: gwadaColors.textMuted,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    wrap: {
+      marginTop: gwadaSpacing.sm,
+      gap: 2,
+    },
+    timeLine: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    activityLine: {
+      fontSize: 13,
+      color: colors.textMuted,
+    },
+  });
+}

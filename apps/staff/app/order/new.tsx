@@ -22,7 +22,9 @@ import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { getStaffSupabase } from "@/src/lib/supabase";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 const CART_BAR_HEIGHT = 56;
 
@@ -103,6 +105,7 @@ export default function NewOrderScreen() {
       }));
   }, [menuItems]);
 
+  const styles = useThemedStyles(createStyles);
   const showSkeleton = useDeferredSkeleton(isLoading);
 
   const cartBarBottomInset = Math.max(insets.bottom, gwadaSpacing.sm);
@@ -232,51 +235,53 @@ export default function NewOrderScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: gwadaColors.background,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.lg,
-  },
-  context: {
-    fontSize: 14,
-    color: gwadaColors.textMuted,
-    marginBottom: gwadaSpacing.md,
-  },
-  list: { flex: 1 },
-  sectionHeader: {
-    backgroundColor: gwadaColors.background,
-    paddingTop: gwadaSpacing.md,
-    paddingBottom: gwadaSpacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: gwadaColors.border,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: gwadaColors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-  },
-  itemSeparator: { height: 10 },
-  empty: { textAlign: "center", color: gwadaColors.textMuted, padding: 24 },
-  itemName: { fontSize: 16, fontWeight: "600", color: gwadaColors.text },
-  itemPrice: { fontSize: 14, color: gwadaColors.textMuted, marginTop: 4 },
-  cartBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginHorizontal: -gwadaSpacing.lg,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.md,
-    minHeight: CART_BAR_HEIGHT,
-    backgroundColor: gwadaColors.surface,
-    borderTopWidth: 1,
-    borderTopColor: gwadaColors.border,
-    borderTopLeftRadius: gwadaRadii.card,
-    borderTopRightRadius: gwadaRadii.card,
-  },
-  cartBarTitle: { fontSize: 15, fontWeight: "700", color: gwadaColors.text },
-  cartBarChevron: { fontSize: 22, fontWeight: "600", color: gwadaColors.textMuted },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.lg,
+    },
+    context: {
+      fontSize: 14,
+      color: colors.textMuted,
+      marginBottom: gwadaSpacing.md,
+    },
+    list: { flex: 1 },
+    sectionHeader: {
+      backgroundColor: colors.background,
+      paddingTop: gwadaSpacing.md,
+      paddingBottom: gwadaSpacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+    },
+    itemSeparator: { height: 10 },
+    empty: { textAlign: "center", color: colors.textMuted, padding: 24 },
+    itemName: { fontSize: 16, fontWeight: "600", color: colors.text },
+    itemPrice: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
+    cartBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginHorizontal: -gwadaSpacing.lg,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.md,
+      minHeight: CART_BAR_HEIGHT,
+      backgroundColor: colors.surface,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      borderTopLeftRadius: gwadaRadii.card,
+      borderTopRightRadius: gwadaRadii.card,
+    },
+    cartBarTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+    cartBarChevron: { fontSize: 22, fontWeight: "600", color: colors.textMuted },
+  });
+}

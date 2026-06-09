@@ -3,13 +3,16 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
 import { Card, ScreenHeader } from "@/src/components/ui";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 export default function RestaurantSelectScreen() {
   const restaurants = useAuthStore((s) => s.restaurants);
   const activeRestaurantId = useAuthStore((s) => s.activeRestaurantId);
   const setActiveRestaurant = useAuthStore((s) => s.setActiveRestaurant);
   const signOut = useAuthStore((s) => s.signOut);
+  const styles = useThemedStyles(createStyles);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -51,11 +54,13 @@ export default function RestaurantSelectScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: gwadaColors.background },
-  container: { flex: 1, padding: gwadaSpacing.lg },
-  list: { gap: 12, paddingBottom: gwadaSpacing.lg },
-  name: { fontSize: 18, fontWeight: "600", color: gwadaColors.text },
-  slug: { fontSize: 14, color: gwadaColors.textMuted, marginTop: 2 },
-  empty: { color: gwadaColors.textMuted, textAlign: "center", padding: 24 },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, padding: gwadaSpacing.lg },
+    list: { gap: 12, paddingBottom: gwadaSpacing.lg },
+    name: { fontSize: 18, fontWeight: "600", color: colors.text },
+    slug: { fontSize: 14, color: colors.textMuted, marginTop: 2 },
+    empty: { color: colors.textMuted, textAlign: "center", padding: 24 },
+  });
+}

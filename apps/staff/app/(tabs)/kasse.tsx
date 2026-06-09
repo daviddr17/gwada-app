@@ -31,7 +31,9 @@ import {
 import { parseEuroToCents } from "@/src/lib/money-input";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
@@ -73,6 +75,7 @@ export default function KasseScreen() {
     queryFn: () => listRegisterSessions(restaurantId!, 30),
   });
 
+  const styles = useThemedStyles(createStyles);
   const showSkeleton = useDeferredSkeleton(isLoading || permsLoading);
 
   const handleError = (err: unknown, fallback: string) => {
@@ -431,74 +434,76 @@ export default function KasseScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: gwadaColors.background },
-  container: { padding: gwadaSpacing.lg, gap: gwadaSpacing.md, paddingBottom: 40 },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: gwadaColors.text,
-    marginBottom: gwadaSpacing.sm,
-  },
-  row: { fontSize: 15, color: gwadaColors.text, marginBottom: 4 },
-  rowStrong: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: gwadaColors.text,
-    marginBottom: 4,
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
-    marginTop: gwadaSpacing.xs,
-    marginBottom: 6,
-  },
-  sectionDivider: {
-    height: 1,
-    backgroundColor: gwadaColors.border,
-    marginVertical: gwadaSpacing.sm,
-  },
-  hint: {
-    fontSize: 12,
-    color: gwadaColors.textMuted,
-    lineHeight: 17,
-    marginTop: 2,
-  },
-  muted: { fontSize: 13, color: gwadaColors.textMuted, marginTop: 4 },
-  label: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-    marginBottom: 6,
-    marginTop: 4,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: gwadaColors.text,
-    marginBottom: gwadaSpacing.sm,
-    backgroundColor: "#fff",
-  },
-  btnRow: { flexDirection: "row", gap: 8 },
-  flexBtn: { flex: 1 },
-  gapTop: { marginTop: gwadaSpacing.sm },
-  sessionRow: {
-    marginTop: gwadaSpacing.sm,
-    paddingTop: gwadaSpacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: gwadaColors.border,
-    gap: gwadaSpacing.sm,
-  },
-  sessionMeta: { gap: 2 },
-  sessionDate: { fontSize: 15, fontWeight: "600", color: gwadaColors.text },
-  sessionDiff: { fontSize: 13 },
-  diffOk: { color: gwadaColors.success },
-  diffBad: { color: gwadaColors.destructive },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: { padding: gwadaSpacing.lg, gap: gwadaSpacing.md, paddingBottom: 40 },
+    cardTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+      marginBottom: gwadaSpacing.sm,
+    },
+    row: { fontSize: 15, color: colors.text, marginBottom: 4 },
+    rowStrong: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.text,
+      marginBottom: 4,
+    },
+    sectionLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textMuted,
+      textTransform: "uppercase",
+      letterSpacing: 0.4,
+      marginTop: gwadaSpacing.xs,
+      marginBottom: 6,
+    },
+    sectionDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: gwadaSpacing.sm,
+    },
+    hint: {
+      fontSize: 12,
+      color: colors.textMuted,
+      lineHeight: 17,
+      marginTop: 2,
+    },
+    muted: { fontSize: 13, color: colors.textMuted, marginTop: 4 },
+    label: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: colors.textMuted,
+      marginBottom: 6,
+      marginTop: 4,
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: colors.text,
+      marginBottom: gwadaSpacing.sm,
+      backgroundColor: colors.surface,
+    },
+    btnRow: { flexDirection: "row", gap: 8 },
+    flexBtn: { flex: 1 },
+    gapTop: { marginTop: gwadaSpacing.sm },
+    sessionRow: {
+      marginTop: gwadaSpacing.sm,
+      paddingTop: gwadaSpacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      gap: gwadaSpacing.sm,
+    },
+    sessionMeta: { gap: 2 },
+    sessionDate: { fontSize: 15, fontWeight: "600", color: colors.text },
+    sessionDiff: { fontSize: 13 },
+    diffOk: { color: colors.success },
+    diffBad: { color: colors.destructive },
+  });
+}

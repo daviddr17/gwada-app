@@ -24,7 +24,9 @@ import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import { fetchRegisterStatus, openTableSession } from "@/src/lib/pos-api";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export default function TablesScreen() {
   const router = useRouter();
@@ -165,6 +167,7 @@ export default function TablesScreen() {
     );
   };
 
+  const styles = useThemedStyles(createStyles);
   const showSkeleton = useDeferredSkeleton(isLoading || permsLoading);
 
   return (
@@ -322,70 +325,72 @@ export default function TablesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: gwadaColors.background },
-  flex: { flex: 1 },
-  header: {
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.lg,
-    gap: gwadaSpacing.md,
-  },
-  listBody: {
-    flex: 1,
-    paddingHorizontal: gwadaSpacing.lg,
-  },
-  list: { flex: 1 },
-  listContent: {
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingBottom: gwadaSpacing.xl,
-    gap: 12,
-  },
-  listContentEmpty: {
-    flexGrow: 1,
-  },
-  listPlaceholder: { flex: 1, minHeight: 200 },
-  cardRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  cardMain: { flex: 1, gap: 4 },
-  tableName: { fontSize: 18, fontWeight: "600", color: gwadaColors.text },
-  tableMeta: { fontSize: 14, color: gwadaColors.textMuted },
-  statusChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: gwadaRadii.pill,
-  },
-  statusFree: {
-    backgroundColor: "rgba(22, 163, 74, 0.12)",
-  },
-  statusOccupied: {
-    backgroundColor: "rgba(37, 99, 235, 0.12)",
-  },
-  statusReserved: {
-    backgroundColor: "rgba(180, 83, 9, 0.12)",
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  statusTextFree: {
-    color: gwadaColors.success,
-  },
-  statusTextOccupied: {
-    color: gwadaColors.accent,
-  },
-  statusTextReserved: {
-    color: "#b45309",
-  },
-  emptyBox: { padding: 24, gap: 8 },
-  empty: { textAlign: "center", color: gwadaColors.text, fontWeight: "600" },
-  emptyHint: {
-    textAlign: "center",
-    color: gwadaColors.textMuted,
-    fontSize: 13,
-    lineHeight: 18,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    flex: { flex: 1 },
+    header: {
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.lg,
+      gap: gwadaSpacing.md,
+    },
+    listBody: {
+      flex: 1,
+      paddingHorizontal: gwadaSpacing.lg,
+    },
+    list: { flex: 1 },
+    listContent: {
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingBottom: gwadaSpacing.xl,
+      gap: 12,
+    },
+    listContentEmpty: {
+      flexGrow: 1,
+    },
+    listPlaceholder: { flex: 1, minHeight: 200 },
+    cardRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    cardMain: { flex: 1, gap: 4 },
+    tableName: { fontSize: 18, fontWeight: "600", color: colors.text },
+    tableMeta: { fontSize: 14, color: colors.textMuted },
+    statusChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: gwadaRadii.pill,
+    },
+    statusFree: {
+      backgroundColor: colors.successMuted,
+    },
+    statusOccupied: {
+      backgroundColor: colors.occupiedMuted,
+    },
+    statusReserved: {
+      backgroundColor: colors.warningMuted,
+    },
+    statusText: {
+      fontSize: 12,
+      fontWeight: "600",
+    },
+    statusTextFree: {
+      color: colors.success,
+    },
+    statusTextOccupied: {
+      color: colors.occupied,
+    },
+    statusTextReserved: {
+      color: colors.warning,
+    },
+    emptyBox: { padding: 24, gap: 8 },
+    empty: { textAlign: "center", color: colors.text, fontWeight: "600" },
+    emptyHint: {
+      textAlign: "center",
+      color: colors.textMuted,
+      fontSize: 13,
+      lineHeight: 18,
+    },
+  });
+}

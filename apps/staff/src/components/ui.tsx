@@ -1,6 +1,8 @@
 import { formatCentsEUR } from "@gwada/shared";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 export function ScreenHeader({
   title,
@@ -9,6 +11,8 @@ export function ScreenHeader({
   title: string;
   subtitle?: string;
 }) {
+  const styles = useThemedStyles(createHeaderStyles);
+
   return (
     <View style={styles.header}>
       <Text style={styles.title}>{title}</Text>
@@ -24,6 +28,8 @@ export function Card({
   children: React.ReactNode;
   onPress?: () => void;
 }) {
+  const styles = useThemedStyles(createCardStyles);
+
   if (onPress) {
     return (
       <Pressable
@@ -39,37 +45,50 @@ export function Card({
 }
 
 export function MoneyText({ cents }: { cents: number }) {
+  const styles = useThemedStyles(createMoneyStyles);
   return <Text style={styles.money}>{formatCentsEUR(cents)}</Text>;
 }
 
-const styles = StyleSheet.create({
-  header: {
-    gap: 4,
-    marginBottom: gwadaSpacing.md,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: gwadaColors.text,
-    letterSpacing: -0.5,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: gwadaColors.textMuted,
-  },
-  card: {
-    backgroundColor: gwadaColors.surface,
-    borderRadius: gwadaRadii.card,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    padding: gwadaSpacing.md,
-  },
-  cardPressed: {
-    opacity: 0.92,
-  },
-  money: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-});
+function createHeaderStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    header: {
+      gap: 4,
+      marginBottom: gwadaSpacing.md,
+    },
+    title: {
+      fontSize: 28,
+      fontWeight: "700",
+      color: colors.text,
+      letterSpacing: -0.5,
+    },
+    subtitle: {
+      fontSize: 15,
+      color: colors.textMuted,
+    },
+  });
+}
+
+function createCardStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: colors.surface,
+      borderRadius: gwadaRadii.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: gwadaSpacing.md,
+    },
+    cardPressed: {
+      opacity: 0.92,
+    },
+  });
+}
+
+function createMoneyStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    money: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+    },
+  });
+}

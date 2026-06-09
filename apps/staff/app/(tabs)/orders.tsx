@@ -17,7 +17,9 @@ import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { getGwadaApiBaseUrl } from "@/src/lib/env";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 type OrdersTab = "open" | "paid";
 
@@ -87,6 +89,7 @@ export default function OrdersScreen() {
   const refetch = tab === "open" ? refetchOpen : refetchPaid;
   const isRefetching = tab === "open" ? openRefetching : paidRefetching;
 
+  const styles = useThemedStyles(createStyles);
   const showSkeleton = useDeferredSkeleton(isLoading);
 
   return (
@@ -206,76 +209,78 @@ export default function OrdersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: gwadaColors.background },
-  container: { flex: 1, padding: gwadaSpacing.lg },
-  tabs: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: gwadaSpacing.md,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: gwadaRadii.button,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-    alignItems: "center",
-  },
-  tabActive: {
-    borderColor: gwadaColors.accent,
-    backgroundColor: gwadaColors.background,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-  },
-  tabTextActive: {
-    color: gwadaColors.accent,
-  },
-  list: { gap: 12, paddingBottom: gwadaSpacing.xl },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  orderNo: { fontSize: 18, fontWeight: "700", color: gwadaColors.text },
-  badge: {
-    backgroundColor: gwadaColors.background,
-    borderRadius: gwadaRadii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-  },
-  badgeText: { fontSize: 12, fontWeight: "600", color: gwadaColors.textMuted },
-  total: { fontSize: 16, fontWeight: "600", color: gwadaColors.text, marginTop: 8 },
-  warn: { fontSize: 13, color: gwadaColors.destructive, marginTop: 6 },
-  receiptBtn: { marginTop: gwadaSpacing.sm },
-  empty: { textAlign: "center", color: gwadaColors.textMuted, padding: 24 },
-  errorBox: {
-    gap: gwadaSpacing.sm,
-    padding: gwadaSpacing.lg,
-    borderRadius: gwadaRadii.card,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    backgroundColor: gwadaColors.surface,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: gwadaColors.text,
-  },
-  errorText: {
-    fontSize: 14,
-    color: gwadaColors.destructive,
-    lineHeight: 20,
-  },
-  errorHint: {
-    fontSize: 13,
-    color: gwadaColors.textMuted,
-    lineHeight: 18,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.background },
+    container: { flex: 1, padding: gwadaSpacing.lg },
+    tabs: {
+      flexDirection: "row",
+      gap: 8,
+      marginBottom: gwadaSpacing.md,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: gwadaRadii.button,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: "center",
+    },
+    tabActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.background,
+    },
+    tabText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.textMuted,
+    },
+    tabTextActive: {
+      color: colors.accent,
+    },
+    list: { gap: 12, paddingBottom: gwadaSpacing.xl },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    orderNo: { fontSize: 18, fontWeight: "700", color: colors.text },
+    badge: {
+      backgroundColor: colors.background,
+      borderRadius: gwadaRadii.pill,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    badgeText: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
+    total: { fontSize: 16, fontWeight: "600", color: colors.text, marginTop: 8 },
+    warn: { fontSize: 13, color: colors.destructive, marginTop: 6 },
+    receiptBtn: { marginTop: gwadaSpacing.sm },
+    empty: { textAlign: "center", color: colors.textMuted, padding: 24 },
+    errorBox: {
+      gap: gwadaSpacing.sm,
+      padding: gwadaSpacing.lg,
+      borderRadius: gwadaRadii.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    errorTitle: {
+      fontSize: 16,
+      fontWeight: "700",
+      color: colors.text,
+    },
+    errorText: {
+      fontSize: 14,
+      color: colors.destructive,
+      lineHeight: 20,
+    },
+    errorHint: {
+      fontSize: 13,
+      color: colors.textMuted,
+      lineHeight: 18,
+    },
+  });
+}

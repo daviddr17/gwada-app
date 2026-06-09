@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import { useStaffTheme } from "@/src/theme/staff-theme";
@@ -13,6 +14,10 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.textMuted,
+        tabBarStyle: {
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
+        },
       }}
     >
       <Tabs.Screen name="tables" options={{ title: "Tische" }} />
@@ -24,7 +29,16 @@ export default function TabLayout() {
           href: showKasse ? undefined : null,
         }}
       />
-      <Tabs.Screen name="settings" options={{ title: "Einstellungen" }} />
+      <Tabs.Screen
+        name="menu"
+        options={{
+          title: "Menü",
+          tabBarShowLabel: false,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="ellipsis-horizontal" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

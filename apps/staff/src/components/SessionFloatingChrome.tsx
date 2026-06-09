@@ -10,7 +10,9 @@ import {
   sessionMiniOpacity,
   sessionStatsOpacity,
 } from "@/src/lib/session-header-collapse";
-import { gwadaColors, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 const MINI_ROW_HEIGHT = 44;
 const TAB_BLOCK_HEIGHT = 44;
@@ -72,6 +74,8 @@ export function SessionFloatingChrome({
   onTabChange,
   onExpand,
 }: SessionFloatingChromeProps) {
+  const styles = useThemedStyles(createStyles);
+
   const chromeStyle = useAnimatedStyle(() => {
     const statsH = statsBlockHeight.value;
     // Use unclamped offset so tabs follow pull-to-refresh (negative contentOffset).
@@ -114,35 +118,38 @@ export function SessionFloatingChrome({
 
 /** Reserve space in ListHeaderComponent so tabs do not cover list rows. */
 export function SessionChromeSpacer() {
+  const styles = useThemedStyles(createStyles);
   return <View style={styles.spacer} />;
 }
 
-const styles = StyleSheet.create({
-  chrome: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    top: 0,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.lg,
-    paddingBottom: gwadaSpacing.sm,
-    backgroundColor: gwadaColors.background,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: gwadaColors.border,
-  },
-  chromeInner: {
-    position: "relative",
-  },
-  miniOverlay: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: "100%",
-    marginBottom: gwadaSpacing.sm,
-    height: MINI_ROW_HEIGHT,
-    justifyContent: "center",
-  },
-  spacer: {
-    height: TAB_BLOCK_HEIGHT + gwadaSpacing.lg + gwadaSpacing.sm,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    chrome: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      top: 0,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.lg,
+      paddingBottom: gwadaSpacing.sm,
+      backgroundColor: colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    chromeInner: {
+      position: "relative",
+    },
+    miniOverlay: {
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: "100%",
+      marginBottom: gwadaSpacing.sm,
+      height: MINI_ROW_HEIGHT,
+      justifyContent: "center",
+    },
+    spacer: {
+      height: TAB_BLOCK_HEIGHT + gwadaSpacing.lg + gwadaSpacing.sm,
+    },
+  });
+}

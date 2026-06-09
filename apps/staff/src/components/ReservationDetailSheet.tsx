@@ -4,7 +4,9 @@ import {
   formatReservationGuestLabel,
   type TableReservationRow,
 } from "@/src/lib/dining-floor";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 const timeFmt = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -27,6 +29,7 @@ export function ReservationDetailSheet({
   onClose,
 }: ReservationDetailSheetProps) {
   const insets = useSafeAreaInsets();
+  const styles = useThemedStyles(createStyles);
 
   const guest = reservation
     ? formatReservationGuestLabel(reservation)
@@ -108,92 +111,94 @@ export function ReservationDetailSheet({
   );
 }
 
-const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.35)",
-  },
-  backdropTap: {
-    flex: 1,
-  },
-  card: {
-    backgroundColor: gwadaColors.surface,
-    borderTopLeftRadius: gwadaRadii.card + 4,
-    borderTopRightRadius: gwadaRadii.card + 4,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingTop: gwadaSpacing.sm,
-    borderWidth: 1,
-    borderBottomWidth: 0,
-    borderColor: gwadaColors.border,
-  },
-  handle: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: gwadaColors.border,
-    marginBottom: gwadaSpacing.md,
-  },
-  content: {
-    gap: 8,
-    marginBottom: gwadaSpacing.md,
-  },
-  guest: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: gwadaColors.text,
-    letterSpacing: -0.3,
-  },
-  meta: {
-    fontSize: 16,
-    color: gwadaColors.textMuted,
-    lineHeight: 22,
-  },
-  statusBadge: {
-    alignSelf: "flex-start",
-    marginTop: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: gwadaRadii.pill,
-  },
-  statusText: {
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  noteBox: {
-    marginTop: 4,
-    padding: gwadaSpacing.sm,
-    borderRadius: gwadaRadii.button,
-    backgroundColor: gwadaColors.background,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-    gap: 4,
-  },
-  noteLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: gwadaColors.textMuted,
-  },
-  noteText: {
-    fontSize: 15,
-    color: gwadaColors.text,
-    lineHeight: 21,
-  },
-  dismissBtn: {
-    alignItems: "center",
-    paddingVertical: gwadaSpacing.sm,
-    borderRadius: gwadaRadii.button,
-    backgroundColor: gwadaColors.background,
-    borderWidth: 1,
-    borderColor: gwadaColors.border,
-  },
-  dismissBtnPressed: {
-    opacity: 0.88,
-  },
-  dismissText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    backdrop: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.35)",
+    },
+    backdropTap: {
+      flex: 1,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderTopLeftRadius: gwadaRadii.card + 4,
+      borderTopRightRadius: gwadaRadii.card + 4,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingTop: gwadaSpacing.sm,
+      borderWidth: 1,
+      borderBottomWidth: 0,
+      borderColor: colors.border,
+    },
+    handle: {
+      alignSelf: "center",
+      width: 36,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: colors.border,
+      marginBottom: gwadaSpacing.md,
+    },
+    content: {
+      gap: 8,
+      marginBottom: gwadaSpacing.md,
+    },
+    guest: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    meta: {
+      fontSize: 16,
+      color: colors.textMuted,
+      lineHeight: 22,
+    },
+    statusBadge: {
+      alignSelf: "flex-start",
+      marginTop: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: gwadaRadii.pill,
+    },
+    statusText: {
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    noteBox: {
+      marginTop: 4,
+      padding: gwadaSpacing.sm,
+      borderRadius: gwadaRadii.button,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 4,
+    },
+    noteLabel: {
+      fontSize: 12,
+      fontWeight: "600",
+      color: colors.textMuted,
+    },
+    noteText: {
+      fontSize: 15,
+      color: colors.text,
+      lineHeight: 21,
+    },
+    dismissBtn: {
+      alignItems: "center",
+      paddingVertical: gwadaSpacing.sm,
+      borderRadius: gwadaRadii.button,
+      backgroundColor: colors.background,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dismissBtnPressed: {
+      opacity: 0.88,
+    },
+    dismissText: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: colors.text,
+    },
+  });
+}

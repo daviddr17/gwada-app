@@ -12,7 +12,10 @@ import { WebView } from "react-native-webview";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { gwadaColors, gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { useStaffTheme } from "@/src/theme/staff-theme";
+import { useThemedStyles } from "@/src/theme/use-themed-styles";
+import type { GwadaColors } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 type ReceiptViewerModalProps = {
   visible: boolean;
@@ -28,6 +31,8 @@ export function ReceiptViewerModal({
   onClose,
 }: ReceiptViewerModalProps) {
   const insets = useSafeAreaInsets();
+  const { colors } = useStaffTheme();
+  const styles = useThemedStyles(createStyles);
   const [loading, setLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -83,7 +88,7 @@ export function ReceiptViewerModal({
           accessibilityLabel="Teilen"
         >
           {sharing ? (
-            <ActivityIndicator size="small" color={gwadaColors.accent} />
+            <ActivityIndicator size="small" color={colors.accent} />
           ) : (
             <Text style={styles.shareText}>Teilen</Text>
           )}
@@ -120,7 +125,7 @@ export function ReceiptViewerModal({
             />
             {loading ? (
               <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={gwadaColors.accent} />
+                <ActivityIndicator size="large" color={colors.accent} />
               </View>
             ) : null}
           </>
@@ -130,73 +135,75 @@ export function ReceiptViewerModal({
   );
 }
 
-const styles = StyleSheet.create({
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: gwadaSpacing.md,
-    paddingBottom: 12,
-    backgroundColor: gwadaColors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: gwadaColors.border,
-  },
-  headerBtn: {
-    minWidth: 72,
-    alignItems: "center",
-  },
-  headerBtnDisabled: {
-    opacity: 0.35,
-  },
-  headerBtnText: {
-    fontSize: 14,
-    color: gwadaColors.text,
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 15,
-    fontWeight: "600",
-    color: gwadaColors.text,
-  },
-  shareText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: gwadaColors.accent,
-  },
-  webviewContainer: {
-    flex: 1,
-    backgroundColor: gwadaColors.background,
-  },
-  webview: {
-    flex: 1,
-  },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: gwadaColors.background,
-  },
-  errorState: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: gwadaSpacing.md,
-    paddingHorizontal: gwadaSpacing.xl,
-  },
-  errorText: {
-    fontSize: 15,
-    color: gwadaColors.textMuted,
-    textAlign: "center",
-  },
-  retryBtn: {
-    backgroundColor: gwadaColors.accent,
-    paddingHorizontal: gwadaSpacing.lg,
-    paddingVertical: 10,
-    borderRadius: gwadaRadii.button,
-  },
-  retryBtnText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: gwadaColors.accentForeground,
-  },
-});
+function createStyles(colors: GwadaColors) {
+  return StyleSheet.create({
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: gwadaSpacing.md,
+      paddingBottom: 12,
+      backgroundColor: colors.surface,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    headerBtn: {
+      minWidth: 72,
+      alignItems: "center",
+    },
+    headerBtnDisabled: {
+      opacity: 0.35,
+    },
+    headerBtnText: {
+      fontSize: 14,
+      color: colors.text,
+    },
+    headerTitle: {
+      flex: 1,
+      textAlign: "center",
+      fontSize: 15,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    shareText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.accent,
+    },
+    webviewContainer: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    webview: {
+      flex: 1,
+    },
+    loadingOverlay: {
+      ...StyleSheet.absoluteFill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.background,
+    },
+    errorState: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: gwadaSpacing.md,
+      paddingHorizontal: gwadaSpacing.xl,
+    },
+    errorText: {
+      fontSize: 15,
+      color: colors.textMuted,
+      textAlign: "center",
+    },
+    retryBtn: {
+      backgroundColor: colors.accent,
+      paddingHorizontal: gwadaSpacing.lg,
+      paddingVertical: 10,
+      borderRadius: gwadaRadii.button,
+    },
+    retryBtnText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.accentForeground,
+    },
+  });
+}

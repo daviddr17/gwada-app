@@ -70,8 +70,10 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: "app.gwada.staff",
+    buildNumber: "1",
   },
   android: {
+    versionCode: 1,
     adaptiveIcon: {
       backgroundColor: "#E6F4FE",
       foregroundImage: "./assets/images/android-icon-foreground.png",

@@ -134,9 +134,9 @@ function createStyles(colors: GwadaColors) {
     handle: {
       alignSelf: "center",
       width: 36,
-      height: 4,
-      borderRadius: 2,
-      backgroundColor: colors.border,
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: colors.fillSecondary,
       marginBottom: gwadaSpacing.md,
     },
     content: {

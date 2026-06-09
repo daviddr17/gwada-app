@@ -2,17 +2,22 @@ import { useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { ReceiptViewerModal } from "@/src/components/ReceiptViewerModal";
 import { SkeletonList } from "@/src/components/Skeleton";
-import { Card } from "@/src/components/ui";
+import { GroupedList } from "@/src/components/ui/GroupedList";
+import { GroupedSection } from "@/src/components/ui/GroupedSection";
+import { ListRow } from "@/src/components/ui/ListRow";
+import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import {
   collectCash,
   fetchOrder,
   retryFiskalySigning,
 } from "@/src/lib/pos-api";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
+import { orderStatusLabel, paymentStateLabel } from "@/src/lib/ui/status-labels";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
@@ -88,23 +93,25 @@ export default function OrderDetailScreen() {
 
   if (showSkeleton) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
         <SkeletonList count={4} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (isError || !order) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={styles.safe} edges={["bottom"]}>
         <View style={styles.errorBox}>
-          <Text style={styles.errorTitle}>Bestellung konnte nicht geladen werden</Text>
-          <Text style={styles.errorText}>
+          <Text allowFontScaling style={styles.errorTitle}>
+            Bestellung konnte nicht geladen werden
+          </Text>
+          <Text allowFontScaling style={styles.errorText}>
             {error instanceof Error ? error.message : "Unbekannter Fehler"}
           </Text>
           <Button label="Erneut laden" onPress={() => void refetch()} />
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -113,96 +120,136 @@ export default function OrderDetailScreen() {
     order.receiptUrl ?? order.fiscal?.receiptPublicUrl ?? null;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Card>
-        <Text style={styles.orderNo}>Bestellung #{order.orderNumber}</Text>
-        <Text style={styles.meta}>Status: {order.status}</Text>
-        <Text style={styles.meta}>Zahlung: {order.paymentState}</Text>
-        <Text style={styles.total}>{formatCentsEUR(order.totalCents)}</Text>
-      </Card>
+    <SafeAreaView style={styles.safe} edges={["bottom"]}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <GroupedSection>
+          <GroupedList>
+            <ListRow
+              label="Bestellung"
+              value={`#${order.orderNumber}`}
+              variant="value"
+            />
+            <ListSeparator />
+            <ListRow
+              label="Status"
+              value={orderStatusLabel(order.status)}
+              variant="value"
+            />
+            <ListSeparator />
+            <ListRow
+              label="Zahlung"
+              value={paymentStateLabel(order.paymentState)}
+              variant="value"
+            />
+            <ListSeparator />
+            <ListRow
+              label="Summe"
+              value={formatCentsEUR(order.totalCents)}
+              variant="value"
+            />
+          </GroupedList>
+        </GroupedSection>
 
-      <Text style={styles.section}>Positionen</Text>
-      {order.lines.map((line) => {
-        const paidQty = line.paidQuantity ?? 0;
-        const openQty =
-          line.openQuantity ??
-          Math.max(0, line.quantity - paidQty);
-        return (
-          <Card key={line.id}>
-            <Text style={styles.lineName}>
-              {line.quantity}× {line.name}
-            </Text>
-            <Text style={styles.linePrice}>
-              {formatCentsEUR(line.lineTotalCents)}
-              {openQty > 0 && openQty < line.quantity
-                ? ` · ${paidQty} bezahlt, ${openQty} offen`
-                : openQty === 0
-                  ? " · bezahlt"
-                  : " · offen"}
-            </Text>
-          </Card>
-        );
-      })}
+        <GroupedSection title="Positionen">
+          <GroupedList>
+            {order.lines.map((line, index) => {
+              const paidQty = line.paidQuantity ?? 0;
+              const openQty =
+                line.openQuantity ?? Math.max(0, line.quantity - paidQty);
+              const detail =
+                openQty > 0 && openQty < line.quantity
+                  ? `${paidQty} bezahlt, ${openQty} offen`
+                  : openQty === 0
+                    ? "bezahlt"
+                    : "offen";
 
-      {order.fiskalyFailedAt ? (
-        <View style={styles.warnBox}>
-          <Text style={styles.warn}>
-            TSE-Signatur fehlgeschlagen. Erneut versuchen oder Support
-            kontaktieren.
-          </Text>
+              return (
+                <View key={line.id}>
+                  {index > 0 ? <ListSeparator /> : null}
+                  <ListRow
+                    label={`${line.quantity}× ${line.name}`}
+                    value={`${formatCentsEUR(line.lineTotalCents)} · ${detail}`}
+                    variant="value"
+                  />
+                </View>
+              );
+            })}
+          </GroupedList>
+        </GroupedSection>
+
+        {order.fiskalyFailedAt ? (
+          <GroupedSection>
+            <GroupedList>
+              <ListRow
+                label="TSE-Signatur fehlgeschlagen"
+                variant="navigation"
+                onPress={() => void handleRetryTse()}
+              />
+            </GroupedList>
+          </GroupedSection>
+        ) : null}
+
+        <GroupedSection>
+          <GroupedList>
+            {canPayCash ? (
+              <>
+                <ListRow
+                  label={paying ? "Wird bezahlt …" : "Rest bar bezahlen"}
+                  variant="navigation"
+                  onPress={() => !paying && void handleCashPay()}
+                />
+                <ListSeparator />
+                <ListRow
+                  label="In Session kassieren (Split)"
+                  variant="navigation"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/session/[sessionId]",
+                      params: { sessionId: order.tableSessionId },
+                    })
+                  }
+                />
+              </>
+            ) : (
+              <ListRow label="Vollständig bezahlt" variant="static" />
+            )}
+            {displayReceiptUrl ? (
+              <>
+                <ListSeparator />
+                <ListRow
+                  label="Beleg anzeigen"
+                  variant="navigation"
+                  onPress={() => setReceiptOpen(true)}
+                />
+              </>
+            ) : order.paymentState === "paid" ? (
+              <>
+                <ListSeparator />
+                <ListRow
+                  label="Belege in Session"
+                  variant="navigation"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/session/[sessionId]",
+                      params: { sessionId: order.tableSessionId, tab: "payments" },
+                    })
+                  }
+                />
+              </>
+            ) : null}
+          </GroupedList>
+        </GroupedSection>
+
+        {order.fiskalyFailedAt ? (
           <Button
             label="TSE erneut signieren"
             variant="secondary"
             loading={retryingTse}
             onPress={() => void handleRetryTse()}
+            style={styles.actionBtn}
           />
-        </View>
-      ) : null}
-
-      {canPayCash ? (
-        <>
-          <Button
-            label="Rest der Bestellung bar bezahlen"
-            loading={paying}
-            onPress={() => void handleCashPay()}
-            style={styles.payBtn}
-          />
-          <Button
-            label="In Session kassieren (Split)"
-            variant="secondary"
-            onPress={() =>
-              router.push({
-                pathname: "/session/[sessionId]",
-                params: { sessionId: order.tableSessionId },
-              })
-            }
-            style={styles.payBtn}
-          />
-        </>
-      ) : (
-        <Text style={styles.paidHint}>Vollständig bezahlt</Text>
-      )}
-
-      {displayReceiptUrl ? (
-        <Button
-          label="Beleg anzeigen"
-          variant="secondary"
-          onPress={() => setReceiptOpen(true)}
-          style={styles.receiptBtn}
-        />
-      ) : order.paymentState === "paid" ? (
-        <Button
-          label="Belege in Session (Zahlungen)"
-          variant="secondary"
-          onPress={() =>
-            router.push({
-              pathname: "/session/[sessionId]",
-              params: { sessionId: order.tableSessionId, tab: "payments" },
-            })
-          }
-          style={styles.receiptBtn}
-        />
-      ) : null}
+        ) : null}
+      </ScrollView>
 
       {displayReceiptUrl ? (
         <ReceiptViewerModal
@@ -212,50 +259,29 @@ export default function OrderDetailScreen() {
           onClose={() => setReceiptOpen(false)}
         />
       ) : null}
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
+    safe: {
+      flex: 1,
+      backgroundColor: colors.groupedBackground,
+    },
     container: {
       padding: gwadaSpacing.lg,
-      gap: 10,
-      backgroundColor: colors.background,
+      gap: gwadaSpacing.lg,
+      paddingBottom: gwadaSpacing.xl,
     },
-    orderNo: { fontSize: 20, fontWeight: "700", color: colors.text },
-    meta: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
-    total: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: colors.text,
-      marginTop: 12,
-    },
-    section: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: colors.text,
-      marginTop: gwadaSpacing.md,
-      marginBottom: 4,
-    },
-    lineName: { fontSize: 15, fontWeight: "600", color: colors.text },
-    linePrice: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
-    warnBox: { gap: gwadaSpacing.sm, marginTop: gwadaSpacing.sm },
-    warn: { color: colors.destructive, fontSize: 14 },
-    payBtn: { marginTop: gwadaSpacing.sm },
-    receiptBtn: { marginTop: gwadaSpacing.sm },
-    paidHint: {
-      textAlign: "center",
-      color: colors.success,
-      fontWeight: "600",
-      marginTop: gwadaSpacing.lg,
+    actionBtn: {
+      marginTop: gwadaSpacing.sm,
     },
     errorBox: {
       gap: gwadaSpacing.sm,
       padding: gwadaSpacing.lg,
+      margin: gwadaSpacing.lg,
       borderRadius: gwadaRadii.card,
-      borderWidth: 1,
-      borderColor: colors.border,
       backgroundColor: colors.surface,
     },
     errorTitle: {

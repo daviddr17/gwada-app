@@ -10,6 +10,7 @@ import { ReservationDetailSheet } from "@/src/components/ReservationDetailSheet"
 import { SkeletonList } from "@/src/components/Skeleton";
 import { TableOccupiedMeta } from "@/src/components/TableOccupiedMeta";
 import { TableReservationMeta } from "@/src/components/TableReservationMeta";
+import { TableStatusBadge } from "@/src/components/TableStatusBadge";
 import { Card, ScreenHeader } from "@/src/components/ui";
 import {
   type DiningTableRow,
@@ -26,7 +27,7 @@ import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 export default function TablesScreen() {
   const router = useRouter();
@@ -245,33 +246,22 @@ export default function TablesScreen() {
                         Nr. {item.table_number} · {item.capacity} Plätze
                       </Text>
                     </View>
-                    <View
-                      style={[
-                        styles.statusChip,
+                    <TableStatusBadge
+                      variant={
                         openSession
-                          ? styles.statusOccupied
+                          ? "occupied"
                           : showReservedChip
-                            ? styles.statusReserved
-                            : styles.statusFree,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.statusText,
-                          openSession
-                            ? styles.statusTextOccupied
-                            : showReservedChip
-                              ? styles.statusTextReserved
-                              : styles.statusTextFree,
-                        ]}
-                      >
-                        {openSession
+                            ? "reserved"
+                            : "free"
+                      }
+                      label={
+                        openSession
                           ? `Besetzt · ${openSession.cover_count} Pers.`
                           : showReservedChip
                             ? `Reserviert · ${reservedPartySize} Pers.`
-                            : "Frei"}
-                      </Text>
-                    </View>
+                            : "Frei"
+                      }
+                    />
                   </View>
                   {openSession ? (
                     <TableOccupiedMeta
@@ -327,7 +317,7 @@ export default function TablesScreen() {
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
+    safe: { flex: 1, backgroundColor: colors.groupedBackground },
     flex: { flex: 1 },
     header: {
       paddingHorizontal: gwadaSpacing.lg,
@@ -357,33 +347,6 @@ function createStyles(colors: GwadaColors) {
     cardMain: { flex: 1, gap: 4 },
     tableName: { fontSize: 18, fontWeight: "600", color: colors.text },
     tableMeta: { fontSize: 14, color: colors.textMuted },
-    statusChip: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: gwadaRadii.pill,
-    },
-    statusFree: {
-      backgroundColor: colors.successMuted,
-    },
-    statusOccupied: {
-      backgroundColor: colors.occupiedMuted,
-    },
-    statusReserved: {
-      backgroundColor: colors.warningMuted,
-    },
-    statusText: {
-      fontSize: 12,
-      fontWeight: "600",
-    },
-    statusTextFree: {
-      color: colors.success,
-    },
-    statusTextOccupied: {
-      color: colors.occupied,
-    },
-    statusTextReserved: {
-      color: colors.warning,
-    },
     emptyBox: { padding: 24, gap: 8 },
     empty: { textAlign: "center", color: colors.text, fontWeight: "600" },
     emptyHint: {

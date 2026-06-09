@@ -1,12 +1,10 @@
 import Constants from "expo-constants";
-import { View } from "react-native";
-import { Button } from "@/src/components/Button";
 import { AppearanceSegment } from "@/src/components/menu/AppearanceSegment";
 import { MenuRow } from "@/src/components/menu/MenuRow";
-import { MenuSection } from "@/src/components/menu/MenuSection";
 import type { MenuSectionDef } from "@/src/components/menu/MenuScreen";
+import { MenuSection } from "@/src/components/menu/MenuSection";
+import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { gwadaSpacing } from "@/src/theme/tokens";
 
 function appVersionLabel(): string {
   const version = Constants.expoConfig?.version ?? "—";
@@ -30,22 +28,27 @@ function AccountSection() {
 
   return (
     <MenuSection title="Konto">
-      <MenuRow label="Angemeldet als" value={session?.user.email ?? "—"} />
-      <MenuRow label="Aktives Restaurant" value={active?.name ?? "—"} />
-      <View style={{ gap: gwadaSpacing.sm, marginTop: gwadaSpacing.xs }}>
-        <Button
-          label="Restaurant wechseln"
-          variant="secondary"
-          onPress={() => {
-            useAuthStore.setState({ activeRestaurantId: null });
-          }}
-        />
-        <Button
-          label="Abmelden"
-          variant="ghost"
-          onPress={() => void signOut()}
-        />
-      </View>
+      <MenuRow
+        label="Angemeldet als"
+        value={session?.user.email ?? "—"}
+        variant="value"
+      />
+      <ListSeparator />
+      <MenuRow label="Aktives Restaurant" value={active?.name ?? "—"} variant="value" />
+      <ListSeparator />
+      <MenuRow
+        label="Restaurant wechseln"
+        variant="navigation"
+        onPress={() => {
+          useAuthStore.setState({ activeRestaurantId: null });
+        }}
+      />
+      <ListSeparator />
+      <MenuRow
+        label="Abmelden"
+        variant="destructive"
+        onPress={() => void signOut()}
+      />
     </MenuSection>
   );
 }
@@ -61,7 +64,7 @@ function AppearanceSection() {
 function AppInfoSection() {
   return (
     <MenuSection title="App">
-      <MenuRow label="Version" value={appVersionLabel()} />
+      <MenuRow label="Version" value={appVersionLabel()} variant="value" />
     </MenuSection>
   );
 }

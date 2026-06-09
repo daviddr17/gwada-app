@@ -40,14 +40,15 @@ function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
     safe: {
       flex: 1,
-      backgroundColor: colors.background,
+      backgroundColor: colors.groupedBackground,
     },
     content: {
-      padding: gwadaSpacing.lg,
+      paddingHorizontal: gwadaSpacing.md,
+      paddingTop: gwadaSpacing.sm,
       paddingBottom: gwadaSpacing.xl,
     },
     sections: {
-      gap: gwadaSpacing.md,
+      gap: gwadaSpacing.lg,
     },
   });
 }

@@ -1,5 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
+import { Platform, StyleSheet } from "react-native";
+import { staffTabIconOptions } from "@/src/navigation/tab-bar-config";
 import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import { useStaffTheme } from "@/src/theme/staff-theme";
 
@@ -16,29 +17,21 @@ export default function TabLayout() {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.surface,
-          borderTopColor: colors.border,
+          borderTopColor: colors.separator,
+          borderTopWidth: Platform.OS === "ios" ? StyleSheet.hairlineWidth : 1,
         },
       }}
     >
-      <Tabs.Screen name="tables" options={{ title: "Tische" }} />
-      <Tabs.Screen name="orders" options={{ title: "Bestellungen" }} />
+      <Tabs.Screen name="tables" options={staffTabIconOptions("tables")} />
+      <Tabs.Screen name="orders" options={staffTabIconOptions("orders")} />
       <Tabs.Screen
         name="kasse"
         options={{
-          title: "Kasse",
+          ...staffTabIconOptions("kasse"),
           href: showKasse ? undefined : null,
         }}
       />
-      <Tabs.Screen
-        name="menu"
-        options={{
-          title: "Menü",
-          tabBarShowLabel: false,
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="ellipsis-horizontal" size={size} color={color} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="menu" options={staffTabIconOptions("menu")} />
     </Tabs>
   );
 }

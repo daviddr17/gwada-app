@@ -439,7 +439,7 @@ export default function TableSessionScreen() {
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
+    safe: { flex: 1, backgroundColor: colors.groupedBackground },
     flex: { flex: 1 },
     expandable: {
       gap: gwadaSpacing.md,

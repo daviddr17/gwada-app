@@ -1,21 +1,25 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { ReceiptViewerModal } from "@/src/components/ReceiptViewerModal";
 import { SkeletonList } from "@/src/components/Skeleton";
-import { Card, ScreenHeader } from "@/src/components/ui";
+import { ScreenHeader } from "@/src/components/ui";
+import { GroupedList } from "@/src/components/ui/GroupedList";
+import { ListRow } from "@/src/components/ui/ListRow";
+import { ListSeparator } from "@/src/components/ui/ListSeparator";
+import { SegmentedControl } from "@/src/components/ui/SegmentedControl";
 import {
   fetchActiveOrders,
   fetchPaidTodayOrders,
   type PosOrderDto,
 } from "@/src/lib/pos-api";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
+import { orderStatusLabel, paymentStateLabel } from "@/src/lib/ui/status-labels";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
-import { getGwadaApiBaseUrl } from "@/src/lib/env";
 import { useAuthStore } from "@/src/stores/auth-store";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
@@ -23,10 +27,15 @@ import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
 
 type OrdersTab = "open" | "paid";
 
+const TAB_OPTIONS = [
+  { id: "open" as const, label: "Offen" },
+  { id: "paid" as const, label: "Bezahlt" },
+];
+
 function statusLabel(order: PosOrderDto, tab: OrdersTab): string {
   if (tab === "paid") return "Bezahlt";
-  if (order.paymentState === "paid") return "Bezahlt";
-  return order.status;
+  if (order.paymentState === "paid") return paymentStateLabel("paid");
+  return orderStatusLabel(order.status);
 }
 
 function ordersErrorMessage(error: unknown): string {
@@ -104,35 +113,23 @@ export default function OrdersScreen() {
           }
         />
 
-        <View style={styles.tabs}>
-          <Pressable
-            style={[styles.tab, tab === "open" && styles.tabActive]}
-            onPress={() => setTab("open")}
-          >
-            <Text style={[styles.tabText, tab === "open" && styles.tabTextActive]}>
-              Offen
-            </Text>
-          </Pressable>
-          <Pressable
-            style={[styles.tab, tab === "paid" && styles.tabActive]}
-            onPress={() => setTab("paid")}
-          >
-            <Text style={[styles.tabText, tab === "paid" && styles.tabTextActive]}>
-              Bezahlt (heute)
-            </Text>
-          </Pressable>
+        <View style={styles.segmentWrap}>
+          <SegmentedControl<OrdersTab>
+            options={TAB_OPTIONS}
+            value={tab}
+            onChange={setTab}
+          />
         </View>
 
         {showSkeleton ? (
           <SkeletonList count={5} />
         ) : isError ? (
           <View style={styles.errorBox}>
-            <Text style={styles.errorTitle}>Verbindung zur Web-API fehlgeschlagen</Text>
-            <Text style={styles.errorText}>{ordersErrorMessage(error)}</Text>
-            <Text style={styles.errorHint}>
-              API: {getGwadaApiBaseUrl()}
-              {"\n"}
-              Im Projektroot: pnpm dev (Port 3000)
+            <Text allowFontScaling style={styles.errorTitle}>
+              Verbindung fehlgeschlagen
+            </Text>
+            <Text allowFontScaling style={styles.errorText}>
+              {ordersErrorMessage(error)}
             </Text>
             <Button label="Erneut laden" onPress={() => void refetch()} />
           </View>
@@ -144,53 +141,61 @@ export default function OrdersScreen() {
             onRefresh={() => void refetch()}
             contentContainerStyle={styles.list}
             ListEmptyComponent={
-              <Text style={styles.empty}>
+              <Text allowFontScaling style={styles.empty}>
                 {tab === "open"
                   ? "Keine offenen Bestellungen."
                   : "Heute noch keine bezahlten Bestellungen."}
               </Text>
             }
-            renderItem={({ item }) => {
+            renderItem={({ item, index }) => {
               const receiptUrl = receiptUrlFor(item);
+              const label = `#${item.orderNumber}`;
+              const value = `${formatCentsEUR(item.totalCents)} · ${statusLabel(item, tab)}`;
+
               return (
-                <Card>
-                  <Pressable
-                    onPress={() =>
-                      router.push({
-                        pathname: "/order/[id]",
-                        params: { id: item.id },
-                      })
-                    }
-                  >
-                    <View style={styles.row}>
-                      <Text style={styles.orderNo}>#{item.orderNumber}</Text>
-                      <View style={styles.badge}>
-                        <Text style={styles.badgeText}>
-                          {statusLabel(item, tab)}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={styles.total}>
-                      {formatCentsEUR(item.totalCents)}
-                    </Text>
-                    {item.fiskalyFailedAt ? (
-                      <Text style={styles.warn}>TSE fehlgeschlagen</Text>
-                    ) : null}
-                  </Pressable>
-                  {tab === "paid" && receiptUrl ? (
-                    <Button
-                      label="Beleg anzeigen"
-                      variant="secondary"
+                <View style={styles.orderGroup}>
+                  <GroupedList>
+                    <ListRow
+                      label={label}
+                      value={value}
+                      variant="navigation"
                       onPress={() =>
-                        setReceiptViewer({
-                          url: receiptUrl,
-                          title: `Beleg #${item.orderNumber}`,
+                        router.push({
+                          pathname: "/order/[id]",
+                          params: { id: item.id },
                         })
                       }
-                      style={styles.receiptBtn}
                     />
+                    {tab === "paid" && receiptUrl ? (
+                      <>
+                        <ListSeparator />
+                        <ListRow
+                          label="Beleg anzeigen"
+                          variant="navigation"
+                          onPress={() =>
+                            setReceiptViewer({
+                              url: receiptUrl,
+                              title: `Beleg #${item.orderNumber}`,
+                            })
+                          }
+                        />
+                      </>
+                    ) : null}
+                    {item.fiskalyFailedAt ? (
+                      <>
+                        <ListSeparator />
+                        <ListRow
+                          label="TSE"
+                          value="Fehlgeschlagen"
+                          variant="value"
+                        />
+                      </>
+                    ) : null}
+                  </GroupedList>
+                  {index < (data?.length ?? 0) - 1 ? (
+                    <View style={styles.groupSpacer} />
                   ) : null}
-                </Card>
+                </View>
               );
             }}
           />
@@ -211,60 +216,19 @@ export default function OrdersScreen() {
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
+    safe: { flex: 1, backgroundColor: colors.groupedBackground },
     container: { flex: 1, padding: gwadaSpacing.lg },
-    tabs: {
-      flexDirection: "row",
-      gap: 8,
+    segmentWrap: {
       marginBottom: gwadaSpacing.md,
     },
-    tab: {
-      flex: 1,
-      paddingVertical: 10,
-      borderRadius: gwadaRadii.button,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.surface,
-      alignItems: "center",
-    },
-    tabActive: {
-      borderColor: colors.accent,
-      backgroundColor: colors.background,
-    },
-    tabText: {
-      fontSize: 14,
-      fontWeight: "600",
-      color: colors.textMuted,
-    },
-    tabTextActive: {
-      color: colors.accent,
-    },
-    list: { gap: 12, paddingBottom: gwadaSpacing.xl },
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-    },
-    orderNo: { fontSize: 18, fontWeight: "700", color: colors.text },
-    badge: {
-      backgroundColor: colors.background,
-      borderRadius: gwadaRadii.pill,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    badgeText: { fontSize: 12, fontWeight: "600", color: colors.textMuted },
-    total: { fontSize: 16, fontWeight: "600", color: colors.text, marginTop: 8 },
-    warn: { fontSize: 13, color: colors.destructive, marginTop: 6 },
-    receiptBtn: { marginTop: gwadaSpacing.sm },
+    list: { paddingBottom: gwadaSpacing.xl },
+    orderGroup: {},
+    groupSpacer: { height: gwadaSpacing.sm },
     empty: { textAlign: "center", color: colors.textMuted, padding: 24 },
     errorBox: {
       gap: gwadaSpacing.sm,
       padding: gwadaSpacing.lg,
       borderRadius: gwadaRadii.card,
-      borderWidth: 1,
-      borderColor: colors.border,
       backgroundColor: colors.surface,
     },
     errorTitle: {
@@ -276,11 +240,6 @@ function createStyles(colors: GwadaColors) {
       fontSize: 14,
       color: colors.destructive,
       lineHeight: 20,
-    },
-    errorHint: {
-      fontSize: 13,
-      color: colors.textMuted,
-      lineHeight: 18,
     },
   });
 }

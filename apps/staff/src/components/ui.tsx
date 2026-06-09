@@ -2,7 +2,14 @@ import { formatCentsEUR } from "@gwada/shared";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { gwadaRadii, gwadaSpacing, screenTypography } from "@/src/theme/tokens";
+
+export { GroupedSection } from "./ui/GroupedSection";
+export { GroupedList } from "./ui/GroupedList";
+export { ListRow, type ListRowVariant } from "./ui/ListRow";
+export { ListSeparator } from "./ui/ListSeparator";
+export { SegmentedControl } from "./ui/SegmentedControl";
+export { FormTextField } from "./ui/FormTextField";
 
 export function ScreenHeader({
   title,
@@ -56,13 +63,11 @@ function createHeaderStyles(colors: GwadaColors) {
       marginBottom: gwadaSpacing.md,
     },
     title: {
-      fontSize: 28,
-      fontWeight: "700",
+      ...screenTypography.title,
       color: colors.text,
-      letterSpacing: -0.5,
     },
     subtitle: {
-      fontSize: 15,
+      ...screenTypography.subtitle,
       color: colors.textMuted,
     },
   });

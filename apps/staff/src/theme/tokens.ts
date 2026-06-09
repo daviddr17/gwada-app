@@ -5,8 +5,11 @@ export type ColorSchemePreference = "light" | "dark" | "system";
 
 export type GwadaColors = {
   background: string;
+  groupedBackground: string;
   surface: string;
   border: string;
+  separator: string;
+  fillSecondary: string;
   text: string;
   textMuted: string;
   accent: string;
@@ -22,8 +25,11 @@ export type GwadaColors = {
 
 export const gwadaColorsLight: GwadaColors = {
   background: "#fafafa",
+  groupedBackground: "#f2f2f7",
   surface: "#ffffff",
   border: "rgba(0,0,0,0.08)",
+  separator: "rgba(60,60,67,0.18)",
+  fillSecondary: "rgba(120,120,128,0.16)",
   text: "#0a0a0a",
   textMuted: "#737373",
   accent: "#2563eb",
@@ -40,8 +46,11 @@ export const gwadaColorsLight: GwadaColors = {
 /** Hex approximation of web `.dark` tokens in globals.css */
 export const gwadaColorsDark: GwadaColors = {
   background: "#1a1b1f",
+  groupedBackground: "#000000",
   surface: "#222328",
   border: "rgba(255,255,255,0.09)",
+  separator: "rgba(84,84,88,0.65)",
+  fillSecondary: "rgba(120,120,128,0.32)",
   text: "#f5f5f4",
   textMuted: "#9ca3af",
   accent: "#2563eb",
@@ -71,6 +80,32 @@ export const gwadaSpacing = {
   lg: 24,
   xl: 32,
 } as const;
+
+export const screenTypography = {
+  title: {
+    fontSize: 28,
+    fontWeight: "700" as const,
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 15,
+    fontWeight: "400" as const,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    letterSpacing: 0.4,
+    textTransform: "uppercase" as const,
+  },
+  rowLabel: {
+    fontSize: 16,
+    fontWeight: "400" as const,
+  },
+  rowValue: {
+    fontSize: 16,
+    fontWeight: "400" as const,
+  },
+};
 
 const DEFAULT_ACCENT = gwadaColorsLight.accent;
 

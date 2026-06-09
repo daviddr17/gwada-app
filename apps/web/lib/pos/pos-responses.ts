@@ -2,6 +2,7 @@ import "server-only";
 
 import { allocationAmountCents, derivePosPaymentState, type PosOrderStatus } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadFiscalForOrderReceipt } from "@/lib/pos/order-fiscal-for-receipt";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -223,31 +224,27 @@ export async function loadPosOrderDto(
 
   if (orderError || !order) return null;
 
-  const [{ data: lines }, { data: payments }, { data: fiscal }] =
-    await Promise.all([
-      supabase
-        .from("pos_order_lines")
-        .select(
-          "id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, vat_rate, line_total_cents, notes, position",
-        )
-        .eq("order_id", orderId)
-        .order("position"),
-      supabase
-        .from("pos_payments")
-        .select(
-          "id, amount_cents, tip_cents, received_amount_cents, method, status, mollie_payment_id, paid_at",
-        )
-        .eq("order_id", orderId)
-        .order("created_at"),
-      supabase
-        .from("pos_fiscal_transactions")
-        .select(
-          "tx_id, signature, signature_counter, signed_at, receipt_public_url, custom_receipt_url",
-        )
-        .eq("order_id", orderId)
-        .is("split_group", null)
-        .maybeSingle(),
-    ]);
+  const admin = createSupabaseAdminClient();
+
+  const [{ data: lines }, { data: payments }, fiscal] = await Promise.all([
+    supabase
+      .from("pos_order_lines")
+      .select(
+        "id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, vat_rate, line_total_cents, notes, position",
+      )
+      .eq("order_id", orderId)
+      .order("position"),
+    supabase
+      .from("pos_payments")
+      .select(
+        "id, amount_cents, tip_cents, received_amount_cents, method, status, mollie_payment_id, paid_at",
+      )
+      .eq("order_id", orderId)
+      .order("created_at"),
+    admin
+      ? loadFiscalForOrderReceipt(admin, orderId)
+      : Promise.resolve(null),
+  ]);
 
   const dto = mapOrderDto(
     order as OrderRow,
@@ -256,21 +253,27 @@ export async function loadPosOrderDto(
     (fiscal as FiscalRow | null) ?? null,
   );
 
-  let storagePath =
-    order.receipt_url ??
-    (fiscal as FiscalRow | null)?.custom_receipt_url ??
-    null;
+  let storagePath = order.receipt_url?.trim() || null;
+
+  const needsTseReceiptRegeneration =
+    Boolean(fiscal?.signature) &&
+    order.status === "delivered" &&
+    dto.paymentState === "paid" &&
+    (!storagePath || fiscal?.split_group != null);
 
   if (
-    !storagePath?.trim() &&
-    order.status === "delivered" &&
-    dto.paymentState === "paid"
+    needsTseReceiptRegeneration ||
+    (!storagePath && order.status === "delivered" && dto.paymentState === "paid")
   ) {
     const { tryGeneratePosReceipt } = await import("@/lib/pos/generate-pos-receipt");
     const generated = await tryGeneratePosReceipt(orderId, { force: true });
     if (generated.ok) {
       storagePath = generated.storagePath;
     }
+  }
+
+  if (!storagePath) {
+    storagePath = fiscal?.custom_receipt_url?.trim() || null;
   }
 
   const signedReceiptUrl = await resolvePosReceiptSignedUrl(storagePath);

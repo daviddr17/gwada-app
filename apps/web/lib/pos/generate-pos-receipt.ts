@@ -7,6 +7,7 @@ import {
   type ReceiptOrderInput,
   type ReceiptRestaurantInput,
 } from "@/lib/pos/receipt-pdf";
+import { loadFiscalForOrderReceipt } from "@/lib/pos/order-fiscal-for-receipt";
 import {
   uploadPosPaymentReceiptPdf,
   uploadPosReceiptPdf,
@@ -75,7 +76,7 @@ async function generatePosReceipt(
   const [
     { data: lines },
     { data: payments },
-    { data: fiscal },
+    fiscal,
     { data: session },
     { data: restaurant },
   ] = await Promise.all([
@@ -89,14 +90,7 @@ async function generatePosReceipt(
       .select("method, amount_cents, received_amount_cents, status")
       .eq("order_id", orderId)
       .eq("status", "paid"),
-    admin
-      .from("pos_fiscal_transactions")
-      .select(
-        "tx_id, signature, signature_counter, signed_at, tss_id, client_id",
-      )
-      .eq("order_id", orderId)
-      .is("split_group", null)
-      .maybeSingle(),
+    loadFiscalForOrderReceipt(admin, orderId),
     admin
       .from("pos_table_sessions")
       .select("dining_table_id")
@@ -215,12 +209,11 @@ async function generatePosReceipt(
     throw new Error(orderUpdateError.message);
   }
 
-  if (fiscal) {
+  if (fiscal?.id) {
     await admin
       .from("pos_fiscal_transactions")
       .update({ custom_receipt_url: storagePath })
-      .eq("order_id", orderId)
-      .is("split_group", null);
+      .eq("id", fiscal.id);
   }
 
   return storagePath;

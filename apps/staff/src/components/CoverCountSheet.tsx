@@ -1,6 +1,6 @@
 import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
+import { SheetChrome } from "@/src/components/sheets/SheetChrome";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
 import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
@@ -26,7 +26,6 @@ export function CoverCountSheet({
   onClose,
   loading,
 }: CoverCountSheetProps) {
-  const insets = useSafeAreaInsets();
   const styles = useThemedStyles(createStyles);
   const overCapacity = coverCount > capacity;
 
@@ -37,17 +36,20 @@ export function CoverCountSheet({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={[styles.sheet, { paddingBottom: insets.bottom + gwadaSpacing.lg }]}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Personen am Tisch</Text>
-          <Pressable onPress={onClose} hitSlop={12}>
-            <Text style={styles.close}>Schließen</Text>
-          </Pressable>
-        </View>
-
-        <Text style={styles.tableLabel}>{tableLabel}</Text>
-        <Text style={styles.hint}>
-          Kapazität: {capacity} Plätze — für Statistik und spätere Umsetzung.
+      <SheetChrome
+        title="Personen am Tisch"
+        subtitle={tableLabel}
+        onClose={onClose}
+        footer={
+          <Button
+            label="Session starten"
+            onPress={onConfirm}
+            loading={loading}
+          />
+        }
+      >
+        <Text allowFontScaling style={styles.hint}>
+          Kapazität: {capacity} Plätze
         </Text>
 
         <View style={styles.stepperRow}>
@@ -58,7 +60,9 @@ export function CoverCountSheet({
           >
             <Text style={styles.stepBtnText}>−</Text>
           </Pressable>
-          <Text style={styles.count}>{coverCount}</Text>
+          <Text allowFontScaling style={styles.count}>
+            {coverCount}
+          </Text>
           <Pressable
             onPress={() => onChangeCount(Math.min(50, coverCount + 1))}
             style={styles.stepBtn}
@@ -69,54 +73,22 @@ export function CoverCountSheet({
         </View>
 
         {overCapacity ? (
-          <Text style={styles.warn}>
+          <Text allowFontScaling style={styles.warn}>
             Mehr Personen als Plätze — bei starkem Andrang möglich.
           </Text>
         ) : null}
-
-        <Button
-          label="Session starten"
-          onPress={onConfirm}
-          loading={loading}
-          style={styles.primary}
-        />
-      </View>
+      </SheetChrome>
     </Modal>
   );
 }
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
-    sheet: {
-      flex: 1,
-      backgroundColor: colors.background,
-      paddingHorizontal: gwadaSpacing.lg,
-      paddingTop: gwadaSpacing.lg,
-      gap: gwadaSpacing.md,
-    },
-    header: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      alignItems: "center",
-    },
-    title: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: colors.text,
-    },
-    close: {
-      fontSize: 16,
-      color: colors.textMuted,
-    },
-    tableLabel: {
-      fontSize: 18,
-      fontWeight: "600",
-      color: colors.text,
-    },
     hint: {
       fontSize: 14,
       color: colors.textMuted,
       lineHeight: 20,
+      marginBottom: gwadaSpacing.md,
     },
     stepperRow: {
       flexDirection: "row",
@@ -129,8 +101,8 @@ function createStyles(colors: GwadaColors) {
       width: 52,
       height: 52,
       borderRadius: gwadaRadii.button,
-      borderWidth: 1,
-      borderColor: colors.border,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.separator,
       backgroundColor: colors.surface,
       alignItems: "center",
       justifyContent: "center",
@@ -151,9 +123,6 @@ function createStyles(colors: GwadaColors) {
       fontSize: 13,
       color: colors.destructive,
       textAlign: "center",
-    },
-    primary: {
-      marginTop: gwadaSpacing.sm,
     },
   });
 }

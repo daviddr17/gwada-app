@@ -22,39 +22,46 @@ export function DiningAreaFilter({
   const { colors } = useStaffTheme();
   const styles = useThemedStyles(createStyles);
 
-  if (areas.length === 0) return null;
+  if (areas.length === 0) {
+    return null;
+  }
 
   return (
     <View style={styles.wrapper}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.scroller}
-        contentContainerStyle={styles.row}
-      >
-        {areas.map((area) => {
-          const active = area.id === activeAreaId;
-          const accent = area.color_hex?.trim() || colors.accent;
-          return (
-            <Pressable
-              key={area.id}
-              onPress={() => onAreaSelect(area.id)}
-              style={[
-                styles.chip,
-                active && { borderColor: accent, backgroundColor: `${accent}18` },
-              ]}
-            >
-              <View style={[styles.dot, { backgroundColor: accent }]} />
-              <Text
-                numberOfLines={1}
-                style={[styles.chipLabel, active && styles.chipLabelActive]}
+      <View style={styles.toolbar}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.scroller}
+          contentContainerStyle={styles.row}
+        >
+          {areas.map((area) => {
+            const active = area.id === activeAreaId;
+            const accent = area.color_hex?.trim() || colors.accent;
+            return (
+              <Pressable
+                key={area.id}
+                onPress={() => onAreaSelect(area.id)}
+                style={[
+                  styles.chip,
+                  active && {
+                    borderColor: accent,
+                    backgroundColor: `${accent}18`,
+                  },
+                ]}
               >
-                {area.name}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+                <View style={[styles.dot, { backgroundColor: accent }]} />
+                <Text
+                  numberOfLines={1}
+                  style={[styles.chipLabel, active && styles.chipLabelActive]}
+                >
+                  {area.name}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -65,6 +72,12 @@ function createStyles(colors: GwadaColors) {
       marginHorizontal: -gwadaSpacing.lg,
       marginBottom: gwadaSpacing.sm,
       overflow: "visible",
+      paddingHorizontal: gwadaSpacing.lg,
+    },
+    toolbar: {
+      backgroundColor: colors.fillSecondary,
+      borderRadius: gwadaRadii.button,
+      paddingVertical: 4,
     },
     scroller: {
       flexGrow: 0,
@@ -74,7 +87,7 @@ function createStyles(colors: GwadaColors) {
       flexDirection: "row",
       alignItems: "center",
       gap: 8,
-      paddingHorizontal: gwadaSpacing.lg,
+      paddingHorizontal: 8,
       paddingTop: 4,
       paddingBottom: 4,
       minHeight: CHIP_ROW_HEIGHT + 8,

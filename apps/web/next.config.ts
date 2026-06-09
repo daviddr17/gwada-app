@@ -1,6 +1,10 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { LEGACY_MODULE_REDIRECTS } from "./lib/navigation/app-routes";
+
+const monorepoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 // Explizit dieselbe Ladereihenfolge wie Next (dev → .env.local + .env.development*;
 // production → .env.local + .env.production*). Siehe .env.example.
@@ -48,6 +52,12 @@ const supabaseStoragePatterns = [
 ];
 
 const nextConfig: NextConfig = {
+  // pdfkit is Node/CJS-only — avoid Turbopack wrapping the constructor export.
+  serverExternalPackages: ["pdfkit"],
+  turbopack: {
+    // pnpm monorepo root — avoids picking ~/package-lock.json as workspace root.
+    root: monorepoRoot,
+  },
   images: {
     remotePatterns: [
       {

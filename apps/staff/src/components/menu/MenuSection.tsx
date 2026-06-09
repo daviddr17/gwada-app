@@ -1,42 +1,18 @@
-import { StyleSheet, Text, View, type ViewStyle } from "react-native";
-import { useThemedStyles } from "@/src/theme/use-themed-styles";
-import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { GroupedList } from "@/src/components/ui/GroupedList";
+import { GroupedSection } from "@/src/components/ui/GroupedSection";
+import type { ViewStyle } from "react-native";
 
 type MenuSectionProps = {
   title?: string;
+  footer?: string;
   children: React.ReactNode;
   style?: ViewStyle;
 };
 
-export function MenuSection({ title, children, style }: MenuSectionProps) {
-  const styles = useThemedStyles(createStyles);
-
+export function MenuSection({ title, footer, children, style }: MenuSectionProps) {
   return (
-    <View style={[styles.card, style]}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
-      {children}
-    </View>
+    <GroupedSection title={title} footer={footer} style={style}>
+      <GroupedList>{children}</GroupedList>
+    </GroupedSection>
   );
-}
-
-function createStyles(colors: GwadaColors) {
-  return StyleSheet.create({
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: gwadaRadii.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: gwadaSpacing.md,
-      gap: gwadaSpacing.sm,
-    },
-    title: {
-      fontSize: 13,
-      fontWeight: "600",
-      color: colors.textMuted,
-      textTransform: "uppercase",
-      letterSpacing: 0.4,
-      marginBottom: 4,
-    },
-  });
 }

@@ -4,11 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   Pressable,
-  SectionList,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatCentsEUR } from "@gwada/shared";
 import {
@@ -16,15 +17,19 @@ import {
   type OrderCartLine,
 } from "@/src/components/OrderCartSheet";
 import { SkeletonList } from "@/src/components/Skeleton";
-import { Card } from "@/src/components/ui";
+import { GroupedList } from "@/src/components/ui/GroupedList";
+import { GroupedSection } from "@/src/components/ui/GroupedSection";
+import { ListRow } from "@/src/components/ui/ListRow";
+import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import { createOrder } from "@/src/lib/pos-api";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { getStaffSupabase } from "@/src/lib/supabase";
 import { useAuthStore } from "@/src/stores/auth-store";
+import { useStaffTheme } from "@/src/theme/staff-theme";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 const CART_BAR_HEIGHT = 56;
 
@@ -44,7 +49,8 @@ type MenuItemRow = {
 export default function NewOrderScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { sessionId, tableLabel } = useLocalSearchParams<{
+  const { colors } = useStaffTheme();
+  const { sessionId } = useLocalSearchParams<{
     sessionId: string;
     tableLabel?: string;
   }>();
@@ -171,53 +177,60 @@ export default function NewOrderScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.context}>
-        {tableLabel ?? "Tisch"} · {itemCount} Artikel · {formatCentsEUR(totalCents)}
-      </Text>
-
       {showSkeleton ? (
         <SkeletonList count={8} />
       ) : (
-        <SectionList
-          style={styles.list}
-          sections={menuSections}
-          keyExtractor={(item) => item.id}
-          stickySectionHeadersEnabled
+        <ScrollView
           contentContainerStyle={{ paddingBottom: listBottomPadding }}
-          ItemSeparatorComponent={() => <View style={styles.itemSeparator} />}
-          ListEmptyComponent={
-            <Text style={styles.empty}>Keine aktiven Gerichte in der Speisekarte.</Text>
-          }
-          renderSectionHeader={({ section }) => (
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{section.title}</Text>
-            </View>
+          showsVerticalScrollIndicator={false}
+        >
+          {menuSections.length === 0 ? (
+            <Text allowFontScaling style={styles.empty}>
+              Keine aktiven Gerichte in der Speisekarte.
+            </Text>
+          ) : (
+            menuSections.map((section) => (
+              <GroupedSection
+                key={section.title}
+                title={section.title}
+                style={styles.menuSection}
+              >
+                <GroupedList>
+                  {section.data.map((item, index) => (
+                    <View key={item.id}>
+                      {index > 0 ? <ListSeparator /> : null}
+                      <ListRow
+                        label={item.name}
+                        value={formatCentsEUR(
+                          Math.round(Number(item.price) * 100),
+                        )}
+                        variant="navigation"
+                        onPress={() => addItem(item)}
+                      />
+                    </View>
+                  ))}
+                </GroupedList>
+              </GroupedSection>
+            ))
           )}
-          renderItem={({ item }) => (
-            <Card onPress={() => addItem(item)}>
-              <Text style={styles.itemName}>{item.name}</Text>
-              <Text style={styles.itemPrice}>
-                {formatCentsEUR(Math.round(Number(item.price) * 100))}
-              </Text>
-            </Card>
-          )}
-        />
+        </ScrollView>
       )}
 
       {cart.length > 0 ? (
         <Pressable
           onPress={() => setCartSheetOpen(true)}
-          style={[
-            styles.cartBar,
-            { paddingBottom: cartBarBottomInset },
-          ]}
+          style={[styles.cartBar, { paddingBottom: cartBarBottomInset }]}
           accessibilityRole="button"
           accessibilityLabel="Warenkorb öffnen"
         >
-          <Text style={styles.cartBarTitle}>
+          <Text allowFontScaling style={styles.cartBarTitle}>
             Warenkorb ({itemCount}) · {formatCentsEUR(totalCents)}
           </Text>
-          <Text style={styles.cartBarChevron}>›</Text>
+          <Ionicons
+            name="chevron-forward"
+            size={20}
+            color={colors.textMuted}
+          />
         </Pressable>
       ) : null}
 
@@ -239,49 +252,26 @@ function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: colors.background,
-      paddingHorizontal: gwadaSpacing.lg,
-      paddingTop: gwadaSpacing.lg,
+      backgroundColor: colors.groupedBackground,
+      paddingHorizontal: gwadaSpacing.md,
+      paddingTop: gwadaSpacing.sm,
     },
-    context: {
-      fontSize: 14,
-      color: colors.textMuted,
+    menuSection: {
       marginBottom: gwadaSpacing.md,
     },
-    list: { flex: 1 },
-    sectionHeader: {
-      backgroundColor: colors.background,
-      paddingTop: gwadaSpacing.md,
-      paddingBottom: gwadaSpacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: colors.border,
-    },
-    sectionTitle: {
-      fontSize: 13,
-      fontWeight: "700",
-      color: colors.textMuted,
-      textTransform: "uppercase",
-      letterSpacing: 0.4,
-    },
-    itemSeparator: { height: 10 },
     empty: { textAlign: "center", color: colors.textMuted, padding: 24 },
-    itemName: { fontSize: 16, fontWeight: "600", color: colors.text },
-    itemPrice: { fontSize: 14, color: colors.textMuted, marginTop: 4 },
     cartBar: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      marginHorizontal: -gwadaSpacing.lg,
+      marginHorizontal: -gwadaSpacing.md,
       paddingHorizontal: gwadaSpacing.lg,
       paddingTop: gwadaSpacing.md,
       minHeight: CART_BAR_HEIGHT,
       backgroundColor: colors.surface,
-      borderTopWidth: 1,
-      borderTopColor: colors.border,
-      borderTopLeftRadius: gwadaRadii.card,
-      borderTopRightRadius: gwadaRadii.card,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.separator,
     },
     cartBarTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
-    cartBarChevron: { fontSize: 22, fontWeight: "600", color: colors.textMuted },
   });
 }

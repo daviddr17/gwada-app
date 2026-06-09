@@ -84,18 +84,7 @@ async function finalizeOrderIfFullyPaid(
   const fullyPaid = await isOrderFullyPaidByLines(admin, orderId);
   if (!fullyPaid) return;
 
-  const { data: allocationPayment } = await admin
-    .from("pos_payments")
-    .select("id")
-    .eq("order_id", orderId)
-    .eq("status", "paid")
-    .not("split_group", "is", null)
-    .limit(1)
-    .maybeSingle();
-
-  if (!allocationPayment) {
-    await tryGeneratePosReceipt(orderId, { force: true });
-  }
+  await tryGeneratePosReceipt(orderId, { force: true });
 
   await admin
     .from("pos_orders")

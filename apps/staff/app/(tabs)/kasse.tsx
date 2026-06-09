@@ -2,10 +2,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,7 +15,12 @@ import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { ReceiptViewerModal } from "@/src/components/ReceiptViewerModal";
 import { SkeletonList } from "@/src/components/Skeleton";
-import { Card, ScreenHeader } from "@/src/components/ui";
+import { ScreenHeader } from "@/src/components/ui";
+import { FormTextField } from "@/src/components/ui/FormTextField";
+import { GroupedList } from "@/src/components/ui/GroupedList";
+import { GroupedSection } from "@/src/components/ui/GroupedSection";
+import { ListRow } from "@/src/components/ui/ListRow";
+import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
 import { useStaffPermissions } from "@/src/lib/hooks/use-staff-permissions";
 import {
@@ -52,7 +57,6 @@ export default function KasseScreen() {
   const [openingInput, setOpeningInput] = useState("");
   const [closingInput, setClosingInput] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [sharingSessionId, setSharingSessionId] = useState<string | null>(null);
   const [pdfTitle, setPdfTitle] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [lastClosedSessionId, setLastClosedSessionId] = useState<string | null>(
@@ -165,7 +169,6 @@ export default function KasseScreen() {
 
   const handleShareSessionExport = async (session: RegisterSessionSummary) => {
     if (!restaurantId) return;
-    setSharingSessionId(session.id);
     try {
       const { bytes, filename } = await downloadSessionDsfinvkZip({
         restaurantId,
@@ -184,8 +187,6 @@ export default function KasseScreen() {
       }
     } catch (err) {
       handleError(err, "DSFinV-K Export konnte nicht geladen werden.");
-    } finally {
-      setSharingSessionId(null);
     }
   };
 
@@ -204,7 +205,15 @@ export default function KasseScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
+          />
+        }
+      >
         <ScreenHeader
           title="Kasse"
           subtitle={
@@ -218,104 +227,117 @@ export default function KasseScreen() {
           <SkeletonList count={4} />
         ) : (
           <>
-            <Card>
-              <Text style={styles.cardTitle}>Status</Text>
-              <Text style={styles.row}>
-                Kasse: {data?.isOpen ? "Geöffnet" : "Geschlossen"}
-              </Text>
-              {data?.aggregate ? (
-                <>
-                  <Text style={styles.sectionLabel}>Umsatz (TSE)</Text>
-                  <Text style={styles.row}>
-                    Umsatz gesamt:{" "}
-                    {formatCentsEUR(data.aggregate.totalSalesCents)}
-                  </Text>
-                  <Text style={styles.row}>
-                    Barzahlungen:{" "}
-                    {formatCentsEUR(data.aggregate.cashPaymentsCents)}
-                  </Text>
-                  {data.aggregate.totalNonCashSalesCents > 0 ? (
-                    <Text style={styles.row}>
-                      davon Unbar:{" "}
-                      {formatCentsEUR(data.aggregate.totalNonCashSalesCents)}
-                    </Text>
-                  ) : null}
-                  <Text style={styles.row}>
-                    Belege: {data.aggregate.transactionCount}
-                  </Text>
-                  {data.aggregate.expectedCashCents != null ? (
-                    <>
-                      <View style={styles.sectionDivider} />
-                      <Text style={styles.sectionLabel}>Kassenbestand</Text>
-                      {data.openingCashCents != null ? (
-                        <Text style={styles.row}>
-                          Anfangsbestand:{" "}
-                          {formatCentsEUR(data.openingCashCents)}
-                        </Text>
-                      ) : null}
-                      <Text style={styles.row}>
-                        + Barzahlungen:{" "}
-                        {formatCentsEUR(data.aggregate.cashPaymentsCents)}
-                      </Text>
-                      <Text style={styles.rowStrong}>
-                        = Soll Bar:{" "}
-                        {formatCentsEUR(data.aggregate.expectedCashCents)}
-                      </Text>
-                      <Text style={styles.hint}>
-                        Soll Bar = Anfangsbestand + Barzahlungen in dieser
-                        Session (ohne Karte/Unbar).
-                      </Text>
-                    </>
-                  ) : null}
-                </>
-              ) : null}
-              {data?.lastClosingZNr != null ? (
-                <Text style={styles.muted}>
-                  Letzter Z-Bon: Z{data.lastClosingZNr}
-                  {data.lastClosingAt
-                    ? ` · ${formatDateTime(data.lastClosingAt)}`
-                    : ""}
-                </Text>
-              ) : null}
-              <Button
-                label="Aktualisieren"
-                variant="ghost"
-                onPress={() => void refetch()}
-                disabled={isRefetching}
-                style={styles.gapTop}
-              />
-            </Card>
+            <GroupedSection title="Status">
+              <GroupedList>
+                <ListRow
+                  label="Kasse"
+                  value={data?.isOpen ? "Geöffnet" : "Geschlossen"}
+                  variant="value"
+                />
+                {data?.aggregate ? (
+                  <>
+                    <ListSeparator />
+                    <ListRow
+                      label="Umsatz gesamt"
+                      value={formatCentsEUR(data.aggregate.totalSalesCents)}
+                      variant="value"
+                    />
+                    <ListSeparator />
+                    <ListRow
+                      label="Barzahlungen"
+                      value={formatCentsEUR(data.aggregate.cashPaymentsCents)}
+                      variant="value"
+                    />
+                    {data.aggregate.totalNonCashSalesCents > 0 ? (
+                      <>
+                        <ListSeparator />
+                        <ListRow
+                          label="davon Unbar"
+                          value={formatCentsEUR(
+                            data.aggregate.totalNonCashSalesCents,
+                          )}
+                          variant="value"
+                        />
+                      </>
+                    ) : null}
+                    <ListSeparator />
+                    <ListRow
+                      label="Belege"
+                      value={String(data.aggregate.transactionCount)}
+                      variant="value"
+                    />
+                    {data.aggregate.expectedCashCents != null ? (
+                      <>
+                        <ListSeparator />
+                        {data.openingCashCents != null ? (
+                          <>
+                            <ListRow
+                              label="Anfangsbestand"
+                              value={formatCentsEUR(data.openingCashCents)}
+                              variant="value"
+                            />
+                            <ListSeparator />
+                          </>
+                        ) : null}
+                        <ListRow
+                          label="Soll Bar"
+                          value={formatCentsEUR(
+                            data.aggregate.expectedCashCents,
+                          )}
+                          variant="value"
+                        />
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+                {data?.lastClosingZNr != null ? (
+                  <>
+                    <ListSeparator />
+                    <ListRow
+                      label="Letzter Z-Bon"
+                      value={`Z${data.lastClosingZNr}${
+                        data.lastClosingAt
+                          ? ` · ${formatDateTime(data.lastClosingAt)}`
+                          : ""
+                      }`}
+                      variant="value"
+                    />
+                  </>
+                ) : null}
+              </GroupedList>
+            </GroupedSection>
 
             {canManage && !data?.isOpen ? (
-              <Card>
-                <Text style={styles.cardTitle}>Kasse öffnen</Text>
-                <Text style={styles.label}>Anfangsbestand (EUR)</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="decimal-pad"
-                  placeholder="0,00"
-                  value={openingInput}
-                  onChangeText={setOpeningInput}
-                />
+              <GroupedSection title="Kasse öffnen">
+                <GroupedList>
+                  <FormTextField
+                    label="Anfangsbestand (EUR)"
+                    keyboardType="decimal-pad"
+                    placeholder="0,00"
+                    value={openingInput}
+                    onChangeText={setOpeningInput}
+                  />
+                </GroupedList>
                 <Button
                   label={busy === "open" ? "Öffnet …" : "Kasse öffnen"}
                   onPress={() => void handleOpen()}
                   disabled={busy != null}
+                  style={styles.sectionBtn}
                 />
-              </Card>
+              </GroupedSection>
             ) : null}
 
             {canManage && data?.isOpen ? (
-              <Card>
-                <Text style={styles.cardTitle}>Kasse schließen</Text>
-                <Text style={styles.label}>Endbestand gezählt (EUR)</Text>
-                <TextInput
-                  style={styles.input}
-                  keyboardType="decimal-pad"
-                  placeholder="0,00"
-                  value={closingInput}
-                  onChangeText={setClosingInput}
-                />
+              <GroupedSection title="Kasse schließen">
+                <GroupedList>
+                  <FormTextField
+                    label="Endbestand gezählt (EUR)"
+                    keyboardType="decimal-pad"
+                    placeholder="0,00"
+                    value={closingInput}
+                    onChangeText={setClosingInput}
+                  />
+                </GroupedList>
                 <View style={styles.btnRow}>
                   {canExport ? (
                     <Button
@@ -333,12 +355,11 @@ export default function KasseScreen() {
                     style={styles.flexBtn}
                   />
                 </View>
-              </Card>
+              </GroupedSection>
             ) : null}
 
             {canExport && lastClosedSessionId && !data?.isOpen ? (
-              <Card>
-                <Text style={styles.cardTitle}>Z-Bericht erneut</Text>
+              <GroupedSection title="Z-Bericht erneut">
                 <Button
                   label="Z-Bericht anzeigen"
                   variant="secondary"
@@ -362,22 +383,21 @@ export default function KasseScreen() {
                   }}
                   disabled={busy != null}
                 />
-              </Card>
+              </GroupedSection>
             ) : null}
 
             {canExport ? (
-              <Card>
-                <Text style={styles.cardTitle}>DSFinV-K Exporte</Text>
-                <Text style={styles.muted}>
-                  Export wird bei Fiskaly zur Laufzeit geladen (nicht auf dem Server
-                  gespeichert) — „ZIP teilen“ kann einige Sekunden dauern.
-                </Text>
+              <GroupedSection
+                title="DSFinV-K Exporte"
+                footer="Export wird bei Fiskaly zur Laufzeit geladen — „ZIP teilen“ kann einige Sekunden dauern."
+              >
                 {sessionsLoading ? (
                   <SkeletonList count={2} />
                 ) : closedSessions.length === 0 ? (
                   <Text style={styles.muted}>Noch keine abgeschlossenen Kassensitzungen.</Text>
                 ) : (
-                  closedSessions.map((session) => {
+                  <GroupedList>
+                  {closedSessions.map((session, index) => {
                     const dateStr = session.closedAt
                       ? new Date(session.closedAt).toLocaleDateString("de-DE", {
                           weekday: "short",
@@ -387,36 +407,27 @@ export default function KasseScreen() {
                         })
                       : "—";
                     const diff = session.cashDifferenceCents;
-                    const isSharing = sharingSessionId === session.id;
-
                     return (
-                      <View key={session.id} style={styles.sessionRow}>
-                        <View style={styles.sessionMeta}>
-                          <Text style={styles.sessionDate}>
-                            {session.zNr != null ? `Z${session.zNr}` : "Z"} · {dateStr}
-                          </Text>
-                          {diff != null ? (
-                            <Text
-                              style={[
-                                styles.sessionDiff,
-                                diff >= 0 ? styles.diffOk : styles.diffBad,
-                              ]}
-                            >
-                              Differenz {formatCentsEUR(diff)}
-                            </Text>
-                          ) : null}
-                        </View>
-                        <Button
-                          label={isSharing ? "Lädt …" : "ZIP teilen"}
-                          variant="secondary"
+                      <View key={session.id}>
+                        {index > 0 ? <ListSeparator /> : null}
+                        <ListRow
+                          label={
+                            session.zNr != null ? `Z${session.zNr}` : "Z-Bon"
+                          }
+                          value={
+                            diff != null
+                              ? `${dateStr} · Diff. ${formatCentsEUR(diff)}`
+                              : dateStr
+                          }
+                          variant="navigation"
                           onPress={() => void handleShareSessionExport(session)}
-                          disabled={isSharing}
                         />
                       </View>
                     );
-                  })
+                  })}
+                  </GroupedList>
                 )}
-              </Card>
+              </GroupedSection>
             ) : null}
           </>
         )}
@@ -436,8 +447,9 @@ export default function KasseScreen() {
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
-    container: { padding: gwadaSpacing.lg, gap: gwadaSpacing.md, paddingBottom: 40 },
+    safe: { flex: 1, backgroundColor: colors.groupedBackground },
+    container: { padding: gwadaSpacing.lg, gap: gwadaSpacing.lg, paddingBottom: 40 },
+    sectionBtn: { marginTop: gwadaSpacing.sm },
     cardTitle: {
       fontSize: 16,
       fontWeight: "600",

@@ -1,42 +1,43 @@
 import { useState } from "react";
 import {
-  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
+import { GroupedList } from "@/src/components/ui/GroupedList";
+import { GroupedSection } from "@/src/components/ui/GroupedSection";
+import { FormTextField } from "@/src/components/ui/FormTextField";
+import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import { useAuthStore } from "@/src/stores/auth-store";
-import { useStaffTheme } from "@/src/theme/staff-theme";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
-import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { gwadaSpacing } from "@/src/theme/tokens";
 
 export default function LoginScreen() {
   const signIn = useAuthStore((s) => s.signIn);
-  const { colors } = useStaffTheme();
   const styles = useThemedStyles(createStyles);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
-      Alert.alert("Eingabe prüfen", "E-Mail und Passwort eingeben.");
+      setFormError("E-Mail und Passwort eingeben.");
       return;
     }
+    setFormError(null);
     setLoading(true);
     try {
       await signIn(email.trim(), password);
     } catch (err) {
-      Alert.alert(
-        "Anmeldung fehlgeschlagen",
-        err instanceof Error ? err.message : "Unbekannter Fehler",
+      setFormError(
+        err instanceof Error ? err.message : "Anmeldung fehlgeschlagen.",
       );
     } finally {
       setLoading(false);
@@ -56,41 +57,49 @@ export default function LoginScreen() {
               style={styles.logo}
               accessibilityLabel="Gwada Staff"
             />
-            <Text style={styles.title}>Gwada Staff</Text>
-            <Text style={styles.subtitle}>Mitarbeiter-Login</Text>
+            <Text allowFontScaling style={styles.title}>
+              Gwada Staff
+            </Text>
+            <Text allowFontScaling style={styles.subtitle}>
+              Mitarbeiter-Login
+            </Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.label}>E-Mail</Text>
-            <TextInput
-              autoCapitalize="none"
-              autoComplete="email"
-              autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="username"
-              placeholder="name@restaurant.de"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-            />
+          <GroupedSection title="Anmeldung">
+            <GroupedList>
+              <FormTextField
+                label="E-Mail"
+                autoCapitalize="none"
+                autoComplete="email"
+                autoCorrect={false}
+                keyboardType="email-address"
+                textContentType="username"
+                placeholder="name@restaurant.de"
+                value={email}
+                onChangeText={setEmail}
+              />
+              <ListSeparator />
+              <FormTextField
+                label="Passwort"
+                secureTextEntry
+                autoCapitalize="none"
+                autoComplete="password"
+                autoCorrect={false}
+                textContentType="password"
+                placeholder="••••••••"
+                value={password}
+                onChangeText={setPassword}
+              />
+            </GroupedList>
+          </GroupedSection>
 
-            <Text style={styles.label}>Passwort</Text>
-            <TextInput
-              secureTextEntry
-              autoCapitalize="none"
-              autoComplete="password"
-              autoCorrect={false}
-              textContentType="password"
-              placeholder="••••••••"
-              placeholderTextColor={colors.textMuted}
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-            />
+          {formError ? (
+            <Text allowFontScaling style={styles.formError}>
+              {formError}
+            </Text>
+          ) : null}
 
-            <Button label="Anmelden" loading={loading} onPress={handleSubmit} />
-          </View>
+          <Button label="Anmelden" loading={loading} onPress={handleSubmit} />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -99,7 +108,7 @@ export default function LoginScreen() {
 
 function createStyles(colors: GwadaColors) {
   return StyleSheet.create({
-    safe: { flex: 1, backgroundColor: colors.background },
+    safe: { flex: 1, backgroundColor: colors.groupedBackground },
     flex: { flex: 1 },
     container: {
       flex: 1,
@@ -122,29 +131,10 @@ function createStyles(colors: GwadaColors) {
       fontSize: 16,
       color: colors.textMuted,
     },
-    card: {
-      backgroundColor: colors.surface,
-      borderRadius: gwadaRadii.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: gwadaSpacing.lg,
-      gap: gwadaSpacing.sm,
-    },
-    label: {
+    formError: {
       fontSize: 14,
-      fontWeight: "600",
-      color: colors.text,
-      marginTop: gwadaSpacing.sm,
-    },
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: gwadaRadii.button,
-      paddingHorizontal: gwadaSpacing.md,
-      paddingVertical: 12,
-      fontSize: 16,
-      color: colors.text,
-      backgroundColor: colors.background,
+      color: colors.destructive,
+      textAlign: "center",
     },
   });
 }

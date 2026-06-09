@@ -2,8 +2,7 @@ import "server-only";
 
 import { formatCentsAsDecimal } from "@gwada/shared";
 import { splitItemVatCents } from "@gwada/pos-domain";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const PDFDocument = require("pdfkit") as typeof import("pdfkit");
+import { loadPDFDocument } from "@/lib/pos/load-pdf-document";
 
 export type ReceiptOrderInput = {
   id: string;
@@ -267,7 +266,7 @@ export function buildPosReceiptPdfBuffer(
   const pageHeight = M + contentLines.length * LINE_H + M;
 
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
+    const doc = new (loadPDFDocument())({
       size: [PAGE_W, pageHeight],
       margin: 0,
       info: { Title: `Quittung ${order.id.slice(0, 8)}` },

@@ -2,9 +2,8 @@ import "server-only";
 
 import { formatCentsAsDecimal } from "@gwada/shared";
 import { splitItemVatCents } from "@gwada/pos-domain";
+import { loadPDFDocument } from "@/lib/pos/load-pdf-document";
 import type { RegisterSessionAggregate } from "@/lib/pos/register-report-aggregate";
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const PDFDocument = require("pdfkit") as typeof import("pdfkit");
 
 export type RegisterReportPdfInput = {
   reportType: "X" | "Z";
@@ -28,7 +27,7 @@ export function buildRegisterReportPdfBuffer(
   input: RegisterReportPdfInput,
 ): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({
+    const doc = new (loadPDFDocument())({
       size: [226.77, 600],
       margins: { top: 12, bottom: 12, left: 10, right: 10 },
     });

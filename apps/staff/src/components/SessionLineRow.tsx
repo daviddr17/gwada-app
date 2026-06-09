@@ -4,6 +4,7 @@ import type { SessionSummaryLineDto } from "@/src/lib/pos-api";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
 import type { GwadaColors } from "@/src/theme/tokens";
 import { gwadaRadii, gwadaSpacing } from "@/src/theme/tokens";
+import { listRowMinHeight } from "@/src/theme/list-styles";
 
 function lineStatusLabel(line: SessionSummaryLineDto): string {
   if (line.linePaymentState === "paid") return "Bezahlt";
@@ -38,7 +39,9 @@ export function SessionLineRow({
         </Text>
       </View>
       {isPaid ? (
-        <Text style={styles.paidBadge}>✓</Text>
+        <Text allowFontScaling style={styles.paidBadge}>
+          Bezahlt
+        </Text>
       ) : (
         <View style={styles.stepper}>
           <Pressable
@@ -83,22 +86,19 @@ function createStyles(colors: GwadaColors) {
       alignItems: "center",
       justifyContent: "space-between",
       gap: 12,
-      paddingVertical: 10,
-      paddingHorizontal: 12,
-      borderRadius: gwadaRadii.card,
-      borderWidth: 1,
-      borderColor: colors.border,
+      minHeight: listRowMinHeight,
+      paddingVertical: 12,
+      paddingHorizontal: gwadaSpacing.md,
       backgroundColor: colors.surface,
-      marginBottom: 8,
     },
     lineMain: { flex: 1, gap: 2 },
     lineName: { fontSize: 15, fontWeight: "600", color: colors.text },
     lineMeta: { fontSize: 13, color: colors.textMuted },
     paidBadge: {
-      fontSize: 18,
+      fontSize: 13,
       color: colors.success,
-      fontWeight: "700",
-      paddingHorizontal: 8,
+      fontWeight: "600",
+      paddingHorizontal: 4,
     },
     stepper: {
       flexDirection: "row",

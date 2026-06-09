@@ -236,6 +236,12 @@ export function defaultDashboardShortcutPrefs(): DashboardShortcutPrefs {
   };
 }
 
+export function countDashboardVisibleShortcuts(
+  visibility: Record<DashboardShortcutId, boolean>,
+): number {
+  return DASHBOARD_SHORTCUT_IDS.filter((id) => visibility[id]).length;
+}
+
 /** Bis zu 5 sichtbare Shortcuts in Reihenfolge für das FAB-Menü. */
 export function resolveDashboardFabShortcuts(
   prefs: DashboardShortcutPrefs,

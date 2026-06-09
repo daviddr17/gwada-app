@@ -15,6 +15,7 @@ import {
   Plug,
   ScrollText,
   Star,
+  Receipt,
   Settings,
   Settings2,
   Shield,
@@ -272,6 +273,18 @@ export function AppSidebar() {
                     >
                       <Star />
                       <span>Bewertungen</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/dashboard/buchfuehrung")}
+                      tooltip="Buchführung"
+                      render={
+                        <Link href="/dashboard/buchfuehrung/rechnungen" prefetch />
+                      }
+                    >
+                      <Receipt />
+                      <span>Buchführung</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

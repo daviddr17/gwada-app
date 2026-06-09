@@ -796,3 +796,241 @@ export async function syncExistingContactToLexofficeServer(
     alreadyLinked: false,
   };
 }
+
+export type ContactMissingFieldsPatch = {
+  name?: string;
+  street?: string | null;
+  zip?: string | null;
+  city?: string | null;
+  country?: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
+export async function patchContactMissingFieldsServer(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    gwadaContactId: string | null;
+    lexofficeContactId: string | null;
+    base: {
+      first_name: string;
+      last_name: string;
+      company: string | null;
+      address_street: string | null;
+      address_postal_code: string | null;
+      address_city: string | null;
+      address_country: string | null;
+      emails: string[];
+      phones: string[];
+    };
+    patch: ContactMissingFieldsPatch;
+  },
+): Promise<
+  | { ok: true; contactId: string; updatedFields: string[] }
+  | { ok: false; error: string }
+> {
+  const updatedFields: string[] = [];
+  const p = params.patch;
+
+  if (p.name?.trim()) updatedFields.push("name");
+  if (p.street?.trim()) updatedFields.push("street");
+  if (p.zip?.trim()) updatedFields.push("zip");
+  if (p.city?.trim()) updatedFields.push("city");
+  if (p.country?.trim()) updatedFields.push("country");
+  if (p.email?.trim()) updatedFields.push("email");
+  if (p.phone?.trim()) updatedFields.push("phone");
+
+  if (updatedFields.length === 0) {
+    return {
+      ok: true,
+      contactId: params.gwadaContactId ?? "",
+      updatedFields: [],
+    };
+  }
+
+  const parseName = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return { firstName: "Gast", lastName: "" };
+    const space = trimmed.indexOf(" ");
+    if (space <= 0) return { firstName: trimmed, lastName: "" };
+    return {
+      firstName: trimmed.slice(0, space),
+      lastName: trimmed.slice(space + 1).trim(),
+    };
+  };
+
+  const buildPayload = (
+    existing: ContactUpsertPayload | null,
+  ): ContactUpsertPayload => {
+    const base = params.base;
+    const parsedName = p.name?.trim() ? parseName(p.name) : null;
+
+    const emails = [...(existing?.emails ?? [])];
+    if (p.email?.trim()) {
+      emails.unshift({
+        email: p.email.trim(),
+        label: null,
+        isPrimary: emails.length === 0,
+      });
+    } else if (emails.length === 0 && base.emails.length > 0) {
+      for (const email of base.emails) {
+        emails.push({ email, label: null, isPrimary: emails.length === 0 });
+      }
+    }
+
+    const phones = [...(existing?.phones ?? [])];
+    if (p.phone?.trim()) {
+      phones.unshift({
+        phoneDisplay: p.phone.trim(),
+        countryIso2: null,
+        label: null,
+        isPrimary: phones.length === 0,
+      });
+    } else if (phones.length === 0 && base.phones.length > 0) {
+      for (const phone of base.phones) {
+        phones.push({
+          phoneDisplay: phone,
+          countryIso2: null,
+          label: null,
+          isPrimary: phones.length === 0,
+        });
+      }
+    }
+
+    return {
+      restaurantId: params.restaurantId,
+      firstName:
+        (parsedName?.firstName ??
+          existing?.firstName ??
+          base.first_name?.trim()) ||
+        "Gast",
+      lastName:
+        parsedName?.lastName ?? existing?.lastName ?? base.last_name ?? "",
+      company: existing?.company ?? base.company,
+      addressStreet:
+        p.street?.trim() ??
+        existing?.addressStreet ??
+        base.address_street,
+      addressPostalCode:
+        p.zip?.trim() ??
+        existing?.addressPostalCode ??
+        base.address_postal_code,
+      addressCity:
+        p.city?.trim() ?? existing?.addressCity ?? base.address_city,
+      addressCountry:
+        p.country?.trim() ??
+        existing?.addressCountry ??
+        base.address_country,
+      notes: existing?.notes ?? null,
+      emails,
+      phones,
+    };
+  };
+
+  if (params.gwadaContactId) {
+    const loaded = await fetchContactUpsertPayloadServer(
+      sb,
+      params.restaurantId,
+      params.gwadaContactId,
+    );
+    if (loaded.error || !loaded.payload) {
+      return { ok: false, error: loaded.error?.message ?? "Kontakt nicht gefunden." };
+    }
+
+    const payload = buildPayload(loaded.payload);
+
+    try {
+      const conflict = await findContactIdentityConflictServer(sb, {
+        restaurantId: params.restaurantId,
+        emails: payload.emails,
+        phones: payload.phones,
+        excludeContactId: params.gwadaContactId,
+      });
+      if (conflict) {
+        return { ok: false, error: conflict.message };
+      }
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Kontakt konnte nicht geprüft werden.";
+      return { ok: false, error: msg };
+    }
+
+    const { error } = await sb
+      .from("contacts")
+      .update({
+        first_name: payload.firstName.trim() || "Gast",
+        last_name: payload.lastName.trim(),
+        company: payload.company?.trim() || null,
+        address_street: payload.addressStreet?.trim() || null,
+        address_postal_code: payload.addressPostalCode?.trim() || null,
+        address_city: payload.addressCity?.trim() || null,
+        address_country: payload.addressCountry?.trim() || null,
+      })
+      .eq("id", params.gwadaContactId)
+      .eq("restaurant_id", params.restaurantId);
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    if (p.email?.trim()) {
+      const emailErr = await replaceContactEmailsServer(
+        sb,
+        params.gwadaContactId,
+        params.restaurantId,
+        payload.emails,
+      );
+      if (emailErr) return { ok: false, error: emailErr.message };
+    }
+
+    if (p.phone?.trim()) {
+      const phoneErr = await replaceContactPhonesServer(
+        sb,
+        params.gwadaContactId,
+        params.restaurantId,
+        payload.phones,
+      );
+      if (phoneErr) return { ok: false, error: phoneErr.message };
+    }
+
+    return {
+      ok: true,
+      contactId: params.gwadaContactId,
+      updatedFields,
+    };
+  }
+
+  if (!params.lexofficeContactId) {
+    return { ok: false, error: "Kein Gwada-Kontakt zum Aktualisieren." };
+  }
+
+  const payload = buildPayload(null);
+  const loadedLex = await loadLexofficeContactsForRestaurant(
+    sb,
+    params.restaurantId,
+  );
+  const resolved = await resolveLexofficeContactsIntegration(
+    sb,
+    params.restaurantId,
+  );
+
+  const { data, error } = await insertContactServer(sb, payload, {
+    linkExistingLexofficeId: params.lexofficeContactId,
+    lexofficeContactsCache: loadedLex.contacts,
+    lexofficeApiKey: resolved.ok ? resolved.apiKey : undefined,
+  });
+
+  if (error || !data?.id) {
+    return {
+      ok: false,
+      error: error?.message ?? "Kontakt konnte nicht angelegt werden.",
+    };
+  }
+
+  return {
+    ok: true,
+    contactId: data.id,
+    updatedFields,
+  };
+}

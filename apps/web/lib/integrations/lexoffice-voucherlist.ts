@@ -1,0 +1,252 @@
+import "server-only";
+
+import { LEXOFFICE_API_BASE } from "@/lib/integrations/lexoffice-api";
+import { fetchRestaurantLexofficeApiKey } from "@/lib/supabase/restaurant-lexoffice-integration-db";
+
+export type LexofficeVoucherListItem = {
+  id: string;
+  voucherType: string;
+  voucherStatus: string;
+  voucherNumber: string | null;
+  voucherDate: string;
+  contactId: string | null;
+  contactName: string | null;
+  totalAmount: number | null;
+  currency: string | null;
+  updatedDate?: string | null;
+};
+
+type VoucherListResponse = {
+  content?: LexofficeVoucherListItem[];
+  totalPages?: number;
+  number?: number;
+};
+
+async function lexofficeFetch<T>(
+  restaurantId: string,
+  path: string,
+  init?: RequestInit,
+): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  const apiKey = await fetchRestaurantLexofficeApiKey(restaurantId);
+  if (!apiKey) {
+    return { ok: false, error: "Lexware ist nicht verbunden." };
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${LEXOFFICE_API_BASE}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "Lexware API nicht erreichbar." };
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return { ok: false, error: text || `Lexware API (${res.status})` };
+  }
+
+  const data = (await res.json()) as T;
+  return { ok: true, data };
+}
+
+export async function fetchLexofficeVoucherListPage(
+  restaurantId: string,
+  params: {
+    voucherType: "invoice" | "quotation";
+    page?: number;
+    size?: number;
+  },
+): Promise<
+  | { ok: true; items: LexofficeVoucherListItem[]; totalPages: number }
+  | { ok: false; error: string }
+> {
+  const voucherType =
+    params.voucherType === "invoice" ? "salesinvoice" : "salesquotation";
+  const page = params.page ?? 0;
+  const size = params.size ?? 100;
+  const qs = new URLSearchParams({
+    voucherType,
+    page: String(page),
+    size: String(size),
+  });
+
+  const result = await lexofficeFetch<VoucherListResponse>(
+    restaurantId,
+    `/v1/voucherlist?${qs}`,
+  );
+  if (!result.ok) return result;
+
+  return {
+    ok: true,
+    items: result.data.content ?? [],
+    totalPages: result.data.totalPages ?? 1,
+  };
+}
+
+export async function fetchAllLexofficeVoucherList(
+  restaurantId: string,
+  voucherType: "invoice" | "quotation",
+): Promise<
+  | { ok: true; items: LexofficeVoucherListItem[] }
+  | { ok: false; error: string }
+> {
+  const all: LexofficeVoucherListItem[] = [];
+  let page = 0;
+  let totalPages = 1;
+
+  while (page < totalPages) {
+    const batch = await fetchLexofficeVoucherListPage(restaurantId, {
+      voucherType,
+      page,
+    });
+    if (!batch.ok) return batch;
+    all.push(...batch.items);
+    totalPages = batch.totalPages;
+    page += 1;
+    if (page > 50) break;
+  }
+
+  return { ok: true, items: all };
+}
+
+export type LexofficeSalesDetail = {
+  id: string;
+  version?: number;
+  voucherNumber?: string | null;
+  voucherStatus?: string;
+  voucherDate?: string;
+  dueDate?: string | null;
+  expirationDate?: string | null;
+  address?: {
+    name?: string;
+    supplement?: string;
+    street?: string;
+    city?: string;
+    zip?: string;
+    countryCode?: string;
+  };
+  lineItems?: Array<Record<string, unknown>>;
+  totalPrice?: {
+    currency?: string;
+    totalNetAmount?: number;
+    totalGrossAmount?: number;
+    totalTaxAmount?: number;
+  };
+  taxConditions?: { taxType?: string };
+  title?: string | null;
+  introduction?: string | null;
+  remark?: string | null;
+};
+
+export async function fetchLexofficeSalesDetail(
+  restaurantId: string,
+  kind: "invoice" | "quotation",
+  externalId: string,
+): Promise<
+  | { ok: true; detail: LexofficeSalesDetail }
+  | { ok: false; error: string }
+> {
+  const path =
+    kind === "invoice"
+      ? `/v1/invoices/${externalId}`
+      : `/v1/quotations/${externalId}`;
+  const result = await lexofficeFetch<LexofficeSalesDetail>(restaurantId, path);
+  if (!result.ok) return result;
+  return { ok: true, detail: result.data };
+}
+
+export async function fetchLexofficeSalesDocumentFile(
+  restaurantId: string,
+  kind: "invoice" | "quotation",
+  externalId: string,
+  format: "pdf" | "xml",
+): Promise<
+  | { ok: true; buffer: Buffer; contentType: string; filename: string }
+  | { ok: false; error: string }
+> {
+  const apiKey = await fetchRestaurantLexofficeApiKey(restaurantId);
+  if (!apiKey) {
+    return { ok: false, error: "Lexware ist nicht verbunden." };
+  }
+
+  const accept = format === "pdf" ? "application/pdf" : "application/xml";
+  const path =
+    kind === "invoice"
+      ? `/v1/invoices/${externalId}/file`
+      : `/v1/quotations/${externalId}/file`;
+
+  let res: Response;
+  try {
+    res = await fetch(`${LEXOFFICE_API_BASE}${path}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: accept,
+      },
+      cache: "no-store",
+    });
+  } catch {
+    return { ok: false, error: "Lexware API nicht erreichbar." };
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return {
+      ok: false,
+      error:
+        format === "xml"
+          ? "ZUGFeRD/XML für dieses Dokument nicht verfügbar."
+          : text || `Lexware API (${res.status})`,
+    };
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const ext = format === "pdf" ? "pdf" : "xml";
+  const prefix = kind === "invoice" ? "Rechnung" : "Angebot";
+  return {
+    ok: true,
+    buffer,
+    contentType: accept,
+    filename: `${prefix}-${externalId.slice(0, 8)}.${ext}`,
+  };
+}
+
+const LEXWARE_APP_BASE = "https://app.lexware.de";
+
+export function lexofficeEditUrl(
+  kind: "invoice" | "quotation",
+  externalId: string,
+): string {
+  const segment = kind === "invoice" ? "invoices" : "quotations";
+  return `${LEXWARE_APP_BASE}/permalink/${segment}/edit/${externalId}`;
+}
+
+export function mapLexofficeVoucherStatus(
+  status: string | undefined,
+  kind: "invoice" | "quotation",
+): string {
+  const s = (status ?? "draft").toLowerCase();
+  if (s === "draft") return "draft";
+  if (s === "open") return "open";
+  if (s === "paid") return kind === "invoice" ? "paid" : "open";
+  if (s === "voided" || s === "void") return "voided";
+  if (s === "overdue") return "overdue";
+  if (s === "accepted") return "accepted";
+  if (s === "rejected") return "rejected";
+  if (s === "sent") return "sent";
+  return "open";
+}
+
+export function mapLexofficeTaxMode(taxType: string | undefined): string {
+  if (taxType === "gross") return "gross";
+  if (taxType === "vatfree") return "vatfree";
+  return "net";
+}

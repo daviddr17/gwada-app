@@ -11,6 +11,11 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/settings/dashboard",
+    label: "Dashboard",
+    matchMode: "exact",
+  },
+  {
     href: "/settings/team",
     label: "Team",
     matchMode: "prefix",
@@ -19,11 +24,6 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     href: "/settings/oeffnungszeiten",
     label: "Öffnungszeiten",
     matchMode: "prefix",
-  },
-  {
-    href: "/settings/dashboard",
-    label: "Dashboard",
-    matchMode: "exact",
   },
   {
     href: "/settings/integrationen",

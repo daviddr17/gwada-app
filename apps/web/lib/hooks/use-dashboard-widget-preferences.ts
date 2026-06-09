@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  countDashboardVisibleShortcuts,
+  DASHBOARD_FAB_MAX_SHORTCUTS,
   mergeDashboardShortcutVisibility,
   normalizeShortcutOrder,
   reorderDashboardShortcutOrder,
@@ -330,6 +332,14 @@ export function useDashboardWidgetPreferences() {
   const setShortcutVisible = useCallback(
     (id: DashboardShortcutId, visible: boolean) => {
       setPrefs((p) => {
+        if (
+          visible &&
+          !p.shortcuts.visibility[id] &&
+          countDashboardVisibleShortcuts(p.shortcuts.visibility) >=
+            DASHBOARD_FAB_MAX_SHORTCUTS
+        ) {
+          return p;
+        }
         const next: DashboardWidgetPrefs = {
           ...p,
           shortcuts: {

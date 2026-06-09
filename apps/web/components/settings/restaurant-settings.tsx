@@ -103,6 +103,7 @@ function pickStammdaten(p: RestaurantProfile) {
     country: p.country,
     website: p.website,
     phone: p.phone,
+    vatNumber: p.vatNumber,
   };
 }
 
@@ -480,7 +481,8 @@ export function RestaurantSettingsPanel({
           <CardHeader className="gap-2">
             <CardTitle className="text-xl">Adresse & Kontakt</CardTitle>
             <CardDescription>
-              Standort, Website und Telefon für Gäste und öffentliche Profile.
+              Standort, Website, Telefon und USt-IdNr. für Gäste, Rechnungen und
+              öffentliche Profile.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -568,6 +570,22 @@ export function RestaurantSettingsPanel({
               placeholder="+49 30 1234567"
               className="h-11 rounded-xl"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="rs-vat">USt-IdNr.</Label>
+            <Input
+              id="rs-vat"
+              value={draft.vatNumber}
+              onChange={(e) =>
+                setDraft((p) => (p ? { ...p, vatNumber: e.target.value } : p))
+              }
+              placeholder="DE123456789"
+              className="h-11 rounded-xl"
+              autoComplete="off"
+            />
+            <p className="text-xs text-muted-foreground">
+              Erscheint in Buchführungs-PDFs und auf Quittungen.
+            </p>
           </div>
         </CardContent>
       </Card>

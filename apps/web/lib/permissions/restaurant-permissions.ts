@@ -24,6 +24,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.module_switch",
   "pos.kasse.manage",
   "pos.kasse.export",
+  "accounting.manage",
 ] as const;
 
 export type RestaurantPermissionKey =
@@ -38,6 +39,7 @@ export type RestaurantPermissionMeta = {
     | "einstellungen"
     | "integrationen"
     | "dokumente"
+    | "buchfuehrung"
     | "display"
     | "pos";
 };
@@ -122,6 +124,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       description:
         "Bestehende protokollierte Notizen ändern; ohne diese Berechtigung nur hinzufügen.",
       group: "dokumente",
+    },
+    {
+      key: "accounting.manage",
+      label: "Buchführung",
+      description:
+        "Rechnungen, Angebote und Belege anlegen, bearbeiten und versenden.",
+      group: "buchfuehrung",
     },
     {
       key: "display.manage",

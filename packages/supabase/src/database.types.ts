@@ -254,6 +254,51 @@ export type Database = {
           },
         ]
       }
+      contact_lexoffice_links: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          lexoffice_contact_id: string
+          lexoffice_version: number | null
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          lexoffice_contact_id: string
+          lexoffice_version?: number | null
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          lexoffice_contact_id?: string
+          lexoffice_version?: number | null
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_lexoffice_links_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_lexoffice_links_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_message_attachments: {
         Row: {
           byte_size: number | null
@@ -1785,6 +1830,7 @@ export type Database = {
           name: string
           notes: string | null
           order_id: string
+          paid_quantity: number
           position: number
           quantity: number
           unit_price_cents: number
@@ -1799,6 +1845,7 @@ export type Database = {
           name: string
           notes?: string | null
           order_id: string
+          paid_quantity?: number
           position?: number
           quantity?: number
           unit_price_cents?: number
@@ -1813,6 +1860,7 @@ export type Database = {
           name?: string
           notes?: string | null
           order_id?: string
+          paid_quantity?: number
           position?: number
           quantity?: number
           unit_price_cents?: number
@@ -1917,6 +1965,48 @@ export type Database = {
           },
         ]
       }
+      pos_payment_line_allocations: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          order_line_id: string
+          payment_id: string
+          quantity: number
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          order_line_id: string
+          payment_id: string
+          quantity: number
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          order_line_id?: string
+          payment_id?: string
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pos_payment_line_allocations_order_line_id_fkey"
+            columns: ["order_line_id"]
+            isOneToOne: false
+            referencedRelation: "pos_order_lines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pos_payment_line_allocations_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "pos_payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pos_payments: {
         Row: {
           amount_cents: number
@@ -1994,6 +2084,7 @@ export type Database = {
           closed_by_profile_id: string | null
           closing_cash_cents: number | null
           created_at: string
+          dsfinvk_business_date: string | null
           dsfinvk_export_id: string | null
           dsfinvk_export_storage_path: string | null
           expected_cash_cents: number | null
@@ -2012,6 +2103,7 @@ export type Database = {
           closed_by_profile_id?: string | null
           closing_cash_cents?: number | null
           created_at?: string
+          dsfinvk_business_date?: string | null
           dsfinvk_export_id?: string | null
           dsfinvk_export_storage_path?: string | null
           expected_cash_cents?: number | null
@@ -2030,6 +2122,7 @@ export type Database = {
           closed_by_profile_id?: string | null
           closing_cash_cents?: number | null
           created_at?: string
+          dsfinvk_business_date?: string | null
           dsfinvk_export_id?: string | null
           dsfinvk_export_storage_path?: string | null
           expected_cash_cents?: number | null
@@ -3050,6 +3143,35 @@ export type Database = {
           },
         ]
       }
+      restaurant_inbox_signals: {
+        Row: {
+          created_at: string
+          id: string
+          restaurant_id: string
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          restaurant_id: string
+          source: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          restaurant_id?: string
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_inbox_signals_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_integrations: {
         Row: {
           config: Json
@@ -3095,6 +3217,32 @@ export type Database = {
             foreignKeyName: "restaurant_integrations_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_menu_settings: {
+        Row: {
+          currency_code: string
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          currency_code?: string
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          currency_code?: string
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_menu_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
@@ -3387,6 +3535,126 @@ export type Database = {
           },
         ]
       }
+      restaurant_review_reads: {
+        Row: {
+          created_at: string
+          id: string
+          marked_unread_at: string | null
+          platform: string
+          read_at: string | null
+          restaurant_id: string
+          review_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          marked_unread_at?: string | null
+          platform: string
+          read_at?: string | null
+          restaurant_id: string
+          review_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          marked_unread_at?: string | null
+          platform?: string
+          read_at?: string | null
+          restaurant_id?: string
+          review_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_review_reads_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_shift_schedule_settings: {
+        Row: {
+          created_at: string
+          requires_acceptance: boolean
+          restaurant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          requires_acceptance?: boolean
+          restaurant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          requires_acceptance?: boolean
+          restaurant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_shift_schedule_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_shift_templates: {
+        Row: {
+          color: string
+          created_at: string
+          end_time: string
+          id: string
+          is_active: boolean
+          name: string
+          restaurant_id: string
+          sort_order: number
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          end_time: string
+          id?: string
+          is_active?: boolean
+          name: string
+          restaurant_id: string
+          sort_order?: number
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          restaurant_id?: string
+          sort_order?: number
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_shift_templates_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_staff: {
         Row: {
           address_line1: string | null
@@ -3560,6 +3828,7 @@ export type Database = {
           pay_type: Database["public"]["Enums"]["staff_contract_pay_type"]
           restaurant_id: string
           staff_id: string
+          target_weekly_minutes: number | null
           updated_at: string
           vacation_days_per_year: number | null
           valid_from: string
@@ -3578,6 +3847,7 @@ export type Database = {
           pay_type: Database["public"]["Enums"]["staff_contract_pay_type"]
           restaurant_id: string
           staff_id: string
+          target_weekly_minutes?: number | null
           updated_at?: string
           vacation_days_per_year?: number | null
           valid_from: string
@@ -3596,6 +3866,7 @@ export type Database = {
           pay_type?: Database["public"]["Enums"]["staff_contract_pay_type"]
           restaurant_id?: string
           staff_id?: string
+          target_weekly_minutes?: number | null
           updated_at?: string
           vacation_days_per_year?: number | null
           valid_from?: string
@@ -3774,6 +4045,89 @@ export type Database = {
           },
         ]
       }
+      restaurant_staff_scheduled_shifts: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          label: string | null
+          note: string | null
+          position_tag_id: string | null
+          responded_at: string | null
+          restaurant_id: string
+          series_id: string | null
+          staff_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["staff_scheduled_shift_status"]
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          label?: string | null
+          note?: string | null
+          position_tag_id?: string | null
+          responded_at?: string | null
+          restaurant_id: string
+          series_id?: string | null
+          staff_id: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["staff_scheduled_shift_status"]
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          label?: string | null
+          note?: string | null
+          position_tag_id?: string | null
+          responded_at?: string | null
+          restaurant_id?: string
+          series_id?: string | null
+          staff_id?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["staff_scheduled_shift_status"]
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_staff_scheduled_shifts_position_tag_id_fkey"
+            columns: ["position_tag_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff_position_tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_scheduled_shifts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_scheduled_shifts_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_scheduled_shifts_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_shift_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_staff_work_entries: {
         Row: {
           created_at: string
@@ -3830,6 +4184,51 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "restaurant_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      restaurant_staff_work_entry_log_entries: {
+        Row: {
+          action: string
+          actor_user_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          restaurant_id: string
+          work_entry_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          restaurant_id: string
+          work_entry_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          restaurant_id?: string
+          work_entry_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_staff_work_entry_log_entries_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_work_entry_log_entries_work_entry_id_fkey"
+            columns: ["work_entry_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff_work_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -3925,6 +4324,8 @@ export type Database = {
           created_at: string
           profile_id: string
           restaurant_id: string
+          shortcut_order: string[]
+          shortcut_visibility: Json
           updated_at: string
           widget_order: string[]
           widget_visibility: Json
@@ -3933,6 +4334,8 @@ export type Database = {
           created_at?: string
           profile_id: string
           restaurant_id: string
+          shortcut_order?: string[]
+          shortcut_visibility?: Json
           updated_at?: string
           widget_order: string[]
           widget_visibility?: Json
@@ -3941,6 +4344,8 @@ export type Database = {
           created_at?: string
           profile_id?: string
           restaurant_id?: string
+          shortcut_order?: string[]
+          shortcut_visibility?: Json
           updated_at?: string
           widget_order?: string[]
           widget_visibility?: Json
@@ -4021,6 +4426,7 @@ export type Database = {
           facebook_enabled: boolean
           google_business_enabled: boolean
           instagram_enabled: boolean
+          lexoffice_enabled: boolean
           whatsapp_enabled: boolean
         }[]
       }
@@ -4057,6 +4463,19 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: {
           config: Json
+          integration_key: string
+          last_error: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }[]
+      }
+      restaurant_lexoffice_integration_ui: {
+        Args: { p_restaurant_id: string }
+        Returns: {
+          config: Json
+          connected_at: string
+          display_name: string
           integration_key: string
           last_error: string
           restaurant_id: string
@@ -4183,6 +4602,7 @@ export type Database = {
         | "other"
       staff_invite_channel: "email" | "whatsapp"
       staff_invite_status: "pending" | "accepted" | "expired" | "revoked"
+      staff_scheduled_shift_status: "confirmed" | "pending" | "declined"
       staff_work_entry_type: "work" | "break" | "vacation" | "sick" | "other"
     }
     CompositeTypes: {
@@ -4348,6 +4768,7 @@ export const Constants = {
       ],
       staff_invite_channel: ["email", "whatsapp"],
       staff_invite_status: ["pending", "accepted", "expired", "revoked"],
+      staff_scheduled_shift_status: ["confirmed", "pending", "declined"],
       staff_work_entry_type: ["work", "break", "vacation", "sick", "other"],
     },
   },

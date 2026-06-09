@@ -36,7 +36,9 @@ const GROUP_LABEL = {
   einstellungen: "Einstellungen",
   integrationen: "Integrationen",
   dokumente: "Dokumente",
+  buchfuehrung: "Buchführung",
   display: "Display",
+  pos: "Kasse",
 } as const;
 
 export function RestaurantRolesPanel() {

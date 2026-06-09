@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -14,6 +21,10 @@ import {
   UserRound,
 } from "lucide-react";
 import { ContactConversationsListSkeleton } from "@/components/contacts/contact-conversations-list-skeleton";
+import {
+  contactInboxConversationRowClassName,
+  contactInboxConversationRowOpenButtonClassName,
+} from "@/components/contacts/contact-inbox-conversation-row-classes";
 import { ContactConversationsReadFilter } from "@/components/contacts/contact-conversations-read-filter";
 import { ContactConversationsSearchBar } from "@/components/contacts/contact-conversations-search-bar";
 import { toast } from "sonner";
@@ -46,7 +57,17 @@ import {
   inboxReplySendDefaults,
 } from "@/lib/contact-messages/last-inbound-channel";
 import { contactReplyChannels } from "@/lib/contact-messages/reply-channel-availability";
-import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
+import {
+  GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+  patchUnifiedInboxCacheConversation,
+  peekUnifiedInboxCache,
+} from "@/lib/contact-messages/unified-inbox-cache";
+import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
+import {
+  getUnifiedInboxRefreshInflight,
+  refreshUnifiedInboxCache,
+  UNIFIED_INBOX_BACKGROUND_POLL_MS,
+} from "@/lib/contact-messages/unified-inbox-background-sync";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
   fetchUnifiedInboxConversations,
@@ -65,8 +86,15 @@ import {
 } from "@/lib/contact-messages/fetch-inbox-client";
 import { enrichConversationsWithReadState } from "@/lib/contact-messages/enrich-gwada-conversations-client";
 import {
+  peekContactThreadCache,
+  setContactThreadCache,
+} from "@/lib/contact-messages/contact-thread-cache";
+import { mergeLinkedContactThreadMessages } from "@/lib/contact-messages/merge-linked-contact-thread-messages";
+import {
+  applyConversationReadFilterToSearchParams,
   filterConversationsByRead,
   filterContactConversations,
+  parseConversationReadFilter,
   type ConversationReadFilter,
 } from "@/lib/contact-messages/filter-conversations";
 import { draftFromEmailChat } from "@/lib/contact-messages/draft-from-email-chat";
@@ -220,6 +248,7 @@ export function ContactsMessagesScreen() {
   const searchParams = useSearchParams();
   const contactParam = searchParams.get("contact");
   const platformParam = searchParams.get("platform");
+  const readParam = searchParams.get("read");
 
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
@@ -270,7 +299,9 @@ export function ContactsMessagesScreen() {
   const [reservationForDrawer, setReservationForDrawer] =
     useState<ReservationListRow | null>(null);
   const [chatSearch, setChatSearch] = useState("");
-  const [readFilter, setReadFilter] = useState<ConversationReadFilter>("all");
+  const [readFilter, setReadFilter] = useState<ConversationReadFilter>(() =>
+    parseConversationReadFilter(readParam),
+  );
   const [refreshingInbox, setRefreshingInbox] = useState(false);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
@@ -292,10 +323,11 @@ export function ContactsMessagesScreen() {
   const linkedThread =
     Boolean(contactParam) && isLinkedContactId(contactParam!);
 
-  const displayMessages = useMemo(
-    () => enrichMessagesWithWahaReactionIds(messages),
-    [messages],
-  );
+  const displayMessages = useMemo(() => {
+    const rows = enrichMessagesWithWahaReactionIds(messages);
+    if (!contactParam) return rows;
+    return rows.filter((m) => m.contact_id === contactParam);
+  }, [messages, contactParam]);
 
   const linkedReplyChannels = useMemo(() => {
     if (!linkedThread || !contactParam) {
@@ -444,7 +476,7 @@ export function ContactsMessagesScreen() {
       const params = new URLSearchParams(searchParams.toString());
       params.set("platform", next);
       if (contactParam) params.set("contact", contactParam);
-      router.replace(`/kontakte/nachrichten?${params.toString()}`);
+      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
     }
   }, [
     connectionsLoading,
@@ -457,33 +489,53 @@ export function ContactsMessagesScreen() {
     searchParams,
   ]);
 
-  const loadConversations = useCallback(async (opts?: { silent?: boolean }) => {
+  useEffect(() => {
+    const next = parseConversationReadFilter(readParam);
+    setReadFilter((prev) => (prev === next ? prev : next));
+  }, [readParam]);
+
+  const selectReadFilter = useCallback(
+    (filter: ConversationReadFilter) => {
+      setReadFilter(filter);
+      const params = new URLSearchParams(searchParams.toString());
+      applyConversationReadFilterToSearchParams(params, filter);
+      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  const loadConversations = useCallback(async (opts?: { silent?: boolean; force?: boolean }) => {
     if (!restaurantId) {
       setConversations([]);
       setLoadingList(false);
       return;
     }
+
+    if (isUnifiedInboxFilter(inboxFilter)) {
+      if (!opts?.force) {
+        const cached = peekUnifiedInboxCache(restaurantId);
+        if (cached) {
+          setConversations(cached);
+          setLoadingList(false);
+          return;
+        }
+
+        const inflight = getUnifiedInboxRefreshInflight();
+        if (inflight) {
+          if (!opts?.silent) setLoadingList(true);
+          const data = await inflight;
+          if (data) {
+            setConversations(data);
+            setLoadingList(false);
+            return;
+          }
+        }
+      }
+    }
+
     if (!opts?.silent) setLoadingList(true);
 
     if (isUnifiedInboxFilter(inboxFilter)) {
-      const cached = opts?.silent
-        ? null
-        : peekUnifiedInboxCache(restaurantId);
-      if (cached && cached.length > 0) {
-        setConversations(cached);
-        setLoadingList(false);
-        setRefreshingInbox(true);
-        const { data, error } = await fetchUnifiedInboxConversations({
-          restaurantId,
-          whatsappConnected,
-          emailConnected,
-        });
-        setRefreshingInbox(false);
-        if (error) toast.error(error.message);
-        else setConversations(data);
-        return;
-      }
-
       const { data, error } = await fetchUnifiedInboxConversations({
         restaurantId,
         whatsappConnected,
@@ -539,10 +591,29 @@ export function ContactsMessagesScreen() {
   }, [restaurantId, inboxFilter, whatsappConnected, emailConnected]);
 
   const refreshInbox = useCallback(async () => {
+    if (!restaurantId) return;
     setRefreshingInbox(true);
-    await loadConversations({ silent: true });
-    setRefreshingInbox(false);
-  }, [loadConversations]);
+    try {
+      if (isUnifiedInboxFilter(inboxFilter)) {
+        await refreshUnifiedInboxCache(
+          { restaurantId, whatsappConnected, emailConnected },
+          { force: true },
+        );
+        const cached = peekUnifiedInboxCache(restaurantId);
+        if (cached) setConversations(cached);
+      } else {
+        await loadConversations({ silent: true, force: true });
+      }
+    } finally {
+      setRefreshingInbox(false);
+    }
+  }, [
+    restaurantId,
+    inboxFilter,
+    whatsappConnected,
+    emailConnected,
+    loadConversations,
+  ]);
 
   const showInboxRefresh =
     !contactParam &&
@@ -559,8 +630,14 @@ export function ContactsMessagesScreen() {
             : c,
         ),
       );
+      if (restaurantId) {
+        patchUnifiedInboxCacheConversation(restaurantId, contactId, {
+          is_unread: isUnread,
+          unread_count: unreadCount,
+        });
+      }
     },
-    [],
+    [restaurantId],
   );
 
   const markConversationRead = useCallback(
@@ -587,8 +664,13 @@ export function ContactsMessagesScreen() {
         return;
       }
       patchConversationReadState(conversationKey, false, 0);
-      if (isEmailPseudoContactId(conversationKey) || inboxFilter === "email") {
-        void loadConversations({ silent: true });
+      if (
+        isEmailPseudoContactId(conversationKey) ||
+        inboxFilter === "email" ||
+        inboxFilter === "whatsapp" ||
+        isUnifiedInboxFilter(inboxFilter)
+      ) {
+        void loadConversations({ silent: true, force: true });
       }
     },
     [
@@ -623,7 +705,7 @@ export function ContactsMessagesScreen() {
     [restaurantId, patchConversationReadState],
   );
 
-  const loadThread = useCallback(async () => {
+  const loadThread = useCallback(async (opts?: { silent?: boolean }) => {
     if (!restaurantId || !contactParam) {
       setMessages([]);
       setWhatsappThreadPhone(null);
@@ -636,43 +718,93 @@ export function ContactsMessagesScreen() {
     if (!linkedThread) {
       setWhatsappThreadChatId(null);
     }
-    setLoadingThread(true);
     let threadLoaded = false;
 
     const effectivePlatform =
       platformInferredFromContact(contactParam) ??
       (inboxFilter === INBOX_FILTER_ALL ? "gwada" : inboxFilter);
 
-    if (linkedThread) {
-      await fetch("/api/contact-messages/inbox-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId,
-          contactId: contactParam,
-        }),
-      }).catch(() => undefined);
+    const persistThreadCache = (params: {
+      threadMessages: ContactMessageRow[];
+      name: string;
+      phone: boolean;
+      email: boolean;
+      chatId: string | null;
+    }) => {
+      setContactThreadCache(restaurantId, contactParam, {
+        messages: params.threadMessages,
+        contactName: params.name,
+        hasPhone: params.phone,
+        hasEmail: params.email,
+        whatsappThreadChatId: params.chatId,
+      });
+    };
 
-      const [{ data: msgs, error: msgErr }, { data: contact }] =
-        await Promise.all([
-          fetchContactMessages({
+    if (linkedThread) {
+      const syncInbox = () =>
+        fetch("/api/contact-messages/inbox-sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             restaurantId,
             contactId: contactParam,
           }),
-          fetchContactById({ restaurantId, contactId: contactParam }),
-        ]);
+        }).catch(() => undefined);
+      if (opts?.silent) void syncInbox();
+      else await syncInbox();
+
+      const [
+        { data: msgs, error: msgErr },
+        { data: contact },
+        emailThread,
+      ] = await Promise.all([
+        fetchContactMessages({
+          restaurantId,
+          contactId: contactParam,
+        }),
+        fetchContactById({ restaurantId, contactId: contactParam }),
+        emailConnected
+          ? fetchEmailMessagesClient({
+              restaurantId,
+              contactId: contactParam,
+            })
+          : Promise.resolve({ data: [], error: null as string | null }),
+      ]);
       if (msgErr) toast.error(msgErr.message);
       else threadLoaded = true;
-      setMessages(msgs);
+      const mergedMessages = mergeLinkedContactThreadMessages({
+        dbMessages: msgs,
+        imapEmailMessages:
+          emailThread.error || emailThread.data.length === 0
+            ? null
+            : emailThread.data,
+      });
+      setMessages(mergedMessages);
+      const resolvedName = contact
+        ? contactThreadDisplayName(contact)
+        : contactName;
+      const resolvedPhone = contact
+        ? Boolean(primaryPhone(contact)?.trim())
+        : hasPhone;
+      const resolvedEmail = contact
+        ? Boolean(primaryEmail(contact)?.trim())
+        : hasEmail;
+      const resolvedChatId = contact
+        ? guestPhoneToWhatsAppChatId(primaryPhone(contact)?.trim() ?? null)
+        : whatsappThreadChatId;
       if (contact) {
-        setContactName(contactThreadDisplayName(contact));
-        setHasPhone(Boolean(primaryPhone(contact)?.trim()));
-        setHasEmail(Boolean(primaryEmail(contact)?.trim()));
-        const chatId = guestPhoneToWhatsAppChatId(
-          primaryPhone(contact)?.trim() ?? null,
-        );
-        setWhatsappThreadChatId(chatId);
+        setContactName(resolvedName);
+        setHasPhone(resolvedPhone);
+        setHasEmail(resolvedEmail);
+        setWhatsappThreadChatId(resolvedChatId);
       }
+      persistThreadCache({
+        threadMessages: mergedMessages,
+        name: resolvedName,
+        phone: resolvedPhone,
+        email: resolvedEmail,
+        chatId: resolvedChatId,
+      });
       setLoadingThread(false);
       if (threadLoaded) {
         void markConversationRead(contactParam);
@@ -689,6 +821,7 @@ export function ContactsMessagesScreen() {
     }
 
     if (effectivePlatform === "email" && emailConnected) {
+      let threadMessages: ContactMessageRow[] = [];
       const { data, error } = await fetchEmailMessagesClient({
         restaurantId,
         contactId: contactParam,
@@ -703,9 +836,13 @@ export function ContactsMessagesScreen() {
         );
         setMessages([]);
       } else {
+        threadMessages = data;
         setMessages(data);
         threadLoaded = true;
       }
+      let resolvedName = listTitle ?? contactName;
+      let resolvedPhone = hasPhone;
+      let resolvedEmail = hasEmail;
       if (
         !isEmailPseudoContactId(contactParam) &&
         !isWahaPseudoContactId(contactParam)
@@ -715,19 +852,35 @@ export function ContactsMessagesScreen() {
           contactId: contactParam,
         });
         if (contact) {
-          setContactName(contactThreadDisplayName(contact));
-          setHasPhone(Boolean(primaryPhone(contact)?.trim()));
-          setHasEmail(Boolean(primaryEmail(contact)?.trim()));
+          resolvedName = contactThreadDisplayName(contact);
+          resolvedPhone = Boolean(primaryPhone(contact)?.trim());
+          resolvedEmail = Boolean(primaryEmail(contact)?.trim());
+          setContactName(resolvedName);
+          setHasPhone(resolvedPhone);
+          setHasEmail(resolvedEmail);
         }
       } else {
         const conv = conversationsRef.current.find(
           (c) => c.contact_id === contactParam,
         );
-        setContactName(conv?.contact_name ?? "E-Mail");
-        setHasPhone(false);
-        setHasEmail(true);
+        resolvedName = conv?.contact_name ?? "E-Mail";
+        resolvedPhone = false;
+        resolvedEmail = true;
+        setContactName(resolvedName);
+        setHasPhone(resolvedPhone);
+        setHasEmail(resolvedEmail);
+      }
+      if (threadLoaded) {
+        persistThreadCache({
+          threadMessages,
+          name: resolvedName,
+          phone: resolvedPhone,
+          email: resolvedEmail,
+          chatId: whatsappThreadChatId,
+        });
       }
     } else if (effectivePlatform === "whatsapp" && whatsappConnected) {
+      let threadMessages: ContactMessageRow[] = [];
       const { data, error } = await fetchWahaMessagesClient({
         restaurantId,
         contactId: contactParam,
@@ -736,11 +889,12 @@ export function ContactsMessagesScreen() {
         toast.error(`WhatsApp-Verlauf: ${error}`);
         setMessages([]);
       } else {
+        threadMessages = data;
         setMessages(data);
         threadLoaded = true;
       }
 
-      let resolvedName = contactName;
+      let resolvedName = listTitle ?? contactName;
       let contactRow: ContactListRow | null = null;
 
       if (!isWahaPseudoContactId(contactParam)) {
@@ -825,7 +979,17 @@ export function ContactsMessagesScreen() {
       const linkedChatId = contactRow
         ? guestPhoneToWhatsAppChatId(primaryPhone(contactRow)?.trim() ?? null)
         : null;
-      setWhatsappThreadChatId(pseudoChatId ?? linkedChatId);
+      const resolvedChatId = pseudoChatId ?? linkedChatId;
+      setWhatsappThreadChatId(resolvedChatId);
+      if (threadLoaded) {
+        persistThreadCache({
+          threadMessages,
+          name: resolvedName,
+          phone: true,
+          email: contactRow ? Boolean(primaryEmail(contactRow)?.trim()) : false,
+          chatId: resolvedChatId,
+        });
+      }
     } else if (isWahaPseudoContactId(contactParam)) {
       const conv = conversationsRef.current.find(
         (c) => c.contact_id === contactParam,
@@ -862,15 +1026,72 @@ export function ContactsMessagesScreen() {
   ]);
 
   useEffect(() => {
-    if (connectionsLoading) return;
-    if (contactParam) {
-      void loadThread();
-    } else {
-      void loadConversations();
+    if (!restaurantId || contactParam) return;
+    if (!isUnifiedInboxFilter(inboxFilter)) return;
+
+    const onCacheUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;
+      if (detail?.restaurantId !== restaurantId) return;
+      const cached = peekUnifiedInboxCache(restaurantId);
+      if (cached) setConversations(cached);
+    };
+
+    window.addEventListener(
+      GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+      onCacheUpdated,
+    );
+    return () => {
+      window.removeEventListener(
+        GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+        onCacheUpdated,
+      );
+    };
+  }, [restaurantId, contactParam, inboxFilter]);
+
+  useEffect(() => {
+    if (!restaurantId || !contactParam) return;
+
+    const onLive = () => {
+      void loadThread({ silent: true });
+    };
+
+    window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onLive);
+    return () => {
+      window.removeEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onLive);
+    };
+  }, [restaurantId, contactParam, loadThread]);
+
+  useLayoutEffect(() => {
+    if (connectionsLoading || !restaurantId || !contactParam) return;
+
+    const cached = peekContactThreadCache(restaurantId, contactParam);
+    if (cached) {
+      setMessages(cached.messages);
+      setContactName(cached.contactName);
+      setHasPhone(cached.hasPhone);
+      setHasEmail(cached.hasEmail);
+      setWhatsappThreadChatId(cached.whatsappThreadChatId);
+      setLoadingThread(false);
     }
+  }, [contactParam, connectionsLoading, restaurantId]);
+
+  useEffect(() => {
+    if (connectionsLoading || !restaurantId) return;
+
+    if (!contactParam) {
+      const hasList =
+        conversationsRef.current.length > 0 ||
+        Boolean(peekUnifiedInboxCache(restaurantId)?.length);
+      void loadConversations(hasList ? { silent: true } : undefined);
+      return;
+    }
+
+    const cached = peekContactThreadCache(restaurantId, contactParam);
+    void loadThread({ silent: Boolean(cached) });
   }, [
     contactParam,
     connectionsLoading,
+    restaurantId,
     loadThread,
     loadConversations,
   ]);
@@ -894,16 +1115,18 @@ export function ContactsMessagesScreen() {
         .catch(() => undefined);
     };
 
-    const intervalId = window.setInterval(pollInbox, 45_000);
+    const intervalId = window.setInterval(pollInbox, UNIFIED_INBOX_BACKGROUND_POLL_MS);
     return () => window.clearInterval(intervalId);
   }, [restaurantId, contactParam, linkedThread, loadThread]);
 
   const selectInboxFilter = (filter: InboxPlatformFilter) => {
     if (!isInboxFilterAvailable(filter)) return;
     setInboxFilter(filter);
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set("platform", filter);
-    router.replace(`/kontakte/nachrichten?${params.toString()}`);
+    params.delete("contact");
+    applyConversationReadFilterToSearchParams(params, readFilter);
+    router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
   };
 
   const canOpenLinkedContact = useCallback(
@@ -959,7 +1182,7 @@ export function ContactsMessagesScreen() {
             : `Chat mit „${existingDisplayName}“ verknüpft.`,
         );
         router.replace(
-          `/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
+          `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
         );
         return true;
       }
@@ -1052,7 +1275,7 @@ export function ContactsMessagesScreen() {
                 `E-Mail ist bereits bei „${existing.displayName}“ hinterlegt — bestehender Kontakt wird geöffnet.`,
               );
               router.replace(
-                `/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
+                `/dashboard/kontakte/nachrichten?platform=all&contact=${existing.contactId}`,
               );
               return;
             }
@@ -1076,14 +1299,36 @@ export function ContactsMessagesScreen() {
   );
 
   const openConversation = (contactId: string) => {
-    const params = new URLSearchParams();
+    const cached =
+      restaurantId && peekContactThreadCache(restaurantId, contactId);
+    if (cached) {
+      setMessages(cached.messages);
+      setContactName(cached.contactName);
+      setHasPhone(cached.hasPhone);
+      setHasEmail(cached.hasEmail);
+      setWhatsappThreadChatId(cached.whatsappThreadChatId);
+      setLoadingThread(false);
+    } else {
+      const preview = conversationsRef.current.find(
+        (c) => c.contact_id === contactId,
+      );
+      const previewTitle = wahaThreadTitleFromPreview(preview);
+      if (previewTitle) setContactName(previewTitle);
+      setMessages([]);
+      setLoadingThread(true);
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
-    router.push(`/kontakte/nachrichten?${params.toString()}`);
+    router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
   };
 
   const backToList = () => {
-    router.push(`/kontakte/nachrichten?platform=${inboxFilter}`);
+    const params = new URLSearchParams();
+    params.set("platform", inboxFilter);
+    applyConversationReadFilterToSearchParams(params, readFilter);
+    router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
   };
 
   const restaurantName = profile.name.trim() || undefined;
@@ -1373,7 +1618,7 @@ export function ContactsMessagesScreen() {
             <div className="flex min-h-0 flex-1 flex-col px-4 pt-4 sm:px-6 sm:pt-5">
               <ContactMessageChatViewport
                 messages={displayMessages}
-                loading={loadingThread}
+                loading={loadingThread && displayMessages.length === 0}
                 threadKey={`${inboxFilter}-${contactParam}`}
                 className="min-h-0 flex-1"
                 onReservationOpen={(id) => void openReservationFromMessage(id)}
@@ -1509,7 +1754,7 @@ export function ContactsMessagesScreen() {
             </div>
             <ContactConversationsReadFilter
               value={readFilter}
-              onChange={setReadFilter}
+              onChange={selectReadFilter}
               disabled={loadingList}
               unreadTotal={unreadInList}
             />
@@ -1548,20 +1793,24 @@ export function ContactsMessagesScreen() {
                   <li
                     key={c.contact_id}
                     className={cn(
-                      "flex items-start gap-3 px-4 py-3 sm:px-6 sm:py-3.5",
+                      contactInboxConversationRowClassName,
                       unread && "bg-accent/[0.04]",
                     )}
                   >
                     <button
                       type="button"
-                      className={cn(
-                        "relative flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold transition-colors",
-                        unread
-                          ? "bg-accent/25 text-accent"
-                          : "bg-accent/15 text-accent hover:bg-accent/25",
-                      )}
+                      className={contactInboxConversationRowOpenButtonClassName}
                       aria-label={`Chat mit ${listName} öffnen`}
                       onClick={() => openConversation(c.contact_id)}
+                    />
+                    <div
+                      className={cn(
+                        "relative z-10 flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold pointer-events-none",
+                        unread
+                          ? "bg-accent/25 text-accent"
+                          : "bg-accent/15 text-accent",
+                      )}
+                      aria-hidden
                     >
                       {listName.slice(0, 1).toUpperCase()}
                       {unread ? (
@@ -1570,17 +1819,20 @@ export function ContactsMessagesScreen() {
                           aria-hidden
                         />
                       ) : null}
-                    </button>
-                    <div className="min-w-0 flex-1">
+                    </div>
+                    <div className="relative z-10 min-w-0 flex-1 pointer-events-none">
                       <div className="flex items-baseline justify-between gap-2">
                         {canOpenLinkedContact(c.contact_id) ? (
                           <button
                             type="button"
                             className={cn(
-                              "min-w-0 truncate text-left hover:underline",
+                              "pointer-events-auto min-w-0 truncate text-left hover:underline",
                               unread ? "font-semibold text-foreground" : "font-medium",
                             )}
-                            onClick={() => openLinkedContact(c.contact_id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLinkedContact(c.contact_id);
+                            }}
                           >
                             {listName}
                           </button>
@@ -1594,7 +1846,7 @@ export function ContactsMessagesScreen() {
                             {listName}
                           </span>
                         )}
-                        <div className="flex shrink-0 items-center gap-1.5">
+                        <div className="pointer-events-auto flex shrink-0 items-center gap-1.5">
                           <ContactMessagePlatformIcon
                             platform={
                               c.last_message_platform ??
@@ -1673,11 +1925,7 @@ export function ContactsMessagesScreen() {
                           </DropdownMenu>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        className="mt-0.5 w-full text-left transition-colors hover:opacity-90"
-                        onClick={() => openConversation(c.contact_id)}
-                      >
+                      <div className="mt-0.5 w-full text-left">
                         <p
                           className={cn(
                             "truncate text-sm",
@@ -1729,7 +1977,7 @@ export function ContactsMessagesScreen() {
                             Reservierung
                           </Badge>
                         ) : null}
-                      </button>
+                      </div>
                     </div>
                   </li>
                   );
@@ -1797,7 +2045,7 @@ export function ContactsMessagesScreen() {
                 setPendingInboxLink(null);
                 setContactCreateDraft(null);
                 router.replace(
-                  `/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
+                  `/dashboard/kontakte/nachrichten?platform=all&contact=${detail.contactId}`,
                 );
                 return;
               }
@@ -1806,7 +2054,7 @@ export function ContactsMessagesScreen() {
               setPendingInboxLink(null);
               setContactCreateDraft(null);
               router.replace(
-                `/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
+                `/dashboard/kontakte/nachrichten?platform=email&contact=${detail.contactId}`,
               );
               return;
             }

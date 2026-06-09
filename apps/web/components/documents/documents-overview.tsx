@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Download,
   FileText,
@@ -33,6 +34,7 @@ import {
   updateRestaurantDocumentClient,
   uploadRestaurantDocumentClient,
 } from "@/lib/documents/documents-api";
+import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { formatStorageBytes } from "@/lib/documents/format-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -48,7 +50,7 @@ import type {
   DocumentTagDefinition,
   RestaurantDocumentRow,
 } from "@/lib/types/documents";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -148,6 +150,9 @@ function DocumentTagChip({
 }
 
 export function DocumentsOverview() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has: hasPermission } = useRestaurantPermissions();
   const canEditDocumentNotes = hasPermission("documents.notes.edit");
@@ -182,6 +187,17 @@ export function DocumentsOverview() {
   const [protocolDoc, setProtocolDoc] = useState<RestaurantDocumentRow | null>(
     null,
   );
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setFormMode("upload");
+    setEditDoc(null);
+    setFormOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const activeTags = useMemo(
     () => documentTags.items.filter((t) => t.active !== false),
@@ -403,11 +419,11 @@ export function DocumentsOverview() {
         </div>
       </div>
 
-      <div className="-mx-4 mb-6 flex justify-end px-4 sm:-mx-6 sm:px-6">
+      <div className="-mx-4 mb-6 px-4 sm:-mx-6 sm:px-6">
         <Button
           type="button"
           size="lg"
-          className={modulePrimaryAddButtonClassName}
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => {
             setFormMode("upload");
             setEditDoc(null);
@@ -649,18 +665,23 @@ export function DocumentsOverview() {
         canEditNotes={canEditDocumentNotes}
         onNotesChanged={() => void reload()}
         onUpload={async ({ file, title, tagId }) => {
-          const { documentId, error } = await uploadRestaurantDocumentClient({
-            restaurantId,
-            file,
-            title,
-            tagId,
-          });
+          const { documentId, error } = await trackDashboardFileUpload(
+            () =>
+              uploadRestaurantDocumentClient({
+                restaurantId,
+                file,
+                title,
+                tagId,
+              }),
+            {
+              successMessage: "Dokument hochgeladen.",
+              errorMessage: uploadErrorMessage,
+            },
+          );
           if (error) {
-            toast.error(uploadErrorMessage(error));
             return false;
           }
           if (documentId) {
-            toast.success("Dokument hochgeladen");
             await reload();
             return true;
           }

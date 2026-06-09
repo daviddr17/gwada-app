@@ -123,12 +123,24 @@ export type RestaurantStaffContractRow = {
   note: string | null;
   employment_type: StaffEmploymentType | null;
   vacation_days_per_year: number | null;
+  /** Soll-Wochenarbeitszeit in Minuten (optional). */
+  target_weekly_minutes: number | null;
 };
 
 export type RestaurantStaffContractLogEntry = {
   id: string;
   restaurant_id: string;
   contract_id: string;
+  actor_user_id: string | null;
+  action: StaffContractLogAction;
+  details: StaffContractLogDetails;
+  created_at: string;
+};
+
+export type RestaurantStaffWorkEntryLogEntry = {
+  id: string;
+  restaurant_id: string;
+  work_entry_id: string;
   actor_user_id: string | null;
   action: StaffContractLogAction;
   details: StaffContractLogDetails;

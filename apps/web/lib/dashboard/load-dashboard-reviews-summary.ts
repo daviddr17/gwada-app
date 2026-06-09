@@ -4,6 +4,7 @@ import {
   REVIEW_PLATFORM_LABELS,
   type ReviewPlatform,
 } from "@/lib/constants/review-platforms";
+import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
 import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
 import {
   fetchGoogleReviewsForRestaurant,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/reviews/google-reviews-api";
 import { averageRating } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
@@ -32,17 +33,19 @@ export type DashboardReviewRecentItem = {
   commentPreview: string | null;
   createdAt: string;
   href: string;
+  isUnread: boolean;
 };
 
 export type DashboardReviewsSummary = {
   platforms: DashboardReviewPlatformStat[];
   recent: DashboardReviewRecentItem[];
+  unreadRecentCount: number;
 };
 
 const PLATFORM_HREF: Record<ReviewPlatform, string> = {
-  gwada: "/bewertungen/uebersicht?platform=gwada",
-  google: "/bewertungen/uebersicht?platform=google",
-  facebook: "/bewertungen/uebersicht?platform=facebook",
+  gwada: "/dashboard/bewertungen/uebersicht?platform=gwada",
+  google: "/dashboard/bewertungen/uebersicht?platform=google",
+  facebook: "/dashboard/bewertungen/uebersicht?platform=facebook",
 };
 
 function commentPreview(comment: string | null, max = 72): string | null {
@@ -60,13 +63,15 @@ function toRecentItem(review: UnifiedReview): DashboardReviewRecentItem {
     commentPreview: commentPreview(review.comment),
     createdAt: review.createdAt,
     href: PLATFORM_HREF[review.platform],
+    isUnread: review.isUnread ?? true,
   };
 }
 
 export async function loadDashboardReviewsSummary(
   restaurantId: string,
+  userId: string,
+  sb: SupabaseClient,
 ): Promise<DashboardReviewsSummary> {
-  const sb = await createSupabaseServerClient();
 
   const { count: gwadaCountRaw } = await sb
     .from("gwada_reviews")
@@ -161,11 +166,19 @@ export async function loadDashboardReviewsSummary(
     ? averageRating(fbResult.reviews)
     : null;
 
-  const mergedRecent = [...gwadaReviews, ...googleRecent, ...facebookRecent]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
+  const mergedRecent = [...gwadaReviews, ...googleRecent, ...facebookRecent].sort(
+    (a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+
+  const enrichedRecent = await enrichReviewsWithReadState(sb, {
+    restaurantId,
+    userId,
+    reviews: mergedRecent,
+  });
+
+  const unreadRecent = enrichedRecent
+    .filter((r) => r.isUnread)
     .slice(0, 5)
     .map(toRecentItem);
 
@@ -196,5 +209,9 @@ export async function loadDashboardReviewsSummary(
     },
   ];
 
-  return { platforms, recent: mergedRecent };
+  return {
+    platforms,
+    recent: unreadRecent,
+    unreadRecentCount: enrichedRecent.filter((r) => r.isUnread).length,
+  };
 }

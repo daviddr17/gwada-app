@@ -6,6 +6,7 @@ import {
   resolveContactIdByWhatsappChat,
   whatsappChatIdFromPayloadAddress,
 } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
+import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -98,15 +99,20 @@ export async function handleWahaInboundWebhook(
     restaurantId,
     chatId,
   });
-  if (!contactId) {
-    return { ok: true, imported: false, reason: "contact_not_linked" };
-  }
 
   const bodyText =
     payload.body?.trim() ||
     (payload.hasMedia ? "WhatsApp-Anhang" : "");
   if (!bodyText) {
     return { ok: true, imported: false, reason: "empty_body" };
+  }
+
+  if (!contactId) {
+    await insertInboxSignalServer(admin, {
+      restaurantId,
+      source: "waha",
+    });
+    return { ok: true, imported: false, reason: "contact_not_linked" };
   }
 
   const externalSourceId = `waha:${payload.id}`;

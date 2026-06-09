@@ -8,6 +8,7 @@ import {
   ratingDistribution,
 } from "@/lib/reviews/review-stats";
 import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
+import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
 import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -77,6 +78,12 @@ export async function GET(req: Request) {
       externalUrl: null,
       contactId: contactByReviewId.get(r.id as string) ?? null,
     }));
+    reviews = await enrichReviewsWithReadState(auth.sb, {
+      restaurantId,
+      userId: auth.userId,
+      reviews,
+      platform: "gwada",
+    });
   } else if (platformRaw === "google") {
     const pageToken =
       new URL(req.url).searchParams.get("googlePageToken")?.trim() || null;
@@ -86,7 +93,12 @@ export async function GET(req: Request) {
     if ("error" in result) {
       loadError = result.error;
     } else {
-      reviews = result.reviews;
+      reviews = await enrichReviewsWithReadState(auth.sb, {
+        restaurantId,
+        userId: auth.userId,
+        reviews: result.reviews,
+        platform: "google",
+      });
       return Response.json({
         platform: platformRaw,
         reviews,
@@ -106,7 +118,12 @@ export async function GET(req: Request) {
     if ("error" in result) {
       loadError = result.error;
     } else {
-      reviews = result.reviews;
+      reviews = await enrichReviewsWithReadState(auth.sb, {
+        restaurantId,
+        userId: auth.userId,
+        reviews: result.reviews,
+        platform: "facebook",
+      });
     }
   }
 

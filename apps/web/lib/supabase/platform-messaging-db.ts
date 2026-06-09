@@ -14,6 +14,7 @@ export type PlatformMessagingFlags = {
   facebookEnabled: boolean;
   instagramEnabled: boolean;
   googleBusinessEnabled: boolean;
+  lexofficeEnabled: boolean;
 };
 
 const PLATFORM_INTEGRATION_FLAG_KEYS = [
@@ -22,6 +23,7 @@ const PLATFORM_INTEGRATION_FLAG_KEYS = [
   "facebook",
   "instagram",
   "google_business",
+  "lexoffice",
 ] as const;
 
 const ALL_DISABLED: PlatformMessagingFlags = {
@@ -30,6 +32,7 @@ const ALL_DISABLED: PlatformMessagingFlags = {
   facebookEnabled: false,
   instagramEnabled: false,
   googleBusinessEnabled: false,
+  lexofficeEnabled: false,
 };
 
 /** Liest nur `enabled` — keine Secrets (Service Role). */
@@ -60,6 +63,7 @@ async function fetchPlatformMessagingFlagsFromIntegrationsTable(): Promise<Platf
     facebookEnabled: map.get("facebook") ?? false,
     instagramEnabled: map.get("instagram") ?? false,
     googleBusinessEnabled: map.get("google_business") ?? false,
+    lexofficeEnabled: map.get("lexoffice") ?? false,
   };
 }
 
@@ -82,6 +86,7 @@ export async function fetchPlatformMessagingFlags(
         facebook_enabled?: boolean;
         instagram_enabled?: boolean;
         google_business_enabled?: boolean;
+        lexoffice_enabled?: boolean;
       }
     | null
     | undefined;
@@ -93,6 +98,7 @@ export async function fetchPlatformMessagingFlags(
     googleBusinessEnabled: readPlatformIntegrationEnabled(
       r?.google_business_enabled,
     ),
+    lexofficeEnabled: readPlatformIntegrationEnabled(r?.lexoffice_enabled),
   };
 }
 

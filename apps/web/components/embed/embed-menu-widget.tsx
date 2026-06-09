@@ -44,16 +44,13 @@ import type {
 } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import { fuzzyTextMatchesQuery } from "@/lib/utils/fuzzy-search";
+import { formatMenuPrice } from "@/lib/menu/format-menu-price";
 import { cn } from "@/lib/utils";
-
-const priceFormatter = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-});
 
 export type EmbedMenuWidgetProps = {
   restaurantName: string;
   accentHex: string;
+  currencyCode?: string;
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: readonly MenuTaxonomyDefinition[];
@@ -64,9 +61,11 @@ export type EmbedMenuWidgetProps = {
 function EmbedMenuItemRow({
   item,
   tagDefinitions,
+  currencyCode,
 }: {
   item: MenuItem;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  currencyCode?: string;
 }) {
   return (
     <article className="border-b border-border/40 py-4 last:border-b-0">
@@ -107,7 +106,7 @@ function EmbedMenuItemRow({
           ) : null}
         </div>
         <p className="shrink-0 text-base font-semibold tabular-nums text-accent">
-          {priceFormatter.format(item.price)}
+          {formatMenuPrice(item.price, currencyCode)}
         </p>
       </div>
     </article>
@@ -146,20 +145,21 @@ function EmbedMenuToolbar({
         sticky && "sticky z-20",
         sticky && !profileSheet && "top-0",
         profileSheet &&
-          "top-[var(--profile-sheet-header-h,0px)]",
-        profileSheet && "-mx-4 border-b border-border/40 bg-background/95 backdrop-blur-md sm:-mx-5",
+          "top-[var(--profile-sheet-module-title-h,0px)]",
+        profileSheet &&
+          "z-30 -mx-4 border-y border-border/40 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80 sm:-mx-5",
       )}
     >
       <div
         className={cn(
-          "mx-auto w-full max-w-2xl",
-          profileSheet ? "px-4 sm:px-5" : "px-4 sm:px-6",
+          profileSheet ? "w-full min-w-0 px-4 sm:px-5" : "mx-auto w-full max-w-2xl px-4 sm:px-6",
         )}
       >
         <div
           ref={toolbarRef}
           className={cn(
-            "py-3 shadow-none dark:shadow-sm",
+            "py-3",
+            "shadow-none dark:shadow-sm",
             hostMode
               ? "border-b border-border/40 bg-background embed-menu-toolbar-pinned-inner"
               : profileSheet
@@ -197,12 +197,14 @@ function EmbedMenuSections({
   hasSearch,
   anyFilteredMatch,
   tagDefinitions,
+  currencyCode,
 }: {
   sections: { cat: MenuCategoryDefinition; items: MenuItem[] }[];
   visibleCategories: MenuCategoryDefinition[];
   hasSearch: boolean;
   anyFilteredMatch: boolean;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  currencyCode?: string;
 }) {
   if (hasSearch && !anyFilteredMatch) {
     return (
@@ -254,6 +256,7 @@ function EmbedMenuSections({
                     key={item.id}
                     item={item}
                     tagDefinitions={tagDefinitions}
+                    currencyCode={currencyCode}
                   />
                 ))}
               </div>
@@ -268,6 +271,7 @@ function EmbedMenuSections({
 export function EmbedMenuWidget({
   restaurantName,
   accentHex,
+  currencyCode,
   categories,
   items,
   tagDefinitions,
@@ -554,8 +558,7 @@ export function EmbedMenuWidget({
       <div
         ref={widgetRootRef}
         className={cn(
-          "mx-auto w-full max-w-2xl",
-          profileSheet ? "pt-2 pb-6" : "py-6",
+          profileSheet ? "w-full min-w-0 pb-6" : "mx-auto w-full max-w-2xl py-6",
         )}
       >
         {profileSheet ? null : (
@@ -593,6 +596,7 @@ export function EmbedMenuWidget({
                 hasSearch={hasSearch}
                 anyFilteredMatch={anyFilteredMatch}
                 tagDefinitions={tagDefinitions}
+                currencyCode={currencyCode}
               />
             </div>
           </>

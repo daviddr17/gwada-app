@@ -39,7 +39,7 @@ export function DashboardStaffTile() {
           aria-hidden
         />
       }
-      href="/mitarbeiter/uebersicht"
+      href="/dashboard/mitarbeiter/uebersicht"
       linkLabel="Zur Übersicht"
       ready={ready}
       loading={showSkeleton}
@@ -63,13 +63,13 @@ export function DashboardStaffTile() {
         <DashboardCompactMetricPill
           label="Heute"
           value={todayHours > 0 ? formatHoursDe(todayHours) : "0 h"}
-          href="/mitarbeiter/arbeitszeiten"
+          href="/dashboard/mitarbeiter/arbeitszeiten"
         />
         {summary && summary.totalStaff > 0 ? (
           <DashboardCompactMetricPill
             label="Team"
             value={String(summary.totalStaff)}
-            href="/mitarbeiter/uebersicht"
+            href="/dashboard/mitarbeiter/uebersicht"
           />
         ) : null}
       </DashboardCompactInlineMetrics>

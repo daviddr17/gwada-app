@@ -3,6 +3,7 @@ name: Changelog sync
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   sync:

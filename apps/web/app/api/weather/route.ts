@@ -1,20 +1,42 @@
 import { DEFAULT_WEATHER_LOCATION } from "@/lib/weather/visual-crossing-location"
 import { getVisualCrossingApiKeyAdmin } from "@/lib/weather/visual-crossing-api-key"
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types"
+import { isLocalDayKey, dayOffsetLocal } from "@/lib/staff/shift-schedule-range"
 
 /** Niemals statisch cachen: Key darf nicht in Build-/Data-Cache landen. */
 export const dynamic = "force-dynamic"
 
 const LOCATION_MAX = 120
+const MAX_FORECAST_DAYS = 45
 
 function isSafeLocationToken(s: string): boolean {
   if (s.length > LOCATION_MAX) return false
   return /^[\p{L}\p{N}\s,.''\-]+$/u.test(s)
 }
 
+function resolveTimelinePath(
+  pathLoc: string,
+  from: string | null,
+  to: string | null,
+): { path: string } | { error: "invalid_date_range" | "date_range_too_long" } {
+  if (!from && !to) {
+    return { path: `timeline/${pathLoc}/today` }
+  }
+  if (!from || !to || !isLocalDayKey(from) || !isLocalDayKey(to)) {
+    return { error: "invalid_date_range" }
+  }
+  if (from > to) {
+    return { error: "invalid_date_range" }
+  }
+  if (dayOffsetLocal(from, to) > MAX_FORECAST_DAYS) {
+    return { error: "date_range_too_long" }
+  }
+  return { path: `timeline/${pathLoc}/${from}/${to}` }
+}
+
 /**
  * Proxy für Visual Crossing Timeline (API-Key bleibt serverseitig).
- * Query: `location` optional (z. B. `Berlin,DE`), sonst Default Frankfurt.
+ * Query: `location` optional; `from`/`to` optional (YYYY-MM-DD) für Tagesbereich.
  */
 export async function GET(req: Request) {
   const key = await getVisualCrossingApiKeyAdmin()
@@ -33,11 +55,17 @@ export async function GET(req: Request) {
   }
 
   const pathLoc = encodeURIComponent(raw)
+  const from = searchParams.get("from")?.trim() || null
+  const to = searchParams.get("to")?.trim() || null
+  const timeline = resolveTimelinePath(pathLoc, from, to)
+  if ("error" in timeline) {
+    return Response.json({ error: timeline.error }, { status: 400 })
+  }
+
   const upstream = new URL(
-    `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/${pathLoc}/today`,
+    `https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/${timeline.path}`,
   )
-  /* `days` für Tageshoch/Tief, Sonnenauf-/untergang und Text; Kosten gering bei `/today`. */
-  upstream.searchParams.set("include", "current,days")
+  upstream.searchParams.set("include", from && to ? "days" : "current,days")
   upstream.searchParams.set("unitGroup", "metric")
   upstream.searchParams.set("lang", "de")
   upstream.searchParams.set("key", key)

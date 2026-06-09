@@ -1,8 +1,7 @@
 "use client";
 
-import { Camera, Loader2 } from "lucide-react";
+import { Camera } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { uploadUserProfileImageClient } from "@/lib/profile/user-profile-image-client";
@@ -11,6 +10,7 @@ import {
   type UserProfileImageKind,
 } from "@/lib/profile/user-profile-image";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import {
   profileAvatarFallbackPlateClassName,
   profileAvatarHeaderFrameClassName,
@@ -148,10 +148,16 @@ export function PersonalProfileHeader({
     setUploading(true);
 
     try {
-      const { path, error } = await uploadUserProfileImageClient({ kind, file });
+      const { path, error } = await trackDashboardFileUpload(
+        () => uploadUserProfileImageClient({ kind, file }),
+        {
+          successMessage:
+            kind === "avatar" ? "Profilbild hochgeladen." : "Titelbild hochgeladen.",
+          errorMessage: (code) => uploadErrorMessage(kind, code),
+        },
+      );
 
       if (error || !path) {
-        toast.error(uploadErrorMessage(kind, error));
         setLocalPreview(null);
         return;
       }
@@ -205,12 +211,8 @@ export function PersonalProfileHeader({
             <span className="text-sm text-muted-foreground">Titelbild hinzufügen</span>
           </div>
         )}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-0">
-          {coverUploading ? (
-            <Loader2 className="size-7 animate-spin text-white" aria-hidden />
-          ) : (
-            <Camera className="size-7 text-white" aria-hidden />
-          )}
+        <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-60">
+          <Camera className="size-7 text-white" aria-hidden />
         </span>
       </button>
 
@@ -239,12 +241,8 @@ export function PersonalProfileHeader({
                 {initials}
               </span>
             )}
-            <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-0">
-              {avatarUploading ? (
-                <Loader2 className="size-6 animate-spin text-white" aria-hidden />
-              ) : (
-                <Camera className="size-6 text-white" aria-hidden />
-              )}
+            <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-60">
+              <Camera className="size-6 text-white" aria-hidden />
             </span>
           </button>
 

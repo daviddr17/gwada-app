@@ -1,6 +1,6 @@
 {
-  "title": "Profil-Sheet: smoother Dismiss & Header",
-  "body": "- Beim Schließen folgt das Sheet dem Finger 1:1; das Icon-Morphing startet weich und getrennt davon\n- Restaurantname und Modul kleben zuverlässig unter dem Drag-Handle — auch nach erneutem Öffnen\n- Changelog-Sync: Entwurf-Datei ist im Live-Container verfügbar; GitHub-Repo-Slug wird korrekt aufgelöst",
+  "title": "Dashboard: Schnellaktionen per Plus-Button",
+  "body": "- **Dashboard (neu):** Plus-Button unten rechts öffnet ein animiertes Menü mit Shortcuts — z. B. neue Reservierung, Gericht, Zutat, Kontakt, Schicht oder Arbeitszeit\n- **Einstellungen → Dashboard:** Bis zu 5 Shortcuts festlegen, Reihenfolge per Drag & Drop, einzelne Aktionen optional ausblenden\n- **Direktstart:** Shortcut öffnet das passende Modul und den Anlege-Dialog (Bottom Sheet / Drawer)",
   "audience": "customers",
-  "version": "2026.06.07"
+  "version": "2026.06.11"
 }

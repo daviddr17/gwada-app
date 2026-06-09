@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Link2, Loader2, LogOut, Mail, MessageCircle } from "lucide-react";
+import { Camera, ChevronRight, Link2, Loader2, LogOut, Mail, MessageCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/staff/staff-form-field-styles";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { DatePickerField } from "@/components/ui/date-picker";
 import {
   Drawer,
@@ -40,6 +42,7 @@ import {
   uploadStaffAvatarClient,
   type StaffInviteAction,
 } from "@/lib/staff/staff-client-api";
+import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import type {
   StaffInviteContactConflict,
   StaffInviteContactConflictResult,
@@ -49,10 +52,7 @@ import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restauran
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
-import {
-  EMPLOYEE_ROLE_OPTIONS,
-  isRestaurantOwnerRole,
-} from "@/lib/types/employee-role";
+import { isRestaurantOwnerRole } from "@/lib/types/employee-role";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
   fetchRestaurantPositions,
@@ -67,13 +67,21 @@ import {
 } from "@/lib/staff/staff-log";
 import {
   fetchStaffLogEntries,
+  fetchStaffContracts,
   insertStaff,
   updateStaff,
   type StaffUpsertPayload,
 } from "@/lib/supabase/staff-db";
-import type { RestaurantStaffLogEntry } from "@/lib/types/staff";
+import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
+import {
+  formatStaffContractPeriodDe,
+} from "@/lib/staff/staff-contract-period";
+import { staffContractsPageUrl } from "@/lib/staff/staff-contract-navigation";
+import { localDayKey } from "@/lib/staff/shift-schedule-range";
+import type { RestaurantStaffLogEntry, RestaurantStaffContractRow } from "@/lib/types/staff";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { RestaurantStaffRow, StaffPositionTagDefinition } from "@/lib/types/staff";
+import { STAFF_CONTRACT_PAY_LABELS } from "@/lib/types/staff";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   profileAvatarFallbackPlateClassName,
@@ -116,6 +124,27 @@ function profileInitials(given: string, family: string): string {
   return a || b || "?";
 }
 
+function formatContractPaySummary(c: RestaurantStaffContractRow): string {
+  if (c.pay_type === "hourly") {
+    const amount =
+      c.hourly_rate_cents != null
+        ? new Intl.NumberFormat("de-DE", {
+            style: "currency",
+            currency: "EUR",
+          }).format(c.hourly_rate_cents / 100)
+        : "—";
+    return `${STAFF_CONTRACT_PAY_LABELS.hourly}: ${amount}`;
+  }
+  const amount =
+    c.fixed_salary_cents != null
+      ? new Intl.NumberFormat("de-DE", {
+          style: "currency",
+          currency: "EUR",
+        }).format(c.fixed_salary_cents / 100)
+      : "—";
+  return `${STAFF_CONTRACT_PAY_LABELS.fixed}: ${amount}`;
+}
+
 const STAFF_INVITE_CONTACT_CHECK_MS = 400;
 
 function staffInviteContactConflictHint(
@@ -154,6 +183,7 @@ export function StaffFormDrawer({
   activePositionTags,
   onSaved,
 }: StaffFormDrawerProps) {
+  const router = useRouter();
   const countries = COUNTRIES_REFERENCE_FALLBACK;
   const defaultIso = "DE";
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -170,7 +200,7 @@ export function StaffFormDrawer({
   const [phoneIso, setPhoneIso] = useState(defaultIso);
   const [phoneLocal, setPhoneLocal] = useState("");
   const [positionTagId, setPositionTagId] = useState(STAFF_POSITION_TAG_NONE);
-  const [displayRoleId, setDisplayRoleId] = useState("");
+  const [positionRoleId, setPositionRoleId] = useState("");
   const [displayPin, setDisplayPin] = useState("");
   const [hasDisplayPin, setHasDisplayPin] = useState(false);
   const [displayPinBusy, setDisplayPinBusy] = useState(false);
@@ -179,7 +209,6 @@ export function StaffFormDrawer({
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
   const [positions, setPositions] = useState<RestaurantPositionRow[]>([]);
-  const [invitePositionId, setInvitePositionId] = useState("");
   const [inviteBusy, setInviteBusy] = useState<StaffInviteAction | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [revokeBusy, setRevokeBusy] = useState(false);
@@ -190,6 +219,9 @@ export function StaffFormDrawer({
   const [inviteConflictConfirmOpen, setInviteConflictConfirmOpen] = useState(false);
   const [pendingInviteAction, setPendingInviteAction] =
     useState<StaffInviteAction | null>(null);
+  const [currentContract, setCurrentContract] =
+    useState<RestaurantStaffContractRow | null>(null);
+  const [contractLoading, setContractLoading] = useState(false);
 
   const { role: myRole } = useWorkspaceActiveRole();
   const { has } = useRestaurantPermissions();
@@ -235,12 +267,11 @@ export function StaffFormDrawer({
       setPhoneIso(defaultIso);
       setPhoneLocal("");
       setPositionTagId(STAFF_POSITION_TAG_NONE);
-      setDisplayRoleId("");
+      setPositionRoleId("");
       setDisplayPin("");
       setHasDisplayPin(false);
       setIsActive(true);
       setAvatarFile(null);
-      setInvitePositionId("");
       return;
     }
     setGivenName(staff.given_name);
@@ -256,12 +287,11 @@ export function StaffFormDrawer({
     setPhoneIso(parsed.iso2);
     setPhoneLocal(parsed.local);
     setPositionTagId(staff.position_tag_id ?? STAFF_POSITION_TAG_NONE);
-    setDisplayRoleId(staff.restaurant_position_id ?? "");
+    setPositionRoleId(staff.restaurant_position_id ?? "");
     setDisplayPin("");
     setHasDisplayPin(false);
     setIsActive(staff.is_active);
     setAvatarFile(null);
-    setInvitePositionId(staff.restaurant_position_id ?? "");
   }, [staff, countries]);
 
   const reloadLog = useCallback(async () => {
@@ -285,6 +315,31 @@ export function StaffFormDrawer({
   }, [open, staff?.id, mode, reloadLog]);
 
   useEffect(() => {
+    if (!open || mode !== "edit" || !staff?.id || !restaurantId) {
+      setCurrentContract(null);
+      setContractLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setContractLoading(true);
+    void fetchStaffContracts(restaurantId, staff.id).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        setCurrentContract(null);
+        setContractLoading(false);
+        return;
+      }
+      setCurrentContract(
+        findStaffContractForDay(data, staff.id, localDayKey(new Date())),
+      );
+      setContractLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, mode, staff?.id, restaurantId]);
+
+  useEffect(() => {
     if (!open) return;
     resetFromStaff();
     void (async () => {
@@ -299,22 +354,22 @@ export function StaffFormDrawer({
     [positions],
   );
 
-  const selectedInvitePosition = useMemo(
-    () => invitePositions.find((p) => p.id === invitePositionId) ?? null,
-    [invitePositions, invitePositionId],
+  const selectedPosition = useMemo(
+    () => invitePositions.find((p) => p.id === positionRoleId) ?? null,
+    [invitePositions, positionRoleId],
   );
 
   useEffect(() => {
     if (!open || invitePositions.length === 0) return;
-    const valid = invitePositions.some((p) => p.id === invitePositionId);
+    const valid = invitePositions.some((p) => p.id === positionRoleId);
     if (valid) return;
     const preferred =
       staff?.restaurant_position_id &&
       invitePositions.some((p) => p.id === staff.restaurant_position_id)
         ? staff.restaurant_position_id
         : invitePositions[0].id;
-    setInvitePositionId(preferred);
-  }, [open, invitePositions, staff?.restaurant_position_id, invitePositionId]);
+    setPositionRoleId(preferred);
+  }, [open, invitePositions, staff?.restaurant_position_id, positionRoleId]);
 
   useEffect(() => {
     if (!open || mode !== "edit" || !staff) return;
@@ -344,7 +399,7 @@ export function StaffFormDrawer({
       is_active: isActive,
       position_tag_id:
         positionTagId === STAFF_POSITION_TAG_NONE ? null : positionTagId,
-      restaurant_position_id: displayRoleId || null,
+      restaurant_position_id: positionRoleId || null,
     };
   }, [
     givenName,
@@ -361,7 +416,7 @@ export function StaffFormDrawer({
     countries,
     isActive,
     positionTagId,
-    displayRoleId,
+    positionRoleId,
   ]);
 
   const displayName = [givenName, familyName].filter(Boolean).join(" ").trim();
@@ -422,6 +477,12 @@ export function StaffFormDrawer({
     canManageTeam,
   ]);
 
+  const goToStaffContract = useCallback(() => {
+    if (!staff) return;
+    onOpenChange(false);
+    router.push(staffContractsPageUrl(staff.id, currentContract?.id ?? null));
+  }, [staff, currentContract?.id, onOpenChange, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!givenName.trim() || !familyName.trim()) {
@@ -437,12 +498,18 @@ export function StaffFormDrawer({
           return;
         }
         if (avatarFile) {
-          const { error } = await uploadStaffAvatarClient({
-            restaurantId,
-            staffId: ins.id,
-            file: avatarFile,
-          });
-          if (error) toast.error("Profilbild konnte nicht hochgeladen werden.");
+          const { error } = await trackDashboardFileUpload(
+            () =>
+              uploadStaffAvatarClient({
+                restaurantId,
+                staffId: ins.id,
+                file: avatarFile,
+              }),
+            {
+              errorMessage: () => "Profilbild konnte nicht hochgeladen werden.",
+            },
+          );
+          if (error) return;
         }
         const changes = buildStaffAuditChanges(null, payload, activePositionTags);
         await insertStaffAuditLogEntry(
@@ -466,12 +533,18 @@ export function StaffFormDrawer({
           changes,
         );
         if (avatarFile) {
-          const { error } = await uploadStaffAvatarClient({
-            restaurantId,
-            staffId: staff.id,
-            file: avatarFile,
-          });
-          if (error) toast.error("Profilbild konnte nicht hochgeladen werden.");
+          const { error } = await trackDashboardFileUpload(
+            () =>
+              uploadStaffAvatarClient({
+                restaurantId,
+                staffId: staff.id,
+                file: avatarFile,
+              }),
+            {
+              errorMessage: () => "Profilbild konnte nicht hochgeladen werden.",
+            },
+          );
+          if (error) return;
         }
         toast.success("Gespeichert");
       }
@@ -484,8 +557,8 @@ export function StaffFormDrawer({
 
   const runInvite = async (action: StaffInviteAction) => {
     if (!staff) return;
-    if (!invitePositionId) {
-      toast.error("Bitte eine App-Rolle für die Einladung wählen.");
+    if (!positionRoleId) {
+      toast.error("Bitte eine Rolle wählen.");
       return;
     }
     if (action === "email" && !email.trim()) {
@@ -504,7 +577,7 @@ export function StaffFormDrawer({
       await sendStaffInviteClient({
         restaurantId,
         staffId: staff.id,
-        restaurantPositionId: invitePositionId,
+        restaurantPositionId: positionRoleId,
         action,
       });
     setInviteBusy(null);
@@ -566,19 +639,6 @@ export function StaffFormDrawer({
   const linkedProfileLabel = staff?.linked_profile
     ? formatLinkedProfileLabel(staff.linked_profile)
     : null;
-  const linkedAppRoleLabel = useMemo(() => {
-    if (!staff) return null;
-    const pos =
-      staff.linked_employee?.restaurant_position ?? staff.restaurant_position;
-    if (pos) return formatRestaurantPositionLabel(pos);
-    if (staff.linked_employee?.role) {
-      return (
-        EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === staff.linked_employee?.role)
-          ?.label ?? staff.linked_employee.role
-      );
-    }
-    return null;
-  }, [staff]);
   const linkedEmployeeActive = staff?.linked_employee?.is_active ?? true;
 
   const handleRevokeAccess = async () => {
@@ -763,33 +823,26 @@ export function StaffFormDrawer({
                       aria-label="Position"
                     />
                   </div>
-                  <div className="flex h-11 items-center justify-between rounded-xl border border-border/50 px-3">
-                    <Label htmlFor="staff-active" className="cursor-pointer">
-                      Aktiv
-                    </Label>
-                    <Switch
-                      id="staff-active"
-                      checked={isActive}
-                      onCheckedChange={setIsActive}
-                    />
-                  </div>
-                </div>
-              </FormSection>
-
-              <FormSection title="Display">
-                <div className="space-y-3">
                   <div className="space-y-1.5">
-                    <Label>Rolle (Display-Berechtigungen)</Label>
+                    <Label>Rolle</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Gilt appweit für Dashboard, Display-Berechtigungen und
+                      Einladungen.
+                    </p>
                     <Select
-                      value={displayRoleId || undefined}
-                      onValueChange={(v) => setDisplayRoleId(String(v))}
+                      value={positionRoleId || undefined}
+                      onValueChange={(v) => setPositionRoleId(String(v))}
                     >
                       <SelectTrigger
                         className={appSelectTriggerAccentCn(
                           staffDrawerFieldClassName,
                         )}
                       >
-                        <SelectValue placeholder="Rolle wählen …" />
+                        <SelectValue placeholder="Rolle wählen …">
+                          {selectedPosition
+                            ? formatRestaurantPositionLabel(selectedPosition)
+                            : null}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {invitePositions.map((p) => (
@@ -800,6 +853,57 @@ export function StaffFormDrawer({
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="flex h-11 items-center justify-between rounded-xl border border-border/50 px-3">
+                    <Label htmlFor="staff-active" className="cursor-pointer">
+                      Aktiv
+                    </Label>
+                    <Switch
+                      id="staff-active"
+                      checked={isActive}
+                      onCheckedChange={setIsActive}
+                    />
+                  </div>
+                  {mode === "edit" && staff ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5 text-left transition-colors hover:bg-muted/25"
+                      onClick={goToStaffContract}
+                      disabled={contractLoading}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          {currentContract ? "Aktueller Vertrag" : "Verträge"}
+                        </p>
+                        {contractLoading ? (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Wird geladen …
+                          </p>
+                        ) : currentContract ? (
+                          <>
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {formatStaffContractPeriodDe(
+                                currentContract.valid_from,
+                                currentContract.valid_to,
+                              )}
+                            </p>
+                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {formatContractPaySummary(currentContract)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Kein aktiver Vertrag — Verträge öffnen
+                          </p>
+                        )}
+                      </div>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ) : null}
+                </div>
+              </FormSection>
+
+              <FormSection title="Display">
+                <div className="space-y-3">
                   {mode === "edit" && staff ? (
                     <div className="space-y-1.5">
                       <Label htmlFor="staff-display-pin">Display-PIN (4 Stellen)</Label>
@@ -904,7 +1008,11 @@ export function StaffFormDrawer({
                         </Button>
                       ) : null}
                     </div>
-                  ) : null}
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Display-PIN kann nach dem Anlegen gesetzt werden.
+                    </p>
+                  )}
                 </div>
               </FormSection>
 
@@ -959,14 +1067,6 @@ export function StaffFormDrawer({
                     <p className="text-sm font-medium">
                       {linkedProfileLabel ?? "Verbunden"}
                     </p>
-                    {linkedAppRoleLabel ? (
-                      <p className="text-xs text-muted-foreground">
-                        App-Rolle:{" "}
-                        <span className="font-medium text-foreground">
-                          {linkedAppRoleLabel}
-                        </span>
-                      </p>
-                    ) : null}
                     {!linkedEmployeeActive ? (
                       <p className="text-xs text-amber-800 dark:text-amber-200">
                         Restaurant-Zugang ist deaktiviert.
@@ -997,44 +1097,26 @@ export function StaffFormDrawer({
                 <FormSection title="Einladung">
                   <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-3">
                     <p className="text-xs text-muted-foreground">
-                      App-Rolle wählen und Einladung teilen — Link kopieren oder
-                      direkt senden, wenn Integrationen aktiv sind.
+                      {selectedPosition ? (
+                        <>
+                          Einladung mit Rolle{" "}
+                          <span className="font-medium text-foreground">
+                            {formatRestaurantPositionLabel(selectedPosition)}
+                          </span>{" "}
+                          — Link kopieren oder direkt senden, wenn Integrationen
+                          aktiv sind.
+                        </>
+                      ) : (
+                        "Bitte unter Arbeit eine Rolle wählen."
+                      )}
                     </p>
-                    <div className="space-y-1.5">
-                      <Label>App-Rolle</Label>
-                      <Select
-                        value={invitePositionId}
-                        onValueChange={(v) => setInvitePositionId(String(v))}
-                      >
-                        <SelectTrigger
-                          className={appSelectTriggerAccentCn(
-                            "h-11 w-full rounded-xl",
-                          )}
-                        >
-                          <SelectValue placeholder="Rolle wählen …">
-                            {selectedInvitePosition
-                              ? formatRestaurantPositionLabel(
-                                  selectedInvitePosition,
-                                )
-                              : null}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {invitePositions.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {formatRestaurantPositionLabel(p)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         className="h-10 rounded-xl"
-                        disabled={inviteBusy != null}
+                        disabled={inviteBusy != null || !positionRoleId}
                         onClick={() => handleInvite("copy")}
                       >
                         {inviteBusy === "copy" ? (
@@ -1050,7 +1132,7 @@ export function StaffFormDrawer({
                           variant="outline"
                           size="sm"
                           className="h-10 rounded-xl"
-                          disabled={inviteBusy != null}
+                          disabled={inviteBusy != null || !positionRoleId}
                           onClick={() => handleInvite("whatsapp")}
                         >
                           {inviteBusy === "whatsapp" ? (
@@ -1067,7 +1149,7 @@ export function StaffFormDrawer({
                           variant="outline"
                           size="sm"
                           className="h-10 rounded-xl"
-                          disabled={inviteBusy != null}
+                          disabled={inviteBusy != null || !positionRoleId}
                           onClick={() => handleInvite("email")}
                         >
                           {inviteBusy === "email" ? (
@@ -1124,15 +1206,13 @@ export function StaffFormDrawer({
             </div>
           </div>
 
-          <div className="shrink-0 border-t border-border/50 px-5 pt-4 pb-6">
-            <Button
-              type="submit"
-              className="h-11 w-full rounded-xl"
-              disabled={pending || !givenName.trim() || !familyName.trim()}
-            >
-              {pending ? "Speichern …" : mode === "create" ? "Anlegen" : "Speichern"}
-            </Button>
-          </div>
+          <DrawerFormFooter
+            onCancel={() => onOpenChange(false)}
+            submitType="submit"
+            submitPending={pending}
+            submitDisabled={!givenName.trim() || !familyName.trim()}
+            submitLabel={mode === "create" ? "Anlegen" : "Speichern"}
+          />
         </form>
       </DrawerContent>
 

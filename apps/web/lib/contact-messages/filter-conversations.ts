@@ -2,6 +2,24 @@ import type { ContactConversationPreview } from "@/lib/supabase/contact-messages
 
 export type ConversationReadFilter = "all" | "unread" | "read";
 
+export function parseConversationReadFilter(
+  value: string | null | undefined,
+): ConversationReadFilter {
+  if (value === "unread" || value === "read") return value;
+  return "all";
+}
+
+export function applyConversationReadFilterToSearchParams(
+  params: URLSearchParams,
+  filter: ConversationReadFilter,
+): void {
+  if (filter === "all") {
+    params.delete("read");
+  } else {
+    params.set("read", filter);
+  }
+}
+
 /** Clientseitige Chat-Suche (Name, letzte Nachricht, Telefon/E-Mail aus Pseudo-ID). */
 export function filterContactConversations(
   conversations: ContactConversationPreview[],

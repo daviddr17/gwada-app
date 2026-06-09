@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
   DrawerContent,
@@ -303,21 +303,15 @@ export function DocumentFormDrawer({
             ) : null}
           </div>
 
-          <div className="shrink-0 border-t border-border/50 px-5 pt-4 pb-6">
-          <Button
-            type="submit"
-            className="h-11 w-full rounded-xl"
-            disabled={
-              pending || !title.trim() || (mode === "upload" && !file)
+          <DrawerFormFooter
+            onCancel={() => onOpenChange(false)}
+            submitType="submit"
+            submitPending={pending}
+            submitDisabled={!title.trim() || (mode === "upload" && !file)}
+            submitLabel={
+              mode === "upload" ? "Hochladen" : "Speichern"
             }
-          >
-            {pending
-              ? "Speichern …"
-              : mode === "upload"
-                ? "Hochladen"
-                : "Speichern"}
-          </Button>
-          </div>
+          />
         </form>
       </DrawerContent>
     </Drawer>

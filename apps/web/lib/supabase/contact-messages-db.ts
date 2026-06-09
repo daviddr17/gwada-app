@@ -31,6 +31,8 @@ export type ContactMessageRow = {
   platform: ContactMessagePlatform;
   direction: ContactMessageDirection;
   body: string;
+  /** HTML-Inhalt für E-Mail-Nachrichten (IMAP); Anzeige isoliert im iframe. */
+  body_html?: string | null;
   reservation_id: string | null;
   sent_by: string | null;
   delivery_status: string;

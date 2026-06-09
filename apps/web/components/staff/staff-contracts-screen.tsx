@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,7 @@ import {
   staffDisplayName,
 } from "@/lib/types/staff";
 import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -37,6 +38,11 @@ function formatEuro(cents: number | null): string {
 }
 
 export function StaffContractsScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const contractIdFromUrl = searchParams.get("contract");
+
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { selectedStaff, selectedStaffId } = useStaffModuleSelection();
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
@@ -65,6 +71,32 @@ export function StaffContractsScreen() {
     void reload();
   }, [reload]);
 
+  const clearContractQuery = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!params.has("contract")) return;
+    params.delete("contract");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  useEffect(() => {
+    if (!contractIdFromUrl || loading || showSkeleton) return;
+
+    const match = contracts.find((c) => c.id === contractIdFromUrl);
+    clearContractQuery();
+
+    if (match) {
+      setEditContract(match);
+      setDrawerOpen(true);
+    }
+  }, [
+    contractIdFromUrl,
+    loading,
+    showSkeleton,
+    contracts,
+    clearContractQuery,
+  ]);
+
   const openNew = () => {
     setEditContract(null);
     setDrawerOpen(true);
@@ -84,7 +116,7 @@ export function StaffContractsScreen() {
 
   return (
     <div className="pb-16">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-4 space-y-2">
         <p className="text-sm text-muted-foreground">
           Verträge für{" "}
           <span className="font-medium text-foreground">
@@ -93,7 +125,8 @@ export function StaffContractsScreen() {
         </p>
         <Button
           type="button"
-          className={modulePrimaryAddButtonClassName}
+          size="lg"
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={openNew}
         >
           <Plus className="size-4" />
@@ -141,6 +174,12 @@ export function StaffContractsScreen() {
               {c.vacation_days_per_year != null ? (
                 <p>{c.vacation_days_per_year} Urlaubstage/Jahr</p>
               ) : null}
+              {c.target_weekly_minutes != null ? (
+                <p>
+                  Soll:{" "}
+                  {Math.round((c.target_weekly_minutes / 60) * 10) / 10} h/Woche
+                </p>
+              ) : null}
               {c.note?.trim() ? (
                 <p className="line-clamp-2 text-xs">{c.note.trim()}</p>
               ) : null}
@@ -155,9 +194,13 @@ export function StaffContractsScreen() {
 
       <StaffContractDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setEditContract(null);
+        }}
         restaurantId={restaurantId}
         staffId={selectedStaffId!}
+        staffName={selectedStaff ? staffDisplayName(selectedStaff) : null}
         contract={editContract}
         existingContracts={contracts}
         onSaved={() => void reload()}

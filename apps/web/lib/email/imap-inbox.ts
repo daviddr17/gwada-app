@@ -2,6 +2,7 @@ import "server-only";
 
 import { ImapFlow } from "imapflow";
 import { simpleParser, type ParsedMail } from "mailparser";
+import { bodyHtmlFromParsedMail } from "@/lib/email/email-body-html";
 import { attachmentsFromParsedMail } from "@/lib/email/imap-message-attachments";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
@@ -179,6 +180,8 @@ export async function fetchImapRecentEnvelopes(
 
 export type ImapThreadBodyEntry = {
   body: string;
+  /** HTML-Teil der E-Mail (falls vorhanden), für formatierte Anzeige im Chat. */
+  body_html?: string | null;
   subject: string;
   date: Date;
   outbound: boolean;
@@ -218,6 +221,7 @@ export async function fetchImapThreadBodies(
         const parsedAttachments = attachmentsFromParsedMail(parsed);
         map.set(msg.uid, {
           body: bodyTextFromParsed(parsed),
+          body_html: bodyHtmlFromParsedMail(parsed),
           subject:
             parsed.subject?.trim() || msg.envelope?.subject?.trim() || "",
           date: parsed.date ?? msg.envelope?.date ?? new Date(),

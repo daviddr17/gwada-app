@@ -1,9 +1,5 @@
-import { RestaurantTeamPanel } from "@/components/settings/restaurant-team-panel";
+import { RestaurantTeamSettingsPanel } from "@/components/settings/restaurant-team-settings-panel";
 
 export default function SettingsTeamPage() {
-  return (
-    <div className="pt-2">
-      <RestaurantTeamPanel />
-    </div>
-  );
+  return <RestaurantTeamSettingsPanel />;
 }

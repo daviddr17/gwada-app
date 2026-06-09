@@ -3,22 +3,36 @@
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
-import type { ReviewPlatform } from "@/lib/constants/review-platforms";
+import {
+  REVIEW_PLATFORM_LABELS,
+  type ReviewPlatform,
+} from "@/lib/constants/review-platforms";
 import { cn } from "@/lib/utils";
 
 export function ReviewPlatformIcon({
   platform,
   className,
+  "aria-label": ariaLabel,
 }: {
   platform: ReviewPlatform;
   className?: string;
+  "aria-label"?: string;
 }) {
-  switch (platform) {
-    case "google":
-      return <GoogleGlyph className={cn("size-4 shrink-0", className)} />;
-    case "facebook":
-      return <FacebookGlyph className={cn("size-4 shrink-0", className)} />;
-    case "gwada":
-      return <GwadaFaviconIcon size="chip" className={className} />;
-  }
+  const label = ariaLabel ?? REVIEW_PLATFORM_LABELS[platform];
+
+  return (
+    <span
+      className={cn("inline-flex shrink-0 items-center", className)}
+      role="img"
+      aria-label={label}
+    >
+      {platform === "google" ? (
+        <GoogleGlyph className="size-4" />
+      ) : platform === "facebook" ? (
+        <FacebookGlyph className="size-4" />
+      ) : (
+        <GwadaFaviconIcon size="chip" />
+      )}
+    </span>
+  );
 }

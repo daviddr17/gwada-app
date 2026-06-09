@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import {
+  restaurantLogoCardImageClassName,
   restaurantLogoFrameClassName,
   restaurantLogoHeaderFrameClassName,
   restaurantLogoImageClassName,
@@ -32,7 +33,7 @@ export function RestaurantLogoFrame({
   innerClassName,
 }: {
   children: ReactNode;
-  variant?: "default" | "header" | "profile";
+  variant?: "default" | "header" | "profile" | "card";
   size?: RestaurantLogoMarkSize;
   className?: string;
   style?: CSSProperties;
@@ -83,13 +84,40 @@ export function RestaurantLogoMark({
   initials: string;
   alt?: string;
   size?: RestaurantLogoMarkSize;
-  variant?: "default" | "header" | "profile";
+  variant?: "default" | "header" | "profile" | "card";
   className?: string;
   style?: CSSProperties;
   imageClassName?: string;
   innerClassName?: string;
 }) {
   const hasImage = Boolean(src);
+
+  if (variant === "card") {
+    return (
+      <span
+        className={cn(
+          restaurantLogoHeaderFrameClassName,
+          restaurantLogoPlateClassName,
+          sizeClasses[size],
+          !hasImage && "font-semibold text-muted-foreground",
+          className,
+        )}
+        style={style}
+      >
+        {hasImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src!}
+            alt={alt}
+            decoding="async"
+            className={cn(restaurantLogoCardImageClassName, imageClassName)}
+          />
+        ) : (
+          initials
+        )}
+      </span>
+    );
+  }
 
   return (
     <RestaurantLogoFrame

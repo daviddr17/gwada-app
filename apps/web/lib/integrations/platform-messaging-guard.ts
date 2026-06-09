@@ -50,3 +50,13 @@ export async function assertPlatformGoogleBusinessEnabled(
   }
   return { ok: true };
 }
+
+export async function assertPlatformLexofficeEnabled(
+  sb: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const flags = await fetchPlatformMessagingFlags(sb);
+  if (!flags.lexofficeEnabled) {
+    return { ok: false, error: "lexoffice_disabled" };
+  }
+  return { ok: true };
+}

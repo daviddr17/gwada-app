@@ -27,12 +27,14 @@ export default async function EmbedSpeisekartePage({
     );
   }
 
-  const { name, accentHex, categories, items, tagDefinitions } = result.data;
+  const { name, accentHex, currencyCode, categories, items, tagDefinitions } =
+    result.data;
 
   return (
     <EmbedMenuWidget
       restaurantName={name}
       accentHex={accentHex}
+      currencyCode={currencyCode}
       categories={categories}
       items={items}
       tagDefinitions={tagDefinitions}

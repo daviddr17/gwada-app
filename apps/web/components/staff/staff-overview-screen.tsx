@@ -2,6 +2,7 @@
 
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
@@ -41,7 +42,7 @@ import type {
 import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -51,6 +52,9 @@ function formatEuro(cents: number): string {
 }
 
 export function StaffOverviewScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const positionTags = useStaffPositionTagsStorage(restaurantId);
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
@@ -91,6 +95,17 @@ export function StaffOverviewScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setFormMode("create");
+    setEditStaff(null);
+    setFormOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
 
   const reloadContracts = useCallback(async () => {
     if (!restaurantId) return;
@@ -258,19 +273,22 @@ export function StaffOverviewScreen() {
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            className="h-12 gap-2 rounded-full"
+            onClick={() => setManageTagsOpen(true)}
+          >
+            <Tags className="size-4" />
+            Positionen
+          </Button>
+        </div>
         <Button
           type="button"
-          variant="outline"
-          className="h-12 gap-2 rounded-full"
-          onClick={() => setManageTagsOpen(true)}
-        >
-          <Tags className="size-4" />
-          Positionen
-        </Button>
-        <Button
-          type="button"
-          className={modulePrimaryAddButtonClassName}
+          size="lg"
+          className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => {
             setFormMode("create");
             setEditStaff(null);

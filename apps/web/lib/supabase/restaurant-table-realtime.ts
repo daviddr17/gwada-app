@@ -6,6 +6,7 @@ import type {
 export type RestaurantRealtimeTable =
   | "reservations"
   | "contact_messages"
+  | "restaurant_inbox_signals"
   | "restaurant_staff_work_entries"
   | "restaurant_staff";
 
@@ -149,7 +150,7 @@ export function subscribeRestaurantTableInserts(
   sb: SupabaseClient,
   options: {
     channelName: string;
-    table: "reservations" | "contact_messages";
+    table: "reservations" | "contact_messages" | "restaurant_inbox_signals";
     restaurantId: string;
     onInsert: (payload: { new: Record<string, unknown> }) => void;
     onStatus?: (status: RestaurantRealtimeSubscribeStatus) => void;

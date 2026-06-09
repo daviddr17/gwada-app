@@ -4,97 +4,130 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { dispatchDashboardMessagesRefresh } from "@/lib/dashboard/dashboard-live-events";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
+import { UNIFIED_INBOX_BACKGROUND_POLL_MS } from "@/lib/contact-messages/unified-inbox-background-sync";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { subscribeRestaurantTableInserts } from "@/lib/supabase/restaurant-table-realtime";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
-const MESSAGES_DEBOUNCE_MS = 4_000;
-const MESSAGES_POLL_MS = 60_000;
+const LIVE_REFRESH_DEBOUNCE_MS = 3_000;
 const REALTIME_READY_TIMEOUT_MS = 12_000;
 
 /**
- * Nachrichten-Realtime im Dashboard-Layout; bei Ausfall Polling (60 s).
+ * Inbox-Live: Realtime auf `contact_messages` + WAHA-Signale; Fallback-Polling (5 min).
+ * Läuft auf Dashboard und Kontakte — löst leisen Cache-Refresh aus (kein Voll-Polling).
  */
-export function useDashboardLiveNotifications() {
+export function useInboxLiveNotifications() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
-  const messagesDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const messagesToastRef = useRef(false);
-  const realtimeSubscribedRef = useRef(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastRef = useRef(false);
+  const messagesLiveRef = useRef(false);
+  const signalsLiveRef = useRef(false);
   const sbRef = useRef(createSupabaseBrowserClient());
-  const polling = useVisibleIntervalPolling(MESSAGES_POLL_MS);
+  const polling = useVisibleIntervalPolling(UNIFIED_INBOX_BACKGROUND_POLL_MS);
 
   useEffect(() => {
     if (!ready || !restaurantId || !isUuidRestaurantId(restaurantId)) return;
 
-    realtimeSubscribedRef.current = false;
+    messagesLiveRef.current = false;
+    signalsLiveRef.current = false;
 
-    const scheduleMessagesRefresh = () => {
-      if (messagesDebounceRef.current) {
-        clearTimeout(messagesDebounceRef.current);
-      }
-      messagesDebounceRef.current = setTimeout(() => {
-        messagesDebounceRef.current = null;
+    const scheduleRefresh = (showToast: boolean) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
         dispatchDashboardMessagesRefresh();
-      }, MESSAGES_DEBOUNCE_MS);
+      }, LIVE_REFRESH_DEBOUNCE_MS);
+
+      if (!showToast || toastRef.current) return;
+      toastRef.current = true;
+      toast.info("Neue Nachricht", {
+        description: "Posteingang wird aktualisiert.",
+        duration: 4_000,
+      });
+      setTimeout(() => {
+        toastRef.current = false;
+      }, LIVE_REFRESH_DEBOUNCE_MS);
     };
 
-    const enablePolling = () => {
+    const syncPolling = () => {
+      if (messagesLiveRef.current && signalsLiveRef.current) {
+        polling.stop();
+      } else {
+        polling.start(() => {
+          if (document.visibilityState !== "visible") return;
+          dispatchDashboardMessagesRefresh();
+        });
+      }
+    };
+
+    if (isPublicSupabaseProxyEnabled()) {
       polling.start(() => {
         if (document.visibilityState !== "visible") return;
         dispatchDashboardMessagesRefresh();
       });
-    };
-
-    const disablePolling = () => {
-      polling.stop();
-    };
-
-    if (isPublicSupabaseProxyEnabled()) {
-      enablePolling();
     }
 
     const readyTimeout = window.setTimeout(() => {
-      if (!realtimeSubscribedRef.current) enablePolling();
+      if (!messagesLiveRef.current || !signalsLiveRef.current) {
+        polling.start(() => {
+          if (document.visibilityState !== "visible") return;
+          dispatchDashboardMessagesRefresh();
+        });
+      }
     }, REALTIME_READY_TIMEOUT_MS);
 
-    const teardown = subscribeRestaurantTableInserts(sbRef.current, {
-      channelName: `dashboard-messages-live:${restaurantId}`,
+    const teardownMessages = subscribeRestaurantTableInserts(sbRef.current, {
+      channelName: `inbox-live-messages:${restaurantId}`,
       table: "contact_messages",
       restaurantId,
       onStatus: (status) => {
         if (status === "SUBSCRIBED") {
-          realtimeSubscribedRef.current = true;
-          disablePolling();
+          messagesLiveRef.current = true;
+          syncPolling();
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          enablePolling();
+          messagesLiveRef.current = false;
+          syncPolling();
         }
       },
       onInsert: (payload) => {
         if (payload.new.direction !== "inbound") return;
-        if (!messagesToastRef.current) {
-          messagesToastRef.current = true;
-          toast.info("Neue Nachricht", {
-            description: "Nachrichten-Widget wird aktualisiert.",
-            duration: 4_000,
-          });
-          setTimeout(() => {
-            messagesToastRef.current = false;
-          }, MESSAGES_DEBOUNCE_MS);
+        scheduleRefresh(true);
+      },
+    });
+
+    const teardownSignals = subscribeRestaurantTableInserts(sbRef.current, {
+      channelName: `inbox-live-signals:${restaurantId}`,
+      table: "restaurant_inbox_signals",
+      restaurantId,
+      onStatus: (status) => {
+        if (status === "SUBSCRIBED") {
+          signalsLiveRef.current = true;
+          syncPolling();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          signalsLiveRef.current = false;
+          syncPolling();
         }
-        scheduleMessagesRefresh();
+      },
+      onInsert: (payload) => {
+        if (payload.new.source !== "waha") return;
+        scheduleRefresh(true);
       },
     });
 
     return () => {
       window.clearTimeout(readyTimeout);
-      if (messagesDebounceRef.current) {
-        clearTimeout(messagesDebounceRef.current);
-        messagesDebounceRef.current = null;
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
       }
-      disablePolling();
-      teardown();
+      polling.stop();
+      teardownMessages();
+      teardownSignals();
     };
   }, [ready, restaurantId, polling.start, polling.stop]);
 }
+
+/** @deprecated Alias — nutze {@link useInboxLiveNotifications}. */
+export const useDashboardLiveNotifications = useInboxLiveNotifications;

@@ -36,6 +36,14 @@ function strOrDash(v: string | number | null | undefined): string {
   return String(v);
 }
 
+function formatTargetWeeklyHours(minutes: number | null): string {
+  if (minutes == null) return "—";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (m === 0) return `${h} h/Woche`;
+  return `${h}:${String(m).padStart(2, "0")} h/Woche`;
+}
+
 export function buildStaffContractChanges(
   before: RestaurantStaffContractRow | null,
   after: Omit<
@@ -73,6 +81,12 @@ export function buildStaffContractChanges(
       null,
       strOrDash(after.vacation_days_per_year),
     );
+    push(
+      "target_weekly_minutes",
+      "Soll-Wochenstunden",
+      null,
+      formatTargetWeeklyHours(after.target_weekly_minutes),
+    );
     push("note", "Notiz", null, after.note?.trim() || "—");
     return changes;
   }
@@ -102,6 +116,13 @@ export function buildStaffContractChanges(
     "Urlaubstage/Jahr",
     strOrDash(before.vacation_days_per_year),
     strOrDash(after.vacation_days_per_year),
+  );
+
+  push(
+    "target_weekly_minutes",
+    "Soll-Wochenstunden",
+    formatTargetWeeklyHours(before.target_weekly_minutes),
+    formatTargetWeeklyHours(after.target_weekly_minutes),
   );
 
   push(

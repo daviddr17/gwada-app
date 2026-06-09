@@ -127,10 +127,17 @@ export function profileSheetMenuStickyScrollOffset(
   const rootRect = scrollRoot.getBoundingClientRect();
   let pinnedBottom = rootRect.top;
 
-  for (const selector of [
-    "[data-profile-app-sheet-handle]",
-    "[data-profile-app-sheet-header]",
-  ]) {
+  const sheet =
+    scrollRoot.closest("[data-profile-app-sheet]") ?? scrollRoot.parentElement;
+  const handle = sheet?.querySelector("[data-profile-app-sheet-handle]");
+  if (handle instanceof HTMLElement) {
+    pinnedBottom = Math.max(
+      pinnedBottom,
+      handle.getBoundingClientRect().bottom,
+    );
+  }
+
+  for (const selector of ["[data-profile-app-sheet-header]"]) {
     const el = scrollRoot.querySelector(selector);
     if (el instanceof HTMLElement) {
       pinnedBottom = Math.max(

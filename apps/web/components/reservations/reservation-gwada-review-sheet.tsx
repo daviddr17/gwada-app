@@ -101,7 +101,7 @@ export function ReservationGwadaReviewSheet({
               className={cn("h-11 w-full ", brandActionButtonRoundedClassName)}
               render={
                 <Link
-                  href="/bewertungen/uebersicht?platform=gwada"
+                  href="/dashboard/bewertungen/uebersicht?platform=gwada"
                   onClick={() => onOpenChange(false)}
                 />
               }

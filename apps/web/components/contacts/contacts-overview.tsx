@@ -5,22 +5,33 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, MessageSquare, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { ContactCatalogFilterChips } from "@/components/contacts/contact-catalog-filter-chips";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { ContactMessagesDrawer } from "@/components/contacts/contact-messages-drawer";
+import { ContactPlatformBadges } from "@/components/contacts/contact-platform-badges";
 import { ContactReservationsDrawer } from "@/components/contacts/contact-reservations-drawer";
 import {
   channelCellLabel,
-  contactAddressLabel,
-  contactDisplayName,
-  emailsForCell,
   fetchContactReservationsQuick,
-  fetchContactsForRestaurant,
-  phonesForCell,
-  type ContactListRow,
   type ContactReservationLink,
 } from "@/lib/supabase/contacts-db";
+import {
+  CONTACT_CATALOG_FILTER_ALL,
+  parseContactCatalogPlatformFilter,
+  type ContactCatalogPlatform,
+  type ContactCatalogPlatformFilter,
+} from "@/lib/constants/contact-catalog-platforms";
+import type { ContactCreateDraft } from "@/lib/contact-messages/draft-from-waha-chat";
+import {
+  filterUnifiedContactsByPlatform,
+  unifiedContactAddressLabel,
+  unifiedContactDisplayName,
+  type UnifiedContactListRow,
+} from "@/lib/contacts/unified-contact-row";
+import { useLexofficeContactIntegration } from "@/lib/hooks/use-lexoffice-contact-integration";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -106,16 +117,23 @@ export function ContactsOverview() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const contactParam = searchParams.get("contact");
+  const platformParam = searchParams.get("platform");
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
+  const lexoffice = useLexofficeContactIntegration(restaurantId);
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
     [profile.country],
   );
 
-  const [rows, setRows] = useState<ContactListRow[]>([]);
+  const [rows, setRows] = useState<UnifiedContactListRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lexofficeError, setLexofficeError] = useState<string | null>(null);
+  const [platformFilter, setPlatformFilter] = useState<ContactCatalogPlatformFilter>(
+    () => parseContactCatalogPlatformFilter(platformParam),
+  );
+  const [createDraft, setCreateDraft] = useState<ContactCreateDraft | null>(null);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey | null>("lastInteraction");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -135,15 +153,58 @@ export function ContactsOverview() {
   const reload = useCallback(async () => {
     if (!restaurantId) return;
     setLoading(true);
-    const { data, error } = await fetchContactsForRestaurant(restaurantId);
+    try {
+      const res = await fetch(
+        `/api/contacts/unified?${new URLSearchParams({ restaurantId })}`,
+      );
+      const body = (await res.json()) as {
+        items?: UnifiedContactListRow[];
+        lexofficeError?: string | null;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(body.error ?? "Kontakte konnten nicht geladen werden.");
+        setRows([]);
+      } else {
+        setRows(body.items ?? []);
+        setLexofficeError(body.lexofficeError ?? null);
+      }
+    } catch {
+      toast.error("Netzwerkfehler beim Laden der Kontakte.");
+      setRows([]);
+    }
     setLoading(false);
-    if (error) toast.error(error.message);
-    else setRows(data);
   }, [restaurantId]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    setPlatformFilter(parseContactCatalogPlatformFilter(platformParam));
+  }, [platformParam]);
+
+  const selectPlatformFilter = useCallback(
+    (next: ContactCatalogPlatformFilter) => {
+      setPlatformFilter(next);
+      const p = new URLSearchParams(searchParams.toString());
+      if (next === CONTACT_CATALOG_FILTER_ALL) p.delete("platform");
+      else p.set("platform", next);
+      const q = p.toString();
+      router.replace(
+        q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht",
+      );
+    },
+    [router, searchParams],
+  );
+
+  const isPlatformAvailable = useCallback(
+    (p: ContactCatalogPlatform) => {
+      if (p === "gwada") return true;
+      return lexoffice.connected;
+    },
+    [lexoffice.connected],
+  );
 
   useEffect(() => {
     if (!contactParam) return;
@@ -152,8 +213,22 @@ export function ContactsOverview() {
     const p = new URLSearchParams(searchParams.toString());
     p.delete("contact");
     const q = p.toString();
-    router.replace(q ? `/kontakte/uebersicht?${q}` : "/kontakte/uebersicht");
+    router.replace(q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht");
   }, [contactParam, router, searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setCreateDraft(null);
+    setEditContactId(null);
+    setDrawerOpen(true);
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("new");
+    const q = p.toString();
+    router.replace(
+      q ? `/dashboard/kontakte/uebersicht?${q}` : "/dashboard/kontakte/uebersicht",
+      { scroll: false },
+    );
+  }, [searchParams, router]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey !== key) {
@@ -165,7 +240,7 @@ export function ContactsOverview() {
   };
 
   const filteredSorted = useMemo(() => {
-    let list = [...rows];
+    let list = filterUnifiedContactsByPlatform(rows, platformFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((r) => {
@@ -173,9 +248,9 @@ export function ContactsOverview() {
           r.first_name,
           r.last_name,
           r.company ?? "",
-          ...emailsForCell(r),
-          ...phonesForCell(r),
-          contactAddressLabel(r),
+          ...r.emails,
+          ...r.phones,
+          unifiedContactAddressLabel(r),
         ]
           .join(" ")
           .toLowerCase();
@@ -192,21 +267,15 @@ export function ContactsOverview() {
           return a.last_name.localeCompare(b.last_name, "de") * dir;
         case "email":
           return (
-            (emailsForCell(a)[0] ?? "").localeCompare(
-              emailsForCell(b)[0] ?? "",
-              "de",
-            ) * dir
+            (a.emails[0] ?? "").localeCompare(b.emails[0] ?? "", "de") * dir
           );
         case "phone":
           return (
-            (phonesForCell(a)[0] ?? "").localeCompare(
-              phonesForCell(b)[0] ?? "",
-              "de",
-            ) * dir
+            (a.phones[0] ?? "").localeCompare(b.phones[0] ?? "", "de") * dir
           );
         case "address":
-          return contactAddressLabel(a).localeCompare(
-            contactAddressLabel(b),
+          return unifiedContactAddressLabel(a).localeCompare(
+            unifiedContactAddressLabel(b),
             "de",
           ) * dir;
         case "lastInteraction": {
@@ -223,40 +292,67 @@ export function ContactsOverview() {
       }
     });
     return list;
-  }, [rows, search, sortKey, sortDir]);
+  }, [rows, search, sortKey, sortDir, platformFilter]);
 
   const openCreate = () => {
+    setCreateDraft(null);
     setEditContactId(null);
     setDrawerOpen(true);
   };
 
   const openEdit = (id: string) => {
+    setCreateDraft(null);
     setEditContactId(id);
     setDrawerOpen(true);
   };
 
-  const openMessagesLink = (row: ContactListRow, e: MouseEvent) => {
+  const openRow = (row: UnifiedContactListRow) => {
+    if (row.gwadaContactId) {
+      openEdit(row.gwadaContactId);
+      return;
+    }
+    setCreateDraft({
+      firstName: row.first_name,
+      lastName: row.last_name,
+      company: row.company ?? undefined,
+      addressStreet: row.address_street ?? undefined,
+      addressPostalCode: row.address_postal_code ?? undefined,
+      addressCity: row.address_city ?? undefined,
+      addressCountry: row.address_country ?? undefined,
+      notes: row.notes ?? undefined,
+      emails: row.emails.map((email) => ({ email })),
+      phones: row.phones.map((phone) => ({
+        iso2: defaultCountryIso2,
+        local: phone,
+      })),
+      linkExistingLexofficeId: row.lexofficeContactId,
+    });
+    setEditContactId(null);
+    setDrawerOpen(true);
+  };
+
+  const openMessagesLink = (row: UnifiedContactListRow, e: MouseEvent) => {
     e.stopPropagation();
-    if (row.message_count === 0) return;
+    if (!row.gwadaContactId || row.message_count === 0) return;
     setMessagesDrawer({
-      id: row.id,
-      name: contactDisplayName(row),
+      id: row.gwadaContactId,
+      name: unifiedContactDisplayName(row),
     });
   };
 
-  const openReservationsLink = (row: ContactListRow, e: MouseEvent) => {
+  const openReservationsLink = (row: UnifiedContactListRow, e: MouseEvent) => {
     e.stopPropagation();
-    if (!restaurantId || row.reservation_count === 0) return;
+    if (!restaurantId || !row.gwadaContactId || row.reservation_count === 0) return;
     setLinksLoading(true);
     setLinksDrawer({
-      id: row.id,
-      name: contactDisplayName(row),
+      id: row.gwadaContactId,
+      name: unifiedContactDisplayName(row),
       reservations: [],
     });
     void (async () => {
       const { data, error } = await fetchContactReservationsQuick(
         restaurantId,
-        row.id,
+        row.gwadaContactId!,
       );
       setLinksLoading(false);
       if (error) {
@@ -265,8 +361,8 @@ export function ContactsOverview() {
         return;
       }
       setLinksDrawer({
-        id: row.id,
-        name: contactDisplayName(row),
+        id: row.gwadaContactId!,
+        name: unifiedContactDisplayName(row),
         reservations: data,
       });
     })();
@@ -292,37 +388,58 @@ export function ContactsOverview() {
     <>
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-4 pt-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative max-w-md flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nachname, Vorname, E-Mail, Telefon, Adresse …"
-                className="h-10 rounded-xl pl-9"
-                aria-label="Kontakte durchsuchen"
-              />
-            </div>
-            <div className="flex shrink-0 items-center gap-3">
+          {lexoffice.platformEnabled ? (
+            <ContactCatalogFilterChips
+              filter={platformFilter}
+              onFilterChange={selectPlatformFilter}
+              isPlatformAvailable={isPlatformAvailable}
+              disabled={loading || lexoffice.loading}
+            />
+          ) : null}
+
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative min-w-0 flex-1 sm:max-w-md">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nachname, Vorname, E-Mail, Telefon, Adresse …"
+                  className="h-10 w-full rounded-xl pl-9"
+                  aria-label="Kontakte durchsuchen"
+                />
+              </div>
               <span className="text-xs text-muted-foreground tabular-nums">
                 {filteredSorted.length} Kontakt
                 {filteredSorted.length === 1 ? "" : "e"}
               </span>
-              <Button
-                type="button"
-                className="h-10 shrink-0 gap-2 rounded-xl"
-                onClick={openCreate}
-              >
-                <Plus className="size-4" />
-                Neuer Kontakt
-              </Button>
             </div>
+            <Button
+              type="button"
+              size="lg"
+              className={modulePrimaryAddButtonFullWidthClassName}
+              onClick={openCreate}
+            >
+              <Plus className="size-4" />
+              Neuer Kontakt
+            </Button>
           </div>
 
+          {lexofficeError ? (
+            <p className="text-xs text-amber-800 dark:text-amber-200">
+              Lexware-Kontakte konnten nicht geladen werden: {lexofficeError}
+            </p>
+          ) : null}
+
           <div className="overflow-x-auto rounded-xl border border-border/50">
-            <table className="w-full min-w-[56rem] text-sm">
+            <table className="w-full min-w-[58rem] text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
+                  <th className="w-16 px-2 py-2 text-left">
+                    <span className="text-xs font-medium tracking-wide text-muted-foreground">
+                      Quelle
+                    </span>
+                  </th>
                   <th className="min-w-[7rem] px-2 py-2 text-left">
                     <SortHeader
                       label="Nachname"
@@ -401,7 +518,7 @@ export function ContactsOverview() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={9}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       Laden …
@@ -410,7 +527,7 @@ export function ContactsOverview() {
                 ) : filteredSorted.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={9}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       {search.trim()
@@ -420,13 +537,16 @@ export function ContactsOverview() {
                   </tr>
                 ) : (
                   filteredSorted.map((r) => {
-                    const addr = contactAddressLabel(r);
+                    const addr = unifiedContactAddressLabel(r);
                     return (
                       <tr
-                        key={r.id}
+                        key={r.rowKey}
                         className="border-b border-border/40 last:border-0 hover:bg-muted/25 cursor-pointer transition-colors"
-                        onClick={() => openEdit(r.id)}
+                        onClick={() => openRow(r)}
                       >
+                        <td className="px-2 py-2 align-middle">
+                          <ContactPlatformBadges platforms={r.platforms} />
+                        </td>
                         <td className="px-2 py-2 align-middle font-medium">
                           {r.last_name || "—"}
                           {r.company ? (
@@ -442,10 +562,10 @@ export function ContactsOverview() {
                           {r.first_name || "—"}
                         </td>
                         <td className="px-2 py-2 align-middle text-muted-foreground">
-                          <ChannelCell values={emailsForCell(r)} />
+                          <ChannelCell values={r.emails} />
                         </td>
                         <td className="px-2 py-2 align-middle text-muted-foreground tabular-nums">
-                          <ChannelCell values={phonesForCell(r)} />
+                          <ChannelCell values={r.phones} />
                         </td>
                         <td
                           className="px-2 py-2 align-middle text-muted-foreground max-w-[14rem]"
@@ -473,7 +593,7 @@ export function ContactsOverview() {
                             disabled={
                               r.reservation_count === 0 ||
                               (linksLoading &&
-                                linksDrawer?.id === r.id)
+                                linksDrawer?.id === r.gwadaContactId)
                             }
                             onClick={(e) => openReservationsLink(r, e)}
                           >
@@ -526,10 +646,15 @@ export function ContactsOverview() {
 
       <ContactEditDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setCreateDraft(null);
+        }}
         contactId={editContactId}
         restaurantId={restaurantId}
         defaultCountryIso2={defaultCountryIso2}
+        initialDraft={createDraft}
+        lexofficeConnected={lexoffice.connected}
         onSaved={() => void reload()}
       />
 

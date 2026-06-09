@@ -4,6 +4,7 @@ import { Suspense, useCallback, useState } from "react";
 import { EmailIntegrationCard } from "@/components/settings/email-integration-card";
 import { FacebookIntegrationCard } from "@/components/settings/facebook-integration-card";
 import { GoogleBusinessIntegrationCard } from "@/components/settings/google-business-integration-card";
+import { LexofficeIntegrationCard } from "@/components/settings/lexoffice-integration-card";
 import { InstagramIntegrationCard } from "@/components/settings/instagram-integration-card";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import {
@@ -30,6 +31,7 @@ function IntegrationenContent({
     facebookEnabled,
     instagramEnabled,
     googleBusinessEnabled,
+    lexofficeEnabled,
     loading,
   } = usePlatformMessagingFlags(initialPlatformFlags);
   const { dirty, saving, saveAll } = useSettingsIntegrationSave();
@@ -52,7 +54,8 @@ function IntegrationenContent({
     emailEnabled ||
     facebookEnabled ||
     instagramEnabled ||
-    googleBusinessEnabled;
+    googleBusinessEnabled ||
+    lexofficeEnabled;
 
   if (!anyEnabled) {
     return (
@@ -84,9 +87,10 @@ function IntegrationenContent({
         {emailEnabled ? (
           <EmailIntegrationCard key={emailReload} onSaved={onEmailSaved} />
         ) : null}
+        {lexofficeEnabled ? <LexofficeIntegrationCard /> : null}
       </div>
 
-      {emailEnabled ? (
+      {emailEnabled || lexofficeEnabled ? (
         <SettingsStickySaveBar show={dirty}>
           <Button
             type="button"

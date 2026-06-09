@@ -2,6 +2,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { SettingsBrandingCard } from "@/components/settings/settings-branding-panel";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
 import { WeekdayHoursGrid } from "@/components/settings/weekday-hours-grid";
@@ -26,10 +28,17 @@ import {
 } from "@/components/settings/settings-sticky-save-bar";
 import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
 import { OpeningHoursHolidaySuggestions } from "@/components/settings/opening-hours-holiday-suggestions";
+import { OpeningHoursPlatformSyncToggles } from "@/components/settings/opening-hours-platform-sync-toggles";
 import {
   OpeningHoursPlatformSyncStatusBadge,
   OpeningHoursPlatformSyncStatusRow,
 } from "@/components/settings/opening-hours-platform-sync-status";
+import {
+  integrationPlatformSyncLabel,
+  integrationSyncSuccessMessage,
+  postIntegrationPlatformSync,
+} from "@/lib/integrations/integration-platform-sync-client";
+import { integrationSyncErrorMessage } from "@/lib/integrations/integration-sync-user-messages";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useOpeningHoursPlatformStatus } from "@/lib/hooks/use-opening-hours-platform-status";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
@@ -37,6 +46,9 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { cn } from "@/lib/utils";
 import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useAccentColor } from "@/lib/contexts/accent-color-context";
+import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
+import { normalizeHex } from "@/lib/theme/color-utils";
 import {
   normalizeProfileForSave,
   validateOpeningHours,
@@ -91,9 +103,6 @@ function pickStammdaten(p: RestaurantProfile) {
     country: p.country,
     website: p.website,
     phone: p.phone,
-    vatNumber: p.vatNumber,
-    receiptFooter: p.receiptFooter,
-    socialHandle: p.socialHandle,
   };
 }
 
@@ -105,13 +114,18 @@ export function RestaurantSettingsPanel({
   section: RestaurantSettingsSection;
 }) {
   const { profile, saveProfile, saveOpeningHours, patchProfile, isReady } = useRestaurantProfile();
+  const { accentHex, persistAccentHex, isReady: accentReady } = useAccentColor();
   const [draft, setDraft] = useState<RestaurantProfile | null>(null);
+  const [accentDraft, setAccentDraft] = useState(DEFAULT_ACCENT_HEX);
   const [error, setError] = useState<string | null>(null);
+  const [accentError, setAccentError] = useState<string | null>(null);
   const [savedRestaurantFlash, setSavedRestaurantFlash] = useState(false);
   const [savedHoursFlash, setSavedHoursFlash] = useState(false);
   const [showPastExceptions, setShowPastExceptions] = useState(false);
   const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
   const [platformStatusRefresh, setPlatformStatusRefresh] = useState(0);
+  const [syncGoogleOnSave, setSyncGoogleOnSave] = useState(true);
+  const [syncFacebookOnSave, setSyncFacebookOnSave] = useState(true);
 
   const pendingExceptionDateLabel = useMemo(() => {
     if (!exceptionDeleteId || !draft) return "";
@@ -135,37 +149,11 @@ export function RestaurantSettingsPanel({
     return () => cancelAnimationFrame(frame);
   }, [isReady, profile]);
 
-  const handleSaveRestaurant = async () => {
-    if (!draft) return;
-    const normalized = normalizeProfileForSave(draft);
-    const msg = validateRestaurantStammdaten(normalized);
-    if (msg) {
-      setError(msg);
-      return;
-    }
-    setError(null);
-    const ok = await saveProfile({ ...normalized, id: draft.id });
-    if (!ok) return;
-    setSavedRestaurantFlash(true);
-    window.setTimeout(() => setSavedRestaurantFlash(false), 2000);
-  };
-
-  const handleSaveHours = async () => {
-    if (!draft) return;
-    const normalized = normalizeProfileForSave(draft);
-    const msg = validateOpeningHours(normalized);
-    if (msg) {
-      setError(msg);
-      return;
-    }
-    setError(null);
-    const ok = await saveOpeningHours({ ...normalized, id: draft.id });
-    if (!ok) return;
-    setDraft(cloneProfile({ ...normalized, id: draft.id }));
-    setSavedHoursFlash(true);
-    setPlatformStatusRefresh((n) => n + 1);
-    window.setTimeout(() => setSavedHoursFlash(false), 2000);
-  };
+  useEffect(() => {
+    if (!accentReady) return;
+    const frame = requestAnimationFrame(() => setAccentDraft(accentHex));
+    return () => cancelAnimationFrame(frame);
+  }, [accentHex, accentReady]);
 
   const bumpPlatformStatus = () => setPlatformStatusRefresh((n) => n + 1);
 
@@ -247,6 +235,67 @@ export function RestaurantSettingsPanel({
     );
   }, [draft, profile, isReady]);
 
+  const brandingDirty = useMemo(() => {
+    if (!accentReady) return false;
+    return normalizeHex(accentDraft) !== normalizeHex(accentHex);
+  }, [accentDraft, accentHex, accentReady]);
+
+  const overviewDirty = stammdatenDirty || brandingDirty;
+
+  const handleSaveOverview = async () => {
+    if (!draft) return;
+
+    const saveStammdaten = stammdatenDirty;
+    const saveBranding = brandingDirty;
+    if (!saveStammdaten && !saveBranding) return;
+
+    if (saveStammdaten) {
+      const normalized = normalizeProfileForSave(draft);
+      const msg = validateRestaurantStammdaten(normalized);
+      if (msg) {
+        setError(msg);
+        return;
+      }
+    }
+
+    if (saveBranding) {
+      const normalizedAccent = normalizeHex(accentDraft);
+      if (!normalizedAccent) {
+        setAccentError("Ungültiger Hex-Wert (z. B. #eab308)");
+        return;
+      }
+      setAccentError(null);
+    }
+
+    setError(null);
+
+    const notifyTogether = saveStammdaten && saveBranding;
+
+    if (saveStammdaten) {
+      const normalized = normalizeProfileForSave(draft);
+      const ok = await saveProfile(
+        { ...normalized, id: draft.id },
+        { notify: !notifyTogether },
+      );
+      if (!ok) return;
+    }
+
+    if (saveBranding) {
+      const normalizedAccent = normalizeHex(accentDraft)!;
+      const ok = await persistAccentHex(normalizedAccent, {
+        notify: !notifyTogether,
+      });
+      if (!ok) return;
+    }
+
+    if (notifyTogether) {
+      toast.success("Gespeichert");
+    }
+
+    setSavedRestaurantFlash(true);
+    window.setTimeout(() => setSavedRestaurantFlash(false), 2000);
+  };
+
   const hoursDirty = useMemo(() => {
     if (!draft || !isReady) return false;
     return (
@@ -317,6 +366,66 @@ export function RestaurantSettingsPanel({
       platformStatusRefresh,
     );
 
+  const syncOpeningHoursToPlatforms = async (restaurantId: string) => {
+    const targets: Array<{
+      target: "opening_hours_google" | "opening_hours_facebook";
+      enabled: boolean;
+      connected: boolean;
+    }> = [
+      {
+        target: "opening_hours_google",
+        enabled: syncGoogleOnSave,
+        connected: googleConnected,
+      },
+      {
+        target: "opening_hours_facebook",
+        enabled: syncFacebookOnSave,
+        connected: facebookConnected,
+      },
+    ];
+
+    for (const { target, enabled, connected } of targets) {
+      if (!enabled || !connected) continue;
+      const label = integrationPlatformSyncLabel(target);
+      try {
+        const result = await postIntegrationPlatformSync(target, restaurantId);
+        if (!result.ok) {
+          toast.error(
+            `${label}: ${integrationSyncErrorMessage(result.error)}`,
+          );
+          continue;
+        }
+        toast.success(
+          `${label}: ${integrationSyncSuccessMessage(target, result.itemCount)}`,
+        );
+      } catch {
+        toast.error(`${label}: Übertragung fehlgeschlagen.`);
+      }
+    }
+  };
+
+  const handleSaveHours = async () => {
+    if (!draft) return;
+    const normalized = normalizeProfileForSave(draft);
+    const msg = validateOpeningHours(normalized);
+    if (msg) {
+      setError(msg);
+      return;
+    }
+    setError(null);
+    const ok = await saveOpeningHours({ ...normalized, id: draft.id });
+    if (!ok) return;
+    setDraft(cloneProfile({ ...normalized, id: draft.id }));
+    setSavedHoursFlash(true);
+    setPlatformStatusRefresh((n) => n + 1);
+    window.setTimeout(() => setSavedHoursFlash(false), 2000);
+
+    if (workspaceRestaurantId) {
+      await syncOpeningHoursToPlatforms(workspaceRestaurantId);
+      setPlatformStatusRefresh((n) => n + 1);
+    }
+  };
+
   if (!draft) {
     if (showSkeleton && awaitingDraft) {
       return <RestaurantSettingsSkeleton section={section} />;
@@ -341,14 +450,15 @@ export function RestaurantSettingsPanel({
         </p>
       )}
       {section === "restaurant" && (
-      <section className="space-y-6">
+      <section>
         <form
-          className="contents"
+          className="flex flex-col"
           onSubmit={(e) => {
             e.preventDefault();
-            handleSaveRestaurant();
+            void handleSaveOverview();
           }}
         >
+        <div className="flex flex-col gap-6">
         <RestaurantProfileHeader
           restaurantId={draft.id}
           name={draft.name}
@@ -367,7 +477,13 @@ export function RestaurantSettingsPanel({
           }}
         />
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-4 pt-6">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Adresse & Kontakt</CardTitle>
+            <CardDescription>
+              Standort, Website und Telefon für Gäste und öffentliche Profile.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="rs-street">Straße & Hausnummer</Label>
             <Input
@@ -453,51 +569,16 @@ export function RestaurantSettingsPanel({
               className="h-11 rounded-xl"
             />
           </div>
-          <Separator />
-          <p className="text-sm font-medium text-foreground">POS-Quittung</p>
-          <div className="space-y-2">
-            <Label htmlFor="rs-vat">USt-IdNr.</Label>
-            <Input
-              id="rs-vat"
-              value={draft.vatNumber}
-              onChange={(e) =>
-                setDraft((p) => (p ? { ...p, vatNumber: e.target.value } : p))
-              }
-              placeholder="DE123456789"
-              className="h-11 rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="rs-receipt-footer">Quittungs-Footer</Label>
-            <Input
-              id="rs-receipt-footer"
-              value={draft.receiptFooter}
-              onChange={(e) =>
-                setDraft((p) =>
-                  p ? { ...p, receiptFooter: e.target.value } : p,
-                )
-              }
-              placeholder="Vielen Dank für Ihren Besuch!"
-              className="h-11 rounded-xl"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="rs-social">Social-Handle</Label>
-            <Input
-              id="rs-social"
-              value={draft.socialHandle}
-              onChange={(e) =>
-                setDraft((p) =>
-                  p ? { ...p, socialHandle: e.target.value } : p,
-                )
-              }
-              placeholder="@restaurant"
-              className="h-11 rounded-xl"
-            />
-          </div>
         </CardContent>
       </Card>
-        <SettingsStickySaveBar show={stammdatenDirty}>
+        <SettingsBrandingCard
+          draft={accentDraft}
+          onDraftChange={setAccentDraft}
+          savedHex={accentHex}
+          error={accentError}
+        />
+        </div>
+        <SettingsStickySaveBar show={overviewDirty}>
           <Button
             type="submit"
             className={cn(
@@ -842,15 +923,32 @@ export function RestaurantSettingsPanel({
           </CardContent>
         </Card>
         <SettingsStickySaveBar show={hoursDirty}>
-          <Button
-            type="submit"
+          <div
             className={cn(
-              "h-11 w-full min-w-[12rem] sm:w-auto",
-              settingsAccentSaveButtonClassName,
+              "flex w-full flex-col gap-3 sm:flex-row sm:items-center",
+              googleConnected || facebookConnected
+                ? "sm:justify-between"
+                : "sm:justify-end",
             )}
           >
-            {savedHoursFlash ? "Gespeichert" : "Öffnungszeiten speichern"}
-          </Button>
+            <OpeningHoursPlatformSyncToggles
+              googleConnected={googleConnected}
+              facebookConnected={facebookConnected}
+              syncGoogle={syncGoogleOnSave}
+              syncFacebook={syncFacebookOnSave}
+              onSyncGoogleChange={setSyncGoogleOnSave}
+              onSyncFacebookChange={setSyncFacebookOnSave}
+            />
+            <Button
+              type="submit"
+              className={cn(
+                "h-11 w-full min-w-[12rem] sm:w-auto sm:shrink-0",
+                settingsAccentSaveButtonClassName,
+              )}
+            >
+              {savedHoursFlash ? "Gespeichert" : "Öffnungszeiten speichern"}
+            </Button>
+          </div>
         </SettingsStickySaveBar>
         </form>
       </section>

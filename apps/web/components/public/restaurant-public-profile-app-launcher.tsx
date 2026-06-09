@@ -26,7 +26,10 @@ import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/resta
 import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import type { EmbedReservationProfileTermsSheet } from "@/components/embed/embed-reservation-widget";
-import { ProfileAppSheetHeader } from "@/components/public/profile-app-sheet-header";
+import {
+  ProfileAppSheetDragHandle,
+  ProfileAppSheetHeader,
+} from "@/components/public/profile-app-sheet-header";
 import type { PublicEmbedMenu } from "@/lib/menu/public-menu-server";
 import {
   profileAppsForModules,
@@ -249,6 +252,7 @@ function ProfileAppSheetOverlay({
   }, [activeApp]);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const sheetHandleRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     viewportRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -622,6 +626,7 @@ function ProfileAppSheetOverlay({
       />
       <m.div
         ref={sheetRef}
+        data-profile-app-sheet
         drag={dragEnabled && !isDismissing && !reduceMotion ? "y" : false}
         dragControls={dragControls}
         dragListener={false}
@@ -640,6 +645,13 @@ function ProfileAppSheetOverlay({
           transformOrigin: morphToIcon ? morphOrigin : IOS_SHEET_SLIDE_OPEN_ORIGIN,
         }}
       >
+        <ProfileAppSheetDragHandle
+          handleRef={sheetHandleRef}
+          dragControls={dragControls}
+          dragEnabled={dragEnabled}
+          isDismissing={isDismissing}
+          reduceMotion={reduceMotion}
+        />
         <div className="relative min-h-0 flex-1 overflow-hidden">
           <m.div
             className="relative h-full min-h-0"
@@ -658,6 +670,7 @@ function ProfileAppSheetOverlay({
                 reduceMotion={reduceMotion}
                 dragControls={dragControls}
                 dragEnabled={dragEnabled}
+                sheetHandleRef={sheetHandleRef}
                 isDismissing={isDismissing}
                 scrollRootRef={viewportRef}
                 layoutEpoch={layoutEpoch}
@@ -823,22 +836,21 @@ function ProfileAppContent({
 
   if (appId === "menu") {
     return (
-      <div className="px-4 pb-8 pt-0 sm:px-5 sm:pb-5">
+      <div className="px-4 pb-8 sm:px-5">
         <ModulePanel
           showLoading={deferHeavyWidgets || (!menu && loading.menu)}
           error={errors.menu}
         >
           {menu ? (
-            <div className="overflow-visible rounded-2xl border border-border/50 bg-card/95 shadow-card backdrop-blur-sm">
-              <EmbedMenuWidget
-                variant="profileSheet"
-                restaurantName={menu.name}
-                accentHex={menu.accentHex}
-                categories={menu.categories}
-                items={menu.items}
-                tagDefinitions={menu.tagDefinitions}
-              />
-            </div>
+            <EmbedMenuWidget
+              variant="profileSheet"
+              restaurantName={menu.name}
+              accentHex={menu.accentHex}
+              currencyCode={menu.currencyCode}
+              categories={menu.categories}
+              items={menu.items}
+              tagDefinitions={menu.tagDefinitions}
+            />
           ) : null}
         </ModulePanel>
       </div>

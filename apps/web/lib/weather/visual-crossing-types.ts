@@ -15,12 +15,15 @@ export type VisualCrossingCurrent = {
 
 export type VisualCrossingDay = {
   datetime?: string
+  temp?: number
   tempmax?: number
   tempmin?: number
   precipprob?: number
   sunrise?: string
   sunset?: string
   description?: string
+  conditions?: string
+  icon?: string
 }
 
 export type VisualCrossingTimelineResponse = {

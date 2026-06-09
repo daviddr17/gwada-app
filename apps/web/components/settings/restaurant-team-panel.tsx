@@ -43,7 +43,7 @@ type TeamMemberRow = {
   label: string;
 };
 
-export function RestaurantTeamPanel() {
+export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }) {
   const { restaurantId, role: myRole } = useWorkspaceActiveRole();
   const { has } = useRestaurantPermissions();
   const canManage = has("team.manage") || isRestaurantOwnerRole(myRole);
@@ -178,30 +178,124 @@ export function RestaurantTeamPanel() {
     );
   }
 
+  const teamTable = (
+    <table className="w-full border-collapse text-sm">
+      <thead>
+        <tr className="border-b border-border text-left text-muted-foreground">
+          <th className="py-3 pr-4 font-medium">Name</th>
+          <th className="py-3 pr-4 font-medium">Rolle</th>
+          <th className="w-[120px] py-3 text-center font-medium">Aktiv</th>
+          {canManage ? (
+            <th className="w-[140px] py-3 text-right font-medium">Zugang</th>
+          ) : null}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => {
+          const isOnlyActiveOwner =
+            row.role === "owner" && row.isActive && activeOwnerCount === 1;
+          const disabledRow = busyId === row.id;
+          const roleLabel =
+            EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === row.role)?.label ??
+            row.role;
+          return (
+            <tr key={row.id} className="border-b border-border/60">
+              <td className="py-3 pr-4 font-medium">{row.label}</td>
+              <td className="py-3 pr-4">
+                {canManage ? (
+                  <select
+                    className="h-9 max-w-[200px] rounded-lg border border-input bg-background px-2 text-sm"
+                    value={row.role}
+                    disabled={disabledRow || isOnlyActiveOwner}
+                    aria-label={`Rolle für ${row.label}`}
+                    onChange={(e) =>
+                      void updateRole(row, e.target.value as EmployeeRole)
+                    }
+                  >
+                    {EMPLOYEE_ROLE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Badge variant="outline" className="capitalize">
+                    {roleLabel}
+                  </Badge>
+                )}
+              </td>
+              <td className="py-3 text-center">
+                {canManage ? (
+                  <Switch
+                    checked={row.isActive}
+                    disabled={disabledRow || isOnlyActiveOwner}
+                    onCheckedChange={(v) => void updateActive(row, v === true)}
+                    aria-label={`Aktiv für ${row.label}`}
+                  />
+                ) : row.isActive ? (
+                  <Badge variant="secondary">Aktiv</Badge>
+                ) : (
+                  <Badge variant="outline">Inaktiv</Badge>
+                )}
+              </td>
+              {canManage ? (
+                <td className="py-3 text-right">
+                  {row.isActive ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-9 rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={disabledRow || isOnlyActiveOwner}
+                      onClick={() => setRevokeTarget(row)}
+                    >
+                      <LogOut className="size-4" />
+                      Entziehen
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Entzogen
+                    </span>
+                  )}
+                </td>
+              ) : null}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Mitglieder des{" "}
-          <span className="font-medium text-foreground">aktuell aktiven</span>{" "}
-          Restaurants. Wer die Berechtigung{" "}
-          <span className="font-medium text-foreground">Team verwalten</span>{" "}
-          hat, kann Rollen anpassen und Zugang entziehen. Es muss immer
-          mindestens ein aktiver Inhaber existieren.
-        </p>
-        {!canManage ? (
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            Du siehst die Liste schreibgeschützt.
+    <div className={embedded ? undefined : "space-y-6"}>
+      {!embedded ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Mitglieder des{" "}
+            <span className="font-medium text-foreground">aktuell aktiven</span>{" "}
+            Restaurants. Wer die Berechtigung{" "}
+            <span className="font-medium text-foreground">Team verwalten</span>{" "}
+            hat, kann Rollen anpassen und Zugang entziehen. Es muss immer
+            mindestens ein aktiver Inhaber existieren.
           </p>
-        ) : null}
-      </div>
+          {!canManage ? (
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              Du siehst die Liste schreibgeschützt.
+            </p>
+          ) : null}
+        </div>
+      ) : !canManage ? (
+        <p className="mb-4 text-sm text-amber-800 dark:text-amber-200">
+          Du siehst die Liste schreibgeschützt.
+        </p>
+      ) : null}
 
       {loading && !showSkeleton ? (
         <div className="min-h-[20rem]" aria-busy="true" />
       ) : null}
       {showSkeleton ? (
-        <RestaurantTeamPanelSkeleton />
-      ) : (
+        <RestaurantTeamPanelSkeleton embedded={embedded} />
+      ) : !embedded ? (
         <Card className="border-border/50 shadow-card">
           <CardHeader>
             <CardTitle className="text-lg">Mitglieder</CardTitle>
@@ -210,102 +304,16 @@ export function RestaurantTeamPanel() {
             </CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto px-4 sm:px-6">
-            <table className="w-full border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="py-3 pr-4 font-medium">Name</th>
-                  <th className="py-3 pr-4 font-medium">Rolle</th>
-                  <th className="w-[120px] py-3 text-center font-medium">Aktiv</th>
-                  {canManage ? (
-                    <th className="w-[140px] py-3 text-right font-medium">
-                      Zugang
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => {
-                  const isOnlyActiveOwner =
-                    row.role === "owner" &&
-                    row.isActive &&
-                    activeOwnerCount === 1;
-                  const disabledRow = busyId === row.id;
-                  const roleLabel =
-                    EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === row.role)
-                      ?.label ?? row.role;
-                  return (
-                    <tr key={row.id} className="border-b border-border/60">
-                      <td className="py-3 pr-4 font-medium">{row.label}</td>
-                      <td className="py-3 pr-4">
-                        {canManage ? (
-                          <select
-                            className="h-9 max-w-[200px] rounded-lg border border-input bg-background px-2 text-sm"
-                            value={row.role}
-                            disabled={disabledRow || isOnlyActiveOwner}
-                            aria-label={`Rolle für ${row.label}`}
-                            onChange={(e) =>
-                              void updateRole(
-                                row,
-                                e.target.value as EmployeeRole,
-                              )
-                            }
-                          >
-                            {EMPLOYEE_ROLE_OPTIONS.map((o) => (
-                              <option key={o.value} value={o.value}>
-                                {o.label}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <Badge variant="outline" className="capitalize">
-                            {roleLabel}
-                          </Badge>
-                        )}
-                      </td>
-                      <td className="py-3 text-center">
-                        {canManage ? (
-                          <Switch
-                            checked={row.isActive}
-                            disabled={disabledRow || isOnlyActiveOwner}
-                            onCheckedChange={(v) =>
-                              void updateActive(row, v === true)
-                            }
-                            aria-label={`Aktiv für ${row.label}`}
-                          />
-                        ) : row.isActive ? (
-                          <Badge variant="secondary">Aktiv</Badge>
-                        ) : (
-                          <Badge variant="outline">Inaktiv</Badge>
-                        )}
-                      </td>
-                      {canManage ? (
-                        <td className="py-3 text-right">
-                          {row.isActive ? (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-9 rounded-lg border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                              disabled={disabledRow || isOnlyActiveOwner}
-                              onClick={() => setRevokeTarget(row)}
-                            >
-                              <LogOut className="size-4" />
-                              Entziehen
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              Entzogen
-                            </span>
-                          )}
-                        </td>
-                      ) : null}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            {teamTable}
           </CardContent>
         </Card>
+      ) : (
+        <>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {rows.length} Eintrag{rows.length === 1 ? "" : "e"}
+          </p>
+          <div className="overflow-x-auto">{teamTable}</div>
+        </>
       )}
 
       <ConfirmDialog

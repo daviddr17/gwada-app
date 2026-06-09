@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
   DrawerContent,
@@ -424,23 +424,12 @@ export function DiningTableDrawer({
           </div>
         </div>
 
-        <div className="flex shrink-0 gap-2 border-t border-border/50 px-6 py-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11 flex-1 rounded-xl"
-            onClick={() => onOpenChange(false)}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="submit"
-            className="h-11 flex-1 rounded-xl"
-            disabled={saving || areas.length === 0}
-          >
-            Speichern
-          </Button>
-        </div>
+        <DrawerFormFooter
+          onCancel={() => onOpenChange(false)}
+          submitType="submit"
+          submitPending={saving}
+          submitDisabled={areas.length === 0}
+        />
         </form>
       </DrawerContent>
     </Drawer>

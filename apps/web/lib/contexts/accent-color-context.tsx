@@ -31,9 +31,15 @@ import {
   workspacePersistenceConfigured,
 } from "@/lib/supabase/workspace-persistence";
 
+type PersistAccentOptions = {
+  /** Standard: Erfolg per Toast melden. */
+  notify?: boolean;
+};
+
 type AccentColorContextValue = {
   accentHex: string;
   setAccentHex: (hex: string) => void;
+  persistAccentHex: (hex: string, options?: PersistAccentOptions) => Promise<boolean>;
   isReady: boolean;
 };
 
@@ -122,64 +128,73 @@ export function AccentColorProvider({ children }: { children: React.ReactNode })
       );
   }, [supabaseOnly]);
 
-  const setAccentHex = useCallback(
-    (hex: string) => {
+  const persistAccentHex = useCallback(
+    async (hex: string, options?: PersistAccentOptions): Promise<boolean> => {
+      const notify = options?.notify !== false;
       const normalized = normalizeHex(hex);
       if (!normalized) {
-        toast.error("Ungültige Farbe.");
-        return;
+        if (notify) toast.error("Ungültige Farbe.");
+        return false;
       }
       if (normalized === accentHexRef.current) {
-        return;
+        return true;
       }
       const prev = accentHexRef.current;
       setAccentHexState(normalized);
       applyAccentToDocument(normalized);
 
-      void (async () => {
-        const wp = workspacePersistenceConfigured();
-        const rid = wp ? await getWorkspaceRestaurantId() : null;
-        let ok = false;
+      const wp = workspacePersistenceConfigured();
+      const rid = wp ? await getWorkspaceRestaurantId() : null;
+      let ok = false;
+      if (rid) {
+        ok = await updateRestaurantBrandAccentHex(rid, normalized);
+      } else if (!supabaseOnly && typeof localStorage !== "undefined") {
+        try {
+          localStorage.setItem(ACCENT_STORAGE_KEY, normalized);
+          ok = true;
+        } catch {
+          ok = false;
+        }
+      }
+      if (!ok) {
+        setAccentHexState(prev);
+        applyAccentToDocument(prev);
         if (rid) {
-          ok = await updateRestaurantBrandAccentHex(rid, normalized);
-        } else if (!supabaseOnly && typeof localStorage !== "undefined") {
-          try {
+          toastDatabaseSaveError(
+            "Akzentfarbe konnte nicht in der Datenbank gespeichert werden.",
+          );
+        } else {
+          failSave();
+        }
+        return false;
+      }
+      if (!supabaseOnly) {
+        try {
+          if (typeof localStorage !== "undefined") {
             localStorage.setItem(ACCENT_STORAGE_KEY, normalized);
-            ok = true;
-          } catch {
-            ok = false;
           }
+        } catch {
+          /* ignore */
         }
-        if (!ok) {
-          setAccentHexState(prev);
-          applyAccentToDocument(prev);
-          if (rid) {
-            toastDatabaseSaveError(
-              "Akzentfarbe konnte nicht in der Datenbank gespeichert werden.",
-            );
-          } else {
-            failSave();
-          }
-          return;
-        }
-        if (!supabaseOnly) {
-          try {
-            if (typeof localStorage !== "undefined") {
-              localStorage.setItem(ACCENT_STORAGE_KEY, normalized);
-            }
-          } catch {
-            /* ignore */
-          }
-        }
+      }
+      if (notify) {
         toast.success("Akzentfarbe gespeichert");
-      })();
+      }
+      return true;
     },
     [failSave, supabaseOnly],
   );
 
+  const setAccentHex = useCallback(
+    (hex: string) => {
+      void persistAccentHex(hex);
+    },
+    [persistAccentHex],
+  );
+
   const value = useMemo(
-    () => ({ accentHex, setAccentHex, isReady }),
-    [accentHex, setAccentHex, isReady],
+    () => ({ accentHex, setAccentHex, persistAccentHex, isReady }),
+    [accentHex, setAccentHex, persistAccentHex, isReady],
   );
 
   return (

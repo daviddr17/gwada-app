@@ -6,8 +6,15 @@ import { digitsFromWhatsAppChatId } from "@/lib/contact-messages/whatsapp-pseudo
 export type ContactCreateDraft = {
   firstName?: string;
   lastName?: string;
+  company?: string;
+  addressStreet?: string;
+  addressPostalCode?: string;
+  addressCity?: string;
+  addressCountry?: string;
+  notes?: string;
   phones?: Array<{ iso2: string; local: string; label?: string }>;
   emails?: Array<{ email: string; label?: string }>;
+  linkExistingLexofficeId?: string | null;
 };
 
 export function draftFromWahaChat(params: {

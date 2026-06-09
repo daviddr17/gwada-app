@@ -12,7 +12,8 @@ export type PlatformIntegrationKey =
   | "whatsapp"
   | "email"
   | "weather"
-  | "fiskaly";
+  | "fiskaly"
+  | "lexoffice";
 
 export type PlatformIntegrationConfig = {
   client_id?: string;
@@ -45,6 +46,7 @@ export const PLATFORM_INTEGRATION_KEYS: readonly PlatformIntegrationKey[] = [
   "email",
   "weather",
   "fiskaly",
+  "lexoffice",
 ] as const;
 
 export function integrationConfigFromJson(

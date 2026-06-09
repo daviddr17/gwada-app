@@ -9,6 +9,7 @@ import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
 type MenuCompactItemsTableProps = {
   items: MenuItem[];
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  currencyCode?: string;
   /** Nur bei vollständiger Liste (ohne Such-/Filter-Auszug) sinnvoll. */
   sortable: boolean;
   onReorder: (orderedIds: string[]) => void;
@@ -18,6 +19,7 @@ type MenuCompactItemsTableProps = {
 export function MenuCompactItemsTable({
   items,
   tagDefinitions,
+  currencyCode,
   sortable,
   onReorder,
   onSelect,
@@ -58,6 +60,7 @@ export function MenuCompactItemsTable({
               key={item.id}
               item={item}
               tagDefinitions={tagDefinitions}
+              currencyCode={currencyCode}
               onSelect={(row) => onSelect(row.id)}
               sortable={sortable}
               itemRef={(el) => sort.registerItemRef(item.id, el)}

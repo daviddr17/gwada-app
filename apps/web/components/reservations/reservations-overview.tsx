@@ -48,6 +48,7 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { publicHolidayChipClassName } from "@/lib/ui/public-holiday-chip";
 import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
@@ -765,6 +766,20 @@ export function ReservationsOverview() {
               ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
               : "Keine Reservierungen in diesem Monat."}
         </p>
+      ) : null}
+
+      {dbOk && !unconfirmedMode ? (
+        <div className="mb-4">
+          <Button
+            type="button"
+            size="lg"
+            className={modulePrimaryAddButtonFullWidthClassName}
+            onClick={() => pushReservationCreate(today)}
+          >
+            <Plus className="size-4" />
+            Neue Reservierung
+          </Button>
+        </div>
       ) : null}
 
       <div className="space-y-2">

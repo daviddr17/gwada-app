@@ -20,8 +20,12 @@ import {
   useMessageReactionLongPress,
 } from "@/components/contacts/contact-message-reactions";
 import { ContactMessageAttachments } from "@/components/contacts/contact-message-attachments";
+import { ContactMessageEmailBody } from "@/components/contacts/contact-message-email-body";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
+
+/** E-Mail-Bubbles: schmal bei kurzem Inhalt, maximal 60 % des Chatfensters. */
+export const contactMessageEmailBubbleClassName = "w-fit max-w-[60%]";
 
 export type ContactMessageWahaReactionsConfig = {
   restaurantId: string;
@@ -128,6 +132,9 @@ function MessageBubbleRow({
   onReservationOpen?: (reservationId: string) => void;
 }) {
   const longPress = useMessageReactionLongPress(() => onPickerOpenChange(true));
+  const isEmail = messageDisplayPlatform(primary) === "email";
+  const hasHtmlBody = Boolean(primary.body_html?.trim());
+  const hasBody = Boolean(primary.body.trim()) || hasHtmlBody;
 
   return (
     <li
@@ -136,13 +143,22 @@ function MessageBubbleRow({
         outbound ? "items-end" : "items-start",
       )}
     >
-      <div className="group/bubble relative max-w-[min(100%,20rem)]">
+      <div
+        className={cn(
+          "group/bubble relative min-w-0",
+          isEmail
+            ? contactMessageEmailBubbleClassName
+            : "max-w-[min(100%,20rem)]",
+        )}
+      >
         <div
           className={cn(
             "rounded-2xl px-3 py-2 text-sm shadow-sm",
             outbound
               ? "rounded-br-md bg-accent text-accent-foreground"
               : "rounded-bl-md border border-border/50 bg-muted/40 text-foreground",
+            isEmail && hasHtmlBody && "bg-background text-foreground",
+            isEmail && hasHtmlBody && "overflow-visible",
           )}
           {...(showReactions ? longPress : {})}
         >
@@ -150,10 +166,16 @@ function MessageBubbleRow({
             <ContactMessageAttachments
               attachments={primary.attachments}
               outbound={outbound}
-              className={primary.body.trim() ? "mb-2" : undefined}
+              variant={isEmail ? "email" : "default"}
+              className={hasBody ? "mb-2" : undefined}
             />
           ) : null}
-          {primary.body.trim() ? (
+          {isEmail ? (
+            <ContactMessageEmailBody
+              body={primary.body}
+              bodyHtml={primary.body_html}
+            />
+          ) : primary.body.trim() ? (
             <p className="whitespace-pre-wrap break-words">{primary.body}</p>
           ) : null}
         </div>
@@ -213,7 +235,7 @@ function MessageBubbleRow({
               className="h-5 gap-0.5 px-1.5 text-[10px] font-normal"
               render={
                 <Link
-                  href={`/reservierungen/uebersicht?reservation=${primary.reservation_id}`}
+                  href={`/dashboard/reservierungen/uebersicht?reservation=${primary.reservation_id}`}
                   prefetch
                 />
               }

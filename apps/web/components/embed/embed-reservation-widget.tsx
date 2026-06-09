@@ -21,6 +21,11 @@ import {
 } from "@/components/embed/embed-submit-button";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import {
+  reservationNotifyRowMailIconClassName,
+  reservationNotifyRowTermsIconClassName,
+  reservationNotifyRowWhatsAppIconClassName,
+} from "@/components/reservations/reservation-notify-toggle-styles";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -660,7 +665,10 @@ export function EmbedReservationWidget({
             id="embed-notify-email"
             className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
           >
-            <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <Mail
+              className={reservationNotifyRowMailIconClassName}
+              aria-hidden
+            />
             E-Mail-Benachrichtigung
           </span>
           <Switch
@@ -685,7 +693,9 @@ export function EmbedReservationWidget({
             id="embed-notify-whatsapp"
             className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
           >
-            <WhatsAppGlyph className="size-4 shrink-0 text-[#25D366]" />
+            <WhatsAppGlyph
+              className={reservationNotifyRowWhatsAppIconClassName}
+            />
             WhatsApp-Benachrichtigung
           </span>
           <Switch
@@ -710,7 +720,7 @@ export function EmbedReservationWidget({
           id="embed-terms-label"
           className="flex min-w-0 flex-1 items-center gap-2.5 text-sm leading-snug"
         >
-          <TermsGlyph className="size-4 shrink-0 text-muted-foreground" />
+          <TermsGlyph className={reservationNotifyRowTermsIconClassName} />
           <span>
             <button
               type="button"

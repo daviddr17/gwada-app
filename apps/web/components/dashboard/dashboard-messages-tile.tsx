@@ -6,10 +6,11 @@ import {
   DashboardCompactList,
   DashboardCompactListItem,
   DashboardCompactMetricPill,
+  DashboardMessagesTileSkeleton,
 } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { dashboardMessagesInboxHref } from "@/lib/contact-messages/messages-unread-summary";
 
 function formatMessageWhen(iso: string): string {
   const d = new Date(iso);
@@ -33,23 +34,24 @@ function formatMessageWhen(iso: string): string {
 }
 
 export function DashboardMessagesTile() {
-  const { summary, loading, error, ready } = useDashboardMessagesStats();
-  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
+  const { summary, error, loading } = useDashboardMessagesStats();
   const total = summary?.total_unread ?? 0;
 
   return (
     <DashboardWidgetShell
       title="Nachrichten"
+      staticChrome
+      loadingContent={<DashboardMessagesTileSkeleton />}
       icon={
         <MessageCircle
           className="size-4 shrink-0 text-muted-foreground"
           aria-hidden
         />
       }
-      href="/kontakte/nachrichten?platform=all"
+      href="/dashboard/kontakte/nachrichten?platform=all"
       linkLabel="Zu Nachrichten"
-      ready={ready}
-      loading={showSkeleton}
+      ready
+      loading={loading}
       error={error}
     >
       {summary ? (
@@ -58,7 +60,7 @@ export function DashboardMessagesTile() {
             <DashboardCompactMetricPill
               label="Ungelesen"
               value={String(total)}
-              href={total > 0 ? "/kontakte/nachrichten?platform=all" : undefined}
+              href={total > 0 ? dashboardMessagesInboxHref({ read: "unread" }) : undefined}
               highlight={total > 0}
               stripeVariant="attention"
             />

@@ -2,10 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  mergeDashboardShortcutVisibility,
+  normalizeShortcutOrder,
+  reorderDashboardShortcutOrder,
+  shortcutVisibilityPatchFromStored,
+  type DashboardShortcutId,
+} from "@/lib/constants/dashboard-shortcuts";
+import {
   DASHBOARD_WIDGET_STORAGE_KEY,
   DEFAULT_DASHBOARD_WIDGET_ORDER,
   DEFAULT_DASHBOARD_WIDGET_VISIBILITY,
   canonicalDashboardWidgetId,
+  defaultDashboardWidgetPrefs,
   mergeDashboardWidgetVisibility,
   normalizeWidgetOrder,
   reorderDashboardWidgetOrder,
@@ -42,10 +50,33 @@ function isLegacyFlatVisibility(parsed: Record<string, unknown>): boolean {
   );
 }
 
-const defaultPrefs = (): DashboardWidgetPrefs => ({
-  visibility: { ...DEFAULT_DASHBOARD_WIDGET_VISIBILITY },
-  order: [...DEFAULT_DASHBOARD_WIDGET_ORDER],
-});
+const defaultPrefs = (): DashboardWidgetPrefs => defaultDashboardWidgetPrefs();
+
+function parseShortcutsFromObject(
+  o: Record<string, unknown>,
+): DashboardWidgetPrefs["shortcuts"] {
+  const shortcutsRaw =
+    o.shortcuts && typeof o.shortcuts === "object" && !Array.isArray(o.shortcuts)
+      ? (o.shortcuts as Record<string, unknown>)
+      : null;
+  const visRaw =
+    shortcutsRaw?.visibility &&
+    typeof shortcutsRaw.visibility === "object" &&
+    !Array.isArray(shortcutsRaw.visibility)
+      ? (shortcutsRaw.visibility as Record<string, unknown>)
+      : typeof o.shortcutVisibility === "object" &&
+          o.shortcutVisibility &&
+          !Array.isArray(o.shortcutVisibility)
+        ? (o.shortcutVisibility as Record<string, unknown>)
+        : {};
+  const orderRaw = shortcutsRaw?.order ?? o.shortcutOrder ?? o.shortcut_order;
+  return {
+    visibility: mergeDashboardShortcutVisibility(
+      shortcutVisibilityPatchFromStored(visRaw),
+    ),
+    order: normalizeShortcutOrder(orderRaw),
+  };
+}
 
 function parseStored(raw: string | null): DashboardWidgetPrefs {
   const fallback = defaultPrefs();
@@ -61,6 +92,7 @@ function parseStored(raw: string | null): DashboardWidgetPrefs {
       return {
         visibility: mergeDashboardWidgetVisibility(visibilityPatchFromStored(o)),
         order: normalizeWidgetOrder(o.order ?? []),
+        shortcuts: parseShortcutsFromObject(o),
       };
     }
 
@@ -72,6 +104,7 @@ function parseStored(raw: string | null): DashboardWidgetPrefs {
     return {
       visibility: mergeDashboardWidgetVisibility(visibilityPatchFromStored(visRaw)),
       order: normalizeWidgetOrder(o.order),
+      shortcuts: parseShortcutsFromObject(o),
     };
   } catch {
     return fallback;
@@ -92,9 +125,19 @@ function normalizeDbRow(row: RawDashboardWidgetRow): DashboardWidgetPrefs {
     row.visibility && typeof row.visibility === "object"
       ? (row.visibility as Record<string, unknown>)
       : {};
+  const shortcutVisRaw =
+    row.shortcutVisibility && typeof row.shortcutVisibility === "object"
+      ? row.shortcutVisibility
+      : {};
   return {
     visibility: mergeDashboardWidgetVisibility(visibilityPatchFromStored(visRaw)),
     order: normalizeWidgetOrder(row.order),
+    shortcuts: {
+      visibility: mergeDashboardShortcutVisibility(
+        shortcutVisibilityPatchFromStored(shortcutVisRaw),
+      ),
+      order: normalizeShortcutOrder(row.shortcutOrder),
+    },
   };
 }
 
@@ -226,7 +269,11 @@ export function useDashboardWidgetPreferences() {
             if (typeof localStorage !== "undefined") {
               localStorage.setItem(
                 localCompositeKey(profileId!, restaurantId!),
-                JSON.stringify({ visibility: next.visibility, order: next.order }),
+                JSON.stringify({
+                  visibility: next.visibility,
+                  order: next.order,
+                  shortcuts: next.shortcuts,
+                }),
               );
             }
           } catch {
@@ -244,6 +291,7 @@ export function useDashboardWidgetPreferences() {
       const ok = mirrorWorkspaceJsonLocal(DASHBOARD_WIDGET_STORAGE_KEY, {
         visibility: next.visibility,
         order: next.order,
+        shortcuts: next.shortcuts,
       });
       if (!ok) {
         setPrefs(previous);
@@ -279,11 +327,50 @@ export function useDashboardWidgetPreferences() {
     [persistPrefs],
   );
 
+  const setShortcutVisible = useCallback(
+    (id: DashboardShortcutId, visible: boolean) => {
+      setPrefs((p) => {
+        const next: DashboardWidgetPrefs = {
+          ...p,
+          shortcuts: {
+            ...p.shortcuts,
+            visibility: { ...p.shortcuts.visibility, [id]: visible },
+          },
+        };
+        void persistPrefs(next, p);
+        return next;
+      });
+    },
+    [persistPrefs],
+  );
+
+  const reorderShortcuts = useCallback(
+    (dragId: DashboardShortcutId, dropId: DashboardShortcutId) => {
+      setPrefs((p) => {
+        const nextOrder = reorderDashboardShortcutOrder(
+          p.shortcuts.order,
+          dragId,
+          dropId,
+        );
+        const next: DashboardWidgetPrefs = {
+          ...p,
+          shortcuts: { ...p.shortcuts, order: nextOrder },
+        };
+        void persistPrefs(next, p);
+        return next;
+      });
+    },
+    [persistPrefs],
+  );
+
   return {
     visibility: prefs.visibility,
     order: prefs.order,
+    shortcuts: prefs.shortcuts,
     setWidgetVisible,
     reorderWidgets,
+    setShortcutVisible,
+    reorderShortcuts,
     isReady,
   };
 }

@@ -59,28 +59,23 @@ import type {
   MenuTaxonomyDefinition,
   PriceRange,
 } from "@/lib/types/menu";
-import { IntegrationPlatformSyncButton } from "@/components/settings/integration-platform-sync-button";
-import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import { useMenuSettings } from "@/lib/hooks/use-menu-settings";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { readModuleChipStripHeightPx } from "@/lib/layout/module-chip-strip";
 import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
 
 const APP_HEADER_PX = 53; /* --app-chrome-header-h: p-2 + h-9 + p-2 + border */
 
-const MENU_BASE = "/menu/uebersicht";
+const MENU_BASE = "/dashboard/menu/uebersicht";
 
 export function MenuOverviewScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
-  const {
-    loading: platformConnectionsLoading,
-    googleConnected,
-  } = useReviewPlatformConnections(workspaceRestaurantId);
+  const { currencyCode } = useMenuSettings(workspaceRestaurantId);
   const {
     categories,
     addCategory,
@@ -129,14 +124,6 @@ export function MenuOverviewScreen() {
     ingredientsHydrated &&
     menuTags.isHydrated &&
     menuAllergens.isHydrated;
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const overviewLoading = !mounted || !isHydrated;
-  const showOverviewSkeleton = useDeferredSkeleton(overviewLoading);
 
   const ingredientNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -420,19 +407,11 @@ export function MenuOverviewScreen() {
 
   const showCards = !viewReady || viewMode === "cards";
 
-  if (!mounted) {
-    return <MenuOverviewSkeleton />;
-  }
-
-  if (!isHydrated) {
-    if (showOverviewSkeleton) {
-      return <MenuOverviewSkeleton />;
-    }
-    return <div className="w-full min-h-[32rem] pb-16" aria-busy />;
-  }
-
   return (
     <>
+      {!isHydrated ? (
+        <MenuOverviewSkeleton />
+      ) : (
         <div className="w-full pb-16">
         <div className="-mx-4 mb-3 flex flex-wrap gap-2 px-4 sm:-mx-6 sm:px-6">
           <Button
@@ -536,17 +515,11 @@ export function MenuOverviewScreen() {
           </div>
         </div>
 
-        <div className="mb-6 mt-5 flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:flex-wrap">
-          <IntegrationPlatformSyncButton
-            target="menu_google"
-            restaurantId={workspaceRestaurantId}
-            connected={googleConnected}
-            connectionsLoading={platformConnectionsLoading}
-            className="w-full sm:w-auto"
-          />
+        <div className="mb-6 mt-5">
           <Button
+            type="button"
             size="lg"
-            className={cn(modulePrimaryAddButtonClassName, "w-full sm:w-auto")}
+            className={modulePrimaryAddButtonFullWidthClassName}
             onClick={openCreateDrawer}
           >
             <Plus className="size-4" />
@@ -594,6 +567,7 @@ export function MenuOverviewScreen() {
                           key={item.id}
                           item={item}
                           tagDefinitions={mergedTagDefinitions}
+                          currencyCode={currencyCode}
                           onSelect={() => openEditDrawer(item.id)}
                         />
                       ))}
@@ -602,6 +576,7 @@ export function MenuOverviewScreen() {
                     <MenuCompactItemsTable
                       items={secItems}
                       tagDefinitions={mergedTagDefinitions}
+                      currencyCode={currencyCode}
                       sortable={!hasNonDefaultFilters}
                       onReorder={(ids) =>
                         reorderItemsInCategory(cat.id, ids)
@@ -625,12 +600,14 @@ export function MenuOverviewScreen() {
                 Lege Kategorien und Gerichte an, um deine Karte zu füllen.
               </CardDescription>
             </CardHeader>
-            <CardFooter className="justify-center pb-8">
+            <CardFooter className="pb-8">
               <Button
-                variant="outline"
-                className="h-11 rounded-full tap-scale"
+                type="button"
+                size="lg"
+                className={modulePrimaryAddButtonFullWidthClassName}
                 onClick={openCreateDrawer}
               >
+                <Plus className="size-4" />
                 Gericht hinzufügen
               </Button>
             </CardFooter>
@@ -651,18 +628,21 @@ export function MenuOverviewScreen() {
                   keine Treffer.
                 </CardDescription>
               </CardHeader>
-              <CardFooter className="justify-center pb-8">
+              <CardFooter className="pb-8">
                 <Button
-                  variant="outline"
-                  className="h-11 rounded-full tap-scale"
+                  type="button"
+                  size="lg"
+                  className={modulePrimaryAddButtonFullWidthClassName}
                   onClick={openCreateDrawer}
                 >
+                  <Plus className="size-4" />
                   Gericht hinzufügen
                 </Button>
               </CardFooter>
             </Card>
           )}
       </div>
+      )}
 
       <DishDrawer
         open={drawerOpen && (drawerMode === "create" || !!editItem)}
@@ -684,6 +664,7 @@ export function MenuOverviewScreen() {
         priceRange={priceRange}
         onPriceRangeChange={setPriceRange}
         priceMax={priceSliderMax}
+        currencyCode={currencyCode}
       />
 
       <CategoryDrawer

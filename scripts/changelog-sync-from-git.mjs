@@ -48,15 +48,23 @@ function resolveGitRange() {
 }
 
 function extractGitRecords() {
-  const output = execFileSync("git", buildGitLogArgs(resolveGitRange()), {
-    encoding: "utf8",
-    cwd: ROOT,
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  return output
-    .split("\x1e")
-    .map((r) => r.trim())
-    .filter(Boolean);
+  try {
+    const output = execFileSync("git", buildGitLogArgs(resolveGitRange()), {
+      encoding: "utf8",
+      cwd: ROOT,
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    return output
+      .split("\x1e")
+      .map((r) => r.trim())
+      .filter(Boolean);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn(
+      `Git-Log übersprungen (${msg.trim() || "kein Range"}); Draft/Changelog-Body aus Datei falls vorhanden.`,
+    );
+    return [];
+  }
 }
 
 function readDraft() {

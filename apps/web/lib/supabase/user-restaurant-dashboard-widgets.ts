@@ -4,6 +4,8 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 export type RawDashboardWidgetRow = {
   order: string[];
   visibility: Record<string, unknown>;
+  shortcutOrder: string[];
+  shortcutVisibility: Record<string, unknown>;
 };
 
 export async function loadUserRestaurantDashboardWidgets(
@@ -13,7 +15,9 @@ export async function loadUserRestaurantDashboardWidgets(
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("user_restaurant_dashboard_widgets")
-    .select("widget_order, widget_visibility")
+    .select(
+      "widget_order, widget_visibility, shortcut_order, shortcut_visibility",
+    )
     .eq("profile_id", profileId)
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -27,6 +31,15 @@ export async function loadUserRestaurantDashboardWidgets(
       typeof data.widget_visibility === "object" &&
       !Array.isArray(data.widget_visibility)
         ? (data.widget_visibility as Record<string, unknown>)
+        : {},
+    shortcutOrder: Array.isArray(data.shortcut_order)
+      ? (data.shortcut_order as string[])
+      : [],
+    shortcutVisibility:
+      data.shortcut_visibility &&
+      typeof data.shortcut_visibility === "object" &&
+      !Array.isArray(data.shortcut_visibility)
+        ? (data.shortcut_visibility as Record<string, unknown>)
         : {},
   };
 }
@@ -43,6 +56,8 @@ export async function upsertUserRestaurantDashboardWidgets(
       restaurant_id: restaurantId,
       widget_order: prefs.order,
       widget_visibility: prefs.visibility,
+      shortcut_order: prefs.shortcuts.order,
+      shortcut_visibility: prefs.shortcuts.visibility,
     },
     { onConflict: "profile_id,restaurant_id" },
   );

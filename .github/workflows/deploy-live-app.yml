@@ -26,11 +26,12 @@ jobs:
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}
         run: |
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
             echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
             echo "Einmalig: Deploy-Key auf VPS (ssh-copy-id), dann Secrets setzen."
-            echo "Alternativ lokal: pnpm deploy:app:live"
+            echo "Alternativ lokal: npm run deploy:app:live"
             if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
               exit 1
             fi
@@ -47,6 +48,7 @@ jobs:
           bash scripts/deploy-app-live.sh "${DEPLOY_SHA}"
 
       - name: Changelog sync (optional)
+        continue-on-error: true
         env:
           CHANGELOG_SYNC_URL: ${{ secrets.CHANGELOG_SYNC_URL }}
           CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}

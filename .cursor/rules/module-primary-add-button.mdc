@@ -1,0 +1,33 @@
+---
+description: Primäre „Neu anlegen“-CTA über Listen — volle Breite, abgeschwächter Brand-Tint
+alwaysApply: true
+---
+
+# Modul: „Neu anlegen“ über Listen
+
+Die **Hauptaktion zum Anlegen** (Mitarbeiter, Vertrag, Dokument, Zutat, Gericht, Schicht, Reservierung, Kontakt, Bewertungslink, …) steht **über** der Liste/Tabelle — **volle Breite**, abgerundet **`rounded-xl`**, weicher Brand-Tint (nicht `bg-accent` Vollfläche).
+
+## Klasse
+
+```tsx
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+
+<Button type="button" size="lg" className={modulePrimaryAddButtonFullWidthClassName} onClick={…}>
+  <Plus className="size-4" />
+  Label
+</Button>
+```
+
+Export: `lib/ui/module-primary-add-button.ts` — `modulePrimaryAddButtonFullWidthClassName`.
+
+Kompakte Variante nur wenn **bewusst** kein Listen-CTA (z. B. Nebenaktion): `modulePrimaryAddButtonClassName` (Pill, nicht volle Breite).
+
+## Referenz
+
+Schichtplan: `staff-shift-plan-screen.tsx` unter Geplant-Karte.
+
+## Nicht für
+
+- Speichern/Absenden in Formularen → `brandActionButtonRoundedClassName`
+- Sekundäraktionen (z. B. „Positionen verwalten“) → `variant="outline"`
+- Plattform-Chips / Icon-only in Zeilen (z. B. Plus pro Tageskarte) — optional zusätzlich; Listen-CTA bleibt trotzdem die volle Breite darüber

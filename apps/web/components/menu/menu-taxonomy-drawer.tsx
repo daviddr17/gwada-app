@@ -1,9 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
-import { cn } from "@/lib/utils";
 import {
   Drawer,
   DrawerContent,
@@ -13,7 +10,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
 import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
 import type { MenuTaxonomyDefinition } from "@/lib/types/menu";
@@ -182,24 +179,11 @@ export function MenuTaxonomyDrawer({
             </div>
           </div>
 
-          <Separator className="mb-4" />
-
-          <div className="flex gap-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-12 flex-1 rounded-xl tap-scale"
-              onClick={() => onOpenChange(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="submit"
-              className={cn("h-12 flex-1 ", brandActionButtonRoundedClassName)}
-            >
-              {mode === "edit" ? "Speichern" : "Anlegen"}
-            </Button>
-          </div>
+          <DrawerFormFooter
+            onCancel={() => onOpenChange(false)}
+            submitType="submit"
+            submitLabel={mode === "edit" ? "Speichern" : "Anlegen"}
+          />
         </form>
       </DrawerContent>
     </Drawer>

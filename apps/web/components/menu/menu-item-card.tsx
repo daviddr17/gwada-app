@@ -14,20 +14,22 @@ import {
 import { labelForTagId } from "@/lib/constants/menu-labels";
 import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
+import { formatMenuPrice } from "@/lib/menu/format-menu-price";
 import { cn } from "@/lib/utils";
-
-const priceFormatter = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-});
 
 type MenuItemCardProps = {
   item: MenuItem;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  currencyCode?: string;
   onSelect?: (item: MenuItem) => void;
 };
 
-export function MenuItemCard({ item, tagDefinitions, onSelect }: MenuItemCardProps) {
+export function MenuItemCard({
+  item,
+  tagDefinitions,
+  currencyCode,
+  onSelect,
+}: MenuItemCardProps) {
   const live = isMenuItemActive(item);
   return (
     <Card
@@ -102,7 +104,7 @@ export function MenuItemCard({ item, tagDefinitions, onSelect }: MenuItemCardPro
 
       <CardFooter className="mt-4 border-0 bg-transparent px-5 pt-2 pb-5">
         <p className="text-xl font-semibold tracking-tight text-accent tabular-nums">
-          {priceFormatter.format(item.price)}
+          {formatMenuPrice(item.price, currencyCode)}
         </p>
       </CardFooter>
     </Card>

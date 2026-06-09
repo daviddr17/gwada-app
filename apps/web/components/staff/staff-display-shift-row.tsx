@@ -3,6 +3,7 @@
 import { StaffDisplayShiftSegmentsList } from "@/components/staff/staff-display-shift-segments-list";
 import { displayShiftBounds } from "@/lib/staff/staff-work-hours-display";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
+import { cn } from "@/lib/utils";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -11,8 +12,10 @@ const timeDe = new Intl.DateTimeFormat("de-DE", {
 
 export function StaffDisplayShiftRow({
   segments,
+  className,
 }: {
   segments: RestaurantStaffWorkEntryRow[];
+  className?: string;
 }) {
   const bounds = displayShiftBounds(segments);
   const endLabel = bounds.isOpen
@@ -20,7 +23,7 @@ export function StaffDisplayShiftRow({
     : timeDe.format(new Date(bounds.endsAt!));
 
   return (
-    <div className="rounded-lg border border-border/40 px-3 py-2 text-sm">
+    <div className={cn("min-w-0 flex-1 text-sm", className)}>
       <p className="font-medium">
         Display-Schicht
         {bounds.isOpen ? (

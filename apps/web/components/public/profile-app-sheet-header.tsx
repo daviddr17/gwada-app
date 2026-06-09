@@ -5,7 +5,13 @@ import {
   m,
   useDragControls,
 } from "framer-motion";
-import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import {
   profileAvatarFallbackPlateClassName,
   restaurantLogoImageClassName,
@@ -21,7 +27,7 @@ import {
   PROFILE_SHEET_HANDLE_FALLBACK_PX,
   PROFILE_SHEET_HANDLE_HEIGHT_VAR,
   PROFILE_SHEET_HEADER_HEIGHT_VAR,
-  profileSheetTitleStickyTopStyle,
+  PROFILE_SHEET_MODULE_TITLE_HEIGHT_VAR,
 } from "@/lib/public-profile/profile-sheet-styles";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
 
@@ -32,6 +38,31 @@ const LOGO_SIZE_COLLAPSED_PX = 44;
 
 const profileSheetStickyChromeClassName =
   "bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80";
+
+const profileSheetDragChromeClassName =
+  "cursor-grab touch-none active:cursor-grabbing";
+
+function useProfileSheetDragStart({
+  dragControls,
+  dragEnabled,
+  isDismissing,
+  reduceMotion,
+}: {
+  dragControls: ReturnType<typeof useDragControls>;
+  dragEnabled: boolean;
+  isDismissing: boolean;
+  reduceMotion: boolean | null;
+}) {
+  return useCallback(
+    (event: React.PointerEvent) => {
+      if (reduceMotion || isDismissing || !dragEnabled) return;
+      event.preventDefault();
+      event.stopPropagation();
+      dragControls.start(event);
+    },
+    [dragControls, dragEnabled, isDismissing, reduceMotion],
+  );
+}
 
 function restaurantInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -72,6 +103,10 @@ function syncProfileSheetPinnedHeaderHeight(
     PROFILE_SHEET_HEADER_HEIGHT_VAR,
     `${Math.max(0, pinnedBottom - rootRect.top)}px`,
   );
+  root.style.setProperty(
+    PROFILE_SHEET_MODULE_TITLE_HEIGHT_VAR,
+    `${Math.ceil(chrome.offsetHeight)}px`,
+  );
 
   return handleHeight;
 }
@@ -83,6 +118,49 @@ function schedulePinnedHeaderResync(sync: () => void) {
   });
 }
 
+/** Drag-Handle außerhalb des Scroll-Roots — jederzeit zum Schließen ziehbar. */
+export function ProfileAppSheetDragHandle({
+  handleRef,
+  dragControls,
+  dragEnabled,
+  isDismissing,
+  reduceMotion,
+}: {
+  handleRef: RefObject<HTMLDivElement | null>;
+  dragControls: ReturnType<typeof useDragControls>;
+  dragEnabled: boolean;
+  isDismissing: boolean;
+  reduceMotion: boolean | null;
+}) {
+  const startSheetDrag = useProfileSheetDragStart({
+    dragControls,
+    dragEnabled,
+    isDismissing,
+    reduceMotion,
+  });
+
+  return (
+    <div
+      ref={handleRef}
+      data-profile-app-sheet-handle
+      data-profile-app-sheet-drag-chrome
+      className={cn(
+        "z-20 shrink-0",
+        profileSheetDragChromeClassName,
+        profileSheetStickyChromeClassName,
+      )}
+      onPointerDown={startSheetDrag}
+    >
+      <div className="flex justify-center px-4 pb-2 pt-3">
+        <div
+          className="h-1 w-10 shrink-0 rounded-full bg-muted-foreground/45"
+          aria-hidden
+        />
+      </div>
+    </div>
+  );
+}
+
 export function ProfileAppSheetHeader({
   profile,
   activeApp,
@@ -90,6 +168,7 @@ export function ProfileAppSheetHeader({
   reduceMotion,
   dragControls,
   dragEnabled,
+  sheetHandleRef,
   isDismissing,
   scrollRootRef,
   layoutEpoch,
@@ -101,6 +180,7 @@ export function ProfileAppSheetHeader({
   reduceMotion: boolean | null;
   dragControls: ReturnType<typeof useDragControls>;
   dragEnabled: boolean;
+  sheetHandleRef: RefObject<HTMLDivElement | null>;
   isDismissing: boolean;
   scrollRootRef: RefObject<HTMLElement | null>;
   /** Erhöht sich nach Open-/Reopen-Animation — erzwingt erneute Handle-Messung. */
@@ -110,21 +190,19 @@ export function ProfileAppSheetHeader({
 }) {
   const headerApp = apps.find((app) => app.id === activeApp) ?? apps[0]!;
   const initials = restaurantInitials(profile.name);
-  const handleRef = useRef<HTMLDivElement>(null);
   const stickyChromeRef = useRef<HTMLElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
 
-  const startSheetDrag = useCallback(
-    (event: React.PointerEvent) => {
-      if (reduceMotion || isDismissing || !dragEnabled) return;
-      dragControls.start(event);
-    },
-    [dragControls, dragEnabled, isDismissing, reduceMotion],
-  );
+  const startSheetDrag = useProfileSheetDragStart({
+    dragControls,
+    dragEnabled,
+    isDismissing,
+    reduceMotion,
+  });
 
   useLayoutEffect(() => {
     const root = scrollRootRef.current;
-    const handle = handleRef.current;
+    const handle = sheetHandleRef.current;
     const chrome = stickyChromeRef.current;
     if (!root || !handle || !chrome) return;
 
@@ -156,7 +234,14 @@ export function ProfileAppSheetHeader({
       root.removeEventListener("scroll", onScroll);
       ro.disconnect();
     };
-  }, [scrollRootRef, activeApp, layoutEpoch, layoutReady, isDismissing]);
+  }, [
+    scrollRootRef,
+    sheetHandleRef,
+    activeApp,
+    layoutEpoch,
+    layoutReady,
+    isDismissing,
+  ]);
 
   const logoProgress = reduceMotion ? 0 : logoCollapseProgress(scrollTop);
   const logoSize = lerp(LOGO_SIZE_EXPANDED_PX, LOGO_SIZE_COLLAPSED_PX, logoProgress);
@@ -166,27 +251,13 @@ export function ProfileAppSheetHeader({
   return (
     <>
       <div
-        ref={handleRef}
-        data-profile-app-sheet-handle
+        data-profile-app-sheet-drag-chrome
         className={cn(
-          "sticky top-0 z-20 shrink-0 cursor-grab active:cursor-grabbing",
+          "flex shrink-0 flex-col items-center px-4",
+          profileSheetDragChromeClassName,
           profileSheetStickyChromeClassName,
         )}
         onPointerDown={startSheetDrag}
-      >
-        <div className="flex justify-center px-4 pb-2 pt-3">
-          <div
-            className="h-1 w-10 shrink-0 rounded-full bg-muted-foreground/45"
-            aria-hidden
-          />
-        </div>
-      </div>
-
-      <div
-        className={cn(
-          "flex shrink-0 flex-col items-center px-4",
-          profileSheetStickyChromeClassName,
-        )}
       >
         <span
           className={cn(
@@ -222,12 +293,16 @@ export function ProfileAppSheetHeader({
       <header
         ref={stickyChromeRef}
         data-profile-app-sheet-header
+        data-profile-app-sheet-drag-chrome
         data-profile-sheet-no-pull
         className={cn(
-          "sticky z-10 shrink-0 border-b border-border/40 py-2",
+          "sticky z-10 shrink-0 py-2",
+          activeApp !== "menu" && "border-b border-border/40",
+          profileSheetDragChromeClassName,
           profileSheetStickyChromeClassName,
         )}
-        style={profileSheetTitleStickyTopStyle()}
+        style={{ top: 0 }}
+        onPointerDown={startSheetDrag}
       >
         <div className="flex flex-col items-center px-4">
           <p className="max-w-full truncate text-sm font-semibold tracking-tight text-foreground">

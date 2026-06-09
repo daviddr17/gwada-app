@@ -1,43 +1,11 @@
 import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
-import os from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { LEGACY_MODULE_REDIRECTS } from "./lib/navigation/app-routes";
 
-// Monorepo: Env-Dateien weiterhin am Repo-Root (.env.local), optional zusätzlich in apps/web.
-const appDir = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(appDir, "../..");
-loadEnvConfig(repoRoot);
-loadEnvConfig(appDir);
-
-/** Dev only: Staff-App / Gerät im LAN (HMR, webpack-hmr). Siehe allowedDevOrigins in next.config. */
-function buildAllowedDevOrigins(): string[] {
-  const origins = new Set<string>([
-    "localhost",
-    "127.0.0.1",
-    "192.168.*.*",
-    "10.*.*.*",
-    "172.*.*.*",
-  ]);
-
-  for (const ifaces of Object.values(os.networkInterfaces())) {
-    for (const iface of ifaces ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) {
-        origins.add(iface.address);
-      }
-    }
-  }
-
-  const extra = process.env.GWADA_ALLOWED_DEV_ORIGINS?.trim();
-  if (extra) {
-    for (const item of extra.split(",")) {
-      const host = item.trim();
-      if (host) origins.add(host);
-    }
-  }
-
-  return [...origins];
-}
+// Explizit dieselbe Ladereihenfolge wie Next (dev → .env.local + .env.development*;
+// production → .env.local + .env.production*). Siehe .env.example.
+const projectDir = process.cwd();
+loadEnvConfig(projectDir);
 
 /** Hostnames für Production-Image-Optimizer via remotePatterns. */
 const gwadaAppStorageHostnames = ["new.gwada.app", "gwada.app"] as const;
@@ -80,14 +48,6 @@ const supabaseStoragePatterns = [
 ];
 
 const nextConfig: NextConfig = {
-  ...(process.env.NODE_ENV !== "production"
-    ? { allowedDevOrigins: buildAllowedDevOrigins() }
-    : {}),
-  transpilePackages: ["@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
-  serverExternalPackages: ["pdfkit"],
-  turbopack: {
-    root: repoRoot,
-  },
   images: {
     remotePatterns: [
       {
@@ -107,6 +67,13 @@ const nextConfig: NextConfig = {
         },
       ],
     };
+  },
+  async redirects() {
+    return LEGACY_MODULE_REDIRECTS.map(({ source, destination }) => ({
+      source,
+      destination,
+      permanent: true,
+    }));
   },
   async headers() {
     return [

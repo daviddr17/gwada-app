@@ -5,6 +5,7 @@ import { Mail } from "lucide-react";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
+import { LexofficeGlyph } from "@/components/icons/lexoffice-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import type { DashboardIntegrationChannelId } from "@/lib/dashboard/dashboard-integration-channels";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,12 @@ export function DashboardIntegrationLogo({
             )}
             aria-hidden
           />
+        </div>
+      );
+    case "lexoffice":
+      return (
+        <div className={wrapClass}>
+          <LexofficeGlyph className={iconClass} />
         </div>
       );
     default:

@@ -8,6 +8,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.facebook",
   "integrations.instagram",
   "integrations.google_business",
+  "integrations.lexoffice",
   "settings.restaurant",
   "settings.opening_hours",
   "settings.branding",
@@ -83,6 +84,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "integrations.google_business",
       label: "Google Business Profile",
       description: "Unternehmensprofil bei Google verknüpfen.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.lexoffice",
+      label: "Lexware Office",
+      description: "Lexware Office (Lexoffice) per API-Key verbinden.",
       group: "integrationen",
     },
     {

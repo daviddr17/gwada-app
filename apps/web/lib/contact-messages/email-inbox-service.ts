@@ -255,6 +255,7 @@ export async function fetchEmailInboxThread(
       platform: "email" as const,
       direction: outbound ? "outbound" : "inbound",
       body,
+      body_html: parsed?.body_html ?? null,
       reservation_id: null,
       sent_by: null,
       delivery_status: "delivered",

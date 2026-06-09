@@ -20,6 +20,7 @@ import {
   type PurchaseOrderLine,
   resolveProtocolCreatorLabel,
 } from "@/lib/types/purchase-order";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
 const scopeItems = {
@@ -434,7 +435,10 @@ export function PurchaseOrdersScreen() {
                       <Button
                         type="button"
                         size="sm"
-                        className="rounded-full bg-accent px-3 text-accent-foreground hover:bg-accent/90 sm:px-4"
+                        className={cn(
+                          "rounded-full px-3 sm:px-4",
+                          brandActionButtonRoundedClassName,
+                        )}
                         onClick={() => void closeOrder(order.id)}
                       >
                         Schließen

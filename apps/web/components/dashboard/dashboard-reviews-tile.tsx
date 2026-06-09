@@ -53,7 +53,7 @@ export function DashboardReviewsTile() {
           aria-hidden
         />
       }
-      href="/bewertungen/uebersicht"
+      href="/dashboard/bewertungen/uebersicht"
       linkLabel="Zu Bewertungen"
       ready={ready}
       loading={showSkeleton}
@@ -87,6 +87,14 @@ export function DashboardReviewsTile() {
                 <DashboardCompactListItem
                   key={`${row.platform}-${row.id}`}
                   href={row.href}
+                  leading={
+                    row.isUnread ? (
+                      <ReviewPlatformIcon
+                        platform={row.platform}
+                        aria-label={REVIEW_PLATFORM_LABELS[row.platform]}
+                      />
+                    ) : undefined
+                  }
                   title={
                     row.authorName?.trim() ||
                     REVIEW_PLATFORM_LABELS[row.platform]
@@ -106,7 +114,9 @@ export function DashboardReviewsTile() {
             </DashboardCompactList>
           ) : (
             <p className="text-xs text-muted-foreground">
-              Noch keine Bewertungen in den verbundenen Kanälen.
+              {summary.unreadRecentCount > 0
+                ? "Ungelesene Bewertungen findest du in der Übersicht."
+                : "Keine ungelesenen Bewertungen — alles gelesen."}
             </p>
           )}
         </div>

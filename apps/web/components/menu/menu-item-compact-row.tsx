@@ -7,12 +7,8 @@ import { isMenuItemActive } from "@/lib/menu/item-utils";
 import type { UseSortableReorderResult } from "@/lib/hooks/use-sortable-reorder";
 import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
+import { formatMenuPrice } from "@/lib/menu/format-menu-price";
 import { cn } from "@/lib/utils";
-
-const priceFormatter = new Intl.NumberFormat("de-DE", {
-  style: "currency",
-  currency: "EUR",
-});
 
 type SortableHandleProps = ReturnType<
   UseSortableReorderResult<string>["getHandleProps"]
@@ -21,6 +17,7 @@ type SortableHandleProps = ReturnType<
 type MenuItemCompactRowProps = {
   item: MenuItem;
   tagDefinitions: readonly MenuTaxonomyDefinition[];
+  currencyCode?: string;
   onSelect?: (item: MenuItem) => void;
   sortable?: boolean;
   itemRef?: (el: HTMLTableRowElement | null) => void;
@@ -31,6 +28,7 @@ type MenuItemCompactRowProps = {
 export function MenuItemCompactRow({
   item,
   tagDefinitions,
+  currencyCode,
   onSelect,
   sortable = false,
   itemRef,
@@ -125,7 +123,7 @@ export function MenuItemCompactRow({
         </div>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 text-right align-middle font-semibold tabular-nums text-accent">
-        {priceFormatter.format(item.price)}
+        {formatMenuPrice(item.price, currencyCode)}
       </td>
     </tr>
   );

@@ -46,6 +46,14 @@ export function unifiedContactAddressLabel(row: UnifiedContactListRow): string {
   } as ContactListRow);
 }
 
+/** Label für Kontakt-Combobox: Name, optional mit Adresse (ohne Platzhalter „—“). */
+export function unifiedContactOptionLabel(row: UnifiedContactListRow): string {
+  const name = unifiedContactDisplayName(row);
+  const addr = unifiedContactAddressLabel(row);
+  if (addr !== "—") return `${name} — ${addr}`;
+  return name;
+}
+
 export function filterUnifiedContactsByPlatform(
   rows: UnifiedContactListRow[],
   filter: "all" | ContactCatalogPlatform,

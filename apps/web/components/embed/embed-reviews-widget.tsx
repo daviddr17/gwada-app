@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Star } from "lucide-react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
@@ -74,10 +75,32 @@ export function EmbedReviewsWidget({
 }: EmbedReviewsWidgetProps) {
   const maxBar = Math.max(1, ...Object.values(summary.distribution));
 
+  const resizeDeps = useMemo(
+    () => [
+      restaurantName,
+      reviews.length,
+      summary.count,
+      summary.average,
+      summary.median,
+      summary.distribution[1],
+      summary.distribution[2],
+      summary.distribution[3],
+      summary.distribution[4],
+      summary.distribution[5],
+      reviews
+        .map(
+          (r) =>
+            `${r.id}:${r.rating}:${r.comment?.length ?? 0}:${r.authorName ?? ""}`,
+        )
+        .join("|"),
+    ],
+    [restaurantName, reviews, summary],
+  );
+
   return (
     <EmbedAccentRoot accentHex={accentHex}>
-      <EmbedResizeReporter deps={[reviews.length, summary.count]} widget="reviews" />
-      <div className="px-4 py-6 sm:px-6">
+      <EmbedResizeReporter deps={resizeDeps} widget="reviews" />
+      <div className="w-full min-w-0 px-4 py-6 sm:px-6">
         <header className="border-b border-border/40 pb-6">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Bewertungen

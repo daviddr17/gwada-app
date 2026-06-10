@@ -1351,15 +1351,11 @@ export function ContactsMessagesScreen() {
     body,
     sendWhatsapp,
     sendEmail,
-    notifyWhatsapp,
-    notifyEmail,
     files,
   }: {
     body: string;
     sendWhatsapp: boolean;
     sendEmail: boolean;
-    notifyWhatsapp?: boolean;
-    notifyEmail?: boolean;
     files?: File[];
   }) => {
     if (!restaurantId || !contactParam || !canReply) return;
@@ -1385,8 +1381,6 @@ export function ContactsMessagesScreen() {
         channels,
         restaurantName,
         files,
-        notifyWhatsapp,
-        notifyEmail,
       });
       setSending(false);
       const warn = sendContactMessageUserMessage(result);

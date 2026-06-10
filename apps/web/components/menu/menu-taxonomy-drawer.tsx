@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -8,6 +9,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
@@ -28,33 +31,43 @@ type MenuTaxonomyDrawerProps = {
   initial?: MenuTaxonomyDefinition | null;
   variant: "tags" | "allergens" | "documentTags" | "staffPositionTags";
   onSave: (payload: SavePayload) => void;
+  onDelete?: (id: string) => void | Promise<void>;
 };
 
 const COPY: Record<
   MenuTaxonomyDrawerProps["variant"],
-  { titleCreate: string; titleEdit: string; description: string }
+  {
+    titleCreate: string;
+    titleEdit: string;
+    description: string;
+    deleteLabel: string;
+  }
 > = {
   tags: {
     titleCreate: "Neues Tag",
     titleEdit: "Tag bearbeiten",
     description: "Name, Sichtbarkeit und Chip-Farbe für Eigenschaften (z. B. Vegan, Spicy).",
+    deleteLabel: "Tag löschen",
   },
   allergens: {
     titleCreate: "Neues Allergen",
     titleEdit: "Allergen bearbeiten",
     description: "Name, Sichtbarkeit und Chip-Farbe für Allergen-Kennzeichnung.",
+    deleteLabel: "Allergen löschen",
   },
   documentTags: {
     titleCreate: "Neues Dokument-Tag",
     titleEdit: "Dokument-Tag bearbeiten",
     description:
       "Name, Sichtbarkeit und Chip-Farbe für die Zuordnung von Dokumenten.",
+    deleteLabel: "Tag löschen",
   },
   staffPositionTags: {
     titleCreate: "Neue Position",
     titleEdit: "Position bearbeiten",
     description:
       "Name, Sichtbarkeit und Chip-Farbe für Mitarbeiter-Positionen.",
+    deleteLabel: "Position löschen",
   },
 };
 
@@ -65,11 +78,14 @@ export function MenuTaxonomyDrawer({
   initial,
   variant,
   onSave,
+  onDelete,
 }: MenuTaxonomyDrawerProps) {
   const labels = COPY[variant];
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
   const [backgroundColor, setBackgroundColor] = useState("#64748b");
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -90,6 +106,8 @@ export function MenuTaxonomyDrawer({
     return () => cancelAnimationFrame(frame);
   }, [mode, initial, open]);
 
+  const canDelete = mode === "edit" && initial && onDelete;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
@@ -103,89 +121,139 @@ export function MenuTaxonomyDrawer({
     onOpenChange(false);
   };
 
+  const handleConfirmDelete = async () => {
+    if (!initial || !onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(initial.id);
+      setConfirmDeleteOpen(false);
+      onOpenChange(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
-    <Drawer
-      open={open}
-      onOpenChange={onOpenChange}
-      direction="bottom"
-      repositionInputs={false}
-    >
-      <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,520px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+    <>
+      <Drawer
+        open={open}
+        onOpenChange={onOpenChange}
+        direction="bottom"
+        repositionInputs={false}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            {mode === "edit" ? labels.titleEdit : labels.titleCreate}
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {labels.description}
-          </DrawerDescription>
-        </DrawerHeader>
-
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col px-6 pb-4">
-          <div className="space-y-4 pb-4">
-            <div className="space-y-2">
-              <Label htmlFor="taxonomy-name">Name</Label>
-              <Input
-                id="taxonomy-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={variant === "tags" ? "z. B. Bio" : "z. B. Sellerie"}
-                className="h-12 rounded-xl"
-                autoFocus
-              />
+        <DrawerContent
+          className="mx-auto flex max-h-[min(92dvh,520px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        >
+          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1">
+                <DrawerTitle className="text-xl font-semibold tracking-tight">
+                  {mode === "edit" ? labels.titleEdit : labels.titleCreate}
+                </DrawerTitle>
+                <DrawerDescription className="text-base">
+                  {labels.description}
+                </DrawerDescription>
+              </div>
+              {canDelete ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label={labels.deleteLabel}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
             </div>
+          </DrawerHeader>
 
-            <div className="space-y-2">
-              <Label htmlFor="taxonomy-color">Chip-Hintergrundfarbe</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="taxonomy-color"
-                  type="color"
-                  value={HEX.test(backgroundColor) ? backgroundColor : "#64748b"}
-                  onChange={(e) => setBackgroundColor(e.target.value)}
-                  className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
-                  aria-label="Farbe wählen"
-                />
+          <form onSubmit={handleSubmit} className="flex flex-1 flex-col px-6 pb-4">
+            <div className="space-y-4 pb-4">
+              <div className="space-y-2">
+                <Label htmlFor="taxonomy-name">Name</Label>
                 <Input
-                  value={backgroundColor}
-                  onChange={(e) => setBackgroundColor(e.target.value)}
-                  placeholder="#64748b"
-                  className="h-12 flex-1 rounded-xl font-mono text-sm"
-                  spellCheck={false}
-                  maxLength={7}
-                  aria-label="Farbe als Hex"
+                  id="taxonomy-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={variant === "tags" ? "z. B. Bio" : "z. B. Sellerie"}
+                  className="h-12 rounded-xl"
+                  autoFocus
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Hex-Wert (#rrggbb) – wird für Chips in Karte und Tabelle verwendet.
-              </p>
-            </div>
 
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/25 px-4 py-3">
-              <div className="space-y-0.5">
-                <Label htmlFor="taxonomy-active" className="text-sm font-medium">
-                  Aktiv
-                </Label>
+              <div className="space-y-2">
+                <Label htmlFor="taxonomy-color">Chip-Hintergrundfarbe</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="taxonomy-color"
+                    type="color"
+                    value={HEX.test(backgroundColor) ? backgroundColor : "#64748b"}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
+                    aria-label="Farbe wählen"
+                  />
+                  <Input
+                    value={backgroundColor}
+                    onChange={(e) => setBackgroundColor(e.target.value)}
+                    placeholder="#64748b"
+                    className="h-12 flex-1 rounded-xl font-mono text-sm"
+                    spellCheck={false}
+                    maxLength={7}
+                    aria-label="Farbe als Hex"
+                  />
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  Inaktive Einträge erscheinen nicht in Auswahl und Filtern.
+                  Hex-Wert (#rrggbb) – wird für Chips in Karte und Tabelle verwendet.
                 </p>
               </div>
-              <Switch
-                id="taxonomy-active"
-                checked={active}
-                onCheckedChange={(v) => setActive(v === true)}
-              />
-            </div>
-          </div>
 
-          <DrawerFormFooter
-            onCancel={() => onOpenChange(false)}
-            submitType="submit"
-            submitLabel={mode === "edit" ? "Speichern" : "Anlegen"}
-          />
-        </form>
-      </DrawerContent>
-    </Drawer>
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/25 px-4 py-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="taxonomy-active" className="text-sm font-medium">
+                    Aktiv
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Inaktive Einträge erscheinen nicht in Auswahl und Filtern.
+                  </p>
+                </div>
+                <Switch
+                  id="taxonomy-active"
+                  checked={active}
+                  onCheckedChange={(v) => setActive(v === true)}
+                />
+              </div>
+            </div>
+
+            <DrawerFormFooter
+              onCancel={() => onOpenChange(false)}
+              submitType="submit"
+              submitLabel={mode === "edit" ? "Speichern" : "Anlegen"}
+            />
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {canDelete ? (
+        <ConfirmDialog
+          open={confirmDeleteOpen}
+          onOpenChange={setConfirmDeleteOpen}
+          title={`${labels.deleteLabel}?`}
+          description={
+            initial ? (
+              <>
+                „<span className="font-medium text-foreground">{initial.name}</span>“
+                wird dauerhaft entfernt.
+              </>
+            ) : null
+          }
+          confirmLabel="Löschen"
+          destructive
+          confirmDisabled={deleting}
+          onConfirm={() => void handleConfirmDelete()}
+        />
+      ) : null}
+    </>
   );
 }

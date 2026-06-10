@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     name?: string;
     allowed_modules?: DisplayModule[];
     auto_lock_seconds?: number;
+    is_active?: boolean;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -102,6 +103,7 @@ export async function POST(request: Request) {
       name,
       allowed_modules: body.allowed_modules ?? [],
       auto_lock_seconds: body.auto_lock_seconds ?? 60,
+      is_active: body.is_active ?? true,
     })
     .select("id")
     .single();

@@ -8,7 +8,9 @@ import type {
   RestaurantStaffWorkEntryRow,
   StaffLivePresenceRow,
   StaffPositionTagDefinition,
+  StaffEmploymentTypeDefinition,
 } from "@/lib/types/staff";
+import { isStaffFixedPayType } from "@/lib/staff/staff-contract-pay";
 
 const STAFF_SELECT = `
   id,
@@ -238,6 +240,19 @@ export async function updateStaffPositionTag(
   return !error;
 }
 
+export async function deleteStaffPositionTag(
+  restaurantId: string,
+  id: string,
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("restaurant_staff_position_tags")
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("id", id);
+  return !error;
+}
+
 export async function reorderStaffPositionTags(
   orderedIds: string[],
 ): Promise<boolean> {
@@ -374,10 +389,109 @@ export async function fetchStaffLogEntries(
   };
 }
 
+const EMPLOYMENT_TYPE_SELECT =
+  "id,name,is_active,sort_order" as const;
+
+function mapEmploymentTypeRow(r: {
+  id: string;
+  name: string;
+  is_active: boolean;
+}): StaffEmploymentTypeDefinition {
+  return {
+    id: r.id,
+    name: r.name,
+    active: r.is_active,
+  };
+}
+
+export async function seedStaffEmploymentTypesIfEmpty(
+  restaurantId: string,
+): Promise<void> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.rpc(
+    "seed_restaurant_default_employment_types",
+    { p_restaurant_id: restaurantId },
+  );
+  if (error) {
+    console.warn("[gwada] seed_restaurant_default_employment_types", error.message);
+  }
+}
+
+export async function loadStaffEmploymentTypes(
+  restaurantId: string,
+): Promise<{ data: StaffEmploymentTypeDefinition[]; error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("restaurant_staff_employment_types")
+    .select(EMPLOYMENT_TYPE_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: true });
+  if (error) return { data: [], error: error.message };
+  return { data: (data ?? []).map(mapEmploymentTypeRow), error: null };
+}
+
+export async function insertStaffEmploymentType(
+  restaurantId: string,
+  name: string,
+  active: boolean,
+): Promise<{ id: string } | null> {
+  const supabase = createSupabaseBrowserClient();
+  const { data: last } = await supabase
+    .from("restaurant_staff_employment_types")
+    .select("sort_order")
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const sortOrder = (last?.sort_order ?? -1) + 1;
+  const { data, error } = await supabase
+    .from("restaurant_staff_employment_types")
+    .insert({
+      restaurant_id: restaurantId,
+      name,
+      is_active: active,
+      sort_order: sortOrder,
+    })
+    .select("id")
+    .single();
+  if (error || !data) return null;
+  return { id: data.id as string };
+}
+
+export async function updateStaffEmploymentType(
+  id: string,
+  updates: { name?: string; active?: boolean },
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const patch: Record<string, unknown> = {};
+  if (updates.name !== undefined) patch.name = updates.name.trim();
+  if (updates.active !== undefined) patch.is_active = updates.active;
+  if (Object.keys(patch).length === 0) return true;
+  const { error } = await supabase
+    .from("restaurant_staff_employment_types")
+    .update(patch)
+    .eq("id", id);
+  return !error;
+}
+
+export async function reorderStaffEmploymentTypes(
+  orderedIds: string[],
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from("restaurant_staff_employment_types")
+      .update({ sort_order: i })
+      .eq("id", orderedIds[i]);
+    if (error) return false;
+  }
+  return true;
+}
+
 const STAFF_CONTRACT_SELECT_BASE =
   "id, restaurant_id, staff_id, valid_from, valid_to, pay_type, hourly_rate_cents, fixed_salary_cents, currency, note";
 
-const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type, vacation_days_per_year, target_weekly_minutes`;
+const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type_id, vacation_days_per_year, target_weekly_minutes, employment_type:restaurant_staff_employment_types(id, name)`;
 
 export async function fetchStaffContracts(
   restaurantId: string,
@@ -428,6 +542,9 @@ function mapStaffContractRow(r: Record<string, unknown>): RestaurantStaffContrac
   const validFrom = String(r.valid_from ?? "").slice(0, 10);
   const validToRaw = r.valid_to as string | null | undefined;
   const validTo = validToRaw ? validToRaw.slice(0, 10) : null;
+  const empRel = r.employment_type as { id?: string; name?: string } | null;
+  const employmentTypeId =
+    (r.employment_type_id as string | null) ?? empRel?.id ?? null;
   return {
     id: r.id as string,
     restaurant_id: r.restaurant_id as string,
@@ -439,9 +556,8 @@ function mapStaffContractRow(r: Record<string, unknown>): RestaurantStaffContrac
     fixed_salary_cents: r.fixed_salary_cents as number | null,
     currency: (r.currency as string) ?? "EUR",
     note: (r.note as string | null) ?? null,
-    employment_type:
-      (r.employment_type as RestaurantStaffContractRow["employment_type"]) ??
-      null,
+    employment_type_id: employmentTypeId,
+    employment_type_name: empRel?.name ?? null,
     vacation_days_per_year:
       (r.vacation_days_per_year as number | null) ?? null,
     target_weekly_minutes: normalizeStaffContractTargetWeeklyMinutes(
@@ -551,7 +667,7 @@ export type UpsertStaffContractResult =
   | { ok: false; error: string };
 
 function isMissingStaffContractColumnError(message: string): boolean {
-  return /employment_type|vacation_days_per_year|target_weekly_minutes|contract_log/i.test(
+  return /employment_type_id|vacation_days_per_year|target_weekly_minutes|contract_log/i.test(
     message,
   );
 }
@@ -571,14 +687,14 @@ function buildStaffContractRow(
     hourly_rate_cents:
       payload.pay_type === "hourly" ? payload.hourly_rate_cents : null,
     fixed_salary_cents:
-      payload.pay_type === "fixed" ? payload.fixed_salary_cents : null,
+      isStaffFixedPayType(payload.pay_type) ? payload.fixed_salary_cents : null,
     currency: payload.currency ?? "EUR",
     note: payload.note,
   };
   if (!includeExtendedFields) return base;
   return {
     ...base,
-    employment_type: payload.employment_type,
+    employment_type_id: payload.employment_type_id,
     vacation_days_per_year: payload.vacation_days_per_year,
     target_weekly_minutes: payload.target_weekly_minutes,
   };

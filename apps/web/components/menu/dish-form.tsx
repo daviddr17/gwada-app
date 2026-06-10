@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { cn } from "@/lib/utils";
@@ -48,6 +48,29 @@ const emptyForm: FormState = {
   listNumber: "",
   recipe: [],
 };
+
+const dishFieldLabelClassName = "text-xs text-muted-foreground";
+
+function DishFormSection({
+  title,
+  children,
+  className,
+}: {
+  title?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn("space-y-3", className)}>
+      {title ? (
+        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+          {title}
+        </h3>
+      ) : null}
+      {children}
+    </section>
+  );
+}
 
 function itemToFormState(item: MenuItem): FormState {
   return {
@@ -207,136 +230,146 @@ export function DishForm({
   return (
     <>
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pb-4">
-        <div className="space-y-2">
-          <Label htmlFor="dish-name">Name</Label>
-          <Input
-            id="dish-name"
-            value={form.name}
-            onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
-            placeholder="z. B. Colombo de poulet"
-            className="h-12 rounded-xl"
-            aria-invalid={!!errors.name}
-          />
-          {errors.name && (
-            <p className="text-sm text-destructive">{errors.name}</p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/25 px-4 py-3">
-          <div className="space-y-0.5">
-            <Label htmlFor="dish-active" className="text-sm font-medium">
-              Aktiv
+      <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 pb-4">
+        <DishFormSection>
+          <div className="space-y-2">
+            <Label htmlFor="dish-name" className={dishFieldLabelClassName}>
+              Name
             </Label>
-            <p className="text-xs text-muted-foreground">
-              Inaktive Gerichte bleiben in der Übersicht sichtbar und werden
-              gekennzeichnet.
-            </p>
-          </div>
-          <Switch
-            id="dish-active"
-            checked={form.active}
-            onCheckedChange={(v) =>
-              setForm((p) => ({ ...p, active: v === true }))
-            }
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="dish-desc">Beschreibung</Label>
-          <Textarea
-            id="dish-desc"
-            value={form.description}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, description: e.target.value }))
-            }
-            placeholder="Kurze Beschreibung"
-            rows={3}
-            className="resize-none rounded-xl"
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="dish-price">Preis (€)</Label>
-          <Input
-            id="dish-price"
-            type="number"
-            min="0"
-            step="0.1"
-            value={form.price}
-            onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))}
-            placeholder="12.90"
-            className="h-12 rounded-xl tabular-nums"
-            aria-invalid={!!errors.price}
-          />
-          {errors.price && (
-            <p className="text-sm text-destructive">{errors.price}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="dish-list-number">Anzeige-Nummer (optional)</Label>
-          <Input
-            id="dish-list-number"
-            type="number"
-            min={0}
-            step={1}
-            inputMode="numeric"
-            value={form.listNumber}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, listNumber: e.target.value }))
-            }
-            placeholder="z. B. 10"
-            className="h-12 rounded-xl tabular-nums"
-            aria-invalid={!!errors.listNumber}
-          />
-          {errors.listNumber && (
-            <p className="text-sm text-destructive">{errors.listNumber}</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Niedrigere Nummern erscheinen zuerst innerhalb der Kategorie.
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Kategorie</Label>
-          {categories.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Lege zuerst eine Kategorie an (Registerkarten oben).
-            </p>
-          ) : (
-            <SearchableSelect
-              options={categorySelectOptions}
-              value={form.category || null}
-              onValueChange={(v) =>
-                setForm((p) => ({ ...p, category: v }))
-              }
-              placeholder="Kategorie wählen"
-              searchPlaceholder="Kategorie suchen…"
-              aria-invalid={!!errors.category}
+            <Input
+              id="dish-name"
+              value={form.name}
+              onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+              placeholder="z. B. Colombo de poulet"
+              className="h-12 rounded-xl"
+              aria-invalid={!!errors.name}
+              autoFocus
             />
-          )}
-          {errors.category && (
-            <p className="text-sm text-destructive">{errors.category}</p>
-          )}
-        </div>
+            {errors.name ? (
+              <p className="text-sm text-destructive">{errors.name}</p>
+            ) : null}
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="dish-image">Bild-URL</Label>
-          <Input
-            id="dish-image"
-            type="url"
-            value={form.imageUrl}
-            onChange={(e) => setForm((p) => ({ ...p, imageUrl: e.target.value }))}
-            placeholder="https://…"
-            className="h-12 rounded-xl"
-          />
-        </div>
+          <div className="space-y-2">
+            <Label className={dishFieldLabelClassName}>Kategorie</Label>
+            {categories.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Lege zuerst eine Kategorie an (Registerkarten oben).
+              </p>
+            ) : (
+              <SearchableSelect
+                options={categorySelectOptions}
+                value={form.category || null}
+                onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}
+                placeholder="Kategorie wählen"
+                searchPlaceholder="Kategorie suchen…"
+                aria-invalid={!!errors.category}
+              />
+            )}
+            {errors.category ? (
+              <p className="text-sm text-destructive">{errors.category}</p>
+            ) : null}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="dish-list-number" className={dishFieldLabelClassName}>
+                Anzeige-Nummer
+              </Label>
+              <Input
+                id="dish-list-number"
+                type="number"
+                min={0}
+                step={1}
+                inputMode="numeric"
+                value={form.listNumber}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, listNumber: e.target.value }))
+                }
+                placeholder="Optional"
+                className="h-12 rounded-xl tabular-nums"
+                aria-invalid={!!errors.listNumber}
+              />
+              {errors.listNumber ? (
+                <p className="text-sm text-destructive">{errors.listNumber}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dish-price" className={dishFieldLabelClassName}>
+                Preis (€)
+              </Label>
+              <Input
+                id="dish-price"
+                type="number"
+                min="0"
+                step="0.1"
+                value={form.price}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, price: e.target.value }))
+                }
+                placeholder="12.90"
+                className="h-12 rounded-xl tabular-nums"
+                aria-invalid={!!errors.price}
+              />
+              {errors.price ? (
+                <p className="text-sm text-destructive">{errors.price}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dish-desc" className={dishFieldLabelClassName}>
+              Beschreibung
+            </Label>
+            <Textarea
+              id="dish-desc"
+              value={form.description}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, description: e.target.value }))
+              }
+              placeholder="Kurze Beschreibung"
+              rows={3}
+              className="resize-none rounded-xl"
+            />
+          </div>
+        </DishFormSection>
+
+        <DishFormSection title="Anzeige">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2.5">
+            <Label htmlFor="dish-active" className="text-sm font-medium">
+              Gericht aktiv
+            </Label>
+            <Switch
+              id="dish-active"
+              checked={form.active}
+              onCheckedChange={(v) =>
+                setForm((p) => ({ ...p, active: v === true }))
+              }
+              className="shrink-0"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="dish-image" className={dishFieldLabelClassName}>
+              Bild-URL
+            </Label>
+            <Input
+              id="dish-image"
+              type="url"
+              value={form.imageUrl}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, imageUrl: e.target.value }))
+              }
+              placeholder="https://…"
+              className="h-12 rounded-xl"
+            />
+          </div>
+        </DishFormSection>
 
         <Separator />
 
-        <div className="space-y-2">
-          <Label htmlFor="dish-tags-combo">Tags &amp; Allergene</Label>
+        <DishFormSection title="Tags & Allergene">
           <TagMultiCombobox
             id="dish-tags-combo"
             definitions={tagDefinitions}
@@ -344,21 +377,14 @@ export function DishForm({
             onChange={(tags) => setForm((p) => ({ ...p, tags }))}
             aria-label="Tags und Allergene"
           />
-          <p className="text-xs text-muted-foreground">
-            Mehrfachauswahl mit Suche – wie in der Karte filterbar.
-          </p>
-        </div>
+        </DishFormSection>
 
         <Separator />
 
-        <div className="space-y-3">
-          <div>
-            <Label>Rezept (optional)</Label>
-            <p className="text-xs text-muted-foreground">
-              Zutaten aus dem Bestand mit Menge in der jeweiligen Lagereinheit der
-              Zutat. Wird für die Suche nach Zutaten genutzt.
-            </p>
-          </div>
+        <DishFormSection title="Rezept">
+          <p className="text-xs text-muted-foreground">
+            Optional — Zutaten aus dem Bestand für die Suche nach Gerichten.
+          </p>
           {ingredients.filter((x) => x.active !== false).length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Lege zuerst Zutaten unter{" "}
@@ -488,7 +514,7 @@ export function DishForm({
               </Button>
             </div>
           )}
-        </div>
+        </DishFormSection>
       </div>
 
       <DrawerFormFooter

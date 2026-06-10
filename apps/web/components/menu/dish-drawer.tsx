@@ -104,7 +104,7 @@ export function DishDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,640px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
       >
         <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
           <div className="flex items-start gap-2">
@@ -112,11 +112,11 @@ export function DishDrawer({
               <DrawerTitle className="text-xl font-semibold tracking-tight">
                 {mode === "edit" ? "Gericht bearbeiten" : "Gericht hinzufügen"}
               </DrawerTitle>
-              <DrawerDescription className="text-base">
-                {mode === "edit"
-                  ? "Änderungen werden lokal gespeichert."
-                  : "Neues Gericht zur Speisekarte hinzufügen."}
-              </DrawerDescription>
+              {mode === "create" ? (
+                <DrawerDescription className="text-base">
+                  Neues Gericht zur Speisekarte hinzufügen.
+                </DrawerDescription>
+              ) : null}
             </div>
             {mode === "edit" && editItem && onDelete ? (
               <Button

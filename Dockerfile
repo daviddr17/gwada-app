@@ -8,14 +8,19 @@ FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web/package.json ./apps/web/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/pos-domain/package.json ./packages/pos-domain/
+COPY packages/supabase/package.json ./packages/supabase/
 RUN pnpm install --frozen-lockfile
 
 FROM base AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
+COPY --from=deps /app/packages ./packages
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY apps/web ./apps/web
+COPY packages ./packages
 
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SITE_URL=https://new.gwada.app
@@ -68,6 +73,7 @@ COPY --from=build /app/apps/web/content ./content
 COPY --from=build /app/apps/web/package.json ./package.json
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=deps /app/apps/web/node_modules ./node_modules
+COPY --from=build /app/packages /app/packages
 
 EXPOSE 3000
 CMD ["pnpm", "start"]

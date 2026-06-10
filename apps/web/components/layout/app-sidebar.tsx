@@ -15,6 +15,7 @@ import {
   Plug,
   ScrollText,
   Star,
+  Receipt,
   Settings,
   Settings2,
   Shield,
@@ -41,7 +42,7 @@ import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AppSidebarBrandLogo } from "@/components/layout/app-sidebar-brand-logo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
-import { crossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -276,6 +277,18 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/dashboard/buchfuehrung")}
+                      tooltip="Buchführung"
+                      render={
+                        <Link href="/dashboard/buchfuehrung/rechnungen" prefetch />
+                      }
+                    >
+                      <Receipt />
+                      <span>Buchführung</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/dokumente")}
                       tooltip="Dokumente"
                       render={<Link href="/dashboard/dokumente/uebersicht" prefetch />}
@@ -317,10 +330,12 @@ export function AppSidebar() {
                     prefetch={false}
                     onClick={(e) => {
                       if (
-                        crossAppWorkspaceZone(pathname, "/superadmin/allgemein")
+                        assignCrossAppWorkspaceZone(
+                          pathname,
+                          "/superadmin/allgemein",
+                        )
                       ) {
                         e.preventDefault();
-                        window.location.assign("/superadmin/allgemein");
                       }
                     }}
                   />
@@ -341,9 +356,8 @@ export function AppSidebar() {
                     href="/dashboard"
                     prefetch={false}
                     onClick={(e) => {
-                      if (crossAppWorkspaceZone(pathname, "/dashboard")) {
+                      if (assignCrossAppWorkspaceZone(pathname, "/dashboard")) {
                         e.preventDefault();
-                        window.location.assign("/dashboard");
                       }
                     }}
                   />

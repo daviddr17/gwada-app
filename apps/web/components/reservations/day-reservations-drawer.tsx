@@ -84,6 +84,7 @@ import {
 } from "@/components/reservations/floor-plan-geometry";
 import { DayReservationsExportSheet } from "@/components/reservations/day-reservations-export-sheet";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
+import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { toAutoAssignReservation } from "@/lib/reservations/auto-table-assignment";
 import { reservationsAtTableForInstant } from "@/lib/reservations/reservations-table-occupancy";
 import { cn } from "@/lib/utils";
@@ -447,6 +448,12 @@ export function DayReservationsDrawer({
       setViewMode("list");
     }
   }, [showGridOption, viewMode]);
+
+  useEffect(() => {
+    if (open && day) {
+      setSortBy("time");
+    }
+  }, [open, day]);
 
   const hoursBundle = useMemo(() => {
     if (!restaurantId || !profileReady) return null;
@@ -881,7 +888,7 @@ export function DayReservationsDrawer({
               {showGridOption ? viewChip("grid", "Gridansicht") : null}
               {viewChip("floor", "Tischansicht")}
             </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               <AutoAssignTablesButton
                 variant="dashboard"
                 size="icon"
@@ -893,23 +900,23 @@ export function DayReservationsDrawer({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
+                className={reservationsDayDrawerHeaderActionButtonClassName}
                 aria-label="Tagesliste exportieren"
                 disabled={sorted.length === 0}
                 onClick={() => setExportOpen(true)}
               >
-                <Download className="size-5" />
+                <Download className="size-4" />
               </Button>
               {onCreateReservation ? (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
+                  className={reservationsDayDrawerHeaderActionButtonClassName}
                   aria-label="Neue Reservierung"
                   onClick={() => onCreateReservation?.()}
                 >
-                  <Plus className="size-5" />
+                  <Plus className="size-4" />
                 </Button>
               ) : null}
             </div>
@@ -921,7 +928,10 @@ export function DayReservationsDrawer({
                 value={sortBy}
                 onValueChange={(v) => setSortBy(v as DaySortBy)}
               >
-                <SelectTrigger className="h-9 w-[min(100%,220px)] rounded-xl text-left text-xs">
+                <SelectTrigger
+                  size="sm"
+                  className="h-8 min-h-8 w-[min(100%,220px)] rounded-xl px-2.5 py-0 text-left text-xs font-medium"
+                >
                   <SelectValue>{SORT_LABELS[sortBy]}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>

@@ -20,6 +20,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { OAuthIntegrationStatusResponse } from "@/lib/types/oauth-integration-response";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { cn } from "@/lib/utils";
 
 export function OAuthChannelIntegrationCard({
@@ -47,6 +48,10 @@ export function OAuthChannelIntegrationCard({
   deniedMessage: string;
   platformNotConfiguredHint: string;
 }) {
+  const accentColor =
+    provider === "google_business"
+      ? INTEGRATION_PANEL_ACCENT.google_business
+      : INTEGRATION_PANEL_ACCENT[provider];
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has, loading: permLoading } = useRestaurantPermissions();
@@ -202,6 +207,7 @@ export function OAuthChannelIntegrationCard({
         title={title}
         description={description}
         icon={icon}
+        accentColor={accentColor}
         defaultOpen={oauthParam === "connected" || oauthParam === "error"}
         badge={
           connected

@@ -2,6 +2,7 @@ import type {
   RestaurantStaffContractRow,
   RestaurantStaffWorkEntryRow,
 } from "@/lib/types/staff";
+import { isStaffFixedPayType } from "@/lib/staff/staff-contract-pay";
 
 const OPEN_CONTRACT_END = "9999-12-31";
 
@@ -112,13 +113,13 @@ export function computeStaffDayWageBreakdown(params: {
       continue;
     }
 
-    if (contract.pay_type === "fixed") {
+    if (isStaffFixedPayType(contract.pay_type)) {
       lines.push({
         staffId,
         workHours,
         hourlyRateCents: null,
         wageCents: 0,
-        payType: "fixed",
+        payType: contract.pay_type,
         note: "Festlohn — nicht tagesbasiert",
       });
       continue;

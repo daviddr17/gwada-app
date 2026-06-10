@@ -11,6 +11,7 @@ import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
+  deleteMenuTaxonomyRow,
   insertMenuTaxonomyRow,
   loadMenuTaxonomyRelational,
   menuRelationalPersistenceEnabled,
@@ -319,11 +320,35 @@ export function useMenuTaxonomyStorage(
     [items],
   );
 
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (useDbMenu && table) {
+        const ok = await deleteMenuTaxonomyRow(table, id);
+        if (!ok) {
+          failSave();
+          return false;
+        }
+        setItems((prev) => prev.filter((c) => c.id !== id));
+        toast.success("Eintrag gelöscht");
+        return true;
+      }
+      let ok = false;
+      setItems((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        ok = persist(next, "Eintrag gelöscht");
+        return ok ? next : prev;
+      });
+      return ok;
+    },
+    [failSave, persist, table, useDbMenu],
+  );
+
   return {
     items,
     add,
     update,
     reorder,
+    remove,
     getById,
     isHydrated,
   };

@@ -11,6 +11,11 @@ export function scrollCategoryTabIntoView(
   const { scrollLeft, clientWidth, scrollWidth } = scroller;
   const maxScroll = Math.max(0, scrollWidth - clientWidth);
 
+  if (tabLeft <= padding && scrollLeft > 0) {
+    scroller.scrollTo({ left: 0, behavior });
+    return;
+  }
+
   let next = scrollLeft;
 
   if (tabLeft < scrollLeft + padding) {

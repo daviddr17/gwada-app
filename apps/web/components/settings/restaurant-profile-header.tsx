@@ -225,10 +225,6 @@ export function RestaurantProfileHeader({
                   <Camera className="size-6 text-white" aria-hidden />
                 </span>
               </button>
-              <p className="mt-2 max-w-sm text-xs leading-relaxed text-muted-foreground">
-                Quadratische Logos mit Hintergrund werden in einer abgerundeten Kachel
-                im Kreis angezeigt — ohne Abschnitt an den Ecken.
-              </p>
             </div>
 
             <div className="space-y-3 pt-1">

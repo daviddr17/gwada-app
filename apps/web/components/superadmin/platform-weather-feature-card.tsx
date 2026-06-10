@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CloudSun } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminIntegrationPanel } from "@/components/superadmin/superadmin-integration-panel";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
 import { SecretInput } from "@/components/ui/secret-input";
 import { Switch } from "@/components/ui/switch";
@@ -82,6 +83,7 @@ export function PlatformWeatherFeatureCard({
       title="Wetter (Visual Crossing)"
       description="API-Key für das Dashboard-Wetter-Widget aller Restaurants. Der Key wird nur serverseitig genutzt und nie ins UI zurückgegeben."
       icon={<CloudSun className="size-5" aria-hidden />}
+      accentColor={INTEGRATION_PANEL_ACCENT.weather}
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}

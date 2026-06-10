@@ -103,8 +103,11 @@ function EmbedMenuCategoryTabsDefault({
             className={cn(
               "inline-flex max-w-[200px] shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
               selected
-                ? "border-accent bg-accent text-accent-foreground shadow-none dark:shadow-sm"
-                : "border-border/60 bg-card shadow-none dark:shadow-xs hover:bg-muted/80",
+                ? cn(
+                    "border-border/60 text-foreground shadow-none dark:shadow-sm",
+                    profileDockActiveBgClassName,
+                  )
+                : "border-border/60 bg-card text-muted-foreground shadow-none dark:shadow-xs hover:bg-muted/80 hover:text-foreground",
             )}
             onClick={() => onCategorySelect(cat.id)}
           >

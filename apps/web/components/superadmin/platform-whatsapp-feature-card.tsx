@@ -8,6 +8,7 @@ import {
   superadminIntegrationFieldLabelClassName,
   superadminIntegrationInputClassName,
 } from "@/components/superadmin/superadmin-integration-panel";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import {
   SuperadminIntegrationStatusBadges,
 } from "@/components/superadmin/superadmin-integration-status-badges";
@@ -106,6 +107,7 @@ export function PlatformWhatsappFeatureCard({
       title="WhatsApp"
       description="Freischaltung für Restaurants und WAHA-Server. Der API-Key wird nie aus der Datenbank ins UI geladen — nur maskiert als gespeichert angezeigt."
       icon={<WhatsAppGlyph />}
+      accentColor={INTEGRATION_PANEL_ACCENT.whatsapp}
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}

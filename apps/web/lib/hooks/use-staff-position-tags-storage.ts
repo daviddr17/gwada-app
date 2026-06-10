@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  deleteStaffPositionTag,
   insertStaffPositionTag,
   loadStaffPositionTags,
   reorderStaffPositionTags,
@@ -126,6 +127,21 @@ export function useStaffPositionTagsStorage(restaurantId: string | null) {
     [items],
   );
 
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (!restaurantId) return false;
+      const ok = await deleteStaffPositionTag(restaurantId, id);
+      if (!ok) {
+        toast.error("Position konnte nicht gelöscht werden.");
+        return false;
+      }
+      setItems((prev) => prev.filter((t) => t.id !== id));
+      toast.success("Position gelöscht");
+      return true;
+    },
+    [restaurantId],
+  );
+
   return {
     items,
     isHydrated,
@@ -133,6 +149,7 @@ export function useStaffPositionTagsStorage(restaurantId: string | null) {
     add,
     update,
     reorder,
+    remove,
     getById,
   };
 }

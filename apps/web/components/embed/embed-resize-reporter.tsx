@@ -2,11 +2,16 @@
 
 import { useEffect, useMemo } from "react";
 import {
+  EMBED_RESIZE_DEBOUNCE_MS,
+  EMBED_RESIZE_FOLLOWUP_MS,
+} from "@/lib/embed/embed-resize-config";
+import {
   GWADA_EMBED_MSG_RESIZE,
   GWADA_EMBED_MSG_RESIZE_LEGACY,
   GWADA_EMBED_PROTOCOL_VERSION,
   type GwadaEmbedWidgetId,
 } from "@/lib/embed/embed-protocol";
+import { measureEmbedContentHeight } from "@/lib/embed/measure-embed-content-height";
 
 function readEmbedContext(): {
   embedId: string | null;
@@ -28,7 +33,42 @@ function readEmbedContext(): {
   return { embedId, widget };
 }
 
-/** Meldet die Embed-Höhe an die einbettende Seite (gwada.js oder Legacy-Script). */
+function postEmbedHeight(
+  height: number,
+  embedId: string | null,
+  widget: GwadaEmbedWidgetId,
+) {
+  const rounded = Math.ceil(height);
+  if (rounded <= 0) return;
+
+  const payload = embedId
+    ? {
+        type: GWADA_EMBED_MSG_RESIZE,
+        version: GWADA_EMBED_PROTOCOL_VERSION,
+        embedId,
+        widget,
+        height: rounded,
+      }
+    : {
+        type: GWADA_EMBED_MSG_RESIZE_LEGACY,
+        height: rounded,
+      };
+
+  window.parent.postMessage(payload, "*");
+
+  if (embedId) {
+    window.parent.postMessage(
+      {
+        type: GWADA_EMBED_MSG_RESIZE_LEGACY,
+        height: rounded,
+        embedId,
+      },
+      "*",
+    );
+  }
+}
+
+/** Meldet die Embed-Höhe an die einbettende Seite (gwada.js). */
 export function EmbedResizeReporter({
   deps,
   widget: widgetProp,
@@ -49,57 +89,53 @@ export function EmbedResizeReporter({
     const root = document.getElementById("gwada-embed-root");
     const measureTarget = root ?? document.body;
 
-    const post = () => {
-      const height =
-        resizeMode === "viewport"
-          ? Math.ceil(viewportHeightPx ?? 640)
-          : Math.max(
-              measureTarget.scrollHeight,
-              measureTarget.getBoundingClientRect().height,
-              document.documentElement.scrollHeight,
-            );
-      const rounded = Math.ceil(height);
-      if (rounded <= 0) return;
+    let lastPosted = 0;
+    let debounceTimer = 0;
+    let raf = 0;
 
-      const payload = embedId
-        ? {
-            type: GWADA_EMBED_MSG_RESIZE,
-            version: GWADA_EMBED_PROTOCOL_VERSION,
-            embedId,
-            widget,
-            height: rounded,
-          }
-        : {
-            type: GWADA_EMBED_MSG_RESIZE_LEGACY,
-            height: rounded,
-          };
-
-      window.parent.postMessage(payload, "*");
-
-      if (embedId) {
-        window.parent.postMessage(
-          {
-            type: GWADA_EMBED_MSG_RESIZE_LEGACY,
-            height: rounded,
-            embedId,
-          },
-          "*",
+    const measureAndSend = (immediate: boolean) => {
+      const run = () => {
+        const height = measureEmbedContentHeight(
+          measureTarget,
+          resizeMode,
+          viewportHeightPx,
         );
+        const rounded = Math.ceil(height);
+        if (rounded <= 0 || rounded === lastPosted) return;
+        lastPosted = rounded;
+        postEmbedHeight(rounded, embedId, widget);
+      };
+
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(debounceTimer);
+
+      if (immediate) {
+        raf = window.requestAnimationFrame(run);
+        return;
       }
+
+      debounceTimer = window.setTimeout(() => {
+        raf = window.requestAnimationFrame(run);
+      }, EMBED_RESIZE_DEBOUNCE_MS);
     };
 
-    post();
+    measureAndSend(true);
+
     let ro: ResizeObserver | null = null;
     if (resizeMode === "content") {
-      ro = new ResizeObserver(() => post());
+      ro = new ResizeObserver(() => measureAndSend(false));
       ro.observe(measureTarget);
     }
-    const t1 = window.setTimeout(post, 80);
-    const t2 = window.setTimeout(post, 400);
+
+    const followupTimers = EMBED_RESIZE_FOLLOWUP_MS.map((ms) =>
+      window.setTimeout(() => measureAndSend(true), ms),
+    );
+
     return () => {
       ro?.disconnect();
-      window.clearTimeout(t1);
-      window.clearTimeout(t2);
+      window.cancelAnimationFrame(raf);
+      window.clearTimeout(debounceTimer);
+      for (const id of followupTimers) window.clearTimeout(id);
     };
   }, [deps, embedId, widget, resizeMode, viewportHeightPx]);
 

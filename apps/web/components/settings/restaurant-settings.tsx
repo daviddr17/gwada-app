@@ -103,6 +103,7 @@ function pickStammdaten(p: RestaurantProfile) {
     country: p.country,
     website: p.website,
     phone: p.phone,
+    vatNumber: p.vatNumber,
   };
 }
 
@@ -479,9 +480,6 @@ export function RestaurantSettingsPanel({
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">
             <CardTitle className="text-xl">Adresse & Kontakt</CardTitle>
-            <CardDescription>
-              Standort, Website und Telefon für Gäste und öffentliche Profile.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -550,9 +548,6 @@ export function RestaurantSettingsPanel({
               placeholder="https://…"
               className="h-11 rounded-xl"
             />
-            <p className="text-xs text-muted-foreground">
-              https:// wird bei Bedarf automatisch ergänzt.
-            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="rs-phone">Telefon</Label>
@@ -567,6 +562,19 @@ export function RestaurantSettingsPanel({
               }
               placeholder="+49 30 1234567"
               className="h-11 rounded-xl"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="rs-vat">USt-IdNr.</Label>
+            <Input
+              id="rs-vat"
+              value={draft.vatNumber}
+              onChange={(e) =>
+                setDraft((p) => (p ? { ...p, vatNumber: e.target.value } : p))
+              }
+              placeholder="DE123456789"
+              className="h-11 rounded-xl"
+              autoComplete="off"
             />
           </div>
         </CardContent>
@@ -784,9 +792,11 @@ export function RestaurantSettingsPanel({
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
-                    className="gap-1.5 rounded-full"
+                    className={cn(
+                      "gap-1.5 rounded-full",
+                      settingsAccentSaveButtonClassName,
+                    )}
                     onClick={addException}
                   >
                     <Plus className="size-4" />

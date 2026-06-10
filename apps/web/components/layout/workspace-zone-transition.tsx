@@ -3,53 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useReducedMotion } from "framer-motion";
-import { LayoutDashboard, Shield } from "lucide-react";
 import {
   RouteSweepOverlay,
   type RouteSweepMeta,
   sweepDurationMs,
 } from "@/components/layout/route-sweep-overlay";
+import {
+  WORKSPACE_ZONE_SWEEP_META,
+  appZoneFromPath,
+  type AppWorkspaceZone,
+} from "@/lib/navigation/workspace-zone-meta";
 
-type WorkspaceZone = "superadmin" | "app";
-
-function zoneFromPathname(pathname: string): WorkspaceZone {
-  return pathname.startsWith("/superadmin") ? "superadmin" : "app";
-}
-
-const ZONE_META: Record<WorkspaceZone, RouteSweepMeta> = {
-  superadmin: {
-    id: "zone-superadmin",
-    label: "Superadmin",
-    subtitle: "Plattform & Mandanten",
-    Icon: Shield,
-    iconClassName: "bg-violet-500/15 text-violet-700 dark:text-violet-200",
-    accentClassName:
-      "from-violet-600/88 via-indigo-500/55 to-transparent",
-  },
-  app: {
-    id: "zone-app",
-    label: "Dashboard",
-    subtitle: "Restaurant-Bereich",
-    Icon: LayoutDashboard,
-    iconClassName: "bg-accent/15 text-accent-foreground",
-    accentClassName:
-      "from-[color-mix(in_oklch,var(--accent)_82%,transparent)] via-[color-mix(in_oklch,var(--accent)_38%,transparent)] to-transparent",
-  },
-};
-
-/** Kurzer Vollbild-Übergang beim Wechsel zwischen Superadmin und App. */
+/** Kurzer Vollbild-Übergang bei Soft-Nav innerhalb derselben Zone (selten). */
 export function WorkspaceZoneTransition({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const zone = zoneFromPathname(pathname);
+  const zone = appZoneFromPath(pathname);
   const reducedMotion = useReducedMotion() ?? false;
   const reducedMotionRef = useRef(reducedMotion);
   reducedMotionRef.current = reducedMotion;
 
-  const prevZoneRef = useRef(zone);
+  const prevZoneRef = useRef<AppWorkspaceZone>(zone);
   const [overlayMeta, setOverlayMeta] = useState<RouteSweepMeta | null>(null);
   const clearTimerRef = useRef<number | null>(null);
 
@@ -62,7 +39,7 @@ export function WorkspaceZoneTransition({
       window.clearTimeout(clearTimerRef.current);
     }
 
-    setOverlayMeta(ZONE_META[zone]);
+    setOverlayMeta(WORKSPACE_ZONE_SWEEP_META[zone]);
     clearTimerRef.current = window.setTimeout(() => {
       setOverlayMeta(null);
       clearTimerRef.current = null;

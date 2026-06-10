@@ -89,6 +89,15 @@ export async function fetchRestaurantLexofficeConfigAdmin(
   return fetchRestaurantLexofficeConfigWithClient(admin, restaurantId);
 }
 
+export async function fetchRestaurantLexofficeApiKey(
+  restaurantId: string,
+): Promise<string | null> {
+  const row = await fetchRestaurantLexofficeConfigAdmin(restaurantId);
+  if (!row || row.status !== "working") return null;
+  const key = row.config.api_key?.trim();
+  return key || null;
+}
+
 export async function upsertRestaurantLexofficeIntegration(
   sb: SupabaseClient,
   restaurantId: string,

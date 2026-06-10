@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { usePointerFine } from "@/hooks/use-pointer-fine";
 import { isCategoryActive } from "@/lib/menu/item-utils";
 import { scrollCategoryTabIntoView } from "@/lib/menu/category-tabs-scroll";
+import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
+import { profileDockActiveBgClassName } from "@/lib/public-profile/profile-dock-styles";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 import { cn } from "@/lib/utils";
 
@@ -60,20 +62,50 @@ export function MenuCategoryTabs({
     };
   }, [updateScrollArrows]);
 
-  const alignActiveTabHorizontally = React.useCallback(() => {
-    const scroller = scrollerRef.current;
-    const btn = tabBtnRefs.current.get(activeCategoryId);
-    const tabWrap = btn?.parentElement;
-    if (!scroller || !btn || !tabWrap) return;
-    scrollCategoryTabIntoView(scroller, tabWrap, {
-      behavior: pointerFine ? "smooth" : "auto",
-    });
-  }, [activeCategoryId, pointerFine]);
+  const snapActiveTabIntoView = React.useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      const scroller = scrollerRef.current;
+      if (!scroller || categories.length === 0) return;
+
+      const firstId = categories[0]!.id;
+      if (activeCategoryId === firstId) {
+        if (scroller.scrollLeft > 0) {
+          scroller.scrollTo({ left: 0, behavior });
+        }
+        return;
+      }
+
+      const btn = tabBtnRefs.current.get(activeCategoryId);
+      const tabWrap = btn?.parentElement;
+      if (!btn || !tabWrap) return;
+      scrollCategoryTabIntoView(scroller, tabWrap, { behavior });
+    },
+    [activeCategoryId, categories],
+  );
 
   React.useLayoutEffect(() => {
-    const id = requestAnimationFrame(() => alignActiveTabHorizontally());
+    const id = requestAnimationFrame(() =>
+      snapActiveTabIntoView(pointerFine ? "smooth" : "auto"),
+    );
     return () => cancelAnimationFrame(id);
-  }, [activeCategoryId, alignActiveTabHorizontally]);
+  }, [activeCategoryId, pointerFine, snapActiveTabIntoView]);
+
+  React.useEffect(() => {
+    const root = getAppScrollRoot();
+    const target: HTMLElement | Window = root ?? window;
+    let raf = 0;
+    const onVerticalScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        snapActiveTabIntoView("auto");
+      });
+    };
+    target.addEventListener("scroll", onVerticalScroll, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      target.removeEventListener("scroll", onVerticalScroll);
+    };
+  }, [snapActiveTabIntoView]);
 
   const scrollRail = (dir: -1 | 1) => {
     const el = scrollerRef.current;
@@ -150,8 +182,11 @@ export function MenuCategoryTabs({
                   className={cn(
                     "inline-flex max-w-[200px] items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
                     selected
-                      ? "border-accent bg-accent text-accent-foreground shadow-none dark:shadow-sm"
-                      : "border-border/60 bg-card shadow-none dark:shadow-xs hover:bg-muted/80",
+                      ? cn(
+                          "border-border/60 text-foreground shadow-none dark:shadow-sm",
+                          profileDockActiveBgClassName,
+                        )
+                      : "border-border/60 bg-card text-muted-foreground shadow-none dark:shadow-xs hover:bg-muted/80 hover:text-foreground",
                     !catLive && "opacity-70",
                   )}
                   onClick={() => onCategorySelect(cat.id)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 import { DataExportSheet } from "@/components/export/data-export-sheet";
@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   INVENTORY_BRANDS_KEY,
   INVENTORY_INGREDIENT_CATEGORIES_KEY,
@@ -38,13 +39,25 @@ import {
   type InventoryExportContext,
 } from "@/lib/inventory/export-inventory";
 import {
-  downloadPurchaseOrdersCsv,
-  downloadPurchaseOrdersPdf,
-  purchaseOrdersExportLineCount,
-  type PurchaseOrdersExportContext,
-} from "@/lib/inventory/export-purchase-orders";
+  PurchaseOrdersExportDrawer,
+  purchaseOrdersWithExportLines,
+} from "@/components/inventory/purchase-orders-export-drawer";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
 type ExportKind = "inventory" | "orders";
+
+function InventoryExportCardSkeleton() {
+  return (
+    <SkeletonCardFrame className="space-y-4">
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-4 w-full max-w-md" />
+      </div>
+      <Skeleton className="h-4 w-40" />
+      <Skeleton className="h-12 w-full rounded-xl" />
+    </SkeletonCardFrame>
+  );
+}
 
 export function InventoryExportScreen() {
   const { profile } = useRestaurantProfile();
@@ -72,6 +85,11 @@ export function InventoryExportScreen() {
   );
 
   const [exportKind, setExportKind] = useState<ExportKind | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isHydrated =
     ingredientsReady &&
@@ -101,30 +119,27 @@ export function InventoryExportScreen() {
     ],
   );
 
-  const ordersCtx = useMemo(
-    (): PurchaseOrdersExportContext => ({
-      orders,
-      ingredients,
-    }),
-    [orders, ingredients],
-  );
-
   const restaurantName = profile.name.trim() || undefined;
   const ingredientCount = ingredients.length;
-  const orderLineCount = purchaseOrdersExportLineCount(ordersCtx);
+  const exportableOrderCount = purchaseOrdersWithExportLines(orders);
 
-  if (!isHydrated) {
-    return (
-      <div
-        className="min-h-[12rem] rounded-2xl border border-border/50 bg-card/50"
-        aria-busy
-      />
-    );
-  }
+  const ready = mounted && isHydrated;
+  const showSkeleton = useDeferredSkeleton(!ready);
 
   return (
     <>
-      <div className="mx-auto grid max-w-3xl gap-6">
+      <div className="relative mx-auto grid max-w-3xl gap-6">
+        {!ready && !showSkeleton ? (
+          <div className="min-h-[24rem] rounded-2xl" aria-busy />
+        ) : null}
+        {showSkeleton ? (
+          <>
+            <InventoryExportCardSkeleton />
+            <InventoryExportCardSkeleton />
+          </>
+        ) : null}
+        {ready ? (
+          <>
         <Card className="border-border/50 shadow-card">
           <CardHeader>
             <CardTitle>Bestand exportieren</CardTitle>
@@ -160,41 +175,41 @@ export function InventoryExportScreen() {
 
         <Card className="border-border/50 shadow-card">
           <CardHeader>
-            <CardTitle>Bestellungen exportieren</CardTitle>
+            <CardTitle>Bestellung exportieren</CardTitle>
             <CardDescription>
-              Alle Bestellungen mit Positionen (offen und abgeschlossen).
+              Eine Bestellung aus der Liste wählen und als CSV oder PDF exportieren.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              {orderLineCount > 0 ? (
+              {exportableOrderCount > 0 ? (
                 <>
                   <span className="font-medium text-foreground">
-                    {orders.length}
+                    {exportableOrderCount}
                   </span>{" "}
-                  Bestellung{orders.length === 1 ? "" : "en"} ·{" "}
-                  <span className="font-medium text-foreground">
-                    {orderLineCount}
-                  </span>{" "}
-                  Position{orderLineCount === 1 ? "" : "en"}.
+                  Bestellung{exportableOrderCount === 1 ? "" : "en"} mit Positionen.
                 </>
               ) : (
-                "Noch keine Bestellpositionen."
+                "Noch keine Bestellungen mit Positionen."
               )}
             </p>
             <Button
               type="button"
               className={cn("h-12 w-full gap-2 ", brandActionButtonRoundedClassName)}
-              disabled={orderLineCount === 0}
+              disabled={exportableOrderCount === 0}
               onClick={() => setExportKind("orders")}
             >
               <Download className="size-4" />
-              Bestellungen exportieren …
+              Bestellung exportieren …
             </Button>
           </CardContent>
         </Card>
+          </>
+        ) : null}
       </div>
 
+      {ready ? (
+        <>
       <DataExportSheet
         open={exportKind === "inventory"}
         onOpenChange={(open) => {
@@ -226,35 +241,17 @@ export function InventoryExportScreen() {
         }}
       />
 
-      <DataExportSheet
+      <PurchaseOrdersExportDrawer
         open={exportKind === "orders"}
         onOpenChange={(open) => {
           if (!open) setExportKind(null);
         }}
-        title="Bestellungen exportieren"
-        description={`${orders.length} Bestellung${orders.length === 1 ? "" : "en"} · ${orderLineCount} Position${orderLineCount === 1 ? "" : "en"}`}
-        itemCount={orderLineCount}
-        onCsv={() => {
-          try {
-            downloadPurchaseOrdersCsv(ordersCtx, { restaurantName });
-            toast.success("CSV wurde heruntergeladen.");
-            setExportKind(null);
-          } catch {
-            toast.error("CSV-Export fehlgeschlagen.");
-          }
-        }}
-        onPdf={() => {
-          void (async () => {
-            try {
-              await downloadPurchaseOrdersPdf(ordersCtx, { restaurantName });
-              toast.success("PDF wurde heruntergeladen.");
-              setExportKind(null);
-            } catch {
-              toast.error("PDF-Export fehlgeschlagen.");
-            }
-          })();
-        }}
+        orders={orders}
+        ingredients={ingredients}
+        restaurantName={restaurantName}
       />
+        </>
+      ) : null}
     </>
   );
 }

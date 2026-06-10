@@ -1,3 +1,4 @@
+import { pickRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -9,6 +10,7 @@ export type RestaurantPositionRow = {
   description: string | null;
   is_system: boolean;
   sort_order: number;
+  color: string;
 };
 
 export async function fetchRestaurantPositions(
@@ -17,7 +19,7 @@ export async function fetchRestaurantPositions(
 ): Promise<{ rows: RestaurantPositionRow[]; error: string | null }> {
   const { data, error } = await sb
     .from("restaurant_positions")
-    .select("id, restaurant_id, name, slug, description, is_system, sort_order")
+    .select("id, restaurant_id, name, slug, description, is_system, sort_order, color")
     .eq("restaurant_id", restaurantId)
     .order("sort_order");
   if (error) return { rows: [], error: error.message };
@@ -44,6 +46,7 @@ export async function createRestaurantPosition(
   restaurantId: string,
   name: string,
   description: string | null,
+  color?: string,
 ): Promise<{ id: string | null; error: string | null }> {
   const slug = name
     .trim()
@@ -63,12 +66,96 @@ export async function createRestaurantPosition(
       description: description?.trim() || null,
       is_system: false,
       sort_order: 100,
+      color: color ?? pickRestaurantPositionColor(slug),
     })
     .select("id")
     .single();
 
   if (error) return { id: null, error: error.message };
   return { id: data.id as string, error: null };
+}
+
+export type PositionUsageCounts = {
+  employeeCount: number;
+  staffCount: number;
+  pendingInviteCount: number;
+};
+
+export async function fetchPositionUsageCounts(
+  sb: SupabaseClient,
+  restaurantId: string,
+  positionId: string,
+): Promise<{ counts: PositionUsageCounts; error: string | null }> {
+  const empty = {
+    employeeCount: 0,
+    staffCount: 0,
+    pendingInviteCount: 0,
+  };
+
+  const [employees, staff, invites] = await Promise.all([
+    sb
+      .from("restaurant_employees")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .eq("position_id", positionId),
+    sb
+      .from("restaurant_staff")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .eq("restaurant_position_id", positionId),
+    sb
+      .from("restaurant_staff_invites")
+      .select("id", { count: "exact", head: true })
+      .eq("restaurant_id", restaurantId)
+      .eq("restaurant_position_id", positionId)
+      .eq("status", "pending"),
+  ]);
+
+  const error =
+    employees.error?.message ??
+    staff.error?.message ??
+    invites.error?.message ??
+    null;
+
+  if (error) return { counts: empty, error };
+
+  return {
+    counts: {
+      employeeCount: employees.count ?? 0,
+      staffCount: staff.count ?? 0,
+      pendingInviteCount: invites.count ?? 0,
+    },
+    error: null,
+  };
+}
+
+export async function updateRestaurantPosition(
+  sb: SupabaseClient,
+  positionId: string,
+  patch: { color?: string; name?: string },
+): Promise<{ error: string | null }> {
+  const updates: { color?: string; name?: string } = {};
+  if (patch.color != null) updates.color = patch.color;
+  if (patch.name != null) updates.name = patch.name.trim();
+  if (Object.keys(updates).length === 0) return { error: null };
+
+  const { error } = await sb
+    .from("restaurant_positions")
+    .update(updates)
+    .eq("id", positionId);
+
+  return { error: error?.message ?? null };
+}
+
+export async function deleteRestaurantPosition(
+  sb: SupabaseClient,
+  positionId: string,
+): Promise<{ error: string | null }> {
+  const { error } = await sb
+    .from("restaurant_positions")
+    .delete()
+    .eq("id", positionId);
+  return { error: error?.message ?? null };
 }
 
 export async function updatePositionPermissions(

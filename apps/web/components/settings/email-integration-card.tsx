@@ -19,6 +19,7 @@ import { GWADA_DEFAULT_FROM_EMAIL } from "@/lib/constants/gwada-email-defaults";
 import { useRegisterSettingsIntegrationSave } from "@/components/settings/settings-integration-save-registry";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import type { EmailIntegrationResponse } from "@/lib/types/restaurant-integration";
 
 function fieldsSnapshot(
@@ -176,6 +177,7 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
       title="E-Mail"
       description="Versendet und empfangt E-Mails direkt in Gwada – mit dem Gwada-Standard-Absender oder eurem eigenen Postfach (SMTP/IMAP)."
       icon={<Mail className="text-muted-foreground" />}
+      accentColor={INTEGRATION_PANEL_ACCENT.email}
       badge={badge}
       summaryLine={
         <>

@@ -49,6 +49,13 @@ export const APP_ROUTES = {
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
     export: "/dashboard/mitarbeiter/export",
   },
+  buchfuehrung: {
+    root: "/dashboard/buchfuehrung",
+    invoices: "/dashboard/buchfuehrung/rechnungen",
+    quotations: "/dashboard/buchfuehrung/angebote",
+    vouchers: "/dashboard/buchfuehrung/belege",
+    settings: "/dashboard/buchfuehrung/einstellungen",
+  },
 } as const;
 
 /** Legacy-Pfade → neue Dashboard-Pfade (Permanent Redirect). */
@@ -76,4 +83,12 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   { source: "/dokumente/:path*", destination: "/dashboard/dokumente/:path*" },
   { source: "/mitarbeiter", destination: APP_ROUTES.mitarbeiter.overview },
   { source: "/mitarbeiter/:path*", destination: "/dashboard/mitarbeiter/:path*" },
+  {
+    source: "/buchfuehrung",
+    destination: APP_ROUTES.buchfuehrung.invoices,
+  },
+  {
+    source: "/buchfuehrung/:path*",
+    destination: "/dashboard/buchfuehrung/:path*",
+  },
 ];

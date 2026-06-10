@@ -16,6 +16,8 @@
   var MSG_LEGACY = "gwada-embed-resize";
   var PROCESSED = "data-gwada-processed";
   var LAZY_MARGIN = "240px";
+  var HOST_RESIZE_DEBOUNCE = 40;
+  var HEIGHT_TRANSITION = "height 0.24s cubic-bezier(0.33, 1, 0.68, 1)";
 
   var WIDGETS = {
     reservation: {
@@ -54,6 +56,8 @@
 
   var embedOrigin = null;
   var iframesById = Object.create(null);
+  var pendingHeights = Object.create(null);
+  var heightTimers = Object.create(null);
 
   function scriptOrigin() {
     var current = document.currentScript;
@@ -69,6 +73,22 @@
       } catch (_e2) {}
     }
     return null;
+  }
+
+  function prefersReducedMotion() {
+    return (
+      global.matchMedia &&
+      global.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
+  }
+
+  function ensurePreconnect(origin) {
+    if (!origin || document.getElementById("gwada-embed-preconnect")) return;
+    var link = document.createElement("link");
+    link.id = "gwada-embed-preconnect";
+    link.rel = "preconnect";
+    link.href = origin;
+    document.head.appendChild(link);
   }
 
   function randomId() {
@@ -126,6 +146,7 @@
 
   function mountElement(el, origin) {
     if (el.getAttribute(PROCESSED)) return;
+    ensurePreconnect(origin);
 
     var widgetKey = (el.getAttribute("data-gwada-widget") || "")
       .trim()
@@ -160,14 +181,48 @@
     observer.observe(el);
   }
 
-  function applyHeight(embedId, height) {
-    var frame = embedId ? iframesById[embedId] || document.getElementById(embedId) : null;
+  function applyHeight(embedId, height, immediate) {
+    var frame = embedId
+      ? iframesById[embedId] || document.getElementById(embedId)
+      : null;
     if (!frame || frame.tagName !== "IFRAME") return;
     var px = Math.ceil(height);
     if (px <= 0) return;
+
+    var prev = frame.dataset.gwadaHeight
+      ? parseInt(frame.dataset.gwadaHeight, 10)
+      : 0;
+    if (prev === px) return;
+
+    var isFirst = prev <= 0;
+    var snap = immediate || isFirst || prefersReducedMotion();
+    frame.style.transition = snap ? "none" : HEIGHT_TRANSITION;
     frame.style.height = px + "px";
     frame.style.minHeight = "0";
+    frame.dataset.gwadaHeight = String(px);
     postFrameViewport(frame);
+  }
+
+  function scheduleHeight(embedId, height) {
+    if (!embedId) return;
+    pendingHeights[embedId] = height;
+    var frame = iframesById[embedId] || document.getElementById(embedId);
+    var isFirst = frame && !frame.dataset.gwadaHeight;
+    if (isFirst) {
+      if (heightTimers[embedId]) {
+        clearTimeout(heightTimers[embedId]);
+        delete heightTimers[embedId];
+      }
+      applyHeight(embedId, height, true);
+      delete pendingHeights[embedId];
+      return;
+    }
+    if (heightTimers[embedId]) clearTimeout(heightTimers[embedId]);
+    heightTimers[embedId] = setTimeout(function () {
+      applyHeight(embedId, pendingHeights[embedId], false);
+      delete pendingHeights[embedId];
+      delete heightTimers[embedId];
+    }, HOST_RESIZE_DEBOUNCE);
   }
 
   function postFrameViewport(frame) {
@@ -206,12 +261,12 @@
     if (!data || typeof data !== "object") return;
 
     if (data.type === MSG && data.version === VERSION) {
-      applyHeight(data.embedId, data.height);
+      scheduleHeight(data.embedId, data.height);
       return;
     }
 
     if (data.type === MSG_LEGACY) {
-      applyHeight(data.embedId, data.height);
+      scheduleHeight(data.embedId, data.height);
       return;
     }
 

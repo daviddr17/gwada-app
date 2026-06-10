@@ -8,6 +8,7 @@ import {
   superadminIntegrationFieldLabelClassName,
   superadminIntegrationInputClassName,
 } from "@/components/superadmin/superadmin-integration-panel";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
 import { FiskalyProvisionResultsPanel } from "@/components/superadmin/fiskaly-provision-results-panel";
 import { FiskalyReconcileDialog } from "@/components/superadmin/fiskaly-reconcile-dialog";
@@ -254,6 +255,7 @@ export function PlatformFiskalyFeatureCard({
       title="Fiskaly (TSE / KassenSichV)"
       description="Plattform-Zugang für SIGN DE und eReceipt. Nach Barzahlung in der Staff-App signiert der Server Bestellungen TSE-konform — Keys nur serverseitig, pro Restaurant zusätzlich TSS und Client."
       icon={<ShieldCheck className="size-5" aria-hidden />}
+      accentColor={INTEGRATION_PANEL_ACCENT.fiskaly}
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}

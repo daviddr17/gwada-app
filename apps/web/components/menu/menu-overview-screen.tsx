@@ -81,6 +81,7 @@ export function MenuOverviewScreen() {
     addCategory,
     updateCategory,
     reorderCategories,
+    deleteCategory,
     isHydrated: categoriesHydrated,
   } = useCategoriesStorage();
   const {
@@ -675,6 +676,11 @@ export function MenuOverviewScreen() {
         mode={categorySheet?.mode ?? "create"}
         initial={categorySheet?.mode === "edit" ? categorySheet.cat : null}
         onSave={handleCategorySave}
+        onDelete={
+          categorySheet?.mode === "edit"
+            ? (id) => void deleteCategory(id)
+            : undefined
+        }
       />
 
       <CategoriesManageDrawer
@@ -772,6 +778,15 @@ export function MenuOverviewScreen() {
           taxonomySheet?.group === "allergens" ? "allergens" : "tags"
         }
         onSave={handleTaxonomySave}
+        onDelete={
+          taxonomySheet?.mode === "edit"
+            ? (id) => {
+                const store =
+                  taxonomySheet.group === "tags" ? menuTags : menuAllergens;
+                void store.remove(id);
+              }
+            : undefined
+        }
       />
     </>
   );

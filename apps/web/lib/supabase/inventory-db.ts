@@ -103,6 +103,33 @@ export function parseStockLogEntryFromJson(raw: unknown): IngredientStockLogEntr
       supplierName: raw.supplierName,
     };
   }
+  if (raw.kind === "stock_from_invoice") {
+    if (
+      typeof raw.fromQuantity !== "number" ||
+      typeof raw.toQuantity !== "number" ||
+      Number.isNaN(raw.fromQuantity) ||
+      Number.isNaN(raw.toQuantity)
+    )
+      return null;
+    if (typeof raw.unitId !== "string" || typeof raw.unitLabel !== "string") return null;
+    if (typeof raw.invoiceId !== "string" || typeof raw.articleName !== "string") return null;
+    return {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "stock_from_invoice",
+      fromQuantity: raw.fromQuantity,
+      toQuantity: raw.toQuantity,
+      unitId: raw.unitId,
+      unitLabel: raw.unitLabel,
+      invoiceId: raw.invoiceId,
+      voucherNumber:
+        typeof raw.voucherNumber === "string" ? raw.voucherNumber : null,
+      articleName: raw.articleName,
+    };
+  }
   return null;
 }
 
@@ -359,6 +386,24 @@ export async function updateInventoryTaxonomyRow(
     .eq("id", id);
   if (error) {
     console.warn(`[gwada] update ${table}`, error.message);
+    return false;
+  }
+  return true;
+}
+
+export async function deleteInventoryTaxonomyRow(
+  table: InventoryTaxonomyDbTable,
+  restaurantId: string,
+  id: string,
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from(table)
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("id", id);
+  if (error) {
+    console.warn(`[gwada] delete ${table}`, error.message);
     return false;
   }
   return true;

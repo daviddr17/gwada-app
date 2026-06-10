@@ -21,6 +21,7 @@ import type {
   PlatformIntegrationKey,
   PlatformIntegrationRow,
 } from "@/lib/types/platform-integration";
+import { integrationPanelAccentForKey } from "@/lib/ui/integration-panel-accent";
 import type { SuperadminIntegrationConnectionHealth } from "@/lib/types/superadmin-ops-status";
 
 export function IntegrationProviderCard({
@@ -131,6 +132,7 @@ export function IntegrationProviderCard({
       description={description}
       icon={icon}
       badges={statusBadge}
+      accentColor={integrationPanelAccentForKey(row.key)}
       headerTrailing={
         <Switch
           checked={enabled}

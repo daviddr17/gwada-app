@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { LexofficeGlyph } from "@/components/icons/lexoffice-glyph";
 import { SuperadminIntegrationPanel } from "@/components/superadmin/superadmin-integration-panel";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
 import { Switch } from "@/components/ui/switch";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
@@ -55,6 +56,7 @@ export function PlatformLexofficeFeatureCard({
       title="Lexware Office"
       description="Buchhaltung und Rechnungen (Lexware Office, ehem. Lexoffice). API-Keys werden pro Restaurant unter Einstellungen → Integrationen hinterlegt — hier nur die Plattform-Freischaltung."
       icon={<LexofficeGlyph />}
+      accentColor={INTEGRATION_PANEL_ACCENT.lexoffice}
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}

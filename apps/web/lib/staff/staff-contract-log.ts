@@ -5,19 +5,19 @@ import type {
   StaffContractLogChange,
   StaffContractLogDetails,
   StaffContractPayType,
-  StaffEmploymentType,
+  StaffEmploymentTypeDefinition,
 } from "@/lib/types/staff";
-import {
-  STAFF_CONTRACT_PAY_LABELS,
-  STAFF_EMPLOYMENT_LABELS,
-} from "@/lib/types/staff";
+import { formatStaffContractPaySummary } from "@/lib/staff/staff-contract-pay";
+import { staffEmploymentTypeLabel } from "@/lib/staff/staff-employment-type-label";
 
-function formatEuro(cents: number | null): string {
-  if (cents == null) return "—";
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(cents / 100);
+function employmentLabelForLog(
+  row: Pick<
+    RestaurantStaffContractRow,
+    "employment_type_id" | "employment_type_name"
+  >,
+  types: readonly StaffEmploymentTypeDefinition[],
+): string {
+  return staffEmploymentTypeLabel(row, types) ?? "—";
 }
 
 function displayPaySummary(c: {
@@ -25,10 +25,7 @@ function displayPaySummary(c: {
   hourly_rate_cents: number | null;
   fixed_salary_cents: number | null;
 }): string {
-  if (c.pay_type === "hourly") {
-    return `${STAFF_CONTRACT_PAY_LABELS.hourly}: ${formatEuro(c.hourly_rate_cents)}`;
-  }
-  return `${STAFF_CONTRACT_PAY_LABELS.fixed}: ${formatEuro(c.fixed_salary_cents)}`;
+  return formatStaffContractPaySummary(c);
 }
 
 function strOrDash(v: string | number | null | undefined): string {
@@ -50,6 +47,7 @@ export function buildStaffContractChanges(
     RestaurantStaffContractRow,
     "id" | "restaurant_id" | "staff_id"
   >,
+  employmentTypes: readonly StaffEmploymentTypeDefinition[] = [],
 ): StaffContractLogChange[] {
   const changes: StaffContractLogChange[] = [];
 
@@ -71,9 +69,7 @@ export function buildStaffContractChanges(
       "employment_type",
       "Beschäftigung",
       null,
-      after.employment_type
-        ? STAFF_EMPLOYMENT_LABELS[after.employment_type]
-        : "—",
+      employmentLabelForLog(after, employmentTypes),
     );
     push(
       "vacation_days_per_year",
@@ -103,13 +99,12 @@ export function buildStaffContractChanges(
   const payAfter = displayPaySummary(after);
   push("pay", "Vergütung", payBefore, payAfter);
 
-  const empBefore = before.employment_type
-    ? STAFF_EMPLOYMENT_LABELS[before.employment_type]
-    : "—";
-  const empAfter = after.employment_type
-    ? STAFF_EMPLOYMENT_LABELS[after.employment_type as StaffEmploymentType]
-    : "—";
-  push("employment_type", "Beschäftigung", empBefore, empAfter);
+  push(
+    "employment_type",
+    "Beschäftigung",
+    employmentLabelForLog(before, employmentTypes),
+    employmentLabelForLog(after, employmentTypes),
+  );
 
   push(
     "vacation_days_per_year",

@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
@@ -17,6 +19,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -40,6 +43,11 @@ import {
 } from "@/lib/staff/staff-contract-log";
 import { notifyStaffContractsUpdated } from "@/lib/staff/staff-contract-events";
 import {
+  isStaffFixedPayType,
+  staffFixedPayInputLabel,
+  staffFixedPayValidationError,
+} from "@/lib/staff/staff-contract-pay";
+import {
   findOverlappingStaffContract,
   formatStaffContractDateDe,
   formatStaffContractEndDe,
@@ -49,15 +57,12 @@ import type {
   RestaurantStaffContractLogEntry,
   RestaurantStaffContractRow,
   StaffContractPayType,
-  StaffEmploymentType,
+  StaffEmploymentTypeDefinition,
 } from "@/lib/types/staff";
 import {
   STAFF_CONTRACT_PAY_ITEMS,
   STAFF_CONTRACT_PAY_LABELS,
   STAFF_CONTRACT_PAY_TYPES,
-  STAFF_EMPLOYMENT_ITEMS,
-  STAFF_EMPLOYMENT_LABELS,
-  STAFF_EMPLOYMENT_TYPES,
 } from "@/lib/types/staff";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
@@ -68,6 +73,19 @@ const whenFmt = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
+const NEW_EMPLOYMENT_TYPE_VALUE = "__new_employment_type__";
+
+const EMPLOYMENT_CREATE_DRAWER_LABELS = {
+  titleCreate: "Beschäftigungsverhältnis hinzufügen",
+  titleEdit: "Beschäftigungsverhältnis bearbeiten",
+  description: "Name und Sichtbarkeit — z. B. Vollzeit, Minijob, Werkstudent.",
+  nameLabel: "Name",
+  namePlaceholder: "z. B. Vollzeit",
+  activeLabel: "Aktiv",
+  activeDescription:
+    "Inaktive Beschäftigungsverhältnisse stehen bei neuen Verträgen nicht zur Auswahl.",
+};
+
 type StaffContractDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +94,11 @@ type StaffContractDrawerProps = {
   staffName?: string | null;
   contract: RestaurantStaffContractRow | null;
   existingContracts: readonly RestaurantStaffContractRow[];
+  employmentTypes: readonly StaffEmploymentTypeDefinition[];
+  onAddEmploymentType: (
+    name: string,
+    active?: boolean,
+  ) => Promise<{ id: string; name: string } | null>;
   onSaved: () => void;
   onDeleted: () => void;
 };
@@ -88,6 +111,8 @@ export function StaffContractDrawer({
   staffName,
   contract,
   existingContracts,
+  employmentTypes,
+  onAddEmploymentType,
   onSaved,
   onDeleted,
 }: StaffContractDrawerProps) {
@@ -97,9 +122,7 @@ export function StaffContractDrawer({
   const [payType, setPayType] = useState<StaffContractPayType>("hourly");
   const [hourly, setHourly] = useState("");
   const [fixed, setFixed] = useState("");
-  const [employmentType, setEmploymentType] = useState<
-    StaffEmploymentType | ""
-  >("");
+  const [employmentTypeId, setEmploymentTypeId] = useState("");
   const [vacationDays, setVacationDays] = useState("");
   const [targetWeeklyHours, setTargetWeeklyHours] = useState("");
   const [note, setNote] = useState("");
@@ -109,6 +132,21 @@ export function StaffContractDrawer({
   const [logLoading, setLogLoading] = useState(false);
   const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [employmentCreateOpen, setEmploymentCreateOpen] = useState(false);
+
+  const selectableEmploymentTypes = useMemo(
+    () =>
+      employmentTypes.filter((t) => t.active || t.id === employmentTypeId),
+    [employmentTypes, employmentTypeId],
+  );
+
+  const employmentSelectItems = useMemo(
+    () =>
+      Object.fromEntries(
+        selectableEmploymentTypes.map((t) => [t.id, t.name]),
+      ),
+    [selectableEmploymentTypes],
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -126,7 +164,7 @@ export function StaffContractDrawer({
           ? String(contract.fixed_salary_cents / 100)
           : "",
       );
-      setEmploymentType(contract.employment_type ?? "");
+      setEmploymentTypeId(contract.employment_type_id ?? "");
       setVacationDays(
         contract.vacation_days_per_year != null
           ? String(contract.vacation_days_per_year)
@@ -144,7 +182,7 @@ export function StaffContractDrawer({
       setPayType("hourly");
       setHourly("");
       setFixed("");
-      setEmploymentType("");
+      setEmploymentTypeId("");
       setVacationDays("");
       setTargetWeeklyHours("");
       setNote("");
@@ -218,19 +256,27 @@ export function StaffContractDrawer({
         return;
       }
       hourlyCents = Math.round(parsed * 100);
-    } else {
+    } else if (isStaffFixedPayType(payType)) {
       const raw = fixed.trim();
       if (!raw) {
-        toast.error("Bitte einen Festlohn angeben.");
+        toast.error(
+          payType === "fixed_weekly"
+            ? "Bitte einen Wochen-Festlohn angeben."
+            : "Bitte einen Festlohn angeben.",
+        );
         return;
       }
       const parsed = Number.parseFloat(raw.replace(",", "."));
       if (!Number.isFinite(parsed) || parsed <= 0) {
-        toast.error("Bitte einen gültigen Festlohn größer als 0 angeben.");
+        toast.error(staffFixedPayValidationError(payType));
         return;
       }
       fixedCents = Math.round(parsed * 100);
     }
+
+    const selectedEmployment = employmentTypes.find(
+      (t) => t.id === employmentTypeId,
+    );
 
     const payload = {
       valid_from: validFrom,
@@ -240,7 +286,8 @@ export function StaffContractDrawer({
       fixed_salary_cents: fixedCents,
       currency: "EUR" as const,
       note: note.trim() || null,
-      employment_type: employmentType || null,
+      employment_type_id: employmentTypeId || null,
+      employment_type_name: selectedEmployment?.name ?? null,
       vacation_days_per_year: vacationDaysPerYear,
       target_weekly_minutes: targetWeeklyMinutes,
     };
@@ -266,14 +313,14 @@ export function StaffContractDrawer({
     if (!res.ok) {
       setPending(false);
       const hint =
-        /employment_type|vacation_days|contract_log/i.test(res.error)
+        /employment_type_id|vacation_days|contract_log/i.test(res.error)
           ? " Datenbank-Migration fehlt vermutlich — bitte „npx supabase db push“ ausführen."
           : "";
       toast.error(`Vertrag konnte nicht gespeichert werden: ${res.error}${hint}`);
       return;
     }
 
-    const changes = buildStaffContractChanges(contract, payload);
+    const changes = buildStaffContractChanges(contract, payload, employmentTypes);
     await insertStaffContractLogEntry(
       restaurantId,
       res.id,
@@ -336,31 +383,44 @@ export function StaffContractDrawer({
           </div>
 
           <div className="space-y-2">
-            <Label>Art des Beschäftigungsverhältnisses</Label>
+            <Label>Beschäftigungsverhältnis</Label>
             <Select
-              value={employmentType || ""}
-              items={STAFF_EMPLOYMENT_ITEMS}
+              value={employmentTypeId || ""}
+              items={employmentSelectItems}
               onValueChange={(v) => {
-                if (typeof v === "string") {
-                  setEmploymentType(v as StaffEmploymentType);
+                if (v === NEW_EMPLOYMENT_TYPE_VALUE) {
+                  setEmploymentCreateOpen(true);
+                  return;
                 }
+                if (typeof v === "string") setEmploymentTypeId(v);
               }}
             >
               <SelectTrigger
                 className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
               >
                 <SelectValue placeholder="Bitte wählen">
-                  {employmentType
-                    ? STAFF_EMPLOYMENT_LABELS[employmentType]
+                  {employmentTypeId
+                    ? employmentTypes.find((t) => t.id === employmentTypeId)
+                        ?.name
                     : undefined}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {STAFF_EMPLOYMENT_TYPES.map((k) => (
-                  <SelectItem key={k} value={k}>
-                    {STAFF_EMPLOYMENT_LABELS[k]}
+                {selectableEmploymentTypes.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.name}
                   </SelectItem>
                 ))}
+                <SelectSeparator />
+                <SelectItem
+                  value={NEW_EMPLOYMENT_TYPE_VALUE}
+                  className="text-accent"
+                >
+                  <span className="flex items-center gap-2">
+                    <Plus className="size-4 shrink-0" />
+                    Neues Beschäftigungsverhältnis
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -403,9 +463,9 @@ export function StaffContractDrawer({
                 className={staffDrawerFieldClassName}
               />
             </div>
-          ) : (
+          ) : isStaffFixedPayType(payType) ? (
             <div className="space-y-2">
-              <Label>Festlohn pro Monat (€)</Label>
+              <Label>{staffFixedPayInputLabel(payType)}</Label>
               <Input
                 value={fixed}
                 onChange={(e) => setFixed(e.target.value)}
@@ -413,7 +473,7 @@ export function StaffContractDrawer({
                 className={staffDrawerFieldClassName}
               />
             </div>
-          )}
+          ) : null}
 
           <div className="space-y-2">
             <Label>Urlaubstage pro Jahr</Label>
@@ -528,6 +588,22 @@ export function StaffContractDrawer({
           setConfirmDelete(false);
           onDeleted();
           onOpenChange(false);
+        }}
+      />
+
+      <CategoryDrawer
+        open={employmentCreateOpen}
+        onOpenChange={setEmploymentCreateOpen}
+        mode="create"
+        labels={EMPLOYMENT_CREATE_DRAWER_LABELS}
+        onSave={(payload) => {
+          void (async () => {
+            const created = await onAddEmploymentType(
+              payload.name,
+              payload.active ?? true,
+            );
+            if (created?.id) setEmploymentTypeId(created.id);
+          })();
         }}
       />
     </Drawer>

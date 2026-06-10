@@ -14,7 +14,6 @@ import {
 } from "@/lib/reservations/reservation-email-dispatch";
 import { fetchReservationForWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
-import { sendContactGuestChatNotifications } from "@/lib/contacts/contact-guest-notification-server";
 import { storeGwadaMessageAttachments } from "@/lib/contact-messages/gwada-message-attachments-server";
 import {
   sendWhatsappAttachmentFiles,
@@ -39,9 +38,6 @@ export type SendContactMessageServerInput = {
   sentBy?: string | null;
   restaurantName?: string | null;
   attachmentFiles?: OutboundAttachmentFile[];
-  /** Gwada: Gast per WhatsApp/E-Mail auf Chat-Link hinweisen (nicht Volltext). */
-  notifyWhatsapp?: boolean;
-  notifyEmail?: boolean;
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
@@ -378,29 +374,6 @@ export async function sendContactMessageServer(
         });
         if (stored.error) errors.push(`email_attachments:${stored.error}`);
       }
-    }
-  }
-
-  const shouldNotify =
-    input.direction === "outbound" &&
-    channels.includes("gwada") &&
-    (input.notifyWhatsapp || input.notifyEmail);
-
-  if (shouldNotify) {
-    const preview =
-      body ||
-      (attachmentFiles.length > 0 ? "Neue Nachricht mit Anhang" : "");
-    const notifyResult = await sendContactGuestChatNotifications(admin, {
-      restaurantId: input.restaurantId,
-      contactId: input.contactId,
-      restaurantName: input.restaurantName,
-      messagePreview: preview,
-      notifyWhatsapp: Boolean(input.notifyWhatsapp),
-      notifyEmail: Boolean(input.notifyEmail),
-      reservationId: input.reservationId,
-    });
-    if (!notifyResult.ok) {
-      errors.push(...notifyResult.errors);
     }
   }
 

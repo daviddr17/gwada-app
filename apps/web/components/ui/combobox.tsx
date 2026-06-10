@@ -8,7 +8,9 @@ import { cn } from "@/lib/utils"
 import { labelForTagId } from "@/lib/constants/menu-labels"
 import { getTagChipVisual } from "@/lib/utils/tag-styles"
 import type { MenuTag, MenuTaxonomyDefinition } from "@/lib/types/menu"
-import { CheckIcon, ChevronDownIcon } from "lucide-react"
+import { ContactPlatformIcon } from "@/components/contacts/contact-platform-icon"
+import type { ContactCatalogPlatform } from "@/lib/constants/contact-catalog-platforms"
+import { CheckIcon, ChevronDownIcon, Plus } from "lucide-react"
 
 const collisionDefaults = {
   side: "flip" as const,
@@ -22,6 +24,8 @@ export type SearchableSelectOption = {
   disabled?: boolean
   /** z. B. Tag-Farbe als linker Streifen */
   leadingColor?: string
+  /** z. B. Gwada / Lexware vor dem Label */
+  leadingPlatforms?: readonly ContactCatalogPlatform[]
 }
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
@@ -37,6 +41,26 @@ function TagColorStripe({ color }: { color?: string }) {
   )
 }
 
+function OptionLeadingPlatforms({
+  platforms,
+}: {
+  platforms?: readonly ContactCatalogPlatform[]
+}) {
+  if (!platforms?.length) return null
+  return (
+    <span className="mr-1.5 inline-flex shrink-0 items-center gap-0.5">
+      {platforms.map((platform) => (
+        <ContactPlatformIcon key={platform} platform={platform} />
+      ))}
+    </span>
+  )
+}
+
+export type SearchableSelectFooterAction = {
+  label: string
+  onSelect: () => void
+}
+
 export type SearchableSelectProps = {
   options: SearchableSelectOption[]
   value: string | null
@@ -47,6 +71,7 @@ export type SearchableSelectProps = {
   disabled?: boolean
   className?: string
   id?: string
+  footerAction?: SearchableSelectFooterAction
   "aria-invalid"?: boolean
   "aria-label"?: string
 }
@@ -65,15 +90,23 @@ export function SearchableSelect({
   disabled,
   className,
   id,
+  footerAction,
   "aria-invalid": ariaInvalid,
   "aria-label": ariaLabel,
 }: SearchableSelectProps) {
   const drawerFloatingHost = useDrawerFloatingPortalHost()
+  const [open, setOpen] = React.useState(false)
 
   const optionValues = React.useMemo(
     () => options.map((o) => o.value),
     [options],
   )
+  const optionByValue = React.useMemo(() => {
+    const m = new Map<string, SearchableSelectOption>()
+    for (const o of options) m.set(o.value, o)
+    return m
+  }, [options])
+
   const labelById = React.useMemo(() => {
     const m = new Map<string, string>()
     for (const o of options) m.set(o.value, o.label)
@@ -90,7 +123,20 @@ export function SearchableSelect({
     return m
   }, [options])
 
+  const platformsById = React.useMemo(() => {
+    const m = new Map<string, readonly ContactCatalogPlatform[]>()
+    for (const o of options) {
+      if (o.leadingPlatforms?.length) {
+        m.set(o.value, o.leadingPlatforms)
+      }
+    }
+    return m
+  }, [options])
+
   const selectedLeadingColor = value ? colorById.get(value) : undefined
+  const selectedLeadingPlatforms = value
+    ? platformsById.get(value)
+    : undefined
 
   const displayLabel = value ? (labelById.get(value) ?? "") : ""
   const [inputValue, setInputValue] = React.useState(displayLabel)
@@ -100,12 +146,15 @@ export function SearchableSelect({
 
   const matcher = Combobox.useFilter({
     sensitivity: "base",
-    value,
+    // Einfaches „enthält“-Matching — ohne Sonderfall „Auswahl = Query → alle Items“.
+    multiple: true,
   })
 
   return (
     <Combobox.Root
       modal={false}
+      open={open}
+      onOpenChange={setOpen}
       value={value}
       inputValue={inputValue}
       onInputValueChange={(next) => setInputValue(next)}
@@ -126,27 +175,32 @@ export function SearchableSelect({
         data-slot="searchable-select-trigger"
         title={placeholder}
         className={cn(
-          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-1 rounded-2xl border border-border/70 bg-card px-2.5 py-1 shadow-none transition-[border-color,box-shadow] outline-none hover:border-border focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25 dark:shadow-sm",
+          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-0.5 rounded-2xl border border-border/70 bg-card px-2 py-1 shadow-none transition-[border-color,box-shadow] outline-none hover:border-border focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25 dark:shadow-sm",
           disabled && "pointer-events-none opacity-50",
           className,
         )}
       >
+        {selectedLeadingPlatforms?.length ? (
+          <OptionLeadingPlatforms platforms={selectedLeadingPlatforms} />
+        ) : (
+          <TagColorStripe color={selectedLeadingColor} />
+        )}
         <Combobox.Input
           id={id}
           aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
           placeholder={searchPlaceholder}
           className={cn(
-            "min-h-9 min-w-0 flex-1 border-0 bg-transparent px-1.5 text-[15px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0 sm:text-sm",
+            "min-h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0 sm:text-sm",
             "truncate",
             "data-[popup-open]:overflow-x-auto data-[popup-open]:overflow-y-hidden data-[popup-open]:text-clip",
           )}
         />
         <Combobox.Trigger
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/70"
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/70"
           aria-label="Liste öffnen"
         >
-          <ChevronDownIcon className="size-4" />
+          <ChevronDownIcon className="size-3.5" />
         </Combobox.Trigger>
       </Combobox.InputGroup>
 
@@ -168,25 +222,48 @@ export function SearchableSelect({
             )}
           >
             <Combobox.List className="max-h-[min(var(--available-height),20rem)] scroll-py-2 overflow-y-auto overscroll-contain px-1.5 py-2 outline-none">
-              {options.map((o) => (
-                <Combobox.Item
-                  key={o.value}
-                  value={o.value}
-                  disabled={o.disabled}
-                  className={cn(
-                    "pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-popover-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-muted/80 data-highlighted:text-foreground data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm [&>span:first-child]:shrink-0",
-                  )}
-                >
-                  <TagColorStripe color={o.leadingColor} />
-                  <span className="flex-1 whitespace-normal break-words">
-                    {o.label}
-                  </span>
-                  <Combobox.ItemIndicator className="pointer-events-none absolute right-2.5 top-1/2 flex size-4 -translate-y-1/2 text-accent">
-                    <CheckIcon className="size-4" aria-hidden />
-                  </Combobox.ItemIndicator>
-                </Combobox.Item>
-              ))}
+              {(id) => {
+                const o = optionByValue.get(id)
+                if (!o) return null
+                return (
+                  <Combobox.Item
+                    key={id}
+                    value={id}
+                    disabled={o.disabled}
+                    className={cn(
+                      "pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-popover-foreground outline-none select-none hover:bg-muted/70 hover:text-foreground data-disabled:pointer-events-none data-disabled:opacity-45 data-highlighted:bg-muted/80 data-highlighted:text-foreground data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm [&>span:first-child]:shrink-0",
+                    )}
+                  >
+                    <OptionLeadingPlatforms platforms={o.leadingPlatforms} />
+                    <TagColorStripe color={o.leadingColor} />
+                    <span className="flex-1 whitespace-normal break-words">
+                      {o.label}
+                    </span>
+                    <Combobox.ItemIndicator className="pointer-events-none absolute right-2.5 top-1/2 flex size-4 -translate-y-1/2 text-accent">
+                      <CheckIcon className="size-4" aria-hidden />
+                    </Combobox.ItemIndicator>
+                  </Combobox.Item>
+                )
+              }}
             </Combobox.List>
+            {footerAction ? (
+              <>
+                <Combobox.Separator className="mx-1.5 bg-border/60" />
+                <div className="px-1.5 pb-2">
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-[15px] font-medium text-accent outline-none hover:bg-muted/70 sm:min-h-10 sm:text-sm"
+                    onClick={() => {
+                      setOpen(false)
+                      footerAction.onSelect()
+                    }}
+                  >
+                    <Plus className="size-4 shrink-0" aria-hidden />
+                    {footerAction.label}
+                  </button>
+                </div>
+              </>
+            ) : null}
             <Combobox.Empty className="empty:hidden min-h-0 px-4 py-8 text-center text-sm text-muted-foreground">
               {emptyText}
             </Combobox.Empty>

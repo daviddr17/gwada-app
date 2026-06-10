@@ -14,7 +14,13 @@ export type StaffWorkEntryType =
   | "sick"
   | "other";
 
-export type StaffContractPayType = "hourly" | "fixed";
+export type StaffContractPayType = "hourly" | "fixed" | "fixed_weekly";
+
+export type StaffEmploymentTypeDefinition = {
+  id: string;
+  name: string;
+  active: boolean;
+};
 
 export type StaffEmploymentType =
   | "full_time"
@@ -121,7 +127,9 @@ export type RestaurantStaffContractRow = {
   fixed_salary_cents: number | null;
   currency: string;
   note: string | null;
-  employment_type: StaffEmploymentType | null;
+  employment_type_id: string | null;
+  /** Aus Join / Lookup — Anzeigename */
+  employment_type_name?: string | null;
   vacation_days_per_year: number | null;
   /** Soll-Wochenarbeitszeit in Minuten (optional). */
   target_weekly_minutes: number | null;
@@ -150,6 +158,7 @@ export type RestaurantStaffWorkEntryLogEntry = {
 export const STAFF_CONTRACT_PAY_LABELS: Record<StaffContractPayType, string> = {
   hourly: "Stundenlohn",
   fixed: "Festlohn (Monat)",
+  fixed_weekly: "Festlohn (Woche)",
 };
 
 export const STAFF_CONTRACT_PAY_ITEMS: Record<StaffContractPayType, string> =

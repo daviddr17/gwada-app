@@ -50,7 +50,7 @@ export PGSSLMODE=disable
 
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
-bash scripts/db-push-live.sh --include-all "$@"
+bash scripts/db-push-live.sh --include-all --yes "$@"
 
 echo ""
 echo "Live-DB-Migrationen angewendet."

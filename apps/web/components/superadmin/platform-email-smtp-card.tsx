@@ -8,6 +8,7 @@ import {
   type SmtpConnectionFieldValues,
 } from "@/components/integrations/smtp-connection-fields";
 import { SuperadminIntegrationPanel } from "@/components/superadmin/superadmin-integration-panel";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
 import { Switch } from "@/components/ui/switch";
 import { GWADA_DEFAULT_FROM_EMAIL } from "@/lib/constants/gwada-email-defaults";
@@ -123,6 +124,7 @@ export function PlatformEmailSmtpCard({
       title="E-Mail"
       description={`Fallback-Versand mit ${GWADA_DEFAULT_FROM_EMAIL} — SMTP-Daten nur serverseitig.`}
       icon={<Mail className="text-muted-foreground" />}
+      accentColor={INTEGRATION_PANEL_ACCENT.email}
       badges={
         <SuperadminIntegrationStatusBadges
           enabled={enabled}

@@ -91,6 +91,7 @@ type TaxonomyStore = {
   ) => Promise<{ id: string; name: string } | null>;
   update: (id: string, updates: { name?: string; active?: boolean }) => void;
   reorder: (next: InventoryTaxonomyDefinition[]) => void;
+  remove: (id: string) => Promise<boolean>;
 };
 
 const MANAGE_BASE_DESC =
@@ -1161,6 +1162,11 @@ export function InventoryScreen() {
               await s.add(payload.name, payload.active !== false);
             }
           }}
+          onDelete={
+            entitySheet.mode === "edit" && entitySheet.item
+              ? (id) => void storeFor(entitySheet.kind).remove(id)
+              : undefined
+          }
         />
       )}
 

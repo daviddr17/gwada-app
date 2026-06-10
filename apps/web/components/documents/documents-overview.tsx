@@ -654,6 +654,11 @@ export function DocumentsOverview() {
         initial={tagSheet?.mode === "edit" ? tagSheet.initial : null}
         variant="documentTags"
         onSave={handleTagSave}
+        onDelete={
+          tagSheet?.mode === "edit"
+            ? (id) => void documentTags.remove(id)
+            : undefined
+        }
       />
 
       <DocumentFormDrawer

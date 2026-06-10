@@ -19,7 +19,6 @@ import {
   daysInclusive,
   exclusiveUtcIsoAfterLocalVisibleEnd,
   formatDayHeadingDe,
-  formatMonthTitleDe,
   localDayStartToUtcIso,
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
@@ -241,8 +240,6 @@ export function StaffWorkHoursView({
     return byDay.get(localDayKey(day)) ?? [];
   }, [drawerOpen, editEntry, dayForNew, byDay]);
 
-  const monthTitle = formatMonthTitleDe(cursor.year, cursor.month);
-
   return (
     <div className="pb-16">
       {loading && !showSkeleton ? (
@@ -311,11 +308,8 @@ export function StaffWorkHoursView({
           </Card>
 
           <Card className="mb-4 border-border/50 shadow-card">
-            <CardContent className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-center text-sm font-medium tracking-tight sm:text-left">
-                {monthTitle}
-              </p>
-              <div className="flex shrink-0 items-center justify-center gap-1">
+            <CardContent className="flex items-center px-4 py-3">
+              <div className="flex min-w-0 items-center gap-1">
                 <Button
                   type="button"
                   variant="ghost"

@@ -278,10 +278,11 @@ export function StaffOverviewScreen() {
           <Button
             type="button"
             variant="outline"
-            className="h-12 gap-2 rounded-full"
+            size="sm"
+            className="rounded-full border-border/60"
             onClick={() => setManageTagsOpen(true)}
           >
-            <Tags className="size-4" />
+            <Tags className="size-3.5" />
             Positionen
           </Button>
         </div>
@@ -431,6 +432,11 @@ export function StaffOverviewScreen() {
           }
           setTagSheet(null);
         }}
+        onDelete={
+          tagSheet?.mode === "edit"
+            ? (id) => void positionTags.remove(id)
+            : undefined
+        }
       />
 
       <StaffOverviewCompletedShiftsSheet

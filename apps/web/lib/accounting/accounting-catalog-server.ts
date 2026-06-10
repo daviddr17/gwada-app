@@ -5,6 +5,7 @@ import {
   DEFAULT_ACCOUNTING_UNITS,
 } from "@/lib/accounting/default-catalog";
 import type {
+  AccountingArticleRecipeLine,
   AccountingArticleRow,
   AccountingTaxRateRow,
   AccountingUnitRow,
@@ -83,7 +84,73 @@ export async function listAccountingArticles(
     .eq("restaurant_id", restaurantId)
     .eq("archived", false)
     .order("name", { ascending: true });
-  return (data ?? []) as AccountingArticleRow[];
+  const articles = (data ?? []) as AccountingArticleRow[];
+  if (articles.length === 0) return [];
+
+  const recipeMap = await loadAccountingArticleRecipesMap(sb, restaurantId);
+  return articles.map((a) => ({
+    ...a,
+    recipe: recipeMap.get(a.id) ?? [],
+  }));
+}
+
+async function loadAccountingArticleRecipesMap(
+  sb: SupabaseClient,
+  restaurantId: string,
+  articleIds?: string[],
+): Promise<Map<string, AccountingArticleRecipeLine[]>> {
+  let q = sb
+    .from("accounting_article_recipe_lines")
+    .select("article_id, ingredient_id, amount, sort_order")
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: true });
+  if (articleIds?.length) {
+    q = q.in("article_id", articleIds);
+  }
+  const { data } = await q;
+  const map = new Map<string, AccountingArticleRecipeLine[]>();
+  for (const row of data ?? []) {
+    const r = row as Record<string, unknown>;
+    const articleId = r.article_id as string;
+    const line: AccountingArticleRecipeLine = {
+      ingredientId: r.ingredient_id as string,
+      amount: Number(r.amount),
+    };
+    const arr = map.get(articleId) ?? [];
+    arr.push(line);
+    map.set(articleId, arr);
+  }
+  return map;
+}
+
+async function replaceAccountingArticleRecipeLines(
+  sb: SupabaseClient,
+  restaurantId: string,
+  articleId: string,
+  recipe: AccountingArticleRecipeLine[] | null | undefined,
+): Promise<{ error: string | null }> {
+  const { error: delErr } = await sb
+    .from("accounting_article_recipe_lines")
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("article_id", articleId);
+  if (delErr) return { error: delErr.message };
+
+  const lines = recipe?.filter(
+    (l) => l.ingredientId.trim() && l.amount > 0,
+  );
+  if (!lines?.length) return { error: null };
+
+  const { error: insErr } = await sb.from("accounting_article_recipe_lines").insert(
+    lines.map((l, i) => ({
+      restaurant_id: restaurantId,
+      article_id: articleId,
+      ingredient_id: l.ingredientId,
+      amount: l.amount,
+      sort_order: i,
+    })),
+  );
+  return { error: insErr?.message ?? null };
 }
 
 export async function upsertAccountingTaxRate(
@@ -214,8 +281,12 @@ export async function upsertAccountingArticle(
     default_tax_rate_percent: number;
     currency?: string;
     archived?: boolean;
+    recipe?: AccountingArticleRecipeLine[] | null;
   },
 ): Promise<{ row: AccountingArticleRow | null; error: string | null }> {
+  let articleId = payload.id;
+  let row: AccountingArticleRow | null = null;
+
   if (payload.id) {
     const { data, error } = await sb
       .from("accounting_articles")
@@ -232,20 +303,86 @@ export async function upsertAccountingArticle(
       .eq("id", payload.id)
       .select("*")
       .single();
-    return { row: (data as AccountingArticleRow) ?? null, error: error?.message ?? null };
+    if (error) return { row: null, error: error.message };
+    row = (data as AccountingArticleRow) ?? null;
+    articleId = payload.id;
+  } else {
+    const { data, error } = await sb
+      .from("accounting_articles")
+      .insert({
+        restaurant_id: restaurantId,
+        name: payload.name,
+        description: payload.description ?? null,
+        default_unit_name: payload.default_unit_name,
+        default_unit_price: payload.default_unit_price,
+        default_tax_rate_percent: payload.default_tax_rate_percent,
+        currency: payload.currency ?? "EUR",
+      })
+      .select("*")
+      .single();
+    if (error) return { row: null, error: error.message };
+    row = (data as AccountingArticleRow) ?? null;
+    articleId = row?.id;
   }
-  const { data, error } = await sb
+
+  if (!articleId || !row) {
+    return { row: null, error: "create_failed" };
+  }
+
+  if (payload.recipe !== undefined) {
+    const { error: recipeErr } = await replaceAccountingArticleRecipeLines(
+      sb,
+      restaurantId,
+      articleId,
+      payload.recipe,
+    );
+    if (recipeErr) return { row: null, error: recipeErr };
+  }
+
+  const recipeMap = await loadAccountingArticleRecipesMap(sb, restaurantId, [
+    articleId,
+  ]);
+  return {
+    row: { ...row, recipe: recipeMap.get(articleId) ?? [] },
+    error: null,
+  };
+}
+
+export async function deleteAccountingTaxRate(
+  sb: SupabaseClient,
+  restaurantId: string,
+  id: string,
+): Promise<{ error: string | null }> {
+  const { error } = await sb
+    .from("accounting_tax_rates")
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+export async function deleteAccountingUnit(
+  sb: SupabaseClient,
+  restaurantId: string,
+  id: string,
+): Promise<{ error: string | null }> {
+  const { error } = await sb
+    .from("accounting_units")
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("id", id);
+  return { error: error?.message ?? null };
+}
+
+export async function deleteAccountingArticle(
+  sb: SupabaseClient,
+  restaurantId: string,
+  id: string,
+): Promise<{ error: string | null }> {
+  const { error } = await sb
     .from("accounting_articles")
-    .insert({
-      restaurant_id: restaurantId,
-      name: payload.name,
-      description: payload.description ?? null,
-      default_unit_name: payload.default_unit_name,
-      default_unit_price: payload.default_unit_price,
-      default_tax_rate_percent: payload.default_tax_rate_percent,
-      currency: payload.currency ?? "EUR",
-    })
-    .select("*")
-    .single();
-  return { row: (data as AccountingArticleRow) ?? null, error: error?.message ?? null };
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("id", id);
+  return { error: error?.message ?? null };
 }

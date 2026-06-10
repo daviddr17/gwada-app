@@ -159,15 +159,19 @@ export function mergeAccountingSettingsRow(
       restaurant_id: restaurantId,
       document_format: "pdf" as const,
       auto_sync_lexoffice: true,
+      deduct_inventory_on_invoice: false,
       document_design: parseAccountingDocumentDesign(null),
       last_lexoffice_invoices_sync_at: null,
       last_lexoffice_quotations_sync_at: null,
+      last_lexoffice_vouchers_sync_at: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
   }
   return {
     ...data,
+    deduct_inventory_on_invoice:
+      (data.deduct_inventory_on_invoice as boolean | undefined) ?? false,
     document_design: parseAccountingDocumentDesign(data.document_design),
   };
 }

@@ -24,6 +24,7 @@ import type {
   IngredientStockLogDeliveryReverted,
   IngredientStockLogEntry,
   IngredientStockLogFromDelivery,
+  IngredientStockLogFromInvoice,
   IngredientStockLogManual,
 } from "@/lib/types/ingredient-stock-log";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
@@ -114,6 +115,35 @@ function parseStockLogEntry(raw: unknown): IngredientStockLogEntry | null {
       unitLabel: raw.unitLabel,
       orderId: raw.orderId,
       supplierName: raw.supplierName,
+    };
+    return e;
+  }
+
+  if (raw.kind === "stock_from_invoice") {
+    if (
+      typeof raw.fromQuantity !== "number" ||
+      typeof raw.toQuantity !== "number" ||
+      Number.isNaN(raw.fromQuantity) ||
+      Number.isNaN(raw.toQuantity)
+    )
+      return null;
+    if (typeof raw.unitId !== "string" || typeof raw.unitLabel !== "string") return null;
+    if (typeof raw.invoiceId !== "string" || typeof raw.articleName !== "string") return null;
+    const e: IngredientStockLogFromInvoice = {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "stock_from_invoice",
+      fromQuantity: raw.fromQuantity,
+      toQuantity: raw.toQuantity,
+      unitId: raw.unitId,
+      unitLabel: raw.unitLabel,
+      invoiceId: raw.invoiceId,
+      voucherNumber:
+        typeof raw.voucherNumber === "string" ? raw.voucherNumber : null,
+      articleName: raw.articleName,
     };
     return e;
   }

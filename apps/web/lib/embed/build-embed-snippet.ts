@@ -16,10 +16,6 @@ export type GwadaEmbedSnippet = {
   loaderUrl: string;
   /** Direktlink zum Embed (iframe-Ziel). */
   embedUrl: string;
-  /** @deprecated Rohes iframe. */
-  legacyIframe: string;
-  /** @deprecated iframe + Legacy-Resize-Script. */
-  legacyCombined: string;
 };
 
 function resolveOrigin(origin?: string): string {
@@ -47,40 +43,6 @@ function buildScriptTag(loaderUrl: string): string {
   return `<script async src="${loaderUrl}"></script>`;
 }
 
-function buildLegacyIframe(src: string, title: string, minHeight: number): string {
-  return `<iframe
-  src="${src}"
-  title="${title}"
-  style="width:100%;border:0;display:block;min-height:${minHeight}px;"
-  loading="lazy"
-  referrerpolicy="strict-origin-when-cross-origin"
-></iframe>`;
-}
-
-function buildLegacyResizeScript(): string {
-  return `<script>
-(function(){
-  window.addEventListener("message",function(e){
-    if(!e.data)return;
-    var h=null,id=null;
-    if(e.data.type==="gwada:embed:resize"&&typeof e.data.height==="number"){
-      h=e.data.height; id=e.data.embedId;
-    }else if(e.data.type==="gwada-embed-resize"&&typeof e.data.height==="number"){
-      h=e.data.height; id=e.data.embedId;
-    }
-    if(!h||h<=0)return;
-    var f=id
-      ?document.getElementById(id)
-      :document.querySelector('iframe[src*="/embed/"]');
-    if(f&&f.tagName==="IFRAME"){
-      f.style.height=Math.ceil(h)+"px";
-      f.style.minHeight="0";
-    }
-  });
-})();
-</script>`;
-}
-
 export function buildGwadaEmbedSnippet(params: {
   widget: GwadaEmbedWidgetId;
   slug: string;
@@ -95,19 +57,11 @@ export function buildGwadaEmbedSnippet(params: {
   const placeholder = buildPlaceholderHtml(def, slug, params.minHeightPx);
   const script = buildScriptTag(loaderUrl);
   const recommended = `${placeholder}\n${script}`;
-  const legacyIframe = buildLegacyIframe(
-    embedUrl,
-    def.title,
-    params.minHeightPx ?? def.defaultMinHeightPx,
-  );
-
   return {
     recommended,
     placeholder,
     loaderUrl,
     embedUrl,
-    legacyIframe,
-    legacyCombined: `${legacyIframe}\n${buildLegacyResizeScript()}`,
   };
 }
 

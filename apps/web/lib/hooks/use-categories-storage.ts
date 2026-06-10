@@ -10,6 +10,7 @@ import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
+  deleteMenuCategory,
   insertMenuCategory,
   loadMenuCategoriesRelational,
   menuRelationalPersistenceEnabled,
@@ -268,11 +269,48 @@ export function useCategoriesStorage() {
     [categories],
   );
 
+  const deleteCategory = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (useDbMenu) {
+        const result = await deleteMenuCategory(id);
+        if (result === "in_use") {
+          toast.error("Kategorie wird noch von Gerichten verwendet.");
+          return false;
+        }
+        if (result === "error") {
+          failSave();
+          return false;
+        }
+        setCategories((prev) => {
+          const next = prev.filter((c) => c.id !== id);
+          mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
+          return next;
+        });
+        toast.success("Kategorie gelöscht");
+        return true;
+      }
+      let ok = false;
+      setCategories((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
+        if (!ok) {
+          failSave();
+          return prev;
+        }
+        toast.success("Kategorie gelöscht");
+        return next;
+      });
+      return ok;
+    },
+    [failSave, useDbMenu],
+  );
+
   return {
     categories,
     addCategory,
     updateCategory,
     reorderCategories,
+    deleteCategory,
     getCategoryById,
     isHydrated,
   };

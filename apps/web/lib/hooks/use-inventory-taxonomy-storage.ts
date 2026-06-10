@@ -8,6 +8,7 @@ import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import { toastStorageError } from "@/lib/persist-notify";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
+  deleteInventoryTaxonomyRow,
   inventoryRelationalPersistenceEnabled,
   loadInventoryTaxonomyRelational,
   reorderInventoryTaxonomyRows,
@@ -290,11 +291,40 @@ export function useInventoryTaxonomyStorage(
     [items],
   );
 
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (useDbInventory && table) {
+        const rid = await getWorkspaceRestaurantId();
+        if (!rid) {
+          failSave();
+          return false;
+        }
+        const ok = await deleteInventoryTaxonomyRow(table, rid, id);
+        if (!ok) {
+          failSave();
+          return false;
+        }
+        setItems((prev) => prev.filter((c) => c.id !== id));
+        toast.success("Eintrag gelöscht");
+        return true;
+      }
+      let ok = false;
+      setItems((prev) => {
+        const next = prev.filter((c) => c.id !== id);
+        ok = persist(next, "Eintrag gelöscht");
+        return ok ? next : prev;
+      });
+      return ok;
+    },
+    [failSave, persist, table, useDbInventory],
+  );
+
   return {
     items,
     add,
     update,
     reorder,
+    remove,
     getById,
     isHydrated,
   };

@@ -10,7 +10,7 @@ import { getTagChipVisual } from "@/lib/utils/tag-styles"
 import type { MenuTag, MenuTaxonomyDefinition } from "@/lib/types/menu"
 import { ContactPlatformIcon } from "@/components/contacts/contact-platform-icon"
 import type { ContactCatalogPlatform } from "@/lib/constants/contact-catalog-platforms"
-import { CheckIcon, ChevronDownIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, Plus } from "lucide-react"
 
 const collisionDefaults = {
   side: "flip" as const,
@@ -56,6 +56,11 @@ function OptionLeadingPlatforms({
   )
 }
 
+export type SearchableSelectFooterAction = {
+  label: string
+  onSelect: () => void
+}
+
 export type SearchableSelectProps = {
   options: SearchableSelectOption[]
   value: string | null
@@ -66,6 +71,7 @@ export type SearchableSelectProps = {
   disabled?: boolean
   className?: string
   id?: string
+  footerAction?: SearchableSelectFooterAction
   "aria-invalid"?: boolean
   "aria-label"?: string
 }
@@ -84,10 +90,12 @@ export function SearchableSelect({
   disabled,
   className,
   id,
+  footerAction,
   "aria-invalid": ariaInvalid,
   "aria-label": ariaLabel,
 }: SearchableSelectProps) {
   const drawerFloatingHost = useDrawerFloatingPortalHost()
+  const [open, setOpen] = React.useState(false)
 
   const optionValues = React.useMemo(
     () => options.map((o) => o.value),
@@ -145,6 +153,8 @@ export function SearchableSelect({
   return (
     <Combobox.Root
       modal={false}
+      open={open}
+      onOpenChange={setOpen}
       value={value}
       inputValue={inputValue}
       onInputValueChange={(next) => setInputValue(next)}
@@ -236,6 +246,24 @@ export function SearchableSelect({
                 )
               }}
             </Combobox.List>
+            {footerAction ? (
+              <>
+                <Combobox.Separator className="mx-1.5 bg-border/60" />
+                <div className="px-1.5 pb-2">
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center gap-2 rounded-xl px-3 py-2.5 text-[15px] font-medium text-accent outline-none hover:bg-muted/70 sm:min-h-10 sm:text-sm"
+                    onClick={() => {
+                      setOpen(false)
+                      footerAction.onSelect()
+                    }}
+                  >
+                    <Plus className="size-4 shrink-0" aria-hidden />
+                    {footerAction.label}
+                  </button>
+                </div>
+              </>
+            ) : null}
             <Combobox.Empty className="empty:hidden min-h-0 px-4 py-8 text-center text-sm text-muted-foreground">
               {emptyText}
             </Combobox.Empty>

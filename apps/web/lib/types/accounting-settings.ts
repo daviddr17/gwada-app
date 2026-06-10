@@ -43,9 +43,11 @@ export type AccountingSettingsRow = {
   restaurant_id: string;
   document_format: AccountingDocumentFormat;
   auto_sync_lexoffice: boolean;
+  deduct_inventory_on_invoice: boolean;
   document_design: AccountingDocumentDesign;
   last_lexoffice_invoices_sync_at: string | null;
   last_lexoffice_quotations_sync_at: string | null;
+  last_lexoffice_vouchers_sync_at: string | null;
   created_at: string;
   updated_at: string;
 };

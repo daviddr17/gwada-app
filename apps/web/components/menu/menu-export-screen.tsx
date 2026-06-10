@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download } from "lucide-react";
 import { MenuExportSheet } from "@/components/menu/menu-export-sheet";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   MENU_TAXONOMY_ALLERGENS_KEY,
   MENU_TAXONOMY_TAGS_KEY,
@@ -24,6 +25,20 @@ import { useCategoriesStorage } from "@/lib/hooks/use-categories-storage";
 import { useMenuTaxonomyStorage } from "@/lib/hooks/use-menu-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
 import { menuExportTotals } from "@/lib/menu/export-menu";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+
+function MenuExportCardSkeleton() {
+  return (
+    <SkeletonCardFrame className="mx-auto max-w-lg space-y-4">
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-24" />
+        <Skeleton className="h-4 w-full max-w-md" />
+      </div>
+      <Skeleton className="h-4 w-56" />
+      <Skeleton className="h-12 w-full rounded-xl" />
+    </SkeletonCardFrame>
+  );
+}
 
 export function MenuExportScreen() {
   const { profile } = useRestaurantProfile();
@@ -39,6 +54,11 @@ export function MenuExportScreen() {
   );
 
   const [exportOpen, setExportOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isHydrated =
     categoriesReady &&
@@ -63,18 +83,18 @@ export function MenuExportScreen() {
   const { dishCount, categoryCount } = menuExportTotals(exportContext);
   const restaurantName = profile.name.trim() || undefined;
 
-  if (!isHydrated) {
-    return (
-      <div
-        className="min-h-[12rem] rounded-2xl border border-border/50 bg-card/50"
-        aria-busy
-      />
-    );
-  }
+  const ready = mounted && isHydrated;
+  const showSkeleton = useDeferredSkeleton(!ready);
 
   return (
     <>
-      <Card className="mx-auto max-w-lg border-border/50 shadow-card">
+      <div className="relative mx-auto max-w-lg">
+        {!ready && !showSkeleton ? (
+          <div className="min-h-[14rem] rounded-2xl" aria-busy />
+        ) : null}
+        {showSkeleton ? <MenuExportCardSkeleton /> : null}
+        {ready ? (
+          <Card className="border-border/50 shadow-card">
         <CardHeader>
           <CardTitle>Export</CardTitle>
           <CardDescription>
@@ -108,13 +128,17 @@ export function MenuExportScreen() {
           </Button>
         </CardContent>
       </Card>
+        ) : null}
+      </div>
 
+      {ready ? (
       <MenuExportSheet
         open={exportOpen}
         onOpenChange={setExportOpen}
         exportContext={exportContext}
         restaurantName={restaurantName}
       />
+      ) : null}
     </>
   );
 }

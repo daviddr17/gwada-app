@@ -42,6 +42,7 @@ export function AccountingSettingsForm() {
   const [documentFormat, setDocumentFormat] =
     useState<AccountingDocumentFormat>("pdf");
   const [autoSyncLexoffice, setAutoSyncLexoffice] = useState(true);
+  const [deductInventoryOnInvoice, setDeductInventoryOnInvoice] = useState(false);
   const [documentDesign, setDocumentDesign] = useState<AccountingDocumentDesign>(
     DEFAULT_ACCOUNTING_DOCUMENT_DESIGN,
   );
@@ -57,9 +58,10 @@ export function AccountingSettingsForm() {
       JSON.stringify({
         documentFormat,
         autoSyncLexoffice,
+        deductInventoryOnInvoice,
         documentDesign,
       }),
-    [documentFormat, autoSyncLexoffice, documentDesign],
+    [documentFormat, autoSyncLexoffice, deductInventoryOnInvoice, documentDesign],
   );
 
   const dirty =
@@ -73,14 +75,17 @@ export function AccountingSettingsForm() {
       const { settings: row } = await fetchAccountingSettings(restaurantId);
       const nextFormat = row.document_format;
       const nextAutoSync = row.auto_sync_lexoffice;
+      const nextDeductInventory = row.deduct_inventory_on_invoice;
       const nextDesign = parseAccountingDocumentDesign(row.document_design);
       setSettings(row);
       setDocumentFormat(nextFormat);
       setAutoSyncLexoffice(nextAutoSync);
+      setDeductInventoryOnInvoice(nextDeductInventory);
       setDocumentDesign(nextDesign);
       savedRef.current = JSON.stringify({
         documentFormat: nextFormat,
         autoSyncLexoffice: nextAutoSync,
+        deductInventoryOnInvoice: nextDeductInventory,
         documentDesign: nextDesign,
       });
     } catch {
@@ -101,6 +106,7 @@ export function AccountingSettingsForm() {
       const row = await saveAccountingSettings(restaurantId, {
         documentFormat,
         autoSyncLexoffice,
+        deductInventoryOnInvoice,
         documentDesign,
       });
       setSettings(row);
@@ -180,6 +186,21 @@ export function AccountingSettingsForm() {
                 />
               </div>
 
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">Bestand bei Rechnung abziehen</p>
+                  <p className="text-xs text-muted-foreground">
+                    Bei Rechnungserstellung Zutaten laut Artikel-Rezept aus dem Bestand
+                    buchen (nur wenn am Artikel ein Rezept hinterlegt ist).
+                  </p>
+                </div>
+                <Switch
+                  checked={deductInventoryOnInvoice}
+                  onCheckedChange={setDeductInventoryOnInvoice}
+                  disabled={loading || saving}
+                />
+              </div>
+
               {settings?.last_lexoffice_invoices_sync_at ? (
                 <p className="text-xs text-muted-foreground">
                   Letzter Rechnungs-Abruf:{" "}
@@ -194,6 +215,14 @@ export function AccountingSettingsForm() {
                   {new Date(
                     settings.last_lexoffice_quotations_sync_at,
                   ).toLocaleString("de-DE")}
+                </p>
+              ) : null}
+              {settings?.last_lexoffice_vouchers_sync_at ? (
+                <p className="text-xs text-muted-foreground">
+                  Letzter Beleg-Abruf:{" "}
+                  {new Date(settings.last_lexoffice_vouchers_sync_at).toLocaleString(
+                    "de-DE",
+                  )}
                 </p>
               ) : null}
             </CardContent>

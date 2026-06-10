@@ -9,6 +9,7 @@ import {
   resolveStoredVoucherDate,
 } from "@/lib/accounting/accounting-voucher-date";
 import { resolveAccountingSalesProvider } from "@/lib/accounting/providers/resolve-provider";
+import { applyInvoiceInventoryDeduction } from "@/lib/accounting/apply-invoice-inventory-deduction";
 import type {
   AccountingInvoiceRow,
   AccountingSalesDocumentInput,
@@ -155,7 +156,20 @@ export async function createAccountingInvoice(
   if (error) {
     return { row: null, error: error.message };
   }
-  return { row: mapInvoiceRow(data as Record<string, unknown>), error: null };
+
+  const row = mapInvoiceRow(data as Record<string, unknown>);
+  const deductErr = await applyInvoiceInventoryDeduction(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    invoiceId: row.id,
+    voucherNumber: row.voucher_number,
+    lineItems: row.line_items,
+  });
+  if (deductErr.error) {
+    console.warn("[gwada] applyInvoiceInventoryDeduction", deductErr.error);
+  }
+
+  return { row, error: null };
 }
 
 export async function updateAccountingInvoice(

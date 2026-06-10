@@ -22,6 +22,26 @@ type VoucherListResponse = {
   number?: number;
 };
 
+/** Lexware voucherlist filter types per sales document kind (Invoicing API, not bookkeeping-only). */
+function lexofficeVoucherListTypes(kind: "invoice" | "quotation"): string {
+  return kind === "invoice" ? "invoice,downpaymentinvoice" : "quotation";
+}
+
+function salesDetailApiPath(
+  kind: "invoice" | "quotation",
+  externalId: string,
+  lexofficeVoucherType?: string,
+): string {
+  const t = (lexofficeVoucherType ?? "").toLowerCase();
+  if (t === "quotation") return `/v1/quotations/${externalId}`;
+  if (t === "invoice" || t === "downpaymentinvoice") {
+    return `/v1/invoices/${externalId}`;
+  }
+  return kind === "invoice"
+    ? `/v1/invoices/${externalId}`
+    : `/v1/quotations/${externalId}`;
+}
+
 async function lexofficeFetch<T>(
   restaurantId: string,
   path: string,
@@ -68,12 +88,11 @@ export async function fetchLexofficeVoucherListPage(
   | { ok: true; items: LexofficeVoucherListItem[]; totalPages: number }
   | { ok: false; error: string }
 > {
-  const voucherType =
-    params.voucherType === "invoice" ? "salesinvoice" : "salesquotation";
   const page = params.page ?? 0;
   const size = params.size ?? 100;
   const qs = new URLSearchParams({
-    voucherType,
+    voucherType: lexofficeVoucherListTypes(params.voucherType),
+    voucherStatus: "any",
     page: String(page),
     size: String(size),
   });
@@ -87,7 +106,7 @@ export async function fetchLexofficeVoucherListPage(
   return {
     ok: true,
     items: result.data.content ?? [],
-    totalPages: result.data.totalPages ?? 1,
+    totalPages: Math.max(result.data.totalPages ?? 1, 1),
   };
 }
 
@@ -105,6 +124,62 @@ export async function fetchAllLexofficeVoucherList(
   while (page < totalPages) {
     const batch = await fetchLexofficeVoucherListPage(restaurantId, {
       voucherType,
+      page,
+    });
+    if (!batch.ok) return batch;
+    all.push(...batch.items);
+    totalPages = batch.totalPages;
+    page += 1;
+    if (page > 50) break;
+  }
+
+  return { ok: true, items: all };
+}
+
+const LEXOFFICE_BOOKKEEPING_VOUCHER_TYPES =
+  "purchaseinvoice,purchasecreditnote,salesinvoice,salescreditnote";
+
+export async function fetchLexofficeBookkeepingVoucherListPage(
+  restaurantId: string,
+  params: { page?: number; size?: number },
+): Promise<
+  | { ok: true; items: LexofficeVoucherListItem[]; totalPages: number }
+  | { ok: false; error: string }
+> {
+  const page = params.page ?? 0;
+  const size = params.size ?? 100;
+  const qs = new URLSearchParams({
+    voucherType: LEXOFFICE_BOOKKEEPING_VOUCHER_TYPES,
+    voucherStatus: "any",
+    page: String(page),
+    size: String(size),
+  });
+
+  const result = await lexofficeFetch<VoucherListResponse>(
+    restaurantId,
+    `/v1/voucherlist?${qs}`,
+  );
+  if (!result.ok) return result;
+
+  return {
+    ok: true,
+    items: result.data.content ?? [],
+    totalPages: Math.max(result.data.totalPages ?? 1, 1),
+  };
+}
+
+export async function fetchAllLexofficeBookkeepingVoucherList(
+  restaurantId: string,
+): Promise<
+  | { ok: true; items: LexofficeVoucherListItem[] }
+  | { ok: false; error: string }
+> {
+  const all: LexofficeVoucherListItem[] = [];
+  let page = 0;
+  let totalPages = 1;
+
+  while (page < totalPages) {
+    const batch = await fetchLexofficeBookkeepingVoucherListPage(restaurantId, {
       page,
     });
     if (!batch.ok) return batch;
@@ -150,14 +225,12 @@ export async function fetchLexofficeSalesDetail(
   restaurantId: string,
   kind: "invoice" | "quotation",
   externalId: string,
+  lexofficeVoucherType?: string,
 ): Promise<
   | { ok: true; detail: LexofficeSalesDetail }
   | { ok: false; error: string }
 > {
-  const path =
-    kind === "invoice"
-      ? `/v1/invoices/${externalId}`
-      : `/v1/quotations/${externalId}`;
+  const path = salesDetailApiPath(kind, externalId, lexofficeVoucherType);
   const result = await lexofficeFetch<LexofficeSalesDetail>(restaurantId, path);
   if (!result.ok) return result;
   return { ok: true, detail: result.data };
@@ -236,7 +309,8 @@ export function mapLexofficeVoucherStatus(
   const s = (status ?? "draft").toLowerCase();
   if (s === "draft") return "draft";
   if (s === "open") return "open";
-  if (s === "paid") return kind === "invoice" ? "paid" : "open";
+  if (s === "paid" || s === "paidoff") return kind === "invoice" ? "paid" : "open";
+  if (s === "transferred" || s === "sepadebit") return "open";
   if (s === "voided" || s === "void") return "voided";
   if (s === "overdue") return "overdue";
   if (s === "accepted") return "accepted";

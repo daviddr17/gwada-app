@@ -42,7 +42,7 @@ import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AppSidebarBrandLogo } from "@/components/layout/app-sidebar-brand-logo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
-import { crossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -330,10 +330,12 @@ export function AppSidebar() {
                     prefetch={false}
                     onClick={(e) => {
                       if (
-                        crossAppWorkspaceZone(pathname, "/superadmin/allgemein")
+                        assignCrossAppWorkspaceZone(
+                          pathname,
+                          "/superadmin/allgemein",
+                        )
                       ) {
                         e.preventDefault();
-                        window.location.assign("/superadmin/allgemein");
                       }
                     }}
                   />
@@ -354,9 +356,8 @@ export function AppSidebar() {
                     href="/dashboard"
                     prefetch={false}
                     onClick={(e) => {
-                      if (crossAppWorkspaceZone(pathname, "/dashboard")) {
+                      if (assignCrossAppWorkspaceZone(pathname, "/dashboard")) {
                         e.preventDefault();
-                        window.location.assign("/dashboard");
                       }
                     }}
                   />

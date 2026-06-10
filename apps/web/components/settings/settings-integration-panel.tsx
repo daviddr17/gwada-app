@@ -53,6 +53,7 @@ export function SettingsIntegrationPanel({
   noRestaurant,
   noRestaurantMessage,
   defaultOpen = false,
+  accentColor,
   children,
 }: {
   title: string;
@@ -67,6 +68,7 @@ export function SettingsIntegrationPanel({
   noRestaurant?: boolean;
   noRestaurantMessage?: string;
   defaultOpen?: boolean;
+  accentColor?: string;
   children?: ReactNode;
 }) {
   const blocked = denied || noRestaurant;
@@ -94,6 +96,7 @@ export function SettingsIntegrationPanel({
       description={description}
       icon={icon}
       badges={badge}
+      accentColor={accentColor}
       defaultOpen={defaultOpen}
       loading={loading}
       loadingSkeleton={loadingSkeleton}

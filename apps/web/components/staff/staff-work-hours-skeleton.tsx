@@ -36,9 +36,8 @@ export function StaffWorkHoursSkeleton({
         </div>
       </SkeletonCardFrame>
 
-      <SkeletonCardFrame className="flex flex-col gap-3 px-4 py-3 shadow-card sm:flex-row sm:items-center sm:justify-between">
-        <Skeleton className="mx-auto h-5 w-32 sm:mx-0" />
-        <div className="flex items-center justify-center gap-1">
+      <SkeletonCardFrame className="flex items-center px-4 py-3 shadow-card">
+        <div className="flex items-center gap-1">
           <Skeleton className="size-9 rounded-lg" />
           <Skeleton className="h-9 w-[9.5rem] rounded-xl" />
           <Skeleton className="h-9 w-[4.75rem] rounded-xl" />

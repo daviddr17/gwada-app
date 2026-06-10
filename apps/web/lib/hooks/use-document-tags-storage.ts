@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  deleteDocumentTag,
   insertDocumentTag,
   loadDocumentTags,
   reorderDocumentTags,
@@ -126,6 +127,20 @@ export function useDocumentTagsStorage(restaurantId: string | null) {
     [items],
   );
 
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      const ok = await deleteDocumentTag(id);
+      if (!ok) {
+        toast.error("Tag konnte nicht gelöscht werden.");
+        return false;
+      }
+      setItems((prev) => prev.filter((t) => t.id !== id));
+      toast.success("Tag gelöscht");
+      return true;
+    },
+    [],
+  );
+
   return {
     items,
     isHydrated,
@@ -133,6 +148,7 @@ export function useDocumentTagsStorage(restaurantId: string | null) {
     add,
     update,
     reorder,
+    remove,
     getById,
   };
 }

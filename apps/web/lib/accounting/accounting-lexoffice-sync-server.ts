@@ -122,13 +122,13 @@ export async function syncLexofficeSalesDocuments(
     userId: string;
     kind: "invoice" | "quotation";
   },
-): Promise<{ imported: number; updated: number; error: string | null }> {
+): Promise<{ imported: number; updated: number; listed: number; error: string | null }> {
   const list = await fetchAllLexofficeVoucherList(
     params.restaurantId,
     params.kind,
   );
   if (!list.ok) {
-    return { imported: 0, updated: 0, error: list.error };
+    return { imported: 0, updated: 0, listed: 0, error: list.error };
   }
 
   const table =
@@ -151,6 +151,8 @@ export async function syncLexofficeSalesDocuments(
 
   let imported = 0;
   let updated = 0;
+  let detailFailures = 0;
+  let writeFailures = 0;
 
   for (const item of list.items) {
     const knownVersion = versionByExternal.get(item.id);
@@ -158,8 +160,18 @@ export async function syncLexofficeSalesDocuments(
       params.restaurantId,
       params.kind,
       item.id,
+      item.voucherType,
     );
-    if (!detailResult.ok) continue;
+    if (!detailResult.ok) {
+      detailFailures += 1;
+      console.warn(
+        "[gwada] syncLexofficeSalesDocuments detail",
+        params.kind,
+        item.id,
+        detailResult.error,
+      );
+      continue;
+    }
 
     const detail = detailResult.detail;
     const payload = rowFromDetail(params.kind, detail, item);
@@ -169,7 +181,17 @@ export async function syncLexofficeSalesDocuments(
     if (knownVersion === undefined) {
       payload.created_by = params.userId;
       const { error } = await sb.from(table).insert(payload);
-      if (!error) imported += 1;
+      if (error) {
+        writeFailures += 1;
+        console.warn(
+          "[gwada] syncLexofficeSalesDocuments insert",
+          params.kind,
+          item.id,
+          error.message,
+        );
+      } else {
+        imported += 1;
+      }
     } else if (knownVersion !== (detail.version ?? null)) {
       const { error } = await sb
         .from(table)
@@ -177,11 +199,38 @@ export async function syncLexofficeSalesDocuments(
         .eq("restaurant_id", params.restaurantId)
         .eq("source", "lexoffice")
         .eq("external_id", item.id);
-      if (!error) updated += 1;
+      if (error) {
+        writeFailures += 1;
+        console.warn(
+          "[gwada] syncLexofficeSalesDocuments update",
+          params.kind,
+          item.id,
+          error.message,
+        );
+      } else {
+        updated += 1;
+      }
     }
   }
 
   await touchLexofficeSyncTimestamp(sb, params.restaurantId, params.kind);
 
-  return { imported, updated, error: null };
+  if (
+    list.items.length > 0 &&
+    imported === 0 &&
+    updated === 0 &&
+    (detailFailures > 0 || writeFailures > 0)
+  ) {
+    return {
+      imported,
+      updated,
+      listed: list.items.length,
+      error:
+        detailFailures > 0
+          ? "Lexware-Dokumente gefunden, Details konnten nicht geladen werden."
+          : "Lexware-Dokumente konnten nicht gespeichert werden.",
+    };
+  }
+
+  return { imported, updated, listed: list.items.length, error: null };
 }

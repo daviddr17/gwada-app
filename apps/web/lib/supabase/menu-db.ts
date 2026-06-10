@@ -229,6 +229,30 @@ export async function updateMenuTaxonomyRow(
   return true;
 }
 
+export async function deleteMenuCategory(
+  id: string,
+): Promise<"ok" | "in_use" | "error"> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from("menu_categories").delete().eq("id", id);
+  if (!error) return "ok";
+  if (error.code === "23503") return "in_use";
+  console.warn("[gwada] delete menu_categories", error.message);
+  return "error";
+}
+
+export async function deleteMenuTaxonomyRow(
+  table: "menu_tags" | "menu_allergens",
+  id: string,
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) {
+    console.warn(`[gwada] delete ${table}`, error.message);
+    return false;
+  }
+  return true;
+}
+
 export async function reorderMenuTaxonomyRows(
   table: "menu_tags" | "menu_allergens",
   orderedIds: string[],

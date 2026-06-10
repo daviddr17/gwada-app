@@ -148,9 +148,13 @@ export function AccountingSalesDocumentsScreen({
       try {
         const result = await syncLexofficeSalesDocuments(restaurantId, documentKind);
         if (!silent) {
-          toast.success(
-            `Lexware: ${result.imported} neu, ${result.updated} aktualisiert.`,
-          );
+          if (result.listed === 0) {
+            toast.message("Lexware: Keine Dokumente gefunden.");
+          } else {
+            toast.success(
+              `Lexware: ${result.imported} neu, ${result.updated} aktualisiert (${result.listed} in Lexware).`,
+            );
+          }
         }
         await load();
       } catch (e) {

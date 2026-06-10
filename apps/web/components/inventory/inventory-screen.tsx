@@ -1161,6 +1161,11 @@ export function InventoryScreen() {
               await s.add(payload.name, payload.active !== false);
             }
           }}
+          onDelete={
+            entitySheet.mode === "edit" && entitySheet.item
+              ? (id) => void storeFor(entitySheet.kind).remove(id)
+              : undefined
+          }
         />
       )}
 

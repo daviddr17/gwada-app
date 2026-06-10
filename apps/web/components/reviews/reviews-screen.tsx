@@ -113,7 +113,7 @@ type GoogleLocationSummary = {
 function StarsDisplay({ rating }: { rating: number }) {
   const full = Math.round(Math.min(5, Math.max(0, rating)));
   return (
-    <div className="flex gap-0.5" aria-label={`${rating} von 5 Sternen`}>
+    <div className="flex shrink-0 gap-0.5" aria-label={`${rating} von 5 Sternen`}>
       {Array.from({ length: 5 }, (_, i) => (
         <Star
           key={i}
@@ -165,7 +165,7 @@ function ReviewCard({
             {showPlatform || isUnread ? (
               <ReviewPlatformIcon
                 platform={review.platform}
-                className="size-4"
+                className="size-4 shrink-0"
                 aria-label={
                   isUnread
                     ? `${REVIEW_PLATFORM_LABELS[review.platform]}, ungelesen`
@@ -175,6 +175,37 @@ function ReviewCard({
             ) : null}
             <StarsDisplay rating={review.rating} />
           </div>
+          {onProtocol ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="size-6 shrink-0 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-muted-foreground"
+              aria-label="Bewertungsprotokoll"
+              onClick={onProtocol}
+            >
+              <ScrollText className="size-3" />
+            </Button>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+          {review.authorName ? (
+            review.contactId && onOpenContact ? (
+              <button
+                type="button"
+                className="min-w-0 text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
+                onClick={onOpenContact}
+              >
+                {review.authorName}
+              </button>
+            ) : (
+              <p className={cn("min-w-0 text-sm font-medium", isUnread && "font-semibold")}>
+                {review.authorName}
+              </p>
+            )
+          ) : (
+            <span className="min-w-0 flex-1" aria-hidden />
+          )}
           <div className="flex shrink-0 items-center gap-1">
             <span className="text-xs text-muted-foreground">{date}</span>
             {!isUnread && onMarkUnread ? (
@@ -188,35 +219,8 @@ function ReviewCard({
                 Ungelesen
               </Button>
             ) : null}
-            {onProtocol ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-6 shrink-0 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-muted-foreground"
-                aria-label="Bewertungsprotokoll"
-                onClick={onProtocol}
-              >
-                <ScrollText className="size-3" />
-              </Button>
-            ) : null}
           </div>
         </div>
-        {review.authorName ? (
-          review.contactId && onOpenContact ? (
-            <button
-              type="button"
-              className="text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
-              onClick={onOpenContact}
-            >
-              {review.authorName}
-            </button>
-          ) : (
-            <p className={cn("text-sm font-medium", isUnread && "font-semibold")}>
-              {review.authorName}
-            </p>
-          )
-        ) : null}
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
         {review.comment ? (

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { GripVertical } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -76,16 +76,10 @@ export function DashboardWidgetsPanel() {
             Dashboard
           </Link>{" "}
           erscheinen, und ziehe sie per Ziehen und Ablegen in die gewünschte
-          Reihenfolge. Angemeldet: gespeichert pro Restaurant und Benutzer in der
-          Datenbank; ohne Anmeldung weiterhin pro Restaurant über den
-          Workspace-Sync bzw. lokal in diesem Browser.
+          Reihenfolge.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          Zum Sortieren den Griff links gedrückt halten und auf eine andere Zeile
-          ziehen (auch auf dem Smartphone).
-        </p>
         <ul className="list-none space-y-2 p-0" aria-label="Dashboard-Widgets">
           {orderedOptions.map((opt) => {
             const handle = sort.getHandleProps(opt.id);
@@ -95,7 +89,7 @@ export function DashboardWidgetsPanel() {
                   ref={(el) => sort.registerItemRef(opt.id, el)}
                   className={sort.getItemDropClassName(
                     opt.id,
-                    "flex gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2 sm:items-start",
+                    "flex items-center gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2",
                   )}
                 >
                   <button
@@ -103,29 +97,31 @@ export function DashboardWidgetsPanel() {
                     {...handle}
                     aria-label={`${opt.label} verschieben`}
                     className={cn(
-                      "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                      "flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                       handle.className,
                     )}
                   >
                     <GripVertical className="size-4" aria-hidden />
                   </button>
-                  <label className="flex min-w-0 flex-1 cursor-pointer gap-3 sm:items-start">
-                    <Checkbox
-                      checked={visibility[opt.id]}
-                      onCheckedChange={(v) =>
-                        setWidgetVisible(opt.id, v === true)
-                      }
-                      className="mt-0.5"
-                    />
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
                     <span className="min-w-0 space-y-0.5">
-                      <span className="block text-sm font-medium leading-snug text-foreground">
+                      <span
+                        id={`dashboard-widget-label-${opt.id}`}
+                        className="block text-sm font-medium leading-snug text-foreground"
+                      >
                         {opt.label}
                       </span>
                       <span className="block text-xs text-muted-foreground sm:text-sm">
                         {opt.description}
                       </span>
                     </span>
-                  </label>
+                  </div>
+                  <Switch
+                    checked={visibility[opt.id]}
+                    onCheckedChange={(v) => setWidgetVisible(opt.id, v === true)}
+                    aria-labelledby={`dashboard-widget-label-${opt.id}`}
+                    className="shrink-0"
+                  />
                 </div>
               </li>
             );

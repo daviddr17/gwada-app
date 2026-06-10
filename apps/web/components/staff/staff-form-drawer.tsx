@@ -26,13 +26,6 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import {
@@ -49,6 +42,7 @@ import type {
 } from "@/lib/staff/staff-invite-contact-conflict-types";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
 import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
+import { RestaurantPositionSelect } from "@/components/settings/restaurant-position-select";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
@@ -78,17 +72,43 @@ import {
 } from "@/lib/staff/staff-contract-period";
 import { staffContractsPageUrl } from "@/lib/staff/staff-contract-navigation";
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
-import type { RestaurantStaffLogEntry, RestaurantStaffContractRow } from "@/lib/types/staff";
+import type { RestaurantStaffRow, StaffPositionTagDefinition, RestaurantStaffLogEntry, RestaurantStaffContractRow } from "@/lib/types/staff";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import type { RestaurantStaffRow, StaffPositionTagDefinition } from "@/lib/types/staff";
-import { STAFF_CONTRACT_PAY_LABELS } from "@/lib/types/staff";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { formatStaffContractPaySummary } from "@/lib/staff/staff-contract-pay";
 import {
   profileAvatarFallbackPlateClassName,
   profileAvatarHeaderFrameClassName,
   profileAvatarImageClassName,
 } from "@/lib/ui/profile-avatar-image";
 import { cn } from "@/lib/utils";
+
+async function persistStaffDisplayPin(
+  staffId: string,
+  pin: string | null,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const res = await fetch(
+    `/api/staff/${encodeURIComponent(staffId)}/display-pin`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin }),
+    },
+  );
+  const data = (await res.json()) as { error?: string };
+  if (!res.ok) {
+    if (data.error === "pin_duplicate") {
+      return { ok: false, message: "PIN bereits vergeben." };
+    }
+    return {
+      ok: false,
+      message:
+        pin === null
+          ? "PIN konnte nicht entfernt werden."
+          : "Display-PIN konnte nicht gespeichert werden.",
+    };
+  }
+  return { ok: true };
+}
 
 type StaffFormDrawerProps = {
   open: boolean;
@@ -97,7 +117,7 @@ type StaffFormDrawerProps = {
   restaurantId: string;
   staff: RestaurantStaffRow | null;
   activePositionTags: StaffPositionTagDefinition[];
-  onSaved: () => void;
+  onSaved: (staffId?: string) => void;
 };
 
 function FormSection({
@@ -125,24 +145,7 @@ function profileInitials(given: string, family: string): string {
 }
 
 function formatContractPaySummary(c: RestaurantStaffContractRow): string {
-  if (c.pay_type === "hourly") {
-    const amount =
-      c.hourly_rate_cents != null
-        ? new Intl.NumberFormat("de-DE", {
-            style: "currency",
-            currency: "EUR",
-          }).format(c.hourly_rate_cents / 100)
-        : "—";
-    return `${STAFF_CONTRACT_PAY_LABELS.hourly}: ${amount}`;
-  }
-  const amount =
-    c.fixed_salary_cents != null
-      ? new Intl.NumberFormat("de-DE", {
-          style: "currency",
-          currency: "EUR",
-        }).format(c.fixed_salary_cents / 100)
-      : "—";
-  return `${STAFF_CONTRACT_PAY_LABELS.fixed}: ${amount}`;
+  return formatStaffContractPaySummary(c);
 }
 
 const STAFF_INVITE_CONTACT_CHECK_MS = 400;
@@ -203,7 +206,7 @@ export function StaffFormDrawer({
   const [positionRoleId, setPositionRoleId] = useState("");
   const [displayPin, setDisplayPin] = useState("");
   const [hasDisplayPin, setHasDisplayPin] = useState(false);
-  const [displayPinBusy, setDisplayPinBusy] = useState(false);
+  const [clearDisplayPinOnSave, setClearDisplayPinOnSave] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [pending, setPending] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -270,6 +273,7 @@ export function StaffFormDrawer({
       setPositionRoleId("");
       setDisplayPin("");
       setHasDisplayPin(false);
+      setClearDisplayPinOnSave(false);
       setIsActive(true);
       setAvatarFile(null);
       return;
@@ -290,6 +294,7 @@ export function StaffFormDrawer({
     setPositionRoleId(staff.restaurant_position_id ?? "");
     setDisplayPin("");
     setHasDisplayPin(false);
+    setClearDisplayPinOnSave(false);
     setIsActive(staff.is_active);
     setAvatarFile(null);
   }, [staff, countries]);
@@ -491,12 +496,14 @@ export function StaffFormDrawer({
     }
     setPending(true);
     try {
+      let savedStaffId: string | undefined;
       if (mode === "create") {
         const ins = await insertStaff(restaurantId, payload);
         if (!ins) {
           toast.error("Mitarbeiter konnte nicht angelegt werden.");
           return;
         }
+        savedStaffId = ins.id;
         if (avatarFile) {
           const { error } = await trackDashboardFileUpload(
             () =>
@@ -546,9 +553,34 @@ export function StaffFormDrawer({
           );
           if (error) return;
         }
+
+        const pinChange =
+          clearDisplayPinOnSave && hasDisplayPin
+            ? ("clear" as const)
+            : displayPin.length === 4
+              ? ("set" as const)
+              : null;
+        if (pinChange) {
+          const pinResult = await persistStaffDisplayPin(
+            staff.id,
+            pinChange === "clear" ? null : displayPin,
+          );
+          if (!pinResult.ok) {
+            toast.error(pinResult.message);
+            return;
+          }
+          if (pinChange === "clear") {
+            setHasDisplayPin(false);
+            setClearDisplayPinOnSave(false);
+          } else {
+            setHasDisplayPin(true);
+            setDisplayPin("");
+          }
+        }
+
         toast.success("Gespeichert");
       }
-      onSaved();
+      onSaved(savedStaffId);
       onOpenChange(false);
     } finally {
       setPending(false);
@@ -829,29 +861,14 @@ export function StaffFormDrawer({
                       Gilt appweit für Dashboard, Display-Berechtigungen und
                       Einladungen.
                     </p>
-                    <Select
-                      value={positionRoleId || undefined}
-                      onValueChange={(v) => setPositionRoleId(String(v))}
-                    >
-                      <SelectTrigger
-                        className={appSelectTriggerAccentCn(
-                          staffDrawerFieldClassName,
-                        )}
-                      >
-                        <SelectValue placeholder="Rolle wählen …">
-                          {selectedPosition
-                            ? formatRestaurantPositionLabel(selectedPosition)
-                            : null}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {invitePositions.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {formatRestaurantPositionLabel(p)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <RestaurantPositionSelect
+                      positions={invitePositions}
+                      value={positionRoleId}
+                      onValueChange={setPositionRoleId}
+                      aria-label="Rolle"
+                      className={staffDrawerFieldClassName}
+                      placeholder="Rolle wählen …"
+                    />
                   </div>
                   <div className="flex h-11 items-center justify-between rounded-xl border border-border/50 px-3">
                     <Label htmlFor="staff-active" className="cursor-pointer">
@@ -909,9 +926,9 @@ export function StaffFormDrawer({
                       <Label htmlFor="staff-display-pin">Display-PIN (4 Stellen)</Label>
                       <p className="text-xs text-muted-foreground">
                         Pro Restaurant eindeutig — jede PIN darf nur einmal vergeben
-                        werden.
+                        werden. Neue PIN eingeben und unten speichern.
                       </p>
-                      <div className="flex gap-2">
+                      <div className="space-y-1.5">
                         <Input
                           id="staff-display-pin"
                           inputMode="numeric"
@@ -919,92 +936,53 @@ export function StaffFormDrawer({
                           maxLength={4}
                           value={displayPin}
                           placeholder={hasDisplayPin ? "••••" : "1234"}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            setClearDisplayPinOnSave(false);
                             setDisplayPin(
                               e.target.value.replace(/\D/g, "").slice(0, 4),
-                            )
-                          }
+                            );
+                          }}
                           className={staffDrawerFieldClassName}
                         />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          disabled={displayPinBusy || displayPin.length !== 4}
-                          onClick={() => {
-                            void (async () => {
-                              setDisplayPinBusy(true);
-                              try {
-                                const res = await fetch(
-                                  `/api/staff/${encodeURIComponent(staff.id)}/display-pin`,
-                                  {
-                                    method: "POST",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify({ pin: displayPin }),
-                                  },
-                                );
-                                const data = (await res.json()) as {
-                                  error?: string;
-                                };
-                                if (!res.ok) {
-                                  toast.error(
-                                    data.error === "pin_duplicate"
-                                      ? "PIN bereits vergeben."
-                                      : "PIN konnte nicht gespeichert werden.",
-                                  );
-                                  return;
-                                }
-                                toast.success("Display-PIN gespeichert.");
-                                setHasDisplayPin(true);
-                                setDisplayPin("");
-                              } finally {
-                                setDisplayPinBusy(false);
-                              }
-                            })();
-                          }}
-                        >
-                          {displayPinBusy ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : (
-                            "Setzen"
-                          )}
-                        </Button>
+                        {clearDisplayPinOnSave ? (
+                          <p className="text-xs text-muted-foreground">
+                            PIN wird beim Speichern entfernt.
+                          </p>
+                        ) : displayPin.length === 4 ? (
+                          <p className="text-xs text-muted-foreground">
+                            Neue PIN wird beim Speichern gesetzt.
+                          </p>
+                        ) : hasDisplayPin ? (
+                          <p className="text-xs text-muted-foreground">
+                            Aktuell gesetzt. Neue vier Stellen zum Ersetzen
+                            eingeben.
+                          </p>
+                        ) : null}
                       </div>
-                      {hasDisplayPin ? (
+                      {hasDisplayPin && !clearDisplayPinOnSave ? (
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           className="h-8 px-2 text-destructive hover:text-destructive"
-                          disabled={displayPinBusy}
+                          disabled={pending}
                           onClick={() => {
-                            void (async () => {
-                              setDisplayPinBusy(true);
-                              try {
-                                const res = await fetch(
-                                  `/api/staff/${encodeURIComponent(staff.id)}/display-pin`,
-                                  {
-                                    method: "POST",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify({ pin: null }),
-                                  },
-                                );
-                                if (!res.ok) {
-                                  toast.error("PIN konnte nicht entfernt werden.");
-                                  return;
-                                }
-                                toast.success("Display-PIN entfernt.");
-                                setHasDisplayPin(false);
-                              } finally {
-                                setDisplayPinBusy(false);
-                              }
-                            })();
+                            setClearDisplayPinOnSave(true);
+                            setDisplayPin("");
                           }}
                         >
                           PIN entfernen
+                        </Button>
+                      ) : clearDisplayPinOnSave ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2"
+                          disabled={pending}
+                          onClick={() => setClearDisplayPinOnSave(false)}
+                        >
+                          Entfernen abbrechen
                         </Button>
                       ) : null}
                     </div>

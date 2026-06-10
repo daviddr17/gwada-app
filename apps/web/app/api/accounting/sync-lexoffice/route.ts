@@ -32,5 +32,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     imported: result.imported,
     updated: result.updated,
+    listed: result.listed,
   });
 }

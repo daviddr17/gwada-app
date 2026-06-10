@@ -27,6 +27,7 @@ export async function PATCH(req: Request) {
     restaurantId?: string;
     documentFormat?: AccountingDocumentFormat;
     autoSyncLexoffice?: boolean;
+    deductInventoryOnInvoice?: boolean;
     documentDesign?: import("@/lib/types/accounting-settings").AccountingDocumentDesign;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
@@ -38,6 +39,7 @@ export async function PATCH(req: Request) {
   const { row, error } = await upsertAccountingSettings(auth.sb, auth.restaurantId, {
     documentFormat: body.documentFormat,
     autoSyncLexoffice: body.autoSyncLexoffice,
+    deductInventoryOnInvoice: body.deductInventoryOnInvoice,
     documentDesign: body.documentDesign,
   });
 

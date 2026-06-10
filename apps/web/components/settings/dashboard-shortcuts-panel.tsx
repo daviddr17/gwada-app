@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { GripVertical } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Card,
   CardContent,
@@ -17,7 +17,6 @@ import {
   countDashboardVisibleShortcuts,
   DASHBOARD_FAB_MAX_SHORTCUTS,
   DASHBOARD_SHORTCUT_OPTIONS,
-  resolveDashboardFabShortcuts,
   type DashboardShortcutId,
 } from "@/lib/constants/dashboard-shortcuts";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -40,11 +39,6 @@ export function DashboardShortcutsPanel() {
   const orderedOptions = useMemo(
     () => shortcuts.order.map((id) => OPTION_BY_ID.get(id)!),
     [shortcuts.order],
-  );
-
-  const activeFabShortcuts = useMemo(
-    () => resolveDashboardFabShortcuts(shortcuts),
-    [shortcuts],
   );
 
   const visibleShortcutCount = useMemo(
@@ -127,13 +121,10 @@ export function DashboardShortcutsPanel() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-muted-foreground">
-          Aktuell im Menü:{" "}
           <span className="font-medium text-foreground">
             {visibleShortcutCount} / {DASHBOARD_FAB_MAX_SHORTCUTS}
-          </span>
-          {activeFabShortcuts.length > 0
-            ? ` — ${activeFabShortcuts.map((s) => s.label).join(", ")}`
-            : " — mindestens einen Shortcut aktivieren."}
+          </span>{" "}
+          ausgewählt
         </p>
         {limitError || overShortcutLimit ? (
           <p
@@ -150,14 +141,14 @@ export function DashboardShortcutsPanel() {
             const handle = sort.getHandleProps(opt.id);
             const Icon = opt.icon;
             const isChecked = shortcuts.visibility[opt.id];
-            const checkboxDisabled = !isChecked && atShortcutLimit;
+            const switchDisabled = !isChecked && atShortcutLimit;
             return (
               <li key={opt.id}>
                 <div
                   ref={(el) => sort.registerItemRef(opt.id, el)}
                   className={sort.getItemDropClassName(
                     opt.id,
-                    "flex gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2 sm:items-start",
+                    "flex items-center gap-2 rounded-xl border border-border/40 bg-muted/15 py-2 pe-3 ps-2",
                   )}
                 >
                   <button
@@ -165,45 +156,40 @@ export function DashboardShortcutsPanel() {
                     {...handle}
                     aria-label={`${opt.label} verschieben`}
                     className={cn(
-                      "mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
+                      "flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent text-muted-foreground hover:bg-muted/80 hover:text-foreground",
                       handle.className,
                     )}
                   >
                     <GripVertical className="size-4" aria-hidden />
                   </button>
-                  <label
-                    className={cn(
-                      "flex min-w-0 flex-1 gap-3 sm:items-start",
-                      checkboxDisabled
-                        ? "cursor-not-allowed opacity-60"
-                        : "cursor-pointer",
-                    )}
-                  >
-                    <Checkbox
-                      checked={isChecked}
-                      disabled={checkboxDisabled}
-                      onCheckedChange={(v) =>
-                        handleShortcutVisibleChange(opt.id, v === true)
-                      }
-                      className="mt-0.5"
-                    />
-                    <span className="flex min-w-0 gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <span
+                      className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground"
+                      aria-hidden
+                    >
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0 space-y-0.5">
                       <span
-                        className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60 text-muted-foreground"
-                        aria-hidden
+                        id={`dashboard-shortcut-label-${opt.id}`}
+                        className="block text-sm font-medium leading-snug text-foreground"
                       >
-                        <Icon className="size-4" />
+                        {opt.label}
                       </span>
-                      <span className="min-w-0 space-y-0.5">
-                        <span className="block text-sm font-medium leading-snug text-foreground">
-                          {opt.label}
-                        </span>
-                        <span className="block text-xs text-muted-foreground sm:text-sm">
-                          {opt.description}
-                        </span>
+                      <span className="block text-xs text-muted-foreground sm:text-sm">
+                        {opt.description}
                       </span>
                     </span>
-                  </label>
+                  </div>
+                  <Switch
+                    checked={isChecked}
+                    disabled={switchDisabled}
+                    onCheckedChange={(v) =>
+                      handleShortcutVisibleChange(opt.id, v === true)
+                    }
+                    aria-labelledby={`dashboard-shortcut-label-${opt.id}`}
+                    className="shrink-0"
+                  />
                 </div>
               </li>
             );

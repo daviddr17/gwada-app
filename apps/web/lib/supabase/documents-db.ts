@@ -283,6 +283,15 @@ export async function updateDocumentTag(
   return !error;
 }
 
+export async function deleteDocumentTag(id: string): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("restaurant_document_tags")
+    .delete()
+    .eq("id", id);
+  return !error;
+}
+
 export async function reorderDocumentTags(
   orderedIds: string[],
 ): Promise<boolean> {

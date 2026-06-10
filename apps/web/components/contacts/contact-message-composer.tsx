@@ -31,8 +31,6 @@ export function ContactMessageComposer({
   onSend,
   placeholder = "Nachricht schreiben …",
   variant = "unified",
-  showGuestNotify,
-  gwadaSendEnabled = true,
   whatsappTyping,
   stickyFooter = false,
   emailViaPlatformFallback = false,
@@ -49,17 +47,11 @@ export function ContactMessageComposer({
     body: string;
     sendWhatsapp: boolean;
     sendEmail: boolean;
-    notifyWhatsapp?: boolean;
-    notifyEmail?: boolean;
     files?: File[];
   }) => void | Promise<void>;
   placeholder?: string;
-  /** `whatsapp-only` / `email-only` / `gwada-only` / `inbox-reply` (ein Kanal). */
-  variant?: "unified" | "whatsapp-only" | "email-only" | "gwada-only" | "inbox-reply";
-  /** Gwada: Gast per Link auf Chat hinweisen (Benachrichtigung). */
-  showGuestNotify?: boolean;
-  /** Gwada-only: Senden erlaubt (verknüpfter Kontakt). */
-  gwadaSendEnabled?: boolean;
+  /** `whatsapp-only` / `email-only` / `inbox-reply` (ein Kanal). */
+  variant?: "unified" | "whatsapp-only" | "email-only" | "inbox-reply";
   /** WAHA: „tippt …“ an den Chat senden. */
   whatsappTyping?: { restaurantId: string; chatId: string } | null;
   /** Posteingang: ohne oberen Rand — Footer bringt die Trennlinie. */
@@ -78,14 +70,10 @@ export function ContactMessageComposer({
     defaultSendWhatsapp ?? false,
   );
   const [sendEmail, setSendEmail] = useState(defaultSendEmail ?? false);
-  const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
-  const [notifyEmail, setNotifyEmail] = useState(false);
 
   const isWhatsappOnly = variant === "whatsapp-only";
   const isEmailOnly = variant === "email-only";
-  const isGwadaOnly = variant === "gwada-only";
   const isInboxReply = variant === "inbox-reply";
-  const showNotify = showGuestNotify ?? isGwadaOnly;
   const canWhatsapp = isWhatsappOnly
     ? whatsappEnabled
     : whatsappEnabled && hasPhone;
@@ -247,8 +235,6 @@ export function ContactMessageComposer({
         : isInboxReply
           ? sendEmail && canEmail
           : sendEmail && canEmail,
-      notifyWhatsapp: showNotify ? notifyWhatsapp && canWhatsapp : false,
-      notifyEmail: showNotify ? notifyEmail && canEmail : false,
       files: pendingFiles.length > 0 ? pendingFiles : undefined,
     });
     setBody("");
@@ -330,63 +316,6 @@ export function ContactMessageComposer({
           ))}
         </ul>
       ) : null}
-      {showNotify ? (
-        <div className="space-y-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            Gast benachrichtigen (Chat-Link)
-          </p>
-          <div
-            className={cn(
-              "flex items-center justify-between gap-3",
-              !canWhatsapp && "opacity-50",
-            )}
-          >
-            <Label
-              htmlFor="msg-notify-wa"
-              className={cn(reservationNotifyRowLabelClassName, "font-normal")}
-            >
-              <WhatsAppGlyph
-                className={reservationNotifyRowWhatsAppIconClassName}
-              />
-              WhatsApp
-            </Label>
-            <Switch
-              id="msg-notify-wa"
-              size="sm"
-              checked={notifyWhatsapp}
-              disabled={!canWhatsapp || disabled || sending}
-              onCheckedChange={(v) => setNotifyWhatsapp(v === true)}
-            />
-          </div>
-          <div
-            className={cn(
-              "flex items-center justify-between gap-3",
-              !canEmail && "opacity-50",
-            )}
-          >
-            <Label
-              htmlFor="msg-notify-email"
-              className={cn(reservationNotifyRowLabelClassName, "font-normal")}
-            >
-              <Mail
-                className={reservationNotifyRowMailIconClassName}
-                aria-hidden
-              />
-              E-Mail
-            </Label>
-            <Switch
-              id="msg-notify-email"
-              size="sm"
-              checked={notifyEmail}
-              disabled={!canEmail || disabled || sending}
-              onCheckedChange={(v) => setNotifyEmail(v === true)}
-            />
-          </div>
-          <p className="text-[10px] text-muted-foreground">
-            Der Gast erhält einen Link mit PIN zum Gwada-Chat im Browser.
-          </p>
-        </div>
-      ) : null}
       {showInboxChannelToggles ? (
         <div className="flex flex-wrap items-center gap-y-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2">
           <span className="mr-3 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -451,7 +380,7 @@ export function ContactMessageComposer({
       {!isWhatsappOnly && !isEmailOnly && !isInboxReply ? (
       <div className="space-y-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-          {isGwadaOnly ? "Nachricht auch senden über" : "Zusätzlich senden über"}
+          Zusätzlich senden über
         </p>
         <div
           className={cn(
@@ -501,11 +430,8 @@ export function ContactMessageComposer({
           />
         </div>
         <p className="text-[10px] text-muted-foreground">
-          {isGwadaOnly
-            ? "Die Nachricht wird in Gwada gespeichert. Über die Schalter wird der vollständige Text zusätzlich per WhatsApp oder E-Mail versendet."
-            : isInboxReply
-              ? "Antwort nur über die gewählten Kanäle."
-              : "In Gwada wird die Nachricht immer gespeichert. Optional zusätzlich per WhatsApp oder E-Mail — mit Reservierungskontext."}
+          In Gwada wird die Nachricht immer gespeichert. Optional zusätzlich per
+          WhatsApp oder E-Mail — mit Reservierungskontext.
         </p>
       </div>
       ) : null}
@@ -530,7 +456,6 @@ export function ContactMessageComposer({
             !canSubmit ||
             (isWhatsappOnly && !canWhatsapp) ||
             (isEmailOnly && !canEmail) ||
-            (isGwadaOnly && !gwadaSendEnabled) ||
             (isInboxReply && sendWhatsapp && !canWhatsapp) ||
             (isInboxReply && sendEmail && !canEmail) ||
             (isInboxReply && !sendWhatsapp && !sendEmail)

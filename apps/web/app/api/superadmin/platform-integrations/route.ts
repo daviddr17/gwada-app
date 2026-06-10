@@ -15,6 +15,7 @@ const KEYS = new Set<string>([
   "whatsapp",
   "email",
   "weather",
+  "fiskaly",
   "lexoffice",
 ]);
 

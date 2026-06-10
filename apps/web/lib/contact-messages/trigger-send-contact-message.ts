@@ -22,8 +22,6 @@ export async function triggerSendContactMessage(body: {
   reservationId?: string | null;
   restaurantName?: string | null;
   files?: File[];
-  notifyWhatsapp?: boolean;
-  notifyEmail?: boolean;
 }): Promise<SendContactMessageApiResult | null> {
   try {
     const hasFiles = (body.files?.length ?? 0) > 0;
@@ -39,8 +37,6 @@ export async function triggerSendContactMessage(body: {
         channels: body.channels.join(","),
         reservationId: body.reservationId ?? undefined,
         restaurantName: body.restaurantName ?? undefined,
-        notifyWhatsapp: body.notifyWhatsapp ? "true" : undefined,
-        notifyEmail: body.notifyEmail ? "true" : undefined,
       });
       for (const file of body.files!) fd.append("files", file);
       fetchBody = fd;
@@ -76,15 +72,6 @@ const CHANNEL_ERROR_DE: Record<string, string> = {
   "email:no_email": "Keine E-Mail-Adresse für den Gast hinterlegt.",
   "email:smtp_not_configured":
     "E-Mail-Versand ist nicht konfiguriert (SMTP / Server).",
-  "notify_whatsapp:session_not_working":
-    "WhatsApp-Benachrichtigung: Session nicht aktiv.",
-  "notify_whatsapp:no_phone":
-    "WhatsApp-Benachrichtigung: keine Telefonnummer.",
-  "notify_email:no_email":
-    "E-Mail-Benachrichtigung: keine E-Mail-Adresse.",
-  "notify_email:smtp_not_configured":
-    "E-Mail-Benachrichtigung: SMTP nicht konfiguriert.",
-  "guest_chat:no_access": "Gast-Chat-Link konnte nicht erzeugt werden.",
   file_too_large: "Eine Datei ist zu groß (max. 15 MB).",
   too_many_files: "Zu viele Dateien (max. 5).",
   mime_not_allowed: "Dateityp nicht erlaubt.",

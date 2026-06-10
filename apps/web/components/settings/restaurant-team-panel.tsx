@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { RestaurantTeamPanelSkeleton } from "@/components/settings/restaurant-team-panel-skeleton";
+import { RestaurantPositionSelect } from "@/components/settings/restaurant-position-select";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,6 +27,12 @@ import {
   type EmployeeRole,
   isRestaurantOwnerRole,
 } from "@/lib/types/employee-role";
+import {
+  fetchRestaurantPositions,
+  type RestaurantPositionRow,
+} from "@/lib/supabase/restaurant-positions-db";
+import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
+import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 type ProfileJoin = {
@@ -48,6 +55,7 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
   const { has } = useRestaurantPermissions();
   const canManage = has("team.manage") || isRestaurantOwnerRole(myRole);
   const [rows, setRows] = useState<TeamMemberRow[]>([]);
+  const [positions, setPositions] = useState<RestaurantPositionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -61,13 +69,21 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
     }
     setLoading(true);
     const sb = createSupabaseBrowserClient();
-    const { data, error } = await sb
-      .from("restaurant_employees")
-      .select(
-        "id, profile_id, staff_id, role, is_active, profiles(given_name, family_name, display_name)",
-      )
-      .eq("restaurant_id", restaurantId)
-      .order("created_at", { ascending: true });
+    const [{ data, error }, { rows: positionRows }] = await Promise.all([
+      sb
+        .from("restaurant_employees")
+        .select(
+          "id, profile_id, staff_id, role, is_active, profiles(given_name, family_name, display_name)",
+        )
+        .eq("restaurant_id", restaurantId)
+        .order("created_at", { ascending: true }),
+      fetchRestaurantPositions(sb, restaurantId),
+    ]);
+    setPositions(
+      positionRows.filter((p) =>
+        EMPLOYEE_ROLE_OPTIONS.some((o) => o.value === p.slug),
+      ),
+    );
     if (error) {
       console.warn(error);
       toast.error(error.message);
@@ -99,14 +115,16 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
   const activeOwnerCount = rows.filter((r) => r.role === "owner" && r.isActive)
     .length;
 
-  const updateRole = async (row: TeamMemberRow, nextRole: EmployeeRole) => {
-    if (!canManage || nextRole === row.role) return;
+  const updateRole = async (row: TeamMemberRow, nextPositionId: string) => {
+    const nextPosition = positions.find((p) => p.id === nextPositionId);
+    const nextRole = nextPosition?.slug as EmployeeRole | undefined;
+    if (!canManage || !nextRole || nextRole === row.role) return;
     setBusyId(row.id);
     try {
       const sb = createSupabaseBrowserClient();
       const { error } = await sb
         .from("restaurant_employees")
-        .update({ role: nextRole })
+        .update({ role: nextRole, position_id: nextPositionId })
         .eq("id", row.id);
       if (error) {
         toast.error(error.message);
@@ -198,28 +216,31 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
           const roleLabel =
             EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === row.role)?.label ??
             row.role;
+          const rolePosition =
+            positions.find((p) => p.slug === row.role) ?? null;
+          const roleColor = rolePosition
+            ? normalizeRestaurantPositionColor(rolePosition.color, rolePosition.id)
+            : undefined;
           return (
             <tr key={row.id} className="border-b border-border/60">
               <td className="py-3 pr-4 font-medium">{row.label}</td>
               <td className="py-3 pr-4">
                 {canManage ? (
-                  <select
-                    className="h-9 max-w-[200px] rounded-lg border border-input bg-background px-2 text-sm"
-                    value={row.role}
+                  <RestaurantPositionSelect
+                    positions={positions}
+                    value={rolePosition?.id ?? ""}
                     disabled={disabledRow || isOnlyActiveOwner}
                     aria-label={`Rolle für ${row.label}`}
-                    onChange={(e) =>
-                      void updateRole(row, e.target.value as EmployeeRole)
+                    onValueChange={(positionId) =>
+                      void updateRole(row, positionId)
                     }
-                  >
-                    {EMPLOYEE_ROLE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 ) : (
-                  <Badge variant="outline" className="capitalize">
+                  <Badge variant="outline" className="gap-1.5 capitalize">
+                    <TagColorStripe
+                      color={roleColor}
+                      className="mr-0 h-4 shrink-0"
+                    />
                     {roleLabel}
                   </Badge>
                 )}

@@ -1,12 +1,16 @@
 "use client";
 
-import { ChevronDown, ClipboardList } from "lucide-react";
+import { ChevronDown, ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
+import {
+  countPurchaseOrderActiveFilters,
+  PurchaseOrdersFilterDrawer,
+} from "@/components/inventory/purchase-orders-filter-drawer";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { SearchableSelect } from "@/components/ui/combobox";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { INVENTORY_PRODUCTION_SITES_KEY } from "@/lib/constants/inventory-storage";
@@ -21,6 +25,11 @@ import {
   resolveProtocolCreatorLabel,
 } from "@/lib/types/purchase-order";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import {
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 import { cn } from "@/lib/utils";
 
 const scopeItems = {
@@ -54,10 +63,6 @@ function formatDeliveryYmd(ymd: string | null) {
 
 const orderQtyInputClass =
   "h-9 w-full min-w-[4.5rem] rounded-xl border border-input bg-transparent px-2 text-sm tabular-nums outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
-
-/** Gleiche Trigger-Höhe und Typo wie SearchableSelect (Kombobox-Input). */
-const purchaseOrderFilterControlClass =
-  "h-11 w-full min-w-0 rounded-2xl sm:min-w-[12rem] sm:max-w-[14rem]";
 
 function OrderLineQtyCell({
   orderId,
@@ -142,6 +147,7 @@ export function PurchaseOrdersScreen() {
   const [scope, setScope] = useState<keyof typeof scopeItems>("active");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
   const [productionFilterId, setProductionFilterId] = useState<string>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [protocolOrderId, setProtocolOrderId] = useState<string | null>(null);
   const [protocolOpen, setProtocolOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -207,6 +213,16 @@ export function PurchaseOrdersScreen() {
           new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
   }, [orders, scope, supplierFilterId, productionFilterId, ingredients]);
+
+  const filterActiveCount = useMemo(
+    () =>
+      countPurchaseOrderActiveFilters({
+        scope,
+        supplierFilterId,
+        productionFilterId,
+      }),
+    [scope, supplierFilterId, productionFilterId],
+  );
 
   const ready =
     isHydrated &&
@@ -311,52 +327,47 @@ export function PurchaseOrdersScreen() {
         ready && "opacity-100",
       )}
     >
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="mb-6 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <ClipboardList className="size-4 shrink-0 opacity-80" aria-hidden />
-          <span>{filtered.length} Bestellung{filtered.length === 1 ? "" : "en"}</span>
+          <span>
+            {filtered.length} Bestellung{filtered.length === 1 ? "" : "en"}
+          </span>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:max-w-4xl sm:flex-row sm:flex-wrap sm:justify-end">
-          <SearchableSelect
-            options={[
-              { value: "all", label: "Alle Lieferanten" },
-              ...supplierFilterOptions,
-            ]}
-            value={supplierFilterId}
-            onValueChange={setSupplierFilterId}
-            placeholder="Lieferant"
-            searchPlaceholder="Lieferant suchen…"
-            aria-label="Nach Lieferant filtern"
-            className={purchaseOrderFilterControlClass}
-          />
-          <SearchableSelect
-            options={[
-              { value: "all", label: "Alle Produktionsstellen" },
-              ...productionFilterOptions,
-            ]}
-            value={productionFilterId}
-            onValueChange={setProductionFilterId}
-            placeholder="Produktion"
-            searchPlaceholder="Stelle suchen…"
-            aria-label="Nach Produktionsstelle filtern"
-            className={purchaseOrderFilterControlClass}
-          />
-          <SearchableSelect
-            options={[
-              { value: "active", label: scopeItems.active },
-              { value: "past", label: scopeItems.past },
-            ]}
-            value={scope}
-            onValueChange={(v) => {
-              if (v === "active" || v === "past") setScope(v);
-            }}
-            placeholder="Zeitraum"
-            searchPlaceholder="Zeitraum suchen…"
-            aria-label="Aktive oder vergangene Bestellungen filtern"
-            className={purchaseOrderFilterControlClass}
-          />
+        <div className={moduleSearchFilterButtonWrapClassName}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            className={moduleSearchFilterButtonClassName}
+            aria-label="Filter"
+            onClick={() => setFilterOpen(true)}
+          >
+            <Filter className="size-4" />
+          </Button>
+          {filterActiveCount > 0 ? (
+            <Badge
+              variant="secondary"
+              className={moduleSearchFilterActiveBadgeClassName}
+            >
+              {filterActiveCount}
+            </Badge>
+          ) : null}
         </div>
       </div>
+
+      <PurchaseOrdersFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        scope={scope}
+        onScopeChange={setScope}
+        supplierFilterId={supplierFilterId}
+        onSupplierFilterIdChange={setSupplierFilterId}
+        supplierFilterOptions={supplierFilterOptions}
+        productionFilterId={productionFilterId}
+        onProductionFilterIdChange={setProductionFilterId}
+        productionFilterOptions={productionFilterOptions}
+      />
 
       {filtered.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-14 text-center">

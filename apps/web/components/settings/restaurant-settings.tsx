@@ -480,10 +480,6 @@ export function RestaurantSettingsPanel({
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">
             <CardTitle className="text-xl">Adresse & Kontakt</CardTitle>
-            <CardDescription>
-              Standort, Website, Telefon und USt-IdNr. für Gäste, Rechnungen und
-              öffentliche Profile.
-            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -552,9 +548,6 @@ export function RestaurantSettingsPanel({
               placeholder="https://…"
               className="h-11 rounded-xl"
             />
-            <p className="text-xs text-muted-foreground">
-              https:// wird bei Bedarf automatisch ergänzt.
-            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="rs-phone">Telefon</Label>
@@ -583,9 +576,6 @@ export function RestaurantSettingsPanel({
               className="h-11 rounded-xl"
               autoComplete="off"
             />
-            <p className="text-xs text-muted-foreground">
-              Erscheint in Buchführungs-PDFs und auf Quittungen.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -802,9 +792,11 @@ export function RestaurantSettingsPanel({
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
-                    className="gap-1.5 rounded-full"
+                    className={cn(
+                      "gap-1.5 rounded-full",
+                      settingsAccentSaveButtonClassName,
+                    )}
                     onClick={addException}
                   >
                     <Plus className="size-4" />

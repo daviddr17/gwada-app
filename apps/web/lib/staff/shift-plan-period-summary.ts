@@ -4,6 +4,7 @@ import {
 } from "@/lib/staff/staff-day-wage";
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import type { RestaurantStaffContractRow } from "@/lib/types/staff";
+import { isStaffFixedPayType } from "@/lib/staff/staff-contract-pay";
 import type { RestaurantStaffScheduledShiftRow } from "@/lib/types/staff-shift-schedule";
 import { scheduledShiftDurationMinutes } from "@/lib/types/staff-shift-schedule";
 
@@ -60,7 +61,7 @@ export function computeShiftPlanPeriodSummary(params: {
       continue;
     }
 
-    if (contract.pay_type === "fixed") {
+    if (isStaffFixedPayType(contract.pay_type)) {
       fixedPayShiftCount += 1;
       continue;
     }

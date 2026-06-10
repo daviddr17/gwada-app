@@ -20,6 +20,7 @@ import {
   lexofficeBusinessFeatureLabel,
   lexofficeTaxTypeLabel,
 } from "@/lib/integrations/lexoffice-integration-config";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import type { LexofficeIntegrationResponse } from "@/lib/types/restaurant-integration";
 
 export function LexofficeIntegrationCard() {
@@ -129,6 +130,7 @@ export function LexofficeIntegrationCard() {
         title="Lexware Office"
         description="Verbindet eure Lexware-Organisation per API-Key — für Buchhaltung und Rechnungen direkt aus Gwada (weitere Funktionen folgen)."
         icon={<LexofficeGlyph />}
+        accentColor={INTEGRATION_PANEL_ACCENT.lexoffice}
         badge={badge}
         summaryLine={
           connected && state?.companyName ? (

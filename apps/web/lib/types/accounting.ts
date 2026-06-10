@@ -98,6 +98,11 @@ export type AccountingUnitRow = {
   updated_at: string;
 };
 
+export type AccountingArticleRecipeLine = {
+  ingredientId: string;
+  amount: number;
+};
+
 export type AccountingArticleRow = {
   id: string;
   restaurant_id: string;
@@ -109,6 +114,7 @@ export type AccountingArticleRow = {
   default_tax_rate_percent: number;
   currency: string;
   archived: boolean;
+  recipe?: AccountingArticleRecipeLine[];
   created_at: string;
   updated_at: string;
 };
@@ -135,6 +141,7 @@ export type AccountingInvoiceRow = {
   recipient_snapshot: AccountingRecipientSnapshot;
   line_items: AccountingLineItem[];
   totals: AccountingTotals;
+  inventory_deducted_at?: string | null;
   title: string | null;
   introduction: string | null;
   remark: string | null;
@@ -185,6 +192,24 @@ export type AccountingVoucherRow = {
   updated_by: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AccountingVoucherInput = {
+  voucherKind: AccountingVoucherKind;
+  voucherDate: string;
+  dueDate?: string | null;
+  shippingDate?: string | null;
+  currency?: string;
+  taxMode: "net" | "gross";
+  useCollectiveContact?: boolean;
+  contactId?: string | null;
+  lexofficeContactId?: string | null;
+  contactName?: string | null;
+  voucherNumber?: string | null;
+  remark?: string | null;
+  status?: AccountingVoucherStatus;
+  voucherItems: AccountingVoucherItem[];
+  syncToLexoffice?: boolean;
 };
 
 export type AccountingSalesDocumentInput = {

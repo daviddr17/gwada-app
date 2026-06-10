@@ -32,12 +32,15 @@ function ReviewSummaryCardSkeleton() {
 
 function ReviewCardSkeleton() {
   return (
-    <SkeletonCardFrame className="space-y-3 shadow-card p-6">
+    <SkeletonCardFrame className="space-y-3 p-6 shadow-card">
       <div className="flex items-start justify-between gap-2">
-        <Skeleton className="h-4 w-28 rounded-md" />
-        <Skeleton className="h-3 w-16 rounded-md" />
+        <Skeleton className="h-4 w-28 shrink-0 rounded-md" />
+        <Skeleton className="size-6 shrink-0 rounded-md" />
       </div>
-      <Skeleton className="h-4 w-36 max-w-[70%] rounded-md" />
+      <div className="flex items-baseline justify-between gap-2">
+        <Skeleton className="h-4 w-36 max-w-[55%] rounded-md" />
+        <Skeleton className="h-3 w-20 shrink-0 rounded-md" />
+      </div>
       <Skeleton className="h-3 w-full rounded-md" />
       <Skeleton className="h-3 w-[85%] rounded-md" />
       <Skeleton className="h-8 w-24 rounded-lg" />

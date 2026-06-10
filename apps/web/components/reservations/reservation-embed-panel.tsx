@@ -4,17 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { buildReservationEmbedSnippet } from "@/lib/embed/build-embed-snippet";
-import {
-  isGwadaEmbedLegacyResizeMessage,
-  isGwadaEmbedResizeMessage,
-} from "@/lib/embed/embed-protocol";
+import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 async function copyText(text: string, label: string) {
@@ -28,26 +24,7 @@ async function copyText(text: string, label: string) {
 
 function EmbedPreviewFrame({ src }: { src: string }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  useEffect(() => {
-    const onMessage = (event: MessageEvent) => {
-      const frame = iframeRef.current;
-      if (!frame || event.source !== frame.contentWindow) return;
-
-      let height: number | null = null;
-      if (isGwadaEmbedResizeMessage(event.data)) {
-        height = event.data.height;
-      } else if (isGwadaEmbedLegacyResizeMessage(event.data)) {
-        height = event.data.height;
-      }
-      if (!height || height <= 0) return;
-      frame.style.height = `${Math.ceil(height)}px`;
-      frame.style.minHeight = "0";
-    };
-
-    window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
-  }, []);
+  useEmbedPreviewResize(iframeRef, src);
 
   return (
     <iframe
@@ -143,35 +120,18 @@ export function ReservationEmbedPanel() {
       ) : null}
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
-        <div>
-          <h2 className="text-base font-semibold">Vorschau</h2>
-          <p className="text-sm text-muted-foreground">
-            Eingebettetes Formular mit automatischer Höhenanpassung (wie auf der
-            Gast-Website mit gwada.js).
-          </p>
-        </div>
+        <h2 className="text-base font-semibold">Vorschau</h2>
         <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
           {snippet ? <EmbedPreviewFrame src={snippet.embedUrl} /> : null}
         </div>
       </section>
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
-        <div>
-          <h2 className="text-base font-semibold">Code zum Einbinden</h2>
-          <p className="text-sm text-muted-foreground">
-            Empfohlen: Platzhalter + ein Gwada-Script (wie Social-Media-Embeds). Höhe,
-            Lazy Load und mehrere Widgets auf einer Seite werden automatisch
-            übernommen. Später auch Speisekarte und Kontakt über{" "}
-            <code className="text-xs">data-gwada-widget</code>.
-          </p>
-        </div>
+        <h2 className="text-base font-semibold">Code zum Einbinden</h2>
 
         {snippet ? (
           <>
             <div className="space-y-2">
-              <Label className="text-xs text-muted-foreground">
-                Empfohlen (Platzhalter + gwada.js)
-              </Label>
               <EmbedSnippetCodeBlock code={snippet.recommended} />
               <Button
                 type="button"
@@ -191,50 +151,7 @@ export function ReservationEmbedPanel() {
               </Button>
             </div>
 
-            <details className="rounded-xl border border-border/50 bg-muted/15 px-4 py-3 text-sm">
-              <summary className="cursor-pointer font-medium text-foreground">
-                Alternativ: rohes iframe (Legacy)
-              </summary>
-              <div className="mt-3 space-y-3 text-muted-foreground">
-                <p className="text-xs">
-                  Nur wenn kein externes Script erlaubt ist. Höhe ggf. manuell oder mit
-                  Legacy-Snippet unten anpassen.
-                </p>
-                <EmbedSnippetCodeBlock
-                  code={snippet.legacyCombined}
-                  className="max-h-40 rounded-lg border-border/40"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rounded-lg"
-                  onClick={() => {
-                    void copyText(snippet.legacyCombined, "Legacy-Embed");
-                    markCopied("legacy");
-                  }}
-                >
-                  {copiedKey === "legacy" ? (
-                    <Check className="size-4" />
-                  ) : (
-                    <Copy className="size-4" />
-                  )}
-                  Legacy kopieren
-                </Button>
-              </div>
-            </details>
-
             <p className="text-xs text-muted-foreground">
-              Loader:{" "}
-              <a
-                href={snippet.loaderUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent underline-offset-2 hover:underline"
-              >
-                {snippet.loaderUrl}
-              </a>
-              {" · "}
               Direktlink:{" "}
               <a
                 href={snippet.embedUrl}

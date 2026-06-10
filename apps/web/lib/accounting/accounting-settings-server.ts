@@ -30,6 +30,7 @@ export async function upsertAccountingSettings(
   patch: {
     documentFormat?: AccountingDocumentFormat;
     autoSyncLexoffice?: boolean;
+    deductInventoryOnInvoice?: boolean;
     documentDesign?: AccountingDocumentDesign;
   },
 ): Promise<{ row: AccountingSettingsRow | null; error: string | null }> {
@@ -41,6 +42,9 @@ export async function upsertAccountingSettings(
   }
   if (patch.autoSyncLexoffice !== undefined) {
     payload.auto_sync_lexoffice = patch.autoSyncLexoffice;
+  }
+  if (patch.deductInventoryOnInvoice !== undefined) {
+    payload.deduct_inventory_on_invoice = patch.deductInventoryOnInvoice;
   }
   if (patch.documentDesign !== undefined) {
     payload.document_design = patch.documentDesign;
@@ -65,12 +69,14 @@ export async function upsertAccountingSettings(
 export async function touchLexofficeSyncTimestamp(
   sb: SupabaseClient,
   restaurantId: string,
-  kind: "invoice" | "quotation",
+  kind: "invoice" | "quotation" | "voucher",
 ): Promise<void> {
   const column =
     kind === "invoice"
       ? "last_lexoffice_invoices_sync_at"
-      : "last_lexoffice_quotations_sync_at";
+      : kind === "quotation"
+        ? "last_lexoffice_quotations_sync_at"
+        : "last_lexoffice_vouchers_sync_at";
   await sb.from("restaurant_accounting_settings").upsert(
     {
       restaurant_id: restaurantId,

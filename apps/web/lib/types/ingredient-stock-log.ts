@@ -47,10 +47,28 @@ export type IngredientStockLogDeliveryReverted = {
   supplierName: string;
 };
 
+/** Bestandsreduktion durch Rechnung (Artikel mit Rezept). */
+export type IngredientStockLogFromInvoice = {
+  id: string;
+  at: string;
+  userFirstName: string;
+  userLastName: string;
+  userSource?: ProtocolUserSource;
+  kind: "stock_from_invoice";
+  fromQuantity: number;
+  toQuantity: number;
+  unitId: string;
+  unitLabel: string;
+  invoiceId: string;
+  voucherNumber: string | null;
+  articleName: string;
+};
+
 export type IngredientStockLogEntry =
   | IngredientStockLogManual
   | IngredientStockLogFromDelivery
-  | IngredientStockLogDeliveryReverted;
+  | IngredientStockLogDeliveryReverted
+  | IngredientStockLogFromInvoice;
 
 export function resolveIngredientStockLogUserLabel(
   e: IngredientStockLogEntry,
@@ -75,6 +93,8 @@ export function ingredientStockActionColumn(e: IngredientStockLogEntry): string 
       return "Geliefert markiert";
     case "stock_delivery_reverted":
       return "Geliefert rückgängig";
+    case "stock_from_invoice":
+      return "Rechnung";
     default:
       return "—";
   }

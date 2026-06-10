@@ -16,6 +16,7 @@ import { settingsAccentSaveButtonClassName } from "@/components/settings/setting
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { WahaConnectResponse } from "@/lib/types/restaurant-integration";
+import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
 import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -235,6 +236,7 @@ export function WhatsappIntegrationCard() {
         title="WhatsApp"
         description="Verbinde die WhatsApp-Nummer eures Restaurants per QR-Code. Hier siehst du, ob die Nummer aktiv mit Gwada verbunden ist."
         icon={<WhatsAppGlyph />}
+        accentColor={INTEGRATION_PANEL_ACCENT.whatsapp}
         badge={
           connected
             ? integrationStatusBadgeConnected()

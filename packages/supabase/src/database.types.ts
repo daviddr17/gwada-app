@@ -3273,6 +3273,7 @@ export type Database = {
       }
       restaurant_positions: {
         Row: {
+          color: string
           created_at: string
           description: string | null
           id: string
@@ -3284,6 +3285,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          color?: string
           created_at?: string
           description?: string | null
           id?: string
@@ -3295,6 +3297,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          color?: string
           created_at?: string
           description?: string | null
           id?: string
@@ -4591,7 +4594,7 @@ export type Database = {
       pos_payment_method: "cash" | "card" | "paypal" | "terminal"
       pos_payment_status: "open" | "paid" | "failed" | "refunded"
       pos_table_session_status: "open" | "closed"
-      staff_contract_pay_type: "hourly" | "fixed"
+      staff_contract_pay_type: "hourly" | "fixed" | "fixed_weekly"
       staff_employment_type:
         | "full_time"
         | "part_time"
@@ -4756,7 +4759,7 @@ export const Constants = {
       pos_payment_method: ["cash", "card", "paypal", "terminal"],
       pos_payment_status: ["open", "paid", "failed", "refunded"],
       pos_table_session_status: ["open", "closed"],
-      staff_contract_pay_type: ["hourly", "fixed"],
+      staff_contract_pay_type: ["hourly", "fixed", "fixed_weekly"],
       staff_employment_type: [
         "full_time",
         "part_time",

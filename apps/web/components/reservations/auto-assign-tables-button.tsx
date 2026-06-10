@@ -12,6 +12,7 @@ import {
 } from "@/lib/reservations/auto-table-assignment";
 import type { DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { updateReservationDiningTable } from "@/lib/supabase/reservations-db";
+import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { cn } from "@/lib/utils";
 
 type AutoAssignTablesButtonProps = {
@@ -150,17 +151,20 @@ export function AutoAssignTablesButton({
       <>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           size="icon"
-          className={cn("size-11 shrink-0 rounded-xl", className)}
+          className={cn(
+            reservationsDayDrawerHeaderActionButtonClassName,
+            className,
+          )}
           disabled={buttonDisabled}
           aria-label="Tische automatisch zuordnen"
           onClick={handleClick}
         >
           {busy ? (
-            <Loader2 className="size-5 animate-spin" />
+            <Loader2 className="size-4 animate-spin" />
           ) : (
-            <LayoutGrid className="size-5" />
+            <LayoutGrid className="size-4" />
           )}
         </Button>
         {confirmDialog}

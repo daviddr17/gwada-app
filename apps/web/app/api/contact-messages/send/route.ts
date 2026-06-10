@@ -19,8 +19,6 @@ export async function POST(req: Request) {
   let reservationId: string | null = null;
   let restaurantName: string | null = null;
   let attachmentFiles: OutboundAttachmentFile[] = [];
-  let notifyWhatsapp = false;
-  let notifyEmail = false;
 
   const multipart = await parseMultipartSend(req);
   if (multipart) {
@@ -45,8 +43,6 @@ export async function POST(req: Request) {
       );
     reservationId = multipart.fields.reservationId?.trim() || null;
     restaurantName = multipart.fields.restaurantName?.trim() || null;
-    notifyWhatsapp = multipart.fields.notifyWhatsapp === "true";
-    notifyEmail = multipart.fields.notifyEmail === "true";
   } else {
     const body = (await req.json().catch(() => ({}))) as {
       restaurantId?: string;
@@ -56,8 +52,6 @@ export async function POST(req: Request) {
       channels?: ("gwada" | "whatsapp" | "email")[];
       reservationId?: string | null;
       restaurantName?: string | null;
-      notifyWhatsapp?: boolean;
-      notifyEmail?: boolean;
     };
     restaurantId = body.restaurantId?.trim() ?? "";
     contactId = body.contactId?.trim() ?? "";
@@ -66,8 +60,6 @@ export async function POST(req: Request) {
     channels = body.channels ?? [];
     reservationId = body.reservationId?.trim() || null;
     restaurantName = body.restaurantName?.trim() || null;
-    notifyWhatsapp = body.notifyWhatsapp === true;
-    notifyEmail = body.notifyEmail === true;
   }
 
   if (
@@ -125,8 +117,6 @@ export async function POST(req: Request) {
     sentBy: direction === "outbound" ? user.id : null,
     restaurantName,
     attachmentFiles,
-    notifyWhatsapp,
-    notifyEmail,
   });
 
   return Response.json(result);

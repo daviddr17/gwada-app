@@ -16,6 +16,7 @@ export function SuperadminIntegrationPanel({
   description,
   icon,
   badges,
+  accentColor,
   headerTrailing,
   defaultOpen = false,
   children,
@@ -24,6 +25,7 @@ export function SuperadminIntegrationPanel({
   description: string;
   icon: ReactNode;
   badges?: ReactNode;
+  accentColor?: string;
   headerTrailing?: ReactNode;
   defaultOpen?: boolean;
   children?: ReactNode;
@@ -34,6 +36,7 @@ export function SuperadminIntegrationPanel({
       description={description}
       icon={icon}
       badges={badges}
+      accentColor={accentColor}
       headerTrailing={headerTrailing}
       defaultOpen={defaultOpen}
     >

@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
+import { LanBackendSection } from "@/src/components/LanBackendSection";
+import { isLanPreviewBuild } from "@/src/lib/staff-build-profile";
 import { GroupedList } from "@/src/components/ui/GroupedList";
 import { GroupedSection } from "@/src/components/ui/GroupedSection";
 import { FormTextField } from "@/src/components/ui/FormTextField";
@@ -100,6 +102,10 @@ export default function LoginScreen() {
           ) : null}
 
           <Button label="Anmelden" loading={loading} onPress={handleSubmit} />
+
+          {isLanPreviewBuild() ? (
+            <LanBackendSection onEndpointsChanged={() => setFormError(null)} />
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

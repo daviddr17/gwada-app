@@ -4,7 +4,8 @@ import type { NextConfig } from "next";
 import { loadEnvConfig } from "@next/env";
 import { LEGACY_MODULE_REDIRECTS } from "./lib/navigation/app-routes";
 
-const monorepoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const appRoot = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.join(appRoot, "../..");
 
 // Explizit dieselbe Ladereihenfolge wie Next (dev → .env.local + .env.development*;
 // production → .env.local + .env.production*). Siehe .env.example.
@@ -55,8 +56,15 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
   // pdfkit is Node/CJS-only — avoid Turbopack wrapping the constructor export.
   serverExternalPackages: ["pdfkit"],
+  // Workspace-Pakete aus packages/* (pnpm symlinks unter apps/web/node_modules).
+  transpilePackages: ["@gwada/shared", "@gwada/pos-domain", "@gwada/supabase"],
+  // Docker/standalone (next build): Monorepo-Root — nicht in dev setzen, sonst überschreibt
+  // Next turbopack.root und indexiert apps/staff → „Compiling /“ hängt.
+  ...(process.env.NODE_ENV === "production"
+    ? { outputFileTracingRoot: monorepoRoot }
+    : {}),
   turbopack: {
-    // pnpm monorepo root — avoids picking ~/package-lock.json as workspace root.
+    // pnpm-Monorepo: node_modules am Repo-Root; in dev kein outputFileTracingRoot (s. o.).
     root: monorepoRoot,
   },
   images: {

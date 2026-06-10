@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Session } from "@supabase/supabase-js";
 import { getStaffSupabaseUrl } from "@/src/lib/env";
+import { initStaffLanHost } from "@/src/lib/staff-lan-host";
 import { getStaffSupabase, resetStaffSupabaseClient } from "@/src/lib/supabase";
 
 export type StaffRestaurant = {
@@ -90,6 +91,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
 
   init: async () => {
+    await initStaffLanHost();
+    resetStaffSupabaseClient();
     const sb = getStaffSupabase();
     const { data } = await sb.auth.getSession();
     const session = data.session ?? null;

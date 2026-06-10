@@ -3,6 +3,8 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
+import { initStaffLanHost } from "@/src/lib/staff-lan-host";
+import { checkForStaffUpdatesOnLaunch } from "@/src/lib/staff-updates";
 import { useAuthStore } from "@/src/stores/auth-store";
 import {
   StaffThemeProvider,
@@ -26,7 +28,11 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   const { session, activeRestaurantId, isLoading, init } = useAuthStore();
 
   useEffect(() => {
-    void init().finally(() => SplashScreen.hideAsync());
+    void (async () => {
+      await initStaffLanHost();
+      await checkForStaffUpdatesOnLaunch();
+      await init();
+    })().finally(() => SplashScreen.hideAsync());
   }, [init]);
 
   useEffect(() => {

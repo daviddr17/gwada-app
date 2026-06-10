@@ -1,0 +1,5 @@
+# Web app is not needed for Staff iOS builds; excluding it avoids native deps (e.g. sharp).
+../../apps/web
+
+# Next.js build output (if web were included)
+../../apps/web/.next

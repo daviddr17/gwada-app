@@ -1,0 +1,54 @@
+{
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true,
+        "config": "ios-staff-monorepo-simulator.yml"
+      }
+    },
+    "preview-lan": {
+      "distribution": "store",
+      "channel": "preview-lan",
+      "environment": "preview",
+      "ios": {
+        "buildConfiguration": "Release",
+        "config": "ios-staff-monorepo.yml"
+      },
+      "env": {
+        "GWADA_STAFF_BUILD_PROFILE": "preview-lan"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "environment": "production",
+      "ios": {
+        "buildConfiguration": "Release",
+        "config": "ios-staff-monorepo.yml"
+      },
+      "env": {
+        "GWADA_STAFF_BUILD_PROFILE": "production"
+      }
+    }
+  },
+  "submit": {
+    "preview-lan": {
+      "ios": {
+        "appleId": "fadihanna@gmx.de",
+        "appleTeamId": "26N959J5Q3"
+      }
+    },
+    "production": {
+      "ios": {
+        "appleId": "fadihanna@gmx.de",
+        "appleTeamId": "26N959J5Q3"
+      }
+    }
+  }
+}

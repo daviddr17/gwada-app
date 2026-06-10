@@ -37,7 +37,7 @@ export async function GET(req: Request, context: RouteContext) {
       return NextResponse.json({ error: "file_not_found" }, { status: 404 });
     }
     const buffer = Buffer.from(await data.arrayBuffer());
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": row.mime_type ?? "application/octet-stream",
         "Content-Disposition": `inline; filename="${encodeURIComponent(row.file_name ?? "beleg")}"`,
@@ -53,7 +53,7 @@ export async function GET(req: Request, context: RouteContext) {
     if (!file.ok) {
       return NextResponse.json({ error: file.error }, { status: 404 });
     }
-    return new NextResponse(file.buffer, {
+    return new NextResponse(new Uint8Array(file.buffer), {
       headers: {
         "Content-Type": file.contentType,
         "Content-Disposition": `inline; filename="${encodeURIComponent(file.filename)}"`,

@@ -91,6 +91,7 @@ type TaxonomyStore = {
   ) => Promise<{ id: string; name: string } | null>;
   update: (id: string, updates: { name?: string; active?: boolean }) => void;
   reorder: (next: InventoryTaxonomyDefinition[]) => void;
+  remove: (id: string) => Promise<boolean>;
 };
 
 const MANAGE_BASE_DESC =

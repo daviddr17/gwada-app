@@ -41,12 +41,12 @@ export async function PATCH(req: Request, context: RouteContext) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  const { restaurantId: _bodyRestaurantId, ...patch } = body;
   const { row, error } = await updateAccountingVoucher(auth.sb, {
     restaurantId: auth.restaurantId,
     voucherId: id,
     userId: auth.userId,
-    input: body,
-    status: body.status as import("@/lib/types/accounting").AccountingVoucherStatus | undefined,
+    input: patch,
   });
 
   if (error || !row) {

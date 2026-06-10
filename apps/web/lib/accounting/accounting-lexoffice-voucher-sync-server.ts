@@ -7,6 +7,7 @@ import {
   lexofficeBookkeepingEditUrl,
   mapLexofficeBookkeepingStatus,
   mapLexofficeBookkeepingTypeToKind,
+  type LexofficeBookkeepingDetail,
   voucherItemsFromLexoffice,
 } from "@/lib/integrations/lexoffice-bookkeeping-vouchers";
 import {
@@ -25,11 +26,7 @@ function optionalVoucherDate(isoOrDate: string | null | undefined): string | nul
 }
 
 function rowFromLexofficeDetail(
-  detail: Awaited<
-    ReturnType<typeof fetchLexofficeBookkeepingDetail>
-  > extends { ok: true; detail: infer D }
-    ? D
-    : never,
+  detail: LexofficeBookkeepingDetail,
   listItem?: LexofficeVoucherListItem,
 ): Record<string, unknown> {
   const items = voucherItemsFromLexoffice(detail);

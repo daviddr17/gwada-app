@@ -76,6 +76,8 @@ export type AccountingVoucherItem = {
   categoryLabel: string | null;
 };
 
+export type AccountingDocumentVariant = "standard" | "correction";
+
 export type AccountingTaxRateRow = {
   id: string;
   restaurant_id: string;
@@ -84,6 +86,22 @@ export type AccountingTaxRateRow = {
   is_default: boolean;
   sort_order: number;
   archived: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AccountingDocumentKind = "invoice" | "quotation" | "voucher";
+
+export type AccountingDocumentStatusRow = {
+  id: string;
+  restaurant_id: string;
+  document_kind: AccountingDocumentKind;
+  code: string;
+  label: string;
+  sort_order: number;
+  archived: boolean;
+  is_system: boolean;
+  color_hex: string;
   created_at: string;
   updated_at: string;
 };
@@ -126,7 +144,11 @@ export type AccountingInvoiceRow = {
   external_id: string | null;
   external_version: number | null;
   external_edit_url: string | null;
-  status: AccountingInvoiceStatus;
+  external_document_type: string | null;
+  external_updated_at: string | null;
+  document_variant: AccountingDocumentVariant;
+  corrects_id: string | null;
+  status: string;
   voucher_number: string | null;
   voucher_date: string;
   voucher_date_kind: AccountingVoucherDateKind;
@@ -142,6 +164,7 @@ export type AccountingInvoiceRow = {
   line_items: AccountingLineItem[];
   totals: AccountingTotals;
   inventory_deducted_at?: string | null;
+  inventory_reversed_at?: string | null;
   title: string | null;
   introduction: string | null;
   remark: string | null;
@@ -158,7 +181,7 @@ export type AccountingQuotationRow = Omit<
   AccountingInvoiceRow,
   "status" | "due_date"
 > & {
-  status: AccountingQuotationStatus;
+  status: string;
   expiration_date: string | null;
 };
 
@@ -168,9 +191,12 @@ export type AccountingVoucherRow = {
   source: AccountingSource;
   external_id: string | null;
   external_version: number | null;
+  external_updated_at: string | null;
   external_edit_url: string | null;
+  document_variant: AccountingDocumentVariant;
+  corrects_id: string | null;
   voucher_kind: AccountingVoucherKind;
-  status: AccountingVoucherStatus;
+  status: string;
   voucher_number: string | null;
   voucher_date: string;
   due_date: string | null;
@@ -207,9 +233,11 @@ export type AccountingVoucherInput = {
   contactName?: string | null;
   voucherNumber?: string | null;
   remark?: string | null;
-  status?: AccountingVoucherStatus;
+  status?: string;
   voucherItems: AccountingVoucherItem[];
   syncToLexoffice?: boolean;
+  documentVariant?: AccountingDocumentVariant;
+  correctsId?: string | null;
 };
 
 export type AccountingSalesDocumentInput = {
@@ -230,11 +258,13 @@ export type AccountingSalesDocumentInput = {
   title?: string | null;
   introduction?: string | null;
   remark?: string | null;
-  status?: AccountingInvoiceStatus | AccountingQuotationStatus;
+  status?: string;
   syncToLexoffice?: boolean;
   finalizeOnCreate?: boolean;
   /** Nach Anlegen optional versenden */
   sendOnSave?: boolean;
   sendEmail?: boolean;
   sendWhatsapp?: boolean;
+  documentVariant?: AccountingDocumentVariant;
+  correctsId?: string | null;
 };

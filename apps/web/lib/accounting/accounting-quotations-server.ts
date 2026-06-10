@@ -8,7 +8,28 @@ import {
   buildVoucherPeriodIntroduction,
   resolveStoredVoucherDate,
 } from "@/lib/accounting/accounting-voucher-date";
-import { resolveAccountingSalesProvider } from "@/lib/accounting/providers/resolve-provider";
+import { getAccountingConnectorForSalesCreate } from "@/lib/accounting/connectors/registry";
+import {
+  accountingReadOnlyEditError,
+  isExternalAccountingSource,
+} from "@/lib/accounting/accounting-source";
+import { diffSalesDocumentRow } from "@/lib/accounting/accounting-document-log-diff";
+import {
+  insertAccountingDocumentLog,
+  salesDocumentCreatedLogSummary,
+} from "@/lib/accounting/accounting-document-log-server";
+import { allocateAccountingDocumentNumber } from "@/lib/accounting/accounting-document-numbering-server";
+import {
+  parseAccountingListSortDir,
+  parseSalesDocumentSortKey,
+  salesDocumentSortColumn,
+} from "@/lib/accounting/accounting-list-sort";
+import {
+  applyAccountingSalesDocumentSearch,
+  fetchAccountingPaginatedList,
+  type AccountingListQueryOptions,
+} from "@/lib/accounting/accounting-list-query";
+import type { PaginatedListResult } from "@/lib/constants/list-pagination";
 import type {
   AccountingQuotationRow,
   AccountingSalesDocumentInput,
@@ -22,25 +43,22 @@ function mapQuotationRow(data: Record<string, unknown>): AccountingQuotationRow 
 export async function listAccountingQuotations(
   sb: SupabaseClient,
   restaurantId: string,
-  source?: string | null,
-): Promise<AccountingQuotationRow[]> {
-  let q = sb
-    .from("accounting_quotations")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("voucher_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (source && source !== "all") {
-    q = q.eq("source", source);
-  }
-
-  const { data, error } = await q;
-  if (error) {
-    console.warn("listAccountingQuotations", error.message);
-    return [];
-  }
-  return (data ?? []).map((row) => mapQuotationRow(row as Record<string, unknown>));
+  options?: AccountingListQueryOptions,
+): Promise<PaginatedListResult<AccountingQuotationRow>> {
+  const sortKey = parseSalesDocumentSortKey(options?.sort ?? null);
+  const sortDir = parseAccountingListSortDir(options?.sortDir ?? null);
+  return fetchAccountingPaginatedList({
+    sb,
+    table: "accounting_quotations",
+    restaurantId,
+    options: {
+      ...options,
+      sortColumn: salesDocumentSortColumn(sortKey),
+      resolvedSortDir: sortDir,
+    },
+    applySearch: applyAccountingSalesDocumentSearch,
+    mapRow: (row) => mapQuotationRow(row),
+  });
 }
 
 export async function getAccountingQuotation(
@@ -74,8 +92,7 @@ export async function createAccountingQuotation(
     params.input.currency,
   );
 
-  const syncToLexoffice = params.input.syncToLexoffice === true;
-  const provider = resolveAccountingSalesProvider(syncToLexoffice);
+  const syncToExternal = params.input.syncToLexoffice === true;
 
   let external:
     | {
@@ -89,7 +106,11 @@ export async function createAccountingQuotation(
     | null = null;
 
   try {
-    const created = await provider.createQuotation(params.restaurantId, {
+    const connector = await getAccountingConnectorForSalesCreate(
+      params.restaurantId,
+      syncToExternal,
+    );
+    const created = await connector.createQuotation(params.restaurantId, {
       ...params.input,
       lineItems,
     });
@@ -101,6 +122,23 @@ export async function createAccountingQuotation(
     };
   }
 
+  let voucherNumber = external.voucherNumber;
+  if (!syncToExternal) {
+    try {
+      voucherNumber = await allocateAccountingDocumentNumber(sb, {
+        restaurantId: params.restaurantId,
+        kind: "quotation",
+        referenceDate: params.input.voucherDate,
+      });
+    } catch (e) {
+      return {
+        row: null,
+        error:
+          e instanceof Error ? e.message : "Nummernvergabe fehlgeschlagen.",
+      };
+    }
+  }
+
   const { data, error } = await sb
     .from("accounting_quotations")
     .insert({
@@ -110,7 +148,7 @@ export async function createAccountingQuotation(
       external_version: external.externalVersion,
       external_edit_url: external.externalEditUrl,
       status: external.status,
-      voucher_number: external.voucherNumber,
+      voucher_number: voucherNumber,
       voucher_date: resolveStoredVoucherDate({
         voucherDateKind: params.input.voucherDateKind ?? "date",
         voucherDate: params.input.voucherDate,
@@ -155,7 +193,23 @@ export async function createAccountingQuotation(
   if (error) {
     return { row: null, error: error.message };
   }
-  return { row: mapQuotationRow(data as Record<string, unknown>), error: null };
+  const row = mapQuotationRow(data as Record<string, unknown>);
+  await insertAccountingDocumentLog(sb, {
+    restaurantId: params.restaurantId,
+    documentKind: "quotation",
+    documentId: row.id,
+    actorUserId: params.userId,
+    action: "created",
+    details: {
+      source: row.source,
+      voucherNumber: row.voucher_number,
+      summary: salesDocumentCreatedLogSummary("quotation", {
+        source: row.source,
+        voucherNumber: row.voucher_number,
+      }),
+    },
+  });
+  return { row, error: null };
 }
 
 export async function updateAccountingQuotation(
@@ -180,10 +234,10 @@ export async function updateAccountingQuotation(
     return { row: null, error: "Angebot nicht gefunden." };
   }
   const existing = mapQuotationRow(existingData as Record<string, unknown>);
-  if (existing.source === "lexoffice") {
+  if (isExternalAccountingSource(existing.source)) {
     return {
       row: null,
-      error: "Lexware-Angebote können nur in Lexware bearbeitet werden.",
+      error: accountingReadOnlyEditError("Angebote", existing.source),
     };
   }
 
@@ -238,5 +292,17 @@ export async function updateAccountingQuotation(
     .single();
 
   if (error) return { row: null, error: error.message };
-  return { row: mapQuotationRow(data as Record<string, unknown>), error: null };
+  const row = mapQuotationRow(data as Record<string, unknown>);
+  const changes = diffSalesDocumentRow(existing, row, "quotation");
+  if (changes.length > 0) {
+    await insertAccountingDocumentLog(sb, {
+      restaurantId: params.restaurantId,
+      documentKind: "quotation",
+      documentId: row.id,
+      actorUserId: params.userId,
+      action: "updated",
+      details: { changes, voucherNumber: row.voucher_number },
+    });
+  }
+  return { row, error: null };
 }

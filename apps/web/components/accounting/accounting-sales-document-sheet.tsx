@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, Pencil, Send } from "lucide-react";
+import { ExternalLink, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
 import { toast } from "sonner";
 import { AccountingSendSection } from "@/components/accounting/accounting-send-section";
+import { AccountingDocumentProtocolPanel } from "@/components/accounting/accounting-document-protocol-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,10 +15,18 @@ import {
 } from "@/components/ui/drawer";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
+  canCreateAccountingCorrection,
+  isAccountingCorrectionVariant,
+} from "@/lib/accounting/accounting-corrections";
+import {
   salesDocumentPdfUrl,
   sendSalesDocument,
 } from "@/lib/accounting/accounting-api";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
+import {
+  accountingSourceDisplayLabel,
+  isReadOnlyAccountingDocument,
+} from "@/lib/accounting/accounting-source";
 import type {
   AccountingInvoiceRow,
   AccountingQuotationRow,
@@ -40,6 +49,7 @@ export function AccountingSalesDocumentSheet({
   row,
   canManage,
   onEdit,
+  onCreateCorrection,
   onSent,
 }: {
   open: boolean;
@@ -49,6 +59,7 @@ export function AccountingSalesDocumentSheet({
   row: SalesDocumentRow | null;
   canManage: boolean;
   onEdit?: () => void;
+  onCreateCorrection?: () => void;
   onSent?: () => void;
 }) {
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -63,7 +74,17 @@ export function AccountingSalesDocumentSheet({
   );
 
   const label = documentKind === "invoice" ? "Rechnung" : "Angebot";
+  const isCorrection =
+    isAccountingCorrectionVariant(row?.document_variant) ||
+    row?.external_document_type === "credit_note";
+  const displayLabel = isCorrection ? "Korrektur" : label;
   const recipient = row?.recipient_snapshot;
+  const showCorrectionAction =
+    canManage &&
+    documentKind === "invoice" &&
+    row &&
+    canCreateAccountingCorrection(row.document_variant) &&
+    onCreateCorrection;
 
   const pdfSrc = useMemo(() => {
     if (!row) return null;
@@ -114,17 +135,20 @@ export function AccountingSalesDocumentSheet({
 
   if (!row) return null;
 
-  const readOnlyLexoffice = row.source === "lexoffice";
+  const readOnlyExternal = isReadOnlyAccountingDocument(row.source);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className="max-h-[92vh]">
         <DrawerHeader className="border-b border-border/50 pb-3 text-left">
           <DrawerTitle className="flex flex-wrap items-center gap-2">
-            {label} {row.voucher_number ?? ""}
+            {displayLabel} {row.voucher_number ?? ""}
             <Badge variant="outline">
-              {row.source === "lexoffice" ? "Lexware" : "Gwada"}
+              {accountingSourceDisplayLabel(row.source)}
             </Badge>
+            {isCorrection ? (
+              <Badge variant="secondary">Korrektur</Badge>
+            ) : null}
           </DrawerTitle>
           <p className="text-sm text-muted-foreground">
             {recipient?.name ?? "—"} ·{" "}
@@ -142,7 +166,7 @@ export function AccountingSalesDocumentSheet({
             ) : pdfError ? (
               <div className="flex min-h-[40vh] items-center justify-center px-4 text-center text-sm text-muted-foreground">
                 {pdfError}
-                {readOnlyLexoffice && row.status === "draft" ? (
+                {readOnlyExternal && row.status === "draft" ? (
                   <span className="mt-1 block">
                     Lexware-PDF oft erst ab Status „offen“ verfügbar.
                   </span>
@@ -188,7 +212,7 @@ export function AccountingSalesDocumentSheet({
                 Jetzt senden
               </Button>
             ) : null}
-            {readOnlyLexoffice && row.external_edit_url ? (
+            {readOnlyExternal && row.external_edit_url ? (
               <Button
                 type="button"
                 variant="outline"
@@ -201,15 +225,33 @@ export function AccountingSalesDocumentSheet({
                 }
               >
                 <ExternalLink className="size-4" />
-                In Lexware
+                In {accountingSourceDisplayLabel(row.source)}
               </Button>
-            ) : canManage && !readOnlyLexoffice && onEdit ? (
+            ) : canManage && !readOnlyExternal && onEdit ? (
               <Button type="button" variant="outline" onClick={onEdit}>
                 <Pencil className="size-4" />
                 Bearbeiten
               </Button>
             ) : null}
+            {showCorrectionAction ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCreateCorrection}
+              >
+                <RotateCcw className="size-4" />
+                Korrektur anlegen
+              </Button>
+            ) : null}
           </div>
+
+          <AccountingDocumentProtocolPanel
+            restaurantId={restaurantId}
+            documentKind={documentKind}
+            documentId={row.id}
+            open={open}
+            refreshToken={row.sent_at ?? row.updated_at}
+          />
         </div>
       </DrawerContent>
     </Drawer>

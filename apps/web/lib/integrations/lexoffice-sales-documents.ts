@@ -172,6 +172,102 @@ export type LexofficeCreatedSalesDocument = {
   editUrl: string;
 };
 
+export async function createLexofficeCreditNote(
+  restaurantId: string,
+  input: AccountingSalesDocumentInput,
+  opts?: {
+    precedingExternalId?: string | null;
+    finalize?: boolean;
+  },
+): Promise<LexofficeCreatedSalesDocument> {
+  const body = buildSalesVoucherBody(input);
+  body.address = await resolveLexofficeAddress(restaurantId, input);
+
+  const qs = new URLSearchParams();
+  if (opts?.precedingExternalId?.trim()) {
+    qs.set("precedingSalesVoucherId", opts.precedingExternalId.trim());
+  }
+  if (opts?.finalize ?? input.finalizeOnCreate) {
+    qs.set("finalize", "true");
+  }
+  const query = qs.toString() ? `?${qs}` : "";
+
+  const created = await lexofficeAuthorizedFetch<LexofficeCreateResponse>(
+    restaurantId,
+    `/v1/credit-notes${query}`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  if (!created.ok) {
+    throw new Error(created.error);
+  }
+
+  const detail = await lexofficeAuthorizedFetch<LexofficeSalesVoucher>(
+    restaurantId,
+    `/v1/credit-notes/${created.data.id}`,
+    { method: "GET" },
+  );
+
+  const voucher = detail.ok ? detail.data : null;
+
+  return {
+    id: created.data.id,
+    version: created.data.version ?? voucher?.version ?? null,
+    voucherNumber: voucher?.voucherNumber ?? null,
+    voucherStatus: voucher?.voucherStatus ?? "draft",
+    editUrl: `${LEXWARE_APP_BASE}/permalink/credit-notes/edit/${created.data.id}`,
+  };
+}
+
+export async function fetchLexofficeCreditNoteFile(
+  restaurantId: string,
+  externalId: string,
+  format: "pdf" | "xml" = "pdf",
+): Promise<
+  | { ok: true; buffer: Buffer; contentType: string; filename: string }
+  | { ok: false; error: string }
+> {
+  const apiKey = await fetchRestaurantLexofficeApiKey(restaurantId);
+  if (!apiKey) {
+    return { ok: false, error: "Lexware ist nicht verbunden." };
+  }
+
+  const accept = format === "pdf" ? "application/pdf" : "application/xml";
+
+  let res: Response;
+  try {
+    res = await fetch(
+      `${LEXOFFICE_API_BASE}/v1/credit-notes/${externalId}/file`,
+      {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          Accept: accept,
+        },
+        cache: "no-store",
+      },
+    );
+  } catch {
+    return { ok: false, error: "Lexware API nicht erreichbar." };
+  }
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    return {
+      ok: false,
+      error: text || `Lexware API (${res.status})`,
+    };
+  }
+
+  const arrayBuffer = await res.arrayBuffer();
+  const buffer = Buffer.from(arrayBuffer);
+  const ext = format === "pdf" ? "pdf" : "xml";
+  return {
+    ok: true,
+    buffer,
+    contentType: accept,
+    filename: `Korrektur-${externalId.slice(0, 8)}.${ext}`,
+  };
+}
+
 async function createLexofficeSalesDocument(
   restaurantId: string,
   input: AccountingSalesDocumentInput,

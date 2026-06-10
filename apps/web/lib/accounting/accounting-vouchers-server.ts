@@ -11,6 +11,30 @@ import {
   normalizeVoucherItems,
 } from "@/lib/accounting/compute-voucher-totals";
 import {
+  parseAccountingListSortDir,
+  parseVoucherSortKey,
+  voucherSortColumn,
+} from "@/lib/accounting/accounting-list-sort";
+import {
+  applyAccountingVoucherSearch,
+  fetchAccountingPaginatedList,
+  type AccountingListQueryOptions,
+} from "@/lib/accounting/accounting-list-query";
+import { isAccountingCorrectionVariant } from "@/lib/accounting/accounting-corrections";
+import { getAccountingConnector } from "@/lib/accounting/connectors/registry";
+import {
+  accountingReadOnlyEditError,
+  accountingSourceDisplayLabel,
+  isExternalAccountingSource,
+} from "@/lib/accounting/accounting-source";
+import { diffVoucherRow } from "@/lib/accounting/accounting-document-log-diff";
+import {
+  insertAccountingDocumentLog,
+  voucherCreatedLogSummary,
+} from "@/lib/accounting/accounting-document-log-server";
+import { mapGwadaKindToLexofficeType } from "@/lib/integrations/lexoffice-bookkeeping-vouchers";
+import type { PaginatedListResult } from "@/lib/constants/list-pagination";
+import {
   createLexofficeBookkeepingVoucher,
   uploadLexofficeBookkeepingVoucherFile,
 } from "@/lib/integrations/lexoffice-bookkeeping-vouchers";
@@ -27,25 +51,22 @@ function mapVoucherRow(data: Record<string, unknown>): AccountingVoucherRow {
 export async function listAccountingVouchers(
   sb: SupabaseClient,
   restaurantId: string,
-  source?: string | null,
-): Promise<AccountingVoucherRow[]> {
-  let q = sb
-    .from("accounting_vouchers")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("voucher_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (source && source !== "all") {
-    q = q.eq("source", source);
-  }
-
-  const { data, error } = await q;
-  if (error) {
-    console.warn("listAccountingVouchers", error.message);
-    return [];
-  }
-  return (data ?? []).map((row) => mapVoucherRow(row as Record<string, unknown>));
+  options?: AccountingListQueryOptions,
+): Promise<PaginatedListResult<AccountingVoucherRow>> {
+  const sortKey = parseVoucherSortKey(options?.sort ?? null);
+  const sortDir = parseAccountingListSortDir(options?.sortDir ?? null);
+  return fetchAccountingPaginatedList({
+    sb,
+    table: "accounting_vouchers",
+    restaurantId,
+    options: {
+      ...options,
+      sortColumn: voucherSortColumn(sortKey),
+      resolvedSortDir: sortDir,
+    },
+    applySearch: applyAccountingVoucherSearch,
+    mapRow: (row) => mapVoucherRow(row),
+  });
 }
 
 export async function getAccountingVoucher(
@@ -79,39 +100,94 @@ export async function createAccountingVoucher(
   );
   const totals = computeVoucherTotals(items, params.input.taxMode);
 
-  let source: "gwada" | "lexoffice" = "gwada";
+  const isCorrection = params.input.documentVariant === "correction";
+  const correctsId = params.input.correctsId?.trim() || null;
+
+  let original: AccountingVoucherRow | null = null;
+  if (isCorrection) {
+    if (!correctsId) {
+      return { row: null, error: "Korrektur benötigt einen Ursprungsbeleg." };
+    }
+    original = await getAccountingVoucher(
+      sb,
+      params.restaurantId,
+      correctsId,
+    );
+    if (!original) {
+      return { row: null, error: "Ursprungsbeleg nicht gefunden." };
+    }
+    if (isAccountingCorrectionVariant(original.document_variant)) {
+      return {
+        row: null,
+        error: "Korrektur einer Korrektur wird nicht unterstützt.",
+      };
+    }
+  }
+
+  const syncToLexoffice =
+    params.input.syncToLexoffice === true ||
+    (isCorrection &&
+      isExternalAccountingSource(original?.source ?? "gwada") &&
+      Boolean(original?.external_id));
+
+  let source: AccountingVoucherRow["source"] = "gwada";
   let externalId: string | null = null;
   let externalVersion: number | null = null;
   let externalEditUrl: string | null = null;
   let voucherNumber = params.input.voucherNumber?.trim() || null;
   let status = params.input.status ?? "open";
 
-  if (params.input.syncToLexoffice) {
-    const created = await createLexofficeBookkeepingVoucher(
-      params.restaurantId,
-      params.input,
-      items,
-      totals,
-    );
-    if (!created.ok) {
-      return { row: null, error: created.error };
-    }
-    source = "lexoffice";
-    externalId = created.externalId;
-    externalVersion = created.externalVersion;
-    externalEditUrl = created.externalEditUrl;
-    voucherNumber = created.voucherNumber;
-    status = created.status as AccountingVoucherRow["status"];
-
-    if (params.file) {
-      const uploaded = await uploadLexofficeBookkeepingVoucherFile(
-        params.restaurantId,
-        created.externalId,
-        params.file,
-      );
-      if (!uploaded.ok) {
-        console.warn("[gwada] uploadLexofficeBookkeepingVoucherFile", uploaded.error);
+  if (syncToLexoffice) {
+    try {
+      const connector = await getAccountingConnector(params.restaurantId);
+      if (connector.key === "none" || !connector.source) {
+        return { row: null, error: "Externe Buchhaltung ist nicht verbunden." };
       }
+      const created = isCorrection
+        ? await connector.createBookkeepingCorrection(
+            params.restaurantId,
+            params.input,
+            items,
+            totals,
+            {
+              originalLexofficeType:
+                original &&
+                isExternalAccountingSource(original.source)
+                  ? mapGwadaKindToLexofficeType(original.voucher_kind)
+                  : null,
+            },
+          )
+        : await connector.createBookkeepingVoucher(
+            params.restaurantId,
+            params.input,
+            items,
+            totals,
+          );
+      source = connector.source;
+      externalId = created.externalId;
+      externalVersion = created.externalVersion;
+      externalEditUrl = created.externalEditUrl;
+      voucherNumber = created.voucherNumber;
+      status = created.status as AccountingVoucherRow["status"];
+
+      if (params.file) {
+        const uploaded = await uploadLexofficeBookkeepingVoucherFile(
+          params.restaurantId,
+          created.externalId,
+          params.file,
+        );
+        if (!uploaded.ok) {
+          console.warn(
+            "[gwada] uploadLexofficeBookkeepingVoucherFile",
+            uploaded.error,
+          );
+        }
+      }
+    } catch (e) {
+      return {
+        row: null,
+        error: e instanceof Error ? e.message : "Lexware-Erstellung fehlgeschlagen.",
+      };
     }
   }
 
@@ -121,7 +197,7 @@ export async function createAccountingVoucher(
   let mimeType: string | null = null;
   let sizeBytes: number | null = null;
 
-  if (params.file && !params.input.syncToLexoffice) {
+  if (params.file && !syncToLexoffice) {
     const admin = createSupabaseAdminClient();
     if (!admin) {
       return { row: null, error: "Storage nicht verfügbar." };
@@ -154,6 +230,8 @@ export async function createAccountingVoucher(
       external_id: externalId,
       external_version: externalVersion,
       external_edit_url: externalEditUrl,
+      document_variant: isCorrection ? "correction" : "standard",
+      corrects_id: isCorrection ? correctsId : null,
       voucher_kind: params.input.voucherKind,
       status,
       voucher_number: voucherNumber,
@@ -189,7 +267,42 @@ export async function createAccountingVoucher(
     return { row: null, error: error.message };
   }
 
-  return { row: mapVoucherRow(data as Record<string, unknown>), error: null };
+  const row = mapVoucherRow(data as Record<string, unknown>);
+  await insertAccountingDocumentLog(sb, {
+    restaurantId: params.restaurantId,
+    documentKind: "voucher",
+    documentId: row.id,
+    actorUserId: params.userId,
+    action: "created",
+    details: {
+      source: row.source,
+      voucherNumber: row.voucher_number,
+      documentVariant: row.document_variant,
+      correctsNumber: original?.voucher_number ?? null,
+      summary: voucherCreatedLogSummary({
+        source: row.source,
+        voucherNumber: row.voucher_number,
+        documentVariant: row.document_variant,
+        correctsNumber: original?.voucher_number ?? null,
+      }),
+    },
+  });
+
+  if (params.file?.fileName) {
+    await insertAccountingDocumentLog(sb, {
+      restaurantId: params.restaurantId,
+      documentKind: "voucher",
+      documentId: row.id,
+      actorUserId: params.userId,
+      action: "attachment_uploaded",
+      details: {
+        fileName: params.file.fileName,
+        summary: params.file.fileName,
+      },
+    });
+  }
+
+  return { row, error: null };
 }
 
 export async function updateAccountingVoucher(
@@ -209,10 +322,10 @@ export async function updateAccountingVoucher(
     params.voucherId,
   );
   if (!existing) return { row: null, error: "Beleg nicht gefunden." };
-  if (existing.source === "lexoffice") {
+  if (isExternalAccountingSource(existing.source)) {
     return {
       row: null,
-      error: "Lexware-Belege können nur in Lexware bearbeitet werden.",
+      error: accountingReadOnlyEditError("Belege", existing.source),
     };
   }
 
@@ -267,27 +380,61 @@ export async function updateAccountingVoucher(
     .single();
 
   if (error) return { row: null, error: error.message };
-  return { row: mapVoucherRow(data as Record<string, unknown>), error: null };
+  const row = mapVoucherRow(data as Record<string, unknown>);
+  const changes = diffVoucherRow(existing, row);
+  if (changes.length > 0) {
+    await insertAccountingDocumentLog(sb, {
+      restaurantId: params.restaurantId,
+      documentKind: "voucher",
+      documentId: row.id,
+      actorUserId: params.userId,
+      action: "updated",
+      details: { changes, voucherNumber: row.voucher_number },
+    });
+  }
+  return { row, error: null };
 }
 
 export async function deleteAccountingVoucher(
   sb: SupabaseClient,
-  restaurantId: string,
-  voucherId: string,
+  params: {
+    restaurantId: string;
+    voucherId: string;
+    userId: string;
+  },
 ): Promise<{ error: string | null }> {
-  const existing = await getAccountingVoucher(sb, restaurantId, voucherId);
+  const existing = await getAccountingVoucher(
+    sb,
+    params.restaurantId,
+    params.voucherId,
+  );
   if (!existing) return { error: "Beleg nicht gefunden." };
-  if (existing.source === "lexoffice") {
+  if (isExternalAccountingSource(existing.source)) {
+    const platform = accountingSourceDisplayLabel(existing.source);
     return {
-      error: "Lexware-Belege können nur in Lexware gelöscht werden.",
+      error: `Belege können nur in ${platform} gelöscht werden.`,
     };
   }
+
+  await insertAccountingDocumentLog(sb, {
+    restaurantId: params.restaurantId,
+    documentKind: "voucher",
+    documentId: existing.id,
+    actorUserId: params.userId,
+    action: "deleted",
+    details: {
+      voucherNumber: existing.voucher_number,
+      summary: existing.voucher_number
+        ? `Beleg ${existing.voucher_number} gelöscht`
+        : "Beleg gelöscht",
+    },
+  });
 
   const { error } = await sb
     .from("accounting_vouchers")
     .delete()
-    .eq("restaurant_id", restaurantId)
-    .eq("id", voucherId);
+    .eq("restaurant_id", params.restaurantId)
+    .eq("id", params.voucherId);
 
   if (error) return { error: error.message };
 
@@ -316,10 +463,11 @@ export async function attachAccountingVoucherFile(
     params.voucherId,
   );
   if (!existing) return { row: null, error: "Beleg nicht gefunden." };
-  if (existing.source === "lexoffice") {
+  if (isExternalAccountingSource(existing.source)) {
+    const platform = accountingSourceDisplayLabel(existing.source);
     return {
       row: null,
-      error: "Anhang für Lexware-Belege bitte in Lexware pflegen.",
+      error: `Anhang für ${platform}-Belege bitte in ${platform} pflegen.`,
     };
   }
 

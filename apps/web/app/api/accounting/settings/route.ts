@@ -27,8 +27,20 @@ export async function PATCH(req: Request) {
     restaurantId?: string;
     documentFormat?: AccountingDocumentFormat;
     autoSyncLexoffice?: boolean;
+    connectorAutoSync?: {
+      connector: import("@/lib/accounting/connectors/connector-meta").AccountingConnectorKey;
+      enabled: boolean;
+    };
     deductInventoryOnInvoice?: boolean;
+    reverseInventoryOnInvoiceCorrection?: boolean;
     documentDesign?: import("@/lib/types/accounting-settings").AccountingDocumentDesign;
+    invoiceNumberPrefix?: string;
+    invoiceCorrectionNumberPrefix?: string;
+    quotationNumberPrefix?: string;
+    invoiceNumberIncludeYear?: boolean;
+    quotationNumberIncludeYear?: boolean;
+    invoiceNumberMinDigits?: number;
+    quotationNumberMinDigits?: number;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
   const auth = await assertAccountingApi(restaurantId);
@@ -39,8 +51,17 @@ export async function PATCH(req: Request) {
   const { row, error } = await upsertAccountingSettings(auth.sb, auth.restaurantId, {
     documentFormat: body.documentFormat,
     autoSyncLexoffice: body.autoSyncLexoffice,
+    connectorAutoSync: body.connectorAutoSync,
     deductInventoryOnInvoice: body.deductInventoryOnInvoice,
+    reverseInventoryOnInvoiceCorrection: body.reverseInventoryOnInvoiceCorrection,
     documentDesign: body.documentDesign,
+    invoiceNumberPrefix: body.invoiceNumberPrefix,
+    invoiceCorrectionNumberPrefix: body.invoiceCorrectionNumberPrefix,
+    quotationNumberPrefix: body.quotationNumberPrefix,
+    invoiceNumberIncludeYear: body.invoiceNumberIncludeYear,
+    quotationNumberIncludeYear: body.quotationNumberIncludeYear,
+    invoiceNumberMinDigits: body.invoiceNumberMinDigits,
+    quotationNumberMinDigits: body.quotationNumberMinDigits,
   });
 
   if (error || !row) {

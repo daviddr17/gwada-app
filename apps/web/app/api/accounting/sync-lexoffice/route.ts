@@ -3,7 +3,7 @@ import {
   assertAccountingApi,
   restaurantIdFromRequest,
 } from "@/lib/accounting/assert-accounting-api";
-import { syncLexofficeSalesDocuments } from "@/lib/accounting/accounting-lexoffice-sync-server";
+import { runAccountingSync } from "@/lib/accounting/accounting-sync-handler";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +11,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     restaurantId?: string;
     kind?: "invoice" | "quotation";
+    force?: boolean;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
   const auth = await assertAccountingApi(restaurantId);
@@ -19,10 +20,12 @@ export async function POST(req: Request) {
   }
 
   const kind = body.kind === "quotation" ? "quotation" : "invoice";
-  const result = await syncLexofficeSalesDocuments(auth.sb, {
+  const result = await runAccountingSync(auth.sb, {
     restaurantId: auth.restaurantId,
     userId: auth.userId,
+    scope: "sales",
     kind,
+    force: body.force === true,
   });
 
   if (result.error) {
@@ -33,5 +36,6 @@ export async function POST(req: Request) {
     imported: result.imported,
     updated: result.updated,
     listed: result.listed,
+    skipped: result.skipped ?? false,
   });
 }

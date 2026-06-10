@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,11 @@ import {
   recipeDraftFromLines,
   type AccountingArticleRecipeDraftLine,
 } from "@/components/accounting/accounting-article-recipe-editor";
+import { resolveAccountingStatusColor } from "@/lib/accounting/accounting-status-labels";
+import {
+  RestaurantPositionColorField,
+  resolvePositionColorInput,
+} from "@/components/settings/restaurant-position-color-field";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import {
   CategoriesManageDrawer,
@@ -35,20 +40,28 @@ import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import {
   deleteAccountingArticle,
+  deleteAccountingDocumentStatus,
   deleteAccountingTaxRate,
   deleteAccountingUnit,
+  fetchAccountingDocumentStatuses,
+  reorderAccountingDocumentStatuses,
   reorderAccountingTaxRates,
   reorderAccountingUnits,
   saveAccountingArticle,
+  saveAccountingDocumentStatus,
   saveAccountingTaxRate,
   saveAccountingUnit,
 } from "@/lib/accounting/accounting-api";
 import type {
   AccountingArticleRecipeLine,
   AccountingArticleRow,
+  AccountingDocumentKind,
+  AccountingDocumentStatusRow,
   AccountingTaxRateRow,
   AccountingUnitRow,
 } from "@/lib/types/accounting";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
 import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import {
   accountingFormControlClassName,
@@ -62,16 +75,50 @@ type CatalogState = {
   articles: AccountingArticleRow[];
 };
 
+const STATUS_KIND_OPTIONS: { value: AccountingDocumentKind; label: string }[] =
+  [
+    { value: "invoice", label: "Rechnungen" },
+    { value: "quotation", label: "Angebote" },
+    { value: "voucher", label: "Belege" },
+  ];
+
+const STATUS_DRAWER_LABELS = {
+  titleCreate: "Neuer Status",
+  titleEdit: "Status bearbeiten",
+  description:
+    "Anzeigename und Sichtbarkeit — bestehende Belege behalten den Status.",
+  nameLabel: "Bezeichnung",
+  namePlaceholder: "z. B. Offen",
+  activeLabel: "Aktiv",
+  activeDescription:
+    "Inaktive Status stehen bei neuen Dokumenten nicht zur Auswahl.",
+  deleteLabel: "Status löschen",
+  deleteConfirmTitle: "Status wirklich löschen?",
+};
+
+function statusDeleteErrorMessage(code: string) {
+  if (code === "system_status_not_deletable") {
+    return "Standard-Status kann nicht gelöscht werden — stattdessen deaktivieren.";
+  }
+  if (code === "status_in_use") {
+    return "Status wird noch verwendet — stattdessen deaktivieren.";
+  }
+  return "Löschen fehlgeschlagen.";
+}
+
 export function AccountingCatalogToolbar({
   restaurantId,
   catalog,
   onRefresh,
   disabled,
+  defaultStatusKind = "invoice",
 }: {
   restaurantId: string;
   catalog: CatalogState;
   onRefresh: () => void;
   disabled?: boolean;
+  /** Vorauswahl im Status-Drawer (z. B. „voucher“ auf Belege-Seite) */
+  defaultStatusKind?: AccountingDocumentKind;
 }) {
   const ingredientsStorage = useIngredientsStorage();
   const stockUnits = useInventoryTaxonomyStorage(INVENTORY_UNITS_KEY, SEED_UNITS);
@@ -88,6 +135,53 @@ export function AccountingCatalogToolbar({
     null,
   );
   const [articleFormOpen, setArticleFormOpen] = useState(false);
+
+  const [statusManageOpen, setStatusManageOpen] = useState(false);
+  const [statusFormOpen, setStatusFormOpen] = useState(false);
+  const [statusEdit, setStatusEdit] = useState<AccountingDocumentStatusRow | null>(
+    null,
+  );
+  const [statusDocumentKind, setStatusDocumentKind] =
+    useState<AccountingDocumentKind>(defaultStatusKind);
+  const [documentStatuses, setDocumentStatuses] = useState<
+    AccountingDocumentStatusRow[]
+  >([]);
+
+  useEffect(() => {
+    setStatusDocumentKind(defaultStatusKind);
+  }, [defaultStatusKind]);
+
+  const loadDocumentStatuses = useCallback(async () => {
+    try {
+      const rows = await fetchAccountingDocumentStatuses(
+        restaurantId,
+        statusDocumentKind,
+        { includeArchived: true },
+      );
+      setDocumentStatuses(rows);
+    } catch {
+      toast.error("Status konnten nicht geladen werden.");
+    }
+  }, [restaurantId, statusDocumentKind]);
+
+  useEffect(() => {
+    if (!statusManageOpen) return;
+    void loadDocumentStatuses();
+  }, [statusManageOpen, loadDocumentStatuses]);
+
+  const statusItems = useMemo<ManageableListItem[]>(
+    () =>
+      documentStatuses.map((s) => ({
+        id: s.id,
+        name: s.label,
+        active: !s.archived,
+      })),
+    [documentStatuses],
+  );
+
+  const statusKindLabel =
+    STATUS_KIND_OPTIONS.find((o) => o.value === statusDocumentKind)?.label ??
+    "Rechnungen";
 
   const taxItems = useMemo<ManageableListItem[]>(
     () =>
@@ -151,6 +245,16 @@ export function AccountingCatalogToolbar({
           onClick={() => setArticleManageOpen(true)}
         >
           Artikel
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="rounded-full"
+          disabled={disabled}
+          onClick={() => setStatusManageOpen(true)}
+        >
+          Status
         </Button>
       </div>
 
@@ -346,6 +450,283 @@ export function AccountingCatalogToolbar({
             : undefined
         }
       />
+
+      <CategoriesManageDrawer
+        open={statusManageOpen}
+        onOpenChange={setStatusManageOpen}
+        categories={statusItems}
+        copy={{
+          title: "Status",
+          description: `Bezeichnungen für ${statusKindLabel} — Reihenfolge per Ziehen.`,
+          newButton: "Neuer Status",
+        }}
+        afterDescription={
+          <div className="space-y-2">
+            <Label htmlFor="accounting-status-kind">Bereich</Label>
+            <SearchableSelect
+              id="accounting-status-kind"
+              value={statusDocumentKind}
+              onValueChange={(v) =>
+                setStatusDocumentKind(v as AccountingDocumentKind)
+              }
+              options={STATUS_KIND_OPTIONS}
+              className={appSelectTriggerAccentCn("h-10 w-full")}
+              placeholder="Bereich wählen"
+              searchPlaceholder="Bereich …"
+              aria-label="Bereich für Status"
+            />
+          </div>
+        }
+        rowLeading={(row) => {
+          const status = documentStatuses.find((s) => s.id === row.id);
+          if (!status) return null;
+          return (
+            <TagColorStripe
+              color={resolveAccountingStatusColor(status)}
+              className="mr-0"
+            />
+          );
+        }}
+        onReorder={async (next) => {
+          try {
+            for (const item of next) {
+              const prev = documentStatuses.find((s) => s.id === item.id);
+              if (!prev) continue;
+              const nextArchived = item.active === false;
+              if (prev.archived !== nextArchived) {
+                await saveAccountingDocumentStatus(
+                  restaurantId,
+                  statusDocumentKind,
+                  {
+                    id: prev.id,
+                    label: prev.label,
+                    color_hex: prev.color_hex,
+                    archived: nextArchived,
+                  },
+                );
+              }
+            }
+            await reorderAccountingDocumentStatuses(
+              restaurantId,
+              statusDocumentKind,
+              next.map((n) => n.id),
+            );
+            await loadDocumentStatuses();
+            onRefresh();
+          } catch {
+            toast.error("Status konnte nicht aktualisiert werden.");
+          }
+        }}
+        onEdit={(row) => {
+          const status = documentStatuses.find((s) => s.id === row.id);
+          if (status) {
+            setStatusEdit(status);
+            setStatusFormOpen(true);
+          }
+        }}
+        onNew={() => {
+          setStatusEdit(null);
+          setStatusFormOpen(true);
+        }}
+      />
+
+      <StatusFormDrawer
+        open={statusFormOpen}
+        onOpenChange={setStatusFormOpen}
+        initial={statusEdit}
+        fallbackSeed={statusEdit?.code}
+        onSave={async (payload) => {
+          try {
+            await saveAccountingDocumentStatus(restaurantId, statusDocumentKind, {
+              id: payload.id,
+              label: payload.label,
+              color_hex: payload.color_hex,
+              archived: payload.id ? payload.archived : false,
+            });
+            await loadDocumentStatuses();
+            onRefresh();
+            toast.success(payload.id ? "Status gespeichert." : "Status angelegt.");
+          } catch {
+            toast.error("Status konnte nicht gespeichert werden.");
+          }
+        }}
+        onDelete={
+          statusEdit && !statusEdit.is_system
+            ? async (id) => {
+                try {
+                  await deleteAccountingDocumentStatus(
+                    restaurantId,
+                    statusDocumentKind,
+                    id,
+                  );
+                  await loadDocumentStatuses();
+                  onRefresh();
+                  toast.success("Status gelöscht.");
+                } catch (e) {
+                  toast.error(
+                    statusDeleteErrorMessage(
+                      e instanceof Error ? e.message : "delete_failed",
+                    ),
+                  );
+                }
+              }
+            : undefined
+        }
+      />
+    </>
+  );
+}
+
+function StatusFormDrawer({
+  open,
+  onOpenChange,
+  initial,
+  fallbackSeed,
+  onSave,
+  onDelete,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initial: AccountingDocumentStatusRow | null;
+  fallbackSeed?: string;
+  onSave: (payload: {
+    id?: string;
+    label: string;
+    color_hex: string;
+    archived?: boolean;
+  }) => Promise<void>;
+  onDelete?: (id: string) => void | Promise<void>;
+}) {
+  const [label, setLabel] = useState("");
+  const [colorHex, setColorHex] = useState("#64748b");
+  const [active, setActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLabel(initial?.label ?? "");
+    setColorHex(initial?.color_hex ?? "#64748b");
+    setActive(!initial?.archived);
+  }, [open, initial]);
+
+  const canDelete = Boolean(initial && onDelete);
+
+  const handleConfirmDelete = async () => {
+    if (!initial || !onDelete) return;
+    setDeleting(true);
+    try {
+      await onDelete(initial.id);
+      setConfirmDeleteOpen(false);
+      onOpenChange(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
+        <DrawerContent className="mx-auto max-w-lg rounded-t-[1.75rem]">
+          <DrawerHeader>
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 text-left">
+                <DrawerTitle>
+                  {initial ? STATUS_DRAWER_LABELS.titleEdit : STATUS_DRAWER_LABELS.titleCreate}
+                </DrawerTitle>
+                <DrawerDescription>{STATUS_DRAWER_LABELS.description}</DrawerDescription>
+              </div>
+              {canDelete ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Status löschen"
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
+            </div>
+          </DrawerHeader>
+          <form
+            className="space-y-4 px-4 pb-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void (async () => {
+                setSaving(true);
+                try {
+                  await onSave({
+                    id: initial?.id,
+                    label: label.trim(),
+                    color_hex: resolvePositionColorInput(
+                      colorHex,
+                      fallbackSeed ?? (label.trim() || "status"),
+                    ),
+                    archived: !active,
+                  });
+                  onOpenChange(false);
+                } finally {
+                  setSaving(false);
+                }
+              })();
+            }}
+          >
+            <div className="space-y-2">
+              <Label>Bezeichnung</Label>
+              <Input
+                className={accountingFormControlClassName}
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="z. B. Offen"
+                required
+              />
+            </div>
+            <RestaurantPositionColorField
+              idPrefix="accounting-status"
+              color={colorHex}
+              onColorChange={setColorHex}
+              fallbackSeed={fallbackSeed ?? (label.trim() || "status")}
+            />
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label>Aktiv</Label>
+                <p className="text-xs text-muted-foreground">
+                  Inaktive Status stehen bei neuen Dokumenten nicht zur Auswahl.
+                </p>
+              </div>
+              <Switch checked={active} onCheckedChange={setActive} />
+            </div>
+            <DrawerFormFooter
+              onCancel={() => onOpenChange(false)}
+              submitLabel="Speichern"
+              submitPending={saving}
+            />
+          </form>
+        </DrawerContent>
+      </Drawer>
+
+      {canDelete ? (
+        <ConfirmDialog
+          open={confirmDeleteOpen}
+          onOpenChange={setConfirmDeleteOpen}
+          title="Status wirklich löschen?"
+          description={
+            initial ? (
+              <>
+                „<span className="font-medium text-foreground">{initial.label}</span>“
+                wird dauerhaft entfernt.
+              </>
+            ) : null
+          }
+          confirmLabel="Löschen"
+          destructive
+          confirmDisabled={deleting}
+          onConfirm={() => void handleConfirmDelete()}
+        />
+      ) : null}
     </>
   );
 }

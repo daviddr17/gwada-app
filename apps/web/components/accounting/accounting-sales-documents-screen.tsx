@@ -1,43 +1,65 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingCatalogToolbar } from "@/components/accounting/accounting-catalog-toolbar";
 import { AccountingFilterChips } from "@/components/accounting/accounting-filter-chips";
+import { AccountingListSearch } from "@/components/accounting/accounting-list-search";
+import {
+  AccountingListScreenSkeleton,
+  AccountingListTableSkeleton,
+} from "@/components/accounting/accounting-list-screen-skeleton";
 import { AccountingSalesDocumentSheet } from "@/components/accounting/accounting-sales-document-sheet";
 import { AccountingSalesDocumentDrawer } from "@/components/accounting/accounting-sales-document-drawer";
+import { AccountingTableSortHeader } from "@/components/accounting/accounting-table-sort-header";
+import { AccountingSourceIcon } from "@/components/accounting/accounting-source-icon";
+import { AccountingStatusBadge } from "@/components/accounting/accounting-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListPagination } from "@/components/ui/list-pagination";
 import {
   createAccountingInvoice,
   createAccountingQuotation,
   fetchAccountingCatalog,
+  fetchAccountingDocumentStatuses,
   fetchAccountingInvoices,
   fetchAccountingQuotations,
   fetchAccountingSettings,
   sendSalesDocument,
-  syncLexofficeSalesDocuments,
+  syncAccountingDocuments,
   updateAccountingInvoice,
   updateAccountingQuotation,
 } from "@/lib/accounting/accounting-api";
-import {
-  parseAccountingPlatformFilter,
-  type AccountingPlatformFilter,
-} from "@/lib/constants/accounting-platforms";
+import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
+import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useLexofficeContactIntegration } from "@/lib/hooks/use-lexoffice-contact-integration";
+import {
+  markAccountingLexofficeAutoSync,
+  shouldRunAccountingLexofficeAutoSync,
+} from "@/lib/hooks/use-accounting-lexoffice-auto-sync";
+import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
+import {
+  accountingSourceDisplayLabel,
+  isExternalAccountingSource,
+  isReadOnlyAccountingDocument,
+} from "@/lib/accounting/accounting-source";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type {
   AccountingArticleRow,
+  AccountingDocumentStatusRow,
   AccountingInvoiceRow,
   AccountingQuotationRow,
   AccountingTaxRateRow,
   AccountingUnitRow,
 } from "@/lib/types/accounting";
+import {
+  canCreateAccountingCorrection,
+  isAccountingCorrectionVariant,
+} from "@/lib/accounting/accounting-corrections";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -45,24 +67,6 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 
 type SalesDocumentRow = AccountingInvoiceRow | AccountingQuotationRow;
-
-const INVOICE_STATUS_LABELS: Record<string, string> = {
-  draft: "Entwurf",
-  open: "Offen",
-  sent: "Verschickt",
-  paid: "Bezahlt",
-  voided: "Storniert",
-  overdue: "Überfällig",
-};
-
-const QUOTATION_STATUS_LABELS: Record<string, string> = {
-  draft: "Entwurf",
-  open: "Offen",
-  sent: "Verschickt",
-  accepted: "Angenommen",
-  rejected: "Abgelehnt",
-  voided: "Storniert",
-};
 
 function formatMoney(amount: number, currency: string) {
   return new Intl.NumberFormat("de-DE", {
@@ -77,7 +81,6 @@ export function AccountingSalesDocumentsScreen({
   documentKind: "invoice" | "quotation";
 }) {
   const isInvoice = documentKind === "invoice";
-  const statusLabels = isInvoice ? INVOICE_STATUS_LABELS : QUOTATION_STATUS_LABELS;
   const addLabel = isInvoice ? "Neue Rechnung" : "Neues Angebot";
   const emptyLabel = isInvoice
     ? "Noch keine Rechnungen — oben anlegen."
@@ -87,26 +90,42 @@ export function AccountingSalesDocumentsScreen({
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canManage = has("accounting.manage");
-  const lexoffice = useLexofficeContactIntegration(restaurantId);
+  const { connector } = useAccountingConnector(restaurantId);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
-
-  const platformFilter = parseAccountingPlatformFilter(
-    searchParams.get("platform"),
-  );
+  const {
+    page,
+    search,
+    platformFilter,
+    sortKey,
+    sortDir,
+    setSearchQuery,
+    setPage,
+    setPlatformFilter,
+    syncPageFromServer,
+    toggleSort,
+  } = useAccountingListUrl("sales");
 
   const [rows, setRows] = useState<SalesDocumentRow[]>([]);
+  const [listMeta, setListMeta] = useState({
+    page: 1,
+    totalPages: 1,
+    totalCount: 0,
+  });
   const [taxRates, setTaxRates] = useState<AccountingTaxRateRow[]>([]);
   const [units, setUnits] = useState<AccountingUnitRow[]>([]);
   const [articles, setArticles] = useState<AccountingArticleRow[]>([]);
+  const [statuses, setStatuses] = useState<AccountingDocumentStatusRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editRow, setEditRow] = useState<SalesDocumentRow | null>(null);
+  const [correctionOf, setCorrectionOf] = useState<SalesDocumentRow | null>(
+    null,
+  );
   const [sheetRow, setSheetRow] = useState<SalesDocumentRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const autoSyncDone = useRef(false);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -116,16 +135,35 @@ export function AccountingSalesDocumentsScreen({
     try {
       const source =
         platformFilter === "all" ? undefined : platformFilter;
-      const [list, catalog] = await Promise.all([
+      const listParams = {
+        source,
+        search,
+        page,
+        ...(isDefaultSalesDocumentSort(sortKey, sortDir)
+          ? {}
+          : { sort: sortKey, sortDir }),
+      };
+      const statusKind = isInvoice ? "invoice" : "quotation";
+      const [list, catalog, statusRows] = await Promise.all([
         isInvoice
-          ? fetchAccountingInvoices(restaurantId, source)
-          : fetchAccountingQuotations(restaurantId, source),
+          ? fetchAccountingInvoices(restaurantId, listParams)
+          : fetchAccountingQuotations(restaurantId, listParams),
         fetchAccountingCatalog(restaurantId),
+        fetchAccountingDocumentStatuses(restaurantId, statusKind, {
+          includeArchived: true,
+        }),
       ]);
-      setRows(list);
+      setRows(list.items);
+      setListMeta({
+        page: list.page,
+        totalPages: list.totalPages,
+        totalCount: list.totalCount,
+      });
+      syncPageFromServer(list.page);
       setTaxRates(catalog.taxRates);
       setUnits(catalog.units);
       setArticles(catalog.articles);
+      setStatuses(statusRows);
     } catch {
       toast.error(
         isInvoice
@@ -135,55 +173,76 @@ export function AccountingSalesDocumentsScreen({
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, platformFilter, isInvoice]);
+  }, [restaurantId, platformFilter, search, page, sortKey, sortDir, isInvoice, syncPageFromServer]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const runLexofficeSync = useCallback(
-    async (silent = false) => {
-      if (!restaurantId || !lexoffice.connected) return;
+  const runConnectorSync = useCallback(
+    async (opts?: { silent?: boolean; force?: boolean }) => {
+      if (
+        !restaurantId ||
+        !connector.connected ||
+        !connector.capabilities.canSyncSales
+      ) {
+        return;
+      }
       setSyncing(true);
       try {
-        const result = await syncLexofficeSalesDocuments(restaurantId, documentKind);
-        if (!silent) {
+        const result = await syncAccountingDocuments(restaurantId, {
+          scope: "sales",
+          kind: documentKind,
+          force: opts?.force === true,
+        });
+        if (result.skipped) {
+          return;
+        }
+        if (!opts?.silent) {
+          const label = connector.displayName;
           if (result.listed === 0) {
-            toast.message("Lexware: Keine Dokumente gefunden.");
+            toast.message(`${label}: Keine Dokumente gefunden.`);
           } else {
             toast.success(
-              `Lexware: ${result.imported} neu, ${result.updated} aktualisiert (${result.listed} in Lexware).`,
+              `${label}: ${result.imported} neu, ${result.updated} aktualisiert (${result.listed} in ${label}).`,
             );
           }
         }
         await load();
       } catch (e) {
-        if (!silent) {
-          toast.error(
-            e instanceof Error ? e.message : "Lexware-Abruf fehlgeschlagen.",
-          );
-        }
+        toast.error(
+          e instanceof Error
+            ? e.message
+            : `${connector.displayName}-Abruf fehlgeschlagen.`,
+        );
       } finally {
         setSyncing(false);
       }
     },
-    [restaurantId, lexoffice.connected, documentKind, load],
+    [restaurantId, connector, documentKind, load],
   );
 
   useEffect(() => {
-    if (!restaurantId || !lexoffice.connected || autoSyncDone.current) return;
-    autoSyncDone.current = true;
+    if (
+      !restaurantId ||
+      !connector.connected ||
+      !connector.capabilities.canSyncSales
+    ) {
+      return;
+    }
+    const scope = documentKind === "invoice" ? "invoices" : "quotations";
+    if (!shouldRunAccountingLexofficeAutoSync(restaurantId, scope)) return;
+
     void (async () => {
       try {
-        const { settings } = await fetchAccountingSettings(restaurantId);
-        if (settings.auto_sync_lexoffice) {
-          await runLexofficeSync(true);
-        }
+        if (!connector.autoSyncEnabled) return;
+        markAccountingLexofficeAutoSync(restaurantId, scope);
+        await runConnectorSync({ silent: true });
       } catch {
-        /* ignore background sync errors */
+        toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
       }
     })();
-  }, [restaurantId, lexoffice.connected, runLexofficeSync]);
+  }, [restaurantId, connector, documentKind, runConnectorSync]);
 
   useEffect(() => {
     if (searchParams.get("new") === "1" && canManage) {
@@ -198,26 +257,44 @@ export function AccountingSalesDocumentsScreen({
     }
   }, [searchParams, canManage, router, pathname]);
 
-  const selectPlatform = (filter: AccountingPlatformFilter) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (filter === "all") next.delete("platform");
-    else next.set("platform", filter);
-    router.replace(next.toString() ? `${pathname}?${next}` : pathname, {
-      scroll: false,
-    });
-  };
+  const selectPlatform = setPlatformFilter;
 
-  const rowCount = useMemo(() => rows.length, [rows]);
+  const searchEmptyLabel = isInvoice
+    ? "Keine Rechnungen für diese Suche."
+    : "Keine Angebote für diese Suche.";
+
+  const listCountLabel =
+    countLabel + (listMeta.totalCount === 1 ? "" : isInvoice ? "en" : "e");
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
+  const showInitialSkeleton = loading && showSkeleton && rows.length === 0;
+
   return (
     <div className="space-y-4">
+      {showInitialSkeleton ? (
+        <AccountingListScreenSkeleton
+          columnCount={7}
+          minTableWidth="640px"
+          ariaLabel={
+            isInvoice ? "Rechnungen werden geladen" : "Angebote werden geladen"
+          }
+          showCatalogToolbar={canManage}
+          showLexwareSync={
+            canManage &&
+            connector.connected &&
+            connector.capabilities.canSyncSales
+          }
+          showAddButton={canManage}
+        />
+      ) : (
+        <>
       {canManage ? (
         <AccountingCatalogToolbar
           restaurantId={restaurantId}
           catalog={{ taxRates, units, articles }}
+          defaultStatusKind={isInvoice ? "invoice" : "quotation"}
           onRefresh={() => void load()}
           disabled={loading}
         />
@@ -226,11 +303,19 @@ export function AccountingSalesDocumentsScreen({
       <AccountingFilterChips
         filter={platformFilter}
         onFilterChange={selectPlatform}
-        lexofficeConnected={lexoffice.connected}
+        externalConnectorConnected={connector.connected}
         disabled={loading}
       />
 
-      {canManage && lexoffice.connected ? (
+      <AccountingListSearch
+        value={search}
+        onDebouncedChange={setSearchQuery}
+        placeholder="Nummer oder Empfänger …"
+        disabled={loading}
+        hint="Suche in Belegnummer und Empfängername."
+      />
+
+      {canManage && connector.connected && connector.capabilities.canSyncSales ? (
         <div className="flex justify-end">
           <Button
             type="button"
@@ -238,10 +323,10 @@ export function AccountingSalesDocumentsScreen({
             size="sm"
             className="rounded-full border-border/60"
             disabled={loading || syncing}
-            onClick={() => void runLexofficeSync()}
+            onClick={() => void runConnectorSync({ force: true })}
           >
             <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
-            Aus Lexware abrufen
+            Aus {connector.displayName} abrufen
           </Button>
         </div>
       ) : null}
@@ -253,6 +338,7 @@ export function AccountingSalesDocumentsScreen({
           className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => {
             setEditRow(null);
+            setCorrectionOf(null);
             setDrawerOpen(true);
           }}
         >
@@ -261,23 +347,67 @@ export function AccountingSalesDocumentsScreen({
         </Button>
       ) : null}
 
-      {loading && showSkeleton ? (
-        <Card className="border-border/50 shadow-card">
-          <CardContent className="min-h-40 animate-pulse bg-muted/20" />
-        </Card>
+      {loading && !showSkeleton ? (
+        <div aria-busy className="min-h-[24rem] rounded-xl" />
+      ) : loading && showSkeleton ? (
+        <AccountingListTableSkeleton
+          columnCount={7}
+          minTableWidth="640px"
+          ariaLabel={
+            isInvoice ? "Rechnungen werden geladen" : "Angebote werden geladen"
+          }
+        />
       ) : (
         <Card className="border-border/50 py-0 shadow-card">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
-                  <tr className="border-b border-border/60 bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-2">Nummer</th>
-                    <th className="px-4 py-2">Datum</th>
-                    <th className="px-4 py-2">Empfänger</th>
-                    <th className="px-4 py-2">Betrag</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Quelle</th>
+                  <tr className="border-b border-border/60 bg-muted/40 text-left">
+                    <AccountingTableSortHeader
+                      label=""
+                      ariaLabel="Quelle sortieren"
+                      sortKey="source"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                      className="w-12 px-2"
+                    />
+                    <AccountingTableSortHeader
+                      label="Nummer"
+                      sortKey="voucher_number"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Datum"
+                      sortKey="voucher_date"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Empfänger"
+                      sortKey="recipient"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Betrag"
+                      sortKey="amount"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Status"
+                      sortKey="status"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
                     <th className="px-4 py-2" />
                   </tr>
                 </thead>
@@ -288,7 +418,7 @@ export function AccountingSalesDocumentsScreen({
                         colSpan={7}
                         className="px-4 py-8 text-center text-muted-foreground"
                       >
-                        {emptyLabel}
+                        {search.trim() ? searchEmptyLabel : emptyLabel}
                       </td>
                     </tr>
                   ) : (
@@ -304,8 +434,21 @@ export function AccountingSalesDocumentsScreen({
                             setSheetOpen(true);
                           }}
                         >
+                          <td className="w-12 px-2 py-3">
+                            <AccountingSourceIcon source={row.source} />
+                          </td>
                           <td className="px-4 py-3 font-medium">
-                            {row.voucher_number ?? "—"}
+                            <span className="inline-flex flex-wrap items-center gap-1.5">
+                              {row.voucher_number ?? "—"}
+                              {isAccountingCorrectionVariant(
+                                row.document_variant,
+                              ) ||
+                              row.external_document_type === "credit_note" ? (
+                                <Badge variant="secondary" className="text-xs">
+                                  Korrektur
+                                </Badge>
+                              ) : null}
+                            </span>
                           </td>
                           <td className="px-4 py-3 tabular-nums">
                             {new Date(row.voucher_date).toLocaleDateString(
@@ -320,18 +463,16 @@ export function AccountingSalesDocumentsScreen({
                             )}
                           </td>
                           <td className="px-4 py-3">
-                            <Badge variant="outline">
-                              {statusLabels[row.status] ?? row.status}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            {row.source === "lexoffice" ? "Lexware" : "Gwada"}
+                            <AccountingStatusBadge
+                              statusCode={row.status}
+                              statuses={statuses}
+                            />
                           </td>
                           <td
                             className="px-4 py-3 text-right"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {row.source === "lexoffice" &&
+                            {isExternalAccountingSource(row.source) &&
                             row.external_edit_url ? (
                               <Button
                                 type="button"
@@ -346,7 +487,7 @@ export function AccountingSalesDocumentsScreen({
                                 }
                               >
                                 <ExternalLink className="size-4" />
-                                In Lexware
+                                In {accountingSourceDisplayLabel(row.source)}
                               </Button>
                             ) : (
                               <Button
@@ -369,14 +510,22 @@ export function AccountingSalesDocumentsScreen({
                 </tbody>
               </table>
             </div>
-            {rowCount > 0 ? (
-              <p className="border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
-                {rowCount} {countLabel}
-                {rowCount === 1 ? "" : isInvoice ? "en" : "e"}
-              </p>
-            ) : null}
+            <ListPagination
+              className="px-4 pb-4"
+              page={listMeta.page}
+              totalPages={listMeta.totalPages}
+              totalCount={listMeta.totalCount}
+              itemLabel={listCountLabel}
+              canPrevious={listMeta.page > 1}
+              canNext={listMeta.page < listMeta.totalPages}
+              busy={loading}
+              onPrevious={() => setPage(listMeta.page - 1)}
+              onNext={() => setPage(listMeta.page + 1)}
+            />
           </CardContent>
         </Card>
+      )}
+        </>
       )}
 
       <AccountingSalesDocumentSheet
@@ -387,24 +536,41 @@ export function AccountingSalesDocumentsScreen({
         row={sheetRow}
         canManage={canManage}
         onEdit={() => {
-          if (!sheetRow || sheetRow.source === "lexoffice") return;
+          if (!sheetRow || isReadOnlyAccountingDocument(sheetRow.source)) return;
           setSheetOpen(false);
           setEditRow(sheetRow);
+          setCorrectionOf(null);
           setDrawerOpen(true);
         }}
+        onCreateCorrection={
+          isInvoice && sheetRow && canCreateAccountingCorrection(sheetRow.document_variant)
+            ? () => {
+                if (!sheetRow) return;
+                setSheetOpen(false);
+                setEditRow(null);
+                setCorrectionOf(sheetRow);
+                setDrawerOpen(true);
+              }
+            : undefined
+        }
         onSent={() => void load()}
       />
 
       <AccountingSalesDocumentDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setCorrectionOf(null);
+        }}
         documentKind={documentKind}
         restaurantId={restaurantId}
         editRow={editRow}
+        correctionOf={correctionOf}
         taxRates={taxRates}
         units={units}
         articles={articles}
-        lexofficeConnected={lexoffice.connected}
+        statuses={statuses}
+        externalConnectorConnected={connector.connected}
         onSaved={() => {
           void load();
         }}

@@ -7,6 +7,7 @@ import {
   createAccountingVoucher,
   listAccountingVouchers,
 } from "@/lib/accounting/accounting-vouchers-server";
+import { parseAccountingListQueryFromUrl } from "@/lib/accounting/accounting-list-query";
 import {
   resolveAccountingVoucherMime,
   validateAccountingVoucherFile,
@@ -31,9 +32,18 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const source = url.searchParams.get("source");
-  const rows = await listAccountingVouchers(auth.sb, auth.restaurantId, source);
-  return NextResponse.json({ vouchers: rows });
+  const listQuery = parseAccountingListQueryFromUrl(url);
+  if (url.searchParams.get("source")) {
+    listQuery.source = url.searchParams.get("source");
+  }
+  const result = await listAccountingVouchers(auth.sb, auth.restaurantId, listQuery);
+  return NextResponse.json({
+    vouchers: result.items,
+    page: result.page,
+    pageSize: result.pageSize,
+    totalCount: result.totalCount,
+    totalPages: result.totalPages,
+  });
 }
 
 export async function POST(req: Request) {

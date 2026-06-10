@@ -68,7 +68,7 @@ export function DrawerFormFooter({
   className,
   children,
 }: DrawerFormFooterProps) {
-  const saveLabel = submitPending ? "Speichern …" : submitLabel;
+  const saveLabel = submitPending ? `${submitLabel} …` : submitLabel;
   const cancelProps = {
     type: "button" as const,
     variant: "outline" as const,

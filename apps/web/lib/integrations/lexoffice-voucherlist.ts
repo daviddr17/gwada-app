@@ -1,6 +1,17 @@
 import "server-only";
 
-import { LEXOFFICE_API_BASE } from "@/lib/integrations/lexoffice-api";
+import {
+  fetchLexofficeJson,
+  LEXOFFICE_API_BASE,
+} from "@/lib/integrations/lexoffice-api";
+import {
+  getLexofficeCache,
+  invalidateLexofficeCachePrefix,
+  lexofficeCacheKey,
+  LEXOFFICE_DETAIL_CACHE_MS,
+  LEXOFFICE_LIST_CACHE_MS,
+  setLexofficeCache,
+} from "@/lib/integrations/lexoffice-api-cache";
 import { fetchRestaurantLexofficeApiKey } from "@/lib/supabase/restaurant-lexoffice-integration-db";
 
 export type LexofficeVoucherListItem = {
@@ -9,6 +20,7 @@ export type LexofficeVoucherListItem = {
   voucherStatus: string;
   voucherNumber: string | null;
   voucherDate: string;
+  dueDate?: string | null;
   contactId: string | null;
   contactName: string | null;
   totalAmount: number | null;
@@ -24,7 +36,9 @@ type VoucherListResponse = {
 
 /** Lexware voucherlist filter types per sales document kind (Invoicing API, not bookkeeping-only). */
 function lexofficeVoucherListTypes(kind: "invoice" | "quotation"): string {
-  return kind === "invoice" ? "invoice,downpaymentinvoice" : "quotation";
+  return kind === "invoice"
+    ? "invoice,downpaymentinvoice,creditnote"
+    : "quotation";
 }
 
 function salesDetailApiPath(
@@ -33,6 +47,7 @@ function salesDetailApiPath(
   lexofficeVoucherType?: string,
 ): string {
   const t = (lexofficeVoucherType ?? "").toLowerCase();
+  if (t === "creditnote") return `/v1/credit-notes/${externalId}`;
   if (t === "quotation") return `/v1/quotations/${externalId}`;
   if (t === "invoice" || t === "downpaymentinvoice") {
     return `/v1/invoices/${externalId}`;
@@ -52,29 +67,11 @@ async function lexofficeFetch<T>(
     return { ok: false, error: "Lexware ist nicht verbunden." };
   }
 
-  let res: Response;
-  try {
-    res = await fetch(`${LEXOFFICE_API_BASE}${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        ...(init?.headers ?? {}),
-      },
-      cache: "no-store",
-    });
-  } catch {
-    return { ok: false, error: "Lexware API nicht erreichbar." };
+  const result = await fetchLexofficeJson<T>(apiKey, path, init);
+  if (!result.ok) {
+    return { ok: false, error: result.error };
   }
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    return { ok: false, error: text || `Lexware API (${res.status})` };
-  }
-
-  const data = (await res.json()) as T;
-  return { ok: true, data };
+  return { ok: true, data: result.data };
 }
 
 export async function fetchLexofficeVoucherListPage(
@@ -84,6 +81,7 @@ export async function fetchLexofficeVoucherListPage(
     page?: number;
     size?: number;
   },
+  opts?: { skipCache?: boolean },
 ): Promise<
   | { ok: true; items: LexofficeVoucherListItem[]; totalPages: number }
   | { ok: false; error: string }
@@ -96,23 +94,35 @@ export async function fetchLexofficeVoucherListPage(
     page: String(page),
     size: String(size),
   });
+  const path = `/v1/voucherlist?${qs}`;
+  const cacheKey = lexofficeCacheKey(restaurantId, path);
 
-  const result = await lexofficeFetch<VoucherListResponse>(
-    restaurantId,
-    `/v1/voucherlist?${qs}`,
-  );
+  if (!opts?.skipCache) {
+    const cached = getLexofficeCache<{
+      items: LexofficeVoucherListItem[];
+      totalPages: number;
+    }>(cacheKey);
+    if (cached) {
+      return { ok: true, ...cached };
+    }
+  }
+
+  const result = await lexofficeFetch<VoucherListResponse>(restaurantId, path);
   if (!result.ok) return result;
 
-  return {
-    ok: true,
+  const payload = {
     items: result.data.content ?? [],
     totalPages: Math.max(result.data.totalPages ?? 1, 1),
   };
+  setLexofficeCache(cacheKey, payload, LEXOFFICE_LIST_CACHE_MS);
+
+  return { ok: true, ...payload };
 }
 
 export async function fetchAllLexofficeVoucherList(
   restaurantId: string,
   voucherType: "invoice" | "quotation",
+  opts?: { skipCache?: boolean },
 ): Promise<
   | { ok: true; items: LexofficeVoucherListItem[] }
   | { ok: false; error: string }
@@ -122,10 +132,14 @@ export async function fetchAllLexofficeVoucherList(
   let totalPages = 1;
 
   while (page < totalPages) {
-    const batch = await fetchLexofficeVoucherListPage(restaurantId, {
-      voucherType,
-      page,
-    });
+    const batch = await fetchLexofficeVoucherListPage(
+      restaurantId,
+      {
+        voucherType,
+        page,
+      },
+      opts,
+    );
     if (!batch.ok) return batch;
     all.push(...batch.items);
     totalPages = batch.totalPages;
@@ -142,6 +156,7 @@ const LEXOFFICE_BOOKKEEPING_VOUCHER_TYPES =
 export async function fetchLexofficeBookkeepingVoucherListPage(
   restaurantId: string,
   params: { page?: number; size?: number },
+  opts?: { skipCache?: boolean },
 ): Promise<
   | { ok: true; items: LexofficeVoucherListItem[]; totalPages: number }
   | { ok: false; error: string }
@@ -154,22 +169,34 @@ export async function fetchLexofficeBookkeepingVoucherListPage(
     page: String(page),
     size: String(size),
   });
+  const path = `/v1/voucherlist?${qs}`;
+  const cacheKey = lexofficeCacheKey(restaurantId, path);
 
-  const result = await lexofficeFetch<VoucherListResponse>(
-    restaurantId,
-    `/v1/voucherlist?${qs}`,
-  );
+  if (!opts?.skipCache) {
+    const cached = getLexofficeCache<{
+      items: LexofficeVoucherListItem[];
+      totalPages: number;
+    }>(cacheKey);
+    if (cached) {
+      return { ok: true, ...cached };
+    }
+  }
+
+  const result = await lexofficeFetch<VoucherListResponse>(restaurantId, path);
   if (!result.ok) return result;
 
-  return {
-    ok: true,
+  const payload = {
     items: result.data.content ?? [],
     totalPages: Math.max(result.data.totalPages ?? 1, 1),
   };
+  setLexofficeCache(cacheKey, payload, LEXOFFICE_LIST_CACHE_MS);
+
+  return { ok: true, ...payload };
 }
 
 export async function fetchAllLexofficeBookkeepingVoucherList(
   restaurantId: string,
+  opts?: { skipCache?: boolean },
 ): Promise<
   | { ok: true; items: LexofficeVoucherListItem[] }
   | { ok: false; error: string }
@@ -179,9 +206,11 @@ export async function fetchAllLexofficeBookkeepingVoucherList(
   let totalPages = 1;
 
   while (page < totalPages) {
-    const batch = await fetchLexofficeBookkeepingVoucherListPage(restaurantId, {
-      page,
-    });
+    const batch = await fetchLexofficeBookkeepingVoucherListPage(
+      restaurantId,
+      { page },
+      opts,
+    );
     if (!batch.ok) return batch;
     all.push(...batch.items);
     totalPages = batch.totalPages;
@@ -226,13 +255,25 @@ export async function fetchLexofficeSalesDetail(
   kind: "invoice" | "quotation",
   externalId: string,
   lexofficeVoucherType?: string,
+  opts?: { skipCache?: boolean },
 ): Promise<
   | { ok: true; detail: LexofficeSalesDetail }
   | { ok: false; error: string }
 > {
   const path = salesDetailApiPath(kind, externalId, lexofficeVoucherType);
+  const cacheKey = lexofficeCacheKey(restaurantId, path);
+
+  if (!opts?.skipCache) {
+    const cached = getLexofficeCache<LexofficeSalesDetail>(cacheKey);
+    if (cached) {
+      return { ok: true, detail: cached };
+    }
+  }
+
   const result = await lexofficeFetch<LexofficeSalesDetail>(restaurantId, path);
   if (!result.ok) return result;
+
+  setLexofficeCache(cacheKey, result.data, LEXOFFICE_DETAIL_CACHE_MS);
   return { ok: true, detail: result.data };
 }
 

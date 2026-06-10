@@ -39,12 +39,25 @@ export type AccountingDocumentDesign = {
   layoutBlocks: AccountingLayoutBlock[];
 };
 
+import type { AccountingConnectorSettingsMap } from "@/lib/accounting/accounting-connector-settings";
+
 export type AccountingSettingsRow = {
   restaurant_id: string;
   document_format: AccountingDocumentFormat;
+  connector_settings: AccountingConnectorSettingsMap;
+  /** Abgeleitet aus connector_settings.lexoffice — API-Kompatibilität. */
   auto_sync_lexoffice: boolean;
   deduct_inventory_on_invoice: boolean;
+  reverse_inventory_on_invoice_correction: boolean;
   document_design: AccountingDocumentDesign;
+  invoice_number_prefix: string;
+  quotation_number_prefix: string;
+  invoice_correction_number_prefix: string;
+  invoice_number_include_year: boolean;
+  quotation_number_include_year: boolean;
+  invoice_number_min_digits: number;
+  quotation_number_min_digits: number;
+  /** Abgeleitet aus connector_settings.lexoffice.lastSync */
   last_lexoffice_invoices_sync_at: string | null;
   last_lexoffice_quotations_sync_at: string | null;
   last_lexoffice_vouchers_sync_at: string | null;
@@ -56,6 +69,15 @@ export const DEFAULT_ACCOUNTING_DOCUMENT_DESIGN: AccountingDocumentDesign = {
   fontFamily: "helvetica",
   layoutBlocks: [],
 };
+
+export {
+  DEFAULT_INVOICE_NUMBER_PREFIX,
+  DEFAULT_QUOTATION_NUMBER_PREFIX,
+  exampleAccountingDocumentNumber,
+  formatAccountingDocumentNumber,
+  numberingSettingsFromRow,
+  type AccountingDocumentNumberingSettings,
+} from "@/lib/accounting/accounting-document-numbering";
 
 export const ACCOUNTING_DOCUMENT_FONT_OPTIONS: {
   value: AccountingDocumentFontFamily;

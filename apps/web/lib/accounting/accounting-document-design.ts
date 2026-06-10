@@ -9,6 +9,10 @@ import {
 import { fetchRestaurantStammdatenFromDb } from "@/lib/supabase/restaurant-stammdaten-db";
 import { RESTAURANT_PROFILE_IMAGES_BUCKET } from "@/lib/restaurant/restaurant-profile-image";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  legacyLexofficeFieldsFromConnectorSettings,
+  parseConnectorSettings,
+} from "@/lib/accounting/accounting-connector-settings";
 
 export type AccountingCompanyBlock = {
   name: string;
@@ -155,23 +159,62 @@ export function mergeAccountingSettingsRow(
   restaurantId: string,
 ) {
   if (!data) {
+    const connector_settings = parseConnectorSettings(null);
+    const legacy = legacyLexofficeFieldsFromConnectorSettings(connector_settings);
     return {
       restaurant_id: restaurantId,
       document_format: "pdf" as const,
-      auto_sync_lexoffice: true,
+      connector_settings,
+      ...legacy,
       deduct_inventory_on_invoice: false,
+      reverse_inventory_on_invoice_correction: false,
       document_design: parseAccountingDocumentDesign(null),
-      last_lexoffice_invoices_sync_at: null,
-      last_lexoffice_quotations_sync_at: null,
-      last_lexoffice_vouchers_sync_at: null,
+      invoice_number_prefix: "RE",
+      quotation_number_prefix: "AN",
+      invoice_correction_number_prefix: "KO",
+      invoice_number_include_year: true,
+      quotation_number_include_year: true,
+      invoice_number_min_digits: 4,
+      quotation_number_min_digits: 4,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
   }
+  const connector_settings = parseConnectorSettings(data.connector_settings, {
+    auto_sync_lexoffice: data.auto_sync_lexoffice as boolean | undefined,
+    last_lexoffice_invoices_sync_at:
+      (data.last_lexoffice_invoices_sync_at as string | null | undefined) ?? null,
+    last_lexoffice_quotations_sync_at:
+      (data.last_lexoffice_quotations_sync_at as string | null | undefined) ??
+      null,
+    last_lexoffice_vouchers_sync_at:
+      (data.last_lexoffice_vouchers_sync_at as string | null | undefined) ?? null,
+  });
+  const legacy = legacyLexofficeFieldsFromConnectorSettings(connector_settings);
   return {
     ...data,
+    connector_settings,
+    ...legacy,
     deduct_inventory_on_invoice:
       (data.deduct_inventory_on_invoice as boolean | undefined) ?? false,
+    reverse_inventory_on_invoice_correction:
+      (data.reverse_inventory_on_invoice_correction as boolean | undefined) ??
+      false,
+    invoice_number_prefix:
+      (data.invoice_number_prefix as string | undefined)?.trim() || "RE",
+    quotation_number_prefix:
+      (data.quotation_number_prefix as string | undefined)?.trim() || "AN",
+    invoice_correction_number_prefix:
+      (data.invoice_correction_number_prefix as string | undefined)?.trim() ||
+      "KO",
+    invoice_number_include_year:
+      (data.invoice_number_include_year as boolean | undefined) ?? true,
+    quotation_number_include_year:
+      (data.quotation_number_include_year as boolean | undefined) ?? true,
+    invoice_number_min_digits:
+      (data.invoice_number_min_digits as number | undefined) ?? 4,
+    quotation_number_min_digits:
+      (data.quotation_number_min_digits as number | undefined) ?? 4,
     document_design: parseAccountingDocumentDesign(data.document_design),
   };
 }

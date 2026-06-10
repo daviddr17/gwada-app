@@ -1,13 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Upload, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
 import { AccountingFormSection } from "@/components/accounting/accounting-form-section";
+import { AccountingVoucherDocumentPanel } from "@/components/accounting/accounting-voucher-document-panel";
 import { AccountingVoucherItemsEditor, createEmptyVoucherItem } from "@/components/accounting/accounting-voucher-items-editor";
-import { Button } from "@/components/ui/button";
-import { DatePickerField } from "@/components/ui/date-picker";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   Drawer,
@@ -29,24 +27,32 @@ import {
   type ContactOriginallyEmptyFields,
 } from "@/lib/accounting/accounting-contact-recipient";
 import {
+  isExternalAccountingSource,
+  isReadOnlyAccountingDocument,
+} from "@/lib/accounting/accounting-source";
+import { ACCOUNTING_DEFAULT_COUNTRY_CODE } from "@/lib/accounting/accounting-locale";
+import {
   createContactFromAccountingRecipient,
   patchContactFieldsFromAccounting,
 } from "@/lib/accounting/accounting-contact-recipient-api";
+import { accountingVoucherFileUrl } from "@/lib/accounting/accounting-api";
+import {
+  correctionRemarkDefault,
+  isAccountingCorrectionVariant,
+  negateVoucherItems,
+} from "@/lib/accounting/accounting-corrections";
+import { voucherHasAttachment, voucherPreviewMime } from "@/lib/accounting/voucher-display";
 import { computeVoucherTotals } from "@/lib/accounting/compute-voucher-totals";
+import { accountingStatusSelectOptions } from "@/lib/accounting/accounting-status-labels";
 import { unifiedContactOptionLabel } from "@/lib/contacts/unified-contact-row";
 import { useAccountingContacts } from "@/lib/hooks/use-accounting-contacts";
-import {
-  ACCOUNTING_VOUCHER_ALLOWED_LABEL,
-  ACCOUNTING_VOUCHER_FILE_ACCEPT,
-  validateAccountingVoucherFile,
-} from "@/lib/accounting/validate-voucher-file";
 import type {
+  AccountingDocumentStatusRow,
   AccountingRecipientSnapshot,
   AccountingVoucherInput,
   AccountingVoucherItem,
   AccountingVoucherKind,
   AccountingVoucherRow,
-  AccountingVoucherStatus,
 } from "@/lib/types/accounting";
 import {
   accountingFormControlClassName,
@@ -56,6 +62,7 @@ import {
   accountingFormSelectClassName,
 } from "@/lib/ui/accounting-form-styles";
 import { cn } from "@/lib/utils";
+import { DatePickerField } from "@/components/ui/date-picker";
 
 const KIND_OPTIONS: { value: AccountingVoucherKind; label: string }[] = [
   { value: "expense", label: "Ausgabe" },
@@ -64,26 +71,24 @@ const KIND_OPTIONS: { value: AccountingVoucherKind; label: string }[] = [
   { value: "sales", label: "Verkauf" },
 ];
 
-const STATUS_OPTIONS: { value: AccountingVoucherStatus; label: string }[] = [
-  { value: "open", label: "Offen" },
-  { value: "unchecked", label: "Ungeprüft" },
-  { value: "draft", label: "Entwurf" },
-  { value: "paid", label: "Bezahlt" },
-  { value: "voided", label: "Storniert" },
-];
-
 type AccountingVoucherDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   editRow: AccountingVoucherRow | null;
-  lexofficeConnected: boolean;
+  correctionOf?: AccountingVoucherRow | null;
+  statuses: AccountingDocumentStatusRow[];
+  externalConnectorConnected: boolean;
+  lexofficeConnected?: boolean;
   onSaved: () => void;
   onCreate: (
     input: AccountingVoucherInput,
     file: File | null,
   ) => Promise<void>;
-  onUpdate: (id: string, input: Partial<AccountingVoucherInput> & { status?: AccountingVoucherStatus }) => Promise<void>;
+  onUpdate: (
+    id: string,
+    input: Partial<AccountingVoucherInput> & { status?: string },
+  ) => Promise<void>;
 };
 
 export function AccountingVoucherDrawer({
@@ -91,13 +96,25 @@ export function AccountingVoucherDrawer({
   onOpenChange,
   restaurantId,
   editRow,
+  correctionOf = null,
+  statuses,
+  externalConnectorConnected,
   lexofficeConnected,
   onSaved,
   onCreate,
   onUpdate,
 }: AccountingVoucherDrawerProps) {
   const isEdit = Boolean(editRow);
-  const readOnly = editRow?.source === "lexoffice";
+  const connectorConnected =
+    externalConnectorConnected ?? lexofficeConnected ?? false;
+  const readOnly =
+    editRow != null && isReadOnlyAccountingDocument(editRow.source);
+  const isCorrectionCreate = !editRow && Boolean(correctionOf);
+  const forceExternalCorrection =
+    isCorrectionCreate &&
+    correctionOf != null &&
+    isExternalAccountingSource(correctionOf.source) &&
+    connectorConnected;
   const { contacts, reload: reloadContacts } = useAccountingContacts(restaurantId);
 
   const [voucherKind, setVoucherKind] = useState<AccountingVoucherKind>("expense");
@@ -123,114 +140,133 @@ export function AccountingVoucherDrawer({
   const [saveNewContact, setSaveNewContact] = useState(false);
   const [remark, setRemark] = useState("");
   const [taxMode, setTaxMode] = useState<"net" | "gross">("gross");
-  const [status, setStatus] = useState<AccountingVoucherStatus>("open");
+  const [status, setStatus] = useState<string>("open");
   const [items, setItems] = useState<AccountingVoucherItem[]>([
     createEmptyVoucherItem(),
   ]);
   const [syncToLexoffice, setSyncToLexoffice] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [isDragOver, setIsDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragDepthRef = useRef(0);
-
-  const applySelectedFile = useCallback((next: File | null) => {
-    if (!next) {
-      setFile(null);
-      return;
-    }
-    const err = validateAccountingVoucherFile(next);
-    if (err) {
-      toast.error(err);
-      return;
-    }
-    setFile(next);
-  }, []);
-
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragDepthRef.current += 1;
-    if (e.dataTransfer.types.includes("Files")) {
-      setIsDragOver(true);
-    }
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-    if (dragDepthRef.current === 0) {
-      setIsDragOver(false);
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = "copy";
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      dragDepthRef.current = 0;
-      setIsDragOver(false);
-      const dropped = e.dataTransfer.files?.[0];
-      if (dropped) applySelectedFile(dropped);
-    },
-    [applySelectedFile],
-  );
 
   useEffect(() => {
     if (!open) return;
-    setVoucherKind(editRow?.voucher_kind ?? "expense");
-    setVoucherDate(editRow?.voucher_date ?? new Date().toISOString().slice(0, 10));
-    setDueDate(editRow?.due_date ?? null);
-    setVoucherNumber(editRow?.voucher_number ?? "");
-    if (editRow?.contact_id) {
-      setRecipientType("contact");
-      setContactId(editRow.contact_id);
-      setContactRowKey(editRow.contact_id);
-      setLexofficeContactId(null);
-      setRecipient({
-        name: editRow.contact_name ?? "",
-        countryCode: "DE",
-      });
-      setContactOriginallyEmpty(null);
-    } else if (editRow?.contact_name) {
-      setRecipientType("one_time");
-      setContactId(null);
-      setContactRowKey(null);
-      setLexofficeContactId(null);
-      setRecipient({ name: editRow.contact_name, countryCode: "DE" });
-      setContactOriginallyEmpty(originallyEmptyFromRecipientSnapshot({
-        name: editRow.contact_name,
-        countryCode: "DE",
-      }));
-    } else {
-      setRecipientType("contact");
-      setContactId(null);
-      setContactRowKey(null);
-      setLexofficeContactId(null);
-      setRecipient({ name: "", countryCode: "DE" });
-      setContactOriginallyEmpty(null);
+    if (editRow) {
+      setVoucherKind(editRow.voucher_kind);
+      setVoucherDate(editRow.voucher_date);
+      setDueDate(editRow.due_date ?? null);
+      setVoucherNumber(editRow.voucher_number ?? "");
+      if (editRow.contact_id) {
+        setRecipientType("contact");
+        setContactId(editRow.contact_id);
+        setContactRowKey(editRow.contact_id);
+        setLexofficeContactId(null);
+        setRecipient({
+          name: editRow.contact_name ?? "",
+          countryCode: "DE",
+        });
+        setContactOriginallyEmpty(null);
+      } else if (editRow.contact_name) {
+        setRecipientType("one_time");
+        setContactId(null);
+        setContactRowKey(null);
+        setLexofficeContactId(null);
+        setRecipient({ name: editRow.contact_name, countryCode: "DE" });
+        setContactOriginallyEmpty(
+          originallyEmptyFromRecipientSnapshot({
+            name: editRow.contact_name,
+            countryCode: "DE",
+          }),
+        );
+      } else {
+        setRecipientType("contact");
+        setContactId(null);
+        setContactRowKey(null);
+        setLexofficeContactId(null);
+        setRecipient({ name: "", countryCode: "DE" });
+        setContactOriginallyEmpty(null);
+      }
+      setRemark(editRow.remark ?? "");
+      setTaxMode(editRow.tax_mode ?? "gross");
+      setStatus(editRow.status ?? "open");
+      setItems(
+        editRow.voucher_items?.length
+          ? editRow.voucher_items
+          : [createEmptyVoucherItem()],
+      );
+      setSyncToLexoffice(false);
+      setSaveNewContact(false);
+      setFile(null);
+      return;
     }
-    setRemark(editRow?.remark ?? "");
-    setTaxMode(editRow?.tax_mode ?? "gross");
-    setStatus(editRow?.status ?? "open");
-    setItems(
-      editRow?.voucher_items?.length
-        ? editRow.voucher_items
-        : [createEmptyVoucherItem()],
-    );
+    if (correctionOf) {
+      const src = correctionOf;
+      setVoucherKind(src.voucher_kind);
+      setVoucherDate(new Date().toISOString().slice(0, 10));
+      setDueDate(src.due_date ?? null);
+      setVoucherNumber("");
+      if (src.contact_id) {
+        setRecipientType("contact");
+        setContactId(src.contact_id);
+        setContactRowKey(src.contact_id);
+        setLexofficeContactId(null);
+        setRecipient({
+          name: src.contact_name ?? "",
+          countryCode: "DE",
+        });
+        setContactOriginallyEmpty(null);
+      } else if (src.contact_name) {
+        setRecipientType("one_time");
+        setContactId(null);
+        setContactRowKey(null);
+        setLexofficeContactId(null);
+        setRecipient({ name: src.contact_name, countryCode: "DE" });
+        setContactOriginallyEmpty(
+          originallyEmptyFromRecipientSnapshot({
+            name: src.contact_name,
+            countryCode: "DE",
+          }),
+        );
+      } else {
+        setRecipientType("contact");
+        setContactId(null);
+        setContactRowKey(null);
+        setLexofficeContactId(null);
+        setRecipient({ name: "", countryCode: "DE" });
+        setContactOriginallyEmpty(null);
+      }
+      setRemark(correctionRemarkDefault(src.voucher_number));
+      setTaxMode(src.tax_mode ?? "gross");
+      setStatus("open");
+      setItems(
+        src.voucher_items?.length
+          ? negateVoucherItems(src.voucher_items)
+          : [createEmptyVoucherItem()],
+      );
+      setSyncToLexoffice(
+        isExternalAccountingSource(src.source) && connectorConnected,
+      );
+      setSaveNewContact(false);
+      setFile(null);
+      return;
+    }
+    setVoucherKind("expense");
+    setVoucherDate(new Date().toISOString().slice(0, 10));
+    setDueDate(null);
+    setVoucherNumber("");
+    setRecipientType("contact");
+    setContactId(null);
+    setContactRowKey(null);
+    setLexofficeContactId(null);
+    setRecipient({ name: "", countryCode: "DE" });
+    setContactOriginallyEmpty(null);
+    setRemark("");
+    setTaxMode("gross");
+    setStatus("open");
+    setItems([createEmptyVoucherItem()]);
     setSyncToLexoffice(false);
     setSaveNewContact(false);
     setFile(null);
-    dragDepthRef.current = 0;
-    setIsDragOver(false);
-  }, [open, editRow]);
+  }, [open, editRow, correctionOf, connectorConnected]);
 
   useEffect(() => {
     if (!open || !editRow?.contact_id || contacts.length === 0) return;
@@ -252,6 +288,11 @@ export function AccountingVoucherDrawer({
         leadingPlatforms: row.platforms,
       })),
     [contacts],
+  );
+
+  const statusOptions = useMemo(
+    () => accountingStatusSelectOptions(statuses),
+    [statuses],
   );
 
   const selectedContact = useMemo(
@@ -279,6 +320,15 @@ export function AccountingVoucherDrawer({
     [items, taxMode],
   );
 
+  const hasExistingFile = Boolean(editRow && voucherHasAttachment(editRow));
+
+  const showDocumentPanel = !isEdit || hasExistingFile || Boolean(file);
+
+  const documentPreviewUrl =
+    editRow && hasExistingFile
+      ? accountingVoucherFileUrl(restaurantId, editRow.id)
+      : null;
+
   const buildVoucherInput = (
     effectiveContactId: string | null,
     effectiveLexofficeContactId: string | null,
@@ -294,7 +344,13 @@ export function AccountingVoucherDrawer({
     taxMode,
     status,
     voucherItems: items,
-    syncToLexoffice: !isEdit && syncToLexoffice,
+    syncToLexoffice: !isEdit && (syncToLexoffice || forceExternalCorrection),
+    ...(isCorrectionCreate && correctionOf
+      ? {
+          documentVariant: "correction" as const,
+          correctsId: correctionOf.id,
+        }
+      : {}),
   });
 
   const handleSubmit = async () => {
@@ -406,16 +462,23 @@ export function AccountingVoucherDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent
-        className={cn(
-          "mx-auto flex h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 w-full max-w-[95vw] flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
-          "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:mt-2 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
-        )}
-      >
-        <DrawerHeader className="shrink-0">
-          <DrawerTitle>{isEdit ? "Beleg bearbeiten" : "Neuer Beleg"}</DrawerTitle>
+      <DrawerContent className="mx-auto flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden">
+        <DrawerHeader className="shrink-0 border-b border-border/50 pb-3 text-left">
+          <DrawerTitle>
+            {isEdit
+              ? isAccountingCorrectionVariant(editRow?.document_variant)
+                ? "Korrektur bearbeiten"
+                : "Beleg bearbeiten"
+              : isCorrectionCreate
+                ? "Korrektur anlegen"
+                : "Neuer Beleg"}
+          </DrawerTitle>
           <DrawerDescription>
-            Beleg-Scan oder PDF oben hochladen, danach Beträge erfassen.
+            {readOnly
+              ? "Lexware-Beleg — Bearbeitung nur in Lexware."
+              : showDocumentPanel
+                ? "Beleg links, Erfassung rechts — auf schmalen Screens untereinander."
+                : "Stammdaten, Kontakt und Steuerpositionen erfassen."}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -426,318 +489,280 @@ export function AccountingVoucherDrawer({
             void handleSubmit();
           }}
         >
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 md:px-6">
-            {!isEdit ? (
-              <div className="space-y-2">
-                <Label id="voucher-file-label">Belegupload</Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ACCOUNTING_VOUCHER_FILE_ACCEPT}
-                  className="sr-only"
-                  aria-labelledby="voucher-file-label"
-                  disabled={saving}
-                  onChange={(e) => {
-                    applySelectedFile(e.target.files?.[0] ?? null);
-                    e.target.value = "";
-                  }}
-                />
-                <div
-                  role="button"
-                  tabIndex={0}
-                  data-vaul-no-drag
-                  aria-labelledby="voucher-file-label"
-                  className={cn(
-                    "relative flex w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45",
-                    isDragOver
-                      ? "border-accent bg-accent/10"
-                      : "border-border/60 bg-muted/25 hover:border-border hover:bg-muted/40",
-                    file && "py-6",
-                    saving && "pointer-events-none opacity-60",
-                  )}
-                  onClick={() => fileInputRef.current?.click()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                >
-                  {file ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="absolute top-2 right-2 text-muted-foreground hover:text-destructive"
-                      aria-label="Datei entfernen"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        applySelectedFile(null);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
-                      }}
-                    >
-                      <X className="size-4" />
-                    </Button>
-                  ) : null}
-                  <Upload
-                    className={cn(
-                      "size-8 shrink-0",
-                      isDragOver ? "text-accent" : "text-muted-foreground",
-                    )}
-                    aria-hidden
+          <div
+            className={cn(
+              "min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 md:px-6",
+              showDocumentPanel && "lg:overflow-hidden",
+            )}
+          >
+            <div
+              className={cn(
+                "space-y-4",
+                showDocumentPanel &&
+                  "lg:grid lg:min-h-0 lg:grid-cols-[minmax(280px,42%)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0",
+              )}
+            >
+              {showDocumentPanel ? (
+                <div className="lg:sticky lg:top-0 lg:max-h-[calc(92dvh-10rem)] lg:overflow-y-auto lg:pr-1">
+                  <AccountingVoucherDocumentPanel
+                    mode={isEdit && hasExistingFile && !file ? "preview" : "upload"}
+                    file={file}
+                    onFileChange={!isEdit ? setFile : undefined}
+                    previewUrl={documentPreviewUrl}
+                    previewMime={voucherPreviewMime(editRow?.mime_type)}
+                    fileName={editRow?.file_name}
+                    disabled={readOnly || saving || isEdit}
+                    label={isEdit ? "Beleg-Anhang" : "Belegupload"}
                   />
-                  {file ? (
-                    <>
-                      <span className="max-w-full truncate px-6 text-sm font-medium">
-                        {file.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        Klicken oder andere Datei hierher ziehen
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-sm font-medium">
-                        {isDragOver
-                          ? "Datei loslassen …"
-                          : "Beleg hierher ziehen oder auswählen"}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {ACCOUNTING_VOUCHER_ALLOWED_LABEL} (max. 50 MB)
-                      </span>
-                    </>
-                  )}
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            {readOnly ? (
-              <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                Lexware-Belege können nur in Lexware bearbeitet werden.
-              </p>
-            ) : null}
+              <div className="min-h-0 space-y-4 lg:overflow-y-auto lg:max-h-[calc(92dvh-10rem)] lg:pr-1">
+                {readOnly ? (
+                  <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+                    Lexware-Belege können nur in Lexware bearbeitet werden.
+                  </p>
+                ) : null}
 
-            <div className={accountingFormSectionClassName}>
-              <p className={accountingFormSectionTitleClassName}>Stammdaten</p>
-              <div className={accountingFormGridClassName}>
-                <div className="space-y-2">
-                  <Label>Art</Label>
-                  <SearchableSelect
-                    disabled={readOnly || saving}
-                    value={voucherKind}
-                    onValueChange={(v) => setVoucherKind(v as AccountingVoucherKind)}
-                    options={KIND_OPTIONS}
-                    className={accountingFormSelectClassName}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <SearchableSelect
-                    disabled={readOnly || saving}
-                    value={status}
-                    onValueChange={(v) => setStatus(v as AccountingVoucherStatus)}
-                    options={STATUS_OPTIONS}
-                    className={accountingFormSelectClassName}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Belegdatum</Label>
-                  <DatePickerField
-                    value={voucherDate}
-                    onChange={(v) => setVoucherDate(v ?? new Date().toISOString().slice(0, 10))}
-                    disabled={readOnly || saving}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fällig am</Label>
-                  <DatePickerField
-                    value={dueDate}
-                    onChange={setDueDate}
-                    disabled={readOnly || saving}
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Belegnummer</Label>
-                  <Input
-                    disabled={readOnly || saving}
-                    className={accountingFormControlClassName}
-                    value={voucherNumber}
-                    onChange={(e) => setVoucherNumber(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {!readOnly ? (
-              <AccountingFormSection title="Kontakt">
-                <div className={accountingFormGridClassName}>
-                  <div className="space-y-2 sm:col-span-2">
-                    <Label>Kontaktart</Label>
-                    <SearchableSelect
-                      disabled={saving}
-                      value={recipientType}
-                      onValueChange={(v) => {
-                        const next = v as "contact" | "one_time";
-                        setRecipientType(next);
-                        if (next === "one_time") {
-                          setContactRowKey(null);
-                          setContactId(null);
-                          setLexofficeContactId(null);
-                          setContactOriginallyEmpty(null);
-                          setRecipient({ name: "", countryCode: "DE" });
-                        } else {
-                          setSaveNewContact(false);
-                        }
-                      }}
-                      options={[
-                        { value: "contact", label: "Kontakt aus Gwada / Lexware" },
-                        { value: "one_time", label: "Neuer Kontakt" },
-                      ]}
-                      className={accountingFormSelectClassName}
-                    />
-                  </div>
-
-                  {recipientType === "one_time" && !isEdit ? (
+                <div className={accountingFormSectionClassName}>
+                  <p className={accountingFormSectionTitleClassName}>Stammdaten</p>
+                  <div className={accountingFormGridClassName}>
+                    <div className="space-y-2">
+                      <Label>Art</Label>
+                      <SearchableSelect
+                        disabled={readOnly || saving || isCorrectionCreate}
+                        value={voucherKind}
+                        onValueChange={(v) => setVoucherKind(v as AccountingVoucherKind)}
+                        options={KIND_OPTIONS}
+                        className={accountingFormSelectClassName}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <SearchableSelect
+                        disabled={readOnly || saving}
+                        value={status}
+                        onValueChange={setStatus}
+                        options={statusOptions}
+                        className={accountingFormSelectClassName}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Belegdatum</Label>
+                      <DatePickerField
+                        fullWidth
+                        className={accountingFormControlClassName}
+                        value={voucherDate}
+                        onChange={(v) => setVoucherDate(v ?? new Date().toISOString().slice(0, 10))}
+                        disabled={readOnly || saving}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Fällig am</Label>
+                      <DatePickerField
+                        fullWidth
+                        className={accountingFormControlClassName}
+                        value={dueDate}
+                        onChange={setDueDate}
+                        disabled={readOnly || saving}
+                      />
+                    </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5">
-                        <div>
-                          <p className="text-sm font-medium">Kontakt speichern</p>
-                          <p className="text-xs text-muted-foreground">
-                            Lieferant/Kunde zusätzlich im Kontaktbuch anlegen
-                          </p>
-                        </div>
-                        <Switch
-                          checked={saveNewContact}
-                          onCheckedChange={setSaveNewContact}
+                      <Label>Belegnummer</Label>
+                      <Input
+                        disabled={readOnly || saving}
+                        className={accountingFormControlClassName}
+                        value={voucherNumber}
+                        onChange={(e) => setVoucherNumber(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {!readOnly ? (
+                  <AccountingFormSection title="Kontakt">
+                    <div className={accountingFormGridClassName}>
+                      <div className="space-y-2 sm:col-span-2">
+                        <Label>Kontaktart</Label>
+                        <SearchableSelect
                           disabled={saving}
+                          value={recipientType}
+                          onValueChange={(v) => {
+                            const next = v as "contact" | "one_time";
+                            setRecipientType(next);
+                            if (next === "one_time") {
+                              setContactRowKey(null);
+                              setContactId(null);
+                              setLexofficeContactId(null);
+                              setContactOriginallyEmpty(null);
+                              setRecipient({ name: "", countryCode: "DE" });
+                            } else {
+                              setSaveNewContact(false);
+                            }
+                          }}
+                          options={[
+                            { value: "contact", label: "Kontakt aus Gwada / Lexware" },
+                            { value: "one_time", label: "Neuer Kontakt" },
+                          ]}
+                          className={accountingFormSelectClassName}
                         />
                       </div>
-                      {saveNewContact ? (
-                        <p className="text-xs text-muted-foreground">
-                          Mindestens E-Mail oder Telefon angeben — sonst kann der
-                          Kontakt nicht gespeichert werden.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
 
-                  {recipientType === "contact" ? (
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label>Kontakt</Label>
-                      <SearchableSelect
-                        value={contactRowKey}
-                        onValueChange={applyContactSelection}
-                        options={contactOptions}
-                        placeholder={
-                          contacts.length
-                            ? "Kontakt suchen …"
-                            : "Keine Kontakte geladen"
-                        }
-                        className={accountingFormSelectClassName}
-                        disabled={saving}
-                      />
-                      {!isEdit &&
-                      contactOriginallyEmpty &&
-                      Object.values(contactOriginallyEmpty).some(Boolean) ? (
-                        <p className="text-xs text-muted-foreground">
-                          Fehlende Angaben können hier ergänzt werden — beim
-                          Anlegen werden sie im Kontakt gespeichert.
-                        </p>
+                      {recipientType === "one_time" && !isEdit ? (
+                        <div className="space-y-2 sm:col-span-2">
+                          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-card px-3 py-2.5">
+                            <div>
+                              <p className="text-sm font-medium">Kontakt speichern</p>
+                              <p className="text-xs text-muted-foreground">
+                                Lieferant/Kunde zusätzlich im Kontaktbuch anlegen
+                              </p>
+                            </div>
+                            <Switch
+                              checked={saveNewContact}
+                              onCheckedChange={setSaveNewContact}
+                              disabled={saving}
+                            />
+                          </div>
+                          {saveNewContact ? (
+                            <p className="text-xs text-muted-foreground">
+                              Mindestens E-Mail oder Telefon angeben — sonst kann der
+                              Kontakt nicht gespeichert werden.
+                            </p>
+                          ) : null}
+                        </div>
                       ) : null}
-                      {contactRowKey ? (
+
+                      {recipientType === "contact" ? (
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label>Kontakt</Label>
+                          <SearchableSelect
+                            value={contactRowKey}
+                            onValueChange={applyContactSelection}
+                            options={contactOptions}
+                            placeholder={
+                              contacts.length
+                                ? "Kontakt suchen …"
+                                : "Keine Kontakte geladen"
+                            }
+                            className={accountingFormSelectClassName}
+                            disabled={saving}
+                          />
+                          {!isEdit &&
+                          contactOriginallyEmpty &&
+                          Object.values(contactOriginallyEmpty).some(Boolean) ? (
+                            <p className="text-xs text-muted-foreground">
+                              Fehlende Angaben können hier ergänzt werden — beim
+                              Anlegen werden sie im Kontakt gespeichert.
+                            </p>
+                          ) : null}
+                          {contactRowKey ? (
+                            <AccountingContactRecipientFields
+                              recipient={recipient}
+                              originallyEmpty={
+                                contactOriginallyEmpty ??
+                                (selectedContact
+                                  ? originallyEmptyContactFields(selectedContact)
+                                  : originallyEmptyFromRecipientSnapshot(recipient))
+                              }
+                              onRecipientChange={(patch) =>
+                                setRecipient((r) => ({ ...r, ...patch }))
+                              }
+                            />
+                          ) : null}
+                        </div>
+                      ) : (
                         <AccountingContactRecipientFields
                           recipient={recipient}
-                          originallyEmpty={
-                            contactOriginallyEmpty ??
-                            (selectedContact
-                              ? originallyEmptyContactFields(selectedContact)
-                              : originallyEmptyFromRecipientSnapshot(recipient))
-                          }
+                          originallyEmpty={originallyEmptyFromRecipientSnapshot(
+                            recipient,
+                          )}
                           onRecipientChange={(patch) =>
                             setRecipient((r) => ({ ...r, ...patch }))
                           }
                         />
-                      ) : null}
-                    </div>
-                  ) : (
-                    <AccountingContactRecipientFields
-                      recipient={recipient}
-                      originallyEmpty={originallyEmptyFromRecipientSnapshot(
-                        recipient,
                       )}
-                      onRecipientChange={(patch) =>
-                        setRecipient((r) => ({ ...r, ...patch }))
-                      }
+                    </div>
+                  </AccountingFormSection>
+                ) : null}
+
+                <div className={accountingFormSectionClassName}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className={accountingFormSectionTitleClassName}>Steuerpositionen</p>
+                    <SearchableSelect
+                      disabled={readOnly || saving}
+                      value={taxMode}
+                      onValueChange={(v) => setTaxMode(v as "net" | "gross")}
+                      options={[
+                        { value: "gross", label: "Brutto" },
+                        { value: "net", label: "Netto" },
+                      ]}
+                      className={cn(accountingFormSelectClassName, "h-9 w-28")}
                     />
-                  )}
-                </div>
-              </AccountingFormSection>
-            ) : null}
-
-            <div className={accountingFormSectionClassName}>
-              <div className="flex items-center justify-between gap-3">
-                <p className={accountingFormSectionTitleClassName}>Steuerpositionen</p>
-                <SearchableSelect
-                  disabled={readOnly || saving}
-                  value={taxMode}
-                  onValueChange={(v) => setTaxMode(v as "net" | "gross")}
-                  options={[
-                    { value: "gross", label: "Brutto" },
-                    { value: "net", label: "Netto" },
-                  ]}
-                  className={cn(accountingFormSelectClassName, "h-9 w-28")}
-                />
-              </div>
-              <AccountingVoucherItemsEditor
-                items={items}
-                taxMode={taxMode}
-                disabled={readOnly || saving}
-                onChange={setItems}
-              />
-              <p className="text-right text-sm tabular-nums text-muted-foreground">
-                Summe brutto:{" "}
-                <span className="font-medium text-foreground">
-                  {totals.totalGross.toLocaleString("de-DE", {
-                    style: "currency",
-                    currency: "EUR",
-                  })}
-                </span>
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Notiz</Label>
-              <Input
-                disabled={readOnly || saving}
-                className={accountingFormControlClassName}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-              />
-            </div>
-
-            {!isEdit && lexofficeConnected ? (
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">In Lexware anlegen</p>
-                  <p className="text-xs text-muted-foreground">
-                    Beleg wird nur in Lexware erstellt — kein Doppel in Gwada.
+                  </div>
+                  <AccountingVoucherItemsEditor
+                    items={items}
+                    taxMode={taxMode}
+                    disabled={readOnly || saving}
+                    onChange={setItems}
+                  />
+                  <p className="text-right text-sm tabular-nums text-muted-foreground">
+                    Summe brutto:{" "}
+                    <span className="font-medium text-foreground">
+                      {totals.totalGross.toLocaleString("de-DE", {
+                        style: "currency",
+                        currency: "EUR",
+                      })}
+                    </span>
                   </p>
                 </div>
-                <Switch
-                  checked={syncToLexoffice}
-                  onCheckedChange={setSyncToLexoffice}
-                  disabled={saving}
-                />
+
+                <div className="space-y-2">
+                  <Label>Notiz</Label>
+                  <Input
+                    disabled={readOnly || saving}
+                    className={accountingFormControlClassName}
+                    value={remark}
+                    onChange={(e) => setRemark(e.target.value)}
+                  />
+                </div>
+
+                {!isEdit && connectorConnected ? (
+                  forceExternalCorrection ? (
+                    <p className="rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5 text-sm text-muted-foreground">
+                      Korrektur wird als Gutschrift in Lexware angelegt.
+                    </p>
+                  ) : (
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">In Lexware anlegen</p>
+                      <p className="text-xs text-muted-foreground">
+                        Beleg wird nur in Lexware erstellt — kein Doppel in Gwada, danach Abruf aus Lexware.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={syncToLexoffice}
+                      onCheckedChange={setSyncToLexoffice}
+                      disabled={saving}
+                    />
+                  </div>
+                  )
+                ) : null}
+
+                {isCorrectionCreate &&
+                correctionOf &&
+                !correctionOf.voucher_items?.length ? (
+                  <p className="rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5 text-sm text-muted-foreground">
+                    Steuerpositionen der Ursprungsbeleg sind nicht lokal
+                    hinterlegt — trage die Korrekturbeträge manuell ein
+                    (negative Werte).
+                  </p>
+                ) : null}
               </div>
-            ) : null}
+            </div>
           </div>
 
           <DrawerFormFooter
-            className="px-4 md:px-6"
+            className="shrink-0 border-t border-border/50 px-4 md:px-6"
             onCancel={() => onOpenChange(false)}
             submitLabel={isEdit ? "Speichern" : "Anlegen"}
             submitPending={saving}

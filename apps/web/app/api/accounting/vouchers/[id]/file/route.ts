@@ -5,7 +5,8 @@ import {
 } from "@/lib/accounting/assert-accounting-api";
 import { getAccountingVoucher } from "@/lib/accounting/accounting-vouchers-server";
 import { ACCOUNTING_VOUCHERS_STORAGE_BUCKET } from "@/lib/accounting/accounting-voucher-storage";
-import { fetchLexofficeBookkeepingVoucherFile } from "@/lib/integrations/lexoffice-bookkeeping-vouchers";
+import { getAccountingConnectorForDocument } from "@/lib/accounting/connectors/registry";
+import { isExternalAccountingSource } from "@/lib/accounting/accounting-source";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -45,20 +46,25 @@ export async function GET(req: Request, context: RouteContext) {
     });
   }
 
-  if (row.source === "lexoffice" && row.external_id) {
-    const file = await fetchLexofficeBookkeepingVoucherFile(
+  if (isExternalAccountingSource(row.source) && row.external_id) {
+    const connector = await getAccountingConnectorForDocument(
       auth.restaurantId,
-      row.external_id,
+      row.source,
     );
-    if (!file.ok) {
-      return NextResponse.json({ error: file.error }, { status: 404 });
+    if (connector.capabilities.canFetchExternalVoucherFile) {
+      const file = await connector.fetchVoucherFile(auth.restaurantId, row);
+      if (file?.ok) {
+        return new NextResponse(new Uint8Array(file.buffer), {
+          headers: {
+            "Content-Type": file.contentType,
+            "Content-Disposition": `inline; filename="${encodeURIComponent(file.filename)}"`,
+          },
+        });
+      }
+      if (file && !file.ok) {
+        return NextResponse.json({ error: file.error }, { status: 404 });
+      }
     }
-    return new NextResponse(new Uint8Array(file.buffer), {
-      headers: {
-        "Content-Type": file.contentType,
-        "Content-Disposition": `inline; filename="${encodeURIComponent(file.filename)}"`,
-      },
-    });
   }
 
   return NextResponse.json({ error: "no_attachment" }, { status: 404 });

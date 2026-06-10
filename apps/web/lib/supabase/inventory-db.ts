@@ -130,6 +130,43 @@ export function parseStockLogEntryFromJson(raw: unknown): IngredientStockLogEntr
       articleName: raw.articleName,
     };
   }
+  if (raw.kind === "stock_from_invoice_correction") {
+    if (
+      typeof raw.fromQuantity !== "number" ||
+      typeof raw.toQuantity !== "number" ||
+      Number.isNaN(raw.fromQuantity) ||
+      Number.isNaN(raw.toQuantity)
+    )
+      return null;
+    if (typeof raw.unitId !== "string" || typeof raw.unitLabel !== "string") return null;
+    if (
+      typeof raw.invoiceId !== "string" ||
+      typeof raw.correctsInvoiceId !== "string" ||
+      typeof raw.articleName !== "string"
+    )
+      return null;
+    return {
+      id: raw.id,
+      at: raw.at,
+      userFirstName,
+      userLastName,
+      ...(userSource ? { userSource } : {}),
+      kind: "stock_from_invoice_correction",
+      fromQuantity: raw.fromQuantity,
+      toQuantity: raw.toQuantity,
+      unitId: raw.unitId,
+      unitLabel: raw.unitLabel,
+      invoiceId: raw.invoiceId,
+      correctsInvoiceId: raw.correctsInvoiceId,
+      voucherNumber:
+        typeof raw.voucherNumber === "string" ? raw.voucherNumber : null,
+      originalVoucherNumber:
+        typeof raw.originalVoucherNumber === "string"
+          ? raw.originalVoucherNumber
+          : null,
+      articleName: raw.articleName,
+    };
+  }
   return null;
 }
 

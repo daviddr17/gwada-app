@@ -64,11 +64,31 @@ export type IngredientStockLogFromInvoice = {
   articleName: string;
 };
 
+/** Bestandserhöhung durch Rechnungskorrektur (Gegenbuchung zum Rechnungsabzug). */
+export type IngredientStockLogFromInvoiceCorrection = {
+  id: string;
+  at: string;
+  userFirstName: string;
+  userLastName: string;
+  userSource?: ProtocolUserSource;
+  kind: "stock_from_invoice_correction";
+  fromQuantity: number;
+  toQuantity: number;
+  unitId: string;
+  unitLabel: string;
+  invoiceId: string;
+  correctsInvoiceId: string;
+  voucherNumber: string | null;
+  originalVoucherNumber: string | null;
+  articleName: string;
+};
+
 export type IngredientStockLogEntry =
   | IngredientStockLogManual
   | IngredientStockLogFromDelivery
   | IngredientStockLogDeliveryReverted
-  | IngredientStockLogFromInvoice;
+  | IngredientStockLogFromInvoice
+  | IngredientStockLogFromInvoiceCorrection;
 
 export function resolveIngredientStockLogUserLabel(
   e: IngredientStockLogEntry,
@@ -95,6 +115,8 @@ export function ingredientStockActionColumn(e: IngredientStockLogEntry): string 
       return "Geliefert rückgängig";
     case "stock_from_invoice":
       return "Rechnung";
+    case "stock_from_invoice_correction":
+      return "Rechnungskorrektur";
     default:
       return "—";
   }

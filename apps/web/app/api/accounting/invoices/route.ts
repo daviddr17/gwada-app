@@ -7,6 +7,7 @@ import {
   createAccountingInvoice,
   listAccountingInvoices,
 } from "@/lib/accounting/accounting-invoices-server";
+import { parseAccountingListQueryFromUrl } from "@/lib/accounting/accounting-list-query";
 import type { AccountingSalesDocumentInput } from "@/lib/types/accounting";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +20,18 @@ export async function GET(req: Request) {
   }
 
   const url = new URL(req.url);
-  const source = url.searchParams.get("source");
-  const rows = await listAccountingInvoices(auth.sb, auth.restaurantId, source);
-  return NextResponse.json({ invoices: rows });
+  const listQuery = parseAccountingListQueryFromUrl(url);
+  if (url.searchParams.get("source")) {
+    listQuery.source = url.searchParams.get("source");
+  }
+  const result = await listAccountingInvoices(auth.sb, auth.restaurantId, listQuery);
+  return NextResponse.json({
+    invoices: result.items,
+    page: result.page,
+    pageSize: result.pageSize,
+    totalCount: result.totalCount,
+    totalPages: result.totalPages,
+  });
 }
 
 export async function POST(req: Request) {

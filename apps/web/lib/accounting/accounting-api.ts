@@ -1,5 +1,8 @@
+import type { PaginatedListResult } from "@/lib/constants/list-pagination";
 import type {
   AccountingArticleRow,
+  AccountingDocumentKind,
+  AccountingDocumentStatusRow,
   AccountingInvoiceRow,
   AccountingQuotationRow,
   AccountingSalesDocumentInput,
@@ -20,18 +23,68 @@ export async function fetchAccountingCatalog(restaurantId: string): Promise<{
   return res.json();
 }
 
+export type AccountingListFetchParams = {
+  source?: string;
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  sort?: string;
+  sortDir?: string;
+};
+
+function accountingListSearchParams(
+  restaurantId: string,
+  params?: AccountingListFetchParams,
+): URLSearchParams {
+  const qs = new URLSearchParams({ restaurantId });
+  if (params?.source && params.source !== "all") qs.set("source", params.source);
+  if (params?.search?.trim()) qs.set("q", params.search.trim());
+  if (params?.page && params.page > 1) qs.set("page", String(params.page));
+  if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+  if (params?.sort) qs.set("sort", params.sort);
+  if (params?.sortDir) qs.set("dir", params.sortDir);
+  return qs;
+}
+
 export async function fetchAccountingInvoices(
   restaurantId: string,
-  source?: string,
-): Promise<AccountingInvoiceRow[]> {
-  const params = new URLSearchParams({ restaurantId });
-  if (source && source !== "all") params.set("source", source);
-  const res = await fetch(`/api/accounting/invoices?${params}`, {
+  params?: AccountingListFetchParams,
+): Promise<PaginatedListResult<AccountingInvoiceRow>> {
+  const qs = accountingListSearchParams(restaurantId, params);
+  const res = await fetch(`/api/accounting/invoices?${qs}`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("invoices_load_failed");
-  const data = (await res.json()) as { invoices: AccountingInvoiceRow[] };
-  return data.invoices;
+  const data = (await res.json()) as {
+    invoices: AccountingInvoiceRow[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  return {
+    items: data.invoices,
+    page: data.page,
+    pageSize: data.pageSize,
+    totalCount: data.totalCount,
+    totalPages: data.totalPages,
+  };
+}
+
+export async function enrichAccountingInvoice(
+  restaurantId: string,
+  invoiceId: string,
+): Promise<AccountingInvoiceRow> {
+  const qs = new URLSearchParams({
+    restaurantId,
+    enrich: "1",
+  });
+  const res = await fetch(`/api/accounting/invoices/${invoiceId}?${qs}`, {
+    cache: "no-store",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "enrich_failed");
+  return data.invoice as AccountingInvoiceRow;
 }
 
 export async function createAccountingInvoice(
@@ -68,16 +121,27 @@ export async function updateAccountingInvoice(
 
 export async function fetchAccountingQuotations(
   restaurantId: string,
-  source?: string,
-): Promise<AccountingQuotationRow[]> {
-  const params = new URLSearchParams({ restaurantId });
-  if (source && source !== "all") params.set("source", source);
-  const res = await fetch(`/api/accounting/quotations?${params}`, {
+  params?: AccountingListFetchParams,
+): Promise<PaginatedListResult<AccountingQuotationRow>> {
+  const qs = accountingListSearchParams(restaurantId, params);
+  const res = await fetch(`/api/accounting/quotations?${qs}`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("quotations_load_failed");
-  const data = (await res.json()) as { quotations: AccountingQuotationRow[] };
-  return data.quotations;
+  const data = (await res.json()) as {
+    quotations: AccountingQuotationRow[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  return {
+    items: data.quotations,
+    page: data.page,
+    pageSize: data.pageSize,
+    totalCount: data.totalCount,
+    totalPages: data.totalPages,
+  };
 }
 
 export async function createAccountingQuotation(
@@ -143,8 +207,20 @@ export async function saveAccountingSettings(
   patch: {
     documentFormat?: import("@/lib/types/accounting-settings").AccountingDocumentFormat;
     autoSyncLexoffice?: boolean;
+    connectorAutoSync?: {
+      connector: import("@/lib/accounting/connectors/connector-meta").AccountingConnectorKey;
+      enabled: boolean;
+    };
     deductInventoryOnInvoice?: boolean;
+    reverseInventoryOnInvoiceCorrection?: boolean;
     documentDesign?: import("@/lib/types/accounting-settings").AccountingDocumentDesign;
+    invoiceNumberPrefix?: string;
+    invoiceCorrectionNumberPrefix?: string;
+    quotationNumberPrefix?: string;
+    invoiceNumberIncludeYear?: boolean;
+    quotationNumberIncludeYear?: boolean;
+    invoiceNumberMinDigits?: number;
+    quotationNumberMinDigits?: number;
   },
 ) {
   const res = await fetch("/api/accounting/settings", {
@@ -157,34 +233,165 @@ export async function saveAccountingSettings(
   return data.settings as import("@/lib/types/accounting-settings").AccountingSettingsRow;
 }
 
-export async function syncLexofficeSalesDocuments(
+export async function fetchAccountingNextDocumentNumber(
+  restaurantId: string,
+  kind: "invoice" | "quotation" | "invoice_correction",
+  referenceDate?: string | null,
+): Promise<string> {
+  const qs = new URLSearchParams({
+    restaurantId,
+    kind,
+  });
+  if (referenceDate?.trim()) {
+    qs.set("referenceDate", referenceDate.trim());
+  }
+  const res = await fetch(`/api/accounting/sales-documents/next-number?${qs}`, {
+    cache: "no-store",
+  });
+  const data = (await res.json()) as { voucherNumber?: string; error?: string };
+  if (!res.ok) throw new Error(data.error ?? "next_number_failed");
+  return data.voucherNumber ?? "";
+}
+
+export async function fetchAccountingSalesDocumentDraftPreview(
   restaurantId: string,
   kind: "invoice" | "quotation",
-) {
-  const res = await fetch("/api/accounting/sync-lexoffice", {
+  draft: import("@/lib/accounting/build-sales-document-preview-row").AccountingSalesDocumentDraftPreviewInput,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  const res = await fetch("/api/accounting/sales-documents/preview", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ restaurantId, kind }),
+    body: JSON.stringify({ restaurantId, kind, draft }),
+    signal,
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? "preview_failed");
+  }
+  return res.blob();
+}
+
+export async function fetchAccountingConnector(restaurantId: string) {
+  const res = await fetch(
+    `/api/accounting/connector?${new URLSearchParams({ restaurantId })}`,
+    { cache: "no-store" },
+  );
+  const data = (await res.json()) as {
+    connector?: import("@/lib/accounting/connectors/connector-meta").AccountingConnectorPublicInfo;
+    error?: string;
+  };
+  if (!res.ok || !data.connector) {
+    throw new Error(data.error ?? "connector_load_failed");
+  }
+  return data.connector;
+}
+
+export async function syncAccountingDocuments(
+  restaurantId: string,
+  params: {
+    scope: "sales" | "vouchers";
+    kind?: "invoice" | "quotation";
+    force?: boolean;
+  },
+) {
+  const res = await fetch("/api/accounting/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      restaurantId,
+      scope: params.scope,
+      kind: params.kind,
+      force: params.force === true,
+    }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? "sync_failed");
-  return data as { imported: number; updated: number; listed?: number };
+  return data as {
+    imported: number;
+    updated: number;
+    listed?: number;
+    skipped?: boolean;
+  };
+}
+
+/** @deprecated Nutze syncAccountingDocuments({ scope: "sales", kind }) */
+export async function syncLexofficeSalesDocuments(
+  restaurantId: string,
+  kind: "invoice" | "quotation",
+  opts?: { force?: boolean },
+) {
+  return syncAccountingDocuments(restaurantId, {
+    scope: "sales",
+    kind,
+    force: opts?.force,
+  });
+}
+
+export async function fetchAccountingDocumentLog(
+  restaurantId: string,
+  documentKind: import("@/lib/types/accounting-document-log").AccountingDocumentLogKind,
+  documentId: string,
+): Promise<import("@/lib/types/accounting-document-log").AccountingDocumentLogEntry[]> {
+  const qs = new URLSearchParams({
+    restaurantId,
+    kind: documentKind,
+    documentId,
+  });
+  const res = await fetch(`/api/accounting/document-log?${qs}`, {
+    cache: "no-store",
+  });
+  const data = (await res.json()) as {
+    entries?: import("@/lib/types/accounting-document-log").AccountingDocumentLogEntry[];
+    error?: string;
+  };
+  if (!res.ok) throw new Error(data.error ?? "document_log_failed");
+  return data.entries ?? [];
 }
 
 export async function fetchAccountingVouchers(
   restaurantId: string,
-  source?: string,
-): Promise<import("@/lib/types/accounting").AccountingVoucherRow[]> {
-  const params = new URLSearchParams({ restaurantId });
-  if (source && source !== "all") params.set("source", source);
-  const res = await fetch(`/api/accounting/vouchers?${params}`, {
+  params?: AccountingListFetchParams,
+): Promise<PaginatedListResult<import("@/lib/types/accounting").AccountingVoucherRow>> {
+  const qs = accountingListSearchParams(restaurantId, params);
+  const res = await fetch(`/api/accounting/vouchers?${qs}`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("vouchers_load_failed");
   const data = (await res.json()) as {
     vouchers: import("@/lib/types/accounting").AccountingVoucherRow[];
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
   };
-  return data.vouchers;
+  return {
+    items: data.vouchers,
+    page: data.page,
+    pageSize: data.pageSize,
+    totalCount: data.totalCount,
+    totalPages: data.totalPages,
+  };
+}
+
+export async function fetchAccountingVoucher(
+  restaurantId: string,
+  voucherId: string,
+  opts?: { enrich?: boolean },
+): Promise<import("@/lib/types/accounting").AccountingVoucherRow> {
+  const qs = new URLSearchParams({ restaurantId });
+  if (opts?.enrich) qs.set("enrich", "1");
+  const res = await fetch(`/api/accounting/vouchers/${voucherId}?${qs}`, {
+    cache: "no-store",
+  });
+  const data = (await res.json()) as {
+    voucher?: import("@/lib/types/accounting").AccountingVoucherRow;
+    error?: string;
+  };
+  if (!res.ok || !data.voucher) {
+    throw new Error(data.error ?? "voucher_load_failed");
+  }
+  return data.voucher;
 }
 
 export async function createAccountingVoucher(
@@ -245,15 +452,15 @@ export async function deleteAccountingVoucher(
   if (!res.ok) throw new Error((data as { error?: string }).error ?? "delete_failed");
 }
 
-export async function syncLexofficeVouchers(restaurantId: string) {
-  const res = await fetch("/api/accounting/sync-lexoffice-vouchers", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ restaurantId }),
+/** @deprecated Nutze syncAccountingDocuments({ scope: "vouchers" }) */
+export async function syncLexofficeVouchers(
+  restaurantId: string,
+  opts?: { force?: boolean },
+) {
+  return syncAccountingDocuments(restaurantId, {
+    scope: "vouchers",
+    force: opts?.force,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error ?? "sync_failed");
-  return data as { imported: number; updated: number; listed?: number };
 }
 
 export function accountingVoucherFileUrl(
@@ -396,4 +603,60 @@ export async function deleteAccountingUnit(restaurantId: string, id: string) {
 
 export async function deleteAccountingArticle(restaurantId: string, id: string) {
   return catalogDelete("/api/accounting/catalog/articles", restaurantId, id);
+}
+
+export async function fetchAccountingDocumentStatuses(
+  restaurantId: string,
+  documentKind: AccountingDocumentKind,
+  options?: { includeArchived?: boolean },
+): Promise<AccountingDocumentStatusRow[]> {
+  const qs = new URLSearchParams({
+    restaurantId,
+    kind: documentKind,
+  });
+  if (options?.includeArchived) qs.set("includeArchived", "1");
+  const res = await fetch(`/api/accounting/catalog/statuses?${qs}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("statuses_load_failed");
+  const data = (await res.json()) as { statuses: AccountingDocumentStatusRow[] };
+  return data.statuses;
+}
+
+export async function saveAccountingDocumentStatus(
+  restaurantId: string,
+  documentKind: AccountingDocumentKind,
+  payload: { id?: string; label: string; color_hex?: string; archived?: boolean },
+) {
+  const method = payload.id ? "PATCH" : "POST";
+  return catalogJson("/api/accounting/catalog/statuses", method, {
+    ...payload,
+    restaurantId,
+    document_kind: documentKind,
+  });
+}
+
+export async function reorderAccountingDocumentStatuses(
+  restaurantId: string,
+  documentKind: AccountingDocumentKind,
+  reorder: string[],
+) {
+  return catalogJson("/api/accounting/catalog/statuses", "PATCH", {
+    restaurantId,
+    document_kind: documentKind,
+    reorder,
+  });
+}
+
+export async function deleteAccountingDocumentStatus(
+  restaurantId: string,
+  documentKind: AccountingDocumentKind,
+  id: string,
+) {
+  const params = new URLSearchParams({ restaurantId, id, kind: documentKind });
+  const res = await fetch(`/api/accounting/catalog/statuses?${params}`, {
+    method: "DELETE",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "delete_failed");
 }

@@ -1,46 +1,42 @@
 "use client";
 
-import { ExternalLink, FileText } from "lucide-react";
+import { ExternalLink, Pencil, RotateCcw } from "lucide-react";
+import { AccountingVoucherDetailsView } from "@/components/accounting/accounting-voucher-details-view";
+import { AccountingDocumentProtocolPanel } from "@/components/accounting/accounting-document-protocol-panel";
+import { AccountingVoucherDocumentPanel } from "@/components/accounting/accounting-voucher-document-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { accountingVoucherFileUrl } from "@/lib/accounting/accounting-api";
-import type { AccountingVoucherRow } from "@/lib/types/accounting";
-
-const KIND_LABELS: Record<string, string> = {
-  expense: "Ausgabe",
-  purchase: "Einkauf",
-  income: "Einnahme",
-  sales: "Verkauf",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Entwurf",
-  open: "Offen",
-  unchecked: "Ungeprüft",
-  paid: "Bezahlt",
-  voided: "Storniert",
-};
-
-function formatMoney(amount: number) {
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(amount);
-}
+import {
+  accountingSourceDisplayLabel,
+  isExternalAccountingSource,
+} from "@/lib/accounting/accounting-source";
+import {
+  canCreateAccountingCorrection,
+  isAccountingCorrectionVariant,
+} from "@/lib/accounting/accounting-corrections";
+import { voucherHasAttachment, voucherPreviewMime } from "@/lib/accounting/voucher-display";
+import type {
+  AccountingDocumentStatusRow,
+  AccountingVoucherRow,
+} from "@/lib/types/accounting";
+import { cn } from "@/lib/utils";
 
 type AccountingVoucherSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   row: AccountingVoucherRow | null;
+  statuses: AccountingDocumentStatusRow[];
   canManage: boolean;
   onEdit: () => void;
+  onCreateCorrection?: () => void;
 };
 
 export function AccountingVoucherSheet({
@@ -48,135 +44,116 @@ export function AccountingVoucherSheet({
   onOpenChange,
   restaurantId,
   row,
+  statuses,
   canManage,
   onEdit,
+  onCreateCorrection,
 }: AccountingVoucherSheetProps) {
   if (!row) return null;
 
-  const hasFile =
-    Boolean(row.storage_path) ||
-    (row.source === "lexoffice" && row.external_id);
+  const hasFile = voucherHasAttachment(row);
+  const previewUrl = hasFile
+    ? accountingVoucherFileUrl(restaurantId, row.id)
+    : null;
+  const isCorrection = isAccountingCorrectionVariant(row.document_variant);
+  const showCorrectionAction =
+    canManage &&
+    canCreateAccountingCorrection(row.document_variant) &&
+    onCreateCorrection;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="max-h-[85dvh] overflow-y-auto rounded-t-2xl">
-        <SheetHeader>
-          <SheetTitle className="text-left">
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      direction="bottom"
+      repositionInputs={false}
+    >
+      <DrawerContent className="mx-auto flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden">
+        <DrawerHeader className="shrink-0 border-b border-border/50 pb-3 text-left">
+          <DrawerTitle className="flex flex-wrap items-center gap-2">
             {row.voucher_number ?? "Beleg ohne Nummer"}
-          </SheetTitle>
-        </SheetHeader>
+            {isCorrection ? (
+              <Badge variant="secondary">Korrektur</Badge>
+            ) : null}
+          </DrawerTitle>
+        </DrawerHeader>
 
-        <div className="mt-4 space-y-4 px-1 pb-6">
-          <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{KIND_LABELS[row.voucher_kind] ?? row.voucher_kind}</Badge>
-            <Badge variant="outline">{STATUS_LABELS[row.status] ?? row.status}</Badge>
-            <Badge variant="outline">
-              {row.source === "lexoffice" ? "Lexware" : "Gwada"}
-            </Badge>
-          </div>
-
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-muted-foreground">Datum</dt>
-              <dd>{new Date(row.voucher_date).toLocaleDateString("de-DE")}</dd>
-            </div>
-            {row.due_date ? (
-              <div>
-                <dt className="text-muted-foreground">Fällig</dt>
-                <dd>{new Date(row.due_date).toLocaleDateString("de-DE")}</dd>
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 md:px-6",
+            hasFile && "lg:overflow-hidden",
+          )}
+        >
+          <div
+            className={cn(
+              "space-y-4",
+              hasFile &&
+                "lg:grid lg:min-h-0 lg:grid-cols-[minmax(280px,42%)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0",
+            )}
+          >
+            {hasFile && previewUrl ? (
+              <div className="lg:sticky lg:top-0 lg:max-h-[calc(92dvh-8rem)] lg:overflow-y-auto lg:pr-1">
+                <AccountingVoucherDocumentPanel
+                  mode="preview"
+                  previewUrl={previewUrl}
+                  previewMime={voucherPreviewMime(row.mime_type)}
+                  fileName={row.file_name}
+                  disabled
+                  label="Beleg-Anhang"
+                />
               </div>
             ) : null}
-            {row.contact_name ? (
-              <div className="sm:col-span-2">
-                <dt className="text-muted-foreground">Kontakt</dt>
-                <dd>{row.contact_name}</dd>
+
+            <div className="min-h-0 space-y-4 lg:overflow-y-auto lg:max-h-[calc(92dvh-8rem)] lg:pr-1">
+              <AccountingVoucherDetailsView row={row} statuses={statuses} />
+
+              <div className="flex flex-wrap gap-2">
+                {isExternalAccountingSource(row.source) && row.external_edit_url ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    render={
+                      <a
+                        href={row.external_edit_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    }
+                  >
+                    <ExternalLink className="size-4" />
+                    In {accountingSourceDisplayLabel(row.source)}
+                  </Button>
+                ) : canManage && row.source === "gwada" ? (
+                  <Button type="button" size="sm" onClick={onEdit}>
+                    <Pencil className="size-4" />
+                    Bearbeiten
+                  </Button>
+                ) : null}
+                {showCorrectionAction ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={onCreateCorrection}
+                  >
+                    <RotateCcw className="size-4" />
+                    Korrektur anlegen
+                  </Button>
+                ) : null}
               </div>
-            ) : null}
-            <div>
-              <dt className="text-muted-foreground">Brutto</dt>
-              <dd className="tabular-nums">{formatMoney(row.total_gross_amount)}</dd>
             </div>
-            <div>
-              <dt className="text-muted-foreground">Steuer</dt>
-              <dd className="tabular-nums">{formatMoney(row.total_tax_amount)}</dd>
-            </div>
-          </dl>
-
-          {row.remark ? (
-            <p className="rounded-xl border border-border/50 bg-muted/10 px-3 py-2 text-sm">
-              {row.remark}
-            </p>
-          ) : null}
-
-          {row.voucher_items.length > 0 ? (
-            <div className="overflow-x-auto rounded-xl border border-border/50">
-              <table className="w-full min-w-[420px] text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-3 py-2">Position</th>
-                    <th className="px-3 py-2">Betrag</th>
-                    <th className="px-3 py-2">Steuer</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {row.voucher_items.map((item) => (
-                    <tr key={item.id} className="border-b border-border/40 last:border-0">
-                      <td className="px-3 py-2">{item.label}</td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {formatMoney(item.amount)}
-                      </td>
-                      <td className="px-3 py-2 tabular-nums">
-                        {item.taxRatePercent} % ({formatMoney(item.taxAmount)})
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-2">
-            {hasFile ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                render={
-                  <a
-                    href={accountingVoucherFileUrl(restaurantId, row.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  />
-                }
-              >
-                <FileText className="size-4" />
-                Anhang öffnen
-              </Button>
-            ) : null}
-            {row.source === "lexoffice" && row.external_edit_url ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                render={
-                  <a
-                    href={row.external_edit_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  />
-                }
-              >
-                <ExternalLink className="size-4" />
-                In Lexware
-              </Button>
-            ) : canManage && row.source === "gwada" ? (
-              <Button type="button" size="sm" onClick={onEdit}>
-                Bearbeiten
-              </Button>
-            ) : null}
           </div>
+
+          <AccountingDocumentProtocolPanel
+            restaurantId={restaurantId}
+            documentKind="voucher"
+            documentId={row.id}
+            open={open}
+            refreshToken={row.updated_at}
+          />
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

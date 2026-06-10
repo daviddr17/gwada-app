@@ -2,6 +2,13 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { mergeAccountingSettingsRow } from "@/lib/accounting/accounting-document-design";
+import {
+  connectorLastSyncAt,
+  setConnectorAutoSync,
+  setConnectorLastSync,
+  type AccountingConnectorSyncScope,
+} from "@/lib/accounting/accounting-connector-settings";
+import type { AccountingConnectorKey } from "@/lib/accounting/connectors/connector-meta";
 import type {
   AccountingDocumentDesign,
   AccountingDocumentFormat,
@@ -24,30 +31,103 @@ export async function getAccountingSettings(
   ) as AccountingSettingsRow;
 }
 
+function legacyLexofficeSyncColumn(
+  scope: AccountingConnectorSyncScope,
+): string {
+  switch (scope) {
+    case "invoices":
+      return "last_lexoffice_invoices_sync_at";
+    case "quotations":
+      return "last_lexoffice_quotations_sync_at";
+    case "vouchers":
+      return "last_lexoffice_vouchers_sync_at";
+  }
+}
+
 export async function upsertAccountingSettings(
   sb: SupabaseClient,
   restaurantId: string,
   patch: {
     documentFormat?: AccountingDocumentFormat;
     autoSyncLexoffice?: boolean;
+    connectorAutoSync?: {
+      connector: AccountingConnectorKey;
+      enabled: boolean;
+    };
     deductInventoryOnInvoice?: boolean;
+    reverseInventoryOnInvoiceCorrection?: boolean;
     documentDesign?: AccountingDocumentDesign;
+    invoiceNumberPrefix?: string;
+    invoiceCorrectionNumberPrefix?: string;
+    quotationNumberPrefix?: string;
+    invoiceNumberIncludeYear?: boolean;
+    quotationNumberIncludeYear?: boolean;
+    invoiceNumberMinDigits?: number;
+    quotationNumberMinDigits?: number;
   },
 ): Promise<{ row: AccountingSettingsRow | null; error: string | null }> {
   const payload: Record<string, unknown> = {
     restaurant_id: restaurantId,
   };
+
+  const connectorPatch =
+    patch.connectorAutoSync ??
+    (patch.autoSyncLexoffice !== undefined
+      ? { connector: "lexoffice" as const, enabled: patch.autoSyncLexoffice }
+      : undefined);
+
+  if (connectorPatch && connectorPatch.connector !== "none") {
+    const current = await getAccountingSettings(sb, restaurantId);
+    payload.connector_settings = setConnectorAutoSync(
+      current.connector_settings,
+      connectorPatch.connector,
+      connectorPatch.enabled,
+    );
+    if (connectorPatch.connector === "lexoffice") {
+      payload.auto_sync_lexoffice = connectorPatch.enabled;
+    }
+  }
+
   if (patch.documentFormat !== undefined) {
     payload.document_format = patch.documentFormat;
-  }
-  if (patch.autoSyncLexoffice !== undefined) {
-    payload.auto_sync_lexoffice = patch.autoSyncLexoffice;
   }
   if (patch.deductInventoryOnInvoice !== undefined) {
     payload.deduct_inventory_on_invoice = patch.deductInventoryOnInvoice;
   }
+  if (patch.reverseInventoryOnInvoiceCorrection !== undefined) {
+    payload.reverse_inventory_on_invoice_correction =
+      patch.reverseInventoryOnInvoiceCorrection;
+  }
   if (patch.documentDesign !== undefined) {
     payload.document_design = patch.documentDesign;
+  }
+  if (patch.invoiceNumberPrefix !== undefined) {
+    payload.invoice_number_prefix = patch.invoiceNumberPrefix.trim() || "RE";
+  }
+  if (patch.invoiceCorrectionNumberPrefix !== undefined) {
+    payload.invoice_correction_number_prefix =
+      patch.invoiceCorrectionNumberPrefix.trim() || "KO";
+  }
+  if (patch.quotationNumberPrefix !== undefined) {
+    payload.quotation_number_prefix = patch.quotationNumberPrefix.trim() || "AN";
+  }
+  if (patch.invoiceNumberIncludeYear !== undefined) {
+    payload.invoice_number_include_year = patch.invoiceNumberIncludeYear;
+  }
+  if (patch.quotationNumberIncludeYear !== undefined) {
+    payload.quotation_number_include_year = patch.quotationNumberIncludeYear;
+  }
+  if (patch.invoiceNumberMinDigits !== undefined) {
+    payload.invoice_number_min_digits = Math.min(
+      10,
+      Math.max(1, patch.invoiceNumberMinDigits),
+    );
+  }
+  if (patch.quotationNumberMinDigits !== undefined) {
+    payload.quotation_number_min_digits = Math.min(
+      10,
+      Math.max(1, patch.quotationNumberMinDigits),
+    );
   }
 
   const { data, error } = await sb
@@ -66,22 +146,56 @@ export async function upsertAccountingSettings(
   };
 }
 
+export async function touchConnectorSyncTimestamp(
+  sb: SupabaseClient,
+  restaurantId: string,
+  connectorKey: AccountingConnectorKey,
+  scope: AccountingConnectorSyncScope,
+): Promise<void> {
+  if (connectorKey === "none") return;
+
+  const settings = await getAccountingSettings(sb, restaurantId);
+  const iso = new Date().toISOString();
+  const connector_settings = setConnectorLastSync(
+    settings.connector_settings,
+    connectorKey,
+    scope,
+    iso,
+  );
+
+  const payload: Record<string, unknown> = {
+    restaurant_id: restaurantId,
+    connector_settings,
+  };
+
+  if (connectorKey === "lexoffice") {
+    payload[legacyLexofficeSyncColumn(scope)] = iso;
+  }
+
+  await sb
+    .from("restaurant_accounting_settings")
+    .upsert(payload, { onConflict: "restaurant_id" });
+}
+
+/** @deprecated touchConnectorSyncTimestamp */
 export async function touchLexofficeSyncTimestamp(
   sb: SupabaseClient,
   restaurantId: string,
   kind: "invoice" | "quotation" | "voucher",
 ): Promise<void> {
-  const column =
+  const scope =
     kind === "invoice"
-      ? "last_lexoffice_invoices_sync_at"
+      ? "invoices"
       : kind === "quotation"
-        ? "last_lexoffice_quotations_sync_at"
-        : "last_lexoffice_vouchers_sync_at";
-  await sb.from("restaurant_accounting_settings").upsert(
-    {
-      restaurant_id: restaurantId,
-      [column]: new Date().toISOString(),
-    },
-    { onConflict: "restaurant_id" },
-  );
+        ? "quotations"
+        : "vouchers";
+  await touchConnectorSyncTimestamp(sb, restaurantId, "lexoffice", scope);
+}
+
+export function connectorSyncCooldownLastAt(
+  settings: AccountingSettingsRow,
+  connectorKey: AccountingConnectorKey,
+  scope: AccountingConnectorSyncScope,
+): string | null {
+  return connectorLastSyncAt(settings.connector_settings, connectorKey, scope);
 }

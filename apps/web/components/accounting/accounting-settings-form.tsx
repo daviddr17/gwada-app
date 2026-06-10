@@ -7,10 +7,11 @@ import { AccountingDocumentLayoutEditor } from "@/components/accounting/accounti
 import { AccountingDocumentDesignPreviewSheet } from "@/components/accounting/accounting-document-design-preview-sheet";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
-import { SkeletonCardFrame } from "@/components/ui/skeleton";
+import { AccountingSettingsSkeleton } from "@/components/accounting/accounting-settings-skeleton";
 import {
   SettingsStickySaveBar,
   settingsAccentSaveButtonClassName,
@@ -19,11 +20,14 @@ import {
   fetchAccountingSettings,
   saveAccountingSettings,
 } from "@/lib/accounting/accounting-api";
+import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { ACCOUNTING_DEFAULT_LOCALE } from "@/lib/accounting/accounting-locale";
 import {
   ACCOUNTING_DOCUMENT_FORMAT_OPTIONS,
   DEFAULT_ACCOUNTING_DOCUMENT_DESIGN,
+  exampleAccountingDocumentNumber,
   parseAccountingDocumentDesign,
   type AccountingDocumentDesign,
   type AccountingDocumentFormat,
@@ -38,14 +42,29 @@ import { cn } from "@/lib/utils";
 
 export function AccountingSettingsForm() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const { connector } = useAccountingConnector(restaurantId);
+  const activeConnectorKey =
+    connector.connected && connector.key !== "none" ? connector.key : null;
   const [settings, setSettings] = useState<AccountingSettingsRow | null>(null);
   const [documentFormat, setDocumentFormat] =
     useState<AccountingDocumentFormat>("pdf");
-  const [autoSyncLexoffice, setAutoSyncLexoffice] = useState(true);
+  const [connectorAutoSyncEnabledState, setConnectorAutoSyncEnabledState] =
+    useState(true);
   const [deductInventoryOnInvoice, setDeductInventoryOnInvoice] = useState(false);
+  const [reverseInventoryOnInvoiceCorrection, setReverseInventoryOnInvoiceCorrection] =
+    useState(false);
   const [documentDesign, setDocumentDesign] = useState<AccountingDocumentDesign>(
     DEFAULT_ACCOUNTING_DOCUMENT_DESIGN,
   );
+  const [invoiceNumberPrefix, setInvoiceNumberPrefix] = useState("RE");
+  const [invoiceCorrectionNumberPrefix, setInvoiceCorrectionNumberPrefix] =
+    useState("KO");
+  const [quotationNumberPrefix, setQuotationNumberPrefix] = useState("AN");
+  const [invoiceNumberIncludeYear, setInvoiceNumberIncludeYear] = useState(true);
+  const [quotationNumberIncludeYear, setQuotationNumberIncludeYear] =
+    useState(true);
+  const [invoiceNumberMinDigits, setInvoiceNumberMinDigits] = useState(4);
+  const [quotationNumberMinDigits, setQuotationNumberMinDigits] = useState(4);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -57,11 +76,32 @@ export function AccountingSettingsForm() {
     () =>
       JSON.stringify({
         documentFormat,
-        autoSyncLexoffice,
+        connectorAutoSyncEnabledState,
         deductInventoryOnInvoice,
+        reverseInventoryOnInvoiceCorrection,
         documentDesign,
+        invoiceNumberPrefix,
+        invoiceCorrectionNumberPrefix,
+        quotationNumberPrefix,
+        invoiceNumberIncludeYear,
+        quotationNumberIncludeYear,
+        invoiceNumberMinDigits,
+        quotationNumberMinDigits,
       }),
-    [documentFormat, autoSyncLexoffice, deductInventoryOnInvoice, documentDesign],
+    [
+      documentFormat,
+      connectorAutoSyncEnabledState,
+      deductInventoryOnInvoice,
+      reverseInventoryOnInvoiceCorrection,
+      documentDesign,
+      invoiceNumberPrefix,
+      invoiceCorrectionNumberPrefix,
+      quotationNumberPrefix,
+      invoiceNumberIncludeYear,
+      quotationNumberIncludeYear,
+      invoiceNumberMinDigits,
+      quotationNumberMinDigits,
+    ],
   );
 
   const dirty =
@@ -74,26 +114,44 @@ export function AccountingSettingsForm() {
     try {
       const { settings: row } = await fetchAccountingSettings(restaurantId);
       const nextFormat = row.document_format;
-      const nextAutoSync = row.auto_sync_lexoffice;
+      const nextAutoSync =
+        row.connector_settings.lexoffice?.autoSync ?? row.auto_sync_lexoffice;
       const nextDeductInventory = row.deduct_inventory_on_invoice;
+      const nextReverseInventory = row.reverse_inventory_on_invoice_correction;
       const nextDesign = parseAccountingDocumentDesign(row.document_design);
       setSettings(row);
       setDocumentFormat(nextFormat);
-      setAutoSyncLexoffice(nextAutoSync);
+      setConnectorAutoSyncEnabledState(nextAutoSync);
       setDeductInventoryOnInvoice(nextDeductInventory);
+      setReverseInventoryOnInvoiceCorrection(nextReverseInventory);
       setDocumentDesign(nextDesign);
+      setInvoiceNumberPrefix(row.invoice_number_prefix);
+      setInvoiceCorrectionNumberPrefix(row.invoice_correction_number_prefix);
+      setQuotationNumberPrefix(row.quotation_number_prefix);
+      setInvoiceNumberIncludeYear(row.invoice_number_include_year);
+      setQuotationNumberIncludeYear(row.quotation_number_include_year);
+      setInvoiceNumberMinDigits(row.invoice_number_min_digits);
+      setQuotationNumberMinDigits(row.quotation_number_min_digits);
       savedRef.current = JSON.stringify({
         documentFormat: nextFormat,
-        autoSyncLexoffice: nextAutoSync,
+        connectorAutoSyncEnabledState: nextAutoSync,
         deductInventoryOnInvoice: nextDeductInventory,
+        reverseInventoryOnInvoiceCorrection: nextReverseInventory,
         documentDesign: nextDesign,
+        invoiceNumberPrefix: row.invoice_number_prefix,
+        invoiceCorrectionNumberPrefix: row.invoice_correction_number_prefix,
+        quotationNumberPrefix: row.quotation_number_prefix,
+        invoiceNumberIncludeYear: row.invoice_number_include_year,
+        quotationNumberIncludeYear: row.quotation_number_include_year,
+        invoiceNumberMinDigits: row.invoice_number_min_digits,
+        quotationNumberMinDigits: row.quotation_number_min_digits,
       });
     } catch {
       toast.error("Einstellungen konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [restaurantId]);
+  }, [restaurantId, connector.key, connector.connected]);
 
   useEffect(() => {
     void load();
@@ -105,9 +163,24 @@ export function AccountingSettingsForm() {
     try {
       const row = await saveAccountingSettings(restaurantId, {
         documentFormat,
-        autoSyncLexoffice,
+        ...(activeConnectorKey
+          ? {
+              connectorAutoSync: {
+                connector: activeConnectorKey,
+                enabled: connectorAutoSyncEnabledState,
+              },
+            }
+          : {}),
         deductInventoryOnInvoice,
+        reverseInventoryOnInvoiceCorrection,
         documentDesign,
+        invoiceNumberPrefix,
+        invoiceCorrectionNumberPrefix,
+        quotationNumberPrefix,
+        invoiceNumberIncludeYear,
+        quotationNumberIncludeYear,
+        invoiceNumberMinDigits,
+        quotationNumberMinDigits,
       });
       setSettings(row);
       savedRef.current = snapshot;
@@ -119,16 +192,36 @@ export function AccountingSettingsForm() {
     }
   };
 
+  const numberingPreview = useMemo(
+    () => ({
+      invoiceNumberPrefix,
+      invoiceCorrectionNumberPrefix,
+      quotationNumberPrefix,
+      invoiceNumberIncludeYear,
+      quotationNumberIncludeYear,
+      invoiceNumberMinDigits,
+      quotationNumberMinDigits,
+    }),
+    [
+      invoiceNumberPrefix,
+      invoiceCorrectionNumberPrefix,
+      quotationNumberPrefix,
+      invoiceNumberIncludeYear,
+      quotationNumberIncludeYear,
+      invoiceNumberMinDigits,
+      quotationNumberMinDigits,
+    ],
+  );
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   if (loading && showSkeleton) {
-    return (
-      <div className="space-y-4">
-        <SkeletonCardFrame className="min-h-40" />
-        <SkeletonCardFrame className="min-h-64" />
-      </div>
-    );
+    return <AccountingSettingsSkeleton />;
+  }
+
+  if (loading && !showSkeleton) {
+    return <div aria-busy className="min-h-[32rem]" />;
   }
 
   return (
@@ -171,20 +264,24 @@ export function AccountingSettingsForm() {
                 </p>
               </div>
 
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
-                <div>
-                  <p className="text-sm font-medium">Lexware beim Laden abgleichen</p>
-                  <p className="text-xs text-muted-foreground">
-                    Bestehende Rechnungen/Angebote aus Lexware importieren bzw.
-                    aktualisieren.
-                  </p>
+              {activeConnectorKey ? (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">
+                      {connector.displayName} beim Laden abgleichen
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Bestehende Rechnungen, Angebote und Belege aus{" "}
+                      {connector.displayName} importieren bzw. aktualisieren.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={connectorAutoSyncEnabledState}
+                    onCheckedChange={setConnectorAutoSyncEnabledState}
+                    disabled={loading || saving}
+                  />
                 </div>
-                <Switch
-                  checked={autoSyncLexoffice}
-                  onCheckedChange={setAutoSyncLexoffice}
-                  disabled={loading || saving}
-                />
-              </div>
+              ) : null}
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
                 <div>
@@ -201,30 +298,165 @@ export function AccountingSettingsForm() {
                 />
               </div>
 
-              {settings?.last_lexoffice_invoices_sync_at ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                <div>
+                  <p className="text-sm font-medium">
+                    Bestand bei Korrektur zurückbuchen
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Bei Korrektur-Rechnung Zutaten laut Artikel-Rezept wieder ins
+                    Lager buchen — nur wenn an der Ursprungsrechnung zuvor Bestand
+                    abgezogen wurde.
+                  </p>
+                </div>
+                <Switch
+                  checked={reverseInventoryOnInvoiceCorrection}
+                  onCheckedChange={setReverseInventoryOnInvoiceCorrection}
+                  disabled={loading || saving}
+                />
+              </div>
+
+              {activeConnectorKey && settings?.last_lexoffice_invoices_sync_at ? (
                 <p className="text-xs text-muted-foreground">
-                  Letzter Rechnungs-Abruf:{" "}
+                  Letzter Rechnungs-Abruf ({connector.displayName}):{" "}
                   {new Date(settings.last_lexoffice_invoices_sync_at).toLocaleString(
-                    "de-DE",
+                    ACCOUNTING_DEFAULT_LOCALE,
                   )}
                 </p>
               ) : null}
-              {settings?.last_lexoffice_quotations_sync_at ? (
+              {activeConnectorKey && settings?.last_lexoffice_quotations_sync_at ? (
                 <p className="text-xs text-muted-foreground">
-                  Letzter Angebots-Abruf:{" "}
+                  Letzter Angebots-Abruf ({connector.displayName}):{" "}
                   {new Date(
                     settings.last_lexoffice_quotations_sync_at,
-                  ).toLocaleString("de-DE")}
+                  ).toLocaleString(ACCOUNTING_DEFAULT_LOCALE)}
                 </p>
               ) : null}
-              {settings?.last_lexoffice_vouchers_sync_at ? (
+              {activeConnectorKey && settings?.last_lexoffice_vouchers_sync_at ? (
                 <p className="text-xs text-muted-foreground">
-                  Letzter Beleg-Abruf:{" "}
+                  Letzter Beleg-Abruf ({connector.displayName}):{" "}
                   {new Date(settings.last_lexoffice_vouchers_sync_at).toLocaleString(
-                    "de-DE",
+                    ACCOUNTING_DEFAULT_LOCALE,
                   )}
                 </p>
               ) : null}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50 shadow-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Belegnummern (Gwada)</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Fortlaufende Nummern für in Gwada erstellte Rechnungen und
+                Angebote — getrennte Zähler, unabhängig von Lexware.
+              </p>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-3 rounded-xl border border-border/40 bg-muted/10 p-3">
+                  <p className="text-sm font-medium">Rechnungen</p>
+                  <div className="space-y-2">
+                    <Label>Präfix</Label>
+                    <Input
+                      value={invoiceNumberPrefix}
+                      onChange={(e) => setInvoiceNumberPrefix(e.target.value)}
+                      disabled={loading || saving}
+                      className="h-11 rounded-xl"
+                      placeholder="RE"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stellen (Zähler)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={invoiceNumberMinDigits}
+                      onChange={(e) =>
+                        setInvoiceNumberMinDigits(
+                          Math.min(10, Math.max(1, Number(e.target.value) || 4)),
+                        )
+                      }
+                      disabled={loading || saving}
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-sm font-normal">Jahr einbinden</Label>
+                    <Switch
+                      checked={invoiceNumberIncludeYear}
+                      onCheckedChange={setInvoiceNumberIncludeYear}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Beispiel:{" "}
+                    {exampleAccountingDocumentNumber(numberingPreview, "invoice")}
+                  </p>
+                  <div className="space-y-2 border-t border-border/40 pt-3">
+                    <Label>Korrektur-Präfix</Label>
+                    <Input
+                      value={invoiceCorrectionNumberPrefix}
+                      onChange={(e) =>
+                        setInvoiceCorrectionNumberPrefix(e.target.value)
+                      }
+                      disabled={loading || saving}
+                      className="h-11 rounded-xl"
+                      placeholder="KO"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Beispiel:{" "}
+                      {exampleAccountingDocumentNumber(
+                        numberingPreview,
+                        "invoice_correction",
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-xl border border-border/40 bg-muted/10 p-3">
+                  <p className="text-sm font-medium">Angebote</p>
+                  <div className="space-y-2">
+                    <Label>Präfix</Label>
+                    <Input
+                      value={quotationNumberPrefix}
+                      onChange={(e) => setQuotationNumberPrefix(e.target.value)}
+                      disabled={loading || saving}
+                      className="h-11 rounded-xl"
+                      placeholder="AN"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stellen (Zähler)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={quotationNumberMinDigits}
+                      onChange={(e) =>
+                        setQuotationNumberMinDigits(
+                          Math.min(10, Math.max(1, Number(e.target.value) || 4)),
+                        )
+                      }
+                      disabled={loading || saving}
+                      className="h-11 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label className="text-sm font-normal">Jahr einbinden</Label>
+                    <Switch
+                      checked={quotationNumberIncludeYear}
+                      onCheckedChange={setQuotationNumberIncludeYear}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Beispiel:{" "}
+                    {exampleAccountingDocumentNumber(numberingPreview, "quotation")}
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

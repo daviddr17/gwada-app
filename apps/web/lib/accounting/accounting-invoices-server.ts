@@ -8,8 +8,30 @@ import {
   buildVoucherPeriodIntroduction,
   resolveStoredVoucherDate,
 } from "@/lib/accounting/accounting-voucher-date";
-import { resolveAccountingSalesProvider } from "@/lib/accounting/providers/resolve-provider";
-import { applyInvoiceInventoryDeduction } from "@/lib/accounting/apply-invoice-inventory-deduction";
+import { getAccountingConnectorForSalesCreate } from "@/lib/accounting/connectors/registry";
+import {
+  accountingReadOnlyEditError,
+  isExternalAccountingSource,
+} from "@/lib/accounting/accounting-source";
+import {
+  insertAccountingDocumentLog,
+  salesDocumentCreatedLogSummary,
+} from "@/lib/accounting/accounting-document-log-server";
+import { diffSalesDocumentRow } from "@/lib/accounting/accounting-document-log-diff";
+import { isAccountingCorrectionVariant } from "@/lib/accounting/accounting-corrections";
+import { allocateAccountingDocumentNumber } from "@/lib/accounting/accounting-document-numbering-server";
+import { applyInvoiceInventoryCorrectionReversal, applyInvoiceInventoryDeduction } from "@/lib/accounting/apply-invoice-inventory-deduction";
+import {
+  parseAccountingListSortDir,
+  parseSalesDocumentSortKey,
+  salesDocumentSortColumn,
+} from "@/lib/accounting/accounting-list-sort";
+import {
+  applyAccountingSalesDocumentSearch,
+  fetchAccountingPaginatedList,
+  type AccountingListQueryOptions,
+} from "@/lib/accounting/accounting-list-query";
+import type { PaginatedListResult } from "@/lib/constants/list-pagination";
 import type {
   AccountingInvoiceRow,
   AccountingSalesDocumentInput,
@@ -23,25 +45,22 @@ function mapInvoiceRow(data: Record<string, unknown>): AccountingInvoiceRow {
 export async function listAccountingInvoices(
   sb: SupabaseClient,
   restaurantId: string,
-  source?: string | null,
-): Promise<AccountingInvoiceRow[]> {
-  let q = sb
-    .from("accounting_invoices")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("voucher_date", { ascending: false })
-    .order("created_at", { ascending: false });
-
-  if (source && source !== "all") {
-    q = q.eq("source", source);
-  }
-
-  const { data, error } = await q;
-  if (error) {
-    console.warn("listAccountingInvoices", error.message);
-    return [];
-  }
-  return (data ?? []).map((row) => mapInvoiceRow(row as Record<string, unknown>));
+  options?: AccountingListQueryOptions,
+): Promise<PaginatedListResult<AccountingInvoiceRow>> {
+  const sortKey = parseSalesDocumentSortKey(options?.sort ?? null);
+  const sortDir = parseAccountingListSortDir(options?.sortDir ?? null);
+  return fetchAccountingPaginatedList({
+    sb,
+    table: "accounting_invoices",
+    restaurantId,
+    options: {
+      ...options,
+      sortColumn: salesDocumentSortColumn(sortKey),
+      resolvedSortDir: sortDir,
+    },
+    applySearch: applyAccountingSalesDocumentSearch,
+    mapRow: (row) => mapInvoiceRow(row),
+  });
 }
 
 export async function getAccountingInvoice(
@@ -75,8 +94,37 @@ export async function createAccountingInvoice(
     params.input.currency,
   );
 
-  const syncToLexoffice = params.input.syncToLexoffice === true;
-  const provider = resolveAccountingSalesProvider(syncToLexoffice);
+  const isCorrection =
+    params.input.documentVariant === "correction" ||
+    isAccountingCorrectionVariant(params.input.documentVariant);
+  const correctsId = params.input.correctsId?.trim() || null;
+
+  let original: AccountingInvoiceRow | null = null;
+  if (isCorrection) {
+    if (!correctsId) {
+      return { row: null, error: "Korrektur benötigt eine Ursprungsrechnung." };
+    }
+    original = await getAccountingInvoice(
+      sb,
+      params.restaurantId,
+      correctsId,
+    );
+    if (!original) {
+      return { row: null, error: "Ursprungsrechnung nicht gefunden." };
+    }
+    if (isAccountingCorrectionVariant(original.document_variant)) {
+      return {
+        row: null,
+        error: "Korrektur einer Korrektur wird nicht unterstützt.",
+      };
+    }
+  }
+
+  const syncToLexoffice =
+    params.input.syncToLexoffice === true ||
+    (isCorrection &&
+      isExternalAccountingSource(original?.source ?? "gwada") &&
+      Boolean(original?.external_id));
 
   let external:
     | {
@@ -84,22 +132,49 @@ export async function createAccountingInvoice(
         externalId: string | null;
         externalVersion: number | null;
         externalEditUrl: string | null;
+        externalDocumentType: string | null;
         voucherNumber: string | null;
         status: string;
       }
     | null = null;
 
   try {
-    const created = await provider.createInvoice(params.restaurantId, {
-      ...params.input,
-      lineItems,
-    });
+    const connector = await getAccountingConnectorForSalesCreate(
+      params.restaurantId,
+      syncToLexoffice,
+    );
+    const payload = { ...params.input, lineItems };
+    const created = isCorrection
+      ? await connector.createInvoiceCorrection(params.restaurantId, payload, {
+          precedingExternalId:
+            isExternalAccountingSource(original?.source ?? "gwada")
+              ? original?.external_id
+              : null,
+        })
+      : await connector.createInvoice(params.restaurantId, payload);
     external = created;
   } catch (e) {
     return {
       row: null,
       error: e instanceof Error ? e.message : "Erstellen fehlgeschlagen.",
     };
+  }
+
+  let voucherNumber = external.voucherNumber;
+  if (!syncToLexoffice) {
+    try {
+      voucherNumber = await allocateAccountingDocumentNumber(sb, {
+        restaurantId: params.restaurantId,
+        kind: isCorrection ? "invoice_correction" : "invoice",
+        referenceDate: params.input.voucherDate,
+      });
+    } catch (e) {
+      return {
+        row: null,
+        error:
+          e instanceof Error ? e.message : "Nummernvergabe fehlgeschlagen.",
+      };
+    }
   }
 
   const { data, error } = await sb
@@ -110,8 +185,13 @@ export async function createAccountingInvoice(
       external_id: external.externalId,
       external_version: external.externalVersion,
       external_edit_url: external.externalEditUrl,
+      external_document_type: isCorrection
+        ? external.externalDocumentType ?? "credit_note"
+        : external.externalDocumentType ?? (syncToLexoffice ? "invoice" : null),
+      document_variant: isCorrection ? "correction" : "standard",
+      corrects_id: isCorrection ? correctsId : null,
       status: external.status,
-      voucher_number: external.voucherNumber,
+      voucher_number: voucherNumber,
       voucher_date: resolveStoredVoucherDate({
         voucherDateKind: params.input.voucherDateKind ?? "date",
         voucherDate: params.input.voucherDate,
@@ -158,16 +238,54 @@ export async function createAccountingInvoice(
   }
 
   const row = mapInvoiceRow(data as Record<string, unknown>);
-  const deductErr = await applyInvoiceInventoryDeduction(sb, {
-    restaurantId: params.restaurantId,
-    userId: params.userId,
-    invoiceId: row.id,
-    voucherNumber: row.voucher_number,
-    lineItems: row.line_items,
-  });
-  if (deductErr.error) {
-    console.warn("[gwada] applyInvoiceInventoryDeduction", deductErr.error);
+  if (isCorrection && original) {
+    const reverseErr = await applyInvoiceInventoryCorrectionReversal(sb, {
+      restaurantId: params.restaurantId,
+      userId: params.userId,
+      correctionInvoiceId: row.id,
+      correctionVoucherNumber: row.voucher_number,
+      correctsInvoiceId: original.id,
+      originalVoucherNumber: original.voucher_number,
+      lineItems: row.line_items,
+    });
+    if (reverseErr.error) {
+      console.warn(
+        "[gwada] applyInvoiceInventoryCorrectionReversal",
+        reverseErr.error,
+      );
+    }
+  } else if (!isCorrection) {
+    const deductErr = await applyInvoiceInventoryDeduction(sb, {
+      restaurantId: params.restaurantId,
+      userId: params.userId,
+      invoiceId: row.id,
+      voucherNumber: row.voucher_number,
+      lineItems: row.line_items,
+    });
+    if (deductErr.error) {
+      console.warn("[gwada] applyInvoiceInventoryDeduction", deductErr.error);
+    }
   }
+
+  await insertAccountingDocumentLog(sb, {
+    restaurantId: params.restaurantId,
+    documentKind: "invoice",
+    documentId: row.id,
+    actorUserId: params.userId,
+    action: "created",
+    details: {
+      source: row.source,
+      voucherNumber: row.voucher_number,
+      documentVariant: row.document_variant,
+      correctsNumber: original?.voucher_number ?? null,
+      summary: salesDocumentCreatedLogSummary("invoice", {
+        source: row.source,
+        voucherNumber: row.voucher_number,
+        documentVariant: row.document_variant,
+        correctsNumber: original?.voucher_number ?? null,
+      }),
+    },
+  });
 
   return { row, error: null };
 }
@@ -190,10 +308,10 @@ export async function updateAccountingInvoice(
     params.invoiceId,
   );
   if (!existing) return { row: null, error: "Rechnung nicht gefunden." };
-  if (existing.source === "lexoffice") {
+  if (isExternalAccountingSource(existing.source)) {
     return {
       row: null,
-      error: "Lexware-Rechnungen können nur in Lexware bearbeitet werden.",
+      error: accountingReadOnlyEditError("Rechnungen", existing.source),
     };
   }
 
@@ -249,5 +367,17 @@ export async function updateAccountingInvoice(
     .single();
 
   if (error) return { row: null, error: error.message };
-  return { row: mapInvoiceRow(data as Record<string, unknown>), error: null };
+  const row = mapInvoiceRow(data as Record<string, unknown>);
+  const changes = diffSalesDocumentRow(existing, row, "invoice");
+  if (changes.length > 0) {
+    await insertAccountingDocumentLog(sb, {
+      restaurantId: params.restaurantId,
+      documentKind: "invoice",
+      documentId: row.id,
+      actorUserId: params.userId,
+      action: "updated",
+      details: { changes, voucherNumber: row.voucher_number },
+    });
+  }
+  return { row, error: null };
 }

@@ -1,31 +1,59 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { AccountingCatalogToolbar } from "@/components/accounting/accounting-catalog-toolbar";
 import { AccountingFilterChips } from "@/components/accounting/accounting-filter-chips";
+import { AccountingListSearch } from "@/components/accounting/accounting-list-search";
+import { AccountingSourceIcon } from "@/components/accounting/accounting-source-icon";
+import { AccountingStatusBadge } from "@/components/accounting/accounting-status-badge";
+import { AccountingTableSortHeader } from "@/components/accounting/accounting-table-sort-header";
+import {
+  AccountingListScreenSkeleton,
+  AccountingListTableSkeleton,
+} from "@/components/accounting/accounting-list-screen-skeleton";
 import { AccountingVoucherDrawer } from "@/components/accounting/accounting-voucher-drawer";
 import { AccountingVoucherSheet } from "@/components/accounting/accounting-voucher-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListPagination } from "@/components/ui/list-pagination";
 import {
   createAccountingVoucher,
-  fetchAccountingSettings,
+  fetchAccountingCatalog,
+  fetchAccountingDocumentStatuses,
   fetchAccountingVouchers,
-  syncLexofficeVouchers,
+  syncAccountingDocuments,
   updateAccountingVoucher,
 } from "@/lib/accounting/accounting-api";
-import {
-  parseAccountingPlatformFilter,
-  type AccountingPlatformFilter,
-} from "@/lib/constants/accounting-platforms";
+import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
+import { isDefaultVoucherSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useLexofficeContactIntegration } from "@/lib/hooks/use-lexoffice-contact-integration";
+import {
+  markAccountingLexofficeAutoSync,
+  shouldRunAccountingLexofficeAutoSync,
+} from "@/lib/hooks/use-accounting-lexoffice-auto-sync";
+import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
+import {
+  accountingSourceDisplayLabel,
+  isExternalAccountingSource,
+  isReadOnlyAccountingDocument,
+} from "@/lib/accounting/accounting-source";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import type { AccountingVoucherRow } from "@/lib/types/accounting";
+import type {
+  AccountingArticleRow,
+  AccountingDocumentStatusRow,
+  AccountingTaxRateRow,
+  AccountingUnitRow,
+  AccountingVoucherRow,
+} from "@/lib/types/accounting";
+import {
+  canCreateAccountingCorrection,
+  isAccountingCorrectionVariant,
+} from "@/lib/accounting/accounting-corrections";
+import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -39,14 +67,6 @@ const KIND_LABELS: Record<string, string> = {
   sales: "Verkauf",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  draft: "Entwurf",
-  open: "Offen",
-  unchecked: "Ungeprüft",
-  paid: "Bezahlt",
-  voided: "Storniert",
-};
-
 function formatMoney(amount: number) {
   return new Intl.NumberFormat("de-DE", {
     style: "currency",
@@ -58,23 +78,39 @@ export function AccountingVouchersScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canManage = has("accounting.manage");
-  const lexoffice = useLexofficeContactIntegration(restaurantId);
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-
-  const platformFilter = parseAccountingPlatformFilter(
-    searchParams.get("platform"),
-  );
+  const { connector } = useAccountingConnector(restaurantId);
+  const {
+    page,
+    search,
+    platformFilter,
+    sortKey,
+    sortDir,
+    setSearchQuery,
+    setPage,
+    setPlatformFilter,
+    syncPageFromServer,
+    toggleSort,
+  } = useAccountingListUrl("voucher");
 
   const [rows, setRows] = useState<AccountingVoucherRow[]>([]);
+  const [statuses, setStatuses] = useState<AccountingDocumentStatusRow[]>([]);
+  const [taxRates, setTaxRates] = useState<AccountingTaxRateRow[]>([]);
+  const [units, setUnits] = useState<AccountingUnitRow[]>([]);
+  const [articles, setArticles] = useState<AccountingArticleRow[]>([]);
+  const [listMeta, setListMeta] = useState({
+    page: 1,
+    totalPages: 1,
+    totalCount: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editRow, setEditRow] = useState<AccountingVoucherRow | null>(null);
+  const [correctionOf, setCorrectionOf] = useState<AccountingVoucherRow | null>(
+    null,
+  );
   const [sheetRow, setSheetRow] = useState<AccountingVoucherRow | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const autoSyncDone = useRef(false);
 
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -84,85 +120,163 @@ export function AccountingVouchersScreen() {
     try {
       const source =
         platformFilter === "all" ? undefined : platformFilter;
-      const list = await fetchAccountingVouchers(restaurantId, source);
-      setRows(list);
+      const [list, statusRows, catalog] = await Promise.all([
+        fetchAccountingVouchers(restaurantId, {
+          source,
+          search,
+          page,
+          ...(isDefaultVoucherSort(sortKey, sortDir)
+            ? {}
+            : { sort: sortKey, sortDir }),
+        }),
+        fetchAccountingDocumentStatuses(restaurantId, "voucher", {
+          includeArchived: true,
+        }),
+        canManage ? fetchAccountingCatalog(restaurantId) : Promise.resolve(null),
+      ]);
+      setRows(list.items);
+      setStatuses(statusRows);
+      if (catalog) {
+        setTaxRates(catalog.taxRates);
+        setUnits(catalog.units);
+        setArticles(catalog.articles);
+      }
+      setListMeta({
+        page: list.page,
+        totalPages: list.totalPages,
+        totalCount: list.totalCount,
+      });
+      syncPageFromServer(list.page);
     } catch {
       toast.error("Belege konnten nicht geladen werden.");
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, platformFilter]);
+  }, [restaurantId, platformFilter, search, page, sortKey, sortDir, syncPageFromServer, canManage]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const runLexofficeSync = useCallback(
-    async (silent = false) => {
-      if (!restaurantId || !lexoffice.connected) return;
+  const runConnectorSync = useCallback(
+    async (opts?: { silent?: boolean; force?: boolean }) => {
+      if (
+        !restaurantId ||
+        !connector.connected ||
+        !connector.capabilities.canSyncVouchers
+      ) {
+        return;
+      }
       setSyncing(true);
       try {
-        const result = await syncLexofficeVouchers(restaurantId);
-        if (!silent) {
+        const result = await syncAccountingDocuments(restaurantId, {
+          scope: "vouchers",
+          force: opts?.force === true,
+        });
+        if (result.skipped) {
+          return;
+        }
+        if (!opts?.silent) {
+          const label = connector.displayName;
           if (result.listed === 0) {
-            toast.message("Lexware: Keine Belege gefunden.");
+            toast.message(`${label}: Keine Belege gefunden.`);
           } else {
             toast.success(
-              `Lexware: ${result.imported} neu, ${result.updated} aktualisiert (${result.listed} in Lexware).`,
+              `${label}: ${result.imported} neu, ${result.updated} aktualisiert (${result.listed} in ${label}).`,
             );
           }
         }
         await load();
       } catch (e) {
-        if (!silent) {
-          toast.error(
-            e instanceof Error ? e.message : "Lexware-Abruf fehlgeschlagen.",
-          );
-        }
+        toast.error(
+          e instanceof Error
+            ? e.message
+            : `${connector.displayName}-Abruf fehlgeschlagen.`,
+        );
       } finally {
         setSyncing(false);
       }
     },
-    [restaurantId, lexoffice.connected, load],
+    [restaurantId, connector, load],
   );
 
   useEffect(() => {
-    if (!restaurantId || !lexoffice.connected || autoSyncDone.current) return;
-    autoSyncDone.current = true;
+    if (
+      !restaurantId ||
+      !connector.connected ||
+      !connector.capabilities.canSyncVouchers
+    ) {
+      return;
+    }
+    if (!shouldRunAccountingLexofficeAutoSync(restaurantId, "vouchers")) return;
+
     void (async () => {
       try {
-        const { settings } = await fetchAccountingSettings(restaurantId);
-        if (settings.auto_sync_lexoffice) {
-          await runLexofficeSync(true);
-        }
+        if (!connector.autoSyncEnabled) return;
+        markAccountingLexofficeAutoSync(restaurantId, "vouchers");
+        await runConnectorSync({ silent: true });
       } catch {
-        /* ignore background sync */
+        toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
       }
     })();
-  }, [restaurantId, lexoffice.connected, runLexofficeSync]);
+  }, [restaurantId, connector, runConnectorSync]);
 
-  const selectPlatform = (filter: AccountingPlatformFilter) => {
-    const next = new URLSearchParams(searchParams.toString());
-    if (filter === "all") next.delete("platform");
-    else next.set("platform", filter);
-    router.replace(next.toString() ? `${pathname}?${next}` : pathname, {
-      scroll: false,
-    });
-  };
+  const selectPlatform = setPlatformFilter;
+
+  const emptyLabel = search.trim()
+    ? "Keine Belege für diese Suche."
+    : `Noch keine Belege — oben anlegen${connector.connected ? ` oder aus ${connector.displayName} abrufen` : ""}.`;
+
+  const listCountLabel = `Beleg${listMeta.totalCount === 1 ? "" : "e"}`;
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
+  const showInitialSkeleton = loading && showSkeleton && rows.length === 0;
+
   return (
     <div className="space-y-4">
+      {showInitialSkeleton ? (
+        <AccountingListScreenSkeleton
+          columnCount={10}
+          minTableWidth="860px"
+          ariaLabel="Belege werden geladen"
+          showCatalogToolbar={canManage}
+          showLexwareSync={
+            canManage &&
+            connector.connected &&
+            connector.capabilities.canSyncVouchers
+          }
+          showAddButton={canManage}
+        />
+      ) : (
+        <>
+      {canManage ? (
+        <AccountingCatalogToolbar
+          restaurantId={restaurantId}
+          catalog={{ taxRates, units, articles }}
+          defaultStatusKind="voucher"
+          onRefresh={() => void load()}
+          disabled={loading}
+        />
+      ) : null}
+
       <AccountingFilterChips
         filter={platformFilter}
         onFilterChange={selectPlatform}
-        lexofficeConnected={lexoffice.connected}
+        externalConnectorConnected={connector.connected}
         disabled={loading}
       />
 
-      {canManage && lexoffice.connected ? (
+      <AccountingListSearch
+        value={search}
+        onDebouncedChange={setSearchQuery}
+        placeholder="Nummer oder Kontakt …"
+        disabled={loading}
+        hint="Suche in Belegnummer und Kontaktname."
+      />
+
+      {canManage && connector.connected && connector.capabilities.canSyncVouchers ? (
         <div className="flex justify-end">
           <Button
             type="button"
@@ -170,10 +284,10 @@ export function AccountingVouchersScreen() {
             size="sm"
             className="rounded-full border-border/60"
             disabled={loading || syncing}
-            onClick={() => void runLexofficeSync()}
+            onClick={() => void runConnectorSync({ force: true })}
           >
             <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
-            Aus Lexware abrufen
+            Aus {connector.displayName} abrufen
           </Button>
         </div>
       ) : null}
@@ -185,6 +299,7 @@ export function AccountingVouchersScreen() {
           className={modulePrimaryAddButtonFullWidthClassName}
           onClick={() => {
             setEditRow(null);
+            setCorrectionOf(null);
             setDrawerOpen(true);
           }}
         >
@@ -193,24 +308,74 @@ export function AccountingVouchersScreen() {
         </Button>
       ) : null}
 
-      {loading && showSkeleton ? (
-        <Card className="border-border/50 shadow-card">
-          <CardContent className="min-h-40 animate-pulse bg-muted/20" />
-        </Card>
+      {loading && !showSkeleton ? (
+        <div aria-busy className="min-h-[28rem] rounded-xl" />
+      ) : loading && showSkeleton ? (
+        <AccountingListTableSkeleton
+          columnCount={10}
+          minTableWidth="860px"
+          ariaLabel="Belege werden geladen"
+        />
       ) : (
         <Card className="border-border/50 py-0 shadow-card">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full min-w-[860px] text-sm">
                 <thead>
-                  <tr className="border-b border-border/60 bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                    <th className="px-4 py-2">Nummer</th>
-                    <th className="px-4 py-2">Datum</th>
-                    <th className="px-4 py-2">Kontakt</th>
-                    <th className="px-4 py-2">Art</th>
-                    <th className="px-4 py-2">Betrag</th>
-                    <th className="px-4 py-2">Status</th>
-                    <th className="px-4 py-2">Quelle</th>
+                  <tr className="border-b border-border/60 bg-muted/40 text-left">
+                    <AccountingTableSortHeader
+                      label=""
+                      ariaLabel="Quelle sortieren"
+                      sortKey="source"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                      className="w-12 px-2"
+                    />
+                    <AccountingTableSortHeader
+                      label="Nummer"
+                      sortKey="voucher_number"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Datum"
+                      sortKey="voucher_date"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Kontakt"
+                      sortKey="contact_name"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Art"
+                      sortKey="voucher_kind"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <AccountingTableSortHeader
+                      label="Betrag"
+                      sortKey="amount"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <th className="px-4 py-2 font-medium">Steuer</th>
+                    <th className="px-4 py-2 font-medium">Steuersätze</th>
+                    <AccountingTableSortHeader
+                      label="Status"
+                      sortKey="status"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
                     <th className="px-4 py-2" />
                   </tr>
                 </thead>
@@ -218,10 +383,10 @@ export function AccountingVouchersScreen() {
                   {rows.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={8}
+                        colSpan={10}
                         className="px-4 py-8 text-center text-muted-foreground"
                       >
-                        Noch keine Belege — oben anlegen oder aus Lexware abrufen.
+                        {emptyLabel}
                       </td>
                     </tr>
                   ) : (
@@ -234,8 +399,18 @@ export function AccountingVouchersScreen() {
                           setSheetOpen(true);
                         }}
                       >
+                        <td className="w-12 px-2 py-3">
+                          <AccountingSourceIcon source={row.source} />
+                        </td>
                         <td className="px-4 py-3 font-medium">
-                          {row.voucher_number ?? "—"}
+                          <span className="inline-flex flex-wrap items-center gap-1.5">
+                            {row.voucher_number ?? "—"}
+                            {isAccountingCorrectionVariant(row.document_variant) ? (
+                              <Badge variant="secondary" className="text-xs">
+                                Korrektur
+                              </Badge>
+                            ) : null}
+                          </span>
                         </td>
                         <td className="px-4 py-3 tabular-nums">
                           {new Date(row.voucher_date).toLocaleDateString("de-DE")}
@@ -247,19 +422,24 @@ export function AccountingVouchersScreen() {
                         <td className="px-4 py-3 tabular-nums">
                           {formatMoney(row.total_gross_amount)}
                         </td>
-                        <td className="px-4 py-3">
-                          <Badge variant="outline">
-                            {STATUS_LABELS[row.status] ?? row.status}
-                          </Badge>
+                        <td className="px-4 py-3 tabular-nums">
+                          {formatMoney(row.total_tax_amount)}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatVoucherTaxRatesSummary(row.voucher_items)}
                         </td>
                         <td className="px-4 py-3">
-                          {row.source === "lexoffice" ? "Lexware" : "Gwada"}
+                          <AccountingStatusBadge
+                            statusCode={row.status}
+                            statuses={statuses}
+                          />
                         </td>
                         <td
                           className="px-4 py-3 text-right"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {row.source === "lexoffice" && row.external_edit_url ? (
+                          {isExternalAccountingSource(row.source) &&
+                          row.external_edit_url ? (
                             <Button
                               type="button"
                               variant="outline"
@@ -273,7 +453,7 @@ export function AccountingVouchersScreen() {
                               }
                             >
                               <ExternalLink className="size-4" />
-                              In Lexware
+                              In {accountingSourceDisplayLabel(row.source)}
                             </Button>
                           ) : canManage ? (
                             <Button
@@ -295,13 +475,22 @@ export function AccountingVouchersScreen() {
                 </tbody>
               </table>
             </div>
-            {rows.length > 0 ? (
-              <p className="border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">
-                {rows.length} Beleg{rows.length === 1 ? "" : "e"}
-              </p>
-            ) : null}
+            <ListPagination
+              className="px-4 pb-4"
+              page={listMeta.page}
+              totalPages={listMeta.totalPages}
+              totalCount={listMeta.totalCount}
+              itemLabel={listCountLabel}
+              canPrevious={listMeta.page > 1}
+              canNext={listMeta.page < listMeta.totalPages}
+              busy={loading}
+              onPrevious={() => setPage(listMeta.page - 1)}
+              onNext={() => setPage(listMeta.page + 1)}
+            />
           </CardContent>
         </Card>
+      )}
+        </>
       )}
 
       <AccountingVoucherSheet
@@ -309,21 +498,39 @@ export function AccountingVouchersScreen() {
         onOpenChange={setSheetOpen}
         restaurantId={restaurantId}
         row={sheetRow}
+        statuses={statuses}
         canManage={canManage}
         onEdit={() => {
-          if (!sheetRow || sheetRow.source === "lexoffice") return;
+          if (!sheetRow || isReadOnlyAccountingDocument(sheetRow.source)) return;
           setSheetOpen(false);
           setEditRow(sheetRow);
+          setCorrectionOf(null);
           setDrawerOpen(true);
         }}
+        onCreateCorrection={
+          sheetRow && canCreateAccountingCorrection(sheetRow.document_variant)
+            ? () => {
+                if (!sheetRow) return;
+                setSheetOpen(false);
+                setEditRow(null);
+                setCorrectionOf(sheetRow);
+                setDrawerOpen(true);
+              }
+            : undefined
+        }
       />
 
       <AccountingVoucherDrawer
         open={drawerOpen}
-        onOpenChange={setDrawerOpen}
+        onOpenChange={(open) => {
+          setDrawerOpen(open);
+          if (!open) setCorrectionOf(null);
+        }}
         restaurantId={restaurantId}
         editRow={editRow}
-        lexofficeConnected={lexoffice.connected}
+        correctionOf={correctionOf}
+        statuses={statuses}
+        externalConnectorConnected={connector.connected}
         onSaved={() => void load()}
         onCreate={async (input, file) => {
           await createAccountingVoucher(restaurantId, input, file);

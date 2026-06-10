@@ -11,6 +11,11 @@ import {
   buildAccountingPreviewInvoiceRow,
   buildAccountingPreviewQuotationRow,
 } from "@/lib/accounting/accounting-document-preview-sample";
+import {
+  buildSalesDocumentPreviewInvoiceRow,
+  buildSalesDocumentPreviewQuotationRow,
+  type AccountingSalesDocumentDraftPreviewInput,
+} from "@/lib/accounting/build-sales-document-preview-row";
 import { generateGwadaSalesDocumentPdf } from "@/lib/accounting/generate-sales-document-pdf";
 import { parseAccountingDocumentDesign } from "@/lib/types/accounting-settings";
 import type { AccountingDocumentDesign } from "@/lib/types/accounting-settings";
@@ -19,7 +24,10 @@ import {
   zugferdXmlFilename,
 } from "@/lib/accounting/generate-zugferd-xml";
 import { sendSalesDocumentNotification } from "@/lib/accounting/send-sales-document-server";
-import { fetchLexofficeSalesDocumentFile } from "@/lib/integrations/lexoffice-voucherlist";
+import { insertAccountingDocumentLog } from "@/lib/accounting/accounting-document-log-server";
+import { isAccountingCorrectionVariant } from "@/lib/accounting/accounting-corrections";
+import { getAccountingConnectorForDocument } from "@/lib/accounting/connectors/registry";
+import { isExternalAccountingSource } from "@/lib/accounting/accounting-source";
 import type {
   AccountingInvoiceRow,
   AccountingQuotationRow,
@@ -75,6 +83,39 @@ export async function resolveAccountingDocumentDesignPreview(
   };
 }
 
+export async function resolveAccountingSalesDocumentDraftPreview(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    kind: SalesKind;
+    draft: AccountingSalesDocumentDraftPreviewInput;
+  },
+): Promise<
+  | { ok: true; buffer: Buffer; contentType: string; filename: string }
+  | { ok: false; error: string }
+> {
+  const settings = await getAccountingSettings(sb, params.restaurantId);
+  const row =
+    params.kind === "invoice"
+      ? buildSalesDocumentPreviewInvoiceRow(params.restaurantId, params.draft)
+      : buildSalesDocumentPreviewQuotationRow(params.restaurantId, params.draft);
+
+  const pdfContext = await loadAccountingPdfRenderContext(
+    sb,
+    params.restaurantId,
+    settings.document_design,
+  );
+  const buffer = await generateGwadaSalesDocumentPdf(row, params.kind, pdfContext);
+  const prefix = params.kind === "invoice" ? "Rechnung" : "Angebot";
+
+  return {
+    ok: true,
+    buffer,
+    contentType: "application/pdf",
+    filename: `${prefix}-Vorschau.pdf`,
+  };
+}
+
 export async function resolveSalesDocumentPdf(
   sb: SupabaseClient,
   params: {
@@ -95,22 +136,36 @@ export async function resolveSalesDocumentPdf(
   if (!row) return { ok: false, error: "Dokument nicht gefunden." };
 
   const number = row.voucher_number ?? row.id.slice(0, 8);
-  const prefix = params.kind === "invoice" ? "Rechnung" : "Angebot";
+  const isCorrection =
+    isAccountingCorrectionVariant(row.document_variant) ||
+    row.external_document_type === "credit_note";
+  const prefix = isCorrection
+    ? "Korrektur"
+    : params.kind === "invoice"
+      ? "Rechnung"
+      : "Angebot";
 
-  if (row.source === "lexoffice" && row.external_id) {
-    const file = await fetchLexofficeSalesDocumentFile(
+  if (isExternalAccountingSource(row.source) && row.external_id) {
+    const connector = await getAccountingConnectorForDocument(
       params.restaurantId,
-      params.kind,
-      row.external_id,
-      "pdf",
+      row.source,
     );
-    if (!file.ok) return file;
-    return {
-      ok: true,
-      buffer: file.buffer,
-      contentType: file.contentType,
-      filename: file.filename || `${prefix}-${number}.pdf`,
-    };
+    if (connector.capabilities.canFetchExternalSalesPdf) {
+      const file = await connector.fetchSalesDocumentFile(params.restaurantId, {
+        kind: params.kind,
+        row,
+        format: "pdf",
+      });
+      if (file?.ok) {
+        return {
+          ok: true,
+          buffer: file.buffer,
+          contentType: file.contentType,
+          filename: file.filename || `${prefix}-${number}.pdf`,
+        };
+      }
+      if (file && !file.ok) return file;
+    }
   }
 
   const settings = await getAccountingSettings(sb, params.restaurantId);
@@ -155,15 +210,22 @@ export async function resolveSalesDocumentXmlAttachment(
     return { ok: true, skipped: true };
   }
 
-  if (row.source === "lexoffice" && row.external_id) {
-    const file = await fetchLexofficeSalesDocumentFile(
+  if (isExternalAccountingSource(row.source) && row.external_id) {
+    const connector = await getAccountingConnectorForDocument(
       params.restaurantId,
-      params.kind,
-      row.external_id,
-      "xml",
+      row.source,
     );
-    if (!file.ok) return file;
-    return { ok: true, buffer: file.buffer, filename: file.filename };
+    if (connector.capabilities.canFetchExternalSalesXml) {
+      const file = await connector.fetchSalesDocumentFile(params.restaurantId, {
+        kind: params.kind,
+        row,
+        format: "xml",
+      });
+      if (file?.ok) {
+        return { ok: true, buffer: file.buffer, filename: file.filename };
+      }
+      if (file && !file.ok) return file;
+    }
   }
 
   const pdfContext = await loadAccountingPdfRenderContext(
@@ -185,6 +247,7 @@ export async function sendSalesDocument(
     restaurantId: string;
     kind: SalesKind;
     documentId: string;
+    userId: string;
     sendEmail: boolean;
     sendWhatsapp: boolean;
   },
@@ -270,6 +333,21 @@ export async function sendSalesDocument(
     })
     .eq("id", params.documentId)
     .eq("restaurant_id", params.restaurantId);
+
+  await insertAccountingDocumentLog(sb, {
+    restaurantId: params.restaurantId,
+    documentKind: params.kind,
+    documentId: params.documentId,
+    actorUserId: params.userId,
+    action: "sent",
+    details: {
+      channels: result.channels,
+      recipientName: recipient.name ?? null,
+      recipientEmail: recipient.email ?? null,
+      recipientPhone: recipient.phone ?? null,
+      voucherNumber: row.voucher_number,
+    },
+  });
 
   return { channels: result.channels, error: null };
 }

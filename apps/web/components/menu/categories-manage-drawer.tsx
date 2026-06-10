@@ -47,6 +47,8 @@ type CategoriesManageDrawerProps = {
   rowLeading?: (row: ManageableListItem) => React.ReactNode;
   /** z. B. Bestand: Lieferanten, Marken, … */
   copy?: Partial<CategoriesManageDrawerCopy>;
+  /** z. B. Bereichs-Dropdown bei Buchführungs-Status */
+  afterDescription?: React.ReactNode;
 };
 
 export function CategoriesManageDrawer({
@@ -58,6 +60,7 @@ export function CategoriesManageDrawer({
   onNew,
   rowLeading,
   copy: copyProp,
+  afterDescription,
 }: CategoriesManageDrawerProps) {
   const copy = { ...DEFAULT_MANAGE_COPY, ...copyProp };
   const [local, setLocal] = React.useState(categories);
@@ -106,6 +109,9 @@ export function CategoriesManageDrawer({
           <DrawerDescription className="text-base">
             {copy.description}
           </DrawerDescription>
+          {afterDescription ? (
+            <div className="pt-3">{afterDescription}</div>
+          ) : null}
         </DrawerHeader>
 
         <div className="flex flex-col gap-2 overflow-y-auto px-6 pb-4">

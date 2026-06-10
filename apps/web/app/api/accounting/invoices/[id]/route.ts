@@ -7,6 +7,8 @@ import {
   getAccountingInvoice,
   updateAccountingInvoice,
 } from "@/lib/accounting/accounting-invoices-server";
+import { getAccountingConnectorForDocument } from "@/lib/accounting/connectors/registry";
+import { isExternalAccountingSource } from "@/lib/accounting/accounting-source";
 import type {
   AccountingInvoiceStatus,
   AccountingSalesDocumentInput,
@@ -29,6 +31,25 @@ export async function GET(
   if (!row) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
+
+  const url = new URL(req.url);
+  if (url.searchParams.get("enrich") === "1" && isExternalAccountingSource(row.source)) {
+    const connector = await getAccountingConnectorForDocument(
+      auth.restaurantId,
+      row.source,
+    );
+    if (connector.capabilities.canEnrichSalesDetail) {
+      const enriched = await connector.enrichSalesDocument(auth.sb, {
+        restaurantId: auth.restaurantId,
+        kind: "invoice",
+        row,
+        userId: auth.userId,
+        force: url.searchParams.get("force") === "1",
+      });
+      return NextResponse.json({ invoice: enriched });
+    }
+  }
+
   return NextResponse.json({ invoice: row });
 }
 

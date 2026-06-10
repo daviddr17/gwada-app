@@ -14,14 +14,20 @@ import { cn } from "@/lib/utils";
 export function AccountingFilterChips({
   filter,
   onFilterChange,
+  externalConnectorConnected,
   lexofficeConnected,
   disabled,
 }: {
   filter: AccountingPlatformFilter;
   onFilterChange: (filter: AccountingPlatformFilter) => void;
-  lexofficeConnected: boolean;
+  /** Externer Buchhaltungs-Connector aktiv (z. B. Lexware). */
+  externalConnectorConnected?: boolean;
+  /** @deprecated externalConnectorConnected */
+  lexofficeConnected?: boolean;
   disabled?: boolean;
 }) {
+  const connectorActive =
+    externalConnectorConnected ?? lexofficeConnected ?? false;
   return (
     <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       <button
@@ -41,7 +47,8 @@ export function AccountingFilterChips({
         {ACCOUNTING_FILTER_LABELS.all}
       </button>
       {ACCOUNTING_PLATFORMS.map((platform) => {
-        const unavailable = platform === "lexoffice" && !lexofficeConnected;
+        const unavailable =
+          platform !== "gwada" && !connectorActive;
         return (
           <ContactPlatformChip
             key={platform}

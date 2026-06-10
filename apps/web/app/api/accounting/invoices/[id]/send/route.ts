@@ -27,6 +27,7 @@ export async function POST(
     restaurantId: auth.restaurantId,
     kind: "invoice",
     documentId: id,
+    userId: auth.userId,
     sendEmail: body.sendEmail === true,
     sendWhatsapp: body.sendWhatsapp === true,
   });

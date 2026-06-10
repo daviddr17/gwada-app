@@ -1,22 +1,37 @@
 import "server-only";
 
-import { randomUUID } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { touchLexofficeSyncTimestamp } from "@/lib/accounting/accounting-settings-server";
+import {
+  connectorSyncCooldownLastAt,
+  getAccountingSettings,
+  touchConnectorSyncTimestamp,
+} from "@/lib/accounting/accounting-settings-server";
+import { salesDocumentKindToSyncScope } from "@/lib/accounting/accounting-connector-settings";
+import {
+  invalidateLexofficeCachePrefix,
+  LEXOFFICE_SYNC_COOLDOWN_MS,
+} from "@/lib/integrations/lexoffice-api-cache";
+import {
+  listTotalsFallbackFromListItem,
+  salesDocumentPatchFromLexofficeDetail,
+} from "@/lib/integrations/lexoffice-sales-detail-map";
+import {
+  insertAccountingDocumentLog,
+  salesDocumentCreatedLogSummary,
+} from "@/lib/accounting/accounting-document-log-server";
 import {
   fetchAllLexofficeVoucherList,
   fetchLexofficeSalesDetail,
   lexofficeEditUrl,
-  mapLexofficeTaxMode,
   mapLexofficeVoucherStatus,
-  type LexofficeSalesDetail,
   type LexofficeVoucherListItem,
 } from "@/lib/integrations/lexoffice-voucherlist";
 import type {
   AccountingLineItem,
-  AccountingRecipientSnapshot,
   AccountingTotals,
 } from "@/lib/types/accounting";
+
+const LEXWARE_APP_BASE = "https://app.lexware.de";
 
 function parseVoucherDate(isoOrDate: string | undefined): string {
   if (!isoOrDate) return new Date().toISOString().slice(0, 10);
@@ -28,90 +43,165 @@ function optionalVoucherDate(isoOrDate: string | null | undefined): string | nul
   return isoOrDate.slice(0, 10);
 }
 
-function recipientFromLexoffice(detail: LexofficeSalesDetail): AccountingRecipientSnapshot {
-  const a = detail.address;
+function listItemUpdatedAt(item: LexofficeVoucherListItem): string | null {
+  return item.updatedDate ?? null;
+}
+
+function isCreditNoteListItem(
+  kind: "invoice" | "quotation",
+  item: LexofficeVoucherListItem,
+): boolean {
+  return (
+    kind === "invoice" &&
+    (item.voucherType ?? "").toLowerCase() === "creditnote"
+  );
+}
+
+type ExistingLexofficeSalesDocument = {
+  id: string;
+  external_id: string;
+  external_updated_at: string | null;
+  line_items: AccountingLineItem[];
+  totals: AccountingTotals | null;
+};
+
+function listOnlySalesPatch(
+  kind: "invoice" | "quotation",
+  item: LexofficeVoucherListItem,
+): Record<string, unknown> {
+  const currency = item.currency ?? "EUR";
+  const patch: Record<string, unknown> = {
+    status: mapLexofficeVoucherStatus(item.voucherStatus, kind),
+    voucher_number: item.voucherNumber ?? null,
+    voucher_date: parseVoucherDate(item.voucherDate),
+    currency,
+    recipient_type: "one_time",
+    contact_id: null,
+    recipient_snapshot: {
+      name: item.contactName?.trim() || "Unbenannt",
+      supplement: null,
+      street: null,
+      city: null,
+      zip: null,
+      countryCode: "DE",
+    },
+    external_updated_at: listItemUpdatedAt(item),
+  };
+
+  if (kind === "invoice") {
+    patch.due_date = optionalVoucherDate(item.dueDate);
+  }
+
+  return patch;
+}
+
+function salesDocumentShellFromListItem(
+  kind: "invoice" | "quotation",
+  item: LexofficeVoucherListItem,
+): Record<string, unknown> {
+  const isCreditNote = isCreditNoteListItem(kind, item);
+
   return {
-    name: a?.name?.trim() || "Unbenannt",
-    supplement: a?.supplement ?? null,
-    street: a?.street ?? null,
-    city: a?.city ?? null,
-    zip: a?.zip ?? null,
-    countryCode: a?.countryCode ?? "DE",
+    source: "lexoffice",
+    external_id: item.id,
+    external_version: null,
+    external_edit_url: isCreditNote
+      ? `${LEXWARE_APP_BASE}/permalink/credit-notes/edit/${item.id}`
+      : lexofficeEditUrl(kind, item.id),
+    external_document_type: isCreditNote ? "credit_note" : kind,
+    document_variant: isCreditNote ? "correction" : "standard",
+    corrects_id: null,
+    finalize_on_create: false,
+    ...listOnlySalesPatch(kind, item),
+    line_items: [],
+    totals: listTotalsFallbackFromListItem(item),
+    title: null,
+    introduction: null,
+    remark: null,
+    ...(kind === "quotation" ? { expiration_date: null } : {}),
   };
 }
 
-function totalsFromLexoffice(detail: LexofficeSalesDetail): AccountingTotals {
-  const currency = detail.totalPrice?.currency ?? "EUR";
-  const totalNet = detail.totalPrice?.totalNetAmount ?? 0;
-  const totalGross = detail.totalPrice?.totalGrossAmount ?? 0;
-  const totalTax = detail.totalPrice?.totalTaxAmount ?? totalGross - totalNet;
-  return { currency, totalNet, totalTax, totalGross };
-}
-
-function lineItemsFromLexoffice(detail: LexofficeSalesDetail): AccountingLineItem[] {
-  const items = detail.lineItems ?? [];
-  return items.map((raw, index) => {
-    const type = String(raw.type ?? "custom");
-    const unitPriceRaw = raw.unitPrice as Record<string, unknown> | undefined;
-    const netAmount = Number(unitPriceRaw?.netAmount ?? 0);
-    const grossAmount = Number(unitPriceRaw?.grossAmount ?? 0);
-    const taxRate = Number(unitPriceRaw?.taxRatePercentage ?? 0);
-    const quantity = Number(raw.quantity ?? 1);
-    const unitPrice = netAmount || grossAmount;
-    return {
-      id: randomUUID(),
-      sortOrder: index,
-      type: type === "text" ? "text" : "custom",
-      articleId: null,
-      name: String(raw.name ?? ""),
-      description: raw.description ? String(raw.description) : null,
-      quantity,
-      unitName: String(raw.unitName ?? "Stück"),
-      unitPrice,
-      taxRatePercent: taxRate,
-      discountPercent: Number(raw.discountPercentage ?? 0),
-      lineAmount: unitPrice * quantity,
-    };
-  });
-}
-
-function rowFromDetail(
-  kind: "invoice" | "quotation",
-  detail: LexofficeSalesDetail,
-  listItem?: LexofficeVoucherListItem,
-): Record<string, unknown> {
-  const status = mapLexofficeVoucherStatus(
-    detail.voucherStatus ?? listItem?.voucherStatus,
-    kind,
+function needsSalesDetailFetch(
+  item: LexofficeVoucherListItem,
+  existing: ExistingLexofficeSalesDocument | undefined,
+  isNew: boolean,
+): boolean {
+  if (isNew || !existing) return true;
+  if (!existing.line_items?.length) return true;
+  const totalTax = existing.totals?.totalTax ?? 0;
+  if (totalTax === 0 && Number(item.totalAmount ?? 0) > 0) return true;
+  const listUpdated = listItemUpdatedAt(item);
+  if (!listUpdated) return false;
+  if (!existing.external_updated_at) return true;
+  return (
+    new Date(listUpdated).getTime() >
+    new Date(existing.external_updated_at).getTime()
   );
-  const externalId = detail.id;
+}
+
+async function buildSalesDocumentPayload(
+  restaurantId: string,
+  kind: "invoice" | "quotation",
+  item: LexofficeVoucherListItem,
+  existing: ExistingLexofficeSalesDocument | undefined,
+  isNew: boolean,
+  opts?: { skipDetailCache?: boolean },
+): Promise<{ payload: Record<string, unknown>; detailFetched: boolean }> {
+  if (!needsSalesDetailFetch(item, existing, isNew)) {
+    return { payload: listOnlySalesPatch(kind, item), detailFetched: false };
+  }
+
+  const detail = await fetchLexofficeSalesDetail(
+    restaurantId,
+    kind,
+    item.id,
+    item.voucherType,
+    { skipCache: opts?.skipDetailCache },
+  );
+
+  if (!detail.ok) {
+    return {
+      payload: isNew
+        ? salesDocumentShellFromListItem(kind, item)
+        : listOnlySalesPatch(kind, item),
+      detailFetched: false,
+    };
+  }
+
+  const detailPatch = salesDocumentPatchFromLexofficeDetail(
+    kind,
+    detail.detail,
+    item,
+  );
+
+  if (isNew) {
+    return {
+      payload: {
+        ...salesDocumentShellFromListItem(kind, item),
+        ...detailPatch,
+        external_updated_at: listItemUpdatedAt(item),
+      },
+      detailFetched: true,
+    };
+  }
+
+  const isCreditNote = isCreditNoteListItem(kind, item);
   return {
-    source: "lexoffice",
-    external_id: externalId,
-    external_version: detail.version ?? null,
-    external_edit_url: lexofficeEditUrl(kind, externalId),
-    status,
-    voucher_number: detail.voucherNumber ?? listItem?.voucherNumber ?? null,
-    voucher_date: parseVoucherDate(detail.voucherDate ?? listItem?.voucherDate),
-    due_date:
-      kind === "invoice"
-        ? optionalVoucherDate(detail.dueDate)
-        : null,
-    expiration_date:
-      kind === "quotation"
-        ? optionalVoucherDate(detail.expirationDate)
-        : null,
-    currency: detail.totalPrice?.currency ?? listItem?.currency ?? "EUR",
-    tax_mode: mapLexofficeTaxMode(detail.taxConditions?.taxType),
-    recipient_type: "one_time",
-    contact_id: null,
-    recipient_snapshot: recipientFromLexoffice(detail),
-    line_items: lineItemsFromLexoffice(detail),
-    totals: totalsFromLexoffice(detail),
-    title: detail.title ?? null,
-    introduction: detail.introduction ?? null,
-    remark: detail.remark ?? null,
-    finalize_on_create: false,
+    payload: {
+      ...listOnlySalesPatch(kind, item),
+      ...detailPatch,
+      external_version: detail.detail.version ?? null,
+      ...(isCreditNote
+        ? {
+            external_document_type: "credit_note",
+            document_variant: "correction",
+            external_edit_url: `${LEXWARE_APP_BASE}/permalink/credit-notes/edit/${item.id}`,
+          }
+        : {}),
+      external_updated_at: listItemUpdatedAt(item),
+    },
+    detailFetched: true,
   };
 }
 
@@ -121,11 +211,40 @@ export async function syncLexofficeSalesDocuments(
     restaurantId: string;
     userId: string;
     kind: "invoice" | "quotation";
+    force?: boolean;
   },
-): Promise<{ imported: number; updated: number; listed: number; error: string | null }> {
+): Promise<{
+  imported: number;
+  updated: number;
+  listed: number;
+  skipped?: boolean;
+  error: string | null;
+}> {
+  const settings = await getAccountingSettings(sb, params.restaurantId);
+  const scope = salesDocumentKindToSyncScope(params.kind);
+  const lastSyncAt = connectorSyncCooldownLastAt(
+    settings,
+    "lexoffice",
+    scope,
+  );
+
+  if (!params.force && lastSyncAt) {
+    const elapsed = Date.now() - new Date(lastSyncAt).getTime();
+    if (elapsed < LEXOFFICE_SYNC_COOLDOWN_MS) {
+      return {
+        imported: 0,
+        updated: 0,
+        listed: 0,
+        skipped: true,
+        error: null,
+      };
+    }
+  }
+
   const list = await fetchAllLexofficeVoucherList(
     params.restaurantId,
     params.kind,
+    { skipCache: params.force },
   );
   if (!list.ok) {
     return { imported: 0, updated: 0, listed: 0, error: list.error };
@@ -136,63 +255,86 @@ export async function syncLexofficeSalesDocuments(
 
   const { data: existingRows } = await sb
     .from(table)
-    .select("external_id, external_version")
+    .select("id, external_id, external_updated_at, line_items, totals")
     .eq("restaurant_id", params.restaurantId)
     .eq("source", "lexoffice")
     .not("external_id", "is", null);
 
-  const versionByExternal = new Map<string, number | null>();
+  const existingByExternalId = new Map<string, ExistingLexofficeSalesDocument>();
   for (const row of existingRows ?? []) {
     const ext = row.external_id as string | null;
-    if (ext) {
-      versionByExternal.set(ext, (row.external_version as number | null) ?? null);
-    }
+    if (!ext) continue;
+    existingByExternalId.set(ext, {
+      id: row.id as string,
+      external_id: ext,
+      external_updated_at: (row.external_updated_at as string | null) ?? null,
+      line_items: (row.line_items ?? []) as AccountingLineItem[],
+      totals: (row.totals as AccountingTotals | null) ?? null,
+    });
   }
 
   let imported = 0;
   let updated = 0;
-  let detailFailures = 0;
   let writeFailures = 0;
 
   for (const item of list.items) {
-    const knownVersion = versionByExternal.get(item.id);
-    const detailResult = await fetchLexofficeSalesDetail(
+    const existing = existingByExternalId.get(item.id);
+    const isNew = !existing;
+    const { payload, detailFetched } = await buildSalesDocumentPayload(
       params.restaurantId,
       params.kind,
-      item.id,
-      item.voucherType,
+      item,
+      existing,
+      isNew,
+      { skipDetailCache: params.force },
     );
-    if (!detailResult.ok) {
-      detailFailures += 1;
-      console.warn(
-        "[gwada] syncLexofficeSalesDocuments detail",
-        params.kind,
-        item.id,
-        detailResult.error,
-      );
-      continue;
-    }
-
-    const detail = detailResult.detail;
-    const payload = rowFromDetail(params.kind, detail, item);
     payload.restaurant_id = params.restaurantId;
     payload.updated_by = params.userId;
 
-    if (knownVersion === undefined) {
+    if (isNew) {
       payload.created_by = params.userId;
-      const { error } = await sb.from(table).insert(payload);
-      if (error) {
+      const { data: inserted, error } = await sb
+        .from(table)
+        .insert(payload)
+        .select("id, voucher_number, document_variant, source")
+        .single();
+      if (error || !inserted) {
         writeFailures += 1;
         console.warn(
           "[gwada] syncLexofficeSalesDocuments insert",
           params.kind,
           item.id,
-          error.message,
+          error?.message,
         );
       } else {
         imported += 1;
+        existingByExternalId.set(item.id, {
+          id: inserted.id as string,
+          external_id: item.id,
+          external_updated_at:
+            (payload.external_updated_at as string | null) ?? null,
+          line_items: (payload.line_items ?? []) as AccountingLineItem[],
+          totals: (payload.totals as AccountingTotals | null) ?? null,
+        });
+        await insertAccountingDocumentLog(sb, {
+          restaurantId: params.restaurantId,
+          documentKind: params.kind,
+          documentId: inserted.id as string,
+          actorUserId: params.userId,
+          action: "created",
+          details: {
+            source: "lexoffice",
+            voucherNumber: inserted.voucher_number as string | null,
+            documentVariant: inserted.document_variant as string | null,
+            summary: salesDocumentCreatedLogSummary(params.kind, {
+              source: "lexoffice",
+              voucherNumber: inserted.voucher_number as string | null,
+              documentVariant: inserted.document_variant as string | null,
+            }),
+          },
+        });
       }
-    } else if (knownVersion !== (detail.version ?? null)) {
+    } else {
       const { error } = await sb
         .from(table)
         .update(payload)
@@ -209,28 +351,141 @@ export async function syncLexofficeSalesDocuments(
         );
       } else {
         updated += 1;
+        existingByExternalId.set(item.id, {
+          id: existing!.id,
+          external_id: item.id,
+          external_updated_at:
+            (payload.external_updated_at as string | null) ??
+            existing!.external_updated_at,
+          line_items:
+            (payload.line_items as AccountingLineItem[] | undefined) ??
+            existing!.line_items,
+          totals:
+            (payload.totals as AccountingTotals | null | undefined) ??
+            existing!.totals,
+        });
+        if (detailFetched && existing) {
+          await insertAccountingDocumentLog(sb, {
+            restaurantId: params.restaurantId,
+            documentKind: params.kind,
+            documentId: existing.id,
+            actorUserId: params.userId,
+            action: "synced",
+            details: {
+              source: "lexoffice",
+              voucherNumber: item.voucherNumber,
+              summary: "Positionen und Details aus Lexware aktualisiert",
+            },
+          });
+        }
       }
     }
   }
 
-  await touchLexofficeSyncTimestamp(sb, params.restaurantId, params.kind);
+  if (params.force) {
+    invalidateLexofficeCachePrefix(params.restaurantId, "/v1/voucherlist");
+    invalidateLexofficeCachePrefix(params.restaurantId, "/v1/invoices/");
+    invalidateLexofficeCachePrefix(params.restaurantId, "/v1/quotations/");
+    invalidateLexofficeCachePrefix(params.restaurantId, "/v1/credit-notes/");
+  }
 
-  if (
-    list.items.length > 0 &&
-    imported === 0 &&
-    updated === 0 &&
-    (detailFailures > 0 || writeFailures > 0)
-  ) {
+  await touchConnectorSyncTimestamp(
+    sb,
+    params.restaurantId,
+    "lexoffice",
+    scope,
+  );
+
+  if (list.items.length > 0 && imported === 0 && updated === 0 && writeFailures > 0) {
     return {
       imported,
       updated,
       listed: list.items.length,
-      error:
-        detailFailures > 0
-          ? "Lexware-Dokumente gefunden, Details konnten nicht geladen werden."
-          : "Lexware-Dokumente konnten nicht gespeichert werden.",
+      error: "Lexware-Dokumente konnten nicht gespeichert werden.",
     };
   }
 
   return { imported, updated, listed: list.items.length, error: null };
+}
+
+function lexofficeListVoucherTypeForRow(
+  kind: "invoice" | "quotation",
+  row: {
+    external_document_type: string | null;
+  },
+): string {
+  if (kind === "quotation") return "quotation";
+  if (row.external_document_type === "credit_note") return "creditnote";
+  return "invoice";
+}
+
+export async function enrichLexofficeSalesDocumentRow<
+  T extends {
+    id: string;
+    source: string;
+    external_id: string | null;
+    line_items: AccountingLineItem[];
+    totals: AccountingTotals | null;
+    external_document_type: string | null;
+    updated_by: string | null;
+  },
+>(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    kind: "invoice" | "quotation";
+    row: T;
+    userId?: string;
+    force?: boolean;
+  },
+): Promise<T> {
+  const { row, restaurantId, kind } = params;
+  if (row.source !== "lexoffice" || !row.external_id) {
+    return row;
+  }
+
+  const needsEnrich =
+    params.force ||
+    !row.line_items?.length ||
+    ((row.totals?.totalTax ?? 0) === 0 &&
+      (row.totals?.totalGross ?? 0) > 0);
+
+  if (!needsEnrich) {
+    return row;
+  }
+
+  const lexType = lexofficeListVoucherTypeForRow(kind, row);
+  const detail = await fetchLexofficeSalesDetail(
+    restaurantId,
+    kind,
+    row.external_id,
+    lexType,
+    { skipCache: params.force },
+  );
+  if (!detail.ok) {
+    return row;
+  }
+
+  const table =
+    kind === "invoice" ? "accounting_invoices" : "accounting_quotations";
+
+  const patch = {
+    ...salesDocumentPatchFromLexofficeDetail(kind, detail.detail),
+    external_version: detail.detail.version ?? null,
+    updated_by: params.userId ?? row.updated_by,
+  };
+
+  const { data, error } = await sb
+    .from(table)
+    .update(patch)
+    .eq("restaurant_id", restaurantId)
+    .eq("id", row.id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    return row;
+  }
+
+  return data as T;
 }

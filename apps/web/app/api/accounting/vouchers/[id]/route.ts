@@ -8,6 +8,8 @@ import {
   getAccountingVoucher,
   updateAccountingVoucher,
 } from "@/lib/accounting/accounting-vouchers-server";
+import { getAccountingConnectorForDocument } from "@/lib/accounting/connectors/registry";
+import { isExternalAccountingSource } from "@/lib/accounting/accounting-source";
 import type { AccountingVoucherInput } from "@/lib/types/accounting";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +24,27 @@ export async function GET(req: Request, context: RouteContext) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const row = await getAccountingVoucher(auth.sb, auth.restaurantId, id);
+  let row = await getAccountingVoucher(auth.sb, auth.restaurantId, id);
   if (!row) {
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
+
+  const url = new URL(req.url);
+  if (url.searchParams.get("enrich") === "1" && isExternalAccountingSource(row.source)) {
+    const connector = await getAccountingConnectorForDocument(
+      auth.restaurantId,
+      row.source,
+    );
+    if (connector.capabilities.canEnrichVoucherDetail) {
+      row = await connector.enrichVoucher(auth.sb, {
+        restaurantId: auth.restaurantId,
+        row,
+        userId: auth.userId,
+        force: url.searchParams.get("force") === "1",
+      });
+    }
+  }
+
   return NextResponse.json({ voucher: row });
 }
 
@@ -66,11 +85,11 @@ export async function DELETE(req: Request, context: RouteContext) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
-  const { error } = await deleteAccountingVoucher(
-    auth.sb,
-    auth.restaurantId,
-    id,
-  );
+  const { error } = await deleteAccountingVoucher(auth.sb, {
+    restaurantId: auth.restaurantId,
+    voucherId: id,
+    userId: auth.userId,
+  });
   if (error) {
     return NextResponse.json({ error }, { status: 400 });
   }

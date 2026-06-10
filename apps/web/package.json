@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false next dev",
-    "dev:supabase-only": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=true next dev",
-    "dev:hybrid": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false next dev",
+    "dev": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false next dev --webpack",
+    "dev:turbopack": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false next dev",
+    "dev:supabase-only": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=true next dev --webpack",
+    "dev:hybrid": "NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false next dev --webpack",
     "dev:live": "dotenv -e ../../.env.production -- next dev",
     "build:live": "dotenv -e ../../.env.production -- next build",
     "start:live": "dotenv -e ../../.env.production -- next start",

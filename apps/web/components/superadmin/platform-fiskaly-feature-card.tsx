@@ -9,6 +9,9 @@ import {
   superadminIntegrationInputClassName,
 } from "@/components/superadmin/superadmin-integration-panel";
 import { SuperadminIntegrationStatusBadges } from "@/components/superadmin/superadmin-integration-status-badges";
+import { FiskalyProvisionResultsPanel } from "@/components/superadmin/fiskaly-provision-results-panel";
+import { FiskalyReconcileDialog } from "@/components/superadmin/fiskaly-reconcile-dialog";
+import { FiskalyStandorteTable } from "@/components/superadmin/fiskaly-standorte-table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -23,9 +26,14 @@ import { SecretInput } from "@/components/ui/secret-input";
 import { Switch } from "@/components/ui/switch";
 import { useRegisterSuperadminIntegrationSave } from "@/lib/superadmin/integrations-save-registry";
 import {
-  fetchFiskalyProvisionStats,
-  provisionAllFiskalyRestaurants,
-  type FiskalyProvisionStats,
+  confirmFiskalyReconcileRestaurant,
+  fetchFiskalyProvisionOverview,
+  previewFiskalyReconcileRestaurant,
+  provisionFiskalyRestaurants,
+  type FiskalyProvisionLocation,
+  type FiskalyProvisionOverview,
+  type FiskalyProvisionResult,
+  type FiskalyReconcilePreview,
 } from "@/lib/superadmin/fiskaly-provision-api";
 import { saveSuperadminPlatformIntegration } from "@/lib/superadmin/platform-integrations-api";
 import type { PlatformFiskalyConfigUi } from "@/lib/integrations/platform-fiskaly-config";
@@ -62,29 +70,51 @@ export function PlatformFiskalyFeatureCard({
   const apiKeyConfigured = Boolean(ui.api_key_configured);
   const apiSecretConfigured = Boolean(ui.api_secret_configured);
   const credentialsConfigured = apiKeyConfigured && apiSecretConfigured;
-  const [provisionStats, setProvisionStats] =
-    useState<FiskalyProvisionStats | null>(null);
+  const [overview, setOverview] = useState<FiskalyProvisionOverview | null>(
+    null,
+  );
   const [provisionLoading, setProvisionLoading] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
+  const [busyRestaurantId, setBusyRestaurantId] = useState<string | null>(null);
+  const [bulkResults, setBulkResults] = useState<FiskalyProvisionResult[] | null>(
+    null,
+  );
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [reconcilePreview, setReconcilePreview] =
+    useState<FiskalyReconcilePreview | null>(null);
+  const [reconcileLoading, setReconcileLoading] = useState(false);
 
-  const loadProvisionStats = useCallback(async () => {
-    if (!enabled || !credentialsConfigured) {
-      setProvisionStats(null);
-      return;
-    }
-    setProvisionLoading(true);
-    const { stats, error } = await fetchFiskalyProvisionStats();
-    setProvisionLoading(false);
-    if (error) {
-      console.warn("fiskaly provision stats", error);
-      return;
-    }
-    setProvisionStats(stats);
-  }, [enabled, credentialsConfigured]);
+  const loadOverview = useCallback(
+    async (checkRemote = false) => {
+      if (!enabled || !credentialsConfigured) {
+        setOverview(null);
+        return;
+      }
+      setProvisionLoading(true);
+      const { overview: next, error } = await fetchFiskalyProvisionOverview({
+        checkRemote,
+      });
+      setProvisionLoading(false);
+      if (error) {
+        console.warn("fiskaly provision overview", error);
+        return;
+      }
+      setOverview(next);
+    },
+    [enabled, credentialsConfigured],
+  );
 
   useEffect(() => {
-    void loadProvisionStats();
-  }, [loadProvisionStats, connection?.state, row.updated_at]);
+    void loadOverview();
+  }, [loadOverview, connection?.state, row.updated_at]);
+
+  const locationNames = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const loc of overview?.locations ?? []) {
+      map[loc.restaurantId] = loc.name;
+    }
+    return map;
+  }, [overview?.locations]);
 
   const snapshot = useMemo(
     () =>
@@ -94,12 +124,7 @@ export function PlatformFiskalyFeatureCard({
         signDeBaseUrl: ui.sign_de_base_url ?? DEFAULT_SIGN_DE_BASE_URL,
         eReceiptBaseUrl: ui.ereceipt_base_url ?? DEFAULT_ERECEIPT_BASE_URL,
       }),
-    [
-      row.enabled,
-      ui.env,
-      ui.sign_de_base_url,
-      ui.ereceipt_base_url,
-    ],
+    [row.enabled, ui.env, ui.sign_de_base_url, ui.ereceipt_base_url],
   );
 
   const dirty = useMemo(() => {
@@ -157,18 +182,70 @@ export function PlatformFiskalyFeatureCard({
 
   const secretsRequired = enabled && !credentialsConfigured;
 
-  const handleProvisionAll = async () => {
-    setProvisioning(true);
-    const { result, error } = await provisionAllFiskalyRestaurants();
-    setProvisioning(false);
+  const runProvision = async (restaurantIds?: string[]) => {
+    const singleId =
+      restaurantIds?.length === 1 ? restaurantIds[0]! : null;
+    if (singleId) setBusyRestaurantId(singleId);
+    else setProvisioning(true);
+
+    const { result, error } = await provisionFiskalyRestaurants(restaurantIds);
+
+    if (singleId) setBusyRestaurantId(null);
+    else setProvisioning(false);
+
     if (error || !result) {
       toast.error(error ?? "Provisionierung fehlgeschlagen.");
       return;
     }
-    toast.success(
-      `Fiskaly: ${result.ready} von ${result.total} Standorten bereit${result.failed ? `, ${result.failed} fehlgeschlagen` : ""}.`,
+
+    if (restaurantIds?.length === 1) {
+      const one = result.results[0];
+      if (one?.ok) toast.success(`${locationNames[one.restaurantId] ?? "Standort"}: Erfolg`);
+      else toast.error(one?.errorLabel ?? "Provisionierung fehlgeschlagen.");
+      setBulkResults(null);
+    } else {
+      setBulkResults(result.results);
+      toast.success(
+        `Fiskaly: ${result.ready} von ${result.total} Standorten bereit${result.failed ? `, ${result.failed} fehlgeschlagen` : ""}.`,
+      );
+    }
+
+    await loadOverview(true);
+    onSaved();
+  };
+
+  const openReconcile = async (location: FiskalyProvisionLocation) => {
+    setReconcileOpen(true);
+    setReconcilePreview(null);
+    setReconcileLoading(true);
+    const { preview, error } = await previewFiskalyReconcileRestaurant(
+      location.restaurantId,
     );
-    void loadProvisionStats();
+    setReconcileLoading(false);
+    if (error) {
+      toast.error(error);
+      setReconcileOpen(false);
+      return;
+    }
+    setReconcilePreview(preview);
+  };
+
+  const confirmReconcile = async () => {
+    if (!reconcilePreview?.match) return;
+    setReconcileLoading(true);
+    const { ok, error, outcomeLabel } = await confirmFiskalyReconcileRestaurant(
+      reconcilePreview.restaurantId,
+      reconcilePreview.match,
+    );
+    setReconcileLoading(false);
+    if (!ok) {
+      toast.error(error ?? "Verknüpfen fehlgeschlagen.");
+      return;
+    }
+    toast.success(outcomeLabel ?? "Standort verknüpft.");
+    setReconcileOpen(false);
+    setReconcilePreview(null);
+    await loadOverview(true);
     onSaved();
   };
 
@@ -295,43 +372,74 @@ export function PlatformFiskalyFeatureCard({
               <Loader2 className="size-3.5 animate-spin" aria-hidden />
               Status wird geladen…
             </p>
-          ) : provisionStats ? (
+          ) : overview ? (
             <>
               <p className="mt-1 text-xs text-muted-foreground">
-                {provisionStats.ready} bereit · {provisionStats.pending} ausstehend
-                {provisionStats.failed > 0
-                  ? ` · ${provisionStats.failed} fehlgeschlagen`
-                  : ""}{" "}
-                (gesamt {provisionStats.totalRestaurants})
+                {overview.ready} bereit · {overview.pending} ausstehend
+                {overview.failed > 0 ? ` · ${overview.failed} fehlgeschlagen` : ""}{" "}
+                (gesamt {overview.totalRestaurants})
               </p>
-              {provisionStats.cashRegisterMissing > 0 ? (
+              {overview.cashRegisterMissing > 0 ? (
                 <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-                  {provisionStats.cashRegisterMissing} Standort
-                  {provisionStats.cashRegisterMissing === 1 ? "" : "e"} ohne
-                  DSFinV-K Cash Register — „Alle Standorte anlegen“ nachziehen.
+                  {overview.cashRegisterMissing} Standort
+                  {overview.cashRegisterMissing === 1 ? "" : "e"} ohne DSFinV-K
+                  Cash Register.
                 </p>
+              ) : null}
+              <FiskalyStandorteTable
+                locations={overview.locations}
+                busyRestaurantId={busyRestaurantId}
+                onProvisionOne={(id) => void runProvision([id])}
+                onRetry={(id) => void runProvision([id])}
+                onReconcile={(loc) => void openReconcile(loc)}
+              />
+              {bulkResults ? (
+                <FiskalyProvisionResultsPanel
+                  results={bulkResults}
+                  locationNames={locationNames}
+                />
               ) : null}
             </>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2 rounded-xl"
-            disabled={provisioning || connectionChecking}
-            onClick={() => void handleProvisionAll()}
-          >
-            {provisioning ? (
-              <>
-                <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
-                Wird angelegt…
-              </>
-            ) : (
-              "Alle Standorte anlegen"
-            )}
-          </Button>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              disabled={provisioning || connectionChecking || provisionLoading}
+              onClick={() => void runProvision()}
+            >
+              {provisioning ? (
+                <>
+                  <Loader2 className="mr-1.5 size-4 animate-spin" aria-hidden />
+                  Wird angelegt…
+                </>
+              ) : (
+                "Alle Standorte anlegen"
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-xl"
+              disabled={provisionLoading}
+              onClick={() => void loadOverview(true)}
+            >
+              Fiskaly-Abgleich prüfen
+            </Button>
+          </div>
         </div>
       ) : null}
+
+      <FiskalyReconcileDialog
+        open={reconcileOpen}
+        onOpenChange={setReconcileOpen}
+        preview={reconcilePreview}
+        loading={reconcileLoading}
+        onConfirm={() => void confirmReconcile()}
+      />
 
       {enabled && connection?.state === "error" && connection.message ? (
         <div

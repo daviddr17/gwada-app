@@ -79,7 +79,8 @@ const config: ExpoConfig = {
   ios: {
     supportsTablet: true,
     bundleIdentifier: "app.gwada.staff",
-    buildNumber: "1",
+    appleTeamId: "26N959J5Q3",
+    buildNumber: "5",
     infoPlist: {
       ITSAppUsesNonExemptEncryption: false,
       ...(isLanPreview
@@ -100,9 +101,17 @@ const config: ExpoConfig = {
     },
     package: "app.gwada.staff",
   },
+  updates: {
+    url: `https://u.expo.dev/${EAS_PROJECT_ID}`,
+    fallbackToCacheTimeout: 0,
+  },
+  runtimeVersion: {
+    policy: "appVersion",
+  },
   plugins: [
     "expo-router",
     "expo-secure-store",
+    "expo-updates",
     [
       "expo-splash-screen",
       {
@@ -117,6 +126,7 @@ const config: ExpoConfig = {
   },
   extra: {
     router: {},
+    staffBuildProfile: buildProfile || "development",
     supabaseUrl,
     supabaseAnonKey,
     gwadaApiUrl,

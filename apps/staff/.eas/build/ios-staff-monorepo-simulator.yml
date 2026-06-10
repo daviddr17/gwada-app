@@ -1,0 +1,30 @@
+# Staff iOS simulator — staff-only monorepo install (skip apps/web).
+
+build:
+  name: Staff iOS simulator (monorepo, staff-only deps)
+  steps:
+    - eas/checkout
+    - eas/use_npm_token
+    - run:
+        name: Prepare staff-only monorepo
+        command: node scripts/eas-patch-monorepo-for-staff.mjs
+    - run:
+        name: Install staff monorepo dependencies
+        command: corepack enable && pnpm install --frozen-lockfile --filter staff...
+    - eas/resolve_build_config
+    - run:
+        name: Prebuild iOS simulator project
+        command: npx expo prebuild --no-install --platform ios
+    - run:
+        name: Install dependencies after prebuild
+        command: corepack enable && pnpm install --frozen-lockfile --filter staff...
+    - run:
+        name: Install pods
+        working_directory: ./ios
+        command: pod install
+    - eas/configure_eas_update:
+        inputs:
+          throw_if_not_configured: false
+    - eas/generate_gymfile_from_template
+    - eas/run_fastlane
+    - eas/find_and_upload_build_artifacts

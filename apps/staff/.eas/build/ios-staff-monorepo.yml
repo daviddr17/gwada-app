@@ -1,0 +1,37 @@
+# Staff iOS: install only staff + workspace packages (skip apps/web / sharp).
+# Replaces eas/install_node_modules — see apps/staff/.easignore.
+
+build:
+  name: Staff iOS (monorepo, staff-only deps)
+  steps:
+    - eas/checkout
+    - eas/use_npm_token
+    - run:
+        name: Prepare staff-only monorepo
+        command: node scripts/eas-patch-monorepo-for-staff.mjs
+    - run:
+        name: Install staff monorepo dependencies
+        command: corepack enable && pnpm install --frozen-lockfile --filter staff...
+    - eas/resolve_build_config
+    - eas/resolve_apple_team_id_from_credentials:
+        id: resolve_apple_team_id_from_credentials
+    - run:
+        name: Prebuild iOS native project
+        command: npx expo prebuild --no-install --platform ios
+    - run:
+        name: Install dependencies after prebuild
+        command: corepack enable && pnpm install --frozen-lockfile --filter staff...
+    - run:
+        name: Install pods
+        working_directory: ./ios
+        command: pod install
+    - eas/configure_eas_update:
+        inputs:
+          throw_if_not_configured: false
+    - eas/configure_ios_credentials
+    - eas/configure_ios_version
+    - eas/generate_gymfile_from_template:
+        inputs:
+          credentials: ${ eas.job.secrets.buildCredentials }
+    - eas/run_fastlane
+    - eas/find_and_upload_build_artifacts

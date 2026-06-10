@@ -2,6 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LanBackendSection } from "@/src/components/LanBackendSection";
+import { isLanPreviewBuild } from "@/src/lib/staff-build-profile";
 import { ScreenHeader } from "@/src/components/ui";
 import { GroupedList } from "@/src/components/ui/GroupedList";
 import { GroupedSection } from "@/src/components/ui/GroupedSection";
@@ -86,6 +88,8 @@ export default function RestaurantSelectScreen() {
             </GroupedList>
           )}
         </GroupedSection>
+
+        {isLanPreviewBuild() ? <LanBackendSection /> : null}
 
         <GroupedSection style={styles.signOutSection}>
           <GroupedList>

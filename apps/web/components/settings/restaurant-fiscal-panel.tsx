@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { germanFiskalyProvisionError } from "@/lib/pos/fiskaly-error-messages";
 import type { RestaurantFiscalOverview } from "@/lib/pos/restaurant-fiscal-overview-types";
 import { cn } from "@/lib/utils";
 import { RestaurantFiscalPanelSkeleton } from "@/components/settings/restaurant-fiscal-panel-skeleton";
@@ -308,7 +309,7 @@ export function RestaurantFiscalPanel() {
               className="rounded-xl border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive dark:text-red-300"
               role="alert"
             >
-              {overview.provisionError}
+              {germanFiskalyProvisionError(overview.provisionError)}
             </p>
           ) : null}
 

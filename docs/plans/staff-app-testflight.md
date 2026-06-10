@@ -12,7 +12,64 @@
 | `preview-lan` | iPhone im **gleichen WLAN** wie dein Mac | `http://<Mac-LAN-IP>:54321` + `:3000` | `NSAllowsLocalNetworking` |
 | `production` | Live / Teampartner überall | `https://new.gwada.app` + Live-Supabase | HTTPS, kein Extra |
 
-URLs werden beim **EAS Build** eingebakken (`staff-env.generated.ts`) — nicht zur Laufzeit umschaltbar.
+URLs landen in `staff-env.generated.ts` (beim **Build** oder **EAS Update**). Zusätzlich: **preview-lan** kann die Mac-IP **in der App** überschreiben (SecureStore) — schnellster Weg bei DHCP.
+
+---
+
+## Rollout: Neuer Build vs. EAS Update vs. Laufzeit-URL
+
+| Änderung | Neuer TestFlight-Build? | EAS Update (OTA)? | In-App (geplant) |
+|----------|-------------------------|-------------------|------------------|
+| **JS/UI/Bugfix** (gleiche Native-Version) | Nein | Ja | — |
+| **LAN-IP** (DHCP) | Nein* | Ja* | **Ja** (schnellste Option) |
+| **Live-URL** in `production` | Nein* | Ja* | Nein (fest) |
+| **Native Deps / SDK / ATS** | **Ja** | Nein | Nein |
+| **Erstinstallation** auf iPhone | **Ja** (einmalig) | — | — |
+
+\* Nach Einrichtung von **expo-updates** + Channel pro Profil (`preview-lan`, `production`).
+
+### Zielbild Kellner-App
+
+1. **TestFlight-Build** selten: erste Installation, Native-Änderungen, SDK-Upgrade.
+2. **EAS Update** für tägliche JS-Releases und **URL-Änderungen** (nach `pnpm staff:eas-env:preview-lan` → `eas update --channel preview-lan`).
+3. **`preview-lan` extra:** Einstellungen „Server im WLAN“ (IP/Host in SecureStore) — **kein** Build und **kein** OTA bei DHCP-Wechsel; nur Mac-Stack neu starten.
+
+`production` bleibt auf festen HTTPS-URLs; OTA nur für App-Logik, nicht für Tenant-URL-Eingabe.
+
+### Umgesetzt
+
+- [x] `expo-updates` + `runtimeVersion` (`appVersion`) + Channel in `eas.json`
+- [x] `pnpm staff:update:preview-lan` / `pnpm staff:update:production`
+- [x] Login + Restaurant-Auswahl: **Backend im WLAN** (Mac-IP, SecureStore)
+
+**Einmalig nach diesem Stand:** neuer TestFlight-Build (`buildNumber` 4+) — danach OTA + In-App-IP ohne erneutes TestFlight bei DHCP.
+
+---
+
+## OTA (EAS Update) — ohne neuen TestFlight-Build
+
+### IP / JS geändert (preview-lan)
+
+```bash
+pnpm staff:env:lan                    # .env mit aktueller Mac-IP
+pnpm staff:update:preview-lan         # → EAS preview-Env + OTA auf Channel preview-lan
+```
+
+App beim nächsten Start neu öffnen (lädt Update automatisch).
+
+**Noch schneller bei DHCP:** Login → **Backend im WLAN** → neue IP speichern (kein OTA nötig).
+
+### Live (production)
+
+```bash
+pnpm staff:update:production
+# optional: STAFF_UPDATE_MESSAGE="Fix Tische" pnpm staff:update:production
+```
+
+### Wann doch neu bauen?
+
+- Erstinstallation, `expo-updates`/SDK/Native-Deps, ATS-Änderungen
+- `runtimeVersion` (= `version` in app.config) erhöht → neuer **Build** nötig, danach wieder OTA
 
 ---
 
@@ -77,6 +134,8 @@ pnpm staff:submit:ios:preview-lan
 
 Folge-Builds: gleiche Befehle; `ios.buildNumber` vor jedem Upload erhöhen.
 
+**Build schlägt bei „Install dependencies“ / „Prebuild“ fehl?** `apps/web` bringt `sharp` ins Monorepo — der Postinstall scheitert auf EAS. Staff nutzt `.eas/build/ios-staff-monorepo.yml`: `scripts/eas-patch-monorepo-for-staff.mjs` schränkt `pnpm-workspace.yaml` auf Staff ein (auch für den zweiten Install in `eas/prebuild`), plus `.easignore` ohne `apps/web`.
+
 Oder manuell in [expo.dev](https://expo.dev) → Builds → Submit.
 
 **Vor jedem neuen Upload:** `ios.buildNumber` in [`app.config.ts`](../../apps/staff/app.config.ts) erhöhen.
@@ -88,34 +147,52 @@ Oder manuell in [expo.dev](https://expo.dev) → Builds → Submit.
 - Mac: `pnpm db:start` + `pnpm dev` laufen lassen
 - Login z. B. `demo@gwada.app` — siehe [E2E-Protokoll](./staff-app-e2e-test-protocol.md)
 
-**LAN-IP geändert (DHCP)?** → `pnpm staff:env:lan`, `pnpm staff:eas-env:preview-lan`, neu bauen.
+**LAN-IP geändert (DHCP)?** → Login **Backend im WLAN** (sofort) **oder** `pnpm staff:env:lan` + `pnpm staff:update:preview-lan` (OTA). Kein TestFlight nötig (nach Build mit `expo-updates`).
 
 ---
 
 ## Live-Profil (`production`)
 
+### Live-Backend prüfen
+
+```bash
+pnpm staff:verify:live
+```
+
+Prüft `build-info`, `/sb`-Proxy, Login, `restaurant_employees` und POS-API. Optional: `GWADA_TEST_EMAIL`, `GWADA_TEST_PASSWORD`, `GWADA_TEST_RESTAURANT_ID`.
+
+Falls Login fehlt: `pnpm provision:live:fadi` (braucht `SUPABASE_DB_URL` in `.env.production`).
+
 ### EAS Environment `production` setzen (Secrets nicht ins Git)
 
 ```bash
-cd apps/staff
-pnpm dlx eas-cli env:create production --name EXPO_PUBLIC_GWADA_API_URL \
-  --value "https://new.gwada.app" --type string --visibility plaintext --force --non-interactive
-
-pnpm dlx eas-cli env:create production --name EXPO_PUBLIC_SUPABASE_URL \
-  --value "https://<live-supabase-host>" --type string --visibility sensitive --force --non-interactive
-
-pnpm dlx eas-cli env:create production --name EXPO_PUBLIC_SUPABASE_ANON_KEY \
-  --value "<live-publishable-key>" --type string --visibility sensitive --force --non-interactive
+pnpm staff:eas-env:production
 ```
+
+Liest `NEXT_PUBLIC_*` aus `.env.production` oder holt den publishable Key von `https://new.gwada.app/login` (`data-gwada-public-env`). URLs:
+
+| Variable | Wert |
+|----------|------|
+| `EXPO_PUBLIC_GWADA_API_URL` | `https://new.gwada.app` |
+| `EXPO_PUBLIC_SUPABASE_URL` | `https://new.gwada.app/sb` |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Live publishable Key |
 
 Build + Submit:
 
 ```bash
+pnpm staff:verify:live              # optional, vor dem Build
+pnpm staff:eas-env:production
 pnpm staff:build:ios:production
-pnpm staff:submit:ios:production
+pnpm staff:submit:ios:production    # braucht ascAppId in eas.json (siehe unten)
 ```
 
-**Hinweis:** Live-DB-Migrationen und App-Deploy sind separat (`deploy-live-db.yml`, Push auf `main`). Fiskaly LIVE nur bewusst aktivieren.
+**TestFlight-Submit (`ascAppId`):** In App Store Connect → Gwada Staff → App-Informationen → **Apple-ID** (10-stellig). In [`eas.json`](../../apps/staff/eas.json) unter `submit.production.ios.ascAppId` eintragen — danach klappt `pnpm staff:submit:ios:production --non-interactive`.
+
+Alternativ: [Expo Build #5](https://expo.dev/accounts/atfadi17/projects/gwada-staff/builds) → **Submit to App Store** (interaktiv).
+
+**iPhone (production, kein WLAN):** Build 5+ installieren → `fadih32@gmail.com` / Live-Passwort → Restaurant **Fadis BurgerStation** → Tische laden (ohne „Backend im WLAN“).
+
+**Hinweis:** Live-DB-Migrationen und App-Deploy sind separat (`deploy-live-db.yml`, Push auf `main`). **Fiskaly LIVE** erst nach erfolgreichem Connect testen (Kasse/Beleg optional).
 
 ---
 
@@ -143,7 +220,11 @@ pnpm run dev:staff:ios
 |--------|--------------|
 | `pnpm staff:env:lan` | LAN-`.env` + `staff-env.generated.ts` |
 | `pnpm staff:eas-env:preview-lan` | `.env` → EAS preview |
+| `pnpm staff:eas-env:production` | `.env.production` / Live → EAS production |
+| `pnpm staff:verify:live` | Live-Smoke (Web, Auth, POS) |
 | `pnpm staff:build:ios:preview-lan` | EAS iOS-Build LAN |
 | `pnpm staff:build:ios:production` | EAS iOS-Build Live |
 | `pnpm staff:submit:ios:preview-lan` | TestFlight-Upload (letzter Build) |
 | `pnpm staff:submit:ios:production` | App Store Connect (Live) |
+| `pnpm staff:update:preview-lan` | OTA: LAN-Env + JS (Channel preview-lan) |
+| `pnpm staff:update:production` | OTA: JS (Channel production) |

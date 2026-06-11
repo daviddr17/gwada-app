@@ -7,6 +7,9 @@ import {
   isNotificationModuleId,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
+import { dismissInventoryLowStockNotification } from "@/lib/notifications/notification-inventory-server";
+import { dismissReservationNotification } from "@/lib/notifications/notification-reservations-server";
+import { dismissStaffShiftNotification } from "@/lib/notifications/notification-staff-shift-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { markConversationReadServer } from "@/lib/contact-messages/mark-conversation-read-server";
@@ -75,18 +78,47 @@ export async function markNotificationReadServer(
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }
 
-    case "reservations": {
+    case "reservations_pending":
+    case "reservations_change_request":
+    case "reservations_cancellation": {
       const reservationId = itemId ?? meta?.reservationId;
       if (!reservationId) return { ok: false, error: "invalid_request" };
-      const { error } = await sb.from("restaurant_reservation_notification_dismissals").upsert(
-        {
-          profile_id: userId,
-          restaurant_id: restaurantId,
-          reservation_id: reservationId,
-        },
-        { onConflict: "profile_id,reservation_id" },
-      );
-      return error ? { ok: false, error: error.message } : { ok: true };
+      const result = await dismissReservationNotification(sb, {
+        restaurantId,
+        userId,
+        reservationId,
+        module,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_shift_start":
+    case "staff_shift_end": {
+      const shiftId = itemId ?? meta?.shiftId;
+      const kind =
+        meta?.kind ??
+        (module === "staff_shift_start" ? "start" : "end");
+      if (!shiftId || (kind !== "start" && kind !== "end")) {
+        return { ok: false, error: "invalid_request" };
+      }
+      const result = await dismissStaffShiftNotification(sb, {
+        restaurantId,
+        userId,
+        shiftId,
+        kind,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "inventory_low_stock": {
+      const ingredientId = itemId ?? meta?.ingredientId;
+      if (!ingredientId) return { ok: false, error: "invalid_request" };
+      const result = await dismissInventoryLowStockNotification(sb, {
+        restaurantId,
+        userId,
+        ingredientId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
     }
 
     case "changelog": {

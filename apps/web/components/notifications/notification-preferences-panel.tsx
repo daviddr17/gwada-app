@@ -30,6 +30,7 @@ import {
   notificationModulesInOrder,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
+import { NOTIFICATION_SETTINGS_GROUPS } from "@/lib/notifications/notification-module-groups";
 import type { NotificationModuleToggles } from "@/lib/notifications/notification-preferences";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
@@ -40,15 +41,21 @@ function ModuleToggleRows({
   onChange,
   labelFor,
   disabled,
+  moduleIds,
 }: {
   toggles: NotificationModuleToggles;
   onChange: (moduleId: NotificationModuleId, enabled: boolean) => void;
   labelFor: (moduleId: NotificationModuleId) => string;
   disabled?: boolean;
+  moduleIds?: NotificationModuleId[];
 }) {
+  const modules = moduleIds
+    ? moduleIds.map((id) => notificationModulesInOrder().find((m) => m.id === id)!)
+    : notificationModulesInOrder();
+
   return (
     <ul className="list-none space-y-2 p-0">
-      {notificationModulesInOrder().map((mod) => (
+      {modules.map((mod) => (
         <li
           key={mod.id}
           className={cn(
@@ -57,7 +64,9 @@ function ModuleToggleRows({
           )}
         >
           <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{mod.labelPlural}</p>
+            <p className="text-sm font-medium text-foreground">
+              {mod.labelPlural}
+            </p>
             <p className="text-xs text-muted-foreground">{labelFor(mod.id)}</p>
           </div>
           <Switch
@@ -231,17 +240,32 @@ export function NotificationPreferencesPanel() {
             Welche Module in der Glocken-Leiste oben rechts erscheinen.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ModuleToggleRows
-            toggles={draft.inAppModules}
-            onChange={(id, enabled) =>
-              patchModuleToggle("inAppModules", id, enabled)
-            }
-            labelFor={(id) =>
-              notificationModulesInOrder().find((m) => m.id === id)!
-                .settingsInAppLabel
-            }
-          />
+        <CardContent className="space-y-6">
+          {NOTIFICATION_SETTINGS_GROUPS.map((group) => (
+            <div key={group.id}>
+              <p className="mb-1 text-sm font-medium text-foreground">
+                {group.title}
+              </p>
+              {group.description ? (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {group.description}
+                </p>
+              ) : (
+                <div className="mb-3" />
+              )}
+              <ModuleToggleRows
+                toggles={draft.inAppModules}
+                moduleIds={group.moduleIds}
+                onChange={(id, enabled) =>
+                  patchModuleToggle("inAppModules", id, enabled)
+                }
+                labelFor={(id) =>
+                  notificationModulesInOrder().find((m) => m.id === id)!
+                    .settingsInAppLabel
+                }
+              />
+            </div>
+          ))}
         </CardContent>
       </Card>
 
@@ -266,17 +290,25 @@ export function NotificationPreferencesPanel() {
                   ? "Nur verfügbar, wenn WhatsApp unter Einstellungen → Integrationen verbunden ist."
                   : "Trage oben unter Zustellung eine Telefonnummer ein."}
             </p>
-            <ModuleToggleRows
-              toggles={draft.pushWhatsappModules}
-              disabled={!whatsappPushAvailable}
-              onChange={(id, enabled) =>
-                patchModuleToggle("pushWhatsappModules", id, enabled)
-              }
-              labelFor={(id) =>
-                notificationModulesInOrder().find((m) => m.id === id)!
-                  .settingsPushWhatsappLabel
-              }
-            />
+            {NOTIFICATION_SETTINGS_GROUPS.map((group) => (
+              <div key={`wa-${group.id}`} className="mb-4 last:mb-0">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  {group.title}
+                </p>
+                <ModuleToggleRows
+                  toggles={draft.pushWhatsappModules}
+                  moduleIds={group.moduleIds}
+                  disabled={!whatsappPushAvailable}
+                  onChange={(id, enabled) =>
+                    patchModuleToggle("pushWhatsappModules", id, enabled)
+                  }
+                  labelFor={(id) =>
+                    notificationModulesInOrder().find((m) => m.id === id)!
+                      .settingsPushWhatsappLabel
+                  }
+                />
+              </div>
+            ))}
           </div>
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
@@ -284,17 +316,25 @@ export function NotificationPreferencesPanel() {
               E-Mail
             </div>
             <p className="mb-3 text-xs text-muted-foreground">{emailNote}</p>
-            <ModuleToggleRows
-              toggles={draft.pushEmailModules}
-              disabled={!emailPushAvailable}
-              onChange={(id, enabled) =>
-                patchModuleToggle("pushEmailModules", id, enabled)
-              }
-              labelFor={(id) =>
-                notificationModulesInOrder().find((m) => m.id === id)!
-                  .settingsPushEmailLabel
-              }
-            />
+            {NOTIFICATION_SETTINGS_GROUPS.map((group) => (
+              <div key={`mail-${group.id}`} className="mb-4 last:mb-0">
+                <p className="mb-2 text-xs font-medium text-muted-foreground">
+                  {group.title}
+                </p>
+                <ModuleToggleRows
+                  toggles={draft.pushEmailModules}
+                  moduleIds={group.moduleIds}
+                  disabled={!emailPushAvailable}
+                  onChange={(id, enabled) =>
+                    patchModuleToggle("pushEmailModules", id, enabled)
+                  }
+                  labelFor={(id) =>
+                    notificationModulesInOrder().find((m) => m.id === id)!
+                      .settingsPushEmailLabel
+                  }
+                />
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

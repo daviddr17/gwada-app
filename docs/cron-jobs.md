@@ -1,12 +1,28 @@
-# Cron-Jobs (Live-VPS)
+# Cron-Jobs (Live)
 
-Alle Endpunkte erwarten `Authorization: Bearer $CRON_SECRET` (Wert aus Coolify/`.env`).
+Alle Endpunkte erwarten `Authorization: Bearer $CRON_SECRET` (Wert aus Coolify/`.env` bzw. GitHub Secret `CRON_SECRET`).
 
 Ersetze `https://new.gwada.app` durch die Live-Domain.
 
-## Externe Feeds (Cache, ~10 Min. pro Restaurant)
+## Automatisierung (GitHub Actions)
 
-News und Bewertungen werden in Postgres gecacht. Der Cron füllt den Cache im Hintergrund; Reads triggern bei Bedarf stale-on-read (>10 Min.).
+Workflow **`.github/workflows/production-cron.yml`** ruft die Live-App per `curl` auf (`CRON_BASE_URL=https://new.gwada.app`).
+
+| Endpunkt | Intervall | Schedule |
+|----------|-----------|----------|
+| `/api/cron/news-feed-sync` | alle **10 Min.** | `*/10 * * * *` |
+| `/api/cron/reviews-feed-sync` | alle **10 Min.** | `*/10 * * * *` |
+| `/api/cron/notification-deliver` | alle **2 Min.** | `*/2 * * * *` |
+| `/api/cron/staff-shift-notifications` | alle **5 Min.** | `*/5 * * * *` |
+| `/api/cron/contact-inbox-sync` | alle **5 Min.** | `*/5 * * * *` |
+
+- **Secret:** `CRON_SECRET` in GitHub Repository Secrets (gleicher Wert wie auf dem VPS).
+- **Manuell:** Actions → „Production cron jobs“ → **Run workflow** (Ziel-Endpunkt wählbar).
+- Ohne gesetztes Secret werden Jobs übersprungen (kein Fehler).
+
+## VPS-Fallback (manuell / Coolify-Cron)
+
+Wenn GitHub Actions ausfällt oder ein Endpunkt lokal getestet werden soll:
 
 ```bash
 # News (Facebook, Instagram, Google Business, WhatsApp-Kanal)
@@ -16,24 +32,29 @@ curl -sS -H "Authorization: Bearer $CRON_SECRET" \
 # Bewertungen (Google, Facebook) — gestaffelt per Restaurant-Hash über 10 Min.
 curl -sS -H "Authorization: Bearer $CRON_SECRET" \
   https://new.gwada.app/api/cron/reviews-feed-sync
-```
 
-**Intervall:** alle **10 Minuten** (z. B. `*/10 * * * *`).
-
-**Stale-Schwellwert:** `NEWS_CACHE_STALE_MS` / `REVIEWS_CACHE_STALE_MS` = 10 Min.
-
-## Push-Benachrichtigungen (Outbox)
-
-```bash
+# Push-Benachrichtigungen (Outbox)
 curl -sS -H "Authorization: Bearer $CRON_SECRET" \
   https://new.gwada.app/api/cron/notification-deliver
+
+# Schichtbeginn/-ende
+curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+  https://new.gwada.app/api/cron/staff-shift-notifications
+
+# Kontakte / Nachrichten (WAHA + IMAP)
+curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+  https://new.gwada.app/api/cron/contact-inbox-sync
 ```
 
-**Intervall:** alle **1–2 Minuten**.
+**Stale-Schwellwert (News/Reviews):** `NEWS_CACHE_STALE_MS` / `REVIEWS_CACHE_STALE_MS` = 10 Min.
 
-## Nicht cachen (live bleiben)
+## Weitere Crons (nicht im Production-Workflow)
 
-- **Kontakte / Nachrichten** — WAHA + IMAP (`/api/cron/contact-inbox-sync`), unverändert live.
+Diese Endpunkte existieren, werden aber **nicht** von `production-cron.yml` angestoßen — bei Bedarf VPS-Cron oder manuell:
+
+- `/api/cron/reservation-email` — Reservierungs-E-Mails
+- `/api/cron/reservation-whatsapp` — Reservierungs-WhatsApp
+- `/api/cron/news-publish` — geplante News-Veröffentlichung
 
 ## Architektur (Kurz)
 

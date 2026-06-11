@@ -11,6 +11,8 @@ export function inboxPreviewSnippet(
     return `${t.slice(0, max - 1)}…`;
   }
   if (attachmentKind === "image") return "Bild";
+  if (attachmentKind === "video") return "Video";
+  if (attachmentKind === "voice") return "Sprachnachricht";
   if (attachmentKind === "file") return "Datei";
   return "—";
 }

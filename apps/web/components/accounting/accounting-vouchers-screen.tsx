@@ -203,6 +203,7 @@ export function AccountingVouchersScreen() {
   useEffect(() => {
     if (
       !restaurantId ||
+      !canManage ||
       !connector.connected ||
       !connector.capabilities.canSyncVouchers
     ) {
@@ -219,7 +220,7 @@ export function AccountingVouchersScreen() {
         toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
       }
     })();
-  }, [restaurantId, connector, runConnectorSync]);
+  }, [restaurantId, canManage, connector, runConnectorSync]);
 
   const selectPlatform = setPlatformFilter;
 

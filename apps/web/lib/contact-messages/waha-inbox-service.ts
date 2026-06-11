@@ -387,6 +387,7 @@ export async function fetchWahaThreadMessages(
                 kind: media.kind,
                 fileName: media.filename,
                 mimeType: media.mimetype,
+                durationSeconds: media.durationSeconds ?? null,
                 url: wahaMediaProxyUrl({
                   restaurantId: params.restaurantId,
                   chatId,

@@ -22,6 +22,9 @@ const SIZE_CLASS = {
   meta: "size-2.5",
 } as const;
 
+/** Öffentlicher Fallback ohne PlatformAppBrandingProvider (Embed, Profil). */
+const PLATFORM_FAVICON_FALLBACK_SRC = "/api/platform/favicon";
+
 /**
  * Plattform-Favicon (PNG/SVG/WebP) mit Logo-Fallback — wie in der Top-Chrome.
  */
@@ -37,6 +40,7 @@ export function GwadaFaviconIcon({
   );
   const faviconOkForImg = isFaviconRenderableInImg(branding?.faviconPath);
   const [imgFailed, setImgFailed] = useState(false);
+  const [fallbackFailed, setFallbackFailed] = useState(false);
 
   useEffect(() => {
     setImgFailed(false);
@@ -46,10 +50,27 @@ export function GwadaFaviconIcon({
   const src = preferFavicon ? faviconSrc : logoSrc;
 
   if (!src) {
+    if (fallbackFailed) {
+      return (
+        <MessageCircle
+          className={cn(SIZE_CLASS[size], "text-accent", className)}
+          aria-hidden
+        />
+      );
+    }
+
     return (
-      <MessageCircle
-        className={cn(SIZE_CLASS[size], "text-accent", className)}
-        aria-hidden
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={PLATFORM_FAVICON_FALLBACK_SRC}
+        alt=""
+        decoding="async"
+        className={cn(
+          SIZE_CLASS[size],
+          "shrink-0 object-contain object-center",
+          className,
+        )}
+        onError={() => setFallbackFailed(true)}
       />
     );
   }

@@ -11,14 +11,24 @@ export function moduleHomeHref(items: readonly ModuleSubnavItem[]): string {
   return withRoot?.href ?? items[0]?.href ?? "/dashboard";
 }
 
-/** Gemeinsames URL-Präfix des Moduls, z. B. `/menu` aus `/dashboard/menu/uebersicht`. */
+/** Gemeinsames URL-Präfix des Moduls, z. B. `/dashboard/kontakte`. */
 export function modulePrefixFromSubnav(
   items: readonly ModuleSubnavItem[],
 ): string | null {
+  const withRoot = items.find((i) => i.activeWhen && i.activeWhen.length > 0);
+  if (withRoot?.activeWhen?.[0]) {
+    return normalizePath(withRoot.activeWhen[0]);
+  }
+
   const home = moduleHomeHref(items);
   const parts = normalizePath(home).split("/").filter(Boolean);
-  if (parts.length === 0) return null;
-  return `/${parts[0]}`;
+  if (parts[0] === "dashboard" && parts.length >= 2) {
+    return `/dashboard/${parts[1]}`;
+  }
+  if (parts.length >= 1) {
+    return `/${parts[0]}`;
+  }
+  return null;
 }
 
 function stackKey(prefix: string): string {

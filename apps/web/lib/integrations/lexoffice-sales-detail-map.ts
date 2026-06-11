@@ -17,6 +17,17 @@ function optionalVoucherDate(isoOrDate: string | null | undefined): string | nul
   return isoOrDate.slice(0, 10);
 }
 
+export function coerceLexofficeExternalVersion(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.trunc(value);
+  }
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
+    return parseInt(value.trim(), 10);
+  }
+  return null;
+}
+
 function unitPriceFromLexofficeLine(
   unitPrice: Record<string, unknown> | undefined,
   taxMode: string,
@@ -105,7 +116,7 @@ export function salesDocumentPatchFromLexofficeDetail(
   const lineItems = lineItemsFromLexofficeSalesDetail(detail, taxMode);
 
   const patch: Record<string, unknown> = {
-    external_version: detail.version ?? null,
+    external_version: coerceLexofficeExternalVersion(detail.version),
     status: mapLexofficeVoucherStatus(
       detail.voucherStatus ?? listItem?.voucherStatus,
       kind,

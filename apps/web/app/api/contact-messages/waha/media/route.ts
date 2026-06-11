@@ -35,7 +35,11 @@ export async function GET(req: Request) {
   }
 
   const disposition =
-    media.mime.startsWith("image/") ? "inline" : "attachment";
+    media.mime.startsWith("image/") ||
+    media.mime.startsWith("audio/") ||
+    media.mime.startsWith("video/")
+      ? "inline"
+      : "attachment";
 
   return new Response(media.blob, {
     headers: {

@@ -1,3 +1,4 @@
+import { assignCrossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
@@ -24,7 +25,7 @@ export function assignCrossAppWorkspaceZone(fromPath: string, toPath: string): b
 type AppRouterPush = { push: (href: string) => void };
 
 /**
- * Wechsel Superadmin ↔ App: Sweep dann Full-Load (vermeidet Next-Soft-Nav-Fehler).
+ * App-Navigation: Zone-Wechsel und Modul-Wechsel per Full-Load (vermeidet Next-Soft-Nav-Fehler).
  */
 export function navigateAppPath(
   router: AppRouterPush,
@@ -33,5 +34,6 @@ export function navigateAppPath(
 ): void {
   const target = safeInternalPath(toPath.trim() || "/dashboard");
   if (assignCrossAppWorkspaceZone(fromPath, target)) return;
+  if (assignCrossAppModuleNavigation(fromPath, target)) return;
   router.push(target);
 }

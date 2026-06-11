@@ -20,6 +20,7 @@ export type GwadaEmbedWidgetId =
   | "reservation"
   | "menu"
   | "reviews"
+  | "news"
   | "contact";
 
 export type GwadaEmbedResizeMessage = {

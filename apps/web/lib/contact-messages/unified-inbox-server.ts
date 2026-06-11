@@ -10,6 +10,7 @@ import {
   groupAttachmentsByMessageId,
 } from "@/lib/contact-messages/fetch-message-attachments";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
+import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
@@ -95,11 +96,17 @@ async function fetchGwadaConversationsAdmin(
       attachmentsByMessage.get(messageId) ?? []
     ).map((a) => (a.kind === "image" ? "image" : "file"));
 
+    const rawBody = (row.body as string).trim();
+    const mirrored =
+      ext.startsWith("waha:") || msgPlatform === "whatsapp"
+        ? previewBodyAndKindFromWhatsappMirror(rawBody)
+        : { body: rawBody, attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
+
     previews.set(contactId, {
       contact_id: contactId,
       contact_name: contactDisplayName(contact),
       platform: "gwada",
-      last_body: (row.body as string).trim(),
+      last_body: mirrored.body,
       last_at: createdAt,
       last_direction: direction,
       message_count: 0,
@@ -109,7 +116,8 @@ async function fetchGwadaConversationsAdmin(
       inbound_since_preview: inboundAfter.get(contactId) ?? 0,
       last_message_platform: msgPlatform,
       last_inbound_platform: lastInboundByContact.get(contactId),
-      last_attachment_kind: primaryAttachmentKind(attKinds),
+      last_attachment_kind:
+        primaryAttachmentKind(attKinds) ?? mirrored.attachmentKind,
     });
   }
 
@@ -186,11 +194,18 @@ async function fetchGwadaConversationsAdminLight(
       : (contactRaw as { first_name: string; last_name: string } | null);
     if (!contact) continue;
 
+    const rawBody = (row.body as string).trim();
+    const ext = (row.external_source_id as string | null) ?? "";
+    const mirrored =
+      ext.startsWith("waha:") || msgPlatform === "whatsapp"
+        ? previewBodyAndKindFromWhatsappMirror(rawBody)
+        : { body: rawBody, attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
+
     previews.set(contactId, {
       contact_id: contactId,
       contact_name: contactDisplayName(contact),
       platform: "gwada",
-      last_body: (row.body as string).trim(),
+      last_body: mirrored.body,
       last_at: createdAt,
       last_direction: direction,
       message_count: 0,
@@ -200,6 +215,7 @@ async function fetchGwadaConversationsAdminLight(
       inbound_since_preview: inboundAfter.get(contactId) ?? 0,
       last_message_platform: msgPlatform,
       last_inbound_platform: lastInboundByContact.get(contactId),
+      last_attachment_kind: mirrored.attachmentKind,
     });
   }
 

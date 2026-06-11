@@ -7,13 +7,16 @@ export type WahaOutboundFile = {
   base64: string;
 };
 
+type SendEndpoint = "sendImage" | "sendFile" | "sendVoice" | "sendVideo";
+
 async function wahaPostSend(
-  endpoint: "sendImage" | "sendFile",
+  endpoint: SendEndpoint,
   params: {
     restaurantId: string;
     chatId: string;
     file: WahaOutboundFile;
     caption?: string;
+    convert?: boolean;
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const config = await getWahaServerConfigAdmin();
@@ -24,6 +27,23 @@ async function wahaPostSend(
   const session = wahaSessionNameForRestaurant(params.restaurantId);
   const url = `${config.baseUrl}/api/${endpoint}`;
 
+  const body: Record<string, unknown> = {
+    session,
+    chatId: params.chatId,
+    file: {
+      mimetype: params.file.mimeType,
+      filename: params.file.fileName,
+      data: params.file.base64,
+    },
+  };
+
+  if (params.caption?.trim()) {
+    body.caption = params.caption.trim();
+  }
+  if (params.convert != null) {
+    body.convert = params.convert;
+  }
+
   let res: Response;
   try {
     res = await fetch(url, {
@@ -33,16 +53,7 @@ async function wahaPostSend(
         Accept: "application/json",
         "X-Api-Key": config.apiKey,
       },
-      body: JSON.stringify({
-        session,
-        chatId: params.chatId,
-        caption: params.caption?.trim() || undefined,
-        file: {
-          mimetype: params.file.mimeType,
-          filename: params.file.fileName,
-          data: params.file.base64,
-        },
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
     });
   } catch (e) {
@@ -53,15 +64,19 @@ async function wahaPostSend(
   if (!res.ok) {
     let error = `waha_send_${res.status}`;
     try {
-      const body = (await res.json()) as { message?: string };
-      if (body.message) error = body.message;
+      const parsed = (await res.json()) as { message?: string };
+      if (parsed.message) error = parsed.message;
     } catch {
       /* ignore */
     }
-    return { ok: false, error };
+    return { ok: false, error: msgError(endpoint, error) };
   }
 
   return { ok: true };
+}
+
+function msgError(endpoint: SendEndpoint, error: string): string {
+  return error.startsWith("waha_") ? error : `${endpoint}:${error}`;
 }
 
 export async function wahaSendImage(params: {
@@ -80,4 +95,27 @@ export async function wahaSendFile(params: {
   caption?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   return wahaPostSend("sendFile", params);
+}
+
+export async function wahaSendVoice(params: {
+  restaurantId: string;
+  chatId: string;
+  file: WahaOutboundFile;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  return wahaPostSend("sendVoice", {
+    ...params,
+    convert: true,
+  });
+}
+
+export async function wahaSendVideo(params: {
+  restaurantId: string;
+  chatId: string;
+  file: WahaOutboundFile;
+  caption?: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  return wahaPostSend("sendVideo", {
+    ...params,
+    convert: true,
+  });
 }

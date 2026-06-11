@@ -6,6 +6,7 @@ import {
 import {
   fetchWahaThreadMessages,
 } from "@/lib/contact-messages/waha-inbox-service";
+import { whatsappMirrorBodyFromContactRow } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export async function linkWahaThreadToContact(
@@ -72,13 +73,14 @@ export async function linkWahaThreadToContact(
       contact_id: params.contactId,
       platform: "whatsapp" as const,
       direction: m.direction,
-      body: m.body,
+      body: whatsappMirrorBodyFromContactRow(m),
       reservation_id: m.reservation_id,
       sent_by: null,
       delivery_status: m.delivery_status,
       created_at: m.created_at,
       external_source_id: m.id,
-    }));
+    }))
+    .filter((m) => m.body.trim().length > 0);
 
   if (rows.length === 0) {
     return { ok: true, imported: 0, error: null };

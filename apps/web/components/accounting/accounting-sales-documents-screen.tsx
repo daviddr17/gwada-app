@@ -225,6 +225,7 @@ export function AccountingSalesDocumentsScreen({
   useEffect(() => {
     if (
       !restaurantId ||
+      !canManage ||
       !connector.connected ||
       !connector.capabilities.canSyncSales
     ) {
@@ -242,7 +243,7 @@ export function AccountingSalesDocumentsScreen({
         toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
       }
     })();
-  }, [restaurantId, connector, documentKind, runConnectorSync]);
+  }, [restaurantId, canManage, connector, documentKind, runConnectorSync]);
 
   useEffect(() => {
     if (searchParams.get("new") === "1" && canManage) {

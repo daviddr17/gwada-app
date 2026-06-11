@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ContactMessageEmojiPickerSheet } from "@/components/contacts/contact-message-emoji-picker-sheet";
@@ -63,6 +63,10 @@ export function ContactMessageReactions({
   onUpdated,
   pickerOpen,
   onPickerOpenChange,
+  onDelete,
+  onEdit,
+  deleting,
+  editing,
   className,
 }: {
   reactions?: ContactMessageReaction[];
@@ -72,6 +76,10 @@ export function ContactMessageReactions({
   onUpdated?: () => void;
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
+  onDelete?: () => void | Promise<void>;
+  onEdit?: () => void;
+  deleting?: boolean;
+  editing?: boolean;
   className?: string;
 }) {
   const [emojiSheetOpen, setEmojiSheetOpen] = useState(false);
@@ -128,6 +136,8 @@ export function ContactMessageReactions({
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0 group-hover/bubble:pointer-events-auto group-hover/bubble:opacity-100",
           pending && "pointer-events-none opacity-60",
+          deleting && "pointer-events-none opacity-60",
+          editing && "pointer-events-none opacity-60",
         )}
         role="toolbar"
         aria-label="Reagieren"
@@ -163,6 +173,32 @@ export function ContactMessageReactions({
         >
           <Plus className="size-4" strokeWidth={2.25} aria-hidden />
         </Button>
+        {onEdit ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="size-7 shrink-0 rounded-full"
+            aria-label="Nachricht bearbeiten"
+            disabled={pending || deleting || editing}
+            onClick={onEdit}
+          >
+            <Pencil className="size-3.5" aria-hidden />
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            className="size-7 shrink-0 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Nachricht löschen"
+            disabled={pending || deleting}
+            onClick={() => void onDelete()}
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+          </Button>
+        ) : null}
       </div>
 
       {grouped.length > 0 ? (

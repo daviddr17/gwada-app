@@ -1,0 +1,75 @@
+import "server-only";
+
+import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
+import { facebookNewsConnector } from "@/lib/news/connectors/facebook-connector";
+import { googleBusinessNewsConnector } from "@/lib/news/connectors/google-business-connector";
+import { gwadaNewsConnector } from "@/lib/news/connectors/gwada-connector";
+import { instagramNewsConnector } from "@/lib/news/connectors/instagram-connector";
+import { whatsappChannelNewsConnector } from "@/lib/news/connectors/whatsapp-channel-connector";
+import type {
+  NewsPlatformConnector,
+} from "@/lib/news/connectors/types";
+import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
+import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+const CONNECTORS: Record<NewsPlatform, NewsPlatformConnector> = {
+  gwada: gwadaNewsConnector,
+  facebook: facebookNewsConnector,
+  instagram: instagramNewsConnector,
+  google_business: googleBusinessNewsConnector,
+  whatsapp_channel: whatsappChannelNewsConnector,
+};
+
+export function getNewsConnector(platform: NewsPlatform): NewsPlatformConnector {
+  return CONNECTORS[platform];
+}
+
+export async function getNewsConnectorPublicInfo(
+  restaurantId: string,
+): Promise<NewsConnectorPublicInfo[]> {
+  const platforms = Object.keys(CONNECTORS) as NewsPlatform[];
+  return Promise.all(
+    platforms.map(async (key) => {
+      const connector = CONNECTORS[key];
+      const connected = await connector.isConnected(restaurantId);
+      return {
+        key,
+        displayName: NEWS_PLATFORM_LABELS[key],
+        connected,
+        capabilities: connector.capabilities,
+        externalEditBaseUrl: connector.externalEditUrl(null),
+      };
+    }),
+  );
+}
+
+export async function fetchUnifiedNewsFeed(
+  restaurantId: string,
+  sb: SupabaseClient,
+  platforms?: NewsPlatform[],
+): Promise<UnifiedNewsItem[]> {
+  const keys = platforms ?? (Object.keys(CONNECTORS) as NewsPlatform[]);
+  const batches = await Promise.all(
+    keys.map(async (key) => {
+      const connector = CONNECTORS[key];
+      if (!connector.capabilities.canReadFeed) return [] as UnifiedNewsItem[];
+      const connected = key === "gwada" ? true : await connector.isConnected(restaurantId);
+      if (!connected) return [] as UnifiedNewsItem[];
+      const result = await connector.fetchFeed(restaurantId, sb);
+      if ("error" in result) {
+        console.warn("[gwada] news feed", key, result.error);
+        return [] as UnifiedNewsItem[];
+      }
+      return result.items;
+    }),
+  );
+  return batches
+    .flat()
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt ?? b.createdAt).getTime() -
+        new Date(a.publishedAt ?? a.createdAt).getTime(),
+    );
+}

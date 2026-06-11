@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -115,7 +115,7 @@ export function DashboardWidgetShell({
                 : "h-9 shrink-0 gap-1 rounded-xl"
             }
             aria-label={linkLabel}
-            render={<Link href={href} prefetch />}
+            render={<AppNavLink href={href} />}
           >
             {isCompact ? (
               <ChevronRight className="size-4" aria-hidden />

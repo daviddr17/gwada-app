@@ -6,6 +6,10 @@ import {
   getAccountingSettings,
   touchConnectorSyncTimestamp,
 } from "@/lib/accounting/accounting-settings-server";
+import {
+  connectorSyncWriteErrorMessage,
+  resolveAccountingActorUserId,
+} from "@/lib/accounting/accounting-connector-sync-db";
 import { salesDocumentKindToSyncScope } from "@/lib/accounting/accounting-connector-settings";
 import {
   invalidateLexofficeCachePrefix,
@@ -14,6 +18,7 @@ import {
 import {
   listTotalsFallbackFromListItem,
   salesDocumentPatchFromLexofficeDetail,
+  coerceLexofficeExternalVersion,
 } from "@/lib/integrations/lexoffice-sales-detail-map";
 import {
   insertAccountingDocumentLog,
@@ -191,7 +196,7 @@ async function buildSalesDocumentPayload(
     payload: {
       ...listOnlySalesPatch(kind, item),
       ...detailPatch,
-      external_version: detail.detail.version ?? null,
+      external_version: coerceLexofficeExternalVersion(detail.detail.version),
       ...(isCreditNote
         ? {
             external_document_type: "credit_note",
@@ -250,15 +255,29 @@ export async function syncLexofficeSalesDocuments(
     return { imported: 0, updated: 0, listed: 0, error: list.error };
   }
 
+  const actorUserId = await resolveAccountingActorUserId(sb, params.userId);
+
   const table =
     params.kind === "invoice" ? "accounting_invoices" : "accounting_quotations";
 
-  const { data: existingRows } = await sb
+  const { data: existingRows, error: existingRowsError } = await sb
     .from(table)
     .select("id, external_id, external_updated_at, line_items, totals")
     .eq("restaurant_id", params.restaurantId)
     .eq("source", "lexoffice")
     .not("external_id", "is", null);
+
+  if (existingRowsError) {
+    return {
+      imported: 0,
+      updated: 0,
+      listed: list.items.length,
+      error: connectorSyncWriteErrorMessage(
+        "Lexware-Dokumente",
+        existingRowsError.message,
+      ),
+    };
+  }
 
   const existingByExternalId = new Map<string, ExistingLexofficeSalesDocument>();
   for (const row of existingRows ?? []) {
@@ -276,6 +295,12 @@ export async function syncLexofficeSalesDocuments(
   let imported = 0;
   let updated = 0;
   let writeFailures = 0;
+  let firstWriteError: string | null = null;
+
+  const noteWriteFailure = (message: string | undefined) => {
+    writeFailures += 1;
+    if (!firstWriteError && message) firstWriteError = message;
+  };
 
   for (const item of list.items) {
     const existing = existingByExternalId.get(item.id);
@@ -289,50 +314,59 @@ export async function syncLexofficeSalesDocuments(
       { skipDetailCache: params.force },
     );
     payload.restaurant_id = params.restaurantId;
-    payload.updated_by = params.userId;
+    if (actorUserId) {
+      payload.updated_by = actorUserId;
+    }
 
     if (isNew) {
-      payload.created_by = params.userId;
-      const { data: inserted, error } = await sb
-        .from(table)
-        .insert(payload)
-        .select("id, voucher_number, document_variant, source")
-        .single();
-      if (error || !inserted) {
-        writeFailures += 1;
+      if (actorUserId) {
+        payload.created_by = actorUserId;
+      }
+      const { error } = await sb.from(table).insert(payload);
+      if (error) {
+        noteWriteFailure(error.message);
         console.warn(
           "[gwada] syncLexofficeSalesDocuments insert",
           params.kind,
           item.id,
-          error?.message,
+          error.message,
         );
       } else {
         imported += 1;
-        existingByExternalId.set(item.id, {
-          id: inserted.id as string,
-          external_id: item.id,
-          external_updated_at:
-            (payload.external_updated_at as string | null) ?? null,
-          line_items: (payload.line_items ?? []) as AccountingLineItem[],
-          totals: (payload.totals as AccountingTotals | null) ?? null,
-        });
-        await insertAccountingDocumentLog(sb, {
-          restaurantId: params.restaurantId,
-          documentKind: params.kind,
-          documentId: inserted.id as string,
-          actorUserId: params.userId,
-          action: "created",
-          details: {
-            source: "lexoffice",
-            voucherNumber: inserted.voucher_number as string | null,
-            documentVariant: inserted.document_variant as string | null,
-            summary: salesDocumentCreatedLogSummary(params.kind, {
+        const { data: inserted } = await sb
+          .from(table)
+          .select("id, voucher_number, document_variant, source")
+          .eq("restaurant_id", params.restaurantId)
+          .eq("source", "lexoffice")
+          .eq("external_id", item.id)
+          .maybeSingle();
+        if (inserted) {
+          existingByExternalId.set(item.id, {
+            id: inserted.id as string,
+            external_id: item.id,
+            external_updated_at:
+              (payload.external_updated_at as string | null) ?? null,
+            line_items: (payload.line_items ?? []) as AccountingLineItem[],
+            totals: (payload.totals as AccountingTotals | null) ?? null,
+          });
+          await insertAccountingDocumentLog(sb, {
+            restaurantId: params.restaurantId,
+            documentKind: params.kind,
+            documentId: inserted.id as string,
+            actorUserId,
+            action: "created",
+            details: {
               source: "lexoffice",
               voucherNumber: inserted.voucher_number as string | null,
               documentVariant: inserted.document_variant as string | null,
-            }),
-          },
-        });
+              summary: salesDocumentCreatedLogSummary(params.kind, {
+                source: "lexoffice",
+                voucherNumber: inserted.voucher_number as string | null,
+                documentVariant: inserted.document_variant as string | null,
+              }),
+            },
+          });
+        }
       }
     } else {
       const { error } = await sb
@@ -342,7 +376,7 @@ export async function syncLexofficeSalesDocuments(
         .eq("source", "lexoffice")
         .eq("external_id", item.id);
       if (error) {
-        writeFailures += 1;
+        noteWriteFailure(error.message);
         console.warn(
           "[gwada] syncLexofficeSalesDocuments update",
           params.kind,
@@ -369,7 +403,7 @@ export async function syncLexofficeSalesDocuments(
             restaurantId: params.restaurantId,
             documentKind: params.kind,
             documentId: existing.id,
-            actorUserId: params.userId,
+            actorUserId,
             action: "synced",
             details: {
               source: "lexoffice",
@@ -401,7 +435,10 @@ export async function syncLexofficeSalesDocuments(
       imported,
       updated,
       listed: list.items.length,
-      error: "Lexware-Dokumente konnten nicht gespeichert werden.",
+      error: connectorSyncWriteErrorMessage(
+        "Lexware-Dokumente",
+        firstWriteError,
+      ),
     };
   }
 
@@ -471,7 +508,7 @@ export async function enrichLexofficeSalesDocumentRow<
 
   const patch = {
     ...salesDocumentPatchFromLexofficeDetail(kind, detail.detail),
-    external_version: detail.detail.version ?? null,
+    external_version: coerceLexofficeExternalVersion(detail.detail.version),
     updated_by: params.userId ?? row.updated_by,
   };
 

@@ -7,6 +7,10 @@ import {
   touchConnectorSyncTimestamp,
 } from "@/lib/accounting/accounting-settings-server";
 import {
+  connectorSyncWriteErrorMessage,
+  resolveAccountingActorUserId,
+} from "@/lib/accounting/accounting-connector-sync-db";
+import {
   fetchLexofficeBookkeepingDetail,
   lexofficeBookkeepingEditUrl,
   lexofficeVoucherFileId,
@@ -260,7 +264,9 @@ export async function syncLexofficeBookkeepingVouchers(
     return { imported: 0, updated: 0, listed: 0, error: list.error };
   }
 
-  const { data: existingRows } = await sb
+  const actorUserId = await resolveAccountingActorUserId(sb, params.userId);
+
+  const { data: existingRows, error: existingRowsError } = await sb
     .from("accounting_vouchers")
     .select(
       "id, external_id, external_updated_at, voucher_items, total_tax_amount, file_name",
@@ -268,6 +274,18 @@ export async function syncLexofficeBookkeepingVouchers(
     .eq("restaurant_id", params.restaurantId)
     .eq("source", "lexoffice")
     .not("external_id", "is", null);
+
+  if (existingRowsError) {
+    return {
+      imported: 0,
+      updated: 0,
+      listed: list.items.length,
+      error: connectorSyncWriteErrorMessage(
+        "Lexware-Belege",
+        existingRowsError.message,
+      ),
+    };
+  }
 
   const existingByExternalId = new Map<string, ExistingLexofficeVoucher>();
   for (const row of existingRows ?? []) {
@@ -287,6 +305,12 @@ export async function syncLexofficeBookkeepingVouchers(
   let imported = 0;
   let updated = 0;
   let writeFailures = 0;
+  let firstWriteError: string | null = null;
+
+  const noteWriteFailure = (message: string | undefined) => {
+    writeFailures += 1;
+    if (!firstWriteError && message) firstWriteError = message;
+  };
 
   for (const item of list.items) {
     const existing = existingByExternalId.get(item.id);
@@ -298,51 +322,60 @@ export async function syncLexofficeBookkeepingVouchers(
       isNew,
     );
     payload.restaurant_id = params.restaurantId;
-    payload.updated_by = params.userId;
+    if (actorUserId) {
+      payload.updated_by = actorUserId;
+    }
 
     if (isNew) {
-      payload.created_by = params.userId;
-      const { data: inserted, error } = await sb
-        .from("accounting_vouchers")
-        .insert(payload)
-        .select("id, voucher_number, document_variant, source")
-        .single();
-      if (error || !inserted) {
-        writeFailures += 1;
+      if (actorUserId) {
+        payload.created_by = actorUserId;
+      }
+      const { error } = await sb.from("accounting_vouchers").insert(payload);
+      if (error) {
+        noteWriteFailure(error.message);
         console.warn(
           "[gwada] syncLexofficeBookkeepingVouchers insert",
           item.id,
-          error?.message,
+          error.message,
         );
       } else {
         imported += 1;
-        existingByExternalId.set(item.id, {
-          id: inserted.id as string,
-          external_id: item.id,
-          external_updated_at:
-            (payload.external_updated_at as string | null) ?? null,
-          voucher_items: (payload.voucher_items ??
-            []) as AccountingVoucherRow["voucher_items"],
-          total_tax_amount: Number(payload.total_tax_amount ?? 0),
-          file_name: (payload.file_name as string | null) ?? null,
-        });
-        await insertAccountingDocumentLog(sb, {
-          restaurantId: params.restaurantId,
-          documentKind: "voucher",
-          documentId: inserted.id as string,
-          actorUserId: params.userId,
-          action: "created",
-          details: {
-            source: "lexoffice",
-            voucherNumber: inserted.voucher_number as string | null,
-            documentVariant: inserted.document_variant as string | null,
-            summary: voucherCreatedLogSummary({
+        const { data: inserted } = await sb
+          .from("accounting_vouchers")
+          .select("id, voucher_number, document_variant, source")
+          .eq("restaurant_id", params.restaurantId)
+          .eq("source", "lexoffice")
+          .eq("external_id", item.id)
+          .maybeSingle();
+        if (inserted) {
+          existingByExternalId.set(item.id, {
+            id: inserted.id as string,
+            external_id: item.id,
+            external_updated_at:
+              (payload.external_updated_at as string | null) ?? null,
+            voucher_items: (payload.voucher_items ??
+              []) as AccountingVoucherRow["voucher_items"],
+            total_tax_amount: Number(payload.total_tax_amount ?? 0),
+            file_name: (payload.file_name as string | null) ?? null,
+          });
+          await insertAccountingDocumentLog(sb, {
+            restaurantId: params.restaurantId,
+            documentKind: "voucher",
+            documentId: inserted.id as string,
+            actorUserId,
+            action: "created",
+            details: {
               source: "lexoffice",
               voucherNumber: inserted.voucher_number as string | null,
               documentVariant: inserted.document_variant as string | null,
-            }),
-          },
-        });
+              summary: voucherCreatedLogSummary({
+                source: "lexoffice",
+                voucherNumber: inserted.voucher_number as string | null,
+                documentVariant: inserted.document_variant as string | null,
+              }),
+            },
+          });
+        }
       }
     } else {
       const { error } = await sb
@@ -352,7 +385,7 @@ export async function syncLexofficeBookkeepingVouchers(
         .eq("source", "lexoffice")
         .eq("external_id", item.id);
       if (error) {
-        writeFailures += 1;
+        noteWriteFailure(error.message);
         console.warn(
           "[gwada] syncLexofficeBookkeepingVouchers update",
           item.id,
@@ -365,7 +398,7 @@ export async function syncLexofficeBookkeepingVouchers(
             restaurantId: params.restaurantId,
             documentKind: "voucher",
             documentId: existing.id,
-            actorUserId: params.userId,
+            actorUserId,
             action: "synced",
             details: {
               source: "lexoffice",
@@ -395,7 +428,10 @@ export async function syncLexofficeBookkeepingVouchers(
       imported,
       updated,
       listed: list.items.length,
-      error: "Lexware-Belege konnten nicht gespeichert werden.",
+      error: connectorSyncWriteErrorMessage(
+        "Lexware-Belege",
+        firstWriteError,
+      ),
     };
   }
 

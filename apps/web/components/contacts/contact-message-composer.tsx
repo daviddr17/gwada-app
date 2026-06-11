@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { setWahaTypingClient } from "@/lib/contact-messages/waha-typing-client";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { CONTACT_MESSAGE_ATTACHMENT_MAX_FILES } from "@/lib/constants/contact-message-attachments";
-import { Mail, Paperclip, Send, X } from "lucide-react";
+import {
+  ContactMessageVoiceRecorderBar,
+  useContactVoiceRecorder,
+} from "@/lib/hooks/use-contact-voice-recorder";
+import { Mail, Mic, Paperclip, Send, X } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
   reservationNotifyRowLabelClassName,
@@ -34,6 +38,9 @@ export function ContactMessageComposer({
   whatsappTyping,
   stickyFooter = false,
   emailViaPlatformFallback = false,
+  editWhatsappMessage = null,
+  onEditWhatsapp,
+  onCancelEditWhatsapp,
 }: {
   disabled?: boolean;
   sending?: boolean;
@@ -48,6 +55,7 @@ export function ContactMessageComposer({
     sendWhatsapp: boolean;
     sendEmail: boolean;
     files?: File[];
+    voiceNote?: File;
   }) => void | Promise<void>;
   placeholder?: string;
   /** `whatsapp-only` / `email-only` / `inbox-reply` (ein Kanal). */
@@ -58,9 +66,18 @@ export function ContactMessageComposer({
   stickyFooter?: boolean;
   /** E-Mail ohne Restaurant-Postfach — Versand über Plattform-SMTP. */
   emailViaPlatformFallback?: boolean;
+  /** WAHA: bestehende WhatsApp-Nachricht bearbeiten. */
+  editWhatsappMessage?: { messageId: string; initialBody: string } | null;
+  onEditWhatsapp?: (params: {
+    messageId: string;
+    body: string;
+  }) => void | Promise<void>;
+  onCancelEditWhatsapp?: () => void;
 }) {
   const [body, setBody] = useState("");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingVoiceNote, setPendingVoiceNote] = useState<File | null>(null);
+  const [pendingVoiceDuration, setPendingVoiceDuration] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
@@ -70,6 +87,7 @@ export function ContactMessageComposer({
     defaultSendWhatsapp ?? false,
   );
   const [sendEmail, setSendEmail] = useState(defaultSendEmail ?? false);
+  const isEditMode = Boolean(editWhatsappMessage);
 
   const isWhatsappOnly = variant === "whatsapp-only";
   const isEmailOnly = variant === "email-only";
@@ -91,8 +109,38 @@ export function ContactMessageComposer({
     if (canEmail && !canWhatsapp) setSendEmail(true);
   }, [isInboxReply, canWhatsapp, canEmail]);
 
+  useEffect(() => {
+    if (!editWhatsappMessage) return;
+    setBody(editWhatsappMessage.initialBody);
+    setPendingFiles([]);
+    setPendingVoiceNote(null);
+    setPendingVoiceDuration(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [editWhatsappMessage?.messageId, editWhatsappMessage?.initialBody]);
+
   const onlyInboxWhatsapp = isInboxReply && canWhatsapp && !canEmail;
   const onlyInboxEmail = isInboxReply && canEmail && !canWhatsapp;
+
+  const resolveSendWhatsapp = () =>
+    isWhatsappOnly
+      ? true
+      : isInboxReply
+        ? sendWhatsapp && canWhatsapp
+        : sendWhatsapp && canWhatsapp;
+
+  const resolveSendEmail = () =>
+    isEmailOnly
+      ? true
+      : isInboxReply
+        ? sendEmail && canEmail
+        : sendEmail && canEmail;
+
+  const showVoice =
+    !isEditMode &&
+    canWhatsapp &&
+    (isWhatsappOnly ||
+      (isInboxReply && sendWhatsapp) ||
+      (!isWhatsappOnly && !isEmailOnly && !isInboxReply && sendWhatsapp));
 
   const setReplyWhatsapp = (on: boolean) => {
     if (onlyInboxWhatsapp) return;
@@ -106,8 +154,11 @@ export function ContactMessageComposer({
     if (!on && !sendWhatsapp && canWhatsapp) setSendWhatsapp(true);
   };
 
-  const canSubmit =
-    body.trim().length > 0 || pendingFiles.length > 0;
+  const canSubmit = isEditMode
+    ? body.trim().length > 0
+    : body.trim().length > 0 ||
+      pendingFiles.length > 0 ||
+      pendingVoiceNote != null;
 
   const stopWhatsappTyping = useCallback(() => {
     if (typingDebounceRef.current) {
@@ -133,9 +184,18 @@ export function ContactMessageComposer({
 
   useEffect(() => () => stopWhatsappTyping(), [stopWhatsappTyping]);
 
+  const voiceRecorder = useContactVoiceRecorder({
+    enabled: showVoice && !disabled && !sending && !pendingVoiceNote,
+    whatsappPresence: whatsappTyping,
+    onVoiceReady: (file, durationSeconds) => {
+      setPendingVoiceNote(file);
+      setPendingVoiceDuration(durationSeconds);
+    },
+  });
+
   const handleBodyChange = (value: string) => {
     setBody(value);
-    if (!whatsappTyping) return;
+    if (isEditMode || !whatsappTyping) return;
     if (!value.trim()) {
       stopWhatsappTyping();
       return;
@@ -168,7 +228,7 @@ export function ContactMessageComposer({
     });
   }, []);
 
-  const canAttach = !disabled && !sending;
+  const canAttach = !disabled && !sending && !isEditMode;
 
   const handleDragEnter = useCallback(
     (e: React.DragEvent) => {
@@ -218,10 +278,29 @@ export function ContactMessageComposer({
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const cancelEdit = () => {
+    setBody("");
+    setPendingFiles([]);
+    setPendingVoiceNote(null);
+    setPendingVoiceDuration(0);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onCancelEditWhatsapp?.();
+  };
+
   const submit = () => {
     const text = body.trim();
-    if (!text && pendingFiles.length === 0) return;
+    if (isEditMode) {
+      if (!text || !editWhatsappMessage || !onEditWhatsapp) return;
+      stopWhatsappTyping();
+      void onEditWhatsapp({
+        messageId: editWhatsappMessage.messageId,
+        body: text,
+      });
+      return;
+    }
+    if (!text && pendingFiles.length === 0 && !pendingVoiceNote) return;
     if (isInboxReply && !sendWhatsapp && !sendEmail) return;
+    if (pendingVoiceNote && !resolveSendWhatsapp()) return;
     stopWhatsappTyping();
     void onSend({
       body: text,
@@ -236,43 +315,71 @@ export function ContactMessageComposer({
           ? sendEmail && canEmail
           : sendEmail && canEmail,
       files: pendingFiles.length > 0 ? pendingFiles : undefined,
+      voiceNote: pendingVoiceNote ?? undefined,
     });
     setBody("");
     setPendingFiles([]);
+    setPendingVoiceNote(null);
+    setPendingVoiceDuration(0);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const showInboxChannelToggles =
-    isInboxReply && (canWhatsapp || canEmail);
+    !isEditMode && isInboxReply && (canWhatsapp || canEmail);
+
+  const showMicIcon =
+    showVoice &&
+    voiceRecorder.canRecord &&
+    !voiceRecorder.recording &&
+    !pendingVoiceNote;
+
+  const showRecorderBar = voiceRecorder.recording;
 
   return (
     <div
       className={cn(
-        "min-w-0 space-y-2 overflow-x-hidden",
+        "min-w-0 space-y-2",
         !stickyFooter && "border-t border-border/50 pt-3",
       )}
     >
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="sr-only"
-        disabled={disabled || sending}
-        onChange={(e) => {
-          addFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
+      {!isEditMode ? (
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="sr-only"
+          disabled={disabled || sending}
+          onChange={(e) => {
+            addFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
+      ) : null}
+      {isEditMode ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">Nachricht bearbeiten</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            disabled={disabled || sending}
+            onClick={cancelEdit}
+          >
+            Abbrechen
+          </Button>
+        </div>
+      ) : null}
       <div
         data-vaul-no-drag
         className={cn(
-          "relative rounded-xl transition-[box-shadow,border-color]",
-          isDragOver && "ring-2 ring-accent/80 ring-offset-2 ring-offset-background",
+          "relative rounded-xl p-0.5 transition-[box-shadow,border-color]",
+          !isEditMode && isDragOver && "ring-2 ring-inset ring-accent/80",
         )}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
+        onDragEnter={isEditMode ? undefined : handleDragEnter}
+        onDragLeave={isEditMode ? undefined : handleDragLeave}
+        onDragOver={isEditMode ? undefined : handleDragOver}
+        onDrop={isEditMode ? undefined : handleDrop}
       >
         {isDragOver ? (
           <div
@@ -287,17 +394,41 @@ export function ContactMessageComposer({
           disabled={disabled || sending}
           onChange={(e) => handleBodyChange(e.target.value)}
           onBlur={() => stopWhatsappTyping()}
-          placeholder={placeholder}
-          rows={stickyFooter ? 2 : 3}
+          placeholder={
+            isEditMode ? "Nachricht bearbeiten …" : placeholder
+          }
+          rows={stickyFooter ? (isEditMode ? 3 : 2) : isEditMode ? 4 : 3}
           className={cn(
-            "resize-y rounded-xl",
+            "resize-y rounded-xl focus-visible:ring-inset",
             stickyFooter ? "min-h-[3.25rem]" : "min-h-[4.5rem]",
             isDragOver && "border-accent/50",
           )}
         />
       </div>
-      {pendingFiles.length > 0 ? (
+      {(pendingFiles.length > 0 || pendingVoiceNote) ? (
         <ul className="flex flex-wrap gap-1.5">
+          {pendingVoiceNote ? (
+            <li className="flex max-w-full items-center gap-1 rounded-lg border border-border/50 bg-muted/20 px-2 py-1 text-xs">
+              <Mic className="size-3.5 shrink-0 opacity-70" aria-hidden />
+              <span className="truncate">
+                Sprachnachricht
+                {pendingVoiceDuration > 0
+                  ? ` · ${voiceRecorder.formatDuration(pendingVoiceDuration)}`
+                  : null}
+              </span>
+              <button
+                type="button"
+                className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                aria-label="Sprachnachricht entfernen"
+                onClick={() => {
+                  setPendingVoiceNote(null);
+                  setPendingVoiceDuration(0);
+                }}
+              >
+                <X className="size-3.5" />
+              </button>
+            </li>
+          ) : null}
           {pendingFiles.map((file, index) => (
             <li
               key={`${file.name}-${index}`}
@@ -315,6 +446,15 @@ export function ContactMessageComposer({
             </li>
           ))}
         </ul>
+      ) : null}
+      {showRecorderBar ? (
+        <ContactMessageVoiceRecorderBar
+          recording={voiceRecorder.recording}
+          seconds={voiceRecorder.seconds}
+          onStop={voiceRecorder.stopRecording}
+          onCancel={voiceRecorder.cancelRecording}
+          formatDuration={voiceRecorder.formatDuration}
+        />
       ) : null}
       {showInboxChannelToggles ? (
         <div className="flex flex-wrap items-center gap-y-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2">
@@ -377,7 +517,7 @@ export function ContactMessageComposer({
           </div>
         </div>
       ) : null}
-      {!isWhatsappOnly && !isEmailOnly && !isInboxReply ? (
+      {!isEditMode && !isWhatsappOnly && !isEmailOnly && !isInboxReply ? (
       <div className="space-y-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Zusätzlich senden über
@@ -436,49 +576,78 @@ export function ContactMessageComposer({
       </div>
       ) : null}
       <div className="flex gap-2">
+        {!isEditMode ? (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-11 shrink-0 rounded-xl"
+              disabled={disabled || sending || voiceRecorder.recording}
+              aria-label="Datei anhängen"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip className="size-4" />
+            </Button>
+            {showMicIcon ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-11 shrink-0 rounded-xl"
+                disabled={disabled || sending}
+                aria-label="Sprachnachricht aufnehmen"
+                onClick={() => void voiceRecorder.startRecording()}
+              >
+                <Mic className="size-4" />
+              </Button>
+            ) : null}
+          </>
+        ) : null}
         <Button
           type="button"
-          variant="outline"
-          size="icon"
-          className="size-11 shrink-0 rounded-xl"
-          disabled={disabled || sending}
-          aria-label="Datei anhängen"
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Paperclip className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          className={cn("h-11 min-w-0 flex-1 gap-2 ", brandActionButtonRoundedClassName)}
+          className={cn(
+            "h-11 min-w-0 flex-1 gap-2 ",
+            brandActionButtonRoundedClassName,
+          )}
           disabled={
             disabled ||
             sending ||
+            voiceRecorder.recording ||
             !canSubmit ||
-            (isWhatsappOnly && !canWhatsapp) ||
-            (isEmailOnly && !canEmail) ||
-            (isInboxReply && sendWhatsapp && !canWhatsapp) ||
-            (isInboxReply && sendEmail && !canEmail) ||
-            (isInboxReply && !sendWhatsapp && !sendEmail)
+            (isEditMode
+              ? false
+              : (isWhatsappOnly && !canWhatsapp) ||
+                (isEmailOnly && !canEmail) ||
+                (isInboxReply && sendWhatsapp && !canWhatsapp) ||
+                (isInboxReply && sendEmail && !canEmail) ||
+                (isInboxReply && !sendWhatsapp && !sendEmail))
           }
           onClick={submit}
         >
-          {isEmailOnly || (isInboxReply && sendEmail && !sendWhatsapp) ? (
-            <Mail className="size-4" aria-hidden />
-          ) : isWhatsappOnly || (isInboxReply && sendWhatsapp && !sendEmail) ? (
+          {isEditMode ||
+          isWhatsappOnly ||
+          (isInboxReply && sendWhatsapp && !sendEmail) ? (
             <WhatsAppGlyph
               className={reservationNotifyRowWhatsAppIconClassName}
             />
+          ) : isEmailOnly || (isInboxReply && sendEmail && !sendWhatsapp) ? (
+            <Mail className="size-4" aria-hidden />
           ) : (
             <Send className="size-4" />
           )}
           {sending
-            ? "Senden …"
-            : isEmailOnly || (isInboxReply && sendEmail && !sendWhatsapp)
-              ? "E-Mail senden"
-              : isWhatsappOnly ||
-                  (isInboxReply && sendWhatsapp && !sendEmail)
-                ? "WhatsApp senden"
-                : "Senden"}
+            ? isEditMode
+              ? "Ändern …"
+              : "Senden …"
+            : isEditMode
+              ? "WhatsApp ändern"
+              : isEmailOnly || (isInboxReply && sendEmail && !sendWhatsapp)
+                ? "E-Mail senden"
+                : isWhatsappOnly ||
+                    (isInboxReply && sendWhatsapp && !sendEmail)
+                  ? "WhatsApp senden"
+                  : "Senden"}
         </Button>
       </div>
     </div>

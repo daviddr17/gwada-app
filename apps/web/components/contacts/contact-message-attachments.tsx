@@ -1,6 +1,8 @@
 "use client";
 
 import { Download, FileText } from "lucide-react";
+import { ContactMessageVideoPlayer } from "@/components/contacts/contact-message-video-player";
+import { ContactMessageVoicePlayer } from "@/components/contacts/contact-message-voice-player";
 import type { ContactMessageAttachment } from "@/lib/types/contact-message-attachment";
 import { cn } from "@/lib/utils";
 
@@ -44,29 +46,54 @@ export function ContactMessageAttachments({
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      {attachments.map((a) =>
-        a.kind === "image" ? (
-          <a
-            key={a.id}
-            href={a.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={imageLinkClassName}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={a.url}
-              alt={a.fileName}
-              className={imageClassName}
-              loading="lazy"
-              onLoad={() => {
-                window.dispatchEvent(
-                  new CustomEvent("gwada:contact-chat-content-layout"),
-                );
-              }}
+      {attachments.map((a) => {
+        if (a.kind === "voice") {
+          return (
+            <ContactMessageVoicePlayer
+              key={a.id}
+              url={a.url}
+              outbound={outbound}
+              durationSeconds={a.durationSeconds}
             />
-          </a>
-        ) : (
+          );
+        }
+
+        if (a.kind === "video") {
+          return (
+            <ContactMessageVideoPlayer
+              key={a.id}
+              url={a.url}
+              fileName={a.fileName}
+            />
+          );
+        }
+
+        if (a.kind === "image") {
+          return (
+            <a
+              key={a.id}
+              href={a.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={imageLinkClassName}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={a.url}
+                alt={a.fileName}
+                className={imageClassName}
+                loading="lazy"
+                onLoad={() => {
+                  window.dispatchEvent(
+                    new CustomEvent("gwada:contact-chat-content-layout"),
+                  );
+                }}
+              />
+            </a>
+          );
+        }
+
+        return (
           <a
             key={a.id}
             href={a.url}
@@ -89,8 +116,8 @@ export function ContactMessageAttachments({
             ) : null}
             <Download className="size-3.5 shrink-0 opacity-60" aria-hidden />
           </a>
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }

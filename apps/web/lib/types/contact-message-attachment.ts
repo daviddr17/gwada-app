@@ -1,4 +1,4 @@
-export type ContactMessageAttachmentKind = "image" | "file";
+export type ContactMessageAttachmentKind = "image" | "video" | "voice" | "file";
 
 export type ContactMessageAttachment = {
   id: string;
@@ -8,4 +8,6 @@ export type ContactMessageAttachment = {
   byteSize?: number | null;
   /** Authentifizierte Download-URL (relativ oder absolut). */
   url: string;
+  /** Optional: Dauer in Sekunden (Sprachnachricht). */
+  durationSeconds?: number | null;
 };

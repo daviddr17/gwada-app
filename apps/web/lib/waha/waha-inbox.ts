@@ -46,6 +46,13 @@ export type WahaChatOverviewItem = {
     fromMe?: boolean | null;
     from?: string | null;
     to?: string | null;
+    hasMedia?: boolean | null;
+    type?: string | null;
+    media?: {
+      url?: string | null;
+      mimetype?: string | null;
+      filename?: string | null;
+    } | null;
     /** 3 = READ, 4 = PLAYED (WAHA ack) */
     ack?: number | null;
     reaction?: {

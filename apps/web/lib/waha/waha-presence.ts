@@ -70,3 +70,19 @@ export async function wahaStopTyping(params: {
 }): Promise<WahaFetchResult> {
   return wahaSetChatPresence({ ...params, presence: "paused" });
 }
+
+export async function wahaStartRecording(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+}): Promise<WahaFetchResult> {
+  return wahaSetChatPresence({ ...params, presence: "recording" });
+}
+
+export async function wahaStopRecording(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+}): Promise<WahaFetchResult> {
+  return wahaSetChatPresence({ ...params, presence: "paused" });
+}

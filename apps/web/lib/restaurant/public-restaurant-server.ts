@@ -46,6 +46,7 @@ export type PublicRestaurantProfile = {
     reservation: boolean;
     menu: boolean;
     reviews: boolean;
+    news: boolean;
   };
 };
 
@@ -244,6 +245,7 @@ export async function fetchPublicRestaurantProfile(
         reservation: true,
         menu: menuCount > 0,
         reviews: true,
+        news: true,
       },
     }),
     error: null,

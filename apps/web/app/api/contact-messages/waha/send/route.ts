@@ -1,6 +1,7 @@
 import { parseMultipartSend } from "@/lib/contact-messages/parse-multipart-send";
 import {
   parseOutboundAttachmentFiles,
+  parseOutboundVoiceFile,
   type OutboundAttachmentFile,
 } from "@/lib/contact-messages/outbound-attachment-files";
 import { sendWahaMessageServer } from "@/lib/contact-messages/send-waha-message-server";
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   let contactId = "";
   let storeUnderContact = true;
   let attachmentFiles: OutboundAttachmentFile[] = [];
+  let voiceFile: OutboundAttachmentFile | undefined;
 
   const multipart = await parseMultipartSend(req);
   if (multipart) {
@@ -27,6 +29,13 @@ export async function POST(req: Request) {
       return Response.json({ error: parsedFiles.error }, { status: 400 });
     }
     attachmentFiles = parsedFiles.files;
+    if (multipart.voiceNote) {
+      const parsedVoice = await parseOutboundVoiceFile(multipart.voiceNote);
+      if (!parsedVoice.ok) {
+        return Response.json({ error: parsedVoice.error }, { status: 400 });
+      }
+      voiceFile = parsedVoice.file;
+    }
     restaurantId = multipart.fields.restaurantId?.trim() ?? "";
     messageBody = multipart.messageBody;
     wahaContactId = multipart.fields.wahaContactId?.trim() ?? "";
@@ -49,7 +58,7 @@ export async function POST(req: Request) {
 
   if (
     !isUuidRestaurantId(restaurantId) ||
-    (!messageBody && attachmentFiles.length === 0)
+    (!messageBody && attachmentFiles.length === 0 && !voiceFile)
   ) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
@@ -84,6 +93,7 @@ export async function POST(req: Request) {
       channels: ["whatsapp"],
       sentBy: auth.userId,
       attachmentFiles,
+      voiceFile,
     });
     return Response.json(result);
   }
@@ -97,6 +107,7 @@ export async function POST(req: Request) {
     wahaContactId,
     body: messageBody,
     attachmentFiles,
+    voiceFile,
   });
 
   return Response.json(result);

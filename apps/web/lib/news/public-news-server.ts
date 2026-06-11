@@ -3,6 +3,11 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { getNewsConnectorPublicInfo } from "@/lib/news/connectors/registry";
+import {
+  filterItemsForEmbed,
+  filterPlatformsForEmbed,
+  normalizeEmbedPlatforms,
+} from "@/lib/news/news-embed-platforms";
 import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
 import { triggerNewsFeedSyncIfStale } from "@/lib/news/news-feed-sync-server";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
@@ -50,7 +55,7 @@ async function loadPublicNewsUncached(
 
   const { data: settingsRow } = await admin
     .from("restaurant_news_settings")
-    .select("default_embed_view, embed_max_items")
+    .select("default_embed_view, embed_max_items, embed_platforms")
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
 
@@ -60,18 +65,23 @@ async function loadPublicNewsUncached(
     100,
     Math.max(1, Number(settingsRow?.embed_max_items ?? 24)),
   );
+  const embedPlatforms = normalizeEmbedPlatforms(settingsRow?.embed_platforms);
 
   const { items: feedItems } = await readNewsFeedFromCache(restaurantId, admin);
   void triggerNewsFeedSyncIfStale(restaurantId);
 
-  const items = feedItems
-    .filter((item) => item.status === "published")
-    .slice(0, maxItems);
-
   const connectorInfo = await getNewsConnectorPublicInfo(restaurantId);
-  const connectedPlatforms = connectorInfo
-    .filter((c) => c.connected && c.capabilities.canReadFeed)
-    .map((c) => c.key) as NewsPlatform[];
+  const connectedPlatforms = filterPlatformsForEmbed(
+    connectorInfo
+      .filter((c) => c.connected && c.capabilities.canReadFeed)
+      .map((c) => c.key) as NewsPlatform[],
+    embedPlatforms,
+  );
+
+  const items = filterItemsForEmbed(
+    feedItems.filter((item) => item.status === "published"),
+    embedPlatforms,
+  ).slice(0, maxItems);
 
   return { items, connectedPlatforms, viewMode, maxItems };
 }

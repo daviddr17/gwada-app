@@ -1,6 +1,13 @@
 import { after, NextResponse } from "next/server";
-import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
+import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import { isNewsPlatform } from "@/lib/constants/news-platforms";
+import {
+  defaultEmbedPlatforms,
+  normalizeEmbedPlatforms,
+  type NewsEmbedPlatforms,
+} from "@/lib/news/news-embed-platforms";
 import { syncRestaurantNewsPlatformAfterPublish } from "@/lib/news/news-feed-sync-server";
+import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +15,7 @@ type NewsSettingsRow = {
   whatsapp_channel_ids: string[];
   default_embed_view: "grid" | "list";
   embed_max_items: number;
+  embed_platforms: NewsEmbedPlatforms;
 };
 
 function normalizeChannelIds(values: unknown): string[] {
@@ -27,7 +35,9 @@ export async function GET(req: Request) {
 
   const { data, error } = await auth.sb
     .from("restaurant_news_settings")
-    .select("whatsapp_channel_ids, whatsapp_channel_id, default_embed_view, embed_max_items")
+    .select(
+      "whatsapp_channel_ids, whatsapp_channel_id, default_embed_view, embed_max_items, embed_platforms",
+    )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
 
@@ -44,6 +54,7 @@ export async function GET(req: Request) {
     default_embed_view:
       data?.default_embed_view === "list" ? "list" : "grid",
     embed_max_items: Number(data?.embed_max_items ?? 24),
+    embed_platforms: normalizeEmbedPlatforms(data?.embed_platforms),
   };
 
   return NextResponse.json({ settings });
@@ -55,6 +66,7 @@ export async function PUT(req: Request) {
     whatsappChannelIds?: string[];
     defaultEmbedView?: "grid" | "list";
     embedMaxItems?: number;
+    embedPlatforms?: Partial<Record<NewsPlatform, boolean>>;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
   const auth = await authorizeNewsRestaurant(restaurantId, { requireManage: true });
@@ -71,16 +83,35 @@ export async function PUT(req: Request) {
   const whatsappChannelIds = normalizeChannelIds(body.whatsappChannelIds);
   const primaryChannelId = whatsappChannelIds[0] ?? null;
 
-  const { error } = await auth.sb.from("restaurant_news_settings").upsert(
-    {
-      restaurant_id: restaurantId,
-      whatsapp_channel_ids: whatsappChannelIds,
-      whatsapp_channel_id: primaryChannelId,
-      default_embed_view: defaultEmbedView,
-      embed_max_items: embedMaxItems,
-    },
-    { onConflict: "restaurant_id" },
-  );
+  const upsertRow: {
+    restaurant_id: string;
+    whatsapp_channel_ids: string[];
+    whatsapp_channel_id: string | null;
+    default_embed_view: "grid" | "list";
+    embed_max_items: number;
+    embed_platforms?: NewsEmbedPlatforms;
+  } = {
+    restaurant_id: restaurantId,
+    whatsapp_channel_ids: whatsappChannelIds,
+    whatsapp_channel_id: primaryChannelId,
+    default_embed_view: defaultEmbedView,
+    embed_max_items: embedMaxItems,
+  };
+
+  if (body.embedPlatforms) {
+    upsertRow.embed_platforms = normalizeEmbedPlatforms({
+      ...defaultEmbedPlatforms(),
+      ...Object.fromEntries(
+        Object.entries(body.embedPlatforms).filter(
+          ([key, value]) => isNewsPlatform(key) && typeof value === "boolean",
+        ),
+      ),
+    });
+  }
+
+  const { error } = await auth.sb.from("restaurant_news_settings").upsert(upsertRow, {
+    onConflict: "restaurant_id",
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

@@ -1,0 +1,35 @@
+---
+description: Neue App-Module mit Benachrichtigungen im zentralen Registry-Muster registrieren
+globs:
+  - apps/web/lib/notifications/**
+  - apps/web/components/notifications/**
+---
+
+# Benachrichtigungs-Module erweitern
+
+Wenn ein neues App-Modul **nutzerrelevante Ereignisse** hat (ungelesen, offene Aufgaben, neue Einträge), die in der **Glocke** erscheinen sollen oder per Push zugestellt werden:
+
+## Checkliste
+
+1. **`notification-modules.ts`** — `NOTIFICATION_MODULE_IDS` + `NOTIFICATION_MODULES` Eintrag:
+   - `id`, `label` / `labelPlural`, `href`, `icon`
+   - `settingsInAppLabel`, `settingsPushWhatsappLabel`, `settingsPushEmailLabel`
+2. **`notification-summary-server.ts`** — Builder-Funktion + Eintrag in `MODULE_BUILDERS` (Unread-/Count-Logik, max. ~5 Items pro Modul).
+3. **`notification-mark-read-server.ts`** — Mark-read für Modul-Items (und ggf. „alle“ für dieses Modul).
+4. **Preferences** — keine UI-Änderung nötig: Toggles kommen automatisch aus `notificationModulesInOrder()`.
+5. **Defaults** in `notification-preferences.ts` (`defaultModuleToggles`, `pushWhatsappModules`, `pushEmailModules`) sinnvoll setzen.
+6. **API** `app/api/notifications/mark-read/route.ts` — Modul-ID wird über `isNotificationModuleId` validiert (Registry reicht).
+
+## Nur registrieren, wenn …
+
+- Es eine **bestehende oder klar geplante** Datenquelle für Unread/Alerts gibt (DB, API, Read-State).
+- **Nicht** leere Module nur für die Sidebar — Dashboard-Metriken ohne Bell-Builder reichen nicht.
+
+## Kanäle
+
+- Globale Kanal-Toggles (`channel_whatsapp_enabled` / `channel_email_enabled`) werden beim Speichern aus **per-Modul-Push-Toggles** abgeleitet (`deriveChannelFlagsFromModules`).
+- UI: **Profil → Benachrichtigungen** — „In der App“ + „Push pro Modul“ (WhatsApp ausgegraut, wenn Restaurant nicht verbunden).
+
+## Referenz
+
+Bestehende Module: `messages`, `reviews`, `reservations`, `changelog`.

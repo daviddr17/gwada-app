@@ -1,31 +1,50 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChangelogEntryCard } from "@/components/changelog/changelog-entry-card";
 import { ChangelogOverviewSkeleton } from "@/components/changelog/changelog-overview-skeleton";
+import { markAllChangelogReadClient } from "@/lib/changelog/fetch-changelog-read-client";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { fetchPlatformChangelogEntries } from "@/lib/supabase/platform-changelog-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type { PlatformChangelogEntry } from "@/lib/types/platform-changelog";
 
 export function ChangelogOverview() {
+  const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const [entries, setEntries] = useState<PlatformChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadSucceeded, setLoadSucceeded] = useState(false);
+  const readAllStartedRef = useRef<string | null>(null);
   const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadSucceeded(false);
     const sb = createSupabaseBrowserClient();
     const { entries: data, error } = await fetchPlatformChangelogEntries(sb);
-    if (error) toast.error(error);
+    if (error) {
+      toast.error(error);
+      setEntries(data);
+      setLoading(false);
+      return;
+    }
     setEntries(data);
+    setLoadSucceeded(true);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!ready || !restaurantId || !loadSucceeded) return;
+    if (readAllStartedRef.current === restaurantId) return;
+    readAllStartedRef.current = restaurantId;
+    void markAllChangelogReadClient(restaurantId);
+  }, [ready, restaurantId, loadSucceeded]);
 
   if (showSkeleton) {
     return <ChangelogOverviewSkeleton />;

@@ -1,5 +1,6 @@
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
 import {
+  deriveChannelFlagsFromModules,
   mergeNotificationPreferences,
   type NotificationPreferences,
 } from "@/lib/notifications/notification-preferences";
@@ -66,12 +67,14 @@ export async function PUT(req: Request) {
     push_whatsapp_modules: raw.pushWhatsappModules as Record<string, unknown>,
     push_email_modules: raw.pushEmailModules as Record<string, unknown>,
   });
+  const channelFlags = deriveChannelFlagsFromModules(merged);
+  const preferences: NotificationPreferences = { ...merged, ...channelFlags };
 
   const sb = await createSupabaseServerClient();
   const result = await upsertNotificationPreferences(sb, {
     profileId: auth.userId,
     restaurantId: auth.restaurantId,
-    preferences: merged,
+    preferences,
   });
 
   if (!result.ok) {
@@ -89,7 +92,7 @@ export async function PUT(req: Request) {
 
   return Response.json({
     data: {
-      preferences: merged,
+      preferences,
       channels,
     },
   });

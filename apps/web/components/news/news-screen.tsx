@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, List, Plus, Search } from "lucide-react";
+import { LayoutGrid, List, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,9 @@ import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import type { NewsCacheablePlatform } from "@/lib/news/news-cache-constants";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 
+const NEWS_SYNC_POLL_MS = 3_000;
+const NEWS_SYNC_POLL_MAX = 20;
+
 export function NewsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
@@ -51,6 +54,7 @@ export function NewsScreen() {
   const [items, setItems] = useState<UnifiedNewsItem[]>([]);
   const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading);
   const [composeOpen, setComposeOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<UnifiedNewsItem | null>(null);
@@ -58,40 +62,92 @@ export function NewsScreen() {
   const { connectors, availablePlatforms } = useNewsPlatformConnections(restaurantId);
   const loadGeneration = useRef(0);
 
-  const load = useCallback(async () => {
-    if (!restaurantId) return;
-    const generation = ++loadGeneration.current;
-    setLoading(true);
-    setItems([]);
-    try {
-      const qs = new URLSearchParams({ restaurantId });
-      if (platformFilter !== NEWS_FILTER_ALL) {
-        qs.set("platform", platformFilter);
+  const applyFeedResponse = useCallback(
+    (data: { items?: UnifiedNewsItem[]; sync?: NewsFeedSyncMeta }) => {
+      setItems(data.items ?? []);
+      setSyncMeta(data.sync ?? null);
+    },
+    [],
+  );
+
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!restaurantId) return;
+      const generation = ++loadGeneration.current;
+      if (!options?.silent) {
+        setLoading(true);
+        setItems([]);
       }
-      const res = await fetch(`/api/news?${qs}`);
+      try {
+        const qs = new URLSearchParams({ restaurantId });
+        if (platformFilter !== NEWS_FILTER_ALL) {
+          qs.set("platform", platformFilter);
+        }
+        const res = await fetch(`/api/news?${qs}`);
+        const data = (await res.json()) as {
+          items?: UnifiedNewsItem[];
+          sync?: NewsFeedSyncMeta;
+          error?: string;
+        };
+        if (generation !== loadGeneration.current) return;
+        if (!res.ok) throw new Error(data.error ?? "load_failed");
+        applyFeedResponse(data);
+      } catch {
+        if (generation !== loadGeneration.current) return;
+        if (!options?.silent) setItems([]);
+        toast.error("News konnten nicht geladen werden.");
+      } finally {
+        if (!options?.silent && generation === loadGeneration.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [restaurantId, platformFilter, applyFeedResponse],
+  );
+
+  const syncNow = useCallback(async () => {
+    if (!restaurantId || syncing) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/news/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          platform: platformFilter !== NEWS_FILTER_ALL ? platformFilter : undefined,
+        }),
+      });
       const data = (await res.json()) as {
         items?: UnifiedNewsItem[];
         sync?: NewsFeedSyncMeta;
         error?: string;
       };
-      if (generation !== loadGeneration.current) return;
-      if (!res.ok) throw new Error(data.error ?? "load_failed");
-      setItems(data.items ?? []);
-      setSyncMeta(data.sync ?? null);
+      if (!res.ok) throw new Error(data.error ?? "sync_failed");
+      applyFeedResponse(data);
     } catch {
-      if (generation !== loadGeneration.current) return;
-      setItems([]);
-      toast.error("News konnten nicht geladen werden.");
+      toast.error("Synchronisierung fehlgeschlagen.");
     } finally {
-      if (generation === loadGeneration.current) {
-        setLoading(false);
-      }
+      setSyncing(false);
     }
-  }, [restaurantId, platformFilter]);
+  }, [restaurantId, platformFilter, syncing, applyFeedResponse]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!syncMeta?.stale || loading) return;
+    let polls = 0;
+    const id = window.setInterval(() => {
+      polls += 1;
+      if (polls > NEWS_SYNC_POLL_MAX) {
+        window.clearInterval(id);
+        return;
+      }
+      void load({ silent: true });
+    }, NEWS_SYNC_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [syncMeta?.stale, loading, load]);
 
   useEffect(() => {
     if (searchParams.get("new") === "1" && canManage) {
@@ -156,17 +212,38 @@ export function NewsScreen() {
         availablePlatforms={availablePlatforms}
       />
 
-      {syncMeta?.lastSyncedAt ? (
-        <p className="text-xs text-muted-foreground">
-          Externe Kanäle zuletzt aktualisiert:{" "}
-          {new Date(syncMeta.lastSyncedAt).toLocaleString("de-DE", {
-            day: "2-digit",
-            month: "short",
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-          {syncMeta.stale ? " · Aktualisierung läuft …" : null}
-        </p>
+      {syncMeta?.stale || syncMeta?.lastSyncedAt ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {syncMeta.lastSyncedAt ? (
+              <>
+                Externe Kanäle zuletzt aktualisiert:{" "}
+                {new Date(syncMeta.lastSyncedAt).toLocaleString("de-DE", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </>
+            ) : (
+              "Externe Kanäle werden synchronisiert …"
+            )}
+            {syncMeta.stale ? " · Aktualisierung läuft …" : null}
+          </p>
+          {syncMeta.stale || syncing ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full border-border/60"
+              disabled={syncing}
+              onClick={() => void syncNow()}
+            >
+              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
+              Jetzt synchronisieren
+            </Button>
+          ) : null}
+        </div>
       ) : null}
 
       {syncMeta?.platformErrors &&

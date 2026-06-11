@@ -4,6 +4,7 @@ import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { NEWS_PLATFORMS } from "@/lib/constants/news-platforms";
 import {
   isNewsCacheablePlatform,
+  isNewsFeedSyncStale,
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
 import {
@@ -47,8 +48,12 @@ function buildSyncMeta(
     }
   }
 
-  const syncedPlatforms = new Set(syncRows.map((row) => row.platform));
-  const stale = requestedCacheable.some((platform) => !syncedPlatforms.has(platform));
+  const syncByPlatform = new Map(syncRows.map((row) => [row.platform, row]));
+  const stale = requestedCacheable.some((platform) => {
+    const row = syncByPlatform.get(platform);
+    if (!row) return true;
+    return isNewsFeedSyncStale(row.synced_at);
+  });
 
   return { lastSyncedAt, stale, platformErrors };
 }

@@ -1,4 +1,5 @@
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
+import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
 
 export async function markReviewReadClient(params: {
   restaurantId: string;
@@ -15,6 +16,7 @@ export async function markReviewReadClient(params: {
       const json = (await res.json()) as { error?: string };
       return { ok: false, error: json.error ?? "mark_read_failed" };
     }
+    dispatchNotificationsRefresh();
     return { ok: true, error: null };
   } catch {
     return { ok: false, error: "network_error" };
@@ -55,6 +57,7 @@ export async function markAllReviewsReadClient(
       const json = (await res.json()) as { error?: string };
       return { ok: false, error: json.error ?? "mark_all_read_failed" };
     }
+    dispatchNotificationsRefresh();
     return { ok: true, error: null };
   } catch {
     return { ok: false, error: "network_error" };
@@ -81,6 +84,7 @@ export async function markReviewReadBatchClient(params: {
       const json = (await res.json()) as { error?: string };
       return { ok: false, error: json.error ?? "mark_batch_read_failed" };
     }
+    dispatchNotificationsRefresh();
     return { ok: true, error: null };
   } catch {
     return { ok: false, error: "network_error" };

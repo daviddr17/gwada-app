@@ -12,6 +12,11 @@ export type NewsCacheablePlatform = (typeof NEWS_CACHEABLE_PLATFORMS)[number];
 
 export const NEWS_CACHE_STALE_MS = 10 * 60 * 1000;
 
+export function isNewsFeedSyncStale(syncedAt: string | null | undefined): boolean {
+  if (!syncedAt) return true;
+  return Date.now() - new Date(syncedAt).getTime() > NEWS_CACHE_STALE_MS;
+}
+
 export function isNewsCacheablePlatform(
   platform: NewsPlatform,
 ): platform is NewsCacheablePlatform {

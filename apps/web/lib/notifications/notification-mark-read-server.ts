@@ -1,5 +1,6 @@
 import "server-only";
 
+import { markAllChangelogReadForUserServer } from "@/lib/changelog/mark-all-changelog-read-server";
 import { markReviewReadServer } from "@/lib/reviews/mark-review-read-server";
 import { markAllReviewsReadForUserServer } from "@/lib/reviews/mark-all-reviews-read-server";
 import {
@@ -90,7 +91,10 @@ export async function markNotificationReadServer(
 
     case "changelog": {
       const changelogEntryId = itemId ?? meta?.changelogEntryId;
-      if (!changelogEntryId) return { ok: false, error: "invalid_request" };
+      if (!changelogEntryId) {
+        const all = await markAllChangelogReadForUserServer(sb, { userId });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
       const { error } = await sb.from("platform_changelog_reads").upsert(
         {
           profile_id: userId,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, MessageSquare } from "lucide-react";
+import { Bell, Mail } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
   SettingsStickySaveBar,
@@ -28,22 +28,28 @@ import {
 } from "@/lib/notifications/notification-modules";
 import type { NotificationModuleToggles } from "@/lib/notifications/notification-preferences";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { cn } from "@/lib/utils";
 
 function ModuleToggleRows({
   toggles,
   onChange,
   labelFor,
+  disabled,
 }: {
   toggles: NotificationModuleToggles;
   onChange: (moduleId: NotificationModuleId, enabled: boolean) => void;
   labelFor: (moduleId: NotificationModuleId) => string;
+  disabled?: boolean;
 }) {
   return (
     <ul className="list-none space-y-2 p-0">
       {notificationModulesInOrder().map((mod) => (
         <li
           key={mod.id}
-          className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-3"
+          className={cn(
+            "flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-3",
+            disabled && "opacity-60",
+          )}
         >
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">{mod.labelPlural}</p>
@@ -51,6 +57,7 @@ function ModuleToggleRows({
           </div>
           <Switch
             checked={toggles[mod.id] !== false}
+            disabled={disabled}
             onCheckedChange={(checked) => onChange(mod.id, checked)}
             aria-labelledby={`notification-module-${mod.id}`}
           />
@@ -97,6 +104,13 @@ export function NotificationPreferencesPanel() {
     );
   }
 
+  const whatsappConnected = channels?.whatsappConnected ?? false;
+  const emailNote = channels?.restaurantEmailConfigured
+    ? "Über die Restaurant-Mailbox, sonst Gwada-Fallback."
+    : channels?.platformEmailFallbackAvailable
+      ? "Restaurant-Mailbox nicht konfiguriert — Gwada-Fallback."
+      : "E-Mail-Kanal derzeit nicht verfügbar.";
+
   const patchModuleToggle = (
     field: "inAppModules" | "pushWhatsappModules" | "pushEmailModules",
     moduleId: NotificationModuleId,
@@ -111,63 +125,6 @@ export function NotificationPreferencesPanel() {
     <div className="space-y-6">
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
-          <CardTitle className="text-xl">Kanäle</CardTitle>
-          <CardDescription className="text-base leading-relaxed">
-            Externe Zustellung ist vorbereitet — Push per WhatsApp oder E-Mail
-            folgt, sobald die Kanäle aktiv sind. In der App steuern Sie die
-            Glocken-Hinweise unabhängig davon.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <WhatsAppGlyph className="mt-0.5 size-5 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">WhatsApp</p>
-                <p className="text-xs text-muted-foreground">
-                  {channels?.whatsappConnected
-                    ? "Restaurant ist verbunden — Push möglich, sobald aktiviert."
-                    : "Nur verfügbar, wenn WhatsApp unter Integrationen verbunden ist."}
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={draft.channelWhatsappEnabled}
-              disabled={!channels?.whatsappConnected}
-              onCheckedChange={(checked) =>
-                updateDraft({ channelWhatsappEnabled: checked })
-              }
-              aria-label="WhatsApp-Benachrichtigungen"
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-3">
-            <div className="flex min-w-0 items-start gap-3">
-              <Mail className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">E-Mail</p>
-                <p className="text-xs text-muted-foreground">
-                  {channels?.restaurantEmailConfigured
-                    ? "Über die Restaurant-Mailbox, sonst Gwada-Fallback."
-                    : channels?.platformEmailFallbackAvailable
-                      ? "Restaurant-Mailbox nicht konfiguriert — Gwada-Fallback."
-                      : "E-Mail-Kanal derzeit nicht verfügbar."}
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={draft.channelEmailEnabled}
-              onCheckedChange={(checked) =>
-                updateDraft({ channelEmailEnabled: checked })
-              }
-              aria-label="E-Mail-Benachrichtigungen"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50 shadow-card">
-        <CardHeader className="gap-2">
           <CardTitle className="text-xl">In der App</CardTitle>
           <CardDescription className="text-base leading-relaxed">
             Welche Module in der Glocken-Leiste oben rechts erscheinen.
@@ -179,7 +136,10 @@ export function NotificationPreferencesPanel() {
             onChange={(id, enabled) =>
               patchModuleToggle("inAppModules", id, enabled)
             }
-            labelFor={(id) => notificationModulesInOrder().find((m) => m.id === id)!.settingsInAppLabel}
+            labelFor={(id) =>
+              notificationModulesInOrder().find((m) => m.id === id)!
+                .settingsInAppLabel
+            }
           />
         </CardContent>
       </Card>
@@ -188,32 +148,39 @@ export function NotificationPreferencesPanel() {
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">Push pro Modul</CardTitle>
           <CardDescription className="text-base leading-relaxed">
-            Feingranulare Zustellung über WhatsApp und E-Mail — wird mit den
-            Kanälen oben kombiniert.
+            Externe Zustellung per WhatsApp oder E-Mail — pro Modul einzeln
+            steuerbar.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div>
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-              <MessageSquare className="size-4 text-muted-foreground" />
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
+              <WhatsAppGlyph className="size-4 shrink-0" />
               WhatsApp
             </div>
+            <p className="mb-3 text-xs text-muted-foreground">
+              {whatsappConnected
+                ? "Push über die verbundene Restaurant-WhatsApp."
+                : "Nur verfügbar, wenn WhatsApp unter Einstellungen → Integrationen verbunden ist."}
+            </p>
             <ModuleToggleRows
               toggles={draft.pushWhatsappModules}
+              disabled={!whatsappConnected}
               onChange={(id, enabled) =>
                 patchModuleToggle("pushWhatsappModules", id, enabled)
               }
               labelFor={(id) =>
                 notificationModulesInOrder().find((m) => m.id === id)!
-                  .settingsPushLabel
+                  .settingsPushWhatsappLabel
               }
             />
           </div>
           <div>
-            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+            <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
               <Mail className="size-4 text-muted-foreground" />
               E-Mail
             </div>
+            <p className="mb-3 text-xs text-muted-foreground">{emailNote}</p>
             <ModuleToggleRows
               toggles={draft.pushEmailModules}
               onChange={(id, enabled) =>
@@ -221,7 +188,7 @@ export function NotificationPreferencesPanel() {
               }
               labelFor={(id) =>
                 notificationModulesInOrder().find((m) => m.id === id)!
-                  .settingsPushLabel
+                  .settingsPushEmailLabel
               }
             />
           </div>

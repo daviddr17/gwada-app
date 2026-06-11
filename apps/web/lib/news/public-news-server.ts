@@ -2,7 +2,9 @@ import "server-only";
 
 import { unstable_cache } from "next/cache";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
-import { fetchUnifiedNewsFeed, getNewsConnectorPublicInfo } from "@/lib/news/connectors/registry";
+import { getNewsConnectorPublicInfo } from "@/lib/news/connectors/registry";
+import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
+import { triggerNewsFeedSyncIfStale } from "@/lib/news/news-feed-sync-server";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
@@ -59,7 +61,10 @@ async function loadPublicNewsUncached(
     Math.max(1, Number(settingsRow?.embed_max_items ?? 24)),
   );
 
-  const items = (await fetchUnifiedNewsFeed(restaurantId, admin))
+  const { items: feedItems } = await readNewsFeedFromCache(restaurantId, admin);
+  void triggerNewsFeedSyncIfStale(restaurantId);
+
+  const items = feedItems
     .filter((item) => item.status === "published")
     .slice(0, maxItems);
 

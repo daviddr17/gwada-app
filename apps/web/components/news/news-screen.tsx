@@ -31,6 +31,9 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
+import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
+import type { NewsCacheablePlatform } from "@/lib/news/news-cache-constants";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 
 export function NewsScreen() {
@@ -46,6 +49,7 @@ export function NewsScreen() {
 
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<UnifiedNewsItem[]>([]);
+  const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -65,10 +69,15 @@ export function NewsScreen() {
         qs.set("platform", platformFilter);
       }
       const res = await fetch(`/api/news?${qs}`);
-      const data = (await res.json()) as { items?: UnifiedNewsItem[]; error?: string };
+      const data = (await res.json()) as {
+        items?: UnifiedNewsItem[];
+        sync?: NewsFeedSyncMeta;
+        error?: string;
+      };
       if (generation !== loadGeneration.current) return;
       if (!res.ok) throw new Error(data.error ?? "load_failed");
       setItems(data.items ?? []);
+      setSyncMeta(data.sync ?? null);
     } catch {
       if (generation !== loadGeneration.current) return;
       setItems([]);
@@ -146,6 +155,30 @@ export function NewsScreen() {
         onChange={setPlatformFilter}
         availablePlatforms={availablePlatforms}
       />
+
+      {syncMeta?.lastSyncedAt ? (
+        <p className="text-xs text-muted-foreground">
+          Externe Kanäle zuletzt aktualisiert:{" "}
+          {new Date(syncMeta.lastSyncedAt).toLocaleString("de-DE", {
+            day: "2-digit",
+            month: "short",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+          {syncMeta.stale ? " · Aktualisierung läuft …" : null}
+        </p>
+      ) : null}
+
+      {syncMeta?.platformErrors &&
+      Object.keys(syncMeta.platformErrors).length > 0 ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          {Object.entries(syncMeta.platformErrors).map(([platform, message]) => (
+            <p key={platform}>
+              {NEWS_PLATFORM_LABELS[platform as NewsCacheablePlatform]}: {message}
+            </p>
+          ))}
+        </div>
+      ) : null}
 
       <div className={moduleSearchFilterRowClassName}>
         <div className={moduleSearchFieldWrapClassName}>

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
+import { syncRestaurantNewsPlatformAfterPublish } from "@/lib/news/news-feed-sync-server";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,10 @@ export async function PUT(req: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  after(() => {
+    void syncRestaurantNewsPlatformAfterPublish(restaurantId, "whatsapp_channel");
+  });
 
   return NextResponse.json({ ok: true });
 }

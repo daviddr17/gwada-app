@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   parseNewsPlatformFilter,
   type NewsPlatform,
-  isNewsPlatform,
 } from "@/lib/constants/news-platforms";
-import { fetchUnifiedNewsFeed } from "@/lib/news/connectors/registry";
+import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
+import { triggerNewsFeedSyncIfStale } from "@/lib/news/news-feed-sync-server";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,15 @@ export async function GET(req: Request) {
   const platforms =
     filter === "all" ? undefined : ([filter] as NewsPlatform[]);
 
-  const items = await fetchUnifiedNewsFeed(restaurantId, auth.sb, platforms);
+  const { items, sync } = await readNewsFeedFromCache(
+    restaurantId,
+    auth.sb,
+    platforms,
+  );
 
-  return NextResponse.json({ items, count: items.length });
+  after(() => {
+    void triggerNewsFeedSyncIfStale(restaurantId, platforms);
+  });
+
+  return NextResponse.json({ items, count: items.length, sync });
 }

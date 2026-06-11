@@ -2,6 +2,7 @@ import "server-only";
 
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
+import { syncRestaurantNewsPlatformAfterPublish } from "@/lib/news/news-feed-sync-server";
 import type { NewsPublishInput } from "@/lib/news/connectors/types";
 import {
   parseNewsMedia,
@@ -133,6 +134,8 @@ export async function createAndPublishNewsPost(
       })
       .eq("post_id", postId)
       .eq("platform", platform);
+
+    void syncRestaurantNewsPlatformAfterPublish(params.restaurantId, platform);
   }
 
   if (!isScheduled) {
@@ -239,6 +242,7 @@ export async function publishNewsPostToPlatforms(
       })
       .eq("post_id", params.postId)
       .eq("platform", platform);
+    void syncRestaurantNewsPlatformAfterPublish(params.restaurantId, platform);
     published += 1;
   }
 

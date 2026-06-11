@@ -15,6 +15,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import {
   NEWS_PLATFORM_LABELS,
@@ -205,17 +206,7 @@ export function NewsDetailDrawer({
           )}
 
           {item.insights ? (
-            <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
-              {item.insights.likes != null ? (
-                <span>{item.insights.likes} Likes</span>
-              ) : null}
-              {item.insights.comments != null ? (
-                <span>{item.insights.comments} Kommentare</span>
-              ) : null}
-              {item.insights.views != null ? (
-                <span>{item.insights.views} Aufrufe</span>
-              ) : null}
-            </div>
+            <NewsInsightsBadges insights={item.insights} className="text-sm" />
           ) : null}
 
           {externalUrl ? (

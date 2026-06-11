@@ -30,7 +30,7 @@ export function NewsPlatformFilterChips({
         disabled={disabled}
         onClick={() => onChange(NEWS_FILTER_ALL)}
         className={cn(
-          "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+          "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
           value === NEWS_FILTER_ALL
             ? "border-accent/50 bg-accent/15 text-foreground"
             : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
@@ -38,8 +38,8 @@ export function NewsPlatformFilterChips({
         )}
         aria-pressed={value === NEWS_FILTER_ALL}
       >
-        <LayoutGrid className="size-4" aria-hidden />
-        {NEWS_FILTER_LABELS.all}
+        <LayoutGrid className="size-4 shrink-0" aria-hidden />
+        <span>{NEWS_FILTER_LABELS.all}</span>
       </button>
       {NEWS_PLATFORM_ORDER.map((platform) => (
         <NewsPlatformChip
@@ -71,7 +71,7 @@ export function NewsPlatformChip({
       disabled={disabled}
       onClick={onSelect}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
         selected
           ? "border-accent/50 bg-accent/15 text-foreground"
           : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
@@ -79,8 +79,8 @@ export function NewsPlatformChip({
       )}
       aria-pressed={selected}
     >
-      <NewsPlatformIcon platform={platform} />
-      {NEWS_PLATFORM_LABELS[platform]}
+      <NewsPlatformIcon platform={platform} className="size-4" />
+      <span>{NEWS_PLATFORM_LABELS[platform]}</span>
     </button>
   );
 }

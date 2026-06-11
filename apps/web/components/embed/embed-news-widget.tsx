@@ -68,7 +68,11 @@ export function EmbedNewsWidget({
           </div>
         ) : null}
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Noch keine News veröffentlicht.</p>
+          <p className="text-sm text-muted-foreground">
+            {platformFilter === NEWS_FILTER_ALL
+              ? "Noch keine News veröffentlicht."
+              : "Keine News für diese Plattform."}
+          </p>
         ) : viewMode === "list" ? (
           <NewsListView items={filtered} />
         ) : (

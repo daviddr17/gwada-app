@@ -22,22 +22,20 @@ export function NewsPlatformIcon({
 }) {
   const label = ariaLabel ?? NEWS_PLATFORM_LABELS[platform];
 
+  const iconClass = cn("size-4 shrink-0", className);
+
   return (
-    <span
-      className={cn("inline-flex shrink-0 items-center", className)}
-      role="img"
-      aria-label={label}
-    >
+    <span className="inline-flex shrink-0 items-center" role="img" aria-label={label}>
       {platform === "google_business" ? (
-        <GoogleGlyph className="size-4" />
+        <GoogleGlyph className={iconClass} />
       ) : platform === "facebook" ? (
-        <FacebookGlyph className="size-4" />
+        <FacebookGlyph className={iconClass} />
       ) : platform === "instagram" ? (
-        <InstagramGlyph className="size-4" />
+        <InstagramGlyph className={iconClass} />
       ) : platform === "whatsapp_channel" ? (
-        <WhatsAppGlyph className="size-4" />
+        <WhatsAppGlyph className={iconClass} />
       ) : (
-        <GwadaFaviconIcon size="chip" />
+        <GwadaFaviconIcon size="chip" className={className} />
       )}
     </span>
   );

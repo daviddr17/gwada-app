@@ -83,12 +83,13 @@ export const gwadaNewsConnector: NewsPlatformConnector = {
       .limit(100);
     if (error) return { error: error.message };
 
-    const items: UnifiedNewsItem[] = [];
-    for (const row of data ?? []) {
-      const media = parseNewsMedia(row.media);
-      const signed = await signedUrlsForMedia(media);
-      items.push(mapRow(row as Record<string, unknown>, signed));
-    }
+    const rows = data ?? [];
+    const signedByRow = await Promise.all(
+      rows.map(async (row) => signedUrlsForMedia(parseNewsMedia(row.media))),
+    );
+    const items = rows.map((row, index) =>
+      mapRow(row as Record<string, unknown>, signedByRow[index]!),
+    );
     return { items };
   },
   async publishPost(restaurantId, sb, input) {

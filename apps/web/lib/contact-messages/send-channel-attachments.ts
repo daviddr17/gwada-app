@@ -1,9 +1,30 @@
 import "server-only";
 
-import { wahaSendFile, wahaSendImage } from "@/lib/whatsapp/waha-send-media";
+import {
+  wahaSendFile,
+  wahaSendImage,
+  wahaSendVideo,
+  wahaSendVoice,
+} from "@/lib/whatsapp/waha-send-media";
 import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
-import { attachmentKindFromMime } from "@/lib/contact-messages/outbound-attachment-files";
+import { outboundAttachmentSendKind } from "@/lib/contact-messages/outbound-attachment-files";
 import type { SmtpAttachmentPart } from "@/lib/email/send-via-smtp";
+
+export async function sendWhatsappVoiceNote(params: {
+  restaurantId: string;
+  chatId: string;
+  file: OutboundAttachmentFile;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  return wahaSendVoice({
+    restaurantId: params.restaurantId,
+    chatId: params.chatId,
+    file: {
+      fileName: params.file.fileName,
+      mimeType: params.file.mimeType,
+      base64: params.file.bytes.toString("base64"),
+    },
+  });
+}
 
 export async function sendWhatsappAttachmentFiles(params: {
   restaurantId: string;
@@ -31,10 +52,13 @@ export async function sendWhatsappAttachmentFiles(params: {
       caption: fileCaption,
     };
 
+    const kind = outboundAttachmentSendKind(file.mimeType);
     const sent =
-      attachmentKindFromMime(file.mimeType) === "image"
+      kind === "image"
         ? await wahaSendImage(payload)
-        : await wahaSendFile(payload);
+        : kind === "video"
+          ? await wahaSendVideo(payload)
+          : await wahaSendFile(payload);
 
     if (!sent.ok) {
       errors.push(`whatsapp:${sent.error}`);

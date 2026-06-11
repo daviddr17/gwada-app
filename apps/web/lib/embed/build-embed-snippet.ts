@@ -88,3 +88,11 @@ export function buildReviewsEmbedSnippet(
 ): GwadaEmbedSnippet {
   return buildGwadaEmbedSnippet({ widget: "reviews", slug, origin });
 }
+
+/** News-Widget — aggregierter Multi-Plattform-Feed auf der Restaurant-Website. */
+export function buildNewsEmbedSnippet(
+  slug: string,
+  origin?: string,
+): GwadaEmbedSnippet {
+  return buildGwadaEmbedSnippet({ widget: "news", slug, origin });
+}

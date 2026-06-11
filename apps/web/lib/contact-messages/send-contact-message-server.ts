@@ -17,6 +17,7 @@ import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { storeGwadaMessageAttachments } from "@/lib/contact-messages/gwada-message-attachments-server";
 import {
   sendWhatsappAttachmentFiles,
+  sendWhatsappVoiceNote,
   smtpPartsFromOutboundFiles,
 } from "@/lib/contact-messages/send-channel-attachments";
 import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-attachment-files";
@@ -38,6 +39,7 @@ export type SendContactMessageServerInput = {
   sentBy?: string | null;
   restaurantName?: string | null;
   attachmentFiles?: OutboundAttachmentFile[];
+  voiceFile?: OutboundAttachmentFile;
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
@@ -165,7 +167,8 @@ export async function sendContactMessageServer(
 ): Promise<{ ok: boolean; errors: string[] }> {
   const body = input.body.trim();
   const attachmentFiles = input.attachmentFiles ?? [];
-  if (!body && attachmentFiles.length === 0) {
+  const voiceFile = input.voiceFile;
+  if (!body && attachmentFiles.length === 0 && !voiceFile) {
     return { ok: false, errors: ["empty_body"] };
   }
 
@@ -238,6 +241,19 @@ export async function sendContactMessageServer(
           deliveryStatus = "failed";
           sendError = "no_phone";
           errors.push("whatsapp:no_phone");
+        } else if (voiceFile) {
+          const sent = await sendWhatsappVoiceNote({
+            restaurantId: input.restaurantId,
+            chatId,
+            file: voiceFile,
+          });
+          if (sent.ok) {
+            deliveryStatus = "sent";
+          } else {
+            deliveryStatus = "failed";
+            sendError = sent.error;
+            errors.push(`whatsapp:${sent.error}`);
+          }
         } else if (attachmentFiles.length > 0) {
           const sent = await sendWhatsappAttachmentFiles({
             restaurantId: input.restaurantId,
@@ -270,25 +286,35 @@ export async function sendContactMessageServer(
         deliveryStatus = "delivered";
       }
 
-      const { id, error } = await insertMessage(admin, {
-        restaurant_id: input.restaurantId,
-        contact_id: input.contactId,
-        platform: "whatsapp",
-        direction: input.direction,
-        body: body || " ",
-        reservation_id: input.reservationId ?? null,
-        sent_by: input.sentBy ?? null,
-        delivery_status: deliveryStatus,
-        send_batch_id: sendBatchId,
-      });
-      if (error) errors.push(`whatsapp_db:${error}`);
-      else if (id && attachmentFiles.length > 0 && input.direction === "outbound") {
-        const stored = await storeGwadaMessageAttachments(admin, {
-          restaurantId: input.restaurantId,
-          messageId: id,
-          files: attachmentFiles,
+      const voiceOnlyOutbound =
+        input.direction === "outbound" &&
+        voiceFile &&
+        !body &&
+        attachmentFiles.length === 0;
+      const skipWhatsappDbMirror =
+        voiceOnlyOutbound && deliveryStatus === "sent";
+
+      if (!skipWhatsappDbMirror) {
+        const { id, error } = await insertMessage(admin, {
+          restaurant_id: input.restaurantId,
+          contact_id: input.contactId,
+          platform: "whatsapp",
+          direction: input.direction,
+          body: body || " ",
+          reservation_id: input.reservationId ?? null,
+          sent_by: input.sentBy ?? null,
+          delivery_status: deliveryStatus,
+          send_batch_id: sendBatchId,
         });
-        if (stored.error) errors.push(`whatsapp_attachments:${stored.error}`);
+        if (error) errors.push(`whatsapp_db:${error}`);
+        else if (id && attachmentFiles.length > 0 && input.direction === "outbound") {
+          const stored = await storeGwadaMessageAttachments(admin, {
+            restaurantId: input.restaurantId,
+            messageId: id,
+            files: attachmentFiles,
+          });
+          if (stored.error) errors.push(`whatsapp_attachments:${stored.error}`);
+        }
       }
       if (sendError && deliveryStatus === "failed") {
         /* already in errors */

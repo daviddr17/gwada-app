@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -102,9 +102,9 @@ export function DashboardCompactListItem({
   if (href) {
     return (
       <li>
-        <Link href={href} prefetch className={rowClass}>
+        <AppNavLink href={href} className={rowClass}>
           {inner}
-        </Link>
+        </AppNavLink>
       </li>
     );
   }
@@ -191,9 +191,9 @@ export function DashboardCompactMetricPill({
 
   if (href) {
     return (
-      <Link href={href} prefetch className={shellClass}>
+      <AppNavLink href={href} className={shellClass}>
         {content}
-      </Link>
+      </AppNavLink>
     );
   }
 

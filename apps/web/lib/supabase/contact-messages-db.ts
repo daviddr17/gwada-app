@@ -13,6 +13,8 @@ import {
   type RawMessageAttachmentRow,
 } from "@/lib/contact-messages/fetch-message-attachments";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
+import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
+import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import type {
   ContactMessageAttachment,
   ContactMessageAttachmentKind,
@@ -286,11 +288,17 @@ export async function fetchContactConversations(params: {
       : (contactRaw as { first_name: string; last_name: string } | null);
     if (!contact) continue;
 
+    const ext = (mapped.external_source_id as string | null) ?? "";
+    const mirrored =
+      ext.startsWith("waha:") || msgPlatform === "whatsapp"
+        ? previewBodyAndKindFromWhatsappMirror(mapped.body.trim())
+        : { body: mapped.body.trim(), attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
+
     previews.set(contactId, {
       contact_id: contactId,
       contact_name: contactDisplayName(contact),
       platform: params.platform,
-      last_body: mapped.body.trim(),
+      last_body: mirrored.body,
       last_at: mapped.created_at,
       last_direction: mapped.direction,
       message_count: 0,
@@ -298,9 +306,9 @@ export async function fetchContactConversations(params: {
       is_unread: false,
       has_reservation_link: false,
       inbound_since_preview: mapped.direction === "inbound" ? 1 : 0,
-      last_attachment_kind: primaryAttachmentKind(
-        mapped.attachments?.map((a) => a.kind),
-      ),
+      last_attachment_kind:
+        primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??
+        mirrored.attachmentKind,
       last_message_platform: msgPlatform,
     });
   }

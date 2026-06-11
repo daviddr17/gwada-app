@@ -44,6 +44,14 @@ export const GWADA_EMBED_WIDGETS: Record<
       `embed/bewertungen/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
+  news: {
+    id: "news",
+    title: "News",
+    defaultMinHeightPx: 520,
+    embedPath: (slug) =>
+      `embed/news/${encodeURIComponent(normalizedSlug(slug))}`,
+    available: true,
+  },
   contact: {
     id: "contact",
     title: "Kontakt",

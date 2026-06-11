@@ -7,6 +7,7 @@ export type WahaParsedMedia = {
   /** Relativ (/api/files/…) oder absolut. */
   url: string;
   kind: ContactMessageAttachmentKind;
+  durationSeconds?: number | null;
 };
 
 const IMAGE_MIMES = new Set([
@@ -16,13 +17,115 @@ const IMAGE_MIMES = new Set([
   "image/gif",
 ]);
 
-function kindFromMime(mime: string): ContactMessageAttachmentKind {
-  return IMAGE_MIMES.has(mime.toLowerCase()) ? "image" : "file";
+const VOICE_WAHA_TYPES = new Set([
+  "ptt",
+  "voice",
+  "audio",
+  "media_audio",
+]);
+
+const MEDIA_WAHA_TYPES = new Set([
+  "image",
+  "document",
+  "video",
+  "sticker",
+  ...VOICE_WAHA_TYPES,
+]);
+
+function readStringField(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function protobufMediaKind(
+  data: Record<string, unknown> | null | undefined,
+): string | null {
+  if (!data) return null;
+  const message = data.message;
+  if (!message || typeof message !== "object") return null;
+  const msg = message as Record<string, unknown>;
+  if (msg.audioMessage || msg.pttMessage) return "ptt";
+  if (msg.videoMessage) return "video";
+  if (msg.imageMessage || msg.stickerMessage) return "image";
+  if (msg.documentMessage) return "document";
+  return null;
+}
+
+function resolveWahaMessageType(
+  raw: { type?: string; hasMedia?: boolean; media?: { mimetype?: string | null } | null },
+  data: Record<string, unknown> | null | undefined,
+): string {
+  const topType = readStringField(raw.type).toLowerCase();
+  if (topType) return topType;
+
+  const dataType = readStringField(data?.type).toLowerCase();
+  if (dataType) return dataType;
+
+  const messageType = readStringField(data?.messageType).toLowerCase();
+  if (messageType) return messageType;
+
+  const proto = protobufMediaKind(data ?? undefined);
+  if (proto) return proto;
+
+  const mediaMime = readStringField(raw.media?.mimetype).toLowerCase();
+  if (mediaMime.startsWith("audio/")) return "ptt";
+  if (mediaMime.startsWith("video/")) return "video";
+  if (mediaMime.startsWith("image/")) return "image";
+
+  const dataMime = readStringField(data?.mimetype).toLowerCase();
+  if (dataMime.startsWith("audio/")) return "ptt";
+  if (dataMime.startsWith("video/")) return "video";
+  if (dataMime.startsWith("image/")) return "image";
+
+  return "";
+}
+
+function readDurationSeconds(
+  data: Record<string, unknown> | null | undefined,
+): number | null {
+  if (!data) return null;
+
+  const message = data.message;
+  if (message && typeof message === "object") {
+    const msg = message as Record<string, unknown>;
+    const audio =
+      (msg.audioMessage as Record<string, unknown> | undefined) ??
+      (msg.pttMessage as Record<string, unknown> | undefined);
+    const audioSeconds = audio?.seconds;
+    if (typeof audioSeconds === "number" && Number.isFinite(audioSeconds) && audioSeconds > 0) {
+      return Math.round(audioSeconds);
+    }
+  }
+
+  const raw =
+    data.duration ??
+    data.seconds ??
+    (data.audio as Record<string, unknown> | undefined)?.seconds;
+  if (typeof raw === "number" && Number.isFinite(raw) && raw > 0) {
+    return Math.round(raw);
+  }
+  return null;
+}
+
+export function attachmentKindFromWahaTypeAndMime(
+  wahaType: string,
+  mime: string,
+): ContactMessageAttachmentKind {
+  const type = wahaType.toLowerCase();
+  const m = mime.toLowerCase();
+  if (VOICE_WAHA_TYPES.has(type) || m.startsWith("audio/")) return "voice";
+  if (type === "video" || m.startsWith("video/")) return "video";
+  if (type === "image" || type === "sticker" || IMAGE_MIMES.has(m)) return "image";
+  return "file";
+}
+
+function kindFromMime(mime: string, wahaType = ""): ContactMessageAttachmentKind {
+  return attachmentKindFromWahaTypeAndMime(wahaType, mime);
 }
 
 function mediaFromRecord(
   media: Record<string, unknown> | null | undefined,
   fallbackName: string,
+  wahaType = "",
 ): WahaParsedMedia | null {
   if (!media) return null;
   const url = typeof media.url === "string" ? media.url.trim() : "";
@@ -39,8 +142,22 @@ function mediaFromRecord(
     url,
     mimetype,
     filename,
-    kind: kindFromMime(mimetype),
+    kind: kindFromMime(mimetype, wahaType),
   };
+}
+
+function fallbackFilenameForType(dataType: string): string {
+  if (dataType === "image" || dataType === "sticker") return "bild.jpg";
+  if (dataType === "video") return "video.mp4";
+  if (VOICE_WAHA_TYPES.has(dataType)) return "sprachnachricht.ogg";
+  return "datei";
+}
+
+function fallbackMimeForType(dataType: string): string {
+  if (dataType === "image" || dataType === "sticker") return "image/jpeg";
+  if (dataType === "video") return "video/mp4";
+  if (VOICE_WAHA_TYPES.has(dataType)) return "audio/ogg; codecs=opus";
+  return "application/octet-stream";
 }
 
 export function parseWahaMessageMedia(m: WahaChatMessage): WahaParsedMedia | null {
@@ -50,41 +167,67 @@ export function parseWahaMessageMedia(m: WahaChatMessage): WahaParsedMedia | nul
     type?: string;
   };
 
+  const data =
+    raw._data && typeof raw._data === "object"
+      ? (raw._data as Record<string, unknown>)
+      : null;
+  const dataType = resolveWahaMessageType(raw, data);
+
   const top = mediaFromRecord(
     raw.media ?? undefined,
-    raw.type === "image" ? "bild.jpg" : "datei",
+    fallbackFilenameForType(dataType),
+    dataType,
   );
-  if (top) return top;
+  if (top) {
+    return {
+      ...top,
+      durationSeconds: readDurationSeconds(data),
+    };
+  }
 
-  const data = raw._data;
-  if (!data || typeof data !== "object") return null;
+  if (!data) {
+    if (!raw.hasMedia) return null;
+    const mime = fallbackMimeForType(dataType);
+    return {
+      url: "",
+      mimetype: mime,
+      filename: fallbackFilenameForType(dataType),
+      kind: kindFromMime(mime, dataType),
+    };
+  }
 
   const nested = mediaFromRecord(
     (data.media as Record<string, unknown> | undefined) ??
       (data._data as Record<string, unknown> | undefined)?.media as
         | Record<string, unknown>
         | undefined,
-    "datei",
+    fallbackFilenameForType(dataType),
+    dataType,
   );
-  if (nested) return nested;
+  if (nested) {
+    return {
+      ...nested,
+      durationSeconds: readDurationSeconds(data),
+    };
+  }
 
-  const type = typeof data.type === "string" ? data.type : "";
-  if (!raw.hasMedia && !data.hasMedia && !["image", "document", "video", "sticker"].includes(type)) {
+  if (!raw.hasMedia && !data.hasMedia && !MEDIA_WAHA_TYPES.has(dataType)) {
     return null;
   }
 
   const mime =
-    (typeof data.mimetype === "string" ? data.mimetype : null) ??
-    (type === "image" ? "image/jpeg" : "application/octet-stream");
+    readStringField(data.mimetype) ||
+    readStringField(raw.media?.mimetype) ||
+    fallbackMimeForType(dataType);
   const filename =
-    (typeof data.filename === "string" ? data.filename : null) ??
-    (type === "image" ? "bild.jpg" : "datei");
+    readStringField(data.filename) || fallbackFilenameForType(dataType);
 
   return {
     url: "",
     mimetype: mime,
     filename,
-    kind: kindFromMime(mime),
+    kind: kindFromMime(mime, dataType),
+    durationSeconds: readDurationSeconds(data),
   };
 }
 
@@ -95,5 +238,8 @@ export function wahaMessageHasDisplayableMedia(m: WahaChatMessage): boolean {
 export function wahaMediaPreviewLabel(m: WahaChatMessage): string {
   const media = parseWahaMessageMedia(m);
   if (!media) return "";
-  return media.kind === "image" ? "Bild" : media.filename;
+  if (media.kind === "image") return "Bild";
+  if (media.kind === "voice") return "Sprachnachricht";
+  if (media.kind === "video") return "Video";
+  return media.filename;
 }

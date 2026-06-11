@@ -7,9 +7,15 @@ export function measureEmbedContentHeight(
   if (resizeMode === "viewport") {
     return Math.ceil(viewportHeightPx ?? 640);
   }
-  return Math.max(
-    measureTarget.scrollHeight,
+  const layoutHeight = Math.max(
     measureTarget.getBoundingClientRect().height,
-    document.documentElement.scrollHeight,
+    measureTarget.offsetHeight,
   );
+  const scrollHeight = measureTarget.scrollHeight;
+
+  // CSS multi-column (Pinterest/Masonry) kann scrollHeight als Einspaltiger-Stapel melden.
+  const plausibleScrollHeight =
+    scrollHeight <= layoutHeight * 1.15 + 24 ? scrollHeight : layoutHeight;
+
+  return Math.ceil(Math.max(layoutHeight, plausibleScrollHeight));
 }

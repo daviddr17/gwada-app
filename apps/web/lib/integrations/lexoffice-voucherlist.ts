@@ -49,7 +49,10 @@ function salesDetailApiPath(
   const t = (lexofficeVoucherType ?? "").toLowerCase();
   if (t === "creditnote") return `/v1/credit-notes/${externalId}`;
   if (t === "quotation") return `/v1/quotations/${externalId}`;
-  if (t === "invoice" || t === "downpaymentinvoice") {
+  if (t === "downpaymentinvoice") {
+    return `/v1/down-payment-invoices/${externalId}`;
+  }
+  if (t === "invoice") {
     return `/v1/invoices/${externalId}`;
   }
   return kind === "invoice"

@@ -74,6 +74,7 @@ export function withLocalPublicProfilePreview(
       reservation: true,
       menu: true,
       reviews: true,
+      news: true,
     },
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -65,9 +65,9 @@ export function DashboardStatBlock({
 
   if (href) {
     return (
-      <Link href={href} prefetch className={className}>
+      <AppNavLink href={href} className={className}>
         {inner}
-      </Link>
+      </AppNavLink>
     );
   }
 

@@ -1,6 +1,7 @@
 import { parseMultipartSend } from "@/lib/contact-messages/parse-multipart-send";
 import {
   parseOutboundAttachmentFiles,
+  parseOutboundVoiceFile,
   type OutboundAttachmentFile,
 } from "@/lib/contact-messages/outbound-attachment-files";
 import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   let reservationId: string | null = null;
   let restaurantName: string | null = null;
   let attachmentFiles: OutboundAttachmentFile[] = [];
+  let voiceFile: OutboundAttachmentFile | undefined;
 
   const multipart = await parseMultipartSend(req);
   if (multipart) {
@@ -27,6 +29,13 @@ export async function POST(req: Request) {
       return Response.json({ error: parsedFiles.error }, { status: 400 });
     }
     attachmentFiles = parsedFiles.files;
+    if (multipart.voiceNote) {
+      const parsedVoice = await parseOutboundVoiceFile(multipart.voiceNote);
+      if (!parsedVoice.ok) {
+        return Response.json({ error: parsedVoice.error }, { status: 400 });
+      }
+      voiceFile = parsedVoice.file;
+    }
     restaurantId = multipart.fields.restaurantId?.trim() ?? "";
     contactId = multipart.fields.contactId?.trim() ?? "";
     messageBody = multipart.messageBody;
@@ -65,7 +74,7 @@ export async function POST(req: Request) {
   if (
     !isUuidRestaurantId(restaurantId) ||
     !isUuidRestaurantId(contactId) ||
-    (!messageBody && attachmentFiles.length === 0) ||
+    (!messageBody && attachmentFiles.length === 0 && !voiceFile) ||
     (direction !== "inbound" && direction !== "outbound") ||
     channels.length === 0
   ) {
@@ -117,6 +126,7 @@ export async function POST(req: Request) {
     sentBy: direction === "outbound" ? user.id : null,
     restaurantName,
     attachmentFiles,
+    voiceFile,
   });
 
   return Response.json(result);

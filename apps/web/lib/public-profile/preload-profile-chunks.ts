@@ -3,6 +3,8 @@ export function preloadProfileWidgetChunks() {
   void import("@/components/embed/embed-reservation-widget");
   void import("@/components/embed/embed-menu-widget");
   void import("@/components/embed/embed-reviews-widget");
+  void import("@/components/embed/embed-news-widget");
+  void import("@/components/public/restaurant-public-profile-news");
 }
 
 export function scheduleProfileBackgroundWork(work: () => void) {

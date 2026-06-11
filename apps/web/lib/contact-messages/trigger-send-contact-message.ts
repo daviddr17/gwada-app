@@ -22,12 +22,14 @@ export async function triggerSendContactMessage(body: {
   reservationId?: string | null;
   restaurantName?: string | null;
   files?: File[];
+  voiceNote?: File;
 }): Promise<SendContactMessageApiResult | null> {
   try {
     const hasFiles = (body.files?.length ?? 0) > 0;
+    const hasVoice = Boolean(body.voiceNote);
     let fetchBody: BodyInit;
     let headers: HeadersInit | undefined;
-    if (hasFiles) {
+    if (hasFiles || hasVoice) {
       const fd = new FormData();
       appendSendFormFields(fd, {
         restaurantId: body.restaurantId,
@@ -38,7 +40,8 @@ export async function triggerSendContactMessage(body: {
         reservationId: body.reservationId ?? undefined,
         restaurantName: body.restaurantName ?? undefined,
       });
-      for (const file of body.files!) fd.append("files", file);
+      for (const file of body.files ?? []) fd.append("files", file);
+      if (body.voiceNote) fd.append("voiceNote", body.voiceNote);
       fetchBody = fd;
     } else {
       headers = { "Content-Type": "application/json" };
@@ -154,12 +157,14 @@ export async function triggerWahaSendMessage(body: {
   messageBody: string;
   storeUnderContact?: boolean;
   files?: File[];
+  voiceNote?: File;
 }): Promise<SendContactMessageApiResult | null> {
   try {
     const hasFiles = (body.files?.length ?? 0) > 0;
+    const hasVoice = Boolean(body.voiceNote);
     let fetchBody: BodyInit;
     let headers: HeadersInit | undefined;
-    if (hasFiles) {
+    if (hasFiles || hasVoice) {
       const fd = new FormData();
       appendSendFormFields(fd, {
         restaurantId: body.restaurantId,
@@ -169,7 +174,8 @@ export async function triggerWahaSendMessage(body: {
         storeUnderContact:
           body.storeUnderContact === false ? "false" : undefined,
       });
-      for (const file of body.files!) fd.append("files", file);
+      for (const file of body.files ?? []) fd.append("files", file);
+      if (body.voiceNote) fd.append("voiceNote", body.voiceNote);
       fetchBody = fd;
     } else {
       headers = { "Content-Type": "application/json" };

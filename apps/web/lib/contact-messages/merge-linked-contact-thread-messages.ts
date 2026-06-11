@@ -1,4 +1,7 @@
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import {
+  mergeDbMessagesWithWahaThread,
+} from "@/lib/contact-messages/whatsapp-mirror-preview";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 
 const EMAIL_IMAP_EXTERNAL_PREFIX = "email-imap:";
@@ -20,6 +23,13 @@ function sortByCreatedAt(messages: ContactMessageRow[]): ContactMessageRow[] {
   );
 }
 
+function finalizeWhatsappThreadMessages(
+  dbMessages: ContactMessageRow[],
+  wahaMessages: ContactMessageRow[] | null | undefined,
+): ContactMessageRow[] {
+  return sortByCreatedAt(mergeDbMessagesWithWahaThread(dbMessages, wahaMessages));
+}
+
 /**
  * Verknüpfte Kontakte: Gwada/WhatsApp aus der DB, E-Mails mit HTML aus IMAP.
  * Ohne IMAP bleibt der DB-Stand (Plain-Text).
@@ -27,11 +37,12 @@ function sortByCreatedAt(messages: ContactMessageRow[]): ContactMessageRow[] {
 export function mergeLinkedContactThreadMessages(params: {
   dbMessages: ContactMessageRow[];
   imapEmailMessages: ContactMessageRow[] | null;
+  wahaMessages?: ContactMessageRow[] | null;
 }): ContactMessageRow[] {
-  const { dbMessages, imapEmailMessages } = params;
+  const { dbMessages, imapEmailMessages, wahaMessages } = params;
 
   if (!imapEmailMessages?.length) {
-    return sortByCreatedAt(dbMessages);
+    return finalizeWhatsappThreadMessages(dbMessages, wahaMessages);
   }
 
   const nonEmail = dbMessages.filter(
@@ -66,9 +77,8 @@ export function mergeLinkedContactThreadMessages(params: {
     return !imapOutboundKeys.has(key);
   });
 
-  return sortByCreatedAt([
-    ...nonEmail,
-    ...emailFromImap,
-    ...dbOnlyEmailOutbound,
-  ]);
+  return finalizeWhatsappThreadMessages(
+    [...nonEmail, ...emailFromImap, ...dbOnlyEmailOutbound],
+    wahaMessages,
+  );
 }

@@ -25,6 +25,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "pos.kasse.manage",
   "pos.kasse.export",
   "accounting.manage",
+  "news.manage",
 ] as const;
 
 export type RestaurantPermissionKey =
@@ -130,6 +131,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "Buchführung",
       description:
         "Rechnungen, Angebote und Belege anlegen, bearbeiten und versenden.",
+      group: "buchfuehrung",
+    },
+    {
+      key: "news.manage",
+      label: "News",
+      description:
+        "News und Posts veröffentlichen, planen und Kanäle verwalten.",
       group: "buchfuehrung",
     },
     {

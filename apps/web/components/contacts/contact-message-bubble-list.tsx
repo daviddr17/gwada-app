@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CalendarDays } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
 import { WhatsAppMessageAckMarks } from "@/components/contacts/whatsapp-message-ack-marks";
@@ -21,6 +22,12 @@ import {
 } from "@/components/contacts/contact-message-reactions";
 import { ContactMessageAttachments } from "@/components/contacts/contact-message-attachments";
 import { ContactMessageEmailBody } from "@/components/contacts/contact-message-email-body";
+import { deleteWahaMessageClient } from "@/lib/contact-messages/waha-typing-client";
+import {
+  isRedundantWhatsappMediaBody,
+  isWahaEditableMessage,
+  messageHasVisibleBubbleContent,
+} from "@/lib/contact-messages/whatsapp-mirror-preview";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +36,12 @@ export const contactMessageEmailBubbleClassName = "w-fit max-w-[60%]";
 
 export type ContactMessageWahaReactionsConfig = {
   restaurantId: string;
+  chatId: string;
   onReactionChange?: () => void;
+  onMessageDeleted?: () => void;
+  onEditMessage?: (message: ContactMessageRow) => void;
+  editingMessageId?: string | null;
+  onOptimisticMessageDelete?: (message: ContactMessageRow) => void;
 };
 
 function formatWhen(iso: string): string {
@@ -71,6 +83,7 @@ export function ContactMessageBubbleList({
     <ul className={cn("flex flex-col gap-3", className)}>
       {groups.map((group, index) => {
         const primary = primaryMessageForGroup(group);
+        if (!messageHasVisibleBubbleContent(primary)) return null;
         const platforms =
           group.kind === "single"
             ? displayPlatformsForMessage(primary)
@@ -89,6 +102,18 @@ export function ContactMessageBubbleList({
           wahaReactions && primary.waha_message_id,
         );
 
+        const showDelete = Boolean(
+          wahaReactions &&
+            outbound &&
+            primary.waha_message_id &&
+            messageDisplayPlatform(primary) === "whatsapp",
+        );
+        const showEdit = Boolean(
+          showDelete &&
+            isWahaEditableMessage(primary) &&
+            wahaReactions?.onEditMessage,
+        );
+
         return (
           <MessageBubbleRow
             key={key}
@@ -96,6 +121,8 @@ export function ContactMessageBubbleList({
             platforms={platforms}
             outbound={outbound}
             showReactions={showReactions}
+            showDelete={showDelete}
+            showEdit={showEdit}
             wahaReactions={wahaReactions}
             reactionMessageId={reactionMessageId}
             pickerOpen={openReactionMessageId === reactionMessageId}
@@ -115,6 +142,8 @@ function MessageBubbleRow({
   platforms,
   outbound,
   showReactions,
+  showDelete,
+  showEdit,
   wahaReactions,
   reactionMessageId,
   pickerOpen,
@@ -125,6 +154,8 @@ function MessageBubbleRow({
   platforms: ContactMessagePlatform[];
   outbound: boolean;
   showReactions: boolean;
+  showDelete: boolean;
+  showEdit: boolean;
   wahaReactions?: ContactMessageWahaReactionsConfig;
   reactionMessageId: string;
   pickerOpen: boolean;
@@ -134,7 +165,30 @@ function MessageBubbleRow({
   const longPress = useMessageReactionLongPress(() => onPickerOpenChange(true));
   const isEmail = messageDisplayPlatform(primary) === "email";
   const hasHtmlBody = Boolean(primary.body_html?.trim());
-  const hasBody = Boolean(primary.body.trim()) || hasHtmlBody;
+  const showTextBody =
+    Boolean(primary.body.trim()) &&
+    !isRedundantWhatsappMediaBody(primary.body, primary.attachments);
+  const hasBody = showTextBody || hasHtmlBody;
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!wahaReactions || !primary.waha_message_id || deleting) return;
+    setDeleting(true);
+    wahaReactions.onOptimisticMessageDelete?.(primary);
+    const result = await deleteWahaMessageClient({
+      restaurantId: wahaReactions.restaurantId,
+      chatId: wahaReactions.chatId,
+      messageId: primary.waha_message_id,
+    });
+    setDeleting(false);
+    if (!result.ok) {
+      toast.error("Nachricht konnte nicht gelöscht werden.");
+      wahaReactions.onMessageDeleted?.();
+      return;
+    }
+    toast.success("Nachricht gelöscht.");
+    wahaReactions.onMessageDeleted?.();
+  };
 
   return (
     <li
@@ -175,7 +229,7 @@ function MessageBubbleRow({
               body={primary.body}
               bodyHtml={primary.body_html}
             />
-          ) : primary.body.trim() ? (
+          ) : showTextBody ? (
             <p className="whitespace-pre-wrap break-words">{primary.body}</p>
           ) : null}
         </div>
@@ -188,6 +242,14 @@ function MessageBubbleRow({
             onUpdated={wahaReactions.onReactionChange}
             pickerOpen={pickerOpen}
             onPickerOpenChange={onPickerOpenChange}
+            onDelete={showDelete ? () => handleDelete() : undefined}
+            onEdit={
+              showEdit && wahaReactions?.onEditMessage
+                ? () => wahaReactions.onEditMessage!(primary)
+                : undefined
+            }
+            deleting={deleting}
+            editing={wahaReactions?.editingMessageId === primary.waha_message_id}
             className="px-0.5"
           />
         ) : null}

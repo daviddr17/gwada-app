@@ -24,6 +24,7 @@ import { useProfilePublicDockBridge } from "@/components/public/profile-public-d
 import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-public-profile-hero-card";
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
 import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
+import { RestaurantPublicProfileNews } from "@/components/public/restaurant-public-profile-news";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import type { EmbedReservationProfileTermsSheet } from "@/components/embed/embed-reservation-widget";
 import {
@@ -77,6 +78,7 @@ import {
 import { publicCountries } from "@/lib/reservations/public-embed-shared";
 import type { PublicEmbedRestaurant } from "@/lib/reservations/public-embed-shared";
 import type { PublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
+import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
 import {
   formatPublicRestaurantAddress,
@@ -98,7 +100,6 @@ const EmbedMenuWidget = dynamic(
   { loading: () => <RestaurantPublicProfileModuleSkeleton /> },
 );
 
-/** Max. Backdrop-Blur beim geöffneten Sheet — Desktop only (iOS: zu teuer). */
 const IOS_SHEET_BACKDROP_BLUR_PX = 12;
 const IOS_SHEET_SLIDE_OPEN_ORIGIN = "50% 100%";
 
@@ -154,6 +155,7 @@ function ProfileAppSheetOverlay({
   reservation,
   menu,
   reviews,
+  news,
   loading,
   errors,
   addressLine,
@@ -175,6 +177,7 @@ function ProfileAppSheetOverlay({
   reservation: PublicEmbedRestaurant | null;
   menu: PublicEmbedMenu | null;
   reviews: PublicEmbedReviews | null;
+  news: PublicEmbedNews | null;
   loading: Record<ProfileModuleKey, boolean>;
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
@@ -708,6 +711,7 @@ function ProfileAppSheetOverlay({
                       reservation={reservation}
                       menu={menu}
                       reviews={reviews}
+                      news={news}
                       loading={loading}
                       errors={errors}
                       addressLine={addressLine}
@@ -744,6 +748,7 @@ function ProfileAppContent({
   reservation,
   menu,
   reviews,
+  news,
   loading,
   errors,
   addressLine,
@@ -760,6 +765,7 @@ function ProfileAppContent({
   reservation: PublicEmbedRestaurant | null;
   menu: PublicEmbedMenu | null;
   reviews: PublicEmbedReviews | null;
+  news: PublicEmbedNews | null;
   loading: Record<ProfileModuleKey, boolean>;
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
@@ -852,6 +858,19 @@ function ProfileAppContent({
               tagDefinitions={menu.tagDefinitions}
             />
           ) : null}
+        </ModulePanel>
+      </div>
+    );
+  }
+
+  if (appId === "news") {
+    return (
+      <div className="px-4 pb-8 sm:px-5">
+        <ModulePanel
+          showLoading={deferHeavyWidgets || (!news && loading.news)}
+          error={errors.news}
+        >
+          {news ? <RestaurantPublicProfileNews news={news} /> : null}
         </ModulePanel>
       </div>
     );
@@ -995,6 +1014,7 @@ export function RestaurantPublicProfileAppLauncher({
   const reservation = cache.reservation as PublicEmbedRestaurant | null;
   const menu = cache.menu as PublicEmbedMenu | null;
   const reviews = cache.reviews as PublicEmbedReviews | null;
+  const news = cache.news as PublicEmbedNews | null;
 
   const isAppOpen = activeApp !== null;
 
@@ -1002,11 +1022,13 @@ export function RestaurantPublicProfileAppLauncher({
     reservation: state.reservation.loading,
     menu: state.menu.loading,
     reviews: state.reviews.loading,
+    news: state.news.loading,
   };
   const errors = {
     reservation: state.reservation.error,
     menu: state.menu.error,
     reviews: state.reviews.error,
+    news: state.news.error,
   };
 
   const dockBridge = useProfilePublicDockBridge();
@@ -1063,6 +1085,7 @@ export function RestaurantPublicProfileAppLauncher({
                 reservation={reservation}
                 menu={menu}
                 reviews={reviews}
+                news={news}
                 loading={loading}
                 errors={errors}
                 addressLine={addressLine}

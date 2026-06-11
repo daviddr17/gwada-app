@@ -44,6 +44,14 @@
       },
       available: true,
     },
+    news: {
+      title: "News",
+      minHeight: 520,
+      path: function (slug) {
+        return "/embed/news/" + encodeURIComponent(slug);
+      },
+      available: true,
+    },
     contact: {
       title: "Kontakt",
       minHeight: 360,

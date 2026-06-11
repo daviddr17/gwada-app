@@ -2,6 +2,9 @@ import "server-only";
 
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
 import { fetchWahaThreadMessages } from "@/lib/contact-messages/waha-inbox-service";
+import {
+  whatsappMirrorBodyFromContactRow,
+} from "@/lib/contact-messages/whatsapp-mirror-preview";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -35,31 +38,43 @@ export async function syncContactWhatsappInbound(
 
   const { data: existing } = await admin
     .from("contact_messages")
-    .select("external_source_id")
+    .select("external_source_id, body")
     .eq("restaurant_id", params.restaurantId)
     .eq("contact_id", params.contactId)
     .in("external_source_id", externalIds);
 
-  const known = new Set(
-    (existing ?? []).map(
-      (r) => (r as { external_source_id: string }).external_source_id,
-    ),
-  );
+  const known = new Map<string, string>();
+  for (const row of existing ?? []) {
+    const r = row as { external_source_id: string; body: string };
+    known.set(r.external_source_id, r.body ?? "");
+  }
 
   let imported = 0;
   for (const m of messages) {
-    if (!m.id.startsWith("waha:") || known.has(m.id)) continue;
-    const body =
-      m.body.trim() ||
-      (m.attachments?.length ? "Anhang" : "");
-    if (!body) continue;
+    if (!m.id.startsWith("waha:")) continue;
+
+    const mirrorBody = whatsappMirrorBodyFromContactRow(m);
+    if (!mirrorBody) continue;
+
+    if (known.has(m.id)) {
+      const currentBody = known.get(m.id) ?? "";
+      if (mirrorBody && mirrorBody !== currentBody) {
+        await admin
+          .from("contact_messages")
+          .update({ body: mirrorBody })
+          .eq("restaurant_id", params.restaurantId)
+          .eq("contact_id", params.contactId)
+          .eq("external_source_id", m.id);
+      }
+      continue;
+    }
 
     const inserted = await insertContactMessageIfNew(admin, {
       restaurantId: params.restaurantId,
       contactId: params.contactId,
       platform: "whatsapp",
       direction: m.direction,
-      body,
+      body: mirrorBody,
       externalSourceId: m.id,
       createdAt: m.created_at,
       deliveryStatus: m.delivery_status,

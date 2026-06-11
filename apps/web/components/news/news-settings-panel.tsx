@@ -83,6 +83,22 @@ export function NewsSettingsPanel() {
     void load();
   }, [load]);
 
+  const channelLabelById = useMemo(
+    () => new Map(channels.map((channel) => [channel.id, channel.name || channel.id])),
+    [channels],
+  );
+
+  const whatsappSelectionLabel = useMemo(() => {
+    if (settings.whatsapp_channel_ids.length === 0) {
+      return "Alle OWNER-Kanäle automatisch";
+    }
+    if (settings.whatsapp_channel_ids.length === 1) {
+      const id = settings.whatsapp_channel_ids[0]!;
+      return channelLabelById.get(id) ?? id;
+    }
+    return `${settings.whatsapp_channel_ids.length} Kanäle ausgewählt`;
+  }, [channelLabelById, settings.whatsapp_channel_ids]);
+
   const save = async () => {
     if (!restaurantId) return;
     setSaving(true);
@@ -107,25 +123,6 @@ export function NewsSettingsPanel() {
     }
   };
 
-  if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
-  if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
-
-  const channelLabelById = useMemo(
-    () => new Map(channels.map((channel) => [channel.id, channel.name || channel.id])),
-    [channels],
-  );
-
-  const whatsappSelectionLabel = useMemo(() => {
-    if (settings.whatsapp_channel_ids.length === 0) {
-      return "Alle OWNER-Kanäle automatisch";
-    }
-    if (settings.whatsapp_channel_ids.length === 1) {
-      const id = settings.whatsapp_channel_ids[0]!;
-      return channelLabelById.get(id) ?? id;
-    }
-    return `${settings.whatsapp_channel_ids.length} Kanäle ausgewählt`;
-  }, [channelLabelById, settings.whatsapp_channel_ids]);
-
   const toggleWhatsappChannel = (channelId: string, checked: boolean) => {
     setSettings((prev) => {
       const next = new Set(prev.whatsapp_channel_ids);
@@ -134,6 +131,9 @@ export function NewsSettingsPanel() {
       return { ...prev, whatsapp_channel_ids: [...next] };
     });
   };
+
+  if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
+  if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   if (loading && showSkeleton) {
     return <div className="min-h-40 rounded-xl border border-border/50 bg-muted/20" aria-busy />;

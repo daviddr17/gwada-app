@@ -2,7 +2,10 @@ import "server-only";
 
 import type { NewsPlatformConnector } from "@/lib/news/connectors/types";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
-import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
+import {
+  getGoogleBusinessAccessTokenForRestaurant,
+  googleReviewsParentPath,
+} from "@/lib/integrations/google-business-access";
 
 const CAPABILITIES = {
   canReadFeed: true,
@@ -28,9 +31,9 @@ type GoogleLocalPost = {
 async function getGoogleLocation(restaurantId: string) {
   const auth = await getGoogleBusinessAccessTokenForRestaurant(restaurantId);
   if ("error" in auth) return { error: auth.error as string };
-  const location = auth.config.location_name?.trim();
-  if (!location) return { error: "google_location_missing" };
-  return { accessToken: auth.accessToken, location };
+  const parent = googleReviewsParentPath(auth.config);
+  if (!parent) return { error: "google_location_missing" };
+  return { accessToken: auth.accessToken, parent };
 }
 
 export const googleBusinessNewsConnector: NewsPlatformConnector = {
@@ -44,7 +47,7 @@ export const googleBusinessNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getGoogleLocation(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "google_not_connected" };
-    const url = `https://mybusiness.googleapis.com/v4/${auth.location}/localPosts`;
+    const url = `https://mybusiness.googleapis.com/v4/${auth.parent}/localPosts`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${auth.accessToken}` },
       cache: "no-store",
@@ -103,7 +106,7 @@ export const googleBusinessNewsConnector: NewsPlatformConnector = {
     if (imageUrl) {
       payload.media = [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }];
     }
-    const url = `https://mybusiness.googleapis.com/v4/${auth.location}/localPosts`;
+    const url = `https://mybusiness.googleapis.com/v4/${auth.parent}/localPosts`;
     const res = await fetch(url, {
       method: "POST",
       headers: {

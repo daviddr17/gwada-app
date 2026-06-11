@@ -75,7 +75,7 @@ const loadPublicNews = (restaurantId: string) =>
   unstable_cache(
     async () => loadPublicNewsUncached(restaurantId),
     ["public-embed-news", restaurantId],
-    { revalidate: 120 },
+    { revalidate: 60 },
   )();
 
 export async function fetchPublicEmbedNews(

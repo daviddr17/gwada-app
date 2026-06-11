@@ -3,6 +3,7 @@
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
+import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -44,15 +45,11 @@ function NewsCard({
       <div className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary" className="gap-1">
+            <Badge variant="secondary" className="gap-1.5">
               <NewsPlatformIcon platform={item.platform} className="size-3" />
               {NEWS_PLATFORM_LABELS[item.platform]}
             </Badge>
-            {item.insights?.likes != null ? (
-              <span className="text-xs text-muted-foreground">
-                {item.insights.likes} Likes
-              </span>
-            ) : null}
+            {item.insights ? <NewsInsightsBadges insights={item.insights} /> : null}
           </div>
           <time
             className="shrink-0 text-xs text-muted-foreground"

@@ -4,10 +4,18 @@ import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 export const dynamic = "force-dynamic";
 
 type NewsSettingsRow = {
-  whatsapp_channel_id: string | null;
+  whatsapp_channel_ids: string[];
   default_embed_view: "grid" | "list";
   embed_max_items: number;
 };
+
+function normalizeChannelIds(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  return values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
+}
 
 export async function GET(req: Request) {
   const restaurantId = new URL(req.url).searchParams.get("restaurantId")?.trim() ?? "";
@@ -18,7 +26,7 @@ export async function GET(req: Request) {
 
   const { data, error } = await auth.sb
     .from("restaurant_news_settings")
-    .select("whatsapp_channel_id, default_embed_view, embed_max_items")
+    .select("whatsapp_channel_ids, whatsapp_channel_id, default_embed_view, embed_max_items")
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
 
@@ -26,8 +34,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  const fromArray = normalizeChannelIds(data?.whatsapp_channel_ids);
+  const legacy = (data?.whatsapp_channel_id as string | null)?.trim();
+
   const settings: NewsSettingsRow = {
-    whatsapp_channel_id: (data?.whatsapp_channel_id as string | null) ?? null,
+    whatsapp_channel_ids:
+      fromArray.length > 0 ? fromArray : legacy ? [legacy] : [],
     default_embed_view:
       data?.default_embed_view === "list" ? "list" : "grid",
     embed_max_items: Number(data?.embed_max_items ?? 24),
@@ -39,7 +51,7 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     restaurantId?: string;
-    whatsappChannelId?: string | null;
+    whatsappChannelIds?: string[];
     defaultEmbedView?: "grid" | "list";
     embedMaxItems?: number;
   };
@@ -55,12 +67,14 @@ export async function PUT(req: Request) {
   }
 
   const defaultEmbedView = body.defaultEmbedView === "list" ? "list" : "grid";
-  const whatsappChannelId = body.whatsappChannelId?.trim() || null;
+  const whatsappChannelIds = normalizeChannelIds(body.whatsappChannelIds);
+  const primaryChannelId = whatsappChannelIds[0] ?? null;
 
   const { error } = await auth.sb.from("restaurant_news_settings").upsert(
     {
       restaurant_id: restaurantId,
-      whatsapp_channel_id: whatsappChannelId,
+      whatsapp_channel_ids: whatsappChannelIds,
+      whatsapp_channel_id: primaryChannelId,
       default_embed_view: defaultEmbedView,
       embed_max_items: embedMaxItems,
     },

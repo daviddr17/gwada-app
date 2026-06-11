@@ -16,6 +16,11 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/settings/benachrichtigungen",
+    label: "Benachrichtigungen",
+    matchMode: "exact",
+  },
+  {
     href: "/settings/team",
     label: "Team",
     matchMode: "prefix",

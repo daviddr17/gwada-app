@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -52,10 +52,13 @@ export function NewsScreen() {
   const [detailItem, setDetailItem] = useState<UnifiedNewsItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { connectors, availablePlatforms } = useNewsPlatformConnections(restaurantId);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async () => {
     if (!restaurantId) return;
+    const generation = ++loadGeneration.current;
     setLoading(true);
+    setItems([]);
     try {
       const qs = new URLSearchParams({ restaurantId });
       if (platformFilter !== NEWS_FILTER_ALL) {
@@ -63,12 +66,17 @@ export function NewsScreen() {
       }
       const res = await fetch(`/api/news?${qs}`);
       const data = (await res.json()) as { items?: UnifiedNewsItem[]; error?: string };
+      if (generation !== loadGeneration.current) return;
       if (!res.ok) throw new Error(data.error ?? "load_failed");
       setItems(data.items ?? []);
     } catch {
+      if (generation !== loadGeneration.current) return;
+      setItems([]);
       toast.error("News konnten nicht geladen werden.");
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) {
+        setLoading(false);
+      }
     }
   }, [restaurantId, platformFilter]);
 

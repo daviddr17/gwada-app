@@ -47,6 +47,7 @@ export async function fetchMessagesUnreadSummary(
       lastAt: c.last_at,
       href: dashboardMessageThreadHref(c.contact_id),
       unreadCount: c.unread_count,
+      platform: c.last_message_platform ?? "gwada",
     }));
 
   return {

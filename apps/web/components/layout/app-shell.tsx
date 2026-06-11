@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
+import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
@@ -97,6 +98,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               aria-hidden
             />
             <div className="flex shrink-0 items-center gap-2">
+              <AppChromeNotificationBell />
               <AppChromeRestaurantProfileLink />
               <Button
                 variant="outline"

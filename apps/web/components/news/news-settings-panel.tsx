@@ -1,10 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverPortal,
+  PopoverPositioner,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -24,7 +33,7 @@ import { cn } from "@/lib/utils";
 
 type WahaChannelOption = { id: string; name: string };
 type NewsSettings = {
-  whatsapp_channel_id: string | null;
+  whatsapp_channel_ids: string[];
   default_embed_view: "grid" | "list";
   embed_max_items: number;
 };
@@ -36,10 +45,11 @@ export function NewsSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [channels, setChannels] = useState<WahaChannelOption[]>([]);
   const [settings, setSettings] = useState<NewsSettings>({
-    whatsapp_channel_id: null,
+    whatsapp_channel_ids: [],
     default_embed_view: "grid",
     embed_max_items: 24,
   });
+  const [channelsOpen, setChannelsOpen] = useState(false);
 
   const load = useCallback(async () => {
     if (!restaurantId) return;
@@ -82,7 +92,7 @@ export function NewsSettingsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           restaurantId,
-          whatsappChannelId: settings.whatsapp_channel_id,
+          whatsappChannelIds: settings.whatsapp_channel_ids,
           defaultEmbedView: settings.default_embed_view,
           embedMaxItems: settings.embed_max_items,
         }),
@@ -100,6 +110,31 @@ export function NewsSettingsPanel() {
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
+  const channelLabelById = useMemo(
+    () => new Map(channels.map((channel) => [channel.id, channel.name || channel.id])),
+    [channels],
+  );
+
+  const whatsappSelectionLabel = useMemo(() => {
+    if (settings.whatsapp_channel_ids.length === 0) {
+      return "Alle OWNER-Kanäle automatisch";
+    }
+    if (settings.whatsapp_channel_ids.length === 1) {
+      const id = settings.whatsapp_channel_ids[0]!;
+      return channelLabelById.get(id) ?? id;
+    }
+    return `${settings.whatsapp_channel_ids.length} Kanäle ausgewählt`;
+  }, [channelLabelById, settings.whatsapp_channel_ids]);
+
+  const toggleWhatsappChannel = (channelId: string, checked: boolean) => {
+    setSettings((prev) => {
+      const next = new Set(prev.whatsapp_channel_ids);
+      if (checked) next.add(channelId);
+      else next.delete(channelId);
+      return { ...prev, whatsapp_channel_ids: [...next] };
+    });
+  };
+
   if (loading && showSkeleton) {
     return <div className="min-h-40 rounded-xl border border-border/50 bg-muted/20" aria-busy />;
   }
@@ -108,31 +143,67 @@ export function NewsSettingsPanel() {
     <div className="space-y-6">
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <div className="space-y-2">
-          <Label>WhatsApp Kanal</Label>
-          <Select
-            value={settings.whatsapp_channel_id ?? "__none__"}
-            onValueChange={(value) => {
-              if (typeof value !== "string") return;
-              setSettings((prev) => ({
-                ...prev,
-                whatsapp_channel_id: value === "__none__" ? null : value,
-              }));
-            }}
-          >
-            <SelectTrigger className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}>
-              <SelectValue placeholder="Kanal wählen" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Ersten OWNER-Kanal automatisch</SelectItem>
-              {channels.map((channel) => (
-                <SelectItem key={channel.id} value={channel.id}>
-                  {channel.name || channel.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Label>WhatsApp Kanäle</Label>
+          <Popover open={channelsOpen} onOpenChange={setChannelsOpen}>
+            <PopoverTrigger
+              type="button"
+              className={appSelectTriggerAccentCn(
+                "inline-flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-normal",
+              )}
+            >
+              <span className="truncate">{whatsappSelectionLabel}</span>
+              <ChevronDown className="size-4 shrink-0 opacity-60" aria-hidden />
+            </PopoverTrigger>
+            <PopoverPortal>
+              <PopoverPositioner align="start" side="bottom" sideOffset={8}>
+                <PopoverContent className="w-80 p-2">
+              <div className="max-h-56 space-y-1 overflow-y-auto">
+                {channels.length === 0 ? (
+                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                    Keine OWNER-Kanäle gefunden. WhatsApp-Integration prüfen.
+                  </p>
+                ) : (
+                  channels.map((channel) => {
+                    const checked = settings.whatsapp_channel_ids.includes(channel.id);
+                    return (
+                      <label
+                        key={channel.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(value) =>
+                            toggleWhatsappChannel(channel.id, value === true)
+                          }
+                        />
+                        <span className="min-w-0 truncate text-sm">
+                          {channel.name || channel.id}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+              {settings.whatsapp_channel_ids.length > 0 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 h-8 w-full rounded-lg text-muted-foreground"
+                  onClick={() =>
+                    setSettings((prev) => ({ ...prev, whatsapp_channel_ids: [] }))
+                  }
+                >
+                  Auswahl zurücksetzen (automatisch)
+                </Button>
+              ) : null}
+                </PopoverContent>
+              </PopoverPositioner>
+            </PopoverPortal>
+          </Popover>
           <p className="text-xs text-muted-foreground">
-            Kanal für Lesen und Posten über WAHA. WhatsApp-Integration muss verbunden sein.
+            OWNER-Kanäle für Lesen und Posten. Leer = alle OWNER-Kanäle automatisch.
+            Posten nutzt den ersten ausgewählten Kanal.
           </p>
         </div>
 

@@ -11,8 +11,11 @@ import type {
   NewsPlatformConnector,
 } from "@/lib/news/connectors/types";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
+import { fetchWithTimeout } from "@/lib/news/fetch-with-timeout";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+const CONNECTOR_FETCH_TIMEOUT_MS = 8_000;
 
 const CONNECTORS: Record<NewsPlatform, NewsPlatformConnector> = {
   gwada: gwadaNewsConnector,
@@ -55,11 +58,24 @@ export async function fetchUnifiedNewsFeed(
     keys.map(async (key) => {
       const connector = CONNECTORS[key];
       if (!connector.capabilities.canReadFeed) return [] as UnifiedNewsItem[];
-      const connected = key === "gwada" ? true : await connector.isConnected(restaurantId);
+      const connected =
+        key === "gwada"
+          ? true
+          : await fetchWithTimeout(
+              connector.isConnected(restaurantId),
+              false,
+              CONNECTOR_FETCH_TIMEOUT_MS,
+            );
       if (!connected) return [] as UnifiedNewsItem[];
-      const result = await connector.fetchFeed(restaurantId, sb);
+      const result = await fetchWithTimeout(
+        connector.fetchFeed(restaurantId, sb),
+        { error: "timeout" } as const,
+        CONNECTOR_FETCH_TIMEOUT_MS,
+      );
       if ("error" in result) {
-        console.warn("[gwada] news feed", key, result.error);
+        if (result.error !== "timeout") {
+          console.warn("[gwada] news feed", key, result.error);
+        }
         return [] as UnifiedNewsItem[];
       }
       return result.items;

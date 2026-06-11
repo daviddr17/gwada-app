@@ -17,6 +17,8 @@ export type Ingredient = {
   unit: IngredientStockUnit;
   /** Aktueller Bestand (numerisch, Bedeutung gemäß gewählter Lagereinheit) */
   currentStock: number;
+  /** Push/Glocke wenn currentStock <= Schwellwert (0 = nur leerer Bestand). */
+  lowStockThreshold?: number;
   supplierId: string;
   categoryId: string;
   productionSiteId: string;

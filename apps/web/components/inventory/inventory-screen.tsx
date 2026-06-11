@@ -193,6 +193,7 @@ type SortKey =
   | "name"
   | "unit"
   | "currentStock"
+  | "lowStockThreshold"
   | "supplierId"
   | "categoryId"
   | "productionSiteId"
@@ -254,6 +255,50 @@ function InventoryStockInputCell({
       }}
       className={cn(inputCellClass, "tabular-nums")}
       aria-label="Bestand"
+    />
+  );
+}
+
+function InventoryThresholdInputCell({
+  ingredientId,
+  lowStockThreshold,
+  onCommitThreshold,
+}: {
+  ingredientId: string;
+  lowStockThreshold: number;
+  onCommitThreshold: (id: string, nextThreshold: number) => void;
+}) {
+  const [draft, setDraft] = useState(() => String(lowStockThreshold));
+
+  useEffect(() => {
+    setDraft(String(lowStockThreshold));
+  }, [ingredientId, lowStockThreshold]);
+
+  const commit = useCallback(() => {
+    const raw = draft.trim();
+    const n = raw === "" ? NaN : Number.parseFloat(raw.replace(",", "."));
+    if (Number.isNaN(n) || n < 0) {
+      toast.error("Bitte eine gültige Schwelle (≥ 0) eingeben.");
+      setDraft(String(lowStockThreshold));
+      return;
+    }
+    if (n === lowStockThreshold) return;
+    onCommitThreshold(ingredientId, n);
+  }, [draft, ingredientId, lowStockThreshold, onCommitThreshold]);
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      className={cn(inputCellClass, "tabular-nums")}
+      aria-label="Mindestbestand-Schwelle"
+      title="Benachrichtigung wenn Bestand ≤ Schwelle (0 = nur bei leerem Bestand)"
     />
   );
 }
@@ -679,6 +724,10 @@ export function InventoryScreen() {
           );
         case "currentStock":
           return (a.currentStock - b.currentStock) * dir;
+        case "lowStockThreshold":
+          return (
+            ((a.lowStockThreshold ?? 0) - (b.lowStockThreshold ?? 0)) * dir
+          );
         case "supplierId":
           return (
             nameById(suppliers.items, a.supplierId).localeCompare(
@@ -755,16 +804,28 @@ export function InventoryScreen() {
     [updateIngredient],
   );
 
+  const commitThresholdChange = useCallback(
+    (id: string, nextThreshold: number) => {
+      void updateIngredient(id, { lowStockThreshold: nextThreshold });
+    },
+    [updateIngredient],
+  );
+
   const SortHead = ({
     k,
     children,
     className,
+    title,
   }: {
     k: SortKey;
     children: React.ReactNode;
     className?: string;
+    title?: string;
   }) => (
-    <th className={cn("px-2 py-2 font-medium", className)}>
+    <th
+      className={cn("px-2 py-2 font-medium", className)}
+      title={title}
+    >
       <button
         type="button"
         onClick={() => toggleSort(k)}
@@ -908,7 +969,7 @@ export function InventoryScreen() {
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
-        <table className="w-full min-w-[1180px] text-sm">
+        <table className="w-full min-w-[1260px] text-sm">
           <thead>
             <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
               <SortHead k="name" className="min-w-[10rem]">
@@ -916,6 +977,13 @@ export function InventoryScreen() {
               </SortHead>
               <SortHead k="currentStock" className="w-28">
                 Bestand
+              </SortHead>
+              <SortHead
+                k="lowStockThreshold"
+                className="w-24"
+                title="Benachrichtigung wenn Bestand ≤ Schwelle (0 = nur bei leerem Bestand)"
+              >
+                Schwelle
               </SortHead>
               <SortHead k="unit" className="w-20">
                 Einheit
@@ -948,7 +1016,7 @@ export function InventoryScreen() {
             {filteredSorted.length === 0 ? (
               <tr>
                 <td
-                  colSpan={11}
+                  colSpan={12}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   Keine Zutaten für die aktuelle Suche oder Filter.
@@ -985,6 +1053,13 @@ export function InventoryScreen() {
                       unitLabel={unitLabel}
                       actor={actor}
                       onCommitStock={commitStockChange}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <InventoryThresholdInputCell
+                      ingredientId={row.id}
+                      lowStockThreshold={row.lowStockThreshold ?? 0}
+                      onCommitThreshold={commitThresholdChange}
                     />
                   </td>
                   <td className="px-2 py-1.5 align-middle">

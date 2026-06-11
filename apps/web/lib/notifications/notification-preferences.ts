@@ -1,4 +1,5 @@
 import {
+  LEGACY_NOTIFICATION_MODULE_ALIASES,
   NOTIFICATION_MODULE_IDS,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
@@ -31,16 +32,42 @@ export function defaultNotificationPreferences(): NotificationPreferences {
     pushWhatsappModules: {
       messages: true,
       reviews: false,
-      reservations: true,
       changelog: false,
+      reservations_pending: true,
+      reservations_change_request: true,
+      reservations_cancellation: true,
+      staff_shift_start: false,
+      staff_shift_end: false,
+      inventory_low_stock: true,
     },
     pushEmailModules: {
       messages: true,
       reviews: true,
-      reservations: true,
       changelog: true,
+      reservations_pending: true,
+      reservations_change_request: true,
+      reservations_cancellation: true,
+      staff_shift_start: true,
+      staff_shift_end: true,
+      inventory_low_stock: true,
     },
   };
+}
+
+function applyLegacyModuleAliases(
+  raw: Record<string, unknown>,
+  next: NotificationModuleToggles,
+): void {
+  for (const [legacyId, targets] of Object.entries(
+    LEGACY_NOTIFICATION_MODULE_ALIASES,
+  )) {
+    if (typeof raw[legacyId] !== "boolean") continue;
+    for (const targetId of targets) {
+      if (typeof raw[targetId] !== "boolean") {
+        next[targetId] = raw[legacyId];
+      }
+    }
+  }
 }
 
 function parseModuleToggles(
@@ -49,6 +76,7 @@ function parseModuleToggles(
 ): NotificationModuleToggles {
   const next = { ...fallback };
   if (!raw || typeof raw !== "object") return next;
+  applyLegacyModuleAliases(raw, next);
   for (const id of NOTIFICATION_MODULE_IDS) {
     if (typeof raw[id] === "boolean") {
       next[id] = raw[id];

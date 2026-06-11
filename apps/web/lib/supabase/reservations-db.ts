@@ -90,6 +90,7 @@ export type ReservationListRow = {
   /** 6-stellig, automatisch bei INSERT; für Gast-Zugang (später Nummer + PIN). */
   guest_pin: string;
   created_at: string;
+  updated_at?: string;
   created_by_profile_id: string | null;
   created_by_profile: ReservationCreatorProfileJoin | null;
   guest_first_name: string;
@@ -137,6 +138,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       reservation_number,
       guest_pin,
       created_at,
+      updated_at,
       created_by_profile_id,
       guest_first_name,
       guest_last_name,

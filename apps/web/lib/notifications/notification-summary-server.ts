@@ -1,12 +1,17 @@
 import "server-only";
 
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
-import { loadDashboardReservationSummaryServer } from "@/lib/dashboard/load-dashboard-reservation-summary-server";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
+import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
+import { loadReservationNotificationItems } from "@/lib/notifications/notification-reservations-server";
+import {
+  loadStaffShiftEndBellSummary,
+  loadStaffShiftStartBellSummary,
+} from "@/lib/notifications/notification-staff-shift-server";
 import {
   isInAppModuleEnabled,
   type NotificationPreferences,
@@ -17,27 +22,11 @@ import type {
   NotificationSummary,
 } from "@/lib/notifications/notification-types";
 import { loadNotificationPreferences } from "@/lib/supabase/user-restaurant-notification-preferences-db";
-import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BELL_ITEMS_PER_MODULE = 5;
-
-async function fetchDismissedReservationIds(
-  sb: SupabaseClient,
-  params: { profileId: string; restaurantId: string },
-): Promise<Set<string>> {
-  const { data } = await sb
-    .from("restaurant_reservation_notification_dismissals")
-    .select("reservation_id")
-    .eq("profile_id", params.profileId)
-    .eq("restaurant_id", params.restaurantId);
-
-  return new Set(
-    (data ?? []).map((row) => (row as { reservation_id: string }).reservation_id),
-  );
-}
 
 async function fetchUnreadChangelogItems(
   sb: SupabaseClient,
@@ -155,37 +144,79 @@ async function buildReviewsModule(
   };
 }
 
-async function buildReservationsModule(
+async function buildReservationModule(
   sb: SupabaseClient,
-  params: { restaurantId: string; userId: string },
+  params: {
+    restaurantId: string;
+    userId: string;
+    module:
+      | "reservations_pending"
+      | "reservations_change_request"
+      | "reservations_cancellation";
+  },
 ): Promise<NotificationModuleSummary> {
-  const def = NOTIFICATION_MODULES.reservations;
-  const [summary, dismissed] = await Promise.all([
-    loadDashboardReservationSummaryServer(sb, params.restaurantId),
-    fetchDismissedReservationIds(sb, {
-      profileId: params.userId,
-      restaurantId: params.restaurantId,
-    }),
-  ]);
-
-  const pending = summary.recent.filter(
-    (r) => r.unconfirmed && !dismissed.has(r.id),
-  );
-
-  const items: NotificationItem[] = pending
-    .slice(0, BELL_ITEMS_PER_MODULE)
-    .map((r) => ({
-      id: r.id,
-      title: r.guestLabel,
-      subtitle: `${r.partySize} Gäste · ${r.statusName}`,
-      href: r.href,
-      at: r.startsAt,
-      meta: { reservationId: r.id },
-    }));
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadReservationNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
 
   return {
     id: def.id,
-    count: pending.length,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
+async function buildStaffShiftModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module: "staff_shift_start" | "staff_shift_end";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const summary =
+    params.module === "staff_shift_start"
+      ? await loadStaffShiftStartBellSummary(sb, {
+          restaurantId: params.restaurantId,
+          userId: params.userId,
+          limit: BELL_ITEMS_PER_MODULE,
+        })
+      : await loadStaffShiftEndBellSummary(sb, {
+          restaurantId: params.restaurantId,
+          userId: params.userId,
+          limit: BELL_ITEMS_PER_MODULE,
+        });
+
+  return {
+    id: def.id,
+    count: summary.totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items: summary.items,
+  };
+}
+
+async function buildInventoryLowStockModule(
+  sb: SupabaseClient,
+  params: { restaurantId: string; userId: string },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES.inventory_low_stock;
+  const { items, totalCount } = await loadInventoryLowStockBellSummary(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
     label: def.labelPlural,
     href: def.href,
     items,
@@ -216,8 +247,24 @@ const MODULE_BUILDERS: Record<
 > = {
   messages: (ctx) => buildMessagesModule(ctx.admin, ctx),
   reviews: (ctx) => buildReviewsModule(ctx.sb, ctx),
-  reservations: (ctx) => buildReservationsModule(ctx.sb, ctx),
   changelog: (ctx) => buildChangelogModule(ctx.sb, ctx.userId),
+  reservations_pending: (ctx) =>
+    buildReservationModule(ctx.sb, { ...ctx, module: "reservations_pending" }),
+  reservations_change_request: (ctx) =>
+    buildReservationModule(ctx.sb, {
+      ...ctx,
+      module: "reservations_change_request",
+    }),
+  reservations_cancellation: (ctx) =>
+    buildReservationModule(ctx.sb, {
+      ...ctx,
+      module: "reservations_cancellation",
+    }),
+  staff_shift_start: (ctx) =>
+    buildStaffShiftModule(ctx.sb, { ...ctx, module: "staff_shift_start" }),
+  staff_shift_end: (ctx) =>
+    buildStaffShiftModule(ctx.sb, { ...ctx, module: "staff_shift_end" }),
+  inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
 };
 
 type ModuleBuildContext = {

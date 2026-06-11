@@ -17,6 +17,11 @@ type NotificationEventRow = {
   payload: Record<string, unknown>;
 };
 
+function formatStockAmount(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "—";
+  return String(value);
+}
+
 export function buildNotificationPushText(
   event: NotificationEventRow,
   restaurantName: string | null,
@@ -46,13 +51,17 @@ export function buildNotificationPushText(
       const rating =
         typeof p.rating === "number" ? Math.round(p.rating) : 0;
       const stars = rating > 0 ? ` (${rating}★)` : "";
-      const text = `${prefix}Neue Bewertung von ${author}${stars}.\n\n${href}`;
+      const platform =
+        typeof p.platform === "string" && p.platform !== "gwada"
+          ? ` (${p.platform})`
+          : "";
+      const text = `${prefix}Neue Bewertung von ${author}${stars}${platform}.\n\n${href}`;
       return {
         subject: `${prefix}Neue Bewertung${stars}`,
         text,
       };
     }
-    case "reservations": {
+    case "reservations_pending": {
       const guest =
         typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
       const party =
@@ -61,6 +70,55 @@ export function buildNotificationPushText(
       const text = `${prefix}Neue unbestätigte Reservierung: ${guest}${partyText}.\n\n${href}`;
       return {
         subject: `${prefix}Neue Reservierung — ${guest}`,
+        text,
+      };
+    }
+    case "reservations_change_request": {
+      const guest =
+        typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
+      const text = `${prefix}Änderungsanfrage: ${guest}.\n\n${href}`;
+      return {
+        subject: `${prefix}Änderungsanfrage — ${guest}`,
+        text,
+      };
+    }
+    case "reservations_cancellation": {
+      const guest =
+        typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
+      const text = `${prefix}Stornierung: ${guest}.\n\n${href}`;
+      return {
+        subject: `${prefix}Stornierung — ${guest}`,
+        text,
+      };
+    }
+    case "staff_shift_start": {
+      const staffName =
+        typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
+      const text = `${prefix}Schichtbeginn: ${staffName}.\n\n${href}`;
+      return {
+        subject: `${prefix}Schichtbeginn — ${staffName}`,
+        text,
+      };
+    }
+    case "staff_shift_end": {
+      const staffName =
+        typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
+      const text = `${prefix}Schichtende: ${staffName}.\n\n${href}`;
+      return {
+        subject: `${prefix}Schichtende — ${staffName}`,
+        text,
+      };
+    }
+    case "inventory_low_stock": {
+      const name =
+        typeof p.ingredientName === "string" ? p.ingredientName : "Zutat";
+      const stock = formatStockAmount(p.currentStock);
+      const threshold = formatStockAmount(p.lowStockThreshold);
+      const unit = typeof p.unit === "string" ? p.unit : "";
+      const unitText = unit ? ` ${unit}` : "";
+      const text = `${prefix}Niedrigbestand: ${name} (${stock}${unitText}, Schwelle ${threshold}).\n\n${href}`;
+      return {
+        subject: `${prefix}Niedrigbestand — ${name}`,
         text,
       };
     }

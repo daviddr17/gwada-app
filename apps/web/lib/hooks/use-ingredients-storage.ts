@@ -216,11 +216,18 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
   ) {
     return null;
   }
+  const lowStockThreshold =
+    typeof raw.lowStockThreshold === "number" &&
+    Number.isFinite(raw.lowStockThreshold)
+      ? raw.lowStockThreshold
+      : 0;
+
   return {
     id: raw.id,
     name: raw.name,
     unit: raw.unit,
     currentStock: raw.currentStock,
+    lowStockThreshold,
     supplierId: raw.supplierId,
     categoryId: raw.categoryId,
     productionSiteId: raw.productionSiteId,

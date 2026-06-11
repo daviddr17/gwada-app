@@ -5,6 +5,7 @@ import {
   isNewsCacheablePlatform,
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
+import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -87,9 +88,14 @@ export async function readCachedNewsItems(
   const items: UnifiedNewsItem[] = [];
   for (const row of data ?? []) {
     const item = parseCachedItem(row.item);
-    if (item) items.push(item);
+    if (!item) continue;
+    const rowPublishedAt = row.published_at as string | null | undefined;
+    if (rowPublishedAt && !item.publishedAt) {
+      item.publishedAt = rowPublishedAt;
+    }
+    items.push(item);
   }
-  return items;
+  return sortNewsItemsByDate(items);
 }
 
 export async function upsertNewsPlatformCache(

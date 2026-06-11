@@ -1,4 +1,6 @@
+import { after } from "next/server";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
+import { triggerReviewsFeedSyncIfStale } from "@/lib/reviews/reviews-feed-sync-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -32,6 +34,10 @@ export async function GET(req: Request) {
     user.id,
     sb,
   );
+
+  after(() => {
+    void triggerReviewsFeedSyncIfStale(restaurantId, ["google", "facebook"]);
+  });
 
   return Response.json(
     { data: summary },

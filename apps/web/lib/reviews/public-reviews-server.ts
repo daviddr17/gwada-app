@@ -4,13 +4,13 @@ import { unstable_cache } from "next/cache";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
-import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
-import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
 import {
   averageRating,
   medianRating,
   ratingDistribution,
 } from "@/lib/reviews/review-stats";
+import { readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
+import { triggerReviewsFeedSyncIfStale } from "@/lib/reviews/reviews-feed-sync-server";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
@@ -99,45 +99,32 @@ async function loadConnectedPlatformReviewsUncached(
     };
   });
 
-  const [googleIntegration, facebookIntegration] = await Promise.all([
+  const [googleIntegration, facebookIntegration, cachedFeed] = await Promise.all([
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
       oauthConfigFromJson(raw),
     ),
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
       oauthConfigFromJson(raw),
     ),
+    readReviewsFeedFromCache(restaurantId, admin, ["google", "facebook"]),
   ]);
+
+  void triggerReviewsFeedSyncIfStale(restaurantId, ["google", "facebook"]);
 
   const googleConnected = googleIntegration?.status === "working";
   const facebookConnected = facebookIntegration?.status === "working";
 
-  const [googleResult, facebookResult] = await Promise.all([
-    googleConnected
-      ? fetchGoogleReviewsForRestaurant(restaurantId, {
-          pageToken: null,
-          pageSize: 50,
-        })
-      : Promise.resolve(null),
-    facebookConnected
-      ? fetchFacebookReviewsForRestaurant(restaurantId)
-      : Promise.resolve(null),
-  ]);
+  const googleReviews = cachedFeed.reviews.filter((r) => r.platform === "google");
+  const facebookReviews = cachedFeed.reviews.filter(
+    (r) => r.platform === "facebook",
+  );
 
-  const googleReviews =
-    googleResult && !("error" in googleResult) ? googleResult.reviews : [];
   const googleOk =
     googleConnected &&
-    googleResult != null &&
-    !("error" in googleResult);
-
-  const facebookReviews =
-    facebookResult && !("error" in facebookResult)
-      ? facebookResult.reviews
-      : [];
+    (googleReviews.length > 0 || !cachedFeed.sync.platformErrors.google);
   const facebookOk =
     facebookConnected &&
-    facebookResult != null &&
-    !("error" in facebookResult);
+    (facebookReviews.length > 0 || !cachedFeed.sync.platformErrors.facebook);
 
   const connectedPlatforms: ReviewPlatform[] = ["gwada"];
   if (googleOk) connectedPlatforms.push("google");
@@ -154,7 +141,7 @@ const loadConnectedPlatformReviews = (restaurantId: string) =>
   unstable_cache(
     async () => loadConnectedPlatformReviewsUncached(restaurantId),
     ["public-platform-reviews", restaurantId],
-    { revalidate: 120 },
+    { revalidate: 60 },
   )();
 
 export async function fetchPublicEmbedReviews(

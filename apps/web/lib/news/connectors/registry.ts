@@ -12,6 +12,7 @@ import type {
 } from "@/lib/news/connectors/types";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
 import { fetchWithTimeout } from "@/lib/news/fetch-with-timeout";
+import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -81,11 +82,5 @@ export async function fetchUnifiedNewsFeed(
       return result.items;
     }),
   );
-  return batches
-    .flat()
-    .sort(
-      (a, b) =>
-        new Date(b.publishedAt ?? b.createdAt).getTime() -
-        new Date(a.publishedAt ?? a.createdAt).getTime(),
-    );
+  return sortNewsItemsByDate(batches.flat());
 }

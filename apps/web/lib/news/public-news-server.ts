@@ -8,6 +8,7 @@ import {
   filterPlatformsForEmbed,
   normalizeEmbedPlatforms,
 } from "@/lib/news/news-embed-platforms";
+import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
 import { triggerNewsFeedSyncIfStale } from "@/lib/news/news-feed-sync-server";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
@@ -78,9 +79,11 @@ async function loadPublicNewsUncached(
     embedPlatforms,
   );
 
-  const items = filterItemsForEmbed(
-    feedItems.filter((item) => item.status === "published"),
-    embedPlatforms,
+  const items = sortNewsItemsByDate(
+    filterItemsForEmbed(
+      feedItems.filter((item) => item.status === "published"),
+      embedPlatforms,
+    ),
   ).slice(0, maxItems);
 
   return { items, connectedPlatforms, viewMode, maxItems };

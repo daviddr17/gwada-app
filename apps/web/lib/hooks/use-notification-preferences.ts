@@ -92,26 +92,33 @@ export function useNotificationPreferences() {
     [],
   );
 
-  const save = useCallback(async () => {
-    if (!restaurantId || !dirty) return { ok: true as const };
+  const save = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!restaurantId || !dirty) return { ok: true as const };
 
-    setIsSaving(true);
-    const { ok, error } = await saveNotificationPreferencesClient({
-      restaurantId,
-      preferences: draft,
-    });
-    setIsSaving(false);
+      setIsSaving(true);
+      const { ok, error } = await saveNotificationPreferencesClient({
+        restaurantId,
+        preferences: draft,
+      });
+      setIsSaving(false);
 
-    if (!ok) {
-      toast.error("Speichern fehlgeschlagen.");
-      return { ok: false as const, error };
-    }
+      if (!ok) {
+        if (!options?.silent) {
+          toast.error("Speichern fehlgeschlagen.");
+        }
+        return { ok: false as const, error };
+      }
 
-    setSaved(draft);
-    dispatchNotificationsRefresh();
-    toast.success("Benachrichtigungen gespeichert.");
-    return { ok: true as const };
-  }, [restaurantId, dirty, draft]);
+      setSaved(draft);
+      dispatchNotificationsRefresh();
+      if (!options?.silent) {
+        toast.success("Benachrichtigungen gespeichert.");
+      }
+      return { ok: true as const };
+    },
+    [restaurantId, dirty, draft],
+  );
 
   const resetDraft = useCallback(() => {
     setDraft(saved);

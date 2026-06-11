@@ -1,15 +1,20 @@
+import { after } from "next/server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
-import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
-import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
+import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
+import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
+import { paginateCachedGoogleReviews } from "@/lib/reviews/reviews-cache-pagination";
+import {
+  readPlatformSyncMeta,
+  readReviewsFeedFromCache,
+} from "@/lib/reviews/reviews-feed-read-server";
+import { triggerReviewsFeedSyncIfStale } from "@/lib/reviews/reviews-feed-sync-server";
+import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
 import {
   averageRating,
   medianRating,
   ratingDistribution,
 } from "@/lib/reviews/review-stats";
-import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
-import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
-import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -87,44 +92,64 @@ export async function GET(req: Request) {
   } else if (platformRaw === "google") {
     const pageToken =
       new URL(req.url).searchParams.get("googlePageToken")?.trim() || null;
-    const result = await fetchGoogleReviewsForRestaurant(restaurantId, {
-      pageToken,
+
+    const { reviews: cachedGoogle, syncRows, sync } =
+      await readReviewsFeedFromCache(restaurantId, auth.sb, ["google"]);
+
+    after(() => {
+      void triggerReviewsFeedSyncIfStale(restaurantId, ["google"]);
     });
-    if ("error" in result) {
-      loadError = result.error;
-    } else {
-      reviews = await enrichReviewsWithReadState(auth.sb, {
-        restaurantId,
-        userId: auth.userId,
-        reviews: result.reviews,
-        platform: "google",
-      });
-      return Response.json({
-        platform: platformRaw,
-        reviews,
-        summary: {
-          count: reviews.length,
-          average: averageRating(reviews),
-          median: medianRating(reviews),
-          distribution: ratingDistribution(reviews),
-          scope: "page" as const,
-        },
-        googlePagination: result.pagination,
-        loadError,
-      });
-    }
+
+    loadError = sync.platformErrors.google ?? null;
+
+    const googleMeta = readPlatformSyncMeta(syncRows, "google");
+    const paginated = paginateCachedGoogleReviews(
+      cachedGoogle,
+      pageToken,
+      googleMeta,
+    );
+
+    reviews = await enrichReviewsWithReadState(auth.sb, {
+      restaurantId,
+      userId: auth.userId,
+      reviews: paginated.reviews,
+      platform: "google",
+    });
+
+    return Response.json({
+      platform: platformRaw,
+      reviews,
+      summary: {
+        count: reviews.length,
+        average: averageRating(reviews),
+        median: medianRating(reviews),
+        distribution: ratingDistribution(reviews),
+        scope: "page" as const,
+      },
+      googlePagination: paginated.pagination,
+      sync,
+      loadError,
+    });
   } else if (platformRaw === "facebook") {
-    const result = await fetchFacebookReviewsForRestaurant(restaurantId);
-    if ("error" in result) {
-      loadError = result.error;
-    } else {
-      reviews = await enrichReviewsWithReadState(auth.sb, {
-        restaurantId,
-        userId: auth.userId,
-        reviews: result.reviews,
-        platform: "facebook",
-      });
-    }
+    const { reviews: cachedFacebook, sync } = await readReviewsFeedFromCache(
+      restaurantId,
+      auth.sb,
+      ["facebook"],
+    );
+
+    after(() => {
+      void triggerReviewsFeedSyncIfStale(restaurantId, ["facebook"]);
+    });
+
+    loadError = sync.platformErrors.facebook ?? null;
+    reviews = cachedFacebook;
+
+    reviews = await enrichReviewsWithReadState(auth.sb, {
+      restaurantId,
+      userId: auth.userId,
+      reviews,
+      platform: "facebook",
+    });
   }
 
   return Response.json({

@@ -14,7 +14,6 @@ import {
 } from "@/lib/contact-messages/fetch-message-attachments";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
-import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import type {
   ContactMessageAttachment,
   ContactMessageAttachmentKind,

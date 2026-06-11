@@ -195,7 +195,6 @@ async function fetchGwadaConversationsAdminLight(
     if (!contact) continue;
 
     const rawBody = (row.body as string).trim();
-    const ext = (row.external_source_id as string | null) ?? "";
     const mirrored =
       ext.startsWith("waha:") || msgPlatform === "whatsapp"
         ? previewBodyAndKindFromWhatsappMirror(rawBody)

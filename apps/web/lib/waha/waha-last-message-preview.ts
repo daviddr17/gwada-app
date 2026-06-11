@@ -10,9 +10,9 @@ import type { WahaChatMessage } from "@/lib/waha/waha-inbox";
 export type WahaLastMessageLike = {
   body?: string | null;
   fromMe?: boolean | null;
-  hasMedia?: boolean;
+  hasMedia?: boolean | null;
   media?: WahaChatMessage["media"];
-  type?: string;
+  type?: string | null;
   reaction?: {
     text?: string | null;
     messageId?: string | null;

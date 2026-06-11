@@ -12,19 +12,12 @@ import {
   readNewsPlatformSyncState,
 } from "@/lib/news/news-cache-db";
 import { gwadaNewsConnector } from "@/lib/news/connectors/gwada-connector";
+import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
-
-function sortNewsItems(items: UnifiedNewsItem[]): UnifiedNewsItem[] {
-  return [...items].sort(
-    (a, b) =>
-      new Date(b.publishedAt ?? b.createdAt).getTime() -
-      new Date(a.publishedAt ?? a.createdAt).getTime(),
-  );
-}
 
 function resolvePlatforms(platforms?: NewsPlatform[]): NewsPlatform[] {
   return platforms?.length ? platforms : [...NEWS_PLATFORMS];
@@ -82,7 +75,7 @@ export async function readNewsFeedFromCache(
   const gwadaItems =
     includeGwada && !("error" in gwadaResult) ? gwadaResult.items : [];
 
-  const items = sortNewsItems([...gwadaItems, ...cachedItems]);
+  const items = sortNewsItemsByDate([...gwadaItems, ...cachedItems]);
   const sync = buildSyncMeta(syncRows, cacheable);
 
   return { items, sync };

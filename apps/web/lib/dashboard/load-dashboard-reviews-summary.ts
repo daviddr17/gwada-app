@@ -4,17 +4,13 @@ import {
   REVIEW_PLATFORM_LABELS,
   type ReviewPlatform,
 } from "@/lib/constants/review-platforms";
+import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
 import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
-import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
-import {
-  fetchGoogleReviewsForRestaurant,
-  fetchGoogleReviewsLocationStats,
-} from "@/lib/reviews/google-reviews-api";
+import { readPlatformSyncMeta, readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
 import { averageRating } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DashboardReviewPlatformStat = {
   platform: ReviewPlatform;
@@ -72,7 +68,6 @@ export async function loadDashboardReviewsSummary(
   userId: string,
   sb: SupabaseClient,
 ): Promise<DashboardReviewsSummary> {
-
   const { count: gwadaCountRaw } = await sb
     .from("gwada_reviews")
     .select("*", { count: "exact", head: true })
@@ -109,62 +104,47 @@ export async function loadDashboardReviewsSummary(
     (gwadaRatingRows ?? []).map((r) => ({ rating: Number(r.rating) })),
   );
 
-  const [googleStats, googleIntegration, facebookIntegration] = await Promise.all([
-    fetchGoogleReviewsLocationStats(restaurantId),
+  const [googleIntegration, facebookIntegration, cachedFeed] = await Promise.all([
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
       oauthConfigFromJson(raw),
     ),
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
       oauthConfigFromJson(raw),
     ),
+    readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook"]),
   ]);
 
   const googleIntegrationOk = googleIntegration?.status === "working";
-  const googleStatsOk = googleIntegrationOk && !("error" in googleStats);
+  const facebookIntegrationOk = facebookIntegration?.status === "working";
 
-  const googlePageResult = googleIntegrationOk
-    ? await fetchGoogleReviewsForRestaurant(restaurantId, {
-        pageToken: null,
-        pageSize: 8,
-      })
-    : null;
-
-  const googleRecent =
-    googlePageResult && !("error" in googlePageResult)
-      ? googlePageResult.reviews
-      : [];
+  const googleMeta = readPlatformSyncMeta(cachedFeed.syncRows, "google");
+  const googleCached = cachedFeed.reviews.filter((r) => r.platform === "google");
+  const googleRecent = googleCached.slice(0, 8);
 
   const googleConnected =
-    googleIntegrationOk && (googleStatsOk || googleRecent.length > 0);
+    googleIntegrationOk &&
+    (googleCached.length > 0 ||
+      typeof googleMeta.totalReviewCount === "number" ||
+      !cachedFeed.sync.platformErrors.google);
 
-  const googleCount = googleStatsOk
-    ? googleStats.totalReviewCount
-    : googlePageResult && !("error" in googlePageResult)
-      ? googlePageResult.pagination.totalReviewCount
-      : 0;
+  const googleCount =
+    typeof googleMeta.totalReviewCount === "number"
+      ? googleMeta.totalReviewCount
+      : googleCached.length;
 
   const googleAvg =
-    googleStatsOk && googleStats.averageRating != null
-      ? googleStats.averageRating
-      : googlePageResult && !("error" in googlePageResult)
-        ? googlePageResult.pagination.averageRating
-        : null;
+    typeof googleMeta.averageRating === "number"
+      ? googleMeta.averageRating
+      : averageRating(googleCached);
 
-  const fbResult =
-    facebookIntegration?.status === "working"
-      ? await fetchFacebookReviewsForRestaurant(restaurantId)
-      : null;
-
+  const facebookCached = cachedFeed.reviews.filter((r) => r.platform === "facebook");
   const facebookConnected =
-    facebookIntegration?.status === "working" &&
-    fbResult != null &&
-    !("error" in fbResult);
+    facebookIntegrationOk &&
+    (facebookCached.length > 0 || !cachedFeed.sync.platformErrors.facebook);
 
-  const facebookRecent = facebookConnected ? fbResult.reviews.slice(0, 8) : [];
-  const facebookCount = facebookConnected ? fbResult.reviews.length : 0;
-  const facebookAvg = facebookConnected
-    ? averageRating(fbResult.reviews)
-    : null;
+  const facebookRecent = facebookCached.slice(0, 8);
+  const facebookCount = facebookCached.length;
+  const facebookAvg = facebookConnected ? averageRating(facebookCached) : null;
 
   const mergedRecent = [...gwadaReviews, ...googleRecent, ...facebookRecent].sort(
     (a, b) =>

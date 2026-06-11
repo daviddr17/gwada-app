@@ -128,3 +128,13 @@ export function isInAppModuleEnabled(
 ): boolean {
   return prefs.inAppModules[moduleId] !== false;
 }
+
+export function isPushModuleEnabled(
+  prefs: NotificationPreferences,
+  channel: "whatsapp" | "email",
+  moduleId: NotificationModuleId,
+): boolean {
+  const toggles =
+    channel === "whatsapp" ? prefs.pushWhatsappModules : prefs.pushEmailModules;
+  return toggles[moduleId] === true;
+}

@@ -1,10 +1,9 @@
-import { runNewsFeedSyncCron } from "@/lib/news/news-feed-sync-cron";
+import { runNotificationDeliverCron } from "@/lib/notifications/notification-deliver-cron";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
-/** Hintergrund-Sync externer News-Feeds — Coolify-Cron alle 10 Min. (siehe docs/cron-jobs.md). */
-export async function GET(req: Request) {
+async function handleCron(req: Request) {
   const secret = process.env.CRON_SECRET?.trim();
   if (secret) {
     const auth = req.headers.get("authorization");
@@ -19,6 +18,15 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const stats = await runNewsFeedSyncCron(admin);
+  const stats = await runNotificationDeliverCron(admin);
   return Response.json(stats);
+}
+
+/** Fan-out + Zustellung für Push-Benachrichtigungen (z. B. Coolify-Cron alle 1–2 Min.). */
+export async function GET(req: Request) {
+  return handleCron(req);
+}
+
+export async function POST(req: Request) {
+  return handleCron(req);
 }

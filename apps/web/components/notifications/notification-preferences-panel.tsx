@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
   SettingsStickySaveBar,
@@ -14,6 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { NotificationPreferencesPanelSkeleton } from "@/components/notifications/notification-preferences-panel-skeleton";
 import {
@@ -21,7 +23,9 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useNotificationContact } from "@/lib/hooks/use-notification-contact";
 import { useNotificationPreferences } from "@/lib/hooks/use-notification-preferences";
+import { normalizeNotificationPhoneForStorage } from "@/lib/notifications/notification-contact-validation";
 import {
   notificationModulesInOrder,
   type NotificationModuleId,
@@ -29,6 +33,7 @@ import {
 import type { NotificationModuleToggles } from "@/lib/notifications/notification-preferences";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function ModuleToggleRows({
   toggles,
@@ -69,19 +74,23 @@ function ModuleToggleRows({
 
 export function NotificationPreferencesPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const contact = useNotificationContact();
   const {
     ready,
     isLoading,
-    isSaving,
-    dirty,
+    isSaving: isSavingPrefs,
+    dirty: prefsDirty,
     draft,
     channels,
     updateDraft,
-    save,
-    resetDraft,
+    save: savePrefs,
+    resetDraft: resetPrefsDraft,
   } = useNotificationPreferences();
 
-  const showSkeleton = useDeferredSkeleton(isLoading);
+  const isLoadingAll = isLoading || contact.isLoading;
+  const dirty = prefsDirty || contact.dirty;
+  const isSaving = isSavingPrefs || contact.isSaving;
+  const showSkeleton = useDeferredSkeleton(isLoadingAll);
 
   if (!workspaceReady) {
     return <WorkspaceRestaurantResolvePlaceholder />;
@@ -91,7 +100,7 @@ export function NotificationPreferencesPanel() {
     return <WorkspaceRestaurantMissingMessage />;
   }
 
-  if (!ready || isLoading) {
+  if (!ready || isLoadingAll) {
     if (showSkeleton) {
       return <NotificationPreferencesPanelSkeleton />;
     }
@@ -105,11 +114,24 @@ export function NotificationPreferencesPanel() {
   }
 
   const whatsappConnected = channels?.whatsappConnected ?? false;
-  const emailNote = channels?.restaurantEmailConfigured
-    ? "Über die Restaurant-Mailbox, sonst Gwada-Fallback."
-    : channels?.platformEmailFallbackAvailable
-      ? "Restaurant-Mailbox nicht konfiguriert — Gwada-Fallback."
-      : "E-Mail-Kanal derzeit nicht verfügbar.";
+  const hasPhoneForPush = Boolean(
+    normalizeNotificationPhoneForStorage(contact.draft.phone),
+  );
+  const whatsappPushAvailable = whatsappConnected && hasPhoneForPush;
+
+  const emailChannelAvailable =
+    channels?.restaurantEmailConfigured ||
+    channels?.platformEmailFallbackAvailable;
+  const hasEmailForPush = Boolean(contact.effectiveEmail.trim());
+  const emailPushAvailable = hasEmailForPush && emailChannelAvailable;
+
+  const emailNote = !hasEmailForPush
+    ? "Trage oben unter Zustellung eine E-Mail ein (oder nutze deine Login-E-Mail)."
+    : !emailChannelAvailable
+      ? "E-Mail-Kanal derzeit nicht verfügbar."
+      : channels?.restaurantEmailConfigured
+        ? "Über die Restaurant-Mailbox, sonst Gwada-Fallback."
+        : "Restaurant-Mailbox nicht konfiguriert — Gwada-Fallback.";
 
   const patchModuleToggle = (
     field: "inAppModules" | "pushWhatsappModules" | "pushEmailModules",
@@ -121,8 +143,87 @@ export function NotificationPreferencesPanel() {
     });
   };
 
+  const handleSave = async () => {
+    const saveBoth = contact.dirty && prefsDirty;
+
+    if (contact.dirty) {
+      const contactResult = await contact.save({ silent: saveBoth });
+      if (!contactResult.ok) return;
+    }
+    if (prefsDirty) {
+      const prefsResult = await savePrefs({ silent: saveBoth });
+      if (!prefsResult.ok) return;
+    }
+    if (saveBoth) {
+      toast.success("Benachrichtigungen gespeichert.");
+    }
+  };
+
+  const handleReset = () => {
+    if (contact.dirty) contact.resetDraft();
+    if (prefsDirty) resetPrefsDraft();
+  };
+
+  const emailHelper =
+    contact.authEmail.trim().length > 0
+      ? `Leer lassen = ${contact.authEmail}`
+      : "Für Push-Benachrichtigungen per E-Mail.";
+
   return (
     <div className="space-y-6">
+      <Card className="border-border/50 shadow-card">
+        <CardHeader className="gap-2">
+          <CardTitle className="text-xl">Zustellung</CardTitle>
+          <CardDescription className="text-base leading-relaxed">
+            Für Push-Benachrichtigungen per E-Mail/WhatsApp — gilt für alle
+            Restaurants deines Accounts.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="notification-contact-email">E-Mail</Label>
+            <Input
+              id="notification-contact-email"
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              placeholder={contact.authEmail || "name@beispiel.de"}
+              value={contact.draft.notificationEmail}
+              onChange={(e) =>
+                contact.updateDraft({ notificationEmail: e.target.value })
+              }
+              className="h-11 rounded-xl"
+            />
+            <p className="text-xs text-muted-foreground">{emailHelper}</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="notification-contact-phone">Telefonnummer</Label>
+            <Input
+              id="notification-contact-phone"
+              type="tel"
+              autoComplete="tel"
+              inputMode="tel"
+              placeholder="+49 171 1234567"
+              value={contact.draft.phone}
+              onChange={(e) => contact.updateDraft({ phone: e.target.value })}
+              className="h-11 rounded-xl"
+            />
+            <p className="text-xs text-muted-foreground">
+              Für WhatsApp-Push. Internationale Form mit Ländervorwahl (z. B. +49
+              …) oder deutsche Nummer (z. B. 0151 …).
+            </p>
+          </div>
+          {contact.effectiveEmail ? (
+            <p className="text-xs text-muted-foreground">
+              Aktive E-Mail-Zustellung:{" "}
+              <span className="font-medium text-foreground">
+                {contact.effectiveEmail}
+              </span>
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">In der App</CardTitle>
@@ -159,13 +260,15 @@ export function NotificationPreferencesPanel() {
               WhatsApp
             </div>
             <p className="mb-3 text-xs text-muted-foreground">
-              {whatsappConnected
+              {whatsappPushAvailable
                 ? "Push über die verbundene Restaurant-WhatsApp."
-                : "Nur verfügbar, wenn WhatsApp unter Einstellungen → Integrationen verbunden ist."}
+                : !whatsappConnected
+                  ? "Nur verfügbar, wenn WhatsApp unter Einstellungen → Integrationen verbunden ist."
+                  : "Trage oben unter Zustellung eine Telefonnummer ein."}
             </p>
             <ModuleToggleRows
               toggles={draft.pushWhatsappModules}
-              disabled={!whatsappConnected}
+              disabled={!whatsappPushAvailable}
               onChange={(id, enabled) =>
                 patchModuleToggle("pushWhatsappModules", id, enabled)
               }
@@ -183,6 +286,7 @@ export function NotificationPreferencesPanel() {
             <p className="mb-3 text-xs text-muted-foreground">{emailNote}</p>
             <ModuleToggleRows
               toggles={draft.pushEmailModules}
+              disabled={!emailPushAvailable}
               onChange={(id, enabled) =>
                 patchModuleToggle("pushEmailModules", id, enabled)
               }
@@ -201,7 +305,7 @@ export function NotificationPreferencesPanel() {
           variant="outline"
           className="rounded-xl"
           disabled={isSaving}
-          onClick={resetDraft}
+          onClick={handleReset}
         >
           Verwerfen
         </Button>
@@ -209,7 +313,7 @@ export function NotificationPreferencesPanel() {
           type="button"
           className={settingsAccentSaveButtonClassName}
           disabled={isSaving}
-          onClick={() => void save()}
+          onClick={() => void handleSave()}
         >
           {isSaving ? "Speichern…" : "Speichern"}
         </Button>

@@ -1,4 +1,5 @@
 import type { NotificationChannelsInfo } from "@/lib/notifications/notification-channels-server";
+import type { NotificationContact } from "@/lib/notifications/notification-contact-types";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationPreferences } from "@/lib/notifications/notification-preferences";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
@@ -68,6 +69,56 @@ export async function fetchNotificationPreferencesClient(
     return { data: body.data ?? null, error: null };
   } catch {
     return { data: null, error: "network_error" };
+  }
+}
+
+export async function fetchNotificationContactClient(): Promise<{
+  data: NotificationContact | null;
+  error: string | null;
+}> {
+  try {
+    const res = await fetch("/api/profile/notification-contact");
+    const body = (await res.json()) as {
+      data?: NotificationContact;
+      error?: string;
+    };
+    if (!res.ok) {
+      return { data: null, error: body.error ?? `http_${res.status}` };
+    }
+    return { data: body.data ?? null, error: null };
+  } catch {
+    return { data: null, error: "network_error" };
+  }
+}
+
+export async function saveNotificationContactClient(params: {
+  notificationEmail: string;
+  phone: string;
+}): Promise<{
+  ok: boolean;
+  error: string | null;
+  field?: "notificationEmail" | "phone";
+}> {
+  try {
+    const res = await fetch("/api/profile/notification-contact", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+    const body = (await res.json()) as {
+      error?: string;
+      field?: "notificationEmail" | "phone";
+    };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: body.error ?? `http_${res.status}`,
+        field: body.field,
+      };
+    }
+    return { ok: true, error: null };
+  } catch {
+    return { ok: false, error: "network_error" };
   }
 }
 

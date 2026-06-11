@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { EmbedNewsWidget } from "@/components/embed/embed-news-widget";
+import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,13 +30,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
+import { useAccentColor } from "@/lib/contexts/accent-color-context";
+import {
+  NEWS_PLATFORM_LABELS,
+  NEWS_PLATFORM_ORDER,
+  type NewsPlatform,
+} from "@/lib/constants/news-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connections";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import {
+  defaultEmbedPlatforms,
+  filterItemsForEmbed,
+  filterPlatformsForEmbed,
+  type NewsEmbedPlatforms,
+} from "@/lib/news/news-embed-platforms";
+import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -36,18 +61,24 @@ type NewsSettings = {
   whatsapp_channel_ids: string[];
   default_embed_view: "grid" | "list";
   embed_max_items: number;
+  embed_platforms: NewsEmbedPlatforms;
 };
 
 export function NewsSettingsPanel() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const { accentHex } = useAccentColor();
+  const { connectors, loading: connectorsLoading } =
+    useNewsPlatformConnections(restaurantId);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   const [saving, setSaving] = useState(false);
   const [channels, setChannels] = useState<WahaChannelOption[]>([]);
+  const [previewItems, setPreviewItems] = useState<UnifiedNewsItem[]>([]);
   const [settings, setSettings] = useState<NewsSettings>({
     whatsapp_channel_ids: [],
     default_embed_view: "grid",
     embed_max_items: 24,
+    embed_platforms: defaultEmbedPlatforms(),
   });
   const [channelsOpen, setChannelsOpen] = useState(false);
 
@@ -55,11 +86,12 @@ export function NewsSettingsPanel() {
     if (!restaurantId) return;
     setLoading(true);
     try {
-      const [settingsRes, channelsRes] = await Promise.all([
+      const [settingsRes, channelsRes, newsRes] = await Promise.all([
         fetch(`/api/news/settings?restaurantId=${encodeURIComponent(restaurantId)}`),
         fetch(
           `/api/news/whatsapp-channels?restaurantId=${encodeURIComponent(restaurantId)}`,
         ),
+        fetch(`/api/news?${new URLSearchParams({ restaurantId })}`),
       ]);
       const settingsData = (await settingsRes.json()) as {
         settings?: NewsSettings;
@@ -68,10 +100,12 @@ export function NewsSettingsPanel() {
       const channelsData = (await channelsRes.json()) as {
         channels?: WahaChannelOption[];
       };
+      const newsData = (await newsRes.json()) as { items?: UnifiedNewsItem[] };
       if (settingsRes.ok && settingsData.settings) {
         setSettings(settingsData.settings);
       }
       setChannels(channelsData.channels ?? []);
+      setPreviewItems(newsData.items ?? []);
     } catch {
       toast.error("Einstellungen konnten nicht geladen werden.");
     } finally {
@@ -99,6 +133,28 @@ export function NewsSettingsPanel() {
     return `${settings.whatsapp_channel_ids.length} Kanäle ausgewählt`;
   }, [channelLabelById, settings.whatsapp_channel_ids]);
 
+  const connectedPlatforms = useMemo(
+    () =>
+      connectors
+        .filter((connector) => connector.connected && connector.capabilities.canReadFeed)
+        .map((connector) => connector.key),
+    [connectors],
+  );
+
+  const previewConnectedPlatforms = useMemo(
+    () =>
+      filterPlatformsForEmbed(connectedPlatforms, settings.embed_platforms),
+    [connectedPlatforms, settings.embed_platforms],
+  );
+
+  const previewItemsFiltered = useMemo(
+    () =>
+      filterItemsForEmbed(previewItems, settings.embed_platforms)
+        .filter((item) => item.status === "published")
+        .slice(0, settings.embed_max_items),
+    [previewItems, settings.embed_platforms, settings.embed_max_items],
+  );
+
   const save = async () => {
     if (!restaurantId) return;
     setSaving(true);
@@ -111,6 +167,7 @@ export function NewsSettingsPanel() {
           whatsappChannelIds: settings.whatsapp_channel_ids,
           defaultEmbedView: settings.default_embed_view,
           embedMaxItems: settings.embed_max_items,
+          embedPlatforms: settings.embed_platforms,
         }),
       });
       const data = await res.json();
@@ -132,127 +189,266 @@ export function NewsSettingsPanel() {
     });
   };
 
+  const setEmbedPlatformEnabled = (platform: NewsPlatform, enabled: boolean) => {
+    setSettings((prev) => ({
+      ...prev,
+      embed_platforms: { ...prev.embed_platforms, [platform]: enabled },
+    }));
+  };
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   if (loading && showSkeleton) {
-    return <div className="min-h-40 rounded-xl border border-border/50 bg-muted/20" aria-busy />;
+    return (
+      <div className="flex flex-col gap-6 pb-4">
+        <SkeletonCardFrame className="rounded-2xl border border-border/50 p-6 shadow-card">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="mt-4 h-10 w-full" />
+          <Skeleton className="mt-3 h-10 w-full" />
+        </SkeletonCardFrame>
+        <SkeletonCardFrame className="rounded-2xl border border-border/50 p-6 shadow-card">
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="mt-4 h-24 w-full" />
+        </SkeletonCardFrame>
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
-        <div className="space-y-2">
-          <Label>WhatsApp Kanäle</Label>
-          <Popover open={channelsOpen} onOpenChange={setChannelsOpen}>
-            <PopoverTrigger
-              type="button"
-              className={appSelectTriggerAccentCn(
-                "inline-flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-normal",
-              )}
-            >
-              <span className="truncate">{whatsappSelectionLabel}</span>
-              <ChevronDown className="size-4 shrink-0 opacity-60" aria-hidden />
-            </PopoverTrigger>
-            <PopoverPortal>
-              <PopoverPositioner align="start" side="bottom" sideOffset={8}>
-                <PopoverContent className="w-80 p-2">
-              <div className="max-h-56 space-y-1 overflow-y-auto">
-                {channels.length === 0 ? (
-                  <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                    Keine OWNER-Kanäle gefunden. WhatsApp-Integration prüfen.
-                  </p>
-                ) : (
-                  channels.map((channel) => {
-                    const checked = settings.whatsapp_channel_ids.includes(channel.id);
-                    return (
-                      <label
-                        key={channel.id}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60"
+    <div className="flex flex-col gap-6 pb-4">
+      <Card className="border-border/50 shadow-card">
+        <CardHeader className="gap-2">
+          <CardTitle className="text-xl">Dashboard</CardTitle>
+          <CardDescription>
+            Kanäle und Synchronisierung für News im Gwada-Dashboard — Beiträge
+            werden automatisch von verbundenen Plattformen geladen.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Plattform-Status</Label>
+            <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/15 p-3">
+              {connectorsLoading ? (
+                <li className="text-sm text-muted-foreground">Status wird geladen …</li>
+              ) : (
+                NEWS_PLATFORM_ORDER.map((platform) => {
+                  const connector = connectors.find((c) => c.key === platform);
+                  const connected = connector?.connected ?? platform === "gwada";
+                  return (
+                    <li
+                      key={platform}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="inline-flex min-w-0 items-center gap-2">
+                        <NewsPlatformIcon platform={platform} className="size-4" />
+                        <span className="truncate">{NEWS_PLATFORM_LABELS[platform]}</span>
+                      </span>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-2 py-0.5 text-xs font-medium",
+                          connected
+                            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                            : "bg-muted text-muted-foreground",
+                        )}
                       >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={(value) =>
-                            toggleWhatsappChannel(channel.id, value === true)
-                          }
-                        />
-                        <span className="min-w-0 truncate text-sm">
-                          {channel.name || channel.id}
-                        </span>
-                      </label>
-                    );
-                  })
+                        {connected ? "Verbunden" : "Nicht verbunden"}
+                      </span>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+            <p className="text-xs text-muted-foreground">
+              Externe Kanäle unter Einstellungen → Integrationen verbinden. Im
+              Dashboard synchronisiert Gwada Beiträge im Hintergrund.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>WhatsApp Kanäle</Label>
+            <Popover open={channelsOpen} onOpenChange={setChannelsOpen}>
+              <PopoverTrigger
+                type="button"
+                className={appSelectTriggerAccentCn(
+                  "inline-flex h-10 w-full items-center justify-between rounded-xl px-3 text-left text-sm font-normal",
                 )}
-              </div>
-              {settings.whatsapp_channel_ids.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 h-8 w-full rounded-lg text-muted-foreground"
-                  onClick={() =>
-                    setSettings((prev) => ({ ...prev, whatsapp_channel_ids: [] }))
-                  }
-                >
-                  Auswahl zurücksetzen (automatisch)
-                </Button>
-              ) : null}
-                </PopoverContent>
-              </PopoverPositioner>
-            </PopoverPortal>
-          </Popover>
-          <p className="text-xs text-muted-foreground">
-            OWNER-Kanäle für Lesen und Posten. Leer = alle OWNER-Kanäle automatisch.
-            Posten nutzt den ersten ausgewählten Kanal.
-          </p>
-        </div>
+              >
+                <span className="truncate">{whatsappSelectionLabel}</span>
+                <ChevronDown className="size-4 shrink-0 opacity-60" aria-hidden />
+              </PopoverTrigger>
+              <PopoverPortal>
+                <PopoverPositioner align="start" side="bottom" sideOffset={8}>
+                  <PopoverContent className="w-80 p-2">
+                    <div className="max-h-56 space-y-1 overflow-y-auto">
+                      {channels.length === 0 ? (
+                        <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                          Keine OWNER-Kanäle gefunden. WhatsApp-Integration prüfen.
+                        </p>
+                      ) : (
+                        channels.map((channel) => {
+                          const checked = settings.whatsapp_channel_ids.includes(
+                            channel.id,
+                          );
+                          return (
+                            <label
+                              key={channel.id}
+                              className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(value) =>
+                                  toggleWhatsappChannel(channel.id, value === true)
+                                }
+                              />
+                              <span className="min-w-0 truncate text-sm">
+                                {channel.name || channel.id}
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    {settings.whatsapp_channel_ids.length > 0 ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2 h-8 w-full rounded-lg text-muted-foreground"
+                        onClick={() =>
+                          setSettings((prev) => ({
+                            ...prev,
+                            whatsapp_channel_ids: [],
+                          }))
+                        }
+                      >
+                        Auswahl zurücksetzen (automatisch)
+                      </Button>
+                    ) : null}
+                  </PopoverContent>
+                </PopoverPositioner>
+              </PopoverPortal>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              OWNER-Kanäle für Lesen und Posten. Leer = alle OWNER-Kanäle automatisch.
+              Posten nutzt den ersten ausgewählten Kanal.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
-        <div className="space-y-2">
-          <Label>Embed-Ansicht</Label>
-          <Select
-            value={settings.default_embed_view}
-            onValueChange={(value) => {
-              if (value === "grid" || value === "list") {
-                setSettings((prev) => ({ ...prev, default_embed_view: value }));
+      <Card className="border-border/50 shadow-card">
+        <CardHeader className="gap-2">
+          <CardTitle className="text-xl">Embed</CardTitle>
+          <CardDescription>
+            Darstellung und Plattformen für die eingebettete News-Integration auf
+            eurer Website.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">Plattformen im Embed</Label>
+              <p className="text-xs text-muted-foreground">
+                Nur aktivierte und verbundene Plattformen erscheinen in der
+                Einbindung.
+              </p>
+            </div>
+            <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/15 p-3">
+              {NEWS_PLATFORM_ORDER.map((platform) => {
+                const connector = connectors.find((c) => c.key === platform);
+                const connected = connector?.connected ?? platform === "gwada";
+                const enabled = settings.embed_platforms[platform] !== false;
+                return (
+                  <li
+                    key={platform}
+                    className="flex items-center justify-between gap-3"
+                  >
+                    <span className="inline-flex min-w-0 items-center gap-2 text-sm">
+                      <NewsPlatformIcon platform={platform} className="size-4" />
+                      <span className="truncate">{NEWS_PLATFORM_LABELS[platform]}</span>
+                      {!connected && platform !== "gwada" ? (
+                        <span className="text-xs text-muted-foreground">(nicht verbunden)</span>
+                      ) : null}
+                    </span>
+                    <Switch
+                      checked={enabled}
+                      disabled={!connected && platform !== "gwada"}
+                      onCheckedChange={(value) =>
+                        setEmbedPlatformEnabled(platform, value === true)
+                      }
+                      aria-label={`${NEWS_PLATFORM_LABELS[platform]} im Embed`}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Ansicht</Label>
+            <Select
+              value={settings.default_embed_view}
+              onValueChange={(value) => {
+                if (value === "grid" || value === "list") {
+                  setSettings((prev) => ({ ...prev, default_embed_view: value }));
+                }
+              }}
+            >
+              <SelectTrigger className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="grid">Raster (Pinterest)</SelectItem>
+                <SelectItem value="list">Liste</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="embed-max-items">Max. Beiträge</Label>
+            <Input
+              id="embed-max-items"
+              type="number"
+              min={1}
+              max={100}
+              value={settings.embed_max_items}
+              onChange={(e) =>
+                setSettings((prev) => ({
+                  ...prev,
+                  embed_max_items: Number.parseInt(e.target.value, 10) || 24,
+                }))
               }
-            }}
+              className="h-10 rounded-xl"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Vorschau</Label>
+            <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+              <EmbedNewsWidget
+                accentHex={accentHex}
+                viewMode={settings.default_embed_view}
+                connectedPlatforms={previewConnectedPlatforms}
+                items={previewItemsFiltered}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Vorschau mit aktuellen Einstellungen (noch nicht gespeicherte
+              Änderungen sind sichtbar). Embed-Code unter Einbinden.
+            </p>
+          </div>
+
+          <Button
+            type="button"
+            className={cn("h-11 rounded-xl", settingsAccentSaveButtonClassName)}
+            disabled={saving}
+            onClick={() => void save()}
           >
-            <SelectTrigger className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="grid">Raster (Pinterest)</SelectItem>
-              <SelectItem value="list">Liste</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="embed-max-items">Max. Beiträge im Embed</Label>
-          <Input
-            id="embed-max-items"
-            type="number"
-            min={1}
-            max={100}
-            value={settings.embed_max_items}
-            onChange={(e) =>
-              setSettings((prev) => ({
-                ...prev,
-                embed_max_items: Number.parseInt(e.target.value, 10) || 24,
-              }))
-            }
-          />
-        </div>
-
-        <Button
-          type="button"
-          className={cn("h-11 rounded-xl", settingsAccentSaveButtonClassName)}
-          disabled={saving}
-          onClick={() => void save()}
-        >
-          {saving ? "Speichern …" : "Speichern"}
-        </Button>
-      </section>
+            {saving ? "Speichern …" : "Speichern"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

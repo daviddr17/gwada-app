@@ -2,8 +2,8 @@ import "server-only";
 
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
 import {
-  NEWS_CACHE_STALE_MS,
   NEWS_CACHEABLE_PLATFORMS,
+  isNewsFeedSyncStale,
   isNewsCacheablePlatform,
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
@@ -92,11 +92,6 @@ export async function syncRestaurantNewsPlatforms(
   return stats;
 }
 
-function isSyncStale(syncedAt: string | null | undefined): boolean {
-  if (!syncedAt) return true;
-  return Date.now() - new Date(syncedAt).getTime() > NEWS_CACHE_STALE_MS;
-}
-
 export async function triggerNewsFeedSyncIfStale(
   restaurantId: string,
   platforms?: NewsPlatform[],
@@ -120,7 +115,7 @@ export async function triggerNewsFeedSyncIfStale(
   );
 
   const stale = cacheable.filter((platform) =>
-    isSyncStale(syncedByPlatform.get(platform)),
+    isNewsFeedSyncStale(syncedByPlatform.get(platform)),
   );
   if (stale.length === 0) return;
 

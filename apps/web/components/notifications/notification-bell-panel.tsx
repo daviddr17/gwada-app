@@ -143,7 +143,7 @@ export function NotificationBellPanel({
           variant="ghost"
           size="sm"
           className="h-9 w-full justify-start gap-2 rounded-xl text-sm font-medium"
-          render={<Link href="/settings/benachrichtigungen" onClick={onNavigate} />}
+          render={<Link href="/profile/benachrichtigungen" onClick={onNavigate} />}
         >
           <Settings className="size-4 text-muted-foreground" />
           Benachrichtigungen einstellen

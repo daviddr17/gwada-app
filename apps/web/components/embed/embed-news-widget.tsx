@@ -36,10 +36,15 @@ export function EmbedNewsWidget({
     [connectedPlatforms],
   );
 
+  const visibleItems = useMemo(
+    () => items.filter((item) => availablePlatforms.has(item.platform)),
+    [items, availablePlatforms],
+  );
+
   const filtered = useMemo(() => {
-    if (platformFilter === NEWS_FILTER_ALL) return items;
-    return items.filter((item) => item.platform === platformFilter);
-  }, [items, platformFilter]);
+    if (platformFilter === NEWS_FILTER_ALL) return visibleItems;
+    return visibleItems.filter((item) => item.platform === platformFilter);
+  }, [visibleItems, platformFilter]);
 
   const resizeDeps = useMemo(
     () => [

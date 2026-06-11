@@ -16,6 +16,11 @@ const PROFILE_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/profile/benachrichtigungen",
+    label: "Benachrichtigungen",
+    matchMode: "exact",
+  },
+  {
     href: "/profile/arbeitszeiten",
     label: "Arbeitszeiten",
     matchMode: "exact",

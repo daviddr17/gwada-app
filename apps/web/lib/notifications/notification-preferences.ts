@@ -85,16 +85,37 @@ export function mergeNotificationPreferences(
   };
 }
 
+/** Master-Kanal-Flags aus per-Modul-Push-Toggles ableiten (UI zeigt keine globalen Kanäle). */
+export function deriveChannelFlagsFromModules(
+  prefs: Pick<
+    NotificationPreferences,
+    "pushWhatsappModules" | "pushEmailModules"
+  >,
+): Pick<
+  NotificationPreferences,
+  "channelWhatsappEnabled" | "channelEmailEnabled"
+> {
+  return {
+    channelWhatsappEnabled: Object.values(prefs.pushWhatsappModules).some(
+      (enabled) => enabled,
+    ),
+    channelEmailEnabled: Object.values(prefs.pushEmailModules).some(
+      (enabled) => enabled,
+    ),
+  };
+}
+
 export function notificationPreferencesToRow(
   prefs: NotificationPreferences,
   profileId: string,
   restaurantId: string,
 ) {
+  const channels = deriveChannelFlagsFromModules(prefs);
   return {
     profile_id: profileId,
     restaurant_id: restaurantId,
-    channel_whatsapp_enabled: prefs.channelWhatsappEnabled,
-    channel_email_enabled: prefs.channelEmailEnabled,
+    channel_whatsapp_enabled: channels.channelWhatsappEnabled,
+    channel_email_enabled: channels.channelEmailEnabled,
     in_app_modules: prefs.inAppModules,
     push_whatsapp_modules: prefs.pushWhatsappModules,
     push_email_modules: prefs.pushEmailModules,

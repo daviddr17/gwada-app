@@ -590,7 +590,7 @@ export function SuperadminDatabasePanel() {
                 label="Supabase Studio"
                 value={
                   status.database.studioUrl ? (
-                    <span className="flex flex-col items-end gap-1 text-right">
+                    <span className="flex flex-col gap-1">
                       <InfoRowLink
                         href={status.database.studioUrl}
                         label={status.database.studioUrl}

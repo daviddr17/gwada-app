@@ -33,7 +33,10 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
-import type { NewsCacheablePlatform } from "@/lib/news/news-cache-constants";
+import {
+  isNewsCacheablePlatform,
+  type NewsCacheablePlatform,
+} from "@/lib/news/news-cache-constants";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 
 const NEWS_SYNC_POLL_MS = 3_000;
@@ -300,7 +303,14 @@ export function NewsScreen() {
       {loading && showSkeleton ? (
         <div className="min-h-40 rounded-xl border border-border/50 bg-muted/20" aria-busy />
       ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Noch keine News in dieser Ansicht.</p>
+        <p className="text-sm text-muted-foreground">
+          {platformFilter !== NEWS_FILTER_ALL &&
+          isNewsCacheablePlatform(platformFilter) &&
+          syncMeta?.platformItemCounts?.[platformFilter] === 0 &&
+          !syncMeta?.platformErrors?.[platformFilter]
+            ? `${NEWS_PLATFORM_LABELS[platformFilter]}: Sync erfolgreich, aber keine Beiträge im Konto — unter Einstellungen → Integrationen prüfen oder „Jetzt synchronisieren“.`
+            : "Noch keine News in dieser Ansicht."}
+        </p>
       ) : viewMode === "list" ? (
         <NewsListView items={filtered} onItemClick={openDetail} />
       ) : (

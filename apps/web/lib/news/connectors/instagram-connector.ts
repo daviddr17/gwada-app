@@ -7,8 +7,15 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
-import { metaNewsScopeError } from "@/lib/integrations/meta-integration-scopes";
 import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
+import {
+  IG_MEDIA_FIELDS_BASIC,
+  IG_MEDIA_FIELDS_EXTENDED,
+  igMediaKind,
+  igMediaPreviewUrl,
+  proxyInstagramNewsMediaUrl,
+  type IgMedia,
+} from "@/lib/news/connectors/instagram-media-map";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 const CAPABILITIES = {
@@ -22,17 +29,6 @@ const CAPABILITIES = {
   maxMediaCount: 10,
 } as const;
 
-type IgMedia = {
-  id?: string;
-  caption?: string;
-  timestamp?: string;
-  media_type?: string;
-  media_url?: string;
-  permalink?: string;
-  like_count?: number;
-  comments_count?: number;
-};
-
 async function getIgAuth(restaurantId: string) {
   const row = await fetchRestaurantOAuthIntegrationAdmin(
     restaurantId,
@@ -43,7 +39,66 @@ async function getIgAuth(restaurantId: string) {
   const igId = row.config.instagram_business_account_id?.trim();
   const token = row.config.page_access_token?.trim();
   if (!igId || !token) return { error: "instagram_token_missing" as const };
-  return { igId, token, grantedScopes: row.config.granted_scopes ?? [] };
+  return { igId, token };
+}
+
+function mapIgMediaToNewsItem(
+  restaurantId: string,
+  media: IgMedia,
+): UnifiedNewsItem {
+  const previewUrl = igMediaPreviewUrl(media);
+  const kind = igMediaKind(media);
+  return {
+    id: `instagram:${media.id}`,
+    platform: "instagram",
+    source: "external",
+    postId: null,
+    title: null,
+    body: media.caption?.trim() ?? "",
+    media: previewUrl
+      ? [
+          {
+            id: media.id ?? "media",
+            kind,
+            url: proxyInstagramNewsMediaUrl(restaurantId, previewUrl),
+            storagePath: null,
+            mimeType: kind === "video" ? "video/mp4" : "image/jpeg",
+            sortOrder: 0,
+          },
+        ]
+      : [],
+    createdAt: media.timestamp ?? new Date().toISOString(),
+    publishedAt: media.timestamp ?? null,
+    scheduledAt: null,
+    status: "published",
+    canEdit: false,
+    canDelete: true,
+    externalUrl: media.permalink ?? null,
+    insights: {
+      likes: media.like_count,
+      comments: media.comments_count,
+    },
+    authorName: null,
+  };
+}
+
+async function fetchInstagramMedia(auth: { igId: string; token: string }) {
+  const attempts = [IG_MEDIA_FIELDS_EXTENDED, IG_MEDIA_FIELDS_BASIC];
+  let lastError: string | null = null;
+
+  for (const fields of attempts) {
+    const result = await metaGraphListFetch<IgMedia>({
+      path: `${auth.igId}/media?fields=${encodeURIComponent(fields)}&limit=50`,
+      token: auth.token,
+      context: { platform: "instagram", feature: "news" },
+    });
+    if (result.ok) {
+      return { ok: true as const, data: result.data };
+    }
+    lastError = result.error;
+  }
+
+  return { ok: false as const, error: lastError ?? "instagram_media_failed" };
 }
 
 export const instagramNewsConnector: NewsPlatformConnector = {
@@ -57,59 +112,14 @@ export const instagramNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getIgAuth(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "instagram_not_connected" };
-    const scopeError = metaNewsScopeError("instagram", auth.grantedScopes);
-    if (scopeError) return { error: scopeError };
-    const basicFields =
-      "id,caption,timestamp,media_type,media_url,permalink";
-    const insightFields = `${basicFields},like_count,comments_count`;
-    const attempts = [basicFields, insightFields];
-    let lastError: string | null = null;
-    let media: IgMedia[] = [];
-    for (const fields of attempts) {
-      const result = await metaGraphListFetch<IgMedia>({
-        path: `${auth.igId}/media?fields=${encodeURIComponent(fields)}&limit=50`,
-        token: auth.token,
-        context: { platform: "instagram", feature: "news" },
-      });
-      if (result.ok) {
-        media = result.data;
-        break;
-      }
-      lastError = result.error;
-    }
-    if (!media.length && lastError) return { error: lastError };
-    const items: UnifiedNewsItem[] = media.map((m) => ({
-      id: `instagram:${m.id}`,
-      platform: "instagram",
-      source: "external",
-      postId: null,
-      title: null,
-      body: m.caption?.trim() ?? "",
-      media: m.media_url
-        ? [
-            {
-              id: m.id ?? "media",
-              kind: m.media_type === "VIDEO" ? "video" : "image",
-              url: m.media_url,
-              storagePath: null,
-              mimeType: m.media_type === "VIDEO" ? "video/mp4" : "image/jpeg",
-              sortOrder: 0,
-            },
-          ]
-        : [],
-      createdAt: m.timestamp ?? new Date().toISOString(),
-      publishedAt: m.timestamp ?? null,
-      scheduledAt: null,
-      status: "published",
-      canEdit: false,
-      canDelete: true,
-      externalUrl: m.permalink ?? null,
-      insights: {
-        likes: m.like_count,
-        comments: m.comments_count,
-      },
-      authorName: null,
-    }));
+
+    const fetched = await fetchInstagramMedia(auth);
+    if (!fetched.ok) return { error: fetched.error };
+
+    const items = fetched.data
+      .map((m) => mapIgMediaToNewsItem(restaurantId, m))
+      .filter((item) => item.body || item.media.length > 0 || item.externalUrl);
+
     return { items };
   },
   async publishPost(restaurantId, _sb, input) {

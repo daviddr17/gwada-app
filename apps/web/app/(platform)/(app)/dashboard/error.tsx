@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export default function DashboardError({
@@ -10,6 +11,8 @@ export default function DashboardError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const router = useRouter();
+
   useEffect(() => {
     console.error("[dashboard]", error);
   }, [error]);
@@ -28,7 +31,15 @@ export default function DashboardError({
         ) : null}
       </p>
       <div className="flex flex-wrap justify-center gap-2">
-        <Button type="button" size="sm" className="rounded-xl" onClick={() => reset()}>
+        <Button
+          type="button"
+          size="sm"
+          className="rounded-xl"
+          onClick={() => {
+            router.refresh();
+            reset();
+          }}
+        >
           Erneut versuchen
         </Button>
         <Button

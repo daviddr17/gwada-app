@@ -1,11 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { LayoutGrid, List, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ListPagination } from "@/components/ui/list-pagination";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -23,8 +31,6 @@ import {
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   NEWS_FILTER_ALL,
-  parseNewsPlatformFilter,
-  parseNewsViewMode,
   type NewsPlatformFilter,
   type NewsViewMode,
 } from "@/lib/constants/news-platforms";
@@ -44,6 +50,15 @@ import {
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
+import {
+  patchNewsScreenQueryUrl,
+  readNewsScreenQueryFromSearch,
+} from "@/lib/news/news-screen-query";
+import {
+  clampListPage,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
 
 const NEWS_SYNC_POLL_MS = 5_000;
 const NEWS_SYNC_POLL_MAX = 12;
@@ -56,10 +71,15 @@ export function NewsScreen() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const platformFilter = parseNewsPlatformFilter(searchParams.get("platform"));
-  const viewMode = parseNewsViewMode(searchParams.get("view"));
+  const [platformFilter, setPlatformFilterState] = useState<NewsPlatformFilter>(
+    () => readNewsScreenQueryFromSearch(searchParams.toString()).platformFilter,
+  );
+  const [viewMode, setViewModeState] = useState<NewsViewMode>(
+    () => readNewsScreenQueryFromSearch(searchParams.toString()).viewMode,
+  );
 
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [items, setItems] = useState<UnifiedNewsItem[]>([]);
   const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -179,6 +199,16 @@ export function NewsScreen() {
   }, [syncMeta?.stale, loading, load]);
 
   useEffect(() => {
+    const onPopState = () => {
+      const next = readNewsScreenQueryFromSearch(window.location.search);
+      setPlatformFilterState(next.platformFilter);
+      setViewModeState(next.viewMode);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  useEffect(() => {
     if (searchParams.get("new") === "1" && canManage) {
       setComposeOpen(true);
       const next = new URLSearchParams(searchParams.toString());
@@ -189,11 +219,17 @@ export function NewsScreen() {
     }
   }, [searchParams, canManage, router]);
 
+  const sortedItems = useMemo(() => sortNewsItemsByDate(items), [items]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [platformFilter, search]);
+
   const filtered = useMemo(() => {
     let list =
       platformFilter === NEWS_FILTER_ALL
-        ? items
-        : items.filter((i) => i.platform === platformFilter);
+        ? sortedItems
+        : sortedItems.filter((i) => i.platform === platformFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -202,27 +238,48 @@ export function NewsScreen() {
           (i.title?.toLowerCase().includes(q) ?? false),
       );
     }
-    return sortNewsItemsByDate(list);
-  }, [items, platformFilter, search]);
+    return list;
+  }, [sortedItems, platformFilter, search]);
 
-  const setPlatformFilter = (next: NewsPlatformFilter) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === NEWS_FILTER_ALL) params.delete("platform");
-    else params.set("platform", next);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+  const totalCount = filtered.length;
+  const totalPages = totalPagesFromCount(totalCount, NEWS_FEED_PAGE_SIZE);
+  const currentPage = clampListPage(page, totalPages);
+
+  const paginatedItems = useMemo(() => {
+    const from = (currentPage - 1) * NEWS_FEED_PAGE_SIZE;
+    return filtered.slice(from, from + NEWS_FEED_PAGE_SIZE);
+  }, [filtered, currentPage]);
+
+  const setPlatformFilter = useCallback(
+    (next: NewsPlatformFilter) => {
+      startTransition(() => {
+        setPlatformFilterState(next);
+      });
+      patchNewsScreenQueryUrl(pathname, (params) => {
+        if (next === NEWS_FILTER_ALL) params.delete("platform");
+        else params.set("platform", next);
+      });
+    },
+    [pathname],
+  );
 
   const openDetail = useCallback((item: UnifiedNewsItem) => {
     setDetailItem(item);
     setDetailOpen(true);
   }, []);
 
-  const setViewMode = (next: NewsViewMode) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (next === "grid") params.delete("view");
-    else params.set("view", next);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  };
+  const setViewMode = useCallback(
+    (next: NewsViewMode) => {
+      startTransition(() => {
+        setViewModeState(next);
+      });
+      patchNewsScreenQueryUrl(pathname, (params) => {
+        if (next === "grid") params.delete("view");
+        else params.set("view", next);
+      });
+    },
+    [pathname],
+  );
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
@@ -343,10 +400,24 @@ export function NewsScreen() {
             ? `${NEWS_PLATFORM_LABELS[platformFilter]}: Sync erfolgreich, aber keine Beiträge im Konto — unter Einstellungen → Integrationen prüfen oder „Jetzt synchronisieren“.`
             : "Noch keine News in dieser Ansicht."}
         </p>
-      ) : viewMode === "list" ? (
-        <NewsListView items={filtered} onItemClick={openDetail} />
       ) : (
-        <NewsMasonryGrid items={filtered} onItemClick={openDetail} />
+        <>
+          {viewMode === "list" ? (
+            <NewsListView items={paginatedItems} onItemClick={openDetail} />
+          ) : (
+            <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
+          )}
+          <ListPagination
+            page={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemLabel="Beiträge"
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          />
+        </>
       )}
 
       <NewsDetailDrawer

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback } from "react";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
@@ -8,7 +9,7 @@ import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-function NewsCard({
+const NewsCard = memo(function NewsCard({
   item,
   onClick,
   masonry = false,
@@ -38,6 +39,8 @@ function NewsCard({
           <img
             src={preview.url}
             alt=""
+            loading="lazy"
+            decoding="async"
             className="block max-h-80 w-full object-cover"
           />
         </div>
@@ -67,7 +70,23 @@ function NewsCard({
       </div>
     </button>
   );
-}
+});
+
+const NewsFeedCardRow = memo(function NewsFeedCardRow({
+  item,
+  masonry,
+  onItemClick,
+}: {
+  item: UnifiedNewsItem;
+  masonry?: boolean;
+  onItemClick?: (item: UnifiedNewsItem) => void;
+}) {
+  const onClick = useCallback(() => {
+    onItemClick?.(item);
+  }, [item, onItemClick]);
+
+  return <NewsCard item={item} masonry={masonry} onClick={onItemClick ? onClick : undefined} />;
+});
 
 export function NewsMasonryGrid({
   items,
@@ -77,14 +96,9 @@ export function NewsMasonryGrid({
   onItemClick?: (item: UnifiedNewsItem) => void;
 }) {
   return (
-    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">
+    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4 [contain:layout]">
       {items.map((item) => (
-        <NewsCard
-          key={item.id}
-          item={item}
-          masonry
-          onClick={onItemClick ? () => onItemClick(item) : undefined}
-        />
+        <NewsFeedCardRow key={item.id} item={item} masonry onItemClick={onItemClick} />
       ))}
     </div>
   );
@@ -100,11 +114,7 @@ export function NewsListView({
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <NewsCard
-          key={item.id}
-          item={item}
-          onClick={onItemClick ? () => onItemClick(item) : undefined}
-        />
+        <NewsFeedCardRow key={item.id} item={item} onItemClick={onItemClick} />
       ))}
     </div>
   );

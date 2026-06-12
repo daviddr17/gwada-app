@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import {
-  assignCrossAppModuleNavigation,
-  assignCrossAppWorkspaceZone,
-} from "@/lib/navigation/app-zone-navigation";
+import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -16,7 +13,7 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 }
 
 /**
- * Interner App-Link: Soft-Nav innerhalb eines Moduls; Modul-/Zonenwechsel per Full-Load.
+ * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
  */
 export function AppNavLink({
   href,
@@ -46,10 +43,6 @@ export function AppNavLink({
         onClick?.(event);
         if (event.defaultPrevented) return;
         if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
-          event.preventDefault();
-          return;
-        }
-        if (assignCrossAppModuleNavigation(pathname, hrefStr)) {
           event.preventDefault();
         }
       }}

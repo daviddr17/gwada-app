@@ -12,6 +12,7 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { NewsComposeDrawer } from "@/components/news/news-compose-drawer";
 import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
+import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { NewsMasonryGrid, NewsListView } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import {
@@ -31,6 +32,11 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
+import {
+  peekNewsFeedCache,
+  writeNewsFeedCache,
+} from "@/lib/news/news-feed-client-cache";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import {
@@ -39,8 +45,8 @@ import {
 } from "@/lib/news/news-cache-constants";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 
-const NEWS_SYNC_POLL_MS = 3_000;
-const NEWS_SYNC_POLL_MAX = 20;
+const NEWS_SYNC_POLL_MS = 5_000;
+const NEWS_SYNC_POLL_MAX = 12;
 
 export function NewsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -58,7 +64,7 @@ export function NewsScreen() {
   const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
   const [composeOpen, setComposeOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<UnifiedNewsItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -66,9 +72,16 @@ export function NewsScreen() {
   const loadGeneration = useRef(0);
 
   const applyFeedResponse = useCallback(
-    (data: { items?: UnifiedNewsItem[]; sync?: NewsFeedSyncMeta }) => {
-      setItems(data.items ?? []);
-      setSyncMeta(data.sync ?? null);
+    (
+      data: { items?: UnifiedNewsItem[]; sync?: NewsFeedSyncMeta },
+      cacheRestaurantId: string,
+      cachePlatform: NewsPlatformFilter,
+    ) => {
+      const nextItems = data.items ?? [];
+      const nextSync = data.sync ?? null;
+      setItems(nextItems);
+      setSyncMeta(nextSync);
+      writeNewsFeedCache(cacheRestaurantId, cachePlatform, nextItems, nextSync);
     },
     [],
   );
@@ -77,10 +90,20 @@ export function NewsScreen() {
     async (options?: { silent?: boolean }) => {
       if (!restaurantId) return;
       const generation = ++loadGeneration.current;
-      if (!options?.silent) {
-        setLoading(true);
-        setItems([]);
+      const cached = peekNewsFeedCache(restaurantId, platformFilter);
+      const silent = options?.silent ?? false;
+
+      if (!silent) {
+        if (cached) {
+          setItems(cached.items);
+          setSyncMeta(cached.sync);
+          setLoading(false);
+        } else {
+          setLoading(true);
+          setItems([]);
+        }
       }
+
       try {
         const qs = new URLSearchParams({ restaurantId });
         if (platformFilter !== NEWS_FILTER_ALL) {
@@ -94,19 +117,25 @@ export function NewsScreen() {
         };
         if (generation !== loadGeneration.current) return;
         if (!res.ok) throw new Error(data.error ?? "load_failed");
-        applyFeedResponse(data);
+        applyFeedResponse(data, restaurantId, platformFilter);
       } catch {
         if (generation !== loadGeneration.current) return;
-        if (!options?.silent) setItems([]);
-        toast.error("News konnten nicht geladen werden.");
+        if (!silent && !cached) setItems([]);
+        if (!silent && !cached) {
+          toast.error("News konnten nicht geladen werden.");
+        }
       } finally {
-        if (!options?.silent && generation === loadGeneration.current) {
+        if (!silent && generation === loadGeneration.current) {
           setLoading(false);
         }
       }
     },
     [restaurantId, platformFilter, applyFeedResponse],
   );
+
+  const refreshFeed = useCallback(() => {
+    void load({ silent: true });
+  }, [load]);
 
   const syncNow = useCallback(async () => {
     if (!restaurantId || syncing) return;
@@ -126,7 +155,7 @@ export function NewsScreen() {
         error?: string;
       };
       if (!res.ok) throw new Error(data.error ?? "sync_failed");
-      applyFeedResponse(data);
+      applyFeedResponse(data, restaurantId, platformFilter);
     } catch {
       toast.error("Synchronisierung fehlgeschlagen.");
     } finally {
@@ -142,6 +171,7 @@ export function NewsScreen() {
     if (!syncMeta?.stale || loading) return;
     let polls = 0;
     const id = window.setInterval(() => {
+      if (document.hidden) return;
       polls += 1;
       if (polls > NEWS_SYNC_POLL_MAX) {
         window.clearInterval(id);
@@ -165,12 +195,14 @@ export function NewsScreen() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
-      (i) =>
-        i.body.toLowerCase().includes(q) ||
-        (i.title?.toLowerCase().includes(q) ?? false),
-    );
+    const list = q
+      ? items.filter(
+          (i) =>
+            i.body.toLowerCase().includes(q) ||
+            (i.title?.toLowerCase().includes(q) ?? false),
+        )
+      : items;
+    return sortNewsItemsByDate(list);
   }, [items, search]);
 
   const setPlatformFilter = (next: NewsPlatformFilter) => {
@@ -300,8 +332,8 @@ export function NewsScreen() {
         </div>
       </div>
 
-      {loading && showSkeleton ? (
-        <div className="min-h-40 rounded-xl border border-border/50 bg-muted/20" aria-busy />
+      {showFeedSkeleton ? (
+        <NewsFeedSkeleton viewMode={viewMode} />
       ) : filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {platformFilter !== NEWS_FILTER_ALL &&
@@ -324,7 +356,7 @@ export function NewsScreen() {
         restaurantId={restaurantId}
         canManage={canManage}
         connectors={connectors}
-        onChanged={() => void load()}
+        onChanged={refreshFeed}
       />
 
       {canManage && restaurantId ? (
@@ -333,7 +365,7 @@ export function NewsScreen() {
           onOpenChange={setComposeOpen}
           restaurantId={restaurantId}
           connectors={connectors}
-          onSaved={() => void load()}
+          onSaved={refreshFeed}
         />
       ) : null}
     </div>

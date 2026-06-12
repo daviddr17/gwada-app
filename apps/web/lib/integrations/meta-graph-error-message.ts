@@ -1,7 +1,15 @@
 export type MetaGraphErrorContext = {
   platform?: "facebook" | "instagram";
   feature?: "news" | "messages";
+  errorCode?: number | null;
 };
+
+function newsScopeHint(platform: "facebook" | "instagram" | undefined): string {
+  if (platform === "instagram") {
+    return "instagram_basic (ggf. instagram_manage_insights für Likes)";
+  }
+  return "pages_read_engagement";
+}
 
 /** Meta-Rohfehler in verständliche Hinweise für die UI übersetzen. */
 export function formatMetaGraphError(
@@ -15,6 +23,14 @@ export function formatMetaGraphError(
   const platformLabel =
     context.platform === "instagram" ? "Instagram" : "Facebook";
 
+  if (context.errorCode === 1 || context.errorCode === 2) {
+    return `${platformLabel}: Zugriff von Meta abgelehnt (Code ${context.errorCode}) — Seiten-Token vermutlich abgelaufen oder Berechtigung entzogen. Unter Einstellungen → Integrationen Verbindung trennen und erneut verbinden.`;
+  }
+
+  if (context.errorCode === 190) {
+    return `${platformLabel}: Zugriffstoken ungültig oder abgelaufen — unter Einstellungen → Integrationen erneut verbinden.`;
+  }
+
   if (lower.includes("does not have the capability")) {
     if (context.feature === "messages") {
       if (context.platform === "instagram") {
@@ -25,12 +41,9 @@ export function formatMetaGraphError(
     return `${platformLabel}: Die Meta-App hat für diesen Aufruf keine Freigabe (App Review / Advanced Access prüfen).`;
   }
 
-  if (
-    lower.includes("unknown error has occurred") ||
-    lower.includes("(#")
-  ) {
+  if (lower.includes("unknown error has occurred")) {
     if (context.feature === "news") {
-      return `${platformLabel} News: Meta-API-Fehler — Verbindung unter Einstellungen → Integrationen prüfen und ggf. erneut verbinden (pages_read_engagement / instagram_basic).`;
+      return `${platformLabel} News: Meta meldet einen unbekannten Fehler — Verbindung trennen und erneut verbinden (benötigt: ${newsScopeHint(context.platform)}).`;
     }
     if (context.feature === "messages") {
       return `${platformLabel}-Chats: Meta-API-Fehler — Messaging-Berechtigungen und App-Review-Status prüfen.`;

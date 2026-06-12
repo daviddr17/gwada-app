@@ -22,7 +22,10 @@ function metaGraphFailure(
       ? ` [${code}${sub != null ? `/${sub}` : ""}]`
       : "";
   const raw = body.error?.message ?? `meta_graph_${status}`;
-  return `${formatMetaGraphError(raw, context)}${detail}`;
+  return `${formatMetaGraphError(raw, {
+    ...context,
+    errorCode: code ?? null,
+  })}${detail}`;
 }
 
 export async function metaGraphGet<T>(

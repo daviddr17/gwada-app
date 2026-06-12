@@ -7,6 +7,7 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
+import { metaNewsScopeError } from "@/lib/integrations/meta-integration-scopes";
 import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
@@ -42,7 +43,7 @@ async function getIgAuth(restaurantId: string) {
   const igId = row.config.instagram_business_account_id?.trim();
   const token = row.config.page_access_token?.trim();
   if (!igId || !token) return { error: "instagram_token_missing" as const };
-  return { igId, token };
+  return { igId, token, grantedScopes: row.config.granted_scopes ?? [] };
 }
 
 export const instagramNewsConnector: NewsPlatformConnector = {
@@ -56,6 +57,8 @@ export const instagramNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getIgAuth(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "instagram_not_connected" };
+    const scopeError = metaNewsScopeError("instagram", auth.grantedScopes);
+    if (scopeError) return { error: scopeError };
     const basicFields =
       "id,caption,timestamp,media_type,media_url,permalink";
     const insightFields = `${basicFields},like_count,comments_count`;

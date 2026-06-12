@@ -18,7 +18,13 @@ export async function triggerSendContactMessage(body: {
   contactId: string;
   messageBody: string;
   direction: "inbound" | "outbound";
-  channels: ("gwada" | "whatsapp" | "email")[];
+  channels: (
+    | "gwada"
+    | "whatsapp"
+    | "email"
+    | "facebook"
+    | "instagram"
+  )[];
   reservationId?: string | null;
   restaurantName?: string | null;
   files?: File[];
@@ -80,6 +86,14 @@ const CHANNEL_ERROR_DE: Record<string, string> = {
   mime_not_allowed: "Dateityp nicht erlaubt.",
   contact_already_reviewed:
     "Dieser Kontakt hat bereits eine Gwada-Bewertung abgegeben. Es kann kein neuer Einladungslink verschickt werden.",
+  "meta:meta_not_connected":
+    "Facebook/Instagram ist nicht verbunden — unter Einstellungen → Integrationen prüfen.",
+  meta_not_connected:
+    "Facebook/Instagram ist nicht verbunden — unter Einstellungen → Integrationen prüfen.",
+  "facebook:no_messaging_id":
+    "Keine Messenger-ID für diesen Kontakt hinterlegt.",
+  "instagram:no_messaging_id":
+    "Keine Instagram-ID für diesen Kontakt hinterlegt.",
 };
 
 function formatChannelErrors(errors: string[] | undefined): string | null {
@@ -100,6 +114,13 @@ function formatChannelErrors(errors: string[] | undefined): string | null {
   if (em) {
     const detail = em.replace(/^email:/, "");
     return `E-Mail-Versand fehlgeschlagen: ${detail}`;
+  }
+  const meta = errors.find(
+    (e) => e.startsWith("facebook:") || e.startsWith("instagram:"),
+  );
+  if (meta) {
+    const detail = meta.replace(/^(facebook|instagram):/, "");
+    return `Messenger/Instagram-Versand fehlgeschlagen: ${detail}`;
   }
   return "Einige Kanäle konnten nicht zugestellt werden.";
 }
@@ -135,6 +156,48 @@ export async function triggerEmailInboxSend(body: {
       fetchBody = JSON.stringify(body);
     }
     const res = await fetch("/api/contact-messages/email/send", {
+      method: "POST",
+      headers,
+      body: fetchBody,
+    });
+    const data = (await res.json().catch(() => ({}))) as SendContactMessageApiResult;
+    if (!res.ok) {
+      const code = typeof data.error === "string" ? data.error : `http_${res.status}`;
+      return { ok: false, error: code, errors: data.errors };
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function triggerMetaSendMessage(body: {
+  restaurantId: string;
+  metaContactId: string;
+  messageBody: string;
+  files?: File[];
+  voiceNote?: File;
+}): Promise<SendContactMessageApiResult | null> {
+  try {
+    const hasFiles = (body.files?.length ?? 0) > 0;
+    const hasVoice = Boolean(body.voiceNote);
+    let fetchBody: BodyInit;
+    let headers: HeadersInit | undefined;
+    if (hasFiles || hasVoice) {
+      const fd = new FormData();
+      appendSendFormFields(fd, {
+        restaurantId: body.restaurantId,
+        metaContactId: body.metaContactId,
+        messageBody: body.messageBody,
+      });
+      for (const file of body.files ?? []) fd.append("files", file);
+      if (body.voiceNote) fd.append("voiceNote", body.voiceNote);
+      fetchBody = fd;
+    } else {
+      headers = { "Content-Type": "application/json" };
+      fetchBody = JSON.stringify(body);
+    }
+    const res = await fetch("/api/contact-messages/meta/send", {
       method: "POST",
       headers,
       body: fetchBody,
@@ -192,6 +255,27 @@ export async function triggerWahaSendMessage(body: {
       return { ok: false, error: code, errors: data.errors };
     }
     return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function triggerLinkMetaThreadToContact(body: {
+  restaurantId: string;
+  metaContactId: string;
+  contactId: string;
+}): Promise<{ ok: boolean; imported?: number; error?: string } | null> {
+  try {
+    const res = await fetch("/api/contact-messages/meta/link-contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return (await res.json().catch(() => null)) as {
+      ok: boolean;
+      imported?: number;
+      error?: string;
+    };
   } catch {
     return null;
   }

@@ -4,12 +4,14 @@ import type { InboxPlatformFilter } from "@/lib/constants/contact-message-platfo
 import { INBOX_FILTER_ALL } from "@/lib/constants/contact-message-platforms";
 import {
   fetchEmailConversationsClient,
+  fetchMetaConversationsClient,
   fetchWahaConversationsClient,
 } from "@/lib/contact-messages/fetch-inbox-client";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import { enrichOneConversationWithReads } from "@/lib/contact-messages/unified-inbox-read-state";
 import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
+import { parseMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { fetchConversationReadsBrowser } from "@/lib/supabase/contact-conversation-reads-db";
 import {
@@ -37,14 +39,22 @@ export async function enrichUnifiedInboxReadState(params: {
   } = await sb.auth.getUser();
   if (!user) return params.conversations;
 
-  const [gwada, whatsapp, email] = await Promise.all([
+  const [gwada, whatsapp, email, facebook, instagram] = await Promise.all([
     readsMapForPlatform(params.restaurantId, user.id, "gwada"),
     readsMapForPlatform(params.restaurantId, user.id, "whatsapp"),
     readsMapForPlatform(params.restaurantId, user.id, "email"),
+    readsMapForPlatform(params.restaurantId, user.id, "facebook"),
+    readsMapForPlatform(params.restaurantId, user.id, "instagram"),
   ]);
 
   return params.conversations.map((c) =>
-    enrichOneConversationWithReads(c, { gwada, whatsapp, email }),
+    enrichOneConversationWithReads(c, {
+      gwada,
+      whatsapp,
+      email,
+      facebook,
+      instagram,
+    }),
   );
 }
 
@@ -52,6 +62,8 @@ export async function fetchUnifiedInboxConversations(params: {
   restaurantId: string;
   whatsappConnected: boolean;
   emailConnected: boolean;
+  facebookConnected?: boolean;
+  instagramConnected?: boolean;
 }): Promise<{ data: ContactConversationPreview[]; error: Error | null }> {
   const sources: ContactConversationPreview[][] = [];
 
@@ -70,6 +82,22 @@ export async function fetchUnifiedInboxConversations(params: {
   if (params.emailConnected) {
     const em = await fetchEmailConversationsClient(params.restaurantId);
     if (!em.error) sources.push(em.data);
+  }
+
+  if (params.facebookConnected) {
+    const fb = await fetchMetaConversationsClient(
+      params.restaurantId,
+      "facebook",
+    );
+    if (!fb.error) sources.push(fb.data);
+  }
+
+  if (params.instagramConnected) {
+    const ig = await fetchMetaConversationsClient(
+      params.restaurantId,
+      "instagram",
+    );
+    if (!ig.error) sources.push(ig.data);
   }
 
   const merged = mergeInboxConversationPreviews(sources);
@@ -104,6 +132,14 @@ export async function markUnifiedInboxConversationReadClient(params: {
       restaurantId: params.restaurantId,
       conversationKey: params.contactId,
       platform: "email",
+    });
+  }
+  const meta = parseMetaPseudoContactId(params.contactId);
+  if (meta) {
+    return markConversationReadClient({
+      restaurantId: params.restaurantId,
+      conversationKey: params.contactId,
+      platform: meta.platform,
     });
   }
 

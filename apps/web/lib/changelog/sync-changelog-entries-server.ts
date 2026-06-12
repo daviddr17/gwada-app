@@ -77,20 +77,37 @@ async function insertEntry(
 ): Promise<{ entry: PlatformChangelogEntry | null; error: string | null }> {
   const { data, error } = await admin
     .from("platform_changelog_entries")
-    .insert({
-      title: input.title.trim(),
-      body: input.body.trim(),
-      published_at: input.publishedAt,
-      version: input.version?.trim() || null,
-      audience: input.audience,
-      source_git_sha: input.sourceGitSha,
-      created_by: createdBy,
-    })
+    .upsert(
+      {
+        title: input.title.trim(),
+        body: input.body.trim(),
+        published_at: input.publishedAt,
+        version: input.version?.trim() || null,
+        audience: input.audience,
+        source_git_sha: input.sourceGitSha,
+        created_by: createdBy,
+      },
+      { onConflict: "source_git_sha", ignoreDuplicates: true },
+    )
     .select(CHANGELOG_SELECT)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) {
-    return { entry: null, error: error?.message ?? "insert_failed" };
+  if (error) {
+    return { entry: null, error: error.message ?? "insert_failed" };
+  }
+
+  if (!data) {
+    const { data: existing } = await admin
+      .from("platform_changelog_entries")
+      .select(CHANGELOG_SELECT)
+      .eq("source_git_sha", input.sourceGitSha)
+      .maybeSingle();
+    if (!existing) {
+      return { entry: null, error: "insert_failed" };
+    }
+    const mappedExisting = rowToEntry(existing as ChangelogRow);
+    const { sourceGitSha: _s2, ...entryExisting } = mappedExisting;
+    return { entry: entryExisting, error: null };
   }
 
   const mapped = rowToEntry(data as ChangelogRow);

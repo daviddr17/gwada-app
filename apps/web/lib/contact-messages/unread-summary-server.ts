@@ -27,6 +27,8 @@ export async function fetchMessagesUnreadSummary(
     userId: string;
     whatsappConnected: boolean;
     emailConnected: boolean;
+    facebookConnected?: boolean;
+    instagramConnected?: boolean;
     /** Dashboard-Widget: keine volle Inbox-Liste (schlanker). */
     includeInboxConversations?: boolean;
   },

@@ -18,12 +18,15 @@ export function useDashboardSummaryQuery<T>(options: {
   ) => Promise<{ data: T | null; error: string | null }>;
   /** Realtime o. Ä. — stilles Nachladen. */
   extraRefreshEvents?: readonly string[];
+  /** False wenn Batch-Provider die Daten liefert. */
+  enabled?: boolean;
 }) {
   const {
     restaurantId,
     workspaceReady,
     fetch,
     extraRefreshEvents = EMPTY_REFRESH_EVENTS,
+    enabled = true,
   } = options;
   const hasDataRef = useDashboardHasDataRef();
   const [summary, setSummary] = useState<T | null>(null);
@@ -57,6 +60,10 @@ export function useDashboardSummaryQuery<T>(options: {
   );
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
       setSummary(null);
@@ -101,7 +108,7 @@ export function useDashboardSummaryQuery<T>(options: {
         window.removeEventListener(ev, onPoll);
       }
     };
-  }, [restaurantId, run, refreshEventsKey]);
+  }, [enabled, restaurantId, run, refreshEventsKey]);
 
   return {
     summary,

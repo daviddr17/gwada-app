@@ -9,6 +9,8 @@ import {
   GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
   useDashboardHasDataRef,
 } from "@/lib/dashboard/dashboard-widget-refresh";
+import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
   RestaurantStaffRow,
@@ -18,6 +20,8 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
 export function useDashboardStaffStats() {
+  const batchEnabled = useDashboardBatchQueryEnabled();
+  const batchSlice = useDashboardBatchSlice("staff");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const hasDataRef = useDashboardHasDataRef();
   const [summary, setSummary] = useState<DashboardStaffSummary | null>(null);
@@ -61,6 +65,8 @@ export function useDashboardStaffStats() {
   );
 
   useEffect(() => {
+    if (batchEnabled) return;
+
     if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
       hasDataRef.current = false;
       setSummary(null);
@@ -95,7 +101,19 @@ export function useDashboardStaffStats() {
       );
       window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onPoll);
     };
-  }, [restaurantId, run, hasDataRef]);
+  }, [batchEnabled, restaurantId, run, hasDataRef]);
+
+  if (batchEnabled) {
+    const payload = batchSlice.summary;
+    return {
+      summary: payload?.summary ?? null,
+      staff: payload?.staff ?? [],
+      presence: payload?.presence ?? [],
+      loading: batchSlice.loading,
+      error: batchSlice.error,
+      ready: batchSlice.ready,
+    };
+  }
 
   return {
     summary,

@@ -202,6 +202,58 @@ export async function dispatchGithubLiveAppDeploy(
   }
 }
 
+export async function dispatchGithubLiveDbDeploy(
+  ref?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const token = githubDeployToken();
+  if (!token) {
+    return {
+      ok: false,
+      error:
+        "GITHUB_DEPLOY_TOKEN fehlt — Deploy kann nicht ausgelöst werden.",
+    };
+  }
+
+  const repo = githubRepoSlug();
+  const branch = ref?.trim() || githubDeployBranch();
+
+  try {
+    const active = await fetchGithubDeployWorkflowStatus({
+      workflowFile: DB_DEPLOY_WORKFLOW_FILE,
+      label: "DB live",
+    });
+    if (active.activeRun) {
+      return {
+        ok: false,
+        error: "Ein DB-Deploy läuft bereits (GitHub Actions).",
+      };
+    }
+
+    await githubFetchJson(
+      `/repos/${repo}/actions/workflows/${DB_DEPLOY_WORKFLOW_FILE}/dispatches`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ref: branch }),
+      },
+    );
+
+    return { ok: true };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "dispatch_failed";
+    if (msg === "github_api_404") {
+      return {
+        ok: false,
+        error: `Workflow ${DB_DEPLOY_WORKFLOW_FILE} im Repo ${repo} nicht gefunden.`,
+      };
+    }
+    return {
+      ok: false,
+      error: "GitHub DB-Deploy konnte nicht gestartet werden.",
+    };
+  }
+}
+
 export async function fetchGithubHeadCommit(
   branch = githubDeployBranch(),
 ): Promise<SuperadminGithubHeadCommit & { reachable: boolean }> {

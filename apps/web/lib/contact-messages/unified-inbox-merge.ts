@@ -2,6 +2,10 @@ import type { InboxPlatformFilter } from "@/lib/constants/contact-message-platfo
 import { INBOX_FILTER_ALL } from "@/lib/constants/contact-message-platforms";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
+import {
+  isMetaPseudoContactId,
+  metaPlatformFromPseudoContactId,
+} from "@/lib/contact-messages/meta-pseudo-contact";
 import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
@@ -72,9 +76,16 @@ export function filterInboxConversationsByPlatform(
     if (filter === "email" && isEmailPseudoContactId(c.contact_id)) {
       return true;
     }
+    if (filter === "facebook" && metaPlatformFromPseudoContactId(c.contact_id) === "facebook") {
+      return true;
+    }
+    if (filter === "instagram" && metaPlatformFromPseudoContactId(c.contact_id) === "instagram") {
+      return true;
+    }
     if (
       isWahaPseudoContactId(c.contact_id) ||
-      isEmailPseudoContactId(c.contact_id)
+      isEmailPseudoContactId(c.contact_id) ||
+      isMetaPseudoContactId(c.contact_id)
     ) {
       return false;
     }
@@ -88,5 +99,7 @@ export function conversationChannelForRead(
 ): ContactMessagePlatform {
   if (isWahaPseudoContactId(contactId)) return "whatsapp";
   if (isEmailPseudoContactId(contactId)) return "email";
+  const meta = metaPlatformFromPseudoContactId(contactId);
+  if (meta) return meta;
   return "gwada";
 }

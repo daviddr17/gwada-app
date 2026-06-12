@@ -12,9 +12,7 @@ export {
 
 export {
   appModuleRootFromPath,
-  assignCrossAppModuleNavigation,
   crossAppModuleNavigation,
-  interceptAppNavigationClick,
 } from "@/lib/navigation/app-module-navigation";
 
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
-import { interceptAppNavigationClick } from "@/lib/navigation/app-module-navigation";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -14,14 +13,14 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 }
 
 /**
- * Interner App-Link: Modul- und Zonenwechsel per Full-Load (Next Soft-Nav-Fehler).
+ * Interner App-Link: Soft-Nav innerhalb der App-Zone; Zonenwechsel (Superadmin) per Full-Load.
  */
 export function AppNavLink({
   href,
   children,
   className,
   onClick,
-  prefetch = false,
+  prefetch = true,
   "aria-label": ariaLabel,
 }: {
   href: string | { pathname?: string; search?: string };
@@ -43,10 +42,7 @@ export function AppNavLink({
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;
-        if (
-          assignCrossAppWorkspaceZone(pathname, hrefStr) ||
-          interceptAppNavigationClick(pathname, hrefStr, event)
-        ) {
+        if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
           event.preventDefault();
         }
       }}

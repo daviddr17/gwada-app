@@ -1,27 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
 import { UtensilsCrossed } from "lucide-react";
 import {
   DashboardCompactInlineMetrics,
   DashboardCompactMetricPill,
 } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
-import { computeDashboardMenuSummary } from "@/lib/menu/compute-dashboard-menu-summary";
-import { useCategoriesStorage } from "@/lib/hooks/use-categories-storage";
-import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
+import { useDashboardMenuStats } from "@/lib/hooks/use-dashboard-menu-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
 export function DashboardMenuTile() {
-  const { items, isHydrated: menuReady } = useMenuStorage();
-  const { categories, isHydrated: catReady } = useCategoriesStorage();
-  const ready = menuReady && catReady;
-  const showSkeleton = useDeferredSkeleton(!ready);
-
-  const summary = useMemo(
-    () => (ready ? computeDashboardMenuSummary(items, categories) : null),
-    [ready, items, categories],
-  );
+  const { summary, loading, error, ready } = useDashboardMenuStats();
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
 
   return (
     <DashboardWidgetShell
@@ -36,7 +26,7 @@ export function DashboardMenuTile() {
       linkLabel="Zur Speisekarte"
       ready={ready}
       loading={showSkeleton}
-      error={null}
+      error={error}
     >
       {summary ? (
         <DashboardCompactInlineMetrics>

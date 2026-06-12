@@ -36,6 +36,16 @@ export type ContactPhoneRow = {
   sort_order: number;
 };
 
+export type ContactMessagingIdRow = {
+  id: string;
+  contact_id: string;
+  platform: "facebook" | "instagram";
+  external_sender_id: string;
+  label: string | null;
+  is_primary: boolean;
+  sort_order: number;
+};
+
 export type ContactListRow = {
   id: string;
   restaurant_id: string;
@@ -52,6 +62,7 @@ export type ContactListRow = {
   last_interaction_at: string | null;
   contact_emails: ContactEmailRow[];
   contact_phones: ContactPhoneRow[];
+  contact_messaging_ids: ContactMessagingIdRow[];
   reservation_count: number;
   message_count: number;
 };
@@ -85,7 +96,8 @@ const CONTACT_LIST_SELECT = `
   updated_at,
   last_interaction_at,
   contact_emails ( id, contact_id, email, label, is_primary, sort_order ),
-  contact_phones ( id, contact_id, phone_display, country_iso2, label, is_primary, sort_order )
+  contact_phones ( id, contact_id, phone_display, country_iso2, label, is_primary, sort_order ),
+  contact_messaging_ids ( id, contact_id, platform, external_sender_id, label, is_primary, sort_order )
 `;
 
 function mapContactListRow(
@@ -95,13 +107,21 @@ function mapContactListRow(
 ): ContactListRow {
   const emails = row.contact_emails;
   const phones = row.contact_phones;
+  const messagingIds = row.contact_messaging_ids;
   return {
     ...(row as Omit<
       ContactListRow,
-      "contact_emails" | "contact_phones" | "reservation_count" | "message_count"
+      | "contact_emails"
+      | "contact_phones"
+      | "contact_messaging_ids"
+      | "reservation_count"
+      | "message_count"
     >),
     contact_emails: (Array.isArray(emails) ? emails : []) as ContactEmailRow[],
     contact_phones: (Array.isArray(phones) ? phones : []) as ContactPhoneRow[],
+    contact_messaging_ids: (Array.isArray(messagingIds)
+      ? messagingIds
+      : []) as ContactMessagingIdRow[],
     reservation_count: reservationCount,
     message_count: messageCount,
   };
@@ -547,6 +567,11 @@ export function contactThreadDisplayName(row: {
 }): string {
   return formatGwadaContactTitle(contactDisplayName(row), row.company);
 }
+
+export {
+  hasMessagingPlatform,
+  primaryMessagingId,
+} from "@/lib/supabase/contact-messaging-ids-db";
 
 export function primaryEmail(row: ContactListRow): string | null {
   const sorted = [...row.contact_emails].sort(

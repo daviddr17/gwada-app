@@ -109,7 +109,7 @@ function buildMessage(input: {
   }
 
   if (input.syncState === "out_of_sync") {
-    return "Live-App ist veraltet: öffentliche URL liefert einen älteren Build als GitHub main. Push auf main oder Deploy starten.";
+    return "Live-App ist veraltet: öffentliche URL liefert einen älteren Build als GitHub main. Nach Commit/Push hier „App deployen“ starten.";
   }
 
   if (!input.liveReachable) {

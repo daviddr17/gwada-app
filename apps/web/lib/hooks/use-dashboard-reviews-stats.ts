@@ -2,10 +2,14 @@
 
 import { useCallback } from "react";
 import type { DashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
+import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
+import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
 import { useDashboardSummaryQuery } from "@/lib/hooks/use-dashboard-summary-query";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export function useDashboardReviewsStats() {
+  const batchEnabled = useDashboardBatchQueryEnabled();
+  const batchSlice = useDashboardBatchSlice("reviews");
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
 
   const loadReviews = useCallback(async (id: string) => {
@@ -30,9 +34,16 @@ export function useDashboardReviewsStats() {
     }
   }, []);
 
-  return useDashboardSummaryQuery({
+  const standalone = useDashboardSummaryQuery({
     restaurantId,
     workspaceReady,
     fetch: loadReviews,
+    enabled: !batchEnabled,
   });
+
+  if (batchEnabled) {
+    return batchSlice;
+  }
+
+  return standalone;
 }

@@ -22,7 +22,10 @@ export function mergeUnreadIntoConversations(
         last_direction: c.last_direction,
         inbound_count: c.inbound_since_preview ?? undefined,
         external_unread_count:
-          platform === "whatsapp" || platform === "email"
+          platform === "whatsapp" ||
+          platform === "email" ||
+          platform === "facebook" ||
+          platform === "instagram"
             ? c.unread_count
             : null,
       },

@@ -12,7 +12,6 @@ import {
   assertPlatformWhatsappEnabled,
 } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { fetchRestaurantFacebookIntegration } from "@/lib/supabase/restaurant-facebook-integration-db";
 import { fetchRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
@@ -57,9 +56,11 @@ export async function GET(req: Request) {
 
   let facebookConnected = false;
   if (fbPlatform.ok) {
-    const fbRow = await fetchRestaurantFacebookIntegration(
+    const fbRow = await fetchRestaurantOAuthIntegration(
       auth.supabase,
       auth.restaurantId,
+      "facebook",
+      (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
     );
     facebookConnected = fbRow?.status === "working";
   }

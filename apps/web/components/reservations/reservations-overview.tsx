@@ -60,6 +60,8 @@ import { ReservationGwadaReviewSheet } from "@/components/reservations/reservati
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ReservationsFilterDrawer } from "@/components/reservations/reservations-filter-drawer";
+import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -223,6 +225,9 @@ export function ReservationsOverview() {
 
   const dbOk =
     supabaseEnvOk && workspaceReady && workspaceRestaurantId !== null;
+  const showInitialLoadSkeleton = useDeferredSkeleton(
+    dbOk && loading && rows.length === 0,
+  );
 
   useEffect(() => {
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
@@ -752,11 +757,7 @@ export function ReservationsOverview() {
         <p className="text-center text-sm text-destructive">{loadError}</p>
       ) : null}
 
-      {dbOk && loading && rows.length === 0 ? (
-        <p className="text-center text-sm text-muted-foreground">
-          Reservierungen werden geladen …
-        </p>
-      ) : null}
+      {dbOk && showInitialLoadSkeleton ? <ReservationsOverviewSkeleton /> : null}
 
       {dbOk && !loading && visibleDays.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border/60 bg-muted/15 px-4 py-10 text-center text-sm text-muted-foreground">

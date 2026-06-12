@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { shouldSkipInboxWarmAfterBatch } from "@/lib/dashboard/dashboard-batch-warm-coordinator";
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import { fetchUnifiedInboxConversations } from "@/lib/contact-messages/unified-inbox-client";
 import {
@@ -21,6 +22,8 @@ export type UnifiedInboxSyncParams = {
   restaurantId: string;
   whatsappConnected: boolean;
   emailConnected: boolean;
+  facebookConnected: boolean;
+  instagramConnected: boolean;
 };
 
 let inflightRefresh: Promise<ContactConversationPreview[] | null> | null =
@@ -34,7 +37,7 @@ let currentPollParams: UnifiedInboxSyncParams | null = null;
 let liveDebounceTimer: number | null = null;
 
 function paramsKey(params: UnifiedInboxSyncParams): string {
-  return `${params.restaurantId}:${params.whatsappConnected}:${params.emailConnected}`;
+  return `${params.restaurantId}:${params.whatsappConnected}:${params.emailConnected}:${params.facebookConnected}:${params.instagramConnected}`;
 }
 
 export function getUnifiedInboxRefreshInflight():
@@ -95,6 +98,7 @@ function scheduleLiveRefresh(params: UnifiedInboxSyncParams) {
 }
 
 function shouldWarmOnStart(restaurantId: string): boolean {
+  if (shouldSkipInboxWarmAfterBatch(restaurantId)) return false;
   const cached = peekUnifiedInboxCache(restaurantId);
   if (!cached) return true;
   const age = peekUnifiedInboxCacheAgeMs(restaurantId);
@@ -107,6 +111,8 @@ export function useUnifiedInboxBackgroundSync(options: {
   restaurantId: string | null;
   whatsappConnected: boolean;
   emailConnected: boolean;
+  facebookConnected: boolean;
+  instagramConnected: boolean;
   connectionsReady: boolean;
 }): void {
   const {
@@ -114,12 +120,20 @@ export function useUnifiedInboxBackgroundSync(options: {
     restaurantId,
     whatsappConnected,
     emailConnected,
+    facebookConnected,
+    instagramConnected,
     connectionsReady,
   } = options;
 
   const params =
     restaurantId && connectionsReady
-      ? { restaurantId, whatsappConnected, emailConnected }
+      ? {
+          restaurantId,
+          whatsappConnected,
+          emailConnected,
+          facebookConnected,
+          instagramConnected,
+        }
       : null;
 
   const enabledRef = useRef(enabled);
@@ -158,6 +172,8 @@ export function useUnifiedInboxBackgroundSync(options: {
     restaurantId,
     whatsappConnected,
     emailConnected,
+    facebookConnected,
+    instagramConnected,
     connectionsReady,
     params,
   ]);

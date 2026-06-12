@@ -1,8 +1,6 @@
 name: Deploy app live
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -20,22 +18,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || github.sha }}
+          ref: ${{ inputs.ref || 'main' }}
 
       - name: Deploy on VPS (SSH)
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
           CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}
+          GITHUB_DEPLOY_TOKEN: ${{ secrets.GWADA_GITHUB_DEPLOY_TOKEN }}
         run: |
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
             echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
             echo "Einmalig: Deploy-Key auf VPS (ssh-copy-id), dann Secrets setzen."
             echo "Alternativ lokal: npm run deploy:app:live"
-            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-              exit 1
-            fi
-            exit 0
+            exit 1
           fi
           mkdir -p ~/.ssh
           printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
@@ -44,18 +40,5 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          DEPLOY_SHA="${{ github.event_name == 'push' && github.sha || inputs.ref }}"
+          DEPLOY_SHA="${{ inputs.ref || 'main' }}"
           bash scripts/deploy-app-live.sh "${DEPLOY_SHA}"
-
-      - name: Changelog sync (optional)
-        continue-on-error: true
-        env:
-          CHANGELOG_SYNC_URL: ${{ secrets.CHANGELOG_SYNC_URL }}
-          CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}
-          CHANGELOG_GIT_RANGE: ${{ github.event_name == 'push' && format('{0}..{1}', github.event.before, github.sha) || '' }}
-        run: |
-          if [ -z "$CHANGELOG_SYNC_URL" ] || [ -z "$CHANGELOG_SYNC_SECRET" ]; then
-            echo "CHANGELOG_SYNC_URL / CHANGELOG_SYNC_SECRET nicht gesetzt — Changelog-Sync übersprungen."
-            exit 0
-          fi
-          node scripts/changelog-sync-from-git.mjs

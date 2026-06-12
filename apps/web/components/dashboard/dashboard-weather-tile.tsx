@@ -70,8 +70,8 @@ export function DashboardWeatherTile() {
   const load = useCallback(async (loc: string, silent = false) => {
     const initial = !hasDataRef.current;
     if (!silent && initial) setLoading(true);
-    if (!silent) setErr(null);
-    if (!silent) setData(null);
+    if (!silent && initial) setErr(null);
+    if (!silent && initial) setData(null);
     try {
       const u = new URL("/api/weather", window.location.origin);
       u.searchParams.set("location", loc);
@@ -105,11 +105,16 @@ export function DashboardWeatherTile() {
     }
   }, []);
 
+  const locationStable = useMemo(() => {
+    if (!profileReady) return false;
+    if (profile.city?.trim()) return true;
+    return location === DEFAULT_WEATHER_LOCATION;
+  }, [profileReady, profile.city, location]);
+
   useEffect(() => {
-    if (!profileReady) return;
-    hasDataRef.current = false;
-    void load(location, false);
-  }, [profileReady, location, load]);
+    if (!locationStable) return;
+    void load(location, hasDataRef.current);
+  }, [locationStable, location, load]);
 
   useEffect(() => {
     if (!profileReady) return;

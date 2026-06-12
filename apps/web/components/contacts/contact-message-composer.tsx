@@ -9,6 +9,8 @@ import {
   useContactVoiceRecorder,
 } from "@/lib/hooks/use-contact-voice-recorder";
 import { Mail, Mic, Paperclip, Send, X } from "lucide-react";
+import { FacebookGlyph } from "@/components/icons/facebook-glyph";
+import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
   reservationNotifyRowLabelClassName,
@@ -28,10 +30,16 @@ export function ContactMessageComposer({
   sending,
   hasPhone,
   hasEmail,
+  hasFacebook = false,
+  hasInstagram = false,
   whatsappEnabled,
   emailEnabled,
+  facebookEnabled = false,
+  instagramEnabled = false,
   defaultSendWhatsapp,
   defaultSendEmail,
+  defaultSendFacebook = false,
+  defaultSendInstagram = false,
   onSend,
   placeholder = "Nachricht schreiben …",
   variant = "unified",
@@ -46,20 +54,28 @@ export function ContactMessageComposer({
   sending?: boolean;
   hasPhone: boolean;
   hasEmail: boolean;
+  hasFacebook?: boolean;
+  hasInstagram?: boolean;
   whatsappEnabled: boolean;
   emailEnabled: boolean;
+  facebookEnabled?: boolean;
+  instagramEnabled?: boolean;
   defaultSendWhatsapp?: boolean;
   defaultSendEmail?: boolean;
+  defaultSendFacebook?: boolean;
+  defaultSendInstagram?: boolean;
   onSend: (params: {
     body: string;
     sendWhatsapp: boolean;
     sendEmail: boolean;
+    sendFacebook: boolean;
+    sendInstagram: boolean;
     files?: File[];
     voiceNote?: File;
   }) => void | Promise<void>;
   placeholder?: string;
-  /** `whatsapp-only` / `email-only` / `inbox-reply` (ein Kanal). */
-  variant?: "unified" | "whatsapp-only" | "email-only" | "inbox-reply";
+  /** `whatsapp-only` / `email-only` / `meta-only` / `inbox-reply` (ein Kanal). */
+  variant?: "unified" | "whatsapp-only" | "email-only" | "meta-only" | "inbox-reply";
   /** WAHA: „tippt …“ an den Chat senden. */
   whatsappTyping?: { restaurantId: string; chatId: string } | null;
   /** Posteingang: ohne oberen Rand — Footer bringt die Trennlinie. */
@@ -87,27 +103,53 @@ export function ContactMessageComposer({
     defaultSendWhatsapp ?? false,
   );
   const [sendEmail, setSendEmail] = useState(defaultSendEmail ?? false);
+  const [sendFacebook, setSendFacebook] = useState(
+    defaultSendFacebook ?? false,
+  );
+  const [sendInstagram, setSendInstagram] = useState(
+    defaultSendInstagram ?? false,
+  );
   const isEditMode = Boolean(editWhatsappMessage);
 
   const isWhatsappOnly = variant === "whatsapp-only";
   const isEmailOnly = variant === "email-only";
+  const isMetaOnly = variant === "meta-only";
   const isInboxReply = variant === "inbox-reply";
   const canWhatsapp = isWhatsappOnly
     ? whatsappEnabled
     : whatsappEnabled && hasPhone;
   const canEmail = isEmailOnly ? emailEnabled : emailEnabled && hasEmail;
+  const canFacebook = facebookEnabled && hasFacebook;
+  const canInstagram = instagramEnabled && hasInstagram;
 
   useEffect(() => {
     if (!isInboxReply) return;
     setSendWhatsapp(defaultSendWhatsapp ?? false);
     setSendEmail(defaultSendEmail ?? false);
-  }, [isInboxReply, defaultSendWhatsapp, defaultSendEmail]);
+    setSendFacebook(defaultSendFacebook ?? false);
+    setSendInstagram(defaultSendInstagram ?? false);
+  }, [
+    isInboxReply,
+    defaultSendWhatsapp,
+    defaultSendEmail,
+    defaultSendFacebook,
+    defaultSendInstagram,
+  ]);
 
   useEffect(() => {
     if (!isInboxReply) return;
-    if (canWhatsapp && !canEmail) setSendWhatsapp(true);
-    if (canEmail && !canWhatsapp) setSendEmail(true);
-  }, [isInboxReply, canWhatsapp, canEmail]);
+    const available = [
+      canWhatsapp,
+      canEmail,
+      canFacebook,
+      canInstagram,
+    ].filter(Boolean).length;
+    if (available !== 1) return;
+    if (canWhatsapp) setSendWhatsapp(true);
+    if (canEmail) setSendEmail(true);
+    if (canFacebook) setSendFacebook(true);
+    if (canInstagram) setSendInstagram(true);
+  }, [isInboxReply, canWhatsapp, canEmail, canFacebook, canInstagram]);
 
   useEffect(() => {
     if (!editWhatsappMessage) return;
@@ -118,8 +160,19 @@ export function ContactMessageComposer({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, [editWhatsappMessage?.messageId, editWhatsappMessage?.initialBody]);
 
-  const onlyInboxWhatsapp = isInboxReply && canWhatsapp && !canEmail;
-  const onlyInboxEmail = isInboxReply && canEmail && !canWhatsapp;
+  const inboxChannelCount = [
+    canWhatsapp,
+    canEmail,
+    canFacebook,
+    canInstagram,
+  ].filter(Boolean).length;
+  const onlyInboxWhatsapp =
+    isInboxReply && canWhatsapp && inboxChannelCount === 1;
+  const onlyInboxEmail = isInboxReply && canEmail && inboxChannelCount === 1;
+  const onlyInboxFacebook =
+    isInboxReply && canFacebook && inboxChannelCount === 1;
+  const onlyInboxInstagram =
+    isInboxReply && canInstagram && inboxChannelCount === 1;
 
   const resolveSendWhatsapp = () =>
     isWhatsappOnly
@@ -137,21 +190,55 @@ export function ContactMessageComposer({
 
   const showVoice =
     !isEditMode &&
-    canWhatsapp &&
-    (isWhatsappOnly ||
-      (isInboxReply && sendWhatsapp) ||
-      (!isWhatsappOnly && !isEmailOnly && !isInboxReply && sendWhatsapp));
+    (isMetaOnly ||
+      (isInboxReply && (sendFacebook || sendInstagram)) ||
+      (canWhatsapp &&
+        (isWhatsappOnly ||
+          (isInboxReply && sendWhatsapp) ||
+          (!isWhatsappOnly &&
+            !isEmailOnly &&
+            !isMetaOnly &&
+            !isInboxReply &&
+            sendWhatsapp))));
 
   const setReplyWhatsapp = (on: boolean) => {
     if (onlyInboxWhatsapp) return;
-    if (!on && !sendEmail && canEmail) setSendEmail(true);
+    if (!on && !sendEmail && !sendFacebook && !sendInstagram) {
+      if (canEmail) setSendEmail(true);
+      else if (canFacebook) setSendFacebook(true);
+      else if (canInstagram) setSendInstagram(true);
+    }
     setSendWhatsapp(on);
   };
 
   const setReplyEmail = (on: boolean) => {
     if (onlyInboxEmail) return;
     setSendEmail(on);
-    if (!on && !sendWhatsapp && canWhatsapp) setSendWhatsapp(true);
+    if (!on && !sendWhatsapp && !sendFacebook && !sendInstagram) {
+      if (canWhatsapp) setSendWhatsapp(true);
+      else if (canFacebook) setSendFacebook(true);
+      else if (canInstagram) setSendInstagram(true);
+    }
+  };
+
+  const setReplyFacebook = (on: boolean) => {
+    if (onlyInboxFacebook) return;
+    setSendFacebook(on);
+    if (!on && !sendWhatsapp && !sendEmail && !sendInstagram) {
+      if (canWhatsapp) setSendWhatsapp(true);
+      else if (canEmail) setSendEmail(true);
+      else if (canInstagram) setSendInstagram(true);
+    }
+  };
+
+  const setReplyInstagram = (on: boolean) => {
+    if (onlyInboxInstagram) return;
+    setSendInstagram(on);
+    if (!on && !sendWhatsapp && !sendEmail && !sendFacebook) {
+      if (canWhatsapp) setSendWhatsapp(true);
+      else if (canEmail) setSendEmail(true);
+      else if (canFacebook) setSendFacebook(true);
+    }
   };
 
   const canSubmit = isEditMode
@@ -299,8 +386,24 @@ export function ContactMessageComposer({
       return;
     }
     if (!text && pendingFiles.length === 0 && !pendingVoiceNote) return;
-    if (isInboxReply && !sendWhatsapp && !sendEmail) return;
-    if (pendingVoiceNote && !resolveSendWhatsapp()) return;
+    if (
+      isInboxReply &&
+      !sendWhatsapp &&
+      !sendEmail &&
+      !sendFacebook &&
+      !sendInstagram
+    ) {
+      return;
+    }
+    if (
+      pendingVoiceNote &&
+      !resolveSendWhatsapp() &&
+      !sendFacebook &&
+      !sendInstagram &&
+      !isMetaOnly
+    ) {
+      return;
+    }
     stopWhatsappTyping();
     void onSend({
       body: text,
@@ -314,6 +417,8 @@ export function ContactMessageComposer({
         : isInboxReply
           ? sendEmail && canEmail
           : sendEmail && canEmail,
+      sendFacebook: isInboxReply ? sendFacebook && canFacebook : false,
+      sendInstagram: isInboxReply ? sendInstagram && canInstagram : false,
       files: pendingFiles.length > 0 ? pendingFiles : undefined,
       voiceNote: pendingVoiceNote ?? undefined,
     });
@@ -325,7 +430,9 @@ export function ContactMessageComposer({
   };
 
   const showInboxChannelToggles =
-    !isEditMode && isInboxReply && (canWhatsapp || canEmail);
+    !isEditMode &&
+    isInboxReply &&
+    (canWhatsapp || canEmail || canFacebook || canInstagram);
 
   const showMicIcon =
     showVoice &&
@@ -514,10 +621,56 @@ export function ContactMessageComposer({
                 </Label>
               </div>
             ) : null}
+            {canFacebook ? (
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="reply-fb"
+                  size="sm"
+                  checked={sendFacebook}
+                  disabled={disabled || sending || onlyInboxFacebook}
+                  onCheckedChange={(v) => setReplyFacebook(v === true)}
+                />
+                <Label
+                  htmlFor="reply-fb"
+                  className={cn(
+                    reservationNotifyRowLabelClassName,
+                    "cursor-pointer font-normal",
+                  )}
+                >
+                  <FacebookGlyph className="size-4 shrink-0" />
+                  Messenger
+                </Label>
+              </div>
+            ) : null}
+            {canInstagram ? (
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="reply-ig"
+                  size="sm"
+                  checked={sendInstagram}
+                  disabled={disabled || sending || onlyInboxInstagram}
+                  onCheckedChange={(v) => setReplyInstagram(v === true)}
+                />
+                <Label
+                  htmlFor="reply-ig"
+                  className={cn(
+                    reservationNotifyRowLabelClassName,
+                    "cursor-pointer font-normal",
+                  )}
+                >
+                  <InstagramGlyph className="size-4 shrink-0" />
+                  Instagram
+                </Label>
+              </div>
+            ) : null}
           </div>
         </div>
       ) : null}
-      {!isEditMode && !isWhatsappOnly && !isEmailOnly && !isInboxReply ? (
+      {!isEditMode &&
+      !isWhatsappOnly &&
+      !isEmailOnly &&
+      !isMetaOnly &&
+      !isInboxReply ? (
       <div className="space-y-2 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
         <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           Zusätzlich senden über
@@ -617,11 +770,17 @@ export function ContactMessageComposer({
             !canSubmit ||
             (isEditMode
               ? false
-              : (isWhatsappOnly && !canWhatsapp) ||
-                (isEmailOnly && !canEmail) ||
-                (isInboxReply && sendWhatsapp && !canWhatsapp) ||
-                (isInboxReply && sendEmail && !canEmail) ||
-                (isInboxReply && !sendWhatsapp && !sendEmail))
+              : isMetaOnly
+                ? false
+                : (isWhatsappOnly && !canWhatsapp) ||
+                  (isEmailOnly && !canEmail) ||
+                  (isInboxReply && sendWhatsapp && !canWhatsapp) ||
+                  (isInboxReply && sendEmail && !canEmail) ||
+                  (isInboxReply &&
+                    !sendWhatsapp &&
+                    !sendEmail &&
+                    !sendFacebook &&
+                    !sendInstagram))
           }
           onClick={submit}
         >
@@ -647,7 +806,9 @@ export function ContactMessageComposer({
                 : isWhatsappOnly ||
                     (isInboxReply && sendWhatsapp && !sendEmail)
                   ? "WhatsApp senden"
-                  : "Senden"}
+                  : isMetaOnly
+                    ? "Senden"
+                    : "Senden"}
         </Button>
       </div>
     </div>

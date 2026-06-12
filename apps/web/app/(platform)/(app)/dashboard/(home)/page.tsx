@@ -1,36 +1,63 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { SkeletonCardFrame } from "@/components/ui/skeleton";
-import { DashboardContactsTile } from "@/components/dashboard/dashboard-contacts-tile";
-import { DashboardMessagesTile } from "@/components/dashboard/dashboard-messages-tile";
-import { DashboardIntegrationsTile } from "@/components/dashboard/dashboard-integrations-tile";
-import { DashboardInventoryTile } from "@/components/dashboard/dashboard-inventory-tile";
-import { DashboardMenuTile } from "@/components/dashboard/dashboard-menu-tile";
-import { DashboardStaffTile } from "@/components/dashboard/dashboard-staff-tile";
-import { DashboardReservationsTile } from "@/components/dashboard/dashboard-reservations-tile";
-import { DashboardReviewsTile } from "@/components/dashboard/dashboard-reviews-tile";
-import { DashboardWeatherTile } from "@/components/dashboard/dashboard-weather-tile";
-import { DashboardCompactMetricsSkeleton } from "@/components/dashboard/dashboard-compact-list";
+import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
 
-function DashboardWidgetSkeleton() {
-  return (
-    <SkeletonCardFrame className="min-w-0 border-border/50 shadow-card">
-      <div className="flex items-center justify-between gap-2 px-4 py-3">
-        <Skeleton className="h-5 w-32 rounded-md" />
-        <Skeleton className="size-8 rounded-lg" />
-      </div>
-      <div className="px-4 pb-4">
-        <DashboardCompactMetricsSkeleton count={3} />
-      </div>
-    </SkeletonCardFrame>
-  );
-}
+const dynamicTile = (
+  loader: () => Promise<{ default: React.ComponentType }>,
+) =>
+  dynamic(loader, { loading: () => <DashboardWidgetTileSkeleton /> });
+
+const DashboardContactsTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-contacts-tile").then((m) => ({
+    default: m.DashboardContactsTile,
+  })),
+);
+const DashboardMessagesTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-messages-tile").then((m) => ({
+    default: m.DashboardMessagesTile,
+  })),
+);
+const DashboardIntegrationsTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-integrations-tile").then((m) => ({
+    default: m.DashboardIntegrationsTile,
+  })),
+);
+const DashboardInventoryTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-inventory-tile").then((m) => ({
+    default: m.DashboardInventoryTile,
+  })),
+);
+const DashboardMenuTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-menu-tile").then((m) => ({
+    default: m.DashboardMenuTile,
+  })),
+);
+const DashboardStaffTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-staff-tile").then((m) => ({
+    default: m.DashboardStaffTile,
+  })),
+);
+const DashboardReservationsTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-reservations-tile").then((m) => ({
+    default: m.DashboardReservationsTile,
+  })),
+);
+const DashboardReviewsTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-reviews-tile").then((m) => ({
+    default: m.DashboardReviewsTile,
+  })),
+);
+const DashboardWeatherTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-weather-tile").then((m) => ({
+    default: m.DashboardWeatherTile,
+  })),
+);
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
@@ -58,24 +85,13 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
 }
 
 export default function DashboardPage() {
-  const { visibility, order, isReady: widgetsReady } =
-    useDashboardWidgetPreferences();
+  const { visibility, order } = useDashboardWidgetPreferences();
 
   const orderedVisible = groupDashboardLayoutSections(
     order.filter((id) => visibility[id]),
   );
 
   const anyWidget = orderedVisible.length > 0;
-
-  if (!widgetsReady) {
-    return (
-      <div className="grid gap-4 pt-2 lg:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <DashboardWidgetSkeleton key={i} />
-        ))}
-      </div>
-    );
-  }
 
   if (!anyWidget) {
     return (

@@ -3,6 +3,7 @@ import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summar
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
+import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,10 +19,13 @@ export async function GET(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const [wahaConfig, imapCreds] = await Promise.all([
-    getWahaServerConfigAdmin(),
-    resolveRestaurantImapCredentials(admin, auth.restaurantId),
-  ]);
+  const [wahaConfig, imapCreds, facebookConnected, instagramConnected] =
+    await Promise.all([
+      getWahaServerConfigAdmin(),
+      resolveRestaurantImapCredentials(admin, auth.restaurantId),
+      isMetaInboxConnected(admin, auth.restaurantId, "facebook"),
+      isMetaInboxConnected(admin, auth.restaurantId, "instagram"),
+    ]);
 
   const scope = new URL(req.url).searchParams.get("scope");
   const includeInboxConversations = scope !== "dashboard";
@@ -31,6 +35,8 @@ export async function GET(req: Request) {
     userId: auth.userId,
     whatsappConnected: Boolean(wahaConfig),
     emailConnected: Boolean(imapCreds),
+    facebookConnected,
+    instagramConnected,
     includeInboxConversations,
   });
 

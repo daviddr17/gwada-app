@@ -107,6 +107,24 @@ export function invalidateWorkspaceRestaurantCache(): void {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** Session-Credentials für synchronen localStorage-Zugriff (z. B. Dashboard-Widget-Prefs). */
+export function peekCachedWorkspaceRestaurantSession(): {
+  userKey: string;
+  restaurantId: string;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const restaurantId = sessionStorage.getItem(SESSION_RESTAURANT_ID_KEY);
+    const userKey = sessionStorage.getItem(SESSION_RESTAURANT_USER_KEY);
+    if (restaurantId && UUID_RE.test(restaurantId) && userKey) {
+      return { userKey, restaurantId };
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
 /** Synchroner Cache-Hit für sofortige UI (kein „Kein Restaurant“-Flackern beim Navigieren). */
 export function peekCachedWorkspaceRestaurantId(): string | null {
   if (typeof window === "undefined") return null;

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { ContactMessageEmojiPickerSheet } from "@/components/contacts/contact-message-emoji-picker-sheet";
 import { Button } from "@/components/ui/button";
 import { triggerWahaReaction } from "@/lib/contact-messages/trigger-waha-reaction";
+import { triggerMetaReaction } from "@/lib/contact-messages/trigger-meta-reaction";
 import type { ContactMessageReaction } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
@@ -58,6 +59,8 @@ function groupReactionsForDisplay(reactions: ContactMessageReaction[]) {
 export function ContactMessageReactions({
   reactions,
   wahaMessageId,
+  metaMessageId,
+  metaPlatform,
   restaurantId,
   outbound,
   onUpdated,
@@ -70,7 +73,9 @@ export function ContactMessageReactions({
   className,
 }: {
   reactions?: ContactMessageReaction[];
-  wahaMessageId: string;
+  wahaMessageId?: string;
+  metaMessageId?: string;
+  metaPlatform?: "facebook" | "instagram";
   restaurantId: string;
   outbound: boolean;
   onUpdated?: () => void;
@@ -98,11 +103,24 @@ export function ContactMessageReactions({
   const sendReaction = async (emoji: string) => {
     setPending(true);
     const reaction = myReaction?.emoji === emoji ? "" : emoji;
-    const result = await triggerWahaReaction({
-      restaurantId,
-      messageId: wahaMessageId,
-      reaction,
-    });
+    let result: { ok: boolean; error?: string };
+    if (metaMessageId && metaPlatform) {
+      result = await triggerMetaReaction({
+        restaurantId,
+        platform: metaPlatform,
+        messageId: metaMessageId,
+        reaction,
+      });
+    } else if (wahaMessageId) {
+      result = await triggerWahaReaction({
+        restaurantId,
+        messageId: wahaMessageId,
+        reaction,
+      });
+    } else {
+      setPending(false);
+      return;
+    }
     setPending(false);
     if (!result.ok) {
       toast.error(`Reaction: ${result.error}`);

@@ -14,7 +14,7 @@ import {
   type AppWorkspaceZone,
 } from "@/lib/navigation/workspace-zone-meta";
 
-/** Kurzer Vollbild-Übergang bei Soft-Nav innerhalb derselben Zone (selten). */
+/** Kurzer Vollbild-Übergang bei Zonenwechsel (Superadmin ↔ App). Modul-Wechsel: Soft-Nav ohne Overlay. */
 export function WorkspaceZoneTransition({
   children,
 }: {

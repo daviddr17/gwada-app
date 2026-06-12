@@ -1,8 +1,9 @@
 import { AppShell } from "@/components/layout/app-shell";
-import { AppReservationsLive } from "@/components/providers/app-reservations-live";
-import { AppStaffLive } from "@/components/providers/app-staff-live";
+import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
+import { QueryProvider } from "@/components/providers/query-provider";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
+import { DashboardWidgetPreferencesProvider } from "@/lib/contexts/dashboard-widget-preferences-context";
 import { RestaurantProfileProvider } from "@/lib/contexts/restaurant-profile-context";
 
 export default function AppLayout({
@@ -11,13 +12,16 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
+    <QueryProvider>
     <RestaurantProfileProvider>
-      <AccentColorProvider>
-        <ProfilePresenceHeartbeat />
-        <AppReservationsLive />
-        <AppStaffLive />
-        <AppShell>{children}</AppShell>
-      </AccentColorProvider>
+      <DashboardWidgetPreferencesProvider>
+        <AccentColorProvider>
+          <ProfilePresenceHeartbeat />
+          <AppModuleLiveProviders />
+          <AppShell>{children}</AppShell>
+        </AccentColorProvider>
+      </DashboardWidgetPreferencesProvider>
     </RestaurantProfileProvider>
+    </QueryProvider>
   );
 }

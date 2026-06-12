@@ -24,6 +24,49 @@ export async function fetchWahaConversationsClient(
   }
 }
 
+export async function fetchMetaConversationsClient(
+  restaurantId: string,
+  platform: "facebook" | "instagram",
+): Promise<{ data: ContactConversationPreview[]; error: string | null }> {
+  try {
+    const q = new URLSearchParams({ restaurantId, platform });
+    const res = await fetch(`/api/contact-messages/meta/conversations?${q}`);
+    const body = (await res.json()) as {
+      data?: ContactConversationPreview[];
+      error?: string;
+    };
+    if (!res.ok) {
+      return { data: [], error: body.error ?? `http_${res.status}` };
+    }
+    return { data: body.data ?? [], error: null };
+  } catch {
+    return { data: [], error: "network_error" };
+  }
+}
+
+export async function fetchMetaMessagesClient(params: {
+  restaurantId: string;
+  contactId: string;
+}): Promise<{ data: ContactMessageRow[]; error: string | null }> {
+  try {
+    const q = new URLSearchParams({
+      restaurantId: params.restaurantId,
+      contactId: params.contactId,
+    });
+    const res = await fetch(`/api/contact-messages/meta/messages?${q}`);
+    const body = (await res.json()) as {
+      data?: ContactMessageRow[];
+      error?: string;
+    };
+    if (!res.ok) {
+      return { data: [], error: body.error ?? `http_${res.status}` };
+    }
+    return { data: body.data ?? [], error: null };
+  } catch {
+    return { data: [], error: "network_error" };
+  }
+}
+
 export async function fetchEmailConversationsClient(
   restaurantId: string,
 ): Promise<{ data: ContactConversationPreview[]; error: string | null }> {

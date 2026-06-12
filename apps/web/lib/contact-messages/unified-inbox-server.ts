@@ -4,6 +4,7 @@ import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-p
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
 import { fetchEmailInboxConversations } from "@/lib/contact-messages/email-inbox-service";
+import { fetchMetaInboxConversations } from "@/lib/contact-messages/meta-inbox-service";
 import { fetchWahaInboxConversations } from "@/lib/contact-messages/waha-inbox-service";
 import {
   fetchMessageAttachmentsForRestaurant,
@@ -232,9 +233,11 @@ export async function fetchUnifiedInboxConversationsForDashboard(
     userId: string;
     whatsappConnected: boolean;
     emailConnected: boolean;
+    facebookConnected?: boolean;
+    instagramConnected?: boolean;
   },
 ): Promise<ContactConversationPreview[]> {
-  const [gwada, wa, email] = await Promise.all([
+  const [gwada, wa, email, facebook, instagram] = await Promise.all([
     fetchGwadaConversationsAdminLight(admin, params.restaurantId),
     params.whatsappConnected
       ? fetchWahaInboxConversations(admin, params.restaurantId, {
@@ -244,11 +247,19 @@ export async function fetchUnifiedInboxConversationsForDashboard(
     params.emailConnected
       ? fetchEmailInboxConversations(admin, params.restaurantId)
       : Promise.resolve({ data: [] as ContactConversationPreview[], error: null }),
+    params.facebookConnected
+      ? fetchMetaInboxConversations(admin, params.restaurantId, "facebook")
+      : Promise.resolve({ data: [] as ContactConversationPreview[], error: null }),
+    params.instagramConnected
+      ? fetchMetaInboxConversations(admin, params.restaurantId, "instagram")
+      : Promise.resolve({ data: [] as ContactConversationPreview[], error: null }),
   ]);
 
   const sources: ContactConversationPreview[][] = [gwada];
   if (wa.data.length) sources.push(wa.data);
   if (email.data?.length) sources.push(email.data);
+  if (facebook.data?.length) sources.push(facebook.data);
+  if (instagram.data?.length) sources.push(instagram.data);
 
   const merged = mergeInboxConversationPreviews(sources);
   return enrichUnifiedInboxReadStateServer(admin, {
@@ -265,6 +276,8 @@ export async function fetchUnifiedInboxConversationsServer(
     userId: string;
     whatsappConnected: boolean;
     emailConnected: boolean;
+    facebookConnected?: boolean;
+    instagramConnected?: boolean;
   },
 ): Promise<ContactConversationPreview[]> {
   const sources: ContactConversationPreview[][] = [
@@ -285,6 +298,24 @@ export async function fetchUnifiedInboxConversationsServer(
       params.restaurantId,
     );
     if (emailConvs?.length) sources.push(emailConvs);
+  }
+
+  if (params.facebookConnected) {
+    const { data: fb } = await fetchMetaInboxConversations(
+      admin,
+      params.restaurantId,
+      "facebook",
+    );
+    if (fb?.length) sources.push(fb);
+  }
+
+  if (params.instagramConnected) {
+    const { data: ig } = await fetchMetaInboxConversations(
+      admin,
+      params.restaurantId,
+      "instagram",
+    );
+    if (ig?.length) sources.push(ig);
   }
 
   const merged = mergeInboxConversationPreviews(sources);

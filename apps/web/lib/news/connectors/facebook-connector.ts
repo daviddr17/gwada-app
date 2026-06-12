@@ -7,7 +7,6 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
-import { metaNewsScopeError } from "@/lib/integrations/meta-integration-scopes";
 import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
@@ -77,7 +76,6 @@ async function getMetaAuth(restaurantId: string) {
   return {
     pageId,
     token,
-    grantedScopes: row.config.granted_scopes ?? [],
   };
 }
 
@@ -92,8 +90,6 @@ export const facebookNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getMetaAuth(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "facebook_not_connected" };
-    const scopeError = metaNewsScopeError("facebook", auth.grantedScopes);
-    if (scopeError) return { error: scopeError };
     const fetched = await fetchFacebookPosts(auth);
     if (!fetched.ok) return { error: fetched.error };
     const items: UnifiedNewsItem[] = fetched.data.map((post) => {

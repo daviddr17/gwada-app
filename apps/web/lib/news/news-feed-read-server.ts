@@ -28,9 +28,11 @@ function buildSyncMeta(
   requestedCacheable: NewsCacheablePlatform[],
 ): NewsFeedSyncMeta {
   const platformErrors: Partial<Record<NewsCacheablePlatform, string>> = {};
+  const platformItemCounts: Partial<Record<NewsCacheablePlatform, number>> = {};
   let lastSyncedAt: string | null = null;
 
   for (const row of syncRows) {
+    platformItemCounts[row.platform] = row.item_count;
     if (row.last_error) {
       platformErrors[row.platform] = row.last_error;
     }
@@ -48,7 +50,7 @@ function buildSyncMeta(
     return isNewsFeedSyncStale(row.synced_at);
   });
 
-  return { lastSyncedAt, stale, platformErrors };
+  return { lastSyncedAt, stale, platformErrors, platformItemCounts };
 }
 
 export async function readNewsFeedFromCache(

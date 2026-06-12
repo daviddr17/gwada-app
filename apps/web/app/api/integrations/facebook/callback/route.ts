@@ -1,4 +1,3 @@
-import { FACEBOOK_OAUTH_SCOPE_IDS } from "@/lib/constants/integration-oauth-scopes";
 import {
   redirectToMetaPageSelection,
   redirectWithClearedMetaPending,
@@ -124,7 +123,7 @@ export async function GET(req: Request) {
     state.restaurantId,
     page,
     tokenResult.accessToken,
-    grantedScopes.length > 0 ? grantedScopes : [...FACEBOOK_OAUTH_SCOPE_IDS],
+    grantedScopes,
   );
 
   if (error) {

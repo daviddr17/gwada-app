@@ -33,7 +33,10 @@ export async function metaGraphListFetch<T>(params: {
       code != null ? ` [${code}${sub != null ? `/${sub}` : ""}]` : "";
     return {
       ok: false,
-      error: `${formatMetaGraphError(body.error?.message, params.context)}${detail}`,
+      error: `${formatMetaGraphError(body.error?.message, {
+        ...params.context,
+        errorCode: code ?? null,
+      })}${detail}`,
     };
   }
   return { ok: true, data: body.data ?? [] };

@@ -7,16 +7,19 @@ import {
   scopeLabel,
   type IntegrationScopeMeta,
 } from "@/lib/constants/integration-oauth-scopes";
+import { isScopeEntryMissing } from "@/lib/integrations/meta-integration-scopes";
 import { cn } from "@/lib/utils";
 
 function ScopeRow({
   scope,
   granted,
+  missing,
   pending,
   showTechnicalId,
 }: {
   scope: IntegrationScopeMeta;
   granted: boolean;
+  missing: boolean;
   pending: boolean;
   showTechnicalId: boolean;
 }) {
@@ -26,9 +29,11 @@ function ScopeRow({
         "flex gap-2 rounded-lg border px-3 py-2 text-sm transition-colors",
         pending
           ? "border-border/30 bg-muted/10 opacity-60"
-          : granted
-            ? "border-border/40 bg-muted/15"
-            : "border-border/40 bg-muted/15",
+          : missing
+            ? "border-amber-500/35 bg-amber-500/5"
+            : granted
+              ? "border-border/40 bg-muted/15"
+              : "border-border/40 bg-muted/15",
       )}
     >
       {granted ? (
@@ -40,7 +45,11 @@ function ScopeRow({
         <Circle
           className={cn(
             "mt-0.5 size-4 shrink-0",
-            pending ? "text-muted-foreground/35" : "text-muted-foreground/50",
+            missing
+              ? "text-amber-700 dark:text-amber-300"
+              : pending
+                ? "text-muted-foreground/35"
+                : "text-muted-foreground/50",
           )}
           aria-hidden
         />
@@ -50,9 +59,15 @@ function ScopeRow({
           className={cn(
             "font-medium leading-snug",
             pending && "text-muted-foreground",
+            missing && "text-amber-950 dark:text-amber-50",
           )}
         >
           {scope.label}
+          {missing ? (
+            <span className="ml-2 text-xs font-normal text-amber-800 dark:text-amber-200">
+              fehlt
+            </span>
+          ) : null}
         </p>
         {scope.plannedUse ? (
           <p
@@ -113,6 +128,19 @@ export function IntegrationGrantedScopes({
 
   return (
     <div className={cn("space-y-3", className)}>
+      {!isPreview && missingCount > 0 ? (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 px-3 py-2 text-xs text-amber-950 dark:text-amber-50">
+          <p className="font-medium">
+            {missingCount} Berechtigung{missingCount === 1 ? "" : "en"} fehlen
+          </p>
+          <p className="mt-1 text-amber-900/90 dark:text-amber-100/90">
+            News, Nachrichten oder Bewertungen können ohne diese Freigaben
+            ausfallen. Verbindung trennen und beim erneuten Verbinden alle
+            Häkchen bei Meta bestätigen.
+          </p>
+        </div>
+      ) : null}
+
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted-foreground">
           {isPreview ? "Geplante Berechtigungen:" : "Freigegebene Berechtigungen:"}
@@ -141,6 +169,10 @@ export function IntegrationGrantedScopes({
             key={scope.id}
             scope={scope}
             granted={!isPreview && isScopeEntryGranted(scope, grantedOAuthIds)}
+            missing={
+              !isPreview &&
+              isScopeEntryMissing(scope, grantedOAuthIds, requestedOAuthIds)
+            }
             pending={isPreview}
             showTechnicalId={!isPreview}
           />

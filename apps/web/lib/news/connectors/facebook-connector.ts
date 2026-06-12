@@ -7,6 +7,7 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
+import { metaNewsScopeError } from "@/lib/integrations/meta-integration-scopes";
 import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
@@ -46,8 +47,9 @@ function fbPostImage(post: FbPost): string | null {
 
 async function fetchFacebookPosts(auth: { pageId: string; token: string }) {
   const attempts = [
-    `${auth.pageId}/feed?fields=${encodeURIComponent("id,message,created_time,permalink_url,attachments{media{image{src}}}")}&limit=50`,
+    `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url,full_picture")}&limit=50`,
     `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url")}&limit=50`,
+    `${auth.pageId}/feed?fields=${encodeURIComponent("id,message,created_time,permalink_url,attachments{media{image{src}}}")}&limit=50`,
   ];
   let lastError: string | null = null;
   for (const path of attempts) {
@@ -72,7 +74,11 @@ async function getMetaAuth(restaurantId: string) {
   const pageId = row.config.page_id?.trim();
   const token = row.config.page_access_token?.trim();
   if (!pageId || !token) return { error: "facebook_token_missing" as const };
-  return { pageId, token };
+  return {
+    pageId,
+    token,
+    grantedScopes: row.config.granted_scopes ?? [],
+  };
 }
 
 export const facebookNewsConnector: NewsPlatformConnector = {
@@ -86,6 +92,8 @@ export const facebookNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getMetaAuth(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "facebook_not_connected" };
+    const scopeError = metaNewsScopeError("facebook", auth.grantedScopes);
+    if (scopeError) return { error: scopeError };
     const fetched = await fetchFacebookPosts(auth);
     if (!fetched.ok) return { error: fetched.error };
     const items: UnifiedNewsItem[] = fetched.data.map((post) => {

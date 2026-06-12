@@ -10,6 +10,7 @@ import { resolveMetaInboxAuth } from "@/lib/contact-messages/meta-inbox-auth-ser
 import { metaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import { parseMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
+import { metaScopeMissingMessage } from "@/lib/integrations/meta-graph-error-message";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import type { ContactMessageAttachment } from "@/lib/types/contact-message-attachment";
@@ -78,6 +79,33 @@ export async function fetchMetaInboxConversations(
   const auth = await resolveMetaInboxAuth(admin, restaurantId, platform);
   if (!auth) return { data: [], error: "meta_not_connected" };
 
+  if (platform === "facebook" && auth.grantedScopes.length > 0) {
+    if (!auth.grantedScopes.includes("pages_messaging")) {
+      return {
+        data: [],
+        error: metaScopeMissingMessage({
+          platform: "facebook",
+          feature: "messages",
+          scopeId: "pages_messaging",
+          scopeLabel: "Messenger-Nachrichten",
+        }),
+      };
+    }
+  }
+  if (platform === "instagram" && auth.grantedScopes.length > 0) {
+    if (!auth.grantedScopes.includes("instagram_manage_messages")) {
+      return {
+        data: [],
+        error: metaScopeMissingMessage({
+          platform: "instagram",
+          feature: "messages",
+          scopeId: "instagram_manage_messages",
+          scopeLabel: "Instagram Direct-Nachrichten",
+        }),
+      };
+    }
+  }
+
   const ownIds = new Set(
     [auth.pageId, auth.igUserId].filter((id): id is string => Boolean(id)),
   );
@@ -92,7 +120,10 @@ export async function fetchMetaInboxConversations(
     limit: "50",
   });
   const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${rootId}/conversations?${q}`;
-  const { data, error } = await metaGraphGet<{ data?: MetaConversation[] }>(url);
+  const { data, error } = await metaGraphGet<{ data?: MetaConversation[] }>(url, {
+    platform,
+    feature: "messages",
+  });
   if (error) return { data: [], error };
 
   const previews: ContactConversationPreview[] = [];

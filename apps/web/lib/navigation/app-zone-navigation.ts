@@ -4,6 +4,7 @@ export {
 } from "@/lib/navigation/workspace-zone-meta";
 
 export {
+  assignCrossAppModuleNavigation,
   assignCrossAppWorkspaceZone,
   crossAppWorkspaceZone,
   navigateAppPath,

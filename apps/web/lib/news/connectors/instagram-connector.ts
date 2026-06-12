@@ -7,6 +7,7 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
+import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 const CAPABILITIES = {
@@ -55,24 +56,26 @@ export const instagramNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getIgAuth(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "instagram_not_connected" };
-    const fields = [
-      "id",
-      "caption",
-      "timestamp",
-      "media_type",
-      "media_url",
-      "permalink",
-      "like_count",
-      "comments_count",
-    ].join(",");
-    const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${auth.igId}/media?fields=${encodeURIComponent(fields)}&limit=50`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${auth.token}` },
-      cache: "no-store",
-    });
-    const body = (await res.json()) as { data?: IgMedia[]; error?: { message?: string } };
-    if (!res.ok) return { error: body.error?.message ?? `instagram_media_${res.status}` };
-    const items: UnifiedNewsItem[] = (body.data ?? []).map((m) => ({
+    const basicFields =
+      "id,caption,timestamp,media_type,media_url,permalink";
+    const insightFields = `${basicFields},like_count,comments_count`;
+    const attempts = [basicFields, insightFields];
+    let lastError: string | null = null;
+    let media: IgMedia[] = [];
+    for (const fields of attempts) {
+      const result = await metaGraphListFetch<IgMedia>({
+        path: `${auth.igId}/media?fields=${encodeURIComponent(fields)}&limit=50`,
+        token: auth.token,
+        context: { platform: "instagram", feature: "news" },
+      });
+      if (result.ok) {
+        media = result.data;
+        break;
+      }
+      lastError = result.error;
+    }
+    if (!media.length && lastError) return { error: lastError };
+    const items: UnifiedNewsItem[] = media.map((m) => ({
       id: `instagram:${m.id}`,
       platform: "instagram",
       source: "external",

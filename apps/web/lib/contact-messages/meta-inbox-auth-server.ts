@@ -12,6 +12,7 @@ export type MetaInboxAuth = {
   pageId: string;
   pageAccessToken: string;
   igUserId?: string;
+  grantedScopes: string[];
 };
 
 export async function resolveMetaInboxAuth(
@@ -32,13 +33,15 @@ export async function resolveMetaInboxAuth(
   const pageId = cfg.page_id?.trim();
   if (!pageAccessToken || !pageId) return null;
 
+  const grantedScopes = cfg.granted_scopes ?? [];
+
   if (platform === "instagram") {
     const igUserId = cfg.instagram_business_account_id?.trim();
     if (!igUserId) return null;
-    return { platform, pageId, pageAccessToken, igUserId };
+    return { platform, pageId, pageAccessToken, igUserId, grantedScopes };
   }
 
-  return { platform, pageId, pageAccessToken };
+  return { platform, pageId, pageAccessToken, grantedScopes };
 }
 
 export async function isMetaInboxConnected(

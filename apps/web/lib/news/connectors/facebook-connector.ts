@@ -7,6 +7,7 @@ import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
+import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 const CAPABILITIES = {
@@ -26,9 +27,40 @@ type FbPost = {
   created_time?: string;
   permalink_url?: string;
   full_picture?: string;
+  attachments?: {
+    data?: Array<{
+      media?: { image?: { src?: string } };
+    }>;
+  };
   likes?: { summary?: { total_count?: number } };
   comments?: { summary?: { total_count?: number } };
 };
+
+function fbPostImage(post: FbPost): string | null {
+  return (
+    post.full_picture?.trim() ||
+    post.attachments?.data?.[0]?.media?.image?.src?.trim() ||
+    null
+  );
+}
+
+async function fetchFacebookPosts(auth: { pageId: string; token: string }) {
+  const attempts = [
+    `${auth.pageId}/feed?fields=${encodeURIComponent("id,message,created_time,permalink_url,attachments{media{image{src}}}")}&limit=50`,
+    `${auth.pageId}/published_posts?fields=${encodeURIComponent("id,message,created_time,permalink_url")}&limit=50`,
+  ];
+  let lastError: string | null = null;
+  for (const path of attempts) {
+    const result = await metaGraphListFetch<FbPost>({
+      path,
+      token: auth.token,
+      context: { platform: "facebook", feature: "news" },
+    });
+    if (result.ok) return result;
+    lastError = result.error;
+  }
+  return { ok: false as const, error: lastError ?? "facebook_posts_failed" };
+}
 
 async function getMetaAuth(restaurantId: string) {
   const row = await fetchRestaurantOAuthIntegrationAdmin(
@@ -54,35 +86,23 @@ export const facebookNewsConnector: NewsPlatformConnector = {
   async fetchFeed(restaurantId) {
     const auth = await getMetaAuth(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "facebook_not_connected" };
-    const fields = [
-      "id",
-      "message",
-      "created_time",
-      "permalink_url",
-      "full_picture",
-      "likes.summary(true)",
-      "comments.summary(true)",
-    ].join(",");
-    const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${auth.pageId}/published_posts?fields=${encodeURIComponent(fields)}&limit=50`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${auth.token}` },
-      cache: "no-store",
-    });
-    const body = (await res.json()) as { data?: FbPost[]; error?: { message?: string } };
-    if (!res.ok) return { error: body.error?.message ?? `facebook_posts_${res.status}` };
-    const items: UnifiedNewsItem[] = (body.data ?? []).map((post) => ({
+    const fetched = await fetchFacebookPosts(auth);
+    if (!fetched.ok) return { error: fetched.error };
+    const items: UnifiedNewsItem[] = fetched.data.map((post) => {
+      const imageUrl = fbPostImage(post);
+      return {
       id: `facebook:${post.id}`,
       platform: "facebook",
       source: "external",
       postId: null,
       title: null,
       body: post.message?.trim() ?? "",
-      media: post.full_picture
+      media: imageUrl
         ? [
             {
               id: post.id ?? "img",
               kind: "image",
-              url: post.full_picture,
+              url: imageUrl,
               storagePath: null,
               mimeType: "image/jpeg",
               sortOrder: 0,
@@ -101,7 +121,8 @@ export const facebookNewsConnector: NewsPlatformConnector = {
         comments: post.comments?.summary?.total_count,
       },
       authorName: null,
-    }));
+    };
+    });
     return { items: items.filter((i) => i.body || i.media.length) };
   },
   async publishPost(restaurantId, _sb, input) {

@@ -47,13 +47,15 @@ export function NewsFeedSkeleton({
       aria-busy
       aria-label="News werden geladen"
       className={cn(
-        "pointer-events-none grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+        "pointer-events-none columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4",
         className,
       )}
       {...props}
     >
       {Array.from({ length: 8 }).map((_, i) => (
-        <NewsCardSkeleton key={i} withImage={i % 3 !== 2} />
+        <div key={i} className="mb-4 break-inside-avoid">
+          <NewsCardSkeleton withImage={i % 3 !== 2} />
+        </div>
       ))}
     </div>
   );

@@ -75,13 +75,12 @@ export function NewsScreen() {
     (
       data: { items?: UnifiedNewsItem[]; sync?: NewsFeedSyncMeta },
       cacheRestaurantId: string,
-      cachePlatform: NewsPlatformFilter,
     ) => {
       const nextItems = data.items ?? [];
       const nextSync = data.sync ?? null;
       setItems(nextItems);
       setSyncMeta(nextSync);
-      writeNewsFeedCache(cacheRestaurantId, cachePlatform, nextItems, nextSync);
+      writeNewsFeedCache(cacheRestaurantId, NEWS_FILTER_ALL, nextItems, nextSync);
     },
     [],
   );
@@ -90,7 +89,7 @@ export function NewsScreen() {
     async (options?: { silent?: boolean }) => {
       if (!restaurantId) return;
       const generation = ++loadGeneration.current;
-      const cached = peekNewsFeedCache(restaurantId, platformFilter);
+      const cached = peekNewsFeedCache(restaurantId, NEWS_FILTER_ALL);
       const silent = options?.silent ?? false;
 
       if (!silent) {
@@ -106,9 +105,6 @@ export function NewsScreen() {
 
       try {
         const qs = new URLSearchParams({ restaurantId });
-        if (platformFilter !== NEWS_FILTER_ALL) {
-          qs.set("platform", platformFilter);
-        }
         const res = await fetch(`/api/news?${qs}`);
         const data = (await res.json()) as {
           items?: UnifiedNewsItem[];
@@ -117,7 +113,7 @@ export function NewsScreen() {
         };
         if (generation !== loadGeneration.current) return;
         if (!res.ok) throw new Error(data.error ?? "load_failed");
-        applyFeedResponse(data, restaurantId, platformFilter);
+        applyFeedResponse(data, restaurantId);
       } catch {
         if (generation !== loadGeneration.current) return;
         if (!silent && !cached) setItems([]);
@@ -130,7 +126,7 @@ export function NewsScreen() {
         }
       }
     },
-    [restaurantId, platformFilter, applyFeedResponse],
+    [restaurantId, applyFeedResponse],
   );
 
   const refreshFeed = useCallback(() => {
@@ -155,13 +151,13 @@ export function NewsScreen() {
         error?: string;
       };
       if (!res.ok) throw new Error(data.error ?? "sync_failed");
-      applyFeedResponse(data, restaurantId, platformFilter);
+      await load({ silent: true });
     } catch {
       toast.error("Synchronisierung fehlgeschlagen.");
     } finally {
       setSyncing(false);
     }
-  }, [restaurantId, platformFilter, syncing, applyFeedResponse]);
+  }, [restaurantId, platformFilter, syncing, load]);
 
   useEffect(() => {
     void load();
@@ -194,16 +190,20 @@ export function NewsScreen() {
   }, [searchParams, canManage, router]);
 
   const filtered = useMemo(() => {
+    let list =
+      platformFilter === NEWS_FILTER_ALL
+        ? items
+        : items.filter((i) => i.platform === platformFilter);
     const q = search.trim().toLowerCase();
-    const list = q
-      ? items.filter(
-          (i) =>
-            i.body.toLowerCase().includes(q) ||
-            (i.title?.toLowerCase().includes(q) ?? false),
-        )
-      : items;
+    if (q) {
+      list = list.filter(
+        (i) =>
+          i.body.toLowerCase().includes(q) ||
+          (i.title?.toLowerCase().includes(q) ?? false),
+      );
+    }
     return sortNewsItemsByDate(list);
-  }, [items, search]);
+  }, [items, platformFilter, search]);
 
   const setPlatformFilter = (next: NewsPlatformFilter) => {
     const params = new URLSearchParams(searchParams.toString());

@@ -1,3 +1,5 @@
+"use client";
+
 import { AppMain } from "@/components/layout/app-main";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";

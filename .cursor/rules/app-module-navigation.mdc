@@ -1,0 +1,30 @@
+---
+description: App-Modul-Navigation — Soft-Nav zwischen Modulen, Full-Load nur für Zonenwechsel. Nicht ohne ausdrückliche Anfrage ändern.
+alwaysApply: true
+---
+
+# App-Modul-Navigation (fest — nicht umstellen)
+
+**Nicht** wieder auf Full-Load für Modulwechsel umstellen und **nicht** `assignCrossAppModuleNavigation` / `window.location.assign` für Sidebar-Module einführen — außer der Nutzer verlangt das **ausdrücklich**.
+
+## Verbindliches Modell
+
+| Wechsel | Verhalten |
+|---------|-----------|
+| Dashboard ↔ Speisekarte ↔ News ↔ Kontakte … (gleiche App-Zone) | **Soft-Nav** — `Link` / `router.push`; `(app)`-Layout, Provider und Client-Caches bleiben gemountet |
+| App ↔ Superadmin | **Full-Load** über `/zone/enter?next=…` (`assignCrossAppWorkspaceZone`) |
+| Untermenü im Modul (z. B. News Übersicht ↔ Einstellungen) | Soft-Nav |
+
+## Implementierung
+
+- `components/navigation/app-nav-link.tsx` — nur `assignCrossAppWorkspaceZone` im `onClick`, **kein** Modul-Full-Load
+- `lib/navigation/workspace-zone-enter.ts` — `navigateAppPath`: Zone-Full-Load, sonst `router.push`
+- `lib/navigation/app-module-navigation.ts` — `crossAppModuleNavigation` nur zur Erkennung, **nicht** für `window.location.assign`
+
+## Warum
+
+Full-Load pro Modulwechsel triggert Dashboard-Batch (~6s), Inbox-Warm, Notifications und Glocke neu — fühlt sich „ewig“ an. Soft-Nav + bestehende Caches/SWR sind der Standard.
+
+## Bei RSC-/Dashboard-Fehlern
+
+`app/(platform)/(app)/dashboard/error.tsx` nutzen — **nicht** pauschal Modul-Navigation auf Full-Load zurückdrehen.

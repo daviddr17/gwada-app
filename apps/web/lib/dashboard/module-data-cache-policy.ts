@@ -414,6 +414,36 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     ],
     status: "active",
   },
+  {
+    id: "newsFeed",
+    label: "News-Feed (Übersicht)",
+    scope: "module",
+    appModule: "News",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 5 * 60_000,
+    gcTimeMs: 30 * 60_000,
+    description:
+      "Gwada-Posts + externe Kanäle aus DB-Cache — sessionStorage pro Restaurant/Filter, Hintergrund-Refresh ohne Feed zu leeren.",
+    loadTriggers: [
+      "Mount News-Übersicht",
+      "Plattform-Filter-Wechsel",
+      "Hintergrund-Sync wenn stale (Poll 5s, max 12×)",
+    ],
+    invalidateTriggers: [
+      "Speichern/Löschen im Detail-Drawer",
+      "„Jetzt synchronisieren“",
+      "TTL 30 Min (kein sofortiges Rendern mehr)",
+    ],
+    apiEndpoints: ["/api/news", "/api/news/sync"],
+    implementationFiles: [
+      "components/news/news-screen.tsx",
+      "lib/news/news-feed-client-cache.ts",
+      "lib/news/news-feed-read-server.ts",
+    ],
+    status: "active",
+    notes:
+      "Server: restaurant_news_platform_cache + after(triggerNewsFeedSyncIfStale). Raster: CSS-Grid (chronologisch), nicht Masonry-Columns.",
+  },
 ];
 
 export const MODULE_DATA_CACHE_POLICY = Object.fromEntries(

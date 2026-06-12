@@ -11,12 +11,9 @@ import { cn } from "@/lib/utils";
 function NewsCard({
   item,
   onClick,
-  masonry = false,
 }: {
   item: UnifiedNewsItem;
   onClick?: () => void;
-  /** Abstand + break-inside für CSS-Columns (Pinterest). */
-  masonry?: boolean;
 }) {
   const preview = item.media[0];
   const dateLabel = formatNewsCardDate(item);
@@ -28,7 +25,6 @@ function NewsCard({
       onClick={onClick}
       className={cn(
         "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border",
-        masonry && "mb-4 break-inside-avoid",
         onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
       )}
     >
@@ -77,12 +73,11 @@ export function NewsMasonryGrid({
   onItemClick?: (item: UnifiedNewsItem) => void;
 }) {
   return (
-    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {items.map((item) => (
         <NewsCard
           key={item.id}
           item={item}
-          masonry
           onClick={onItemClick ? () => onItemClick(item) : undefined}
         />
       ))}

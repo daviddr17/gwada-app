@@ -23,6 +23,7 @@ import {
   Shield,
   Users,
   UtensilsCrossed,
+  Workflow,
 } from "lucide-react";
 import {
   Sidebar,
@@ -193,6 +194,20 @@ export function AppSidebar() {
                     >
                       <Database />
                       <span>Datenbank</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/lade-strategie",
+                      )}
+                      tooltip="Lade- & Cache-Strategie"
+                      render={
+                        <Link href="/superadmin/lade-strategie" prefetch />
+                      }
+                    >
+                      <Workflow />
+                      <span>Lade-Strategie</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

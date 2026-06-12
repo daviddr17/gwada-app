@@ -17,6 +17,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
   fetchSuperadminDatabaseStatus,
   triggerSuperadminLiveAppDeploy,
+  triggerSuperadminLiveDbDeploy,
 } from "@/lib/superadmin/superadmin-ops-status-api";
 import type {
   SuperadminDatabaseStatus,
@@ -232,7 +233,8 @@ export function SuperadminDatabasePanel() {
   const [status, setStatus] = useState<SuperadminDatabaseStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [deploying, setDeploying] = useState(false);
+  const [deployingApp, setDeployingApp] = useState(false);
+  const [deployingDb, setDeployingDb] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading && !status);
 
   const load = useCallback(async (silent = false) => {
@@ -245,16 +247,32 @@ export function SuperadminDatabasePanel() {
     setRefreshing(false);
   }, []);
 
-  const handleDeploy = useCallback(async () => {
-    setDeploying(true);
+  const handleDeployApp = useCallback(async () => {
+    setDeployingApp(true);
     const { ok, error } = await triggerSuperadminLiveAppDeploy();
     if (ok) {
-      toast.success("Deploy gestartet — GitHub Actions baut jetzt auf dem VPS.");
+      toast.success(
+        "App-Deploy gestartet — GitHub Actions baut jetzt auf dem VPS.",
+      );
       void load(true);
     } else {
-      toast.error(error ?? "Deploy fehlgeschlagen.");
+      toast.error(error ?? "App-Deploy fehlgeschlagen.");
     }
-    setDeploying(false);
+    setDeployingApp(false);
+  }, [load]);
+
+  const handleDeployDb = useCallback(async () => {
+    setDeployingDb(true);
+    const { ok, error } = await triggerSuperadminLiveDbDeploy();
+    if (ok) {
+      toast.success(
+        "DB-Deploy gestartet — Migrationen werden auf live angewendet.",
+      );
+      void load(true);
+    } else {
+      toast.error(error ?? "DB-Deploy fehlgeschlagen.");
+    }
+    setDeployingDb(false);
   }, [load]);
 
   useEffect(() => {
@@ -300,7 +318,7 @@ export function SuperadminDatabasePanel() {
             <CardTitle className="text-base">Live & Deploy</CardTitle>
             <SectionIntro
               what="Ist die öffentliche App auf dem Stand von GitHub main?"
-              does="Push auf main startet deploy-live-app.yml (SSH → VPS). Hier siehst du den Sync-Status, den laufenden Commit und kannst manuell deployen."
+              does="Commit und Push auf main aktualisieren nur GitHub — nicht automatisch live. Nach dem Push hier DB- und App-Deploy starten (bei Schema-Änderungen zuerst DB, dann App)."
             />
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -319,20 +337,37 @@ export function SuperadminDatabasePanel() {
             </Button>
             <Button
               type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              disabled={
+                deployingDb ||
+                !status.liveApp.triggerConfigured ||
+                Boolean(github.dbDeployWorkflow.activeRun)
+              }
+              onClick={() => void handleDeployDb()}
+            >
+              <Rocket
+                className={cn("mr-1.5 size-4", deployingDb && "animate-pulse")}
+              />
+              {deployingDb ? "Startet …" : "DB deployen"}
+            </Button>
+            <Button
+              type="button"
               size="sm"
               className={cn("rounded-xl", settingsAccentSaveButtonClassName)}
               disabled={
-                deploying ||
+                deployingApp ||
                 !status.liveApp.triggerConfigured ||
                 status.liveApp.syncState === "deploying" ||
                 Boolean(github.appDeployWorkflow.activeRun)
               }
-              onClick={() => void handleDeploy()}
+              onClick={() => void handleDeployApp()}
             >
               <Rocket
-                className={cn("mr-1.5 size-4", deploying && "animate-pulse")}
+                className={cn("mr-1.5 size-4", deployingApp && "animate-pulse")}
               />
-              {deploying ? "Startet …" : "App deployen"}
+              {deployingApp ? "Startet …" : "App deployen"}
             </Button>
           </div>
         </CardHeader>

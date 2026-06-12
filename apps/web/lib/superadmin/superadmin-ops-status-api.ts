@@ -29,6 +29,24 @@ export async function triggerSuperadminLiveAppDeploy(): Promise<{
   return { ok: true, error: null };
 }
 
+export async function triggerSuperadminLiveDbDeploy(): Promise<{
+  ok: boolean;
+  error: string | null;
+}> {
+  const res = await fetch("/api/superadmin/db-deploy/trigger", {
+    method: "POST",
+    cache: "no-store",
+  });
+  const data = (await res.json()) as { ok?: boolean; error?: string };
+  if (!res.ok) {
+    return {
+      ok: false,
+      error: data.error ?? "DB-Deploy konnte nicht gestartet werden.",
+    };
+  }
+  return { ok: true, error: null };
+}
+
 export async function fetchSuperadminIntegrationHealth(): Promise<{
   checkedAt: string;
   integrations: Partial<

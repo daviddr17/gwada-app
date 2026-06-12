@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { subscribeDashboardRefreshCoordinator } from "@/lib/dashboard/dashboard-refresh-coordinator";
 
 export const DASHBOARD_WIDGET_POLL_MS = 60_000;
 
@@ -13,17 +14,10 @@ export function dispatchDashboardWidgetsRefresh(): void {
 }
 
 /**
- * 60 s Polling nur bei sichtbarem Browser-Tab — kein Reload beim Tab-Wechsel.
+ * Hält den zentralen Refresh-Coordinator am Leben (Dashboard-Home).
  */
 export function useDashboardPageBackgroundRefresh(): void {
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      dispatchDashboardWidgetsRefresh();
-    }, DASHBOARD_WIDGET_POLL_MS);
-
-    return () => window.clearInterval(id);
-  }, []);
+  useEffect(() => subscribeDashboardRefreshCoordinator(() => {}), []);
 }
 
 /** Erstes Laden zeigt Skeleton; Folgeladungen behalten Zahlen. */

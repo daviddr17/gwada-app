@@ -68,19 +68,19 @@ export async function loadDashboardReviewsSummary(
   userId: string,
   sb: SupabaseClient,
 ): Promise<DashboardReviewsSummary> {
-  const { count: gwadaCountRaw } = await sb
+  const { data: gwadaRows, count: gwadaCountRaw } = await sb
     .from("gwada_reviews")
-    .select("*", { count: "exact", head: true })
-    .eq("restaurant_id", restaurantId);
-
-  const { data: gwadaRows } = await sb
-    .from("gwada_reviews")
-    .select("id, rating, comment, guest_display_name, created_at")
+    .select("id, rating, comment, guest_display_name, created_at", {
+      count: "exact",
+    })
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false })
-    .limit(8);
+    .limit(500);
 
-  const gwadaReviews: UnifiedReview[] = (gwadaRows ?? []).map((r) => ({
+  const gwadaAll = gwadaRows ?? [];
+  const gwadaRecentRows = gwadaAll.slice(0, 8);
+
+  const gwadaReviews: UnifiedReview[] = gwadaRecentRows.map((r) => ({
     id: r.id as string,
     platform: "gwada" as const,
     rating: Number(r.rating),
@@ -92,16 +92,9 @@ export async function loadDashboardReviewsSummary(
     externalUrl: null,
   }));
 
-  const gwadaCount = gwadaCountRaw ?? 0;
-
-  const { data: gwadaRatingRows } = await sb
-    .from("gwada_reviews")
-    .select("rating")
-    .eq("restaurant_id", restaurantId)
-    .limit(500);
-
+  const gwadaCount = gwadaCountRaw ?? gwadaAll.length;
   const gwadaAvg = averageRating(
-    (gwadaRatingRows ?? []).map((r) => ({ rating: Number(r.rating) })),
+    gwadaAll.map((r) => ({ rating: Number(r.rating) })),
   );
 
   const [googleIntegration, facebookIntegration, cachedFeed] = await Promise.all([

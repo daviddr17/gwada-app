@@ -42,29 +42,3 @@ export function crossAppModuleNavigation(fromPath: string, toPath: string): bool
   }
   return appModuleRootFromPath(fromPath) !== appModuleRootFromPath(target);
 }
-
-/** Full-Load statt Soft-Nav (vermeidet Next.js „This page couldn't load“). */
-export function assignCrossAppModuleNavigation(
-  fromPath: string,
-  toPath: string,
-): boolean {
-  const target = safeInternalPath(toPath.trim() || "/dashboard");
-  if (typeof window === "undefined" || !crossAppModuleNavigation(fromPath, target)) {
-    return false;
-  }
-  window.location.assign(target);
-  return true;
-}
-
-export function interceptAppNavigationClick(
-  fromPath: string,
-  toHref: string,
-  event: { preventDefault(): void },
-): boolean {
-  const href = typeof toHref === "string" ? toHref : String(toHref);
-  if (assignCrossAppModuleNavigation(fromPath, href)) {
-    event.preventDefault();
-    return true;
-  }
-  return false;
-}

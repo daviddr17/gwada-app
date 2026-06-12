@@ -16,7 +16,13 @@ export async function POST(req: Request) {
   let contactId = "";
   let messageBody = "";
   let direction: "inbound" | "outbound" | null = null;
-  let channels: ("gwada" | "whatsapp" | "email")[] = [];
+  let channels: (
+    | "gwada"
+    | "whatsapp"
+    | "email"
+    | "facebook"
+    | "instagram"
+  )[] = [];
   let reservationId: string | null = null;
   let restaurantName: string | null = null;
   let attachmentFiles: OutboundAttachmentFile[] = [];
@@ -47,8 +53,13 @@ export async function POST(req: Request) {
     channels = (multipart.fields.channels ?? "")
       .split(",")
       .map((c) => c.trim())
-      .filter((c): c is "gwada" | "whatsapp" | "email" =>
-        c === "gwada" || c === "whatsapp" || c === "email",
+      .filter(
+        (c): c is "gwada" | "whatsapp" | "email" | "facebook" | "instagram" =>
+          c === "gwada" ||
+          c === "whatsapp" ||
+          c === "email" ||
+          c === "facebook" ||
+          c === "instagram",
       );
     reservationId = multipart.fields.reservationId?.trim() || null;
     restaurantName = multipart.fields.restaurantName?.trim() || null;
@@ -58,7 +69,13 @@ export async function POST(req: Request) {
       contactId?: string;
       messageBody?: string;
       direction?: "inbound" | "outbound";
-      channels?: ("gwada" | "whatsapp" | "email")[];
+      channels?: (
+        | "gwada"
+        | "whatsapp"
+        | "email"
+        | "facebook"
+        | "instagram"
+      )[];
       reservationId?: string | null;
       restaurantName?: string | null;
     };

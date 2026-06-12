@@ -16,9 +16,10 @@ const REALTIME_READY_TIMEOUT_MS = 12_000;
 
 /**
  * Inbox-Live: Realtime auf `contact_messages` + WAHA-Signale; Fallback-Polling (5 min).
- * Läuft auf Dashboard und Kontakte — löst leisen Cache-Refresh aus (kein Voll-Polling).
+ * Läuft auf Dashboard (nur mit Nachrichten-Widget) und Kontakte — löst leisen Cache-Refresh aus.
  */
-export function useInboxLiveNotifications() {
+export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastRef = useRef(false);
@@ -28,6 +29,7 @@ export function useInboxLiveNotifications() {
   const polling = useVisibleIntervalPolling(UNIFIED_INBOX_BACKGROUND_POLL_MS);
 
   useEffect(() => {
+    if (!enabled) return;
     if (!ready || !restaurantId || !isUuidRestaurantId(restaurantId)) return;
 
     messagesLiveRef.current = false;
@@ -126,7 +128,7 @@ export function useInboxLiveNotifications() {
       teardownMessages();
       teardownSignals();
     };
-  }, [ready, restaurantId, polling.start, polling.stop]);
+  }, [enabled, ready, restaurantId, polling.start, polling.stop]);
 }
 
 /** @deprecated Alias — nutze {@link useInboxLiveNotifications}. */

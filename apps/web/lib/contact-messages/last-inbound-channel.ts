@@ -2,7 +2,12 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 
-export type ReplyChannel = "gwada" | "whatsapp" | "email";
+export type ReplyChannel =
+  | "gwada"
+  | "whatsapp"
+  | "email"
+  | "facebook"
+  | "instagram";
 
 /** Letzter Kanal, über den der Gast geschrieben hat (für Antwort-Default). */
 export function lastInboundReplyChannel(
@@ -12,7 +17,15 @@ export function lastInboundReplyChannel(
     const m = messages[i];
     if (m.direction !== "inbound") continue;
     const p = messageDisplayPlatform(m);
-    if (p === "whatsapp" || p === "email" || p === "gwada") return p;
+    if (
+      p === "whatsapp" ||
+      p === "email" ||
+      p === "gwada" ||
+      p === "facebook" ||
+      p === "instagram"
+    ) {
+      return p;
+    }
   }
   return "gwada";
 }
@@ -20,21 +33,45 @@ export function lastInboundReplyChannel(
 /** Posteingang: Standard-Schalter für externe Kanäle (mehrfach wählbar). */
 export function inboxReplySendDefaults(
   messages: ContactMessageRow[],
-  opts: { canWhatsapp: boolean; canEmail: boolean },
-): { whatsapp: boolean; email: boolean } {
+  opts: {
+    canWhatsapp: boolean;
+    canEmail: boolean;
+    canFacebook: boolean;
+    canInstagram: boolean;
+  },
+): {
+  whatsapp: boolean;
+  email: boolean;
+  facebook: boolean;
+  instagram: boolean;
+} {
+  const none = {
+    whatsapp: false,
+    email: false,
+    facebook: false,
+    instagram: false,
+  };
   const last = lastInboundReplyChannel(messages);
   if (last === "whatsapp") {
-    return { whatsapp: opts.canWhatsapp, email: false };
+    return { ...none, whatsapp: opts.canWhatsapp };
   }
   if (last === "email") {
-    return { whatsapp: false, email: opts.canEmail };
+    return { ...none, email: opts.canEmail };
+  }
+  if (last === "facebook") {
+    return { ...none, facebook: opts.canFacebook };
+  }
+  if (last === "instagram") {
+    return { ...none, instagram: opts.canInstagram };
   }
   if (last === "gwada") {
-    if (opts.canWhatsapp) return { whatsapp: true, email: false };
-    if (opts.canEmail) return { whatsapp: false, email: true };
-    return { whatsapp: false, email: false };
+    if (opts.canWhatsapp) return { ...none, whatsapp: true };
+    if (opts.canEmail) return { ...none, email: true };
+    if (opts.canFacebook) return { ...none, facebook: true };
+    if (opts.canInstagram) return { ...none, instagram: true };
+    return none;
   }
-  return { whatsapp: opts.canWhatsapp, email: false };
+  return { ...none, whatsapp: opts.canWhatsapp };
 }
 
 export function lastInboundPlatform(

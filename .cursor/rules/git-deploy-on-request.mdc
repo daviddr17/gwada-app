@@ -9,20 +9,21 @@ Wenn der Nutzer ausdrücklich will, dass Änderungen **live gehen**, **auf Git d
 
 **Vollständiges Live-Deploy:** immer `live-deploy-on-request.mdc` — **nach Push** zusätzlich **`deploy-live-db.yml`** per `gh` (Migrationen), nicht nur App. Nur wenn der Nutzer **ausdrücklich** „ohne DB“ / „nur Code“ sagt: unten ab Schritt 2 ohne DB-Schritt.
 
-**App-Deploy-Modell:** `live-app-deploy.mdc` — Push auf `main` → **GitHub Action** `deploy-live-app.yml`; Verifikation über **`/api/build-info`**. Kein Coolify-Auto-Deploy.
+**App-Deploy-Modell:** `live-app-deploy.mdc` — Push auf `main` **deployt nicht automatisch**; danach Superadmin **DB/App deployen** oder `gh workflow run` für `deploy-live-db.yml` / `deploy-live-app.yml`. Verifikation über **`/api/build-info`**. Kein Coolify-Auto-Deploy.
 
 1. **Nur dann** committen und pushen — nie proaktiv ohne diese Anfrage.
 2. Parallel ausführen: `git status`, `git diff` (staged + unstaged), `git log -1 --oneline`, prüfen ob Branch mit `origin` synchron ist.
-3. **Branch:** Standard **`main`** (löst Live-Action aus). Anderer Branch nur, wenn der Nutzer ihn nennt.
+3. **Branch:** Standard **`main`**. Anderer Branch nur, wenn der Nutzer ihn nennt.
 4. **Nicht committen:** `.env.local`, `.env.production`, Secrets, Credentials. Warnen, falls gewünscht.
 5. Sinnvolle Commit-Message (1–2 Sätze, „why“), via HEREDOC.
 6. `git add` für alle relevanten Änderungen → `git commit` → `git push -u origin <branch>` (Netzwerk/`git_write` nötig).
 7. Nach Push **Live-DB** (Pflicht bei Live-Anfrage, siehe `live-deploy-on-request.mdc`):
-   - `gh workflow run deploy-live-db.yml --ref main` und `gh run watch --workflow=deploy-live-db.yml --exit-status` (oder Run-Link + Status)
-8. Nach Erfolg kurz bestätigen (siehe `live-app-deploy.mdc`):
+   - `gh workflow run deploy-live-db.yml --ref main` und `gh run watch --workflow=deploy-live-db.yml --exit-status` (oder Nutzer startet Superadmin **DB deployen**)
+8. **Live-App** (Pflicht bei Live-Anfrage):
+   - `gh workflow run deploy-live-app.yml --ref main` und `gh run watch --workflow=deploy-live-app.yml --exit-status` (oder Nutzer startet Superadmin **App deployen**)
+9. Nach Erfolg kurz bestätigen (siehe `live-app-deploy.mdc`):
    - **DB:** Migrationen / `deploy-live-db`-Run
-   - Branch + Commit-Hash; `curl https://new.gwada.app/api/build-info` — `sha` soll Commit entsprechen
-   - `gh run list --workflow=deploy-live-app.yml --limit 1` (App-Deploy)
-8. Bei Push-Fehlern (Auth, Reject): Fehler melden, Nutzer um Login/Token bitten — nicht force-pushen.
+   - **App:** Branch + Commit-Hash; `curl https://new.gwada.app/api/build-info` — `sha` soll Commit entsprechen
+10. Bei Push-Fehlern (Auth, Reject): Fehler melden, Nutzer um Login/Token bitten — nicht force-pushen.
 
 Trigger-Beispiele: „jetzt live“, „alles auf git deployen“, „push to github“, „deployen“.

@@ -1,24 +1,34 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { INGREDIENT_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { createId } from "@/lib/create-id";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { SEED_INGREDIENTS } from "@/lib/data/inventory-seeds";
+import {
+  getModuleCacheGcTime,
+  getModuleCacheStaleTime,
+} from "@/lib/dashboard/module-data-cache-policy";
+import {
+  fetchIngredientsForRestaurant,
+  peekIngredientsCache,
+} from "@/lib/inventory/ingredients-query";
 import { toastStorageError } from "@/lib/persist-notify";
+import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
+import { queryKeys } from "@/lib/query/query-keys";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
   inventoryRelationalPersistenceEnabled,
-  loadIngredientsRelational,
   saveIngredientsRelational,
 } from "@/lib/supabase/inventory-db";
-import { migrateIngredientsFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
   mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { Ingredient, NewIngredient } from "@/lib/types/inventory";
 import type {
   IngredientStockLogDeliveryReverted,
@@ -269,44 +279,42 @@ export type UpdateIngredientOptions = {
 };
 
 export function useIngredientsStorage() {
+  const queryClient = useQueryClient();
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
   const useDbInventory = inventoryRelationalPersistenceEnabled();
 
-  const [ingredients, setIngredients] = useState<Ingredient[]>(() =>
+  const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(() =>
     supabaseOnly ? [] : [...SEED_INGREDIENTS],
   );
-  const [isHydrated, setIsHydrated] = useState(!useDbInventory);
+  const [isLocalHydrated, setIsLocalHydrated] = useState(!useDbInventory);
   const updateSaveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
+  );
+
+  const ingredientsQuery = useQuery({
+    queryKey: queryKeys.inventory.ingredients(restaurantId ?? ""),
+    queryFn: fetchIngredientsForRestaurant,
+    enabled: useDbInventory && workspaceReady && Boolean(restaurantId),
+    staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
+    gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
+    placeholderData: (previous) =>
+      previous ?? peekIngredientsCache() ?? undefined,
+  });
+
+  const afterInventoryMutation = useCallback(
+    (options?: { stockChanged?: boolean }) => {
+      if (restaurantId) {
+        invalidateInventoryQueries(queryClient, restaurantId, options);
+      }
+    },
+    [queryClient, restaurantId],
   );
 
   useEffect(() => {
     let cancelled = false;
     if (useDbInventory) {
-      const fromLocal = parseIngredientsFromUnknown(
-        loadWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY),
-      );
-      if (fromLocal?.length) {
-        setIngredients(fromLocal);
-      }
-      setIsHydrated(true);
-
-      void (async () => {
-        const rid = await getWorkspaceRestaurantId();
-        if (rid) {
-          await migrateIngredientsFromLegacyAppStateIfEmpty(rid, [...SEED_INGREDIENTS]);
-        }
-        const rows = await loadIngredientsRelational(rid);
-        if (cancelled) return;
-        if (rows === null) {
-          setIngredients([...SEED_INGREDIENTS]);
-        } else {
-          setIngredients(rows);
-          mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, rows);
-        }
-        setIsHydrated(true);
-      })();
       return () => {
         cancelled = true;
       };
@@ -314,8 +322,8 @@ export function useIngredientsStorage() {
 
     if (supabaseOnly) {
       if (cancelled) return;
-      setIngredients([]);
-      setIsHydrated(true);
+      setLocalIngredients([]);
+      setIsLocalHydrated(true);
       return () => {
         cancelled = true;
       };
@@ -324,21 +332,30 @@ export function useIngredientsStorage() {
     const fromLocal = parseIngredientsFromUnknown(
       loadWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY),
     );
-    const stored = loadFromStorage();
-    const next = fromLocal ?? stored;
+    const next = fromLocal ?? peekIngredientsCache();
     if (next?.length) {
       mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
     }
     if (cancelled) return;
     requestAnimationFrame(() => {
       if (cancelled) return;
-      if (next && next.length) setIngredients(next);
-      setIsHydrated(true);
+      if (next && next.length) setLocalIngredients(next);
+      setIsLocalHydrated(true);
     });
     return () => {
       cancelled = true;
     };
   }, [supabaseOnly, useDbInventory]);
+
+  const ingredients = useDbInventory
+    ? (ingredientsQuery.data ?? peekIngredientsCache() ?? [])
+    : localIngredients;
+  const isHydrated = useDbInventory
+    ? workspaceReady &&
+      (ingredientsQuery.isSuccess ||
+        ingredientsQuery.isError ||
+        Boolean(peekIngredientsCache()?.length))
+    : isLocalHydrated;
 
   useEffect(
     () => () => {
@@ -353,9 +370,10 @@ export function useIngredientsStorage() {
     async (
       next: Ingredient[],
       toastKind?: "add" | "remove" | "update",
+      options?: { stockChanged?: boolean },
     ): Promise<boolean> => {
       if (useDbInventory) {
-        const rid = await getWorkspaceRestaurantId();
+        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
         if (!rid) {
           failSave();
           return false;
@@ -365,7 +383,11 @@ export function useIngredientsStorage() {
           failSave();
           return false;
         }
-        setIngredients(next);
+        queryClient.setQueryData(queryKeys.inventory.ingredients(rid), next);
+        mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
+        afterInventoryMutation({
+          stockChanged: options?.stockChanged ?? toastKind === "update",
+        });
         if (toastKind === "add") {
           toast.success("Zutat angelegt");
         } else if (toastKind === "remove") {
@@ -383,11 +405,11 @@ export function useIngredientsStorage() {
       }
 
       return new Promise((resolve) => {
-        setIngredients((prev) => {
+        setLocalIngredients((prev) => {
           void (async () => {
             const ok = mirrorWorkspaceJsonLocal(INGREDIENT_STORAGE_KEY, next);
             if (!ok) {
-              setIngredients(prev);
+              setLocalIngredients(prev);
               failSave();
               resolve(false);
               return;
@@ -411,7 +433,7 @@ export function useIngredientsStorage() {
         });
       });
     },
-    [failSave, useDbInventory],
+    [afterInventoryMutation, failSave, queryClient, restaurantId, useDbInventory],
   );
 
   const addIngredient = useCallback(
@@ -507,7 +529,10 @@ export function useIngredientsStorage() {
         };
       });
 
-      return persist(mapped, "update");
+      const stockChanged =
+        patch.currentStock !== undefined ||
+        patch.lowStockThreshold !== undefined;
+      return persist(mapped, "update", { stockChanged });
     },
     [ingredients, persist],
   );

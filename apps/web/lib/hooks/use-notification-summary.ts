@@ -1,112 +1,116 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useEffect, useRef } from "react";
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
-import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
-import { fetchNotificationSummaryClient } from "@/lib/notifications/fetch-notifications-client";
+import {
+  fetchNotificationSummaryClient,
+  markNotificationReadClient,
+} from "@/lib/notifications/fetch-notifications-client";
 import {
   GWADA_NOTIFICATIONS_REFRESH_EVENT,
   dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
-import { NOTIFICATION_BELL_POLL_MS } from "@/lib/notifications/notification-preferences";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
-import { markNotificationReadClient } from "@/lib/notifications/fetch-notifications-client";
+import {
+  NOTIFICATION_SUMMARY_GC_MS,
+  NOTIFICATION_SUMMARY_REFETCH_MS,
+  NOTIFICATION_SUMMARY_STALE_MS,
+} from "@/lib/query/dashboard-query-policy";
+import { queryKeys } from "@/lib/query/query-keys";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
+const MESSAGES_REFRESH_DEBOUNCE_MS = 3_000;
+
 export function useNotificationSummary() {
+  const queryClient = useQueryClient();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const hasDataRef = useRef(false);
-  const [summary, setSummary] = useState<NotificationSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const messagesDebounceRef = useRef<number | null>(null);
 
   const ready =
     workspaceReady &&
     Boolean(restaurantId && isUuidRestaurantId(restaurantId));
 
+  const query = useQuery({
+    queryKey: queryKeys.notifications.summary(restaurantId ?? ""),
+    queryFn: async (): Promise<NotificationSummary> => {
+      const { data, error } = await fetchNotificationSummaryClient(
+        restaurantId!,
+      );
+      if (!data) throw new Error(error ?? "notification_summary_failed");
+      return data;
+    },
+    enabled: ready,
+    staleTime: NOTIFICATION_SUMMARY_STALE_MS,
+    gcTime: NOTIFICATION_SUMMARY_GC_MS,
+    refetchInterval: () =>
+      typeof document !== "undefined" &&
+      document.visibilityState === "visible"
+        ? NOTIFICATION_SUMMARY_REFETCH_MS
+        : false,
+    refetchIntervalInBackground: false,
+    placeholderData: (previous) => previous,
+  });
+
   const refresh = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!restaurantId || !isUuidRestaurantId(restaurantId)) return;
-
-      if (!opts?.silent && !hasDataRef.current) {
-        setIsLoading(true);
-      }
-
-      const { data, error: fetchError } =
-        await fetchNotificationSummaryClient(restaurantId);
-
-      if (!data && fetchError) {
-        setError(fetchError);
-        if (!hasDataRef.current) {
-          setSummary(null);
-        }
-        setIsLoading(false);
+      if (opts?.silent) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.notifications.summaryRoot(restaurantId),
+          refetchType: "active",
+        });
         return;
       }
-
-      if (data) {
-        setSummary(data);
-        hasDataRef.current = true;
-        setError(null);
-      }
-      setIsLoading(false);
+      await query.refetch();
     },
-    [restaurantId],
+    [query, queryClient, restaurantId],
   );
 
   useEffect(() => {
-    if (!ready || !restaurantId) {
-      hasDataRef.current = false;
-      setSummary(null);
-      setError(null);
-      setIsLoading(true);
-      return;
-    }
+    if (!ready || !restaurantId) return;
 
-    let cancel = false;
-
-    const run = async (opts?: { silent?: boolean }) => {
-      if (cancel) return;
-      await refresh(opts);
+    const invalidate = () => {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.notifications.summaryRoot(restaurantId),
+      });
     };
 
-    void run();
-
-    const onRefresh = () => {
-      void run({ silent: true });
+    const onMessagesRefresh = () => {
+      if (messagesDebounceRef.current) {
+        window.clearTimeout(messagesDebounceRef.current);
+      }
+      messagesDebounceRef.current = window.setTimeout(() => {
+        messagesDebounceRef.current = null;
+        invalidate();
+      }, MESSAGES_REFRESH_DEBOUNCE_MS);
     };
 
-    window.addEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, onRefresh);
-    window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onRefresh);
-    window.addEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onRefresh);
-    window.addEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onRefresh);
-
-    const interval = window.setInterval(
-      () => void run({ silent: true }),
-      NOTIFICATION_BELL_POLL_MS,
+    window.addEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
+    window.addEventListener(
+      GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
+      onMessagesRefresh,
     );
+    window.addEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, invalidate);
 
     return () => {
-      cancel = true;
-      window.clearInterval(interval);
-      window.removeEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, onRefresh);
+      if (messagesDebounceRef.current) {
+        window.clearTimeout(messagesDebounceRef.current);
+      }
+      window.removeEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
       window.removeEventListener(
         GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
-        onRefresh,
-      );
-      window.removeEventListener(
-        GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT,
-        onRefresh,
+        onMessagesRefresh,
       );
       window.removeEventListener(
         GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
-        onRefresh,
+        invalidate,
       );
     };
-  }, [ready, restaurantId, refresh]);
+  }, [queryClient, ready, restaurantId]);
 
   const markRead = useCallback(
     async (params: {
@@ -116,7 +120,8 @@ export function useNotificationSummary() {
     }) => {
       if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
 
-      setSummary((prev) => {
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
         if (!prev) return prev;
         const modules = prev.modules
           .map((mod) => {
@@ -149,14 +154,14 @@ export function useNotificationSummary() {
 
       return result;
     },
-    [restaurantId, refresh],
+    [queryClient, restaurantId, refresh],
   );
 
   return {
-    summary,
-    totalCount: summary?.totalCount ?? 0,
-    error,
-    isLoading: !ready || isLoading,
+    summary: query.data ?? null,
+    totalCount: query.data?.totalCount ?? 0,
+    error: query.error ? String(query.error) : null,
+    isLoading: !ready || query.isLoading,
     ready,
     refresh,
     markRead,

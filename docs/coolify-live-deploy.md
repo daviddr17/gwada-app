@@ -6,12 +6,13 @@ Coolify kann Deployments als **finished** markieren, während `new.gwada.app` no
 
 ## Lösung
 
-Jeder Push auf `main` baut ein Image mit **Git-SHA-Tag**, tauscht den Container per `docker compose up --force-recreate` aus und prüft `/api/build-info`.
+Nach **Commit + Push auf `main`** wird live **nicht** automatisch aktualisiert. Deploy startest du bewusst — z. B. Superadmin → **Live & Deploy** → **DB deployen** (bei Migrationen) → **App deployen**. Die Action baut ein Image mit **Git-SHA-Tag**, tauscht den Container per `docker compose up --force-recreate` aus und prüft `/api/build-info`.
 
 | Weg | Wann |
 |-----|------|
-| **GitHub Action** `deploy-live-app.yml` | Automatisch bei Push auf `main` (wenn Secrets gesetzt) |
-| **`npm run deploy:app:live`** | Manuell vom Mac nach Push |
+| **Superadmin** → DB / App deployen | Standard nach Push auf `main` (`GITHUB_DEPLOY_TOKEN` in App-Env) |
+| **GitHub Action** `deploy-live-app.yml` / `deploy-live-db.yml` | Nur `workflow_dispatch` (manuell oder per API) |
+| **`npm run deploy:app:live`** | Alternativ App-Deploy vom Mac |
 
 ## Superadmin → Datenbank
 
@@ -35,10 +36,11 @@ GitHub Repository Secrets (für SSH-Deploy):
 |--------|--------|
 | `LIVE_SSH_KEY` | Privater SSH-Key (`~/.ssh/id_ed25519`), der auf dem VPS root-Zugang hat |
 | `LIVE_VPS_HOST` | `95.111.229.250` |
+| `GWADA_GITHUB_DEPLOY_TOKEN` | PAT für Superadmin Deploy-Buttons (wird als `GITHUB_DEPLOY_TOKEN` in die App-Env geschrieben) |
 
 Optional lokal: `ssh-copy-id root@95.111.229.250`
 
-Zusätzlich in Coolify (App-Env): `GITHUB_DEPLOY_TOKEN` — Fine-grained PAT mit **Contents read** + **Actions read/write** auf dieses Repo.
+Das Secret `GWADA_GITHUB_DEPLOY_TOKEN` landet beim App-Deploy automatisch als `GITHUB_DEPLOY_TOKEN` in der Coolify-`.env` — kein manuelles Eintragen in der Coolify-UI nötig.
 
 ## Manuell deployen
 
@@ -65,7 +67,7 @@ Der Deploy-Script **ersetzt nur die Image-Zeile** (`image: '<app-uuid>:<git-sha>
 |---------|-------------------------------------------|
 | Domain, TLS, Env, Netzwerk | Baut Image + tauscht Container |
 | Optional: Status in Superadmin-UI | **Autoritativer** App-Deploy |
-| Auto-Deploy bei Git-Push | **Deaktivieren**, sonst parallele Builds |
+| Auto-Deploy bei Git-Push | **Deaktiviert** — Deploy nur manuell (Superadmin oder `gh workflow run`) |
 
 - Lock-Datei `/tmp/gwada-deploy-live-app.lock` verhindert gleichzeitige Deploys.
 - **Nicht** wieder manuell `:live-proxy` o. Ä. in `docker-compose.yaml` pinnen.

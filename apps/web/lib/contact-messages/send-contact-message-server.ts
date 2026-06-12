@@ -24,10 +24,20 @@ import type { OutboundAttachmentFile } from "@/lib/contact-messages/outbound-att
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
+import { sendMetaMessageServer } from "@/lib/contact-messages/meta-send-message-server";
+import {
+  metaPseudoContactIdForSender,
+  resolveMetaSenderIdForContact,
+} from "@/lib/contact-messages/resolve-meta-sender-server";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type SendContactMessageChannel = "gwada" | "whatsapp" | "email";
+export type SendContactMessageChannel =
+  | "gwada"
+  | "whatsapp"
+  | "email"
+  | "facebook"
+  | "instagram";
 
 export type SendContactMessageServerInput = {
   restaurantId: string;
@@ -399,6 +409,64 @@ export async function sendContactMessageServer(
           files: attachmentFiles,
         });
         if (stored.error) errors.push(`email_attachments:${stored.error}`);
+      }
+      continue;
+    }
+
+    if (channel === "facebook" || channel === "instagram") {
+      let deliveryStatus = "pending";
+
+      if (input.direction === "outbound") {
+        const senderId = await resolveMetaSenderIdForContact(admin, {
+          restaurantId: input.restaurantId,
+          contactId: input.contactId,
+          platform: channel,
+        });
+
+        if (!senderId) {
+          deliveryStatus = "failed";
+          errors.push(`${channel}:no_messaging_id`);
+        } else {
+          const sent = await sendMetaMessageServer(admin, {
+            restaurantId: input.restaurantId,
+            metaContactId: metaPseudoContactIdForSender(channel, senderId),
+            body: externalText,
+            attachmentFiles:
+              input.direction === "outbound" ? attachmentFiles : undefined,
+            voiceFile:
+              input.direction === "outbound" ? voiceFile : undefined,
+          });
+          if (sent.ok) {
+            deliveryStatus = "sent";
+          } else {
+            deliveryStatus = "failed";
+            errors.push(...sent.errors);
+          }
+        }
+      } else {
+        deliveryStatus = "delivered";
+      }
+
+      const voiceOnlyOutbound =
+        input.direction === "outbound" &&
+        voiceFile &&
+        !body &&
+        attachmentFiles.length === 0;
+      const skipDbMirror = voiceOnlyOutbound && deliveryStatus === "sent";
+
+      if (!skipDbMirror) {
+        const { error } = await insertMessage(admin, {
+          restaurant_id: input.restaurantId,
+          contact_id: input.contactId,
+          platform: channel,
+          direction: input.direction,
+          body: body || " ",
+          reservation_id: input.reservationId ?? null,
+          sent_by: input.sentBy ?? null,
+          delivery_status: deliveryStatus,
+          send_batch_id: sendBatchId,
+        });
+        if (error) errors.push(`${channel}_db:${error}`);
       }
     }
   }

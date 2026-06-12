@@ -20,6 +20,12 @@ import {
   mergeNotificationPreferences,
   type NotificationPreferences,
 } from "@/lib/notifications/notification-preferences";
+import {
+  claimNotificationDeliveries,
+  claimUnprocessedNotificationEvents,
+  releaseStaleNotificationDeliveries,
+  type ClaimedNotificationDelivery,
+} from "@/lib/notifications/notification-deliver-claim";
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -36,14 +42,8 @@ type StaffTarget = {
   restaurantId: string;
 };
 
-type DeliveryRow = {
-  id: string;
-  event_id: string;
-  profile_id: string;
-  context_restaurant_id: string;
-  channel: "whatsapp" | "email";
-  attempts: number;
-  notification_events: NotificationEventRow | NotificationEventRow[] | null;
+type DeliveryRow = ClaimedNotificationDelivery & {
+  notification_events?: NotificationEventRow | NotificationEventRow[] | null;
 };
 
 export type NotificationDeliverCronStats = {
@@ -202,27 +202,19 @@ async function fanOutEvent(
 async function processUnprocessedEvents(
   admin: SupabaseClient,
 ): Promise<{ processed: number; deliveriesCreated: number }> {
-  const { data: events, error } = await admin
-    .from("notification_events")
-    .select("id, restaurant_id, module, reference_id, payload")
-    .is("processed_at", null)
-    .order("created_at", { ascending: true })
-    .limit(NOTIFICATION_DELIVER_EVENTS_BATCH);
+  const events = await claimUnprocessedNotificationEvents(
+    admin,
+    NOTIFICATION_DELIVER_EVENTS_BATCH,
+  );
 
-  if (error || !events?.length) {
+  if (!events.length) {
     return { processed: 0, deliveriesCreated: 0 };
   }
 
   let deliveriesCreated = 0;
-  const now = new Date().toISOString();
 
   for (const event of events as NotificationEventRow[]) {
     deliveriesCreated += await fanOutEvent(admin, event);
-    await admin
-      .from("notification_events")
-      .update({ processed_at: now })
-      .eq("id", event.id)
-      .is("processed_at", null);
   }
 
   return { processed: events.length, deliveriesCreated };
@@ -270,7 +262,8 @@ async function markDeliveryOutcome(
         last_error: null,
         sent_at: now,
       })
-      .eq("id", delivery.id);
+      .eq("id", delivery.id)
+      .eq("status", "processing");
     return "sent";
   }
 
@@ -282,7 +275,8 @@ async function markDeliveryOutcome(
         attempts,
         last_error: outcome.error,
       })
-      .eq("id", delivery.id);
+      .eq("id", delivery.id)
+      .eq("status", "processing");
     return "skipped";
   }
 
@@ -296,7 +290,8 @@ async function markDeliveryOutcome(
         last_error: outcome.error,
         scheduled_at: scheduledAt,
       })
-      .eq("id", delivery.id);
+      .eq("id", delivery.id)
+      .eq("status", "processing");
     return "failed";
   }
 
@@ -307,7 +302,8 @@ async function markDeliveryOutcome(
       attempts,
       last_error: outcome.error,
     })
-    .eq("id", delivery.id);
+    .eq("id", delivery.id)
+    .eq("status", "processing");
   return "failed";
 }
 
@@ -391,6 +387,37 @@ async function deliverOne(
   });
 }
 
+async function loadEventsForDeliveries(
+  admin: SupabaseClient,
+  deliveries: ClaimedNotificationDelivery[],
+): Promise<Map<string, NotificationEventRow>> {
+  const eventIds = [...new Set(deliveries.map((d) => d.event_id))];
+  if (eventIds.length === 0) return new Map();
+
+  const { data, error } = await admin
+    .from("notification_events")
+    .select("id, restaurant_id, module, reference_id, payload")
+    .in("id", eventIds);
+
+  if (error) {
+    console.warn("[notification-deliver] load events", error.message);
+    return new Map();
+  }
+
+  const map = new Map<string, NotificationEventRow>();
+  for (const row of data ?? []) {
+    const event = row as NotificationEventRow;
+    map.set(event.id, {
+      ...event,
+      payload:
+        event.payload && typeof event.payload === "object"
+          ? event.payload
+          : {},
+    });
+  }
+  return map;
+}
+
 async function processPendingDeliveries(
   admin: SupabaseClient,
 ): Promise<{
@@ -399,20 +426,22 @@ async function processPendingDeliveries(
   failed: number;
   skipped: number;
 }> {
-  const now = new Date().toISOString();
-  const { data: due, error } = await admin
-    .from("notification_deliveries")
-    .select(
-      "id, event_id, profile_id, context_restaurant_id, channel, attempts, notification_events ( id, restaurant_id, module, reference_id, payload )",
-    )
-    .eq("status", "pending")
-    .lte("scheduled_at", now)
-    .order("scheduled_at", { ascending: true })
-    .limit(NOTIFICATION_DELIVER_SEND_BATCH);
+  await releaseStaleNotificationDeliveries(admin);
 
-  if (error || !due?.length) {
+  const claimed = await claimNotificationDeliveries(
+    admin,
+    NOTIFICATION_DELIVER_SEND_BATCH,
+  );
+
+  if (!claimed.length) {
     return { processed: 0, sent: 0, failed: 0, skipped: 0 };
   }
+
+  const eventsById = await loadEventsForDeliveries(admin, claimed);
+  const due: DeliveryRow[] = claimed.map((delivery) => ({
+    ...delivery,
+    notification_events: eventsById.get(delivery.event_id) ?? null,
+  }));
 
   const restaurantNames = new Map<string, string | null>();
   let sent = 0;
@@ -442,7 +471,7 @@ async function processPendingDeliveries(
     }
   }
 
-  return { processed: due.length, sent, failed, skipped };
+  return { processed: claimed.length, sent, failed, skipped };
 }
 
 export async function runNotificationDeliverCron(

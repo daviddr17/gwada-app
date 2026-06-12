@@ -1,28 +1,36 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import {
-  CATEGORY_STORAGE_KEY,
-  DEFAULT_CATEGORIES,
-} from "@/lib/constants/categories";
+import { CATEGORY_STORAGE_KEY } from "@/lib/constants/categories";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
+import {
+  getModuleCacheGcTime,
+  getModuleCacheStaleTime,
+} from "@/lib/dashboard/module-data-cache-policy";
+import {
+  defaultMenuCategories,
+  fetchMenuCategoriesForRestaurant,
+  peekMenuCategoriesCache,
+} from "@/lib/menu/menu-categories-query";
 import { toastStorageError } from "@/lib/persist-notify";
+import { invalidateMenuQueries } from "@/lib/query/module-query-invalidation";
+import { queryKeys } from "@/lib/query/query-keys";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
 import {
   deleteMenuCategory,
   insertMenuCategory,
-  loadMenuCategoriesRelational,
   menuRelationalPersistenceEnabled,
   reorderMenuCategoryRows,
   updateMenuCategoryRow,
 } from "@/lib/supabase/menu-db";
-import { migrateMenuCategoriesFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
   mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 
 function normalizeCategory(c: MenuCategoryDefinition): MenuCategoryDefinition {
@@ -60,45 +68,52 @@ function loadFromStorage(): MenuCategoryDefinition[] | null {
 }
 
 export function useCategoriesStorage() {
+  const queryClient = useQueryClient();
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
   const useDbMenu = menuRelationalPersistenceEnabled();
 
-  const [categories, setCategories] = useState<MenuCategoryDefinition[]>(() =>
-    DEFAULT_CATEGORIES.map(normalizeCategory),
+  const [localCategories, setLocalCategories] = useState<MenuCategoryDefinition[]>(
+    () => defaultMenuCategories(),
   );
-  const [isHydrated, setIsHydrated] = useState(!useDbMenu);
+  const [isLocalHydrated, setIsLocalHydrated] = useState(!useDbMenu);
+
+  const categoriesQuery = useQuery({
+    queryKey: queryKeys.menu.categories(restaurantId ?? ""),
+    queryFn: fetchMenuCategoriesForRestaurant,
+    enabled: useDbMenu && workspaceReady && Boolean(restaurantId),
+    staleTime: getModuleCacheStaleTime("menuModule") ?? 60_000,
+    gcTime: getModuleCacheGcTime("menuModule") ?? 5 * 60_000,
+    placeholderData: (previous) =>
+      previous ?? peekMenuCategoriesCache() ?? undefined,
+  });
+
+  const patchCategoriesCache = useCallback(
+    (updater: (prev: MenuCategoryDefinition[]) => MenuCategoryDefinition[]) => {
+      if (!restaurantId) return;
+      queryClient.setQueryData<MenuCategoryDefinition[]>(
+        queryKeys.menu.categories(restaurantId),
+        (prev) => {
+          const base = prev ?? defaultMenuCategories();
+          const next = updater(base).map(normalizeCategory);
+          mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
+          return next;
+        },
+      );
+    },
+    [queryClient, restaurantId],
+  );
+
+  const afterCategoryMutation = useCallback(() => {
+    if (restaurantId) {
+      invalidateMenuQueries(queryClient, restaurantId);
+    }
+  }, [queryClient, restaurantId]);
 
   useEffect(() => {
     let cancelled = false;
     if (useDbMenu) {
-      const cached =
-        loadFromStorage() ??
-        loadFromParsed(loadWorkspaceJsonLocal(CATEGORY_STORAGE_KEY));
-      if (cached?.length) {
-        setCategories(cached);
-      }
-      setIsHydrated(true);
-
-      void (async () => {
-        const rid = await getWorkspaceRestaurantId();
-        if (rid) {
-          await migrateMenuCategoriesFromLegacyAppStateIfEmpty(
-            rid,
-            DEFAULT_CATEGORIES.map(normalizeCategory),
-          );
-        }
-        const rows = await loadMenuCategoriesRelational(rid);
-        if (cancelled) return;
-        if (rows && rows.length > 0) {
-          const next = rows.map(normalizeCategory);
-          setCategories(next);
-          mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
-        } else {
-          setCategories(DEFAULT_CATEGORIES.map(normalizeCategory));
-        }
-        setIsHydrated(true);
-      })();
       return () => {
         cancelled = true;
       };
@@ -106,34 +121,36 @@ export function useCategoriesStorage() {
 
     if (supabaseOnly) {
       if (cancelled) return;
-      setCategories(DEFAULT_CATEGORIES.map(normalizeCategory));
-      setIsHydrated(true);
+      setLocalCategories(defaultMenuCategories());
+      setIsLocalHydrated(true);
       return () => {
         cancelled = true;
       };
     }
 
-    const stored = loadFromStorage();
     const fromLocal = loadFromParsed(loadWorkspaceJsonLocal(CATEGORY_STORAGE_KEY));
-    const next = fromLocal ?? stored;
-    if (next?.length) {
-      mirrorWorkspaceJsonLocal(
-        CATEGORY_STORAGE_KEY,
-        next.map(normalizeCategory),
-      );
-    }
+    const next = fromLocal ?? peekMenuCategoriesCache() ?? defaultMenuCategories();
+    mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next.map(normalizeCategory));
     if (cancelled) return;
     requestAnimationFrame(() => {
       if (cancelled) return;
-      if (next && next.length > 0) {
-        setCategories(next.map(normalizeCategory));
-      }
-      setIsHydrated(true);
+      setLocalCategories(next.map(normalizeCategory));
+      setIsLocalHydrated(true);
     });
     return () => {
       cancelled = true;
     };
   }, [supabaseOnly, useDbMenu]);
+
+  const categories = useDbMenu
+    ? (categoriesQuery.data ?? peekMenuCategoriesCache() ?? defaultMenuCategories())
+    : localCategories;
+  const isHydrated = useDbMenu
+    ? workspaceReady &&
+      (categoriesQuery.isSuccess ||
+        categoriesQuery.isError ||
+        Boolean(peekMenuCategoriesCache()?.length))
+    : isLocalHydrated;
 
   const addCategory = useCallback(
     async (
@@ -158,19 +175,20 @@ export function useCategoriesStorage() {
           name: trimmed,
           active: active !== false,
         };
-        setCategories((prev) => [...prev, normalizeCategory(row)]);
+        patchCategoriesCache((prev) => [...prev, normalizeCategory(row)]);
+        afterCategoryMutation();
         toast.success("Kategorie angelegt");
         return { id: ins.id, name: trimmed };
       }
       return new Promise((resolve) => {
-        setCategories((prev) => {
+        setLocalCategories((prev) => {
           const rollback = prev;
           const id = crypto.randomUUID();
           const next = [...prev, { id, name: trimmed, active }];
           const cleaned = next.map(normalizeCategory);
           const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
           if (!ok) {
-            setCategories(rollback);
+            setLocalCategories(rollback);
             failSave();
             resolve(null);
           } else {
@@ -181,7 +199,7 @@ export function useCategoriesStorage() {
         });
       });
     },
-    [failSave, useDbMenu],
+    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
   );
 
   const updateCategory = useCallback(
@@ -196,7 +214,7 @@ export function useCategoriesStorage() {
             failSave();
             return;
           }
-          setCategories((prev) =>
+          patchCategoriesCache((prev) =>
             prev.map((c) => {
               if (c.id !== id) return c;
               return normalizeCategory({
@@ -207,11 +225,12 @@ export function useCategoriesStorage() {
               });
             }),
           );
+          afterCategoryMutation();
           toast.success("Kategorie gespeichert");
         })();
         return;
       }
-      setCategories((prev) => {
+      setLocalCategories((prev) => {
         const rollback = prev;
         const next = prev.map((c) => {
           if (c.id !== id) return c;
@@ -224,7 +243,7 @@ export function useCategoriesStorage() {
         const cleaned = next.map(normalizeCategory);
         const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
         if (!ok) {
-          setCategories(rollback);
+          setLocalCategories(rollback);
           failSave();
         } else {
           toast.success("Kategorie gespeichert");
@@ -232,7 +251,7 @@ export function useCategoriesStorage() {
         return cleaned;
       });
     },
-    [failSave, useDbMenu],
+    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
   );
 
   const reorderCategories = useCallback(
@@ -245,15 +264,16 @@ export function useCategoriesStorage() {
             failSave();
             return;
           }
-          setCategories(cleaned);
+          patchCategoriesCache(() => cleaned);
+          afterCategoryMutation();
           toast.success("Kategorien sortiert");
         })();
         return;
       }
-      setCategories((prev) => {
+      setLocalCategories((prev) => {
         const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
         if (!ok) {
-          setCategories(prev);
+          setLocalCategories(prev);
           failSave();
         } else {
           toast.success("Kategorien sortiert");
@@ -261,7 +281,7 @@ export function useCategoriesStorage() {
         return cleaned;
       });
     },
-    [failSave, useDbMenu],
+    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
   );
 
   const getCategoryById = useCallback(
@@ -281,16 +301,13 @@ export function useCategoriesStorage() {
           failSave();
           return false;
         }
-        setCategories((prev) => {
-          const next = prev.filter((c) => c.id !== id);
-          mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
-          return next;
-        });
+        patchCategoriesCache((prev) => prev.filter((c) => c.id !== id));
+        afterCategoryMutation();
         toast.success("Kategorie gelöscht");
         return true;
       }
       let ok = false;
-      setCategories((prev) => {
+      setLocalCategories((prev) => {
         const next = prev.filter((c) => c.id !== id);
         ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, next);
         if (!ok) {
@@ -302,7 +319,7 @@ export function useCategoriesStorage() {
       });
       return ok;
     },
-    [failSave, useDbMenu],
+    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
   );
 
   return {

@@ -85,14 +85,24 @@ fi
 
 sed -i "s|image: '${COOLIFY_APP_ID}:.*'|image: '${IMAGE}'|" "${COMPOSE_FILE}"
 
-if [[ -n "${CHANGELOG_SYNC_SECRET:-}" ]]; then
+patch_compose_env_key() {
+  local key="$1"
+  local value="$2"
   for env_file in "${COMPOSE_DIR}/.env" "${COMPOSE_DIR}/.env.production"; do
     [[ -f "${env_file}" ]] || continue
-    grep -v '^CHANGELOG_SYNC_SECRET=' "${env_file}" > "${env_file}.tmp" || true
-    printf 'CHANGELOG_SYNC_SECRET=%s\n' "${CHANGELOG_SYNC_SECRET}" >> "${env_file}.tmp"
+    grep -v "^${key}=" "${env_file}" > "${env_file}.tmp" || true
+    printf '%s=%s\n' "${key}" "${value}" >> "${env_file}.tmp"
     mv "${env_file}.tmp" "${env_file}"
-    echo "CHANGELOG_SYNC_SECRET in ${env_file} gesetzt."
+    echo "${key} in ${env_file} gesetzt."
   done
+}
+
+if [[ -n "${CHANGELOG_SYNC_SECRET:-}" ]]; then
+  patch_compose_env_key CHANGELOG_SYNC_SECRET "${CHANGELOG_SYNC_SECRET}"
+fi
+
+if [[ -n "${GITHUB_DEPLOY_TOKEN:-}" ]]; then
+  patch_compose_env_key GITHUB_DEPLOY_TOKEN "${GITHUB_DEPLOY_TOKEN}"
 fi
 
 ENSURE_TRAEFIK="${BUILD_DIR}/scripts/vps-ensure-coolify-traefik-fqdn.sh"

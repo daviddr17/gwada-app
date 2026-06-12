@@ -44,6 +44,11 @@ export type ContactMessageWahaReactionsConfig = {
   onOptimisticMessageDelete?: (message: ContactMessageRow) => void;
 };
 
+export type ContactMessageMetaReactionsConfig = {
+  restaurantId: string;
+  onReactionChange?: () => void;
+};
+
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", {
     day: "2-digit",
@@ -58,6 +63,7 @@ export function ContactMessageBubbleList({
   className,
   onReservationOpen,
   wahaReactions,
+  metaReactions,
 }: {
   messages: ContactMessageRow[];
   className?: string;
@@ -65,6 +71,8 @@ export function ContactMessageBubbleList({
   onReservationOpen?: (reservationId: string) => void;
   /** WhatsApp (WAHA): Reactions anzeigen und setzen. */
   wahaReactions?: ContactMessageWahaReactionsConfig;
+  /** Messenger / Instagram: Reactions anzeigen und setzen. */
+  metaReactions?: ContactMessageMetaReactionsConfig;
 }) {
   if (messages.length === 0) {
     return (
@@ -97,9 +105,18 @@ export function ContactMessageBubbleList({
           group.kind === "single"
             ? primary.id
             : `batch-${primary.send_batch_id ?? primary.id}-${index}`;
-        const reactionMessageId = primary.waha_message_id ?? primary.id;
+        const metaMessageId = primary.meta_message_id ?? null;
+        const reactionMessageId =
+          primary.waha_message_id ?? metaMessageId ?? primary.id;
+        const metaPlatform =
+          metaMessageId &&
+          (messageDisplayPlatform(primary) === "facebook" ||
+            messageDisplayPlatform(primary) === "instagram")
+            ? messageDisplayPlatform(primary)
+            : null;
         const showReactions = Boolean(
-          wahaReactions && primary.waha_message_id,
+          (wahaReactions && primary.waha_message_id) ||
+            (metaReactions && metaMessageId && metaPlatform),
         );
 
         const showDelete = Boolean(
@@ -124,6 +141,13 @@ export function ContactMessageBubbleList({
             showDelete={showDelete}
             showEdit={showEdit}
             wahaReactions={wahaReactions}
+            metaReactions={metaReactions}
+            metaMessageId={metaMessageId}
+            metaPlatform={
+              metaPlatform === "facebook" || metaPlatform === "instagram"
+                ? metaPlatform
+                : null
+            }
             reactionMessageId={reactionMessageId}
             pickerOpen={openReactionMessageId === reactionMessageId}
             onPickerOpenChange={(open) =>
@@ -145,6 +169,9 @@ function MessageBubbleRow({
   showDelete,
   showEdit,
   wahaReactions,
+  metaReactions,
+  metaMessageId,
+  metaPlatform,
   reactionMessageId,
   pickerOpen,
   onPickerOpenChange,
@@ -157,6 +184,9 @@ function MessageBubbleRow({
   showDelete: boolean;
   showEdit: boolean;
   wahaReactions?: ContactMessageWahaReactionsConfig;
+  metaReactions?: ContactMessageMetaReactionsConfig;
+  metaMessageId: string | null;
+  metaPlatform: "facebook" | "instagram" | null;
   reactionMessageId: string;
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
@@ -233,13 +263,20 @@ function MessageBubbleRow({
             <p className="whitespace-pre-wrap break-words">{primary.body}</p>
           ) : null}
         </div>
-        {showReactions && wahaReactions && primary.waha_message_id ? (
+        {showReactions &&
+        (wahaReactions?.restaurantId || metaReactions?.restaurantId) ? (
           <ContactMessageReactions
             reactions={primary.reactions}
-            wahaMessageId={primary.waha_message_id}
-            restaurantId={wahaReactions.restaurantId}
+            wahaMessageId={primary.waha_message_id ?? undefined}
+            metaMessageId={metaMessageId ?? undefined}
+            metaPlatform={metaPlatform ?? undefined}
+            restaurantId={
+              wahaReactions?.restaurantId ?? metaReactions!.restaurantId
+            }
             outbound={outbound}
-            onUpdated={wahaReactions.onReactionChange}
+            onUpdated={
+              wahaReactions?.onReactionChange ?? metaReactions?.onReactionChange
+            }
             pickerOpen={pickerOpen}
             onPickerOpenChange={onPickerOpenChange}
             onDelete={showDelete ? () => handleDelete() : undefined}

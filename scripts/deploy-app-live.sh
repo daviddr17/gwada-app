@@ -41,6 +41,9 @@ REMOTE_PREFIX=""
 if [[ -n "${CHANGELOG_SYNC_SECRET:-}" ]]; then
   REMOTE_PREFIX="CHANGELOG_SYNC_SECRET=$(printf '%q' "${CHANGELOG_SYNC_SECRET}") "
 fi
+if [[ -n "${GITHUB_DEPLOY_TOKEN:-}" ]]; then
+  REMOTE_PREFIX="${REMOTE_PREFIX}GITHUB_DEPLOY_TOKEN=$(printf '%q' "${GITHUB_DEPLOY_TOKEN}") "
+fi
 
 gwada_ssh "${SSH_USER}@${VPS}" "${REMOTE_PREFIX}bash -s -- '${COMMIT}'" \
   < "${ROOT}/scripts/vps-deploy-live-app.sh"

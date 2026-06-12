@@ -9,27 +9,38 @@ import { fetchConversationReadsForUser } from "@/lib/supabase/contact-conversati
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+type ReadsByPlatform = {
+  gwada: Map<string, ConversationReadRow>;
+  whatsapp: Map<string, ConversationReadRow>;
+  email: Map<string, ConversationReadRow>;
+  facebook: Map<string, ConversationReadRow>;
+  instagram: Map<string, ConversationReadRow>;
+};
+
+function readForPlatform(
+  readsByPlatform: ReadsByPlatform,
+  contactId: string,
+  platform: ContactConversationPreview["platform"],
+): ConversationReadRow | undefined {
+  const map =
+    platform === "whatsapp"
+      ? readsByPlatform.whatsapp
+      : platform === "email"
+        ? readsByPlatform.email
+        : platform === "facebook"
+          ? readsByPlatform.facebook
+          : platform === "instagram"
+            ? readsByPlatform.instagram
+            : readsByPlatform.gwada;
+  return map.get(conversationReadLookupKey(contactId, platform));
+}
+
 function enrichOneConversation(
   c: ContactConversationPreview,
-  readsByPlatform: {
-    gwada: Map<string, ConversationReadRow>;
-    whatsapp: Map<string, ConversationReadRow>;
-    email: Map<string, ConversationReadRow>;
-  },
+  readsByPlatform: ReadsByPlatform,
 ): ContactConversationPreview {
   const readPlatform = conversationChannelForRead(c.contact_id);
-  const read =
-    readPlatform === "whatsapp"
-      ? readsByPlatform.whatsapp.get(
-          conversationReadLookupKey(c.contact_id, "whatsapp"),
-        )
-      : readPlatform === "email"
-        ? readsByPlatform.email.get(
-            conversationReadLookupKey(c.contact_id, "email"),
-          )
-        : readsByPlatform.gwada.get(
-            conversationReadLookupKey(c.contact_id, "gwada"),
-          );
+  const read = readForPlatform(readsByPlatform, c.contact_id, readPlatform);
 
   const linked = isUuidRestaurantId(c.contact_id);
   if (linked) {
@@ -86,7 +97,10 @@ function enrichOneConversation(
       last_direction: c.last_direction,
       inbound_count: c.inbound_since_preview,
       external_unread_count:
-        readPlatform === "whatsapp" || readPlatform === "email"
+        readPlatform === "whatsapp" ||
+        readPlatform === "email" ||
+        readPlatform === "facebook" ||
+        readPlatform === "instagram"
           ? c.unread_count
           : null,
     },
@@ -102,7 +116,7 @@ export async function enrichUnifiedInboxReadStateServer(
     conversations: ContactConversationPreview[];
   },
 ): Promise<ContactConversationPreview[]> {
-  const [gwada, whatsapp, email] = await Promise.all([
+  const [gwada, whatsapp, email, facebook, instagram] = await Promise.all([
     fetchConversationReadsForUser(admin, {
       restaurantId: params.restaurantId,
       userId: params.userId,
@@ -118,20 +132,26 @@ export async function enrichUnifiedInboxReadStateServer(
       userId: params.userId,
       platform: "email",
     }),
+    fetchConversationReadsForUser(admin, {
+      restaurantId: params.restaurantId,
+      userId: params.userId,
+      platform: "facebook",
+    }),
+    fetchConversationReadsForUser(admin, {
+      restaurantId: params.restaurantId,
+      userId: params.userId,
+      platform: "instagram",
+    }),
   ]);
 
   return params.conversations.map((c) =>
-    enrichOneConversation(c, { gwada, whatsapp, email }),
+    enrichOneConversation(c, { gwada, whatsapp, email, facebook, instagram }),
   );
 }
 
 export function enrichOneConversationWithReads(
   c: ContactConversationPreview,
-  readsByPlatform: {
-    gwada: Map<string, ConversationReadRow>;
-    whatsapp: Map<string, ConversationReadRow>;
-    email: Map<string, ConversationReadRow>;
-  },
+  readsByPlatform: ReadsByPlatform,
 ): ContactConversationPreview {
   return enrichOneConversation(c, readsByPlatform);
 }

@@ -57,6 +57,36 @@ function optimisticAttachmentsFromSend(params: {
   }));
 }
 
+export function createOptimisticOutboundMetaMessage(params: {
+  restaurantId: string;
+  contactId: string;
+  platform: "facebook" | "instagram";
+  body: string;
+  files?: File[];
+  voiceNote?: File;
+  voicePreviewUrl?: string;
+  clientId?: string;
+}): ContactMessageRow {
+  const clientId = params.clientId ?? crypto.randomUUID();
+  const attachments = optimisticAttachmentsFromSend(params);
+  const text = params.body.trim();
+
+  return {
+    id: `${OPTIMISTIC_MESSAGE_ID_PREFIX}${clientId}`,
+    restaurant_id: params.restaurantId,
+    contact_id: params.contactId,
+    platform: params.platform,
+    direction: "outbound",
+    body: text || (attachments?.length ? "" : " "),
+    reservation_id: null,
+    sent_by: null,
+    delivery_status: "sent",
+    created_at: new Date().toISOString(),
+    external_source_id: `${OPTIMISTIC_MESSAGE_ID_PREFIX}${clientId}`,
+    attachments,
+  };
+}
+
 export function createOptimisticOutboundWhatsappMessage(params: {
   restaurantId: string;
   contactId: string;

@@ -46,7 +46,12 @@ npm run deploy:live:full
 
 ## 2. Live-App
 
-Commit → `git push origin main` → GitHub Action **`deploy-live-app.yml`** (automatisch).
+Nach Push auf `main` **manuell** starten — Superadmin **App deployen** oder:
+
+```bash
+gh workflow run deploy-live-app.yml --ref main
+gh run watch --workflow=deploy-live-app.yml --exit-status
+```
 
 Verifikation: `curl -s https://new.gwada.app/api/build-info` (`sha` = kurzer Commit-Hash).
 

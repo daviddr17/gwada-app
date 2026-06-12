@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  peekChannelConnectionsCache,
+  writeChannelConnectionsCache,
+} from "@/lib/contact-messages/channel-connections-cache";
 
 export type RestaurantChannelConnections = {
   loading: boolean;
@@ -32,6 +36,31 @@ export function useRestaurantChannelConnections(
   const [staffInviteEmailAvailable, setStaffInviteEmailAvailable] =
     useState(false);
 
+  const applyPayload = useCallback(
+    (body: {
+      whatsappEnabled?: boolean;
+      emailEnabled?: boolean;
+      facebookEnabled?: boolean;
+      instagramEnabled?: boolean;
+      whatsappConnected?: boolean;
+      emailConnected?: boolean;
+      facebookConnected?: boolean;
+      instagramConnected?: boolean;
+      staffInviteEmailAvailable?: boolean;
+    }) => {
+      setWhatsappEnabled(Boolean(body.whatsappEnabled));
+      setEmailEnabled(Boolean(body.emailEnabled));
+      setFacebookEnabled(Boolean(body.facebookEnabled));
+      setInstagramEnabled(Boolean(body.instagramEnabled));
+      setWhatsappConnected(Boolean(body.whatsappConnected));
+      setEmailConnected(Boolean(body.emailConnected));
+      setFacebookConnected(Boolean(body.facebookConnected));
+      setInstagramConnected(Boolean(body.instagramConnected));
+      setStaffInviteEmailAvailable(Boolean(body.staffInviteEmailAvailable));
+    },
+    [],
+  );
+
   const load = useCallback(async () => {
     if (!restaurantId) {
       setWhatsappEnabled(false);
@@ -46,7 +75,15 @@ export function useRestaurantChannelConnections(
       setLoading(true);
       return;
     }
-    setLoading(true);
+
+    const cached = peekChannelConnectionsCache(restaurantId);
+    if (cached) {
+      applyPayload(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     try {
       const res = await fetch(
         `/api/contact-messages/channels-status?${new URLSearchParams({ restaurantId })}`,
@@ -63,23 +100,24 @@ export function useRestaurantChannelConnections(
         staffInviteEmailAvailable?: boolean;
       };
       if (res.ok) {
-        setWhatsappEnabled(Boolean(body.whatsappEnabled));
-        setEmailEnabled(Boolean(body.emailEnabled));
-        setFacebookEnabled(Boolean(body.facebookEnabled));
-        setInstagramEnabled(Boolean(body.instagramEnabled));
-        setWhatsappConnected(Boolean(body.whatsappConnected));
-        setEmailConnected(Boolean(body.emailConnected));
-        setFacebookConnected(Boolean(body.facebookConnected));
-        setInstagramConnected(Boolean(body.instagramConnected));
-        setStaffInviteEmailAvailable(
-          Boolean(body.staffInviteEmailAvailable),
-        );
+        applyPayload(body);
+        writeChannelConnectionsCache(restaurantId, {
+          whatsappEnabled: Boolean(body.whatsappEnabled),
+          emailEnabled: Boolean(body.emailEnabled),
+          facebookEnabled: Boolean(body.facebookEnabled),
+          instagramEnabled: Boolean(body.instagramEnabled),
+          whatsappConnected: Boolean(body.whatsappConnected),
+          emailConnected: Boolean(body.emailConnected),
+          facebookConnected: Boolean(body.facebookConnected),
+          instagramConnected: Boolean(body.instagramConnected),
+          staffInviteEmailAvailable: Boolean(body.staffInviteEmailAvailable),
+        });
       }
     } catch {
       /* ignore */
     }
     setLoading(false);
-  }, [restaurantId]);
+  }, [applyPayload, restaurantId]);
 
   useEffect(() => {
     void load();

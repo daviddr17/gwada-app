@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   ContactMessageBubbleList,
+  type ContactMessageMetaReactionsConfig,
   type ContactMessageWahaReactionsConfig,
 } from "@/components/contacts/contact-message-bubble-list";
 import { ContactMessageChatSkeleton } from "@/components/contacts/contact-message-chat-skeleton";
@@ -29,6 +30,7 @@ export function ContactMessageChatViewport({
   listClassName,
   onReservationOpen,
   wahaReactions,
+  metaReactions,
 }: {
   messages: ContactMessageRow[];
   /** Wechsel der Konversation → wieder unten starten. */
@@ -38,6 +40,7 @@ export function ContactMessageChatViewport({
   listClassName?: string;
   onReservationOpen?: (reservationId: string) => void;
   wahaReactions?: ContactMessageWahaReactionsConfig;
+  metaReactions?: ContactMessageMetaReactionsConfig;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -182,6 +185,7 @@ export function ContactMessageChatViewport({
             className={cn("py-1", listClassName)}
             onReservationOpen={onReservationOpen}
             wahaReactions={wahaReactions}
+            metaReactions={metaReactions}
           />
         </div>
       ) : null}

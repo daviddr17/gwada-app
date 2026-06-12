@@ -34,23 +34,66 @@ function finalizeWhatsappThreadMessages(
  * Verknüpfte Kontakte: Gwada/WhatsApp aus der DB, E-Mails mit HTML aus IMAP.
  * Ohne IMAP bleibt der DB-Stand (Plain-Text).
  */
+function mergeMetaLiveIntoDb(
+  dbMessages: ContactMessageRow[],
+  metaMessages: ContactMessageRow[] | null | undefined,
+  contactId: string,
+): ContactMessageRow[] {
+  if (!metaMessages?.length) return dbMessages;
+
+  const metaFromDb = dbMessages.filter(
+    (m) =>
+      messageDisplayPlatform(m) === "facebook" ||
+      messageDisplayPlatform(m) === "instagram",
+  );
+  const metaExt = new Set(
+    metaFromDb
+      .map((m) => m.external_source_id)
+      .filter((id): id is string => Boolean(id)),
+  );
+
+  const liveMapped = metaMessages.map((m) => ({
+    ...m,
+    contact_id: contactId,
+  }));
+
+  const liveOnly = liveMapped.filter((m) => {
+    const ext = m.external_source_id?.trim();
+    if (!ext) return true;
+    const key = ext.startsWith("meta:")
+      ? ext
+      : `meta:${m.platform}:${ext}`;
+    return !metaExt.has(key) && !metaExt.has(ext);
+  });
+
+  return [...dbMessages, ...liveOnly];
+}
+
 export function mergeLinkedContactThreadMessages(params: {
   dbMessages: ContactMessageRow[];
   imapEmailMessages: ContactMessageRow[] | null;
   wahaMessages?: ContactMessageRow[] | null;
+  metaMessages?: ContactMessageRow[] | null;
+  contactId?: string;
 }): ContactMessageRow[] {
-  const { dbMessages, imapEmailMessages, wahaMessages } = params;
+  const { dbMessages, imapEmailMessages, wahaMessages, metaMessages, contactId } =
+    params;
+
+  const withMeta =
+    contactId && metaMessages
+      ? mergeMetaLiveIntoDb(dbMessages, metaMessages, contactId)
+      : dbMessages;
 
   if (!imapEmailMessages?.length) {
-    return finalizeWhatsappThreadMessages(dbMessages, wahaMessages);
+    return finalizeWhatsappThreadMessages(withMeta, wahaMessages);
   }
 
-  const nonEmail = dbMessages.filter(
+  const nonEmail = withMeta.filter(
     (m) => messageDisplayPlatform(m) !== "email",
   );
 
   const reservationByImapUid = new Map<string, string>();
-  for (const message of dbMessages) {
+  for (const message of withMeta) {
     const uid = imapUidFromDbEmailMessage(message);
     if (uid && message.reservation_id) {
       reservationByImapUid.set(uid, message.reservation_id);
@@ -70,7 +113,7 @@ export function mergeLinkedContactThreadMessages(params: {
       .map((m) => `${m.created_at}|${m.body.trim()}`),
   );
 
-  const dbOnlyEmailOutbound = dbMessages.filter((message) => {
+  const dbOnlyEmailOutbound = withMeta.filter((message) => {
     if (messageDisplayPlatform(message) !== "email") return false;
     if (message.direction !== "outbound") return false;
     const key = `${message.created_at}|${message.body.trim()}`;

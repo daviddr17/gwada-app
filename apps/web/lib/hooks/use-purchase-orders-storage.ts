@@ -1,9 +1,20 @@
 "use client";
 
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PURCHASE_ORDERS_STORAGE_KEY } from "@/lib/constants/inventory-storage";
 import { createId } from "@/lib/create-id";
+import {
+  getModuleCacheGcTime,
+  getModuleCacheStaleTime,
+} from "@/lib/dashboard/module-data-cache-policy";
+import {
+  fetchPurchaseOrdersForRestaurant,
+  peekPurchaseOrdersCache,
+} from "@/lib/inventory/purchase-orders-query";
+import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
+import { queryKeys } from "@/lib/query/query-keys";
 import {
   toastPurchaseOrderLineAdded,
   toastPurchaseOrderLineRemoved,
@@ -19,15 +30,14 @@ import {
 } from "@/lib/supabase/db-toast";
 import {
   inventoryRelationalPersistenceEnabled,
-  loadPurchaseOrdersRelational,
   savePurchaseOrdersRelational,
 } from "@/lib/supabase/inventory-db";
-import { migratePurchaseOrdersFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import {
   getWorkspaceRestaurantId,
   loadWorkspaceJsonLocal,
   mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type {
   OrderProtocolActor,
   PurchaseOrder,
@@ -283,42 +293,34 @@ export type OpenLineContext = {
 };
 
 export function usePurchaseOrdersStorage() {
+  const queryClient = useQueryClient();
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
   const useDbInventory = inventoryRelationalPersistenceEnabled();
 
-  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
-  const [isHydrated, setIsHydrated] = useState(!useDbInventory);
+  const [localOrders, setLocalOrders] = useState<PurchaseOrder[]>([]);
+  const [isLocalHydrated, setIsLocalHydrated] = useState(!useDbInventory);
+
+  const ordersQuery = useQuery({
+    queryKey: queryKeys.inventory.purchaseOrders(restaurantId ?? ""),
+    queryFn: fetchPurchaseOrdersForRestaurant,
+    enabled: useDbInventory && workspaceReady && Boolean(restaurantId),
+    staleTime: getModuleCacheStaleTime("inventoryModule") ?? 60_000,
+    gcTime: getModuleCacheGcTime("inventoryModule") ?? 5 * 60_000,
+    placeholderData: (previous) =>
+      previous ?? peekPurchaseOrdersCache() ?? undefined,
+  });
+
+  const afterOrdersMutation = useCallback(() => {
+    if (restaurantId) {
+      invalidateInventoryQueries(queryClient, restaurantId);
+    }
+  }, [queryClient, restaurantId]);
 
   useEffect(() => {
     let cancelled = false;
     if (useDbInventory) {
-      const fromLocal = parseOrdersFromUnknown(
-        loadWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY),
-      );
-      const stored = loadFromStorage();
-      const cached = fromLocal.length > 0 ? fromLocal : stored;
-      if (cached.length > 0) {
-        setOrders(cached);
-      }
-      setIsHydrated(true);
-
-      void (async () => {
-        const rid = await getWorkspaceRestaurantId();
-        if (rid) {
-          await migratePurchaseOrdersFromLegacyAppStateIfEmpty(rid);
-        }
-        const rows = await loadPurchaseOrdersRelational(rid);
-        if (cancelled) return;
-        setOrders(rows ?? []);
-        if (rows?.length) {
-          mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
-            version: 1 as const,
-            orders: rows,
-          });
-        }
-        setIsHydrated(true);
-      })();
       return () => {
         cancelled = true;
       };
@@ -326,8 +328,8 @@ export function usePurchaseOrdersStorage() {
 
     if (supabaseOnly) {
       if (cancelled) return;
-      setOrders([]);
-      setIsHydrated(true);
+      setLocalOrders([]);
+      setIsLocalHydrated(true);
       return () => {
         cancelled = true;
       };
@@ -345,18 +347,28 @@ export function usePurchaseOrdersStorage() {
     if (cancelled) return;
     requestAnimationFrame(() => {
       if (cancelled) return;
-      setOrders(next);
-      setIsHydrated(true);
+      setLocalOrders(next);
+      setIsLocalHydrated(true);
     });
     return () => {
       cancelled = true;
     };
   }, [supabaseOnly, useDbInventory]);
 
+  const orders = useDbInventory
+    ? (ordersQuery.data ?? peekPurchaseOrdersCache() ?? [])
+    : localOrders;
+  const isHydrated = useDbInventory
+    ? workspaceReady &&
+      (ordersQuery.isSuccess ||
+        ordersQuery.isError ||
+        peekPurchaseOrdersCache().length > 0)
+    : isLocalHydrated;
+
   const persist = useCallback(
     async (next: PurchaseOrder[]): Promise<boolean> => {
       if (useDbInventory) {
-        const rid = await getWorkspaceRestaurantId();
+        const rid = restaurantId ?? (await getWorkspaceRestaurantId());
         if (!rid) {
           failSave();
           return false;
@@ -366,7 +378,15 @@ export function usePurchaseOrdersStorage() {
           toastDatabaseSaveError(result.message);
           return false;
         }
-        setOrders(next);
+        queryClient.setQueryData(
+          queryKeys.inventory.purchaseOrders(rid),
+          next,
+        );
+        mirrorWorkspaceJsonLocal(PURCHASE_ORDERS_STORAGE_KEY, {
+          version: 1 as const,
+          orders: next,
+        });
+        afterOrdersMutation();
         return true;
       }
       const payload: PurchaseOrdersPersistenceV1 = { version: 1, orders: next };
@@ -375,10 +395,10 @@ export function usePurchaseOrdersStorage() {
         failSave();
         return false;
       }
-      setOrders(next);
+      setLocalOrders(next);
       return true;
     },
-    [failSave, useDbInventory],
+    [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],
   );
 
   const getOpenLineContext = useCallback(

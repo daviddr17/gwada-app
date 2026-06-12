@@ -17,6 +17,8 @@ export function UnifiedInboxBackgroundSyncMount({
     loading: connectionsLoading,
     whatsappConnected,
     emailConnected,
+    facebookConnected,
+    instagramConnected,
   } = useRestaurantChannelConnections(restaurantId);
 
   const active =
@@ -24,13 +26,15 @@ export function UnifiedInboxBackgroundSyncMount({
     workspaceReady &&
     Boolean(restaurantId && isUuidRestaurantId(restaurantId));
 
-  useInboxLiveNotifications();
+  useInboxLiveNotifications({ enabled: active });
 
   useUnifiedInboxBackgroundSync({
     enabled: active,
     restaurantId: active ? restaurantId : null,
     whatsappConnected,
     emailConnected,
+    facebookConnected,
+    instagramConnected,
     connectionsReady: active && !connectionsLoading,
   });
 

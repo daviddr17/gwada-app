@@ -442,7 +442,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     ],
     status: "active",
     notes:
-      "Server: restaurant_news_platform_cache + after(triggerNewsFeedSyncIfStale). Raster: CSS-Grid (chronologisch), nicht Masonry-Columns.",
+      "Server: restaurant_news_platform_cache + after(triggerNewsFeedSyncIfStale). Plattform-Chips = Client-Filter auf Gesamt-Feed, kein API-Reload.",
   },
 ];
 

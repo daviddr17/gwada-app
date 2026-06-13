@@ -105,6 +105,10 @@ if [[ -n "${GITHUB_DEPLOY_TOKEN:-}" ]]; then
   patch_compose_env_key GITHUB_DEPLOY_TOKEN "${GITHUB_DEPLOY_TOKEN}"
 fi
 
+if [[ -n "${CRON_SECRET:-}" ]]; then
+  patch_compose_env_key CRON_SECRET "${CRON_SECRET}"
+fi
+
 ENSURE_TRAEFIK="${BUILD_DIR}/scripts/vps-ensure-coolify-traefik-fqdn.sh"
 if [[ -f "${ENSURE_TRAEFIK}" ]]; then
   bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"

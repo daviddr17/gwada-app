@@ -26,6 +26,7 @@ jobs:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
           CHANGELOG_SYNC_SECRET: ${{ secrets.CHANGELOG_SYNC_SECRET }}
           GITHUB_DEPLOY_TOKEN: ${{ secrets.GWADA_GITHUB_DEPLOY_TOKEN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
             echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."

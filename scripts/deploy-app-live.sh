@@ -44,6 +44,9 @@ fi
 if [[ -n "${GITHUB_DEPLOY_TOKEN:-}" ]]; then
   REMOTE_PREFIX="${REMOTE_PREFIX}GITHUB_DEPLOY_TOKEN=$(printf '%q' "${GITHUB_DEPLOY_TOKEN}") "
 fi
+if [[ -n "${CRON_SECRET:-}" ]]; then
+  REMOTE_PREFIX="${REMOTE_PREFIX}CRON_SECRET=$(printf '%q' "${CRON_SECRET}") "
+fi
 
 gwada_ssh "${SSH_USER}@${VPS}" "${REMOTE_PREFIX}bash -s -- '${COMMIT}'" \
   < "${ROOT}/scripts/vps-deploy-live-app.sh"

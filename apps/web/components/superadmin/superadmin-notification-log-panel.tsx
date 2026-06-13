@@ -192,7 +192,7 @@ export function SuperadminNotificationLogPanel() {
           <Select
             value={channelFilter}
             onValueChange={(value) => {
-              setChannelFilter(value);
+              setChannelFilter(String(value));
               setPage(1);
             }}
           >
@@ -216,7 +216,7 @@ export function SuperadminNotificationLogPanel() {
           <Select
             value={statusFilter}
             onValueChange={(value) => {
-              setStatusFilter(value);
+              setStatusFilter(String(value));
               setPage(1);
             }}
           >

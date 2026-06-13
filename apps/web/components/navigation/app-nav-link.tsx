@@ -3,11 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { useSoftNavGuard } from "@/components/providers/soft-nav-guard-provider";
-import {
-  assignCrossAppWorkspaceZone,
-  crossAppModuleNavigation,
-} from "@/lib/navigation/app-zone-navigation";
+import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -17,15 +13,15 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 }
 
 /**
- * Interner App-Link: Soft-Nav über nativen Next-Link (kein router.push-Intercept).
- * Parallele Modul-Klicks werden blockiert; RSC-Flight bleibt im Router.
+ * Interner Link — gleiches Modell wie Superadmin-Sidebar (`Link` + Prefetch).
+ * Cross-Zone (App ↔ Superadmin) weiterhin per `/zone/enter`.
  */
 export function AppNavLink({
   href,
   children,
   className,
   onClick,
-  prefetch,
+  prefetch = true,
   "aria-label": ariaLabel,
 }: {
   href: string | { pathname?: string; search?: string };
@@ -36,15 +32,12 @@ export function AppNavLink({
   "aria-label"?: string;
 }) {
   const pathname = usePathname();
-  const { onCrossModuleClick } = useSoftNavGuard();
   const hrefStr = hrefToString(href);
-  const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
-  const shouldPrefetch = prefetch ?? !crossModuleNav;
 
   return (
     <Link
       href={href}
-      prefetch={shouldPrefetch}
+      prefetch={prefetch}
       scroll={false}
       className={className}
       aria-label={ariaLabel}
@@ -53,10 +46,6 @@ export function AppNavLink({
         if (event.defaultPrevented) return;
         if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
           event.preventDefault();
-          return;
-        }
-        if (crossModuleNav) {
-          onCrossModuleClick(event);
         }
       }}
     >

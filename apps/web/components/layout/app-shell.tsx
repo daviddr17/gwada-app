@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ArrowLeft, Settings, UserRound } from "lucide-react";
 import { useModuleSubnavBack } from "@/lib/hooks/use-module-subnav-back";
+import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
@@ -26,8 +28,9 @@ import {
 } from "@/lib/contexts/app-module-chrome-context";
 
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const { chrome } = useAppModuleChrome();
-  const goModuleBack = useModuleSubnavBack(chrome.subnav?.items);
+  const { backHref, onBackNavigate } = useModuleSubnavBack(chrome.subnav?.items);
   const showChipRow = Boolean(chrome.subnav?.items.length);
 
   React.useLayoutEffect(() => {
@@ -136,7 +139,20 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             size="icon-sm"
             className="shrink-0 text-muted-foreground hover:text-foreground"
             aria-label="Zurück zur letzten Seite"
-            onClick={goModuleBack}
+            nativeButton={false}
+            render={
+              <Link
+                href={backHref}
+                prefetch
+                scroll={false}
+                onClick={(event) => {
+                  onBackNavigate();
+                  if (assignCrossAppWorkspaceZone(pathname, backHref)) {
+                    event.preventDefault();
+                  }
+                }}
+              />
+            }
           >
             <ArrowLeft className="size-4" />
           </Button>

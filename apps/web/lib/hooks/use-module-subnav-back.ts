@@ -1,24 +1,22 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo } from "react";
+import { usePathname } from "next/navigation";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import {
+  applyModuleSubnavBackStack,
   modulePrefixFromSubnav,
+  peekModuleSubnavBackTarget,
   recordModuleNavPath,
-  resolveModuleSubnavBackTarget,
 } from "@/lib/navigation/module-subnav-back";
-import { navigateAppPath } from "@/lib/navigation/app-zone-navigation";
 
 /**
- * Zurück im Chip-Untermenü: Modul-interne Historie statt `router.back()`
- * (vermeidet „page couldn't load“ durch Login/OAuth/externe History).
+ * Chip-Untermenü Zurück: Ziel für nativen `<Link>` (wie Superadmin-Sidebar).
  */
 export function useModuleSubnavBack(
   subnavItems: readonly ModuleSubnavItem[] | undefined,
 ) {
   const pathname = usePathname();
-  const router = useRouter();
 
   useEffect(() => {
     if (!subnavItems?.length) return;
@@ -27,14 +25,15 @@ export function useModuleSubnavBack(
     recordModuleNavPath(prefix, pathname);
   }, [pathname, subnavItems]);
 
-  const goBack = useCallback(() => {
-    if (!subnavItems?.length) {
-      navigateAppPath(router, pathname, "/dashboard");
-      return;
-    }
-    const target = resolveModuleSubnavBackTarget(subnavItems, pathname);
-    navigateAppPath(router, pathname, target);
-  }, [pathname, router, subnavItems]);
+  const backHref = useMemo(() => {
+    if (!subnavItems?.length) return "/dashboard";
+    return peekModuleSubnavBackTarget(subnavItems, pathname);
+  }, [pathname, subnavItems]);
 
-  return goBack;
+  const onBackNavigate = useCallback(() => {
+    if (!subnavItems?.length) return;
+    applyModuleSubnavBackStack(subnavItems, pathname);
+  }, [pathname, subnavItems]);
+
+  return { backHref, onBackNavigate };
 }

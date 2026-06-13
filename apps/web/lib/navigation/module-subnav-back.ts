@@ -72,10 +72,8 @@ export function recordModuleNavPath(
   writeStack(prefix, stack);
 }
 
-/**
- * Ziel für den Zurück-Pfeil im Untermenü — keine `history.back()` (Login/OAuth/extern).
- */
-export function resolveModuleSubnavBackTarget(
+/** Lesendes Zurück-Ziel für `<Link href>` — ohne Session-Stack zu mutieren. */
+export function peekModuleSubnavBackTarget(
   items: readonly ModuleSubnavItem[],
   pathname: string,
 ): string {
@@ -100,10 +98,49 @@ export function resolveModuleSubnavBackTarget(
 
   const previous = working[working.length - 1];
   if (previous && previous.startsWith(prefix) && previous !== current) {
-    writeStack(prefix, working);
     return previous;
   }
 
-  writeStack(prefix, [home]);
   return home;
+}
+
+/** Session-Stack nach Zurück-Navigation per Link anpassen. */
+export function applyModuleSubnavBackStack(
+  items: readonly ModuleSubnavItem[],
+  pathname: string,
+): void {
+  const home = normalizePath(moduleHomeHref(items));
+  const current = normalizePath(pathname);
+  const prefix = modulePrefixFromSubnav(items);
+
+  if (!prefix || !current.startsWith(prefix) || current === home) {
+    return;
+  }
+
+  const stack = readStack(prefix);
+  let working = [...stack];
+
+  if (working[working.length - 1] === current) {
+    working.pop();
+  }
+
+  const previous = working[working.length - 1];
+  if (previous && previous.startsWith(prefix) && previous !== current) {
+    writeStack(prefix, working);
+    return;
+  }
+
+  writeStack(prefix, [home]);
+}
+
+/**
+ * Ziel für den Zurück-Pfeil im Untermenü — keine `history.back()` (Login/OAuth/extern).
+ * @deprecated Prefer `peekModuleSubnavBackTarget` + native `<Link>`.
+ */
+export function resolveModuleSubnavBackTarget(
+  items: readonly ModuleSubnavItem[],
+  pathname: string,
+): string {
+  applyModuleSubnavBackStack(items, pathname);
+  return peekModuleSubnavBackTarget(items, pathname);
 }

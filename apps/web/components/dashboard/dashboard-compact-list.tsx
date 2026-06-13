@@ -102,7 +102,7 @@ export function DashboardCompactListItem({
   if (href) {
     return (
       <li>
-        <AppNavLink href={href} className={rowClass}>
+        <AppNavLink href={href} prefetch={false} className={rowClass}>
           {inner}
         </AppNavLink>
       </li>
@@ -191,7 +191,7 @@ export function DashboardCompactMetricPill({
 
   if (href) {
     return (
-      <AppNavLink href={href} className={shellClass}>
+      <AppNavLink href={href} prefetch={false} className={shellClass}>
         {content}
       </AppNavLink>
     );

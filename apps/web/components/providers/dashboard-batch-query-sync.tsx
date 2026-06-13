@@ -10,6 +10,7 @@ import {
   peekUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
 import { markDashboardBatchMessagesFetched } from "@/lib/dashboard/dashboard-batch-warm-coordinator";
+import { clearDashboardBatchSummaryCache, writeDashboardBatchSummaryCache } from "@/lib/dashboard/dashboard-batch-summary-cache";
 import { visibleDashboardBatchWidgets } from "@/lib/dashboard/dashboard-batch-widgets";
 import {
   GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
@@ -69,13 +70,15 @@ export function DashboardBatchQuerySync() {
     const patchMessagesFromInboxCache = () => {
       const conversations = peekUnifiedInboxCache(restaurantId);
       if (!conversations) return;
-      const next = deriveMessagesUnreadSummaryFromConversations(conversations);
+      const nextMessages = deriveMessagesUnreadSummaryFromConversations(conversations);
       queryClient.setQueryData<DashboardBatchQueryData>(summaryKey, (old) => {
         if (!old) return old;
-        return {
+        const nextPayload = {
           ...old,
-          data: { ...old.data, messages: next },
+          data: { ...old.data, messages: nextMessages },
         };
+        writeDashboardBatchSummaryCache(restaurantId, widgets, nextPayload);
+        return nextPayload;
       });
     };
 
@@ -85,9 +88,17 @@ export function DashboardBatchQuerySync() {
       patchMessagesFromInboxCache();
     };
 
+    const onWorkspaceChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;
+      if (detail?.restaurantId) {
+        clearDashboardBatchSummaryCache(detail.restaurantId);
+      }
+      invalidateBatch();
+    };
+
     window.addEventListener(
       GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
-      invalidateBatch,
+      onWorkspaceChanged,
     );
     window.addEventListener(
       GWADA_DASHBOARD_RESERVATIONS_REFRESH_EVENT,
@@ -103,7 +114,7 @@ export function DashboardBatchQuerySync() {
     return () => {
       window.removeEventListener(
         GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
-        invalidateBatch,
+        onWorkspaceChanged,
       );
       window.removeEventListener(
         GWADA_DASHBOARD_RESERVATIONS_REFRESH_EVENT,

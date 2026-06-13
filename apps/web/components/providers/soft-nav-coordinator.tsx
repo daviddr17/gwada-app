@@ -23,12 +23,10 @@ function hasLoadErrorOverlay(): boolean {
   return document.body.innerText.includes("couldn't load");
 }
 
-async function cleanupAuthCookiesBeforeNav(): Promise<void> {
-  try {
-    await fetch("/api/auth/cleanup-cookies", { credentials: "include" });
-  } catch {
-    // Proxy strippt gwada_* serverseitig.
-  }
+function cleanupAuthCookiesBeforeNav(): void {
+  void fetch("/api/auth/cleanup-cookies", { credentials: "include" }).catch(
+    () => {},
+  );
 }
 
 type ScheduleOptions = {
@@ -63,65 +61,75 @@ export function SoftNavCoordinatorProvider({ children }: { children: ReactNode }
   const pendingReplaceRef = useRef(false);
   const drainingRef = useRef(false);
 
-  const waitForRscFlight = useCallback((target: string) => {
-    const normalizedTarget = normalizePath(target.split("?")[0] ?? target);
+  const isSuperseded = useCallback((target: string) => {
+    const pending = pendingTargetRef.current;
+    if (!pending) return false;
+    return (
+      normalizePath(pending.split("?")[0] ?? pending) !==
+      normalizePath(target.split("?")[0] ?? target)
+    );
+  }, []);
 
-    return new Promise<void>((resolve) => {
-      const startedAt = Date.now();
-      let stableFrames = 0;
+  /** true = settled, false = abgebrochen (neueres Ziel in Queue). */
+  const waitForRscFlight = useCallback(
+    (target: string) => {
+      const normalizedTarget = normalizePath(target.split("?")[0] ?? target);
 
-      const tick = () => {
-        const atTarget =
-          normalizePath(window.location.pathname) === normalizedTarget;
-        const settled = atTarget && !isPendingRef.current && !hasLoadErrorOverlay();
+      return new Promise<boolean>((resolve) => {
+        const startedAt = Date.now();
+        let stableFrames = 0;
 
-        if (settled) {
-          stableFrames += 1;
-          if (stableFrames >= 4) {
-            resolve();
+        const tick = () => {
+          if (isSuperseded(target)) {
+            resolve(false);
             return;
           }
-        } else {
-          stableFrames = 0;
-        }
 
-        if (Date.now() - startedAt >= 15_000) {
-          resolve();
-          return;
-        }
+          const atTarget =
+            normalizePath(window.location.pathname) === normalizedTarget;
+          const settled =
+            atTarget && !isPendingRef.current && !hasLoadErrorOverlay();
+
+          if (settled) {
+            stableFrames += 1;
+            if (stableFrames >= 2) {
+              resolve(true);
+              return;
+            }
+          } else {
+            stableFrames = 0;
+          }
+
+          if (Date.now() - startedAt >= 10_000) {
+            resolve(!hasLoadErrorOverlay());
+            return;
+          }
+          requestAnimationFrame(tick);
+        };
+
         requestAnimationFrame(tick);
-      };
-
-      requestAnimationFrame(tick);
-    });
-  }, []);
+      });
+    },
+    [isSuperseded],
+  );
 
   const performOneNav = useCallback(
     async (target: string, replace: boolean) => {
       const toHome = isDashboardHomePath(target);
-      if (toHome) await cleanupAuthCookiesBeforeNav();
+      if (toHome) cleanupAuthCookiesBeforeNav();
 
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        await new Promise<void>((resolve) => {
-          startTransition(() => {
-            if (replace || toHome) router.replace(target);
-            else router.push(target);
-            resolve();
-          });
-        });
+      startTransition(() => {
+        if (replace || toHome) router.replace(target);
+        else router.push(target);
+      });
 
+      const settled = await waitForRscFlight(target);
+      if (!settled || isSuperseded(target)) return;
+
+      if (hasLoadErrorOverlay() && toHome) {
+        cleanupAuthCookiesBeforeNav();
+        startTransition(() => router.refresh());
         await waitForRscFlight(target);
-
-        const ok =
-          normalizePath(window.location.pathname) ===
-            normalizePath(target.split("?")[0] ?? target) &&
-          !hasLoadErrorOverlay();
-        if (ok) return;
-
-        if (toHome) {
-          await cleanupAuthCookiesBeforeNav();
-          router.refresh();
-        }
       }
     },
     [router, startTransition, waitForRscFlight],
@@ -137,9 +145,6 @@ export function SoftNavCoordinatorProvider({ children }: { children: ReactNode }
         const replace = pendingReplaceRef.current;
         pendingTargetRef.current = null;
         await performOneNav(target, replace);
-        await new Promise<void>((resolve) => {
-          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        });
       }
     } finally {
       drainingRef.current = false;

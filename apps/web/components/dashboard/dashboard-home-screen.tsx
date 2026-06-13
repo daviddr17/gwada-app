@@ -9,24 +9,34 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useDashboardPageBackgroundRefresh } from "@/lib/dashboard/dashboard-widget-refresh";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
 
-/** Dashboard-Home — Inhalt des `/dashboard`-Page-Segments (RSC/Router-Sync). */
-export function DashboardHomeScreen() {
+/** Dashboard-Home — `active=false`: warm gemountet, ohne Chrome/Background-Load. */
+export function DashboardHomeScreen({ active = true }: { active?: boolean }) {
   const { visibility } = useDashboardWidgetPreferences();
-  useDashboardPageBackgroundRefresh();
+  useDashboardPageBackgroundRefresh(active);
 
   return (
     <>
-      <DashboardBatchQuerySync />
-      <UnifiedInboxBackgroundSyncMount enabled={visibility.messages} />
-      <RegisterModuleChrome
-        title="Dashboard"
-        subnavAriaLabel={null}
-        subnavItems={null}
-      />
-      <AppMain>
-        <DashboardHomePage />
-      </AppMain>
-      <DashboardFab />
+      {active ? (
+        <>
+          <DashboardBatchQuerySync />
+          <UnifiedInboxBackgroundSyncMount enabled={visibility.messages} />
+          <RegisterModuleChrome
+            title="Dashboard"
+            subnavAriaLabel={null}
+            subnavItems={null}
+          />
+          <AppMain>
+            <DashboardHomePage />
+          </AppMain>
+          <DashboardFab />
+        </>
+      ) : (
+        <div className="hidden" aria-hidden>
+          <AppMain>
+            <DashboardHomePage />
+          </AppMain>
+        </div>
+      )}
     </>
   );
 }

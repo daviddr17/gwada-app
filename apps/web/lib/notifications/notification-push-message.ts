@@ -19,8 +19,11 @@ type NotificationEventRow = {
 
 const pushDateTimeFormatter = new Intl.DateTimeFormat("de-DE", {
   weekday: "short",
-  dateStyle: "medium",
-  timeStyle: "short",
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
 });
 
 const pushTimeFormatter = new Intl.DateTimeFormat("de-DE", {

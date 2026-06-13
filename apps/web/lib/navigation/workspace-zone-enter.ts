@@ -1,6 +1,7 @@
-import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
-import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
+import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { beginSoftNavFlight } from "@/lib/navigation/soft-nav-flight-guard";
+import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
 export function crossAppWorkspaceZone(fromPath: string, toPath: string): boolean {
   const target = toPath.trim() || "/dashboard";
@@ -22,7 +23,7 @@ export function assignCrossAppWorkspaceZone(fromPath: string, toPath: string): b
   return true;
 }
 
-type AppRouterPush = { push: (href: string) => void; prefetch?: (href: string) => void };
+type AppRouterPush = { push: (href: string) => void };
 
 /**
  * App-Navigation: nur Zonenwechsel (App ↔ Superadmin) per Full-Load via /zone/enter;
@@ -35,8 +36,11 @@ export function navigateAppPath(
 ): void {
   const target = safeInternalPath(toPath.trim() || "/dashboard");
   if (assignCrossAppWorkspaceZone(fromPath, target)) return;
-  if (crossAppModuleNavigation(fromPath, target)) {
-    router.prefetch?.(target);
+  if (
+    crossAppModuleNavigation(fromPath, target) &&
+    !beginSoftNavFlight(target)
+  ) {
+    return;
   }
   router.push(target);
 }

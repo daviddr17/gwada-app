@@ -2,6 +2,7 @@ import { runNotificationDeliverCron } from "@/lib/notifications/notification-del
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
 async function handleCron(req: Request) {
   const secret = process.env.CRON_SECRET?.trim();

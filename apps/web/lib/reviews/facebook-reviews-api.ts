@@ -19,6 +19,27 @@ type FacebookRatingRaw = {
   open_graph_story?: { id?: string };
 };
 
+/** Stabile ID ohne open_graph_story — Index würde bei API-Reihenfolge Push-Duplikate erzeugen. */
+function stableFacebookReviewExternalId(
+  pageId: string,
+  raw: FacebookRatingRaw,
+): string {
+  const storyId = raw.open_graph_story?.id?.trim();
+  if (storyId) return storyId;
+
+  const key = [
+    pageId,
+    raw.created_time ?? "",
+    raw.reviewer?.name ?? "",
+    (raw.review_text ?? "").trim().slice(0, 120),
+  ].join("|");
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return `fb-${pageId}-${hash.toString(16)}`;
+}
+
 export async function fetchFacebookReviewsForRestaurant(
   restaurantId: string,
 ): Promise<{ reviews: UnifiedReview[] } | { error: string }> {
@@ -58,7 +79,7 @@ export async function fetchFacebookReviewsForRestaurant(
     return { error: body.error?.message ?? `facebook_ratings_${res.status}` };
   }
 
-  const reviews: UnifiedReview[] = (body.data ?? []).map((r, i) => {
+  const reviews: UnifiedReview[] = (body.data ?? []).map((r) => {
     const positive = r.recommendation_type === "positive";
     const rating =
       typeof r.rating === "number" && r.rating > 0
@@ -69,7 +90,7 @@ export async function fetchFacebookReviewsForRestaurant(
             ? 1
             : 0;
     return {
-      id: r.open_graph_story?.id ?? `fb-${pageId}-${i}`,
+      id: stableFacebookReviewExternalId(pageId, r),
       platform: "facebook" as const,
       rating,
       comment: r.review_text?.trim() || null,

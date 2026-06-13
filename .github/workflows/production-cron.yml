@@ -2,8 +2,6 @@ name: Production cron jobs
 
 on:
   schedule:
-    # notification-deliver
-    - cron: "*/2 * * * *"
     # staff-shift-notifications, contact-inbox-sync
     - cron: "*/5 * * * *"
     # news-feed-sync, reviews-feed-sync
@@ -64,8 +62,8 @@ jobs:
   notification-deliver:
     runs-on: ubuntu-latest
     if: |
-      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'notification-deliver')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '*/2 * * * *')
+      github.event_name == 'workflow_dispatch' &&
+      (inputs.target == 'all' || inputs.target == 'notification-deliver')
     steps:
       - name: Call notification-deliver
         env:
@@ -75,7 +73,8 @@ jobs:
             echo "CRON_SECRET not set — skipped."
             exit 0
           fi
-          curl -sfS -H "Authorization: Bearer $CRON_SECRET" \
+          curl -sfS --max-time 130 \
+            -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/notification-deliver"
 
   staff-shift-notifications:

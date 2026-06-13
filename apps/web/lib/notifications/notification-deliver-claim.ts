@@ -57,7 +57,7 @@ export async function claimUnprocessedNotificationEvents(
     { p_limit: limit },
   );
   if (error) {
-    console.warn("[notification-deliver] claim events", error.message);
+    console.warn("[notification-deliver] lock events", error.message);
     return [];
   }
   return (data ?? []).map((row: ClaimedNotificationEvent & { payload?: unknown }) => {
@@ -70,4 +70,48 @@ export async function claimUnprocessedNotificationEvents(
           : {},
     };
   });
+}
+
+export async function completeNotificationEventProcessing(
+  admin: SupabaseClient,
+  eventId: string,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc(
+    "complete_notification_event_processing",
+    { p_event_id: eventId },
+  );
+  if (error) {
+    console.warn("[notification-deliver] complete event", eventId, error.message);
+    return false;
+  }
+  return data === true;
+}
+
+export async function releaseNotificationEventLock(
+  admin: SupabaseClient,
+  eventId: string,
+): Promise<boolean> {
+  const { data, error } = await admin.rpc("release_notification_event_lock", {
+    p_event_id: eventId,
+  });
+  if (error) {
+    console.warn("[notification-deliver] release event lock", eventId, error.message);
+    return false;
+  }
+  return data === true;
+}
+
+export async function releaseStaleNotificationEventLocks(
+  admin: SupabaseClient,
+  staleMinutes = 5,
+): Promise<number> {
+  const { data, error } = await admin.rpc(
+    "release_stale_notification_event_locks",
+    { p_stale_minutes: staleMinutes },
+  );
+  if (error) {
+    console.warn("[notification-deliver] release stale event locks", error.message);
+    return 0;
+  }
+  return typeof data === "number" ? data : 0;
 }

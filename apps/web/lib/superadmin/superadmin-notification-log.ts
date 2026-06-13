@@ -69,6 +69,59 @@ export function formatNotificationLogDt(iso: string | null | undefined): string 
   });
 }
 
+/** Zeitpunkt des auslösenden Vorgangs (Bewertung, Nachricht, Termin, Schicht …) aus dem Event-Payload. */
+export function sourceTimestampFromPayload(
+  module: string,
+  payload: Record<string, unknown>,
+): string | null {
+  const p = payload ?? {};
+  const pick = (key: string): string | null => {
+    const value = p[key];
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  };
+
+  if (module === "reviews") {
+    return pick("reviewCreatedAt");
+  }
+  if (module === "messages") {
+    return pick("messageCreatedAt");
+  }
+  if (
+    module === "reservations_pending" ||
+    module === "reservations_change_request" ||
+    module === "reservations_cancellation"
+  ) {
+    return pick("startsAt");
+  }
+  if (module === "staff_shift_start") {
+    return pick("startsAt");
+  }
+  if (module === "staff_shift_end") {
+    return pick("endsAt") ?? pick("startsAt");
+  }
+  if (module === "changelog") {
+    return pick("publishedAt");
+  }
+  return null;
+}
+
+export function sourceTimestampLabel(module: string): string {
+  if (module === "reviews") return "Bewertung vom";
+  if (module === "messages") return "Nachricht vom";
+  if (
+    module === "reservations_pending" ||
+    module === "reservations_change_request" ||
+    module === "reservations_cancellation"
+  ) {
+    return "Termin";
+  }
+  if (module === "staff_shift_start" || module === "staff_shift_end") {
+    return "Schicht";
+  }
+  if (module === "changelog") return "Veröffentlicht";
+  return "Quelle";
+}
+
 export function formatNotificationPayloadSummary(
   module: string,
   payload: Record<string, unknown>,
@@ -151,7 +204,7 @@ export function recipientLabelForLogRow(row: SuperadminNotificationLogRow): stri
 }
 
 export function primaryTimestampForLogRow(row: SuperadminNotificationLogRow): string {
-  return row.sent_at ?? row.delivery_created_at ?? row.event_created_at;
+  return row.event_created_at;
 }
 
 export type SuperadminNotificationLogFilters = {

@@ -28,3 +28,5 @@ Full-Load pro Modulwechsel triggert Dashboard-Batch (~6s), Inbox-Warm, Notificat
 ## Bei RSC-/Dashboard-Fehlern
 
 `app/(platform)/(app)/dashboard/error.tsx` nutzen — **nicht** pauschal Modul-Navigation auf Full-Load zurückdrehen.
+
+**Häufige echte Ursache bei schnellem Modulwechsel:** Supabase-Realtime remount race — siehe **`app-realtime-soft-nav.mdc`**. Erst Realtime/SoftNavLock prüfen, nicht navigationsmodell ändern.

@@ -79,6 +79,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/superadmin/datenbank": "Datenbank",
   "/superadmin/lade-strategie": "Lade-Strategie",
   "/superadmin/changelog": "Changelog",
+  "/superadmin/benachrichtigungen": "Benachrichtigungen",
 };
 
 const SEGMENT_SLUG_LABELS: Record<string, string> = {

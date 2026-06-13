@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
-/** Einheitliche Content-Breite für Dashboard, Einstellungen, Bestand, Speisekarte. */
+/** Einheitliches Content-Padding für Dashboard, Einstellungen, Bestand, Speisekarte — volle Breite im Main-Bereich. */
 export function AppMain({
   children,
   className,
@@ -13,7 +13,7 @@ export function AppMain({
     <div className="bg-background">
       <main
         className={cn(
-          "mx-auto w-full max-w-6xl px-4 pb-16 pt-4 sm:px-6",
+          "w-full px-4 pb-16 pt-4 sm:px-6",
           className,
         )}
       >

@@ -22,7 +22,11 @@ function realtimeTopic(channelName: string): string {
   return `realtime:${channelName}`;
 }
 
-/** Entfernt hängende Kanäle gleichen Namens (Soft-Nav remountet Hooks schnell hintereinander). */
+/**
+ * Entfernt hängende Kanäle gleichen Namens vor Resubscribe.
+ * Pflicht bei Soft-Nav — sonst uncaught Realtime-Fehler bei schnellem Modulwechsel.
+ * Siehe `.cursor/rules/app-realtime-soft-nav.mdc`.
+ */
 function removeChannelsByName(sb: SupabaseClient, channelName: string): void {
   const topic = realtimeTopic(channelName);
   for (const existing of sb.getChannels()) {

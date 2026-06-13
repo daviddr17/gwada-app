@@ -1,0 +1,49 @@
+---
+description: Supabase Realtime + Soft-Nav — festes Modell, kein Remount pro Route. Nicht ohne ausdrückliche Anfrage ändern.
+alwaysApply: true
+---
+
+# Realtime + Soft-Nav (fest — nicht kaputt optimieren)
+
+**Juni 2026 — Live-Bug:** Schneller Modulwechsel (Dashboard ↔ Mitarbeiter ↔ Speisekarte …) → **„This page couldn't load“** / **„Dieser Bereich konnte nicht geladen werden“**. Langsamer Wechsel ging. Root Cause: **Supabase Realtime remount race**, nicht fehlendes Full-Load.
+
+## Was passiert ist
+
+1. Soft-Nav hält `(app)`-Layout und Provider **gemountet** — korrekt (`app-module-navigation.mdc`).
+2. **Falsch war:** `AppReservationsLive` / `AppStaffLive` (bzw. Realtime-Hooks) **pro Route** ein-/ausblenden oder an `pathname`/Modul koppeln.
+3. Bei schnellem Wechsel: alter Realtime-Channel noch nicht entfernt → neuer Mount ruft `.on('postgres_changes', …)` auf **bereits subscribed** Channel → **uncaught** Supabase-Fehler → React-Crash → `dashboard/error.tsx` oder Next-RSC-Overlay.
+
+Console-Signatur: `cannot add postgres_changes callbacks for realtime:… after subscribe()`.
+
+**Superadmin** hatte das Problem nicht: keine route-getoggelten Realtime-Provider.
+
+## Verbindliches Modell (nicht zurückdrehen)
+
+| Thema | Pflicht |
+|-------|---------|
+| Modulwechsel | **Soft-Nav** bleibt — **kein** Full-Load als „Fix“ für Lade-/RSC-Fehler |
+| Realtime-Provider | **Einmal pro App-Zone**, solange Workspace-Restaurant ready — siehe `AppModuleLiveProviders` |
+| Route ↔ Realtime | **Nicht** an einzelne Module/Pfade koppeln (`if (pathname.startsWith('/dashboard/menu')) …`) |
+| Subscribe | Vor Resubscribe **stale Channels gleichen Namens entfernen** — `removeChannelsByName` in `restaurant-table-realtime.ts` |
+| Schnelle Klicks | **SoftNavLock** auf Cross-Modul-Links (`AppNavLink`, Sidebar, Back) — parallele Flights blockieren |
+
+## Verboten ohne ausdrückliche Nutzer-Anfrage
+
+- Realtime-Provider wieder **route-conditional** mounten/unmounten
+- Modul-Navigation auf **Full-Load** umstellen „weil Dashboard manchmal crasht“
+- Realtime-Hooks in **Seiten-Komponenten** pro Modul duplizieren statt App-Zone-Provider
+- `if (channel) return` o. Ä., das **hängende** Kanäle lässt und trotzdem neu subscribed
+- SoftNavLock / `prefetch={false}` an Modul-Links entfernen „zum Testen“
+
+## Bei erneutem Modul-Ladefehler
+
+1. Browser-Console auf **uncaught Realtime** prüfen (nicht sofort RSC/Full-Load vermuten)
+2. `AppModuleLiveProviders`, `restaurant-table-realtime.ts`, `use-platform-reservations-live.ts`, `use-restaurant-staff-realtime.ts` prüfen
+3. Live-Stresstest: schnelle Sidebar-Klicks (30–50 ms) — Fehler muss **weg** bleiben
+
+## Referenz-Dateien
+
+- `components/providers/app-module-live-providers.tsx`
+- `lib/supabase/restaurant-table-realtime.ts`
+- `components/providers/soft-nav-lock-provider.tsx`
+- `components/navigation/app-nav-link.tsx`

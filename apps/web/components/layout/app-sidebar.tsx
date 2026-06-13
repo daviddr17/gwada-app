@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   Building2,
   CalendarDays,
   Database,
@@ -220,6 +221,20 @@ export function AppSidebar() {
                     >
                       <ScrollText />
                       <span>Changelog</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/benachrichtigungen",
+                      )}
+                      tooltip="Benachrichtigungen"
+                      render={
+                        <Link href="/superadmin/benachrichtigungen" prefetch />
+                      }
+                    >
+                      <Bell />
+                      <span>Benachrichtigungen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>

@@ -9,7 +9,10 @@ import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
 /**
  * Realtime einmal pro App-Zone — nicht pro Route ein-/ausblenden.
- * Schnelle Soft-Nav hat sonst Supabase-Kanäle remountet → uncaught Realtime-Error → RSC-Overlay.
+ *
+ * REGRESSION (Live, 2026-06): Route-conditional mount remountete Kanäle bei schneller Soft-Nav
+ * → `cannot add postgres_changes callbacks … after subscribe()` → Seite kaputt.
+ * Siehe `.cursor/rules/app-realtime-soft-nav.mdc` — Modell nicht ohne ausdrückliche Anfrage ändern.
  */
 export function AppModuleLiveProviders() {
   const pathname = usePathname();

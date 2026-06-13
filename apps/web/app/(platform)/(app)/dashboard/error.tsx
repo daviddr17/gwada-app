@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-export default function DashboardError({
+export default function DashboardZoneError({
   error,
   reset,
 }: {
@@ -12,20 +12,26 @@ export default function DashboardError({
   reset: () => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    console.error("[dashboard]", error);
-  }, [error]);
+    console.error("[dashboard:zone]", pathname, error);
+  }, [error, pathname]);
 
   return (
     <div className="flex min-h-[40vh] flex-col items-center justify-center gap-4 px-4 text-center">
       <p className="text-sm font-medium text-foreground">
-        Dashboard konnte nicht geladen werden.
+        Dieser Bereich konnte nicht geladen werden.
       </p>
       <p className="max-w-md text-xs text-muted-foreground">
         Bitte erneut laden. Bei wiederholten Fehlern die Seite neu öffnen.
-        {error.digest ? (
+        {error.message ? (
           <span className="mt-2 block font-mono text-[10px] opacity-70">
+            {error.message.slice(0, 160)}
+          </span>
+        ) : null}
+        {error.digest ? (
+          <span className="mt-1 block font-mono text-[10px] opacity-70">
             {error.digest}
           </span>
         ) : null}
@@ -47,9 +53,9 @@ export default function DashboardError({
           size="sm"
           variant="outline"
           className="rounded-xl"
-          onClick={() => window.location.assign("/dashboard")}
+          onClick={() => window.location.assign(pathname || "/dashboard")}
         >
-          Dashboard neu laden
+          Seite neu laden
         </Button>
       </div>
     </div>

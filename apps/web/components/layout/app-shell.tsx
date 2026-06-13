@@ -143,7 +143,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             render={
               <Link
                 href={backHref}
-                prefetch
+                prefetch={false}
                 scroll={false}
                 onClick={(event) => {
                   onBackNavigate();

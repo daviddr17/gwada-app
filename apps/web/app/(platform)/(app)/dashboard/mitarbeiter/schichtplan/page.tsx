@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { StaffShiftPlanScreen } from "@/components/staff/shift-plan/staff-shift-plan-screen";
 

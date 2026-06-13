@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { ContactsMessagesScreen } from "@/components/contacts/contacts-messages-screen";
 

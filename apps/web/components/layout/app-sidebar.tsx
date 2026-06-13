@@ -228,7 +228,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname === "/dashboard"}
                       tooltip="Dashboard"
-                      render={<Link href="/dashboard" prefetch scroll={false} />}
+                      render={<Link href="/dashboard" prefetch={false} scroll={false} />}
                     >
                       <LayoutDashboard />
                       <span>Dashboard</span>
@@ -238,7 +238,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/menu")}
                       tooltip="Speisekarte"
-                      render={<Link href="/dashboard/menu/uebersicht" prefetch scroll={false} />}
+                      render={<Link href="/dashboard/menu/uebersicht" prefetch={false} scroll={false} />}
                     >
                       <UtensilsCrossed />
                       <span>Speisekarte</span>
@@ -248,7 +248,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/inventory")}
                       tooltip="Bestand"
-                      render={<Link href="/dashboard/inventory/uebersicht" prefetch scroll={false} />}
+                      render={<Link href="/dashboard/inventory/uebersicht" prefetch={false} scroll={false} />}
                     >
                       <Package />
                       <span>Bestand</span>
@@ -261,7 +261,7 @@ export function AppSidebar() {
                       render={
                         <Link
                           href="/dashboard/reservierungen/uebersicht"
-                          prefetch
+                          prefetch={false}
                           scroll={false}
                         />
                       }
@@ -277,7 +277,7 @@ export function AppSidebar() {
                       render={
                         <Link
                           href="/dashboard/kontakte/nachrichten?platform=all"
-                          prefetch
+                          prefetch={false}
                           scroll={false}
                         />
                       }
@@ -290,7 +290,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/news")}
                       tooltip="News"
-                      render={<Link href="/dashboard/news/uebersicht" prefetch scroll={false} />}
+                      render={<Link href="/dashboard/news/uebersicht" prefetch={false} scroll={false} />}
                     >
                       <Newspaper />
                       <span>News</span>
@@ -300,7 +300,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/bewertungen")}
                       tooltip="Bewertungen"
-                      render={<Link href="/dashboard/bewertungen/uebersicht" prefetch scroll={false} />}
+                      render={<Link href="/dashboard/bewertungen/uebersicht" prefetch={false} scroll={false} />}
                     >
                       <Star />
                       <span>Bewertungen</span>
@@ -313,7 +313,7 @@ export function AppSidebar() {
                       render={
                         <Link
                           href="/dashboard/buchfuehrung/rechnungen"
-                          prefetch
+                          prefetch={false}
                           scroll={false}
                         />
                       }
@@ -326,7 +326,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/dokumente")}
                       tooltip="Dokumente"
-                      render={<Link href="/dashboard/dokumente/uebersicht" prefetch scroll={false} />}
+                      render={<Link href="/dashboard/dokumente/uebersicht" prefetch={false} scroll={false} />}
                     >
                       <FileText />
                       <span>Dokumente</span>
@@ -339,7 +339,7 @@ export function AppSidebar() {
                       render={
                         <Link
                           href="/dashboard/mitarbeiter/uebersicht"
-                          prefetch
+                          prefetch={false}
                           scroll={false}
                         />
                       }
@@ -412,7 +412,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith("/settings")}
                 tooltip="Einstellungen"
-                render={<Link href="/settings" prefetch scroll={false} />}
+                render={<Link href="/settings" prefetch={false} scroll={false} />}
               >
                 <Settings />
                 <span>Einstellungen</span>
@@ -424,7 +424,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith("/changelog")}
                 tooltip="Changelog"
-                render={<Link href="/changelog" prefetch scroll={false} />}
+                render={<Link href="/changelog" prefetch={false} scroll={false} />}
               >
                 <ScrollText />
                 <span>Changelog</span>

@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { ReservationsOverview } from "@/components/reservations/reservations-overview";
 

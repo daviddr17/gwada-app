@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { AccountingInvoicesScreen } from "@/components/accounting/accounting-invoices-screen";
 

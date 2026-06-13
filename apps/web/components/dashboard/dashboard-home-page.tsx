@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/dashboard-widget-error-boundary";
 import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
@@ -113,7 +114,9 @@ export function DashboardHomePage() {
     <div className="grid gap-4 pt-2 lg:grid-cols-2">
       {orderedVisible.map((id) => (
         <div key={id} className="min-w-0">
-          <DashboardWidgetById id={id} />
+          <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
+            <DashboardWidgetById id={id} />
+          </DashboardWidgetErrorBoundaryWithReset>
         </div>
       ))}
     </div>

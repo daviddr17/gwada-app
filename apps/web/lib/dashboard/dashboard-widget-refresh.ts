@@ -16,8 +16,11 @@ export function dispatchDashboardWidgetsRefresh(): void {
 /**
  * Hält den zentralen Refresh-Coordinator am Leben (Dashboard-Home).
  */
-export function useDashboardPageBackgroundRefresh(): void {
-  useEffect(() => subscribeDashboardRefreshCoordinator(() => {}), []);
+export function useDashboardPageBackgroundRefresh(enabled = true): void {
+  useEffect(() => {
+    if (!enabled) return;
+    return subscribeDashboardRefreshCoordinator(() => {});
+  }, [enabled]);
 }
 
 /** Erstes Laden zeigt Skeleton; Folgeladungen behalten Zahlen. */

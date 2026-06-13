@@ -1,3 +1,5 @@
+"use client";
+
 import { DashboardZoneShell } from "@/components/dashboard/dashboard-zone-shell";
 
 export default function DashboardZoneLayout({

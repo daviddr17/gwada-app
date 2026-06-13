@@ -68,15 +68,24 @@ export function SoftNavCoordinatorProvider({ children }: { children: ReactNode }
 
     return new Promise<void>((resolve) => {
       const startedAt = Date.now();
+      let stableFrames = 0;
 
       const tick = () => {
         const atTarget =
           normalizePath(window.location.pathname) === normalizedTarget;
-        if (atTarget && !isPendingRef.current && !hasLoadErrorOverlay()) {
-          resolve();
-          return;
+        const settled = atTarget && !isPendingRef.current && !hasLoadErrorOverlay();
+
+        if (settled) {
+          stableFrames += 1;
+          if (stableFrames >= 4) {
+            resolve();
+            return;
+          }
+        } else {
+          stableFrames = 0;
         }
-        if (Date.now() - startedAt >= 12_000) {
+
+        if (Date.now() - startedAt >= 15_000) {
           resolve();
           return;
         }
@@ -128,6 +137,9 @@ export function SoftNavCoordinatorProvider({ children }: { children: ReactNode }
         const replace = pendingReplaceRef.current;
         pendingTargetRef.current = null;
         await performOneNav(target, replace);
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        });
       }
     } finally {
       drainingRef.current = false;

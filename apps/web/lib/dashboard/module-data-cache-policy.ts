@@ -125,7 +125,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — ein GET /api/dashboard/summary.",
+      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — ein GET /api/dashboard/summary. Sofort aus localStorage (SWR), Hintergrund-Prefetch nach Login, stilles Nachladen.",
     loadTriggers: [
       "Mount Dashboard-Startseite (nur sichtbare Widgets)",
       "React Query refetchInterval 60s",
@@ -139,8 +139,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     apiEndpoints: ["/api/dashboard/summary"],
     implementationFiles: [
       "lib/hooks/use-dashboard-batch-summary-query.ts",
+      "lib/hooks/dashboard-batch-summary-query-options.ts",
+      "lib/dashboard/dashboard-batch-summary-cache.ts",
       "lib/dashboard/load-dashboard-batch-summary-server.ts",
       "components/providers/dashboard-batch-query-sync.tsx",
+      "components/providers/dashboard-batch-prefetch-mount.tsx",
     ],
     status: "active",
   },

@@ -5,26 +5,33 @@ function normalizePath(pathname: string): string {
   return pathname;
 }
 
-let activeTarget: string | null = null;
+let inFlight = false;
+let pendingTarget: string | null = null;
 let releaseTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Verhindert parallele Soft-Navs zum gleichen Ziel (RSC-Race auf Live). */
+/** Blockiert parallele Soft-Navs (beliebiges Ziel) — RSC-Race auf Live. */
 export function beginSoftNavFlight(target: string): boolean {
-  const normalized = normalizePath(target);
-  if (activeTarget === normalized) return false;
+  if (inFlight) return false;
+  inFlight = true;
+  pendingTarget = normalizePath(target);
   if (releaseTimer) clearTimeout(releaseTimer);
-  activeTarget = normalized;
   releaseTimer = setTimeout(() => {
-    activeTarget = null;
+    inFlight = false;
+    pendingTarget = null;
     releaseTimer = null;
-  }, 2500);
+  }, 5000);
   return true;
 }
 
 export function endSoftNavFlight(pathname: string): void {
-  const normalized = normalizePath(pathname);
-  if (activeTarget !== normalized) return;
-  activeTarget = null;
+  if (!inFlight || !pendingTarget) return;
+  if (normalizePath(pathname) !== pendingTarget) return;
+  inFlight = false;
+  pendingTarget = null;
   if (releaseTimer) clearTimeout(releaseTimer);
   releaseTimer = null;
+}
+
+export function isSoftNavFlightActive(): boolean {
+  return inFlight;
 }

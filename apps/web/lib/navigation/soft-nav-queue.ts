@@ -8,10 +8,21 @@ function normalizePath(pathname: string): string {
 }
 
 let chain: Promise<void> = Promise.resolve();
+let queueDepth = 0;
 
 /** Parallele Modul-Wechsel vermeiden — ein RSC-Flight nach dem anderen. */
 export function enqueueAppSoftNav(task: () => Promise<void>): void {
-  chain = chain.then(task).catch(() => {});
+  queueDepth += 1;
+  chain = chain
+    .then(task)
+    .catch(() => {})
+    .finally(() => {
+      queueDepth = Math.max(0, queueDepth - 1);
+    });
+}
+
+export function isAppSoftNavQueueBusy(): boolean {
+  return queueDepth > 0;
 }
 
 export function waitForAppPath(targetPath: string, timeoutMs = 8000): Promise<boolean> {

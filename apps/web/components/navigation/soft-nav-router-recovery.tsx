@@ -7,7 +7,7 @@ const RECOVERY_COOLDOWN_MS = 4000;
 
 /**
  * Next.js Router-Overlay „This page couldn't load“ nach fehlgeschlagenem RSC-Flight:
- * einmalig router.refresh() statt hängendem Fehlerzustand.
+ * einmalig router.refresh() (greift solange die App-Provider noch gemountet sind).
  */
 export function SoftNavRouterRecovery() {
   const router = useRouter();

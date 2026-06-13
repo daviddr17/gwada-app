@@ -1,4 +1,7 @@
-/** Route-Anker für `/dashboard` — Inhalt rendert `DashboardZoneShell` (warm, kein RSC-Remount). */
-export default function DashboardRouteAnchor() {
-  return null;
+"use client";
+
+import { DashboardHomePage } from "@/components/dashboard/dashboard-home-page";
+
+export default function DashboardPage() {
+  return <DashboardHomePage />;
 }

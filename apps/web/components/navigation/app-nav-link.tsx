@@ -1,9 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import { isDashboardHomePath } from "@/components/dashboard/dashboard-zone-shell";
+import {
+  assignCrossAppWorkspaceZone,
+  crossAppModuleNavigation,
+  navigateAppPath,
+} from "@/lib/navigation/app-zone-navigation";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -20,7 +25,7 @@ export function AppNavLink({
   children,
   className,
   onClick,
-  prefetch = true,
+  prefetch,
   "aria-label": ariaLabel,
 }: {
   href: string | { pathname?: string; search?: string };
@@ -31,12 +36,17 @@ export function AppNavLink({
   "aria-label"?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const hrefStr = hrefToString(href);
+  const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+  const shouldPrefetch =
+    prefetch ??
+    !(isDashboardHomePath(hrefStr) && crossModuleNav && !isDashboardHomePath(pathname));
 
   return (
     <Link
       href={href}
-      prefetch={prefetch}
+      prefetch={shouldPrefetch}
       className={className}
       aria-label={ariaLabel}
       onClick={(event) => {
@@ -44,6 +54,11 @@ export function AppNavLink({
         if (event.defaultPrevented) return;
         if (assignCrossAppWorkspaceZone(pathname, hrefStr)) {
           event.preventDefault();
+          return;
+        }
+        if (crossModuleNav) {
+          event.preventDefault();
+          navigateAppPath(router, pathname, hrefStr);
         }
       }}
     >

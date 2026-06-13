@@ -187,8 +187,8 @@ export async function fetchSuperadminNotificationLog(
   if (error) return { rows: [], totalCount: 0, error: error.message };
 
   let totalCount = 0;
-  const rows = (data ?? []).map((raw) => {
-    const row = raw as Record<string, unknown>;
+  const rows = (data ?? []).map((raw: Record<string, unknown>) => {
+    const row = raw;
     if (typeof row.total_count === "number") {
       totalCount = row.total_count;
     } else if (typeof row.total_count === "string") {

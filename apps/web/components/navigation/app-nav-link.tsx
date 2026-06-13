@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 import {
@@ -20,9 +20,17 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
   return `${pathname}${search}`;
 }
 
+async function cleanupAuthCookiesBeforeNav(): Promise<void> {
+  try {
+    await fetch("/api/auth/cleanup-cookies", { credentials: "include" });
+  } catch {
+    // Proxy strippt gwada_* trotzdem serverseitig — Nav nicht blockieren.
+  }
+}
+
 /**
  * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
- * Modulwechsel über Link (Next-Router-intern), nicht router.push — stabilerer RSC-Flight.
+ * Zurück zum Dashboard: Cookies bereinigen, dann router.replace (stabiler RSC-Flight auf Live).
  */
 export function AppNavLink({
   href,
@@ -40,8 +48,13 @@ export function AppNavLink({
   "aria-label"?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const hrefStr = hrefToString(href);
   const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+  const returningToDashboard =
+    crossModuleNav &&
+    isDashboardHomePath(hrefStr) &&
+    !isDashboardHomePath(pathname);
   const shouldPrefetch =
     prefetch ??
     !(isDashboardHomePath(hrefStr) && crossModuleNav && !isDashboardHomePath(pathname));
@@ -50,6 +63,8 @@ export function AppNavLink({
     <Link
       href={href}
       prefetch={shouldPrefetch}
+      replace={returningToDashboard}
+      scroll={false}
       className={className}
       aria-label={ariaLabel}
       onClick={(event) => {
@@ -60,6 +75,16 @@ export function AppNavLink({
           return;
         }
         if (!crossModuleNav) return;
+
+        if (returningToDashboard) {
+          event.preventDefault();
+          if (isSoftNavFlightActive() || !beginSoftNavFlight(hrefStr)) return;
+          void cleanupAuthCookiesBeforeNav().then(() => {
+            router.replace(hrefStr);
+          });
+          return;
+        }
+
         if (isSoftNavFlightActive() || !beginSoftNavFlight(hrefStr)) {
           event.preventDefault();
         }

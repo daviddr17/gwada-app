@@ -1,10 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
-import { type NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAnonKey } from "@/lib/public-env";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
-import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
+import {
+  appendAuthEntryCookieCleanup,
+  stripBloatedCookiesFromCookieHeader,
+} from "@/lib/cookies/bloated-request-cookies";
 import { logDashboardRscRequest } from "@/lib/observability/rsc-soft-nav-log";
 import { isPublicRestaurantProfilePath } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
@@ -37,11 +40,20 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
+/** RSC/App-Render: bloated gwada_*-Cookies aus Request entfernen (Session bleibt). */
+function slimAuthenticatedCookieRequest(request: NextRequest): NextRequest {
+  const raw = request.headers.get("cookie");
+  const stripped = stripBloatedCookiesFromCookieHeader(raw);
+  if (!stripped || stripped === raw) return request;
+
+  const headers = new Headers(request.headers);
+  headers.set("cookie", stripped);
+  return new NextRequest(request.url, { headers, method: request.method });
+}
+
 /** Auth & öffentliche Routen — Next.js 16: `proxy.ts` (ersetzt `middleware.ts`). */
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-
-  const response = NextResponse.next({ request });
 
   const anonKey = getSupabaseAnonKey();
 
@@ -49,11 +61,13 @@ export async function proxy(request: NextRequest) {
     if (!isPublicPath(pathname)) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
-    return response;
+    return NextResponse.next({ request });
   }
 
+  const earlyResponse = NextResponse.next({ request });
+
   if (isAuthEntryPath(pathname)) {
-    appendAuthEntryCookieCleanup(response.headers);
+    appendAuthEntryCookieCleanup(earlyResponse.headers);
   }
 
   if (
@@ -71,14 +85,17 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/nachrichten/") ||
     isPublicRestaurantProfilePath(pathname)
   ) {
-    return response;
+    return earlyResponse;
   }
+
+  const forwardRequest = slimAuthenticatedCookieRequest(request);
+  const response = NextResponse.next({ request: forwardRequest });
 
   const supabase = createServerClient(resolveSupabaseUrl(request.nextUrl.origin), anonKey, {
     cookieOptions: gwadaSupabaseCookieOptions,
     cookies: {
       getAll() {
-        return request.cookies.getAll();
+        return forwardRequest.cookies.getAll();
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {

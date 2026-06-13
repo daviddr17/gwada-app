@@ -2,6 +2,7 @@
 
 import type { ComponentProps } from "react";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import type { ReviewViewMode } from "@/lib/reviews/reviews-screen-query";
 import { cn } from "@/lib/utils";
 
 function ReviewSummaryCardSkeleton() {
@@ -50,8 +51,9 @@ function ReviewCardSkeleton() {
 
 export function ReviewsScreenSkeleton({
   className,
+  viewMode = "grid",
   ...props
-}: ComponentProps<"div">) {
+}: ComponentProps<"div"> & { viewMode?: ReviewViewMode }) {
   return (
     <div
       aria-busy
@@ -65,13 +67,22 @@ export function ReviewsScreenSkeleton({
         <div className="flex items-center gap-2">
           <Skeleton className="h-11 min-w-0 flex-1 rounded-2xl" />
           <Skeleton className="size-8 shrink-0 rounded-full" />
+          <Skeleton className="size-8 shrink-0 rounded-full" />
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <ReviewCardSkeleton key={i} />
-          ))}
-        </div>
+        {viewMode === "list" ? (
+          <div className="space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ReviewCardSkeleton key={i} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <ReviewCardSkeleton key={i} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

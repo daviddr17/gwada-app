@@ -18,6 +18,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/bewertungen": "Bewertungen",
   "/dashboard/bewertungen/uebersicht": "Übersicht",
   "/dashboard/bewertungen/einbinden": "Einbinden",
+  "/dashboard/bewertungen/einstellungen": "Einstellungen",
   "/dashboard/news": "News",
   "/dashboard/news/uebersicht": "Übersicht",
   "/dashboard/news/einbinden": "Einbinden",

@@ -16,6 +16,11 @@ const BEWERTUNGEN_NAV: readonly ModuleSubnavItem[] = [
     label: "Einbinden",
     matchMode: "prefix",
   },
+  {
+    href: "/dashboard/bewertungen/einstellungen",
+    label: "Einstellungen",
+    matchMode: "prefix",
+  },
 ];
 
 export default function BewertungenLayout({

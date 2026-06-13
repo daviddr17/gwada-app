@@ -12,6 +12,11 @@ export type UnifiedReview = {
   externalUrl: string | null;
   /** Verknüpfter Kontakt (Gwada), falls ermittelbar */
   contactId?: string | null;
+  /** Verknüpfte Reservierung (Gwada), falls vorhanden */
+  reservationId?: string | null;
+  reservationNumber?: number | null;
+  /** Auf Profil/Embed ausgeblendet — nur Dashboard. */
+  hiddenFromPublic?: boolean;
   /** Pro Nutzer — fehlt in API = ungelesen. */
   isUnread?: boolean;
 };

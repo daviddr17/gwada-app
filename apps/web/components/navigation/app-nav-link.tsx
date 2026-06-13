@@ -11,9 +11,14 @@ import {
 } from "@/lib/navigation/app-zone-navigation";
 import {
   beginSoftNavFlight,
+  cancelSoftNavFlight,
   isSoftNavFlightActive,
 } from "@/lib/navigation/soft-nav-flight-guard";
-import { enqueueAppSoftNav } from "@/lib/navigation/soft-nav-queue";
+import {
+  enqueueAppSoftNav,
+  isAppSoftNavQueueBusy,
+  waitForAppPath,
+} from "@/lib/navigation/soft-nav-queue";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -24,7 +29,7 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 
 /**
  * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
- * Modul→Dashboard: serialisiert, Cookies bereinigen, dann router.replace.
+ * Modulwechsel laufen serialisiert über die Soft-Nav-Queue (kein paralleler RSC-Flight).
  */
 export function AppNavLink({
   href,
@@ -70,19 +75,22 @@ export function AppNavLink({
         }
         if (!crossModuleNav) return;
 
-        if (returningToDashboard) {
-          event.preventDefault();
-          if (isSoftNavFlightActive()) return;
-          enqueueAppSoftNav(async () => {
-            if (!beginSoftNavFlight(hrefStr)) return;
-            await navigateDashboardHome(router, hrefStr);
-          });
-          return;
-        }
+        event.preventDefault();
+        if (isSoftNavFlightActive() || isAppSoftNavQueueBusy()) return;
 
-        if (isSoftNavFlightActive() || !beginSoftNavFlight(hrefStr)) {
-          event.preventDefault();
-        }
+        enqueueAppSoftNav(async () => {
+          if (!beginSoftNavFlight(hrefStr)) return;
+          try {
+            if (returningToDashboard) {
+              await navigateDashboardHome(router, hrefStr);
+              return;
+            }
+            router.push(hrefStr);
+            await waitForAppPath(hrefStr);
+          } finally {
+            cancelSoftNavFlight();
+          }
+        });
       }}
     >
       {children}

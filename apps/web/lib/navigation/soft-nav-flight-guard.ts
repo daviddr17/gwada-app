@@ -35,3 +35,11 @@ export function endSoftNavFlight(pathname: string): void {
 export function isSoftNavFlightActive(): boolean {
   return inFlight;
 }
+
+/** Flight-Lock nach Queue-Task freigeben (auch wenn pathname noch nicht gesetzt). */
+export function cancelSoftNavFlight(): void {
+  inFlight = false;
+  pendingTarget = null;
+  if (releaseTimer) clearTimeout(releaseTimer);
+  releaseTimer = null;
+}

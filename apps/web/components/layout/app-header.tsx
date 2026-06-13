@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Menu, Settings, X } from "lucide-react";
 import { useState } from "react";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -27,7 +28,7 @@ export function AppHeader({ tenantName = "Gwada", className }: AppHeaderProps) {
         <Button
           variant="ghost"
           className="h-auto px-0 text-lg font-semibold tracking-tight hover:bg-transparent"
-          render={<Link href="/dashboard" prefetch scroll={false} />}
+          render={<AppNavLink href="/dashboard" />}
           nativeButton={false}
         >
           <span className="text-foreground">{tenantName}</span>

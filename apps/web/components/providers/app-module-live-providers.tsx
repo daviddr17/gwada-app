@@ -3,30 +3,32 @@
 import { usePathname } from "next/navigation";
 import { AppReservationsLive } from "@/components/providers/app-reservations-live";
 import { AppStaffLive } from "@/components/providers/app-staff-live";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
-function needsReservationsLive(pathname: string): boolean {
-  return (
-    pathname === "/dashboard" ||
-    pathname.startsWith("/dashboard/reservierungen")
-  );
-}
-
-function needsStaffLive(pathname: string): boolean {
-  return (
-    pathname === "/dashboard" || pathname.startsWith("/dashboard/mitarbeiter")
-  );
-}
-
-/** Realtime nur auf Routen, die Reservierungs-/Mitarbeiter-Live brauchen. */
+/**
+ * Realtime einmal pro App-Zone — nicht pro Route ein-/ausblenden.
+ * Schnelle Soft-Nav hat sonst Supabase-Kanäle remountet → uncaught Realtime-Error → RSC-Overlay.
+ */
 export function AppModuleLiveProviders() {
   const pathname = usePathname();
-  const reservations = needsReservationsLive(pathname);
-  const staff = needsStaffLive(pathname);
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const inAppZone = appZoneFromPath(pathname) === "app";
+
+  if (
+    !inAppZone ||
+    !workspaceReady ||
+    !restaurantId ||
+    !isUuidRestaurantId(restaurantId)
+  ) {
+    return null;
+  }
 
   return (
     <>
-      {reservations ? <AppReservationsLive /> : null}
-      {staff ? <AppStaffLive /> : null}
+      <AppReservationsLive />
+      <AppStaffLive />
     </>
   );
 }

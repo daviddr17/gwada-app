@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
+import { navigateDashboardHome } from "@/lib/navigation/navigate-dashboard-home";
 import {
   assignCrossAppWorkspaceZone,
   crossAppModuleNavigation,
@@ -12,6 +13,7 @@ import {
   beginSoftNavFlight,
   isSoftNavFlightActive,
 } from "@/lib/navigation/soft-nav-flight-guard";
+import { enqueueAppSoftNav } from "@/lib/navigation/soft-nav-queue";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -20,17 +22,9 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
   return `${pathname}${search}`;
 }
 
-async function cleanupAuthCookiesBeforeNav(): Promise<void> {
-  try {
-    await fetch("/api/auth/cleanup-cookies", { credentials: "include" });
-  } catch {
-    // Proxy strippt gwada_* trotzdem serverseitig — Nav nicht blockieren.
-  }
-}
-
 /**
  * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
- * Zurück zum Dashboard: Cookies bereinigen, dann router.replace (stabiler RSC-Flight auf Live).
+ * Modul→Dashboard: serialisiert, Cookies bereinigen, dann router.replace.
  */
 export function AppNavLink({
   href,
@@ -78,9 +72,10 @@ export function AppNavLink({
 
         if (returningToDashboard) {
           event.preventDefault();
-          if (isSoftNavFlightActive() || !beginSoftNavFlight(hrefStr)) return;
-          void cleanupAuthCookiesBeforeNav().then(() => {
-            router.replace(hrefStr);
+          if (isSoftNavFlightActive()) return;
+          enqueueAppSoftNav(async () => {
+            if (!beginSoftNavFlight(hrefStr)) return;
+            await navigateDashboardHome(router, hrefStr);
           });
           return;
         }

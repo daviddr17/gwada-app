@@ -1,6 +1,12 @@
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
+import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
+import { navigateDashboardHome } from "@/lib/navigation/navigate-dashboard-home";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
-import { beginSoftNavFlight } from "@/lib/navigation/soft-nav-flight-guard";
+import {
+  beginSoftNavFlight,
+  isSoftNavFlightActive,
+} from "@/lib/navigation/soft-nav-flight-guard";
+import { enqueueAppSoftNav } from "@/lib/navigation/soft-nav-queue";
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
 export function crossAppWorkspaceZone(fromPath: string, toPath: string): boolean {
@@ -23,24 +29,42 @@ export function assignCrossAppWorkspaceZone(fromPath: string, toPath: string): b
   return true;
 }
 
-type AppRouterPush = { push: (href: string) => void };
+type AppRouter = {
+  push: (href: string) => void;
+  replace: (href: string) => void;
+  refresh: () => void;
+};
 
 /**
  * App-Navigation: nur Zonenwechsel (App ↔ Superadmin) per Full-Load via /zone/enter;
  * Modul-Wechsel und Untermenü per Soft-Nav (Provider + Caches bleiben gemountet).
  */
 export function navigateAppPath(
-  router: AppRouterPush,
+  router: AppRouter,
   fromPath: string,
   toPath: string,
 ): void {
   const target = safeInternalPath(toPath.trim() || "/dashboard");
   if (assignCrossAppWorkspaceZone(fromPath, target)) return;
-  if (
-    crossAppModuleNavigation(fromPath, target) &&
-    !beginSoftNavFlight(target)
-  ) {
+
+  const crossModule = crossAppModuleNavigation(fromPath, target);
+  if (!crossModule) {
+    router.push(target);
     return;
   }
+
+  if (
+    isDashboardHomePath(target) &&
+    !isDashboardHomePath(fromPath)
+  ) {
+    if (isSoftNavFlightActive()) return;
+    enqueueAppSoftNav(async () => {
+      if (!beginSoftNavFlight(target)) return;
+      await navigateDashboardHome(router, target);
+    });
+    return;
+  }
+
+  if (!beginSoftNavFlight(target)) return;
   router.push(target);
 }

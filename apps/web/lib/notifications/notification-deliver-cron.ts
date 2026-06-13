@@ -4,7 +4,9 @@ import {
   NOTIFICATION_DELIVER_BACKOFF_MS,
   NOTIFICATION_DELIVER_EVENTS_BATCH,
   NOTIFICATION_DELIVER_MAX_ATTEMPTS,
+  NOTIFICATION_DELIVER_MAX_LOOP_ITERATIONS,
   NOTIFICATION_DELIVER_RATE_PER_SECOND,
+  NOTIFICATION_DELIVER_RUN_BUDGET_MS,
   NOTIFICATION_DELIVER_SEND_BATCH,
 } from "@/lib/notifications/notification-deliver-constants";
 import {
@@ -23,7 +25,10 @@ import {
 import {
   claimNotificationDeliveries,
   claimUnprocessedNotificationEvents,
+  completeNotificationEventProcessing,
+  releaseNotificationEventLock,
   releaseStaleNotificationDeliveries,
+  releaseStaleNotificationEventLocks,
   type ClaimedNotificationDelivery,
 } from "@/lib/notifications/notification-deliver-claim";
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
@@ -53,7 +58,23 @@ export type NotificationDeliverCronStats = {
   sent: number;
   failed: number;
   skipped: number;
+  eventFanOutErrors: number;
+  staleEventLocksReleased: number;
+  staleDeliveriesReleased: number;
+  pendingEventsRemaining: number;
+  pendingDeliveriesRemaining: number;
+  runBudgetMs: number;
+  timedOut: boolean;
 };
+
+type FanOutResult = {
+  created: number;
+  error: string | null;
+};
+
+function beforeDeadline(deadlineMs: number): boolean {
+  return Date.now() < deadlineMs;
+}
 
 function eventFromDeliveryJoin(
   joined: DeliveryRow["notification_events"],
@@ -140,19 +161,33 @@ function prefsForTarget(
   );
 }
 
+/** Profil, das die Aktion selbst ausgelöst hat — erhält keinen Push an sich selbst. */
+function actorProfileIdToSkip(
+  payload: Record<string, unknown>,
+): string | null {
+  for (const key of ["actorProfileId", "createdByProfileId"] as const) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 async function fanOutEvent(
   admin: SupabaseClient,
   event: NotificationEventRow,
-): Promise<number> {
+): Promise<FanOutResult> {
   if (!isNotificationModuleId(event.module)) {
-    return 0;
+    return { created: 0, error: null };
   }
 
   const moduleId = event.module as NotificationModuleId;
   const targets = await loadStaffTargetsForEvent(admin, event);
-  if (targets.length === 0) return 0;
+  if (targets.length === 0) return { created: 0, error: null };
 
   const prefsMap = await loadPreferencesMap(admin, targets);
+  const skipProfileId = actorProfileIdToSkip(event.payload ?? {});
   const rows: {
     event_id: string;
     profile_id: string;
@@ -162,6 +197,10 @@ async function fanOutEvent(
   }[] = [];
 
   for (const target of targets) {
+    if (skipProfileId && target.profileId === skipProfileId) {
+      continue;
+    }
+
     const prefs = prefsForTarget(prefsMap, target);
 
     if (isPushModuleEnabled(prefs, "whatsapp", moduleId)) {
@@ -185,39 +224,73 @@ async function fanOutEvent(
     }
   }
 
-  if (rows.length === 0) return 0;
+  if (rows.length === 0) return { created: 0, error: null };
 
   const { error } = await admin
     .from("notification_deliveries")
     .upsert(rows, { onConflict: "idempotency_key", ignoreDuplicates: true });
 
   if (error) {
-    console.warn("[notification-deliver] fan-out", error.message);
-    return 0;
+    console.warn("[notification-deliver] fan-out", event.id, error.message);
+    return { created: 0, error: error.message };
   }
 
-  return rows.length;
+  return { created: rows.length, error: null };
 }
 
 async function processUnprocessedEvents(
   admin: SupabaseClient,
-): Promise<{ processed: number; deliveriesCreated: number }> {
-  const events = await claimUnprocessedNotificationEvents(
-    admin,
-    NOTIFICATION_DELIVER_EVENTS_BATCH,
-  );
-
-  if (!events.length) {
-    return { processed: 0, deliveriesCreated: 0 };
-  }
-
+  deadlineMs: number,
+): Promise<{
+  processed: number;
+  deliveriesCreated: number;
+  eventFanOutErrors: number;
+}> {
+  let processed = 0;
   let deliveriesCreated = 0;
+  let eventFanOutErrors = 0;
+  let iterations = 0;
 
-  for (const event of events as NotificationEventRow[]) {
-    deliveriesCreated += await fanOutEvent(admin, event);
+  while (
+    beforeDeadline(deadlineMs) &&
+    iterations < NOTIFICATION_DELIVER_MAX_LOOP_ITERATIONS
+  ) {
+    iterations += 1;
+
+    const events = await claimUnprocessedNotificationEvents(
+      admin,
+      NOTIFICATION_DELIVER_EVENTS_BATCH,
+    );
+
+    if (!events.length) break;
+
+    for (const event of events as NotificationEventRow[]) {
+      const result = await fanOutEvent(admin, event);
+
+      if (result.error) {
+        await releaseNotificationEventLock(admin, event.id);
+        eventFanOutErrors += 1;
+        continue;
+      }
+
+      const completed = await completeNotificationEventProcessing(
+        admin,
+        event.id,
+      );
+      if (!completed) {
+        await releaseNotificationEventLock(admin, event.id);
+        eventFanOutErrors += 1;
+        continue;
+      }
+
+      deliveriesCreated += result.created;
+      processed += 1;
+    }
+
+    if (events.length < NOTIFICATION_DELIVER_EVENTS_BATCH) break;
   }
 
-  return { processed: events.length, deliveriesCreated };
+  return { processed, deliveriesCreated, eventFanOutErrors };
 }
 
 async function fetchRestaurantName(
@@ -261,6 +334,7 @@ async function markDeliveryOutcome(
         attempts,
         last_error: null,
         sent_at: now,
+        claimed_at: null,
       })
       .eq("id", delivery.id)
       .eq("status", "processing");
@@ -274,6 +348,7 @@ async function markDeliveryOutcome(
         status: "failed",
         attempts,
         last_error: outcome.error,
+        claimed_at: null,
       })
       .eq("id", delivery.id)
       .eq("status", "processing");
@@ -289,6 +364,7 @@ async function markDeliveryOutcome(
         attempts,
         last_error: outcome.error,
         scheduled_at: scheduledAt,
+        claimed_at: null,
       })
       .eq("id", delivery.id)
       .eq("status", "processing");
@@ -301,6 +377,7 @@ async function markDeliveryOutcome(
       status: "failed",
       attempts,
       last_error: outcome.error,
+      claimed_at: null,
     })
     .eq("id", delivery.id)
     .eq("status", "processing");
@@ -420,65 +497,109 @@ async function loadEventsForDeliveries(
 
 async function processPendingDeliveries(
   admin: SupabaseClient,
+  deadlineMs: number,
 ): Promise<{
   processed: number;
   sent: number;
   failed: number;
   skipped: number;
 }> {
-  await releaseStaleNotificationDeliveries(admin);
-
-  const claimed = await claimNotificationDeliveries(
-    admin,
-    NOTIFICATION_DELIVER_SEND_BATCH,
-  );
-
-  if (!claimed.length) {
-    return { processed: 0, sent: 0, failed: 0, skipped: 0 };
-  }
-
-  const eventsById = await loadEventsForDeliveries(admin, claimed);
-  const due: DeliveryRow[] = claimed.map((delivery) => ({
-    ...delivery,
-    notification_events: eventsById.get(delivery.event_id) ?? null,
-  }));
-
   const restaurantNames = new Map<string, string | null>();
+  let processed = 0;
   let sent = 0;
   let failed = 0;
   let skipped = 0;
+  let iterations = 0;
 
-  for (let i = 0; i < due.length; i += 1) {
-    const delivery = due[i] as DeliveryRow;
-    const restaurantId = delivery.context_restaurant_id;
-    if (!restaurantNames.has(restaurantId)) {
-      restaurantNames.set(
-        restaurantId,
-        await fetchRestaurantName(admin, restaurantId),
-      );
+  while (
+    beforeDeadline(deadlineMs) &&
+    iterations < NOTIFICATION_DELIVER_MAX_LOOP_ITERATIONS
+  ) {
+    iterations += 1;
+
+    const claimed = await claimNotificationDeliveries(
+      admin,
+      NOTIFICATION_DELIVER_SEND_BATCH,
+    );
+
+    if (!claimed.length) break;
+
+    const eventsById = await loadEventsForDeliveries(admin, claimed);
+    const due: DeliveryRow[] = claimed.map((delivery) => ({
+      ...delivery,
+      notification_events: eventsById.get(delivery.event_id) ?? null,
+    }));
+
+    for (let i = 0; i < due.length; i += 1) {
+      if (!beforeDeadline(deadlineMs)) break;
+
+      const delivery = due[i] as DeliveryRow;
+      const restaurantId = delivery.context_restaurant_id;
+      if (!restaurantNames.has(restaurantId)) {
+        restaurantNames.set(
+          restaurantId,
+          await fetchRestaurantName(admin, restaurantId),
+        );
+      }
+
+      const outcome = await deliverOne(admin, delivery, restaurantNames);
+      if (outcome === "sent") sent += 1;
+      else if (outcome === "skipped") skipped += 1;
+      else failed += 1;
+
+      if (
+        (i + 1) % NOTIFICATION_DELIVER_RATE_PER_SECOND === 0 &&
+        i + 1 < due.length
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
 
-    const outcome = await deliverOne(admin, delivery, restaurantNames);
-    if (outcome === "sent") sent += 1;
-    else if (outcome === "skipped") skipped += 1;
-    else failed += 1;
+    processed += claimed.length;
 
-    if (
-      (i + 1) % NOTIFICATION_DELIVER_RATE_PER_SECOND === 0 &&
-      i + 1 < due.length
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
+    if (claimed.length < NOTIFICATION_DELIVER_SEND_BATCH) break;
   }
 
-  return { processed: claimed.length, sent, failed, skipped };
+  return { processed, sent, failed, skipped };
+}
+
+async function countPendingQueue(
+  admin: SupabaseClient,
+): Promise<{ pendingEventsRemaining: number; pendingDeliveriesRemaining: number }> {
+  const now = new Date().toISOString();
+
+  const [{ count: pendingEvents }, { count: pendingDeliveries }] =
+    await Promise.all([
+      admin
+        .from("notification_events")
+        .select("id", { count: "exact", head: true })
+        .is("processed_at", null),
+      admin
+        .from("notification_deliveries")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .lte("scheduled_at", now),
+    ]);
+
+  return {
+    pendingEventsRemaining: pendingEvents ?? 0,
+    pendingDeliveriesRemaining: pendingDeliveries ?? 0,
+  };
 }
 
 export async function runNotificationDeliverCron(
   admin: SupabaseClient,
 ): Promise<NotificationDeliverCronStats> {
-  const eventStats = await processUnprocessedEvents(admin);
-  const sendStats = await processPendingDeliveries(admin);
+  const deadlineMs = Date.now() + NOTIFICATION_DELIVER_RUN_BUDGET_MS;
+
+  const staleDeliveriesReleased =
+    await releaseStaleNotificationDeliveries(admin);
+  const staleEventLocksReleased =
+    await releaseStaleNotificationEventLocks(admin);
+
+  const eventStats = await processUnprocessedEvents(admin, deadlineMs);
+  const sendStats = await processPendingDeliveries(admin, deadlineMs);
+  const queues = await countPendingQueue(admin);
 
   return {
     eventsProcessed: eventStats.processed,
@@ -487,5 +608,12 @@ export async function runNotificationDeliverCron(
     sent: sendStats.sent,
     failed: sendStats.failed,
     skipped: sendStats.skipped,
+    eventFanOutErrors: eventStats.eventFanOutErrors,
+    staleEventLocksReleased,
+    staleDeliveriesReleased,
+    pendingEventsRemaining: queues.pendingEventsRemaining,
+    pendingDeliveriesRemaining: queues.pendingDeliveriesRemaining,
+    runBudgetMs: NOTIFICATION_DELIVER_RUN_BUDGET_MS,
+    timedOut: Date.now() >= deadlineMs,
   };
 }

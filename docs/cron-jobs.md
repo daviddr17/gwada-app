@@ -6,19 +6,19 @@ Ersetze `https://new.gwada.app` durch die Live-Domain.
 
 ## Automatisierung (GitHub Actions)
 
-Workflow **`.github/workflows/production-cron.yml`** ruft die Live-App per `curl` auf (`CRON_BASE_URL=https://new.gwada.app`).
-
-| Endpunkt | Intervall | Schedule |
+| Endpunkt | Intervall | Workflow |
 |----------|-----------|----------|
-| `/api/cron/news-feed-sync` | alle **10 Min.** | `*/10 * * * *` |
-| `/api/cron/reviews-feed-sync` | alle **10 Min.** | `*/10 * * * *` |
-| `/api/cron/notification-deliver` | alle **2 Min.** | `*/2 * * * *` |
-| `/api/cron/staff-shift-notifications` | alle **5 Min.** | `*/5 * * * *` |
-| `/api/cron/contact-inbox-sync` | alle **5 Min.** | `*/5 * * * *` |
+| `/api/cron/notification-deliver` | alle **2 Min.** | `.github/workflows/notification-deliver-cron.yml` (eigener Job, zuverlässig) |
+| `/api/cron/news-feed-sync` | alle **10 Min.** | `.github/workflows/production-cron.yml` |
+| `/api/cron/reviews-feed-sync` | alle **10 Min.** | `.github/workflows/production-cron.yml` |
+| `/api/cron/staff-shift-notifications` | alle **5 Min.** | `.github/workflows/production-cron.yml` |
+| `/api/cron/contact-inbox-sync` | alle **5 Min.** | `.github/workflows/production-cron.yml` |
+
+**Push-Versand:** Der Worker arbeitet pro Lauf bis zu **110 s** die Event-Queue und Delivery-Queue ab (Batch 50/30). Antwort enthält `pendingEventsRemaining`, `pendingDeliveriesRemaining`, `timedOut` — bei `timedOut: true` und Rest &gt; 0 nächster Lauf in 2 Min.
 
 - **Secret:** `CRON_SECRET` in GitHub Repository Secrets (gleicher Wert wie auf dem VPS).
-- **Manuell:** Actions → „Production cron jobs“ → **Run workflow** (Ziel-Endpunkt wählbar).
-- Ohne gesetztes Secret werden Jobs übersprungen (kein Fehler).
+- **Manuell:** Actions → „Notification deliver cron“ oder „Production cron jobs“ → **Run workflow**.
+- Ohne gesetztes Secret: Push-Cron schlägt fehl (`exit 1`); übrige Crons in `production-cron.yml` werden übersprungen (`exit 0`).
 
 ## VPS-Fallback (manuell / Coolify-Cron)
 

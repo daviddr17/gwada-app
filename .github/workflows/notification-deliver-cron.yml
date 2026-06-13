@@ -1,0 +1,25 @@
+name: Notification deliver cron
+
+on:
+  schedule:
+    - cron: "*/2 * * * *"
+  workflow_dispatch:
+
+env:
+  CRON_BASE_URL: https://new.gwada.app
+
+jobs:
+  notification-deliver:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call notification-deliver
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 1
+          fi
+          curl -sfS --max-time 130 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/notification-deliver"

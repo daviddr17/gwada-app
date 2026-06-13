@@ -18,6 +18,20 @@ export type RestaurantRealtimeSubscribeStatus =
   | "TIMED_OUT"
   | "CLOSED";
 
+function realtimeTopic(channelName: string): string {
+  return `realtime:${channelName}`;
+}
+
+/** Entfernt hängende Kanäle gleichen Namens (Soft-Nav remountet Hooks schnell hintereinander). */
+function removeChannelsByName(sb: SupabaseClient, channelName: string): void {
+  const topic = realtimeTopic(channelName);
+  for (const existing of sb.getChannels()) {
+    if (existing.topic === topic) {
+      void sb.removeChannel(existing);
+    }
+  }
+}
+
 /**
  * Postgres-Changes für ein Restaurant — Filter clientseitig (zuverlässiger als
  * `filter: restaurant_id=eq.…` ohne REPLICA IDENTITY FULL).
@@ -55,67 +69,79 @@ export function subscribeRestaurantTableChanges(
     row?.restaurant_id === options.restaurantId;
 
   const subscribe = () => {
-    if (
-      channel ||
-      subscribing ||
-      document.visibilityState !== "visible"
-    ) {
+    if (subscribing || document.visibilityState !== "visible") {
       return;
     }
 
+    removeChannelsByName(sb, options.channelName);
+    channel = null;
+
     subscribing = true;
-    let ch = sb.channel(options.channelName);
 
-    for (const event of events) {
-      ch = ch.on(
-        "postgres_changes",
-        {
-          event,
-          schema: "public",
-          table: options.table,
-        },
-        (payload) => {
-          const eventType = payload.eventType as RealtimeChangeEvent;
-          const row =
-            eventType === "DELETE"
-              ? (payload.old as { restaurant_id?: string } | undefined)
-              : (payload.new as { restaurant_id?: string } | undefined);
-          if (!matchesRestaurant(row)) return;
-          options.onChange({
-            eventType,
-            new: (payload.new ?? {}) as Record<string, unknown>,
-            old: (payload.old ?? {}) as Record<string, unknown>,
-          });
-        },
-      );
-    }
+    try {
+      let ch = sb.channel(options.channelName);
 
-    ch.subscribe((status, err) => {
-      subscribing = false;
-      if (status === "SUBSCRIBED") {
-        channel = ch;
-        options.onStatus?.("SUBSCRIBED");
-        return;
-      }
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        console.warn(
-          `[gwada] realtime ${options.channelName}:`,
-          status,
-          err?.message ?? "",
+      for (const event of events) {
+        ch = ch.on(
+          "postgres_changes",
+          {
+            event,
+            schema: "public",
+            table: options.table,
+          },
+          (payload) => {
+            const eventType = payload.eventType as RealtimeChangeEvent;
+            const row =
+              eventType === "DELETE"
+                ? (payload.old as { restaurant_id?: string } | undefined)
+                : (payload.new as { restaurant_id?: string } | undefined);
+            if (!matchesRestaurant(row)) return;
+            options.onChange({
+              eventType,
+              new: (payload.new ?? {}) as Record<string, unknown>,
+              old: (payload.old ?? {}) as Record<string, unknown>,
+            });
+          },
         );
-        options.onStatus?.(status);
-        void sb.removeChannel(ch);
-        channel = null;
-        clearRetry();
-        if (document.visibilityState === "visible") {
-          retryTimer = setTimeout(subscribe, 3_000);
+      }
+
+      ch.subscribe((status, err) => {
+        subscribing = false;
+        if (status === "SUBSCRIBED") {
+          channel = ch;
+          options.onStatus?.("SUBSCRIBED");
+          return;
         }
-        return;
+        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          console.warn(
+            `[gwada] realtime ${options.channelName}:`,
+            status,
+            err?.message ?? "",
+          );
+          options.onStatus?.(status);
+          void sb.removeChannel(ch);
+          channel = null;
+          clearRetry();
+          if (document.visibilityState === "visible") {
+            retryTimer = setTimeout(subscribe, 3_000);
+          }
+          return;
+        }
+        if (status === "CLOSED") {
+          channel = null;
+          options.onStatus?.("CLOSED");
+        }
+      });
+    } catch (err) {
+      subscribing = false;
+      channel = null;
+      console.warn(`[gwada] realtime ${options.channelName}: subscribe failed`, err);
+      options.onStatus?.("CHANNEL_ERROR");
+      clearRetry();
+      if (document.visibilityState === "visible") {
+        retryTimer = setTimeout(subscribe, 3_000);
       }
-      if (status === "CLOSED") {
-        options.onStatus?.("CLOSED");
-      }
-    });
+    }
   };
 
   const unsubscribe = () => {
@@ -124,8 +150,9 @@ export function subscribeRestaurantTableChanges(
     if (channel) {
       void sb.removeChannel(channel);
       channel = null;
-      options.onStatus?.("CLOSED");
     }
+    removeChannelsByName(sb, options.channelName);
+    options.onStatus?.("CLOSED");
   };
 
   const onVisibility = () => {

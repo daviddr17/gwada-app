@@ -5,7 +5,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Settings, UserRound } from "lucide-react";
 import { useModuleSubnavBack } from "@/lib/hooks/use-module-subnav-back";
+import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
@@ -31,6 +33,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { chrome } = useAppModuleChrome();
   const { backHref, onBackNavigate } = useModuleSubnavBack(chrome.subnav?.items);
+  const { tryAcquireNavLock } = useSoftNavLock();
   const showChipRow = Boolean(chrome.subnav?.items.length);
 
   React.useLayoutEffect(() => {
@@ -149,6 +152,13 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                   onBackNavigate();
                   if (assignCrossAppWorkspaceZone(pathname, backHref)) {
                     event.preventDefault();
+                    return;
+                  }
+                  if (
+                    crossAppModuleNavigation(pathname, backHref) &&
+                    !tryAcquireNavLock(event)
+                  ) {
+                    return;
                   }
                 }}
               />

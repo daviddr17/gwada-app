@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { isDashboardHomePath } from "@/components/dashboard/dashboard-zone-shell";
+import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 import {
   assignCrossAppWorkspaceZone,
   crossAppModuleNavigation,

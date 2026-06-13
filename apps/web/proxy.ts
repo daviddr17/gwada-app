@@ -5,6 +5,7 @@ import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
+import { logDashboardRscRequest } from "@/lib/observability/rsc-soft-nav-log";
 import { isPublicRestaurantProfilePath } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
 
@@ -114,6 +115,8 @@ export async function proxy(request: NextRequest) {
 
   // Legacy-OAuth-Cookies schrumpfen (Live: zu große Cookie-Header → RSC-Soft-Nav schlägt fehl).
   appendAuthEntryCookieCleanup(response.headers);
+
+  logDashboardRscRequest(request, pathname);
 
   return response;
 }

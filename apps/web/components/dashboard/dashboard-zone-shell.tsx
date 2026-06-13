@@ -9,18 +9,10 @@ import { DashboardBatchQuerySync } from "@/components/providers/dashboard-batch-
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useDashboardPageBackgroundRefresh } from "@/lib/dashboard/dashboard-widget-refresh";
 import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 import { endSoftNavFlight } from "@/lib/navigation/soft-nav-flight-guard";
 
-function normalizeDashboardPath(pathname: string): string {
-  if (pathname.length > 1 && pathname.endsWith("/")) {
-    return pathname.slice(0, -1);
-  }
-  return pathname;
-}
-
-export function isDashboardHomePath(pathname: string): boolean {
-  return normalizeDashboardPath(pathname) === "/dashboard";
-}
+export { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 
 function DashboardHomeShell({
   children,

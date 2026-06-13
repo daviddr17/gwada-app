@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { useSoftNavCoordinator } from "@/components/providers/soft-nav-coordinator";
+import { useSoftNavGuard } from "@/components/providers/soft-nav-guard-provider";
 import {
   assignCrossAppWorkspaceZone,
   crossAppModuleNavigation,
@@ -17,8 +17,8 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 }
 
 /**
- * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
- * Modulwechsel: Coordinator serialisiert RSC-Flights (useTransition + Coalescing).
+ * Interner App-Link: Soft-Nav über nativen Next-Link (kein router.push-Intercept).
+ * Parallele Modul-Klicks werden blockiert; RSC-Flight bleibt im Router.
  */
 export function AppNavLink({
   href,
@@ -36,7 +36,7 @@ export function AppNavLink({
   "aria-label"?: string;
 }) {
   const pathname = usePathname();
-  const { scheduleCrossModuleNav } = useSoftNavCoordinator();
+  const { onCrossModuleClick } = useSoftNavGuard();
   const hrefStr = hrefToString(href);
   const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
   const shouldPrefetch = prefetch ?? !crossModuleNav;
@@ -55,10 +55,9 @@ export function AppNavLink({
           event.preventDefault();
           return;
         }
-        if (!crossModuleNav) return;
-
-        event.preventDefault();
-        scheduleCrossModuleNav(hrefStr);
+        if (crossModuleNav) {
+          onCrossModuleClick(event);
+        }
       }}
     >
       {children}

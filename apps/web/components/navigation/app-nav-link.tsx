@@ -1,24 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
-import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
-import { navigateDashboardHome } from "@/lib/navigation/navigate-dashboard-home";
+import { useSoftNavCoordinator } from "@/components/providers/soft-nav-coordinator";
 import {
   assignCrossAppWorkspaceZone,
   crossAppModuleNavigation,
 } from "@/lib/navigation/app-zone-navigation";
-import {
-  beginSoftNavFlight,
-  cancelSoftNavFlight,
-  isSoftNavFlightActive,
-} from "@/lib/navigation/soft-nav-flight-guard";
-import {
-  enqueueAppSoftNav,
-  isAppSoftNavQueueBusy,
-  waitForAppPath,
-} from "@/lib/navigation/soft-nav-queue";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -29,7 +18,7 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 
 /**
  * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
- * Modulwechsel laufen serialisiert über die Soft-Nav-Queue (kein paralleler RSC-Flight).
+ * Modulwechsel: Coordinator serialisiert RSC-Flights (useTransition + Coalescing).
  */
 export function AppNavLink({
   href,
@@ -47,22 +36,15 @@ export function AppNavLink({
   "aria-label"?: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
+  const { scheduleCrossModuleNav } = useSoftNavCoordinator();
   const hrefStr = hrefToString(href);
   const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
-  const returningToDashboard =
-    crossModuleNav &&
-    isDashboardHomePath(hrefStr) &&
-    !isDashboardHomePath(pathname);
-  const shouldPrefetch =
-    prefetch ??
-    !(isDashboardHomePath(hrefStr) && crossModuleNav && !isDashboardHomePath(pathname));
+  const shouldPrefetch = prefetch ?? !crossModuleNav;
 
   return (
     <Link
       href={href}
       prefetch={shouldPrefetch}
-      replace={returningToDashboard}
       scroll={false}
       className={className}
       aria-label={ariaLabel}
@@ -76,21 +58,7 @@ export function AppNavLink({
         if (!crossModuleNav) return;
 
         event.preventDefault();
-        if (isSoftNavFlightActive() || isAppSoftNavQueueBusy()) return;
-
-        enqueueAppSoftNav(async () => {
-          if (!beginSoftNavFlight(hrefStr)) return;
-          try {
-            if (returningToDashboard) {
-              await navigateDashboardHome(router, hrefStr);
-              return;
-            }
-            router.push(hrefStr);
-            await waitForAppPath(hrefStr);
-          } finally {
-            cancelSoftNavFlight();
-          }
-        });
+        scheduleCrossModuleNav(hrefStr);
       }}
     >
       {children}

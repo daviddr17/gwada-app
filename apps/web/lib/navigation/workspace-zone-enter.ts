@@ -1,17 +1,6 @@
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
-import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
-import { navigateDashboardHome } from "@/lib/navigation/navigate-dashboard-home";
+import { scheduleCrossModuleNavImperative } from "@/lib/navigation/soft-nav-coordinator-bridge";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
-import {
-  beginSoftNavFlight,
-  cancelSoftNavFlight,
-  isSoftNavFlightActive,
-} from "@/lib/navigation/soft-nav-flight-guard";
-import {
-  enqueueAppSoftNav,
-  isAppSoftNavQueueBusy,
-  waitForAppPath,
-} from "@/lib/navigation/soft-nav-queue";
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
 export function crossAppWorkspaceZone(fromPath: string, toPath: string): boolean {
@@ -36,8 +25,6 @@ export function assignCrossAppWorkspaceZone(fromPath: string, toPath: string): b
 
 type AppRouter = {
   push: (href: string) => void;
-  replace: (href: string) => void;
-  refresh: () => void;
 };
 
 /**
@@ -52,25 +39,10 @@ export function navigateAppPath(
   const target = safeInternalPath(toPath.trim() || "/dashboard");
   if (assignCrossAppWorkspaceZone(fromPath, target)) return;
 
-  const crossModule = crossAppModuleNavigation(fromPath, target);
-  if (!crossModule) {
-    router.push(target);
+  if (crossAppModuleNavigation(fromPath, target)) {
+    scheduleCrossModuleNavImperative(target);
     return;
   }
 
-  if (isSoftNavFlightActive() || isAppSoftNavQueueBusy()) return;
-
-  enqueueAppSoftNav(async () => {
-    if (!beginSoftNavFlight(target)) return;
-    try {
-      if (isDashboardHomePath(target) && !isDashboardHomePath(fromPath)) {
-        await navigateDashboardHome(router, target);
-        return;
-      }
-      router.push(target);
-      await waitForAppPath(target);
-    } finally {
-      cancelSoftNavFlight();
-    }
-  });
+  router.push(target);
 }

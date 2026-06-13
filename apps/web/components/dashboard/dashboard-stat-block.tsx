@@ -65,7 +65,7 @@ export function DashboardStatBlock({
 
   if (href) {
     return (
-      <AppNavLink href={href} className={className}>
+      <AppNavLink href={href} prefetch={false} className={className}>
         {inner}
       </AppNavLink>
     );

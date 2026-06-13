@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect } from "react";
 import Link from "next/link";
-import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
@@ -229,7 +228,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname === "/dashboard"}
                       tooltip="Dashboard"
-                      render={<AppNavLink href="/dashboard" />}
+                      render={<Link href="/dashboard" prefetch scroll={false} />}
                     >
                       <LayoutDashboard />
                       <span>Dashboard</span>
@@ -239,7 +238,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/menu")}
                       tooltip="Speisekarte"
-                      render={<AppNavLink href="/dashboard/menu/uebersicht" />}
+                      render={<Link href="/dashboard/menu/uebersicht" prefetch scroll={false} />}
                     >
                       <UtensilsCrossed />
                       <span>Speisekarte</span>
@@ -249,7 +248,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/inventory")}
                       tooltip="Bestand"
-                      render={<AppNavLink href="/dashboard/inventory/uebersicht" />}
+                      render={<Link href="/dashboard/inventory/uebersicht" prefetch scroll={false} />}
                     >
                       <Package />
                       <span>Bestand</span>
@@ -260,7 +259,11 @@ export function AppSidebar() {
                       isActive={pathname.startsWith("/dashboard/reservierungen")}
                       tooltip="Reservierungen"
                       render={
-                        <AppNavLink href="/dashboard/reservierungen/uebersicht" />
+                        <Link
+                          href="/dashboard/reservierungen/uebersicht"
+                          prefetch
+                          scroll={false}
+                        />
                       }
                     >
                       <CalendarDays />
@@ -272,7 +275,11 @@ export function AppSidebar() {
                       isActive={pathname.startsWith("/dashboard/kontakte")}
                       tooltip="Nachrichten"
                       render={
-                        <AppNavLink href="/dashboard/kontakte/nachrichten?platform=all" />
+                        <Link
+                          href="/dashboard/kontakte/nachrichten?platform=all"
+                          prefetch
+                          scroll={false}
+                        />
                       }
                     >
                       <MessageCircle />
@@ -283,7 +290,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/news")}
                       tooltip="News"
-                      render={<AppNavLink href="/dashboard/news/uebersicht" />}
+                      render={<Link href="/dashboard/news/uebersicht" prefetch scroll={false} />}
                     >
                       <Newspaper />
                       <span>News</span>
@@ -293,7 +300,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/bewertungen")}
                       tooltip="Bewertungen"
-                      render={<AppNavLink href="/dashboard/bewertungen/uebersicht" />}
+                      render={<Link href="/dashboard/bewertungen/uebersicht" prefetch scroll={false} />}
                     >
                       <Star />
                       <span>Bewertungen</span>
@@ -304,7 +311,11 @@ export function AppSidebar() {
                       isActive={pathname.startsWith("/dashboard/buchfuehrung")}
                       tooltip="Buchführung"
                       render={
-                        <AppNavLink href="/dashboard/buchfuehrung/rechnungen" />
+                        <Link
+                          href="/dashboard/buchfuehrung/rechnungen"
+                          prefetch
+                          scroll={false}
+                        />
                       }
                     >
                       <Receipt />
@@ -315,7 +326,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       isActive={pathname.startsWith("/dashboard/dokumente")}
                       tooltip="Dokumente"
-                      render={<AppNavLink href="/dashboard/dokumente/uebersicht" />}
+                      render={<Link href="/dashboard/dokumente/uebersicht" prefetch scroll={false} />}
                     >
                       <FileText />
                       <span>Dokumente</span>
@@ -326,7 +337,11 @@ export function AppSidebar() {
                       isActive={pathname.startsWith("/dashboard/mitarbeiter")}
                       tooltip="Mitarbeiter"
                       render={
-                        <AppNavLink href="/dashboard/mitarbeiter/uebersicht" />
+                        <Link
+                          href="/dashboard/mitarbeiter/uebersicht"
+                          prefetch
+                          scroll={false}
+                        />
                       }
                     >
                       <Users />
@@ -397,7 +412,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith("/settings")}
                 tooltip="Einstellungen"
-                render={<AppNavLink href="/settings" />}
+                render={<Link href="/settings" prefetch scroll={false} />}
               >
                 <Settings />
                 <span>Einstellungen</span>
@@ -409,7 +424,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith("/changelog")}
                 tooltip="Changelog"
-                render={<AppNavLink href="/changelog" />}
+                render={<Link href="/changelog" prefetch scroll={false} />}
               >
                 <ScrollText />
                 <span>Changelog</span>

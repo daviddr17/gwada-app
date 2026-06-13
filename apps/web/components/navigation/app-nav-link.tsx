@@ -9,6 +9,7 @@ import {
   crossAppModuleNavigation,
   navigateAppPath,
 } from "@/lib/navigation/app-zone-navigation";
+import { isSoftNavFlightActive } from "@/lib/navigation/soft-nav-flight-guard";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -58,6 +59,7 @@ export function AppNavLink({
         }
         if (crossModuleNav) {
           event.preventDefault();
+          if (isSoftNavFlightActive()) return;
           navigateAppPath(router, pathname, hrefStr);
         }
       }}

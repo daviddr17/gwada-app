@@ -1,7 +1,11 @@
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
-import { beginSoftNavFlight } from "@/lib/navigation/soft-nav-flight-guard";
+import {
+  beginSoftNavFlight,
+  isSoftNavFlightActive,
+} from "@/lib/navigation/soft-nav-flight-guard";
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
+import { startTransition } from "react";
 
 export function crossAppWorkspaceZone(fromPath: string, toPath: string): boolean {
   const target = toPath.trim() || "/dashboard";
@@ -42,5 +46,7 @@ export function navigateAppPath(
   ) {
     return;
   }
-  router.push(target);
+  startTransition(() => {
+    router.push(target);
+  });
 }

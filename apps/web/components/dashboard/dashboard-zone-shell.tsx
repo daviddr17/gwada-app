@@ -83,7 +83,12 @@ export function DashboardZoneShell({
           messagesEnabled={visibility.messages}
         />
       ) : null}
-      {isHome ? null : children}
+      <div
+        className={cn(isHome && homeWarm && "hidden")}
+        aria-hidden={isHome && homeWarm}
+      >
+        {children}
+      </div>
     </>
   );
 }

@@ -11,6 +11,10 @@ import {
 } from "@/lib/reviews/review-stats";
 import { readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
 import { triggerReviewsFeedSyncIfStale } from "@/lib/reviews/reviews-feed-sync-server";
+import {
+  fetchHiddenReviewKeys,
+  filterReviewsForPublicEmbed,
+} from "@/lib/reviews/review-visibility-server";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
@@ -178,13 +182,15 @@ export async function fetchPublicEmbedReviews(
   const { reviews: unifiedReviews, connectedPlatforms } =
     await loadConnectedPlatformReviews(restaurantId);
 
-  const reviews = unifiedReviews.map(toPublicReview);
+  const hiddenKeys = await fetchHiddenReviewKeys(admin, restaurantId);
+  const visibleReviews = filterReviewsForPublicEmbed(unifiedReviews, hiddenKeys);
+  const reviews = visibleReviews.map(toPublicReview);
 
   const summary = {
     count: reviews.length,
-    average: averageRating(reviews),
-    median: medianRating(reviews),
-    distribution: ratingDistribution(reviews),
+    average: averageRating(visibleReviews),
+    median: medianRating(visibleReviews),
+    distribution: ratingDistribution(visibleReviews),
   };
 
   return {

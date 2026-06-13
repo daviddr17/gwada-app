@@ -3,6 +3,7 @@ import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
 import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
+import { enrichReviewsWithVisibility } from "@/lib/reviews/review-visibility-server";
 import { paginateCachedGoogleReviews } from "@/lib/reviews/reviews-cache-pagination";
 import {
   readPlatformSyncMeta,
@@ -58,6 +59,27 @@ export async function GET(req: Request) {
 
     const rows = data ?? [];
     const admin = createSupabaseAdminClient();
+    const reservationIds = [
+      ...new Set(
+        rows
+          .map((r) => r.reservation_id as string | null)
+          .filter((id): id is string => typeof id === "string" && id.length > 0),
+      ),
+    ];
+    const reservationNumberById = new Map<string, number>();
+    if (reservationIds.length > 0) {
+      const { data: reservationRows } = await auth.sb
+        .from("reservations")
+        .select("id, reservation_number")
+        .eq("restaurant_id", restaurantId)
+        .in("id", reservationIds);
+      for (const row of reservationRows ?? []) {
+        reservationNumberById.set(
+          row.id as string,
+          Number(row.reservation_number),
+        );
+      }
+    }
     const contactByReviewId =
       admin && rows.length > 0
         ? await enrichGwadaReviewsWithContactIds(
@@ -71,24 +93,32 @@ export async function GET(req: Request) {
           )
         : new Map<string, string>();
 
-    reviews = rows.map((r) => ({
-      id: r.id as string,
-      platform: "gwada" as const,
-      rating: Number(r.rating),
-      comment: (r.comment as string | null) ?? null,
-      authorName: (r.guest_display_name as string | null) ?? null,
-      createdAt: r.created_at as string,
-      reply: null,
-      canReply: false,
-      externalUrl: null,
-      contactId: contactByReviewId.get(r.id as string) ?? null,
-    }));
+    reviews = rows.map((r) => {
+      const reservationId = (r.reservation_id as string | null) ?? null;
+      return {
+        id: r.id as string,
+        platform: "gwada" as const,
+        rating: Number(r.rating),
+        comment: (r.comment as string | null) ?? null,
+        authorName: (r.guest_display_name as string | null) ?? null,
+        createdAt: r.created_at as string,
+        reply: null,
+        canReply: false,
+        externalUrl: null,
+        contactId: contactByReviewId.get(r.id as string) ?? null,
+        reservationId,
+        reservationNumber: reservationId
+          ? (reservationNumberById.get(reservationId) ?? null)
+          : null,
+      };
+    });
     reviews = await enrichReviewsWithReadState(auth.sb, {
       restaurantId,
       userId: auth.userId,
       reviews,
       platform: "gwada",
     });
+    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
   } else if (platformRaw === "google") {
     const pageToken =
       new URL(req.url).searchParams.get("googlePageToken")?.trim() || null;
@@ -115,6 +145,7 @@ export async function GET(req: Request) {
       reviews: paginated.reviews,
       platform: "google",
     });
+    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
 
     return Response.json({
       platform: platformRaw,
@@ -150,6 +181,7 @@ export async function GET(req: Request) {
       reviews,
       platform: "facebook",
     });
+    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
   }
 
   return Response.json({

@@ -1,20 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Filter, Link2, ScrollText, Search, Star } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Filter, LayoutGrid, Link2, List, ScrollText, Search } from "lucide-react";
 import {
   countReviewsDrawerActiveFilters,
   ReviewsFilterDrawer,
 } from "@/components/reviews/reviews-filter-drawer";
 import { ReviewInboxFilterChips } from "@/components/reviews/review-inbox-filter-chips";
-import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
+import {
+  ReviewsGridView,
+  ReviewsListView,
+} from "@/components/reviews/reviews-feed-views";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardHeader,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,7 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
+import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { GwadaReviewProtocolDrawer } from "@/components/reviews/gwada-review-protocol-drawer";
 import { ReviewInvitationSheet } from "@/components/reviews/review-invitation-sheet";
 import { ReviewSummaryCard } from "@/components/reviews/review-summary-card";
@@ -50,13 +53,21 @@ import {
   parseReviewPlatformFilter,
   REVIEW_FILTER_ALL,
   type ReviewPlatform,
-  REVIEW_PLATFORM_LABELS,
   type ReviewPlatformFilter,
 } from "@/lib/constants/review-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import {
+  patchReviewsScreenQueryUrl,
+  readReviewsScreenQueryFromSearch,
+  type ReviewViewMode,
+} from "@/lib/reviews/reviews-screen-query";
+import {
+  fetchReservationById,
+  type ReservationListRow,
+} from "@/lib/supabase/reservations-db";
 import {
   filterReviews,
   filterReviewsByPlatform,
@@ -87,7 +98,6 @@ import {
   resolveCountryIso2FromLabel,
 } from "@/lib/constants/countries";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
-import { cn } from "@/lib/utils";
 
 type ReviewsApiResponse = {
   reviews: UnifiedReview[];
@@ -110,142 +120,9 @@ type GoogleLocationSummary = {
   scope: "google_location";
 };
 
-function StarsDisplay({ rating }: { rating: number }) {
-  const full = Math.round(Math.min(5, Math.max(0, rating)));
-  return (
-    <div className="flex shrink-0 gap-0.5" aria-label={`${rating} von 5 Sternen`}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            "size-4",
-            i < full
-              ? "fill-amber-400 text-amber-400"
-              : "text-muted-foreground/30",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-function ReviewCard({
-  review,
-  isUnread = false,
-  showPlatform = false,
-  onMarkUnread,
-  onReply,
-  onProtocol,
-  onOpenContact,
-}: {
-  review: UnifiedReview;
-  isUnread?: boolean;
-  showPlatform?: boolean;
-  onMarkUnread?: () => void;
-  onReply?: () => void;
-  onProtocol?: () => void;
-  onOpenContact?: () => void;
-}) {
-  const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-
-  return (
-    <Card
-      className={cn(
-        "border-border/50 shadow-card",
-        isUnread && "border-accent/35 bg-accent/[0.03]",
-      )}
-    >
-      <CardHeader className="space-y-2 pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            {showPlatform || isUnread ? (
-              <ReviewPlatformIcon
-                platform={review.platform}
-                className="size-4 shrink-0"
-                aria-label={
-                  isUnread
-                    ? `${REVIEW_PLATFORM_LABELS[review.platform]}, ungelesen`
-                    : REVIEW_PLATFORM_LABELS[review.platform]
-                }
-              />
-            ) : null}
-            <StarsDisplay rating={review.rating} />
-          </div>
-          {onProtocol ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-6 shrink-0 rounded-md text-muted-foreground hover:bg-muted/50 hover:text-muted-foreground"
-              aria-label="Bewertungsprotokoll"
-              onClick={onProtocol}
-            >
-              <ScrollText className="size-3" />
-            </Button>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
-          {review.authorName ? (
-            review.contactId && onOpenContact ? (
-              <button
-                type="button"
-                className="min-w-0 text-left text-sm font-medium text-foreground underline-offset-4 hover:underline"
-                onClick={onOpenContact}
-              >
-                {review.authorName}
-              </button>
-            ) : (
-              <p className={cn("min-w-0 text-sm font-medium", isUnread && "font-semibold")}>
-                {review.authorName}
-              </p>
-            )
-          ) : (
-            <span className="min-w-0 flex-1" aria-hidden />
-          )}
-          <div className="flex shrink-0 items-center gap-1">
-            <span className="text-xs text-muted-foreground">{date}</span>
-            {!isUnread && onMarkUnread ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[10px] text-muted-foreground"
-                onClick={onMarkUnread}
-              >
-                Ungelesen
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3 pt-0">
-        {review.comment ? (
-          <p className="text-sm leading-relaxed text-foreground">{review.comment}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Kein Kommentar</p>
-        )}
-        {review.reply ? (
-          <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
-            <span className="font-medium text-muted-foreground">Antwort: </span>
-            {review.reply}
-          </div>
-        ) : null}
-        {review.canReply && onReply ? (
-          <Button type="button" variant="outline" size="sm" onClick={onReply}>
-            Antworten
-          </Button>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
-
 export function ReviewsScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const platformParam = searchParams.get("platform");
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -287,6 +164,31 @@ export function ReviewsScreen() {
   const [googleStatsError, setGoogleStatsError] = useState<string | null>(null);
   const [googleStatsLoading, setGoogleStatsLoading] = useState(false);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
+  const [viewMode, setViewModeState] = useState<ReviewViewMode>(() =>
+    readReviewsScreenQueryFromSearch(searchParams.toString()).viewMode,
+  );
+  const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
+  const [reservationDrawerRow, setReservationDrawerRow] =
+    useState<ReservationListRow | null>(null);
+  const [visibilityBusyKey, setVisibilityBusyKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    setViewModeState(readReviewsScreenQueryFromSearch(searchParams.toString()).viewMode);
+  }, [searchParams]);
+
+  const setViewMode = useCallback(
+    (next: ReviewViewMode) => {
+      setViewModeState(next);
+      patchReviewsScreenQueryUrl(pathname, (params) => {
+        if (next === "grid") {
+          params.delete("view");
+        } else {
+          params.set("view", next);
+        }
+      });
+    },
+    [pathname],
+  );
 
   useEffect(() => {
     if (searchParams.get("new") !== "invite") return;
@@ -700,6 +602,81 @@ export function ReviewsScreen() {
     }
   };
 
+  const patchReviewInState = useCallback(
+    (review: UnifiedReview, patch: Partial<UnifiedReview>) => {
+      const key = `${review.platform}:${review.id}`;
+      const apply = (items: UnifiedReview[]) =>
+        items.map((item) =>
+          `${item.platform}:${item.id}` === key ? { ...item, ...patch } : item,
+        );
+
+      if (isGooglePaginated) {
+        setGoogleData((prev) =>
+          prev ? { ...prev, reviews: apply(prev.reviews) } : prev,
+        );
+      } else {
+        setMergedReviews((prev) => apply(prev));
+      }
+    },
+    [isGooglePaginated],
+  );
+
+  const toggleReviewVisibility = useCallback(
+    async (review: UnifiedReview) => {
+      if (!restaurantId) return;
+      const busyKey = `${review.platform}:${review.id}`;
+      setVisibilityBusyKey(busyKey);
+      const hidden = !review.hiddenFromPublic;
+      try {
+        const res = await fetch("/api/reviews/visibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            restaurantId,
+            platform: review.platform,
+            reviewId: review.id,
+            hidden,
+          }),
+        });
+        const body = (await res.json()) as { error?: string };
+        if (!res.ok) {
+          toast.error(body.error ?? "Sichtbarkeit konnte nicht geändert werden.");
+          return;
+        }
+        patchReviewInState(review, { hiddenFromPublic: hidden });
+        toast.success(
+          hidden
+            ? "Bewertung auf Profil und Embed ausgeblendet."
+            : "Bewertung wieder auf Profil und Embed sichtbar.",
+        );
+      } catch {
+        toast.error("Netzwerkfehler beim Ändern der Sichtbarkeit.");
+      } finally {
+        setVisibilityBusyKey(null);
+      }
+    },
+    [restaurantId, patchReviewInState],
+  );
+
+  const openReservationDrawer = useCallback(
+    async (review: UnifiedReview) => {
+      if (!restaurantId || !review.reservationId) return;
+      setReservationDrawerOpen(true);
+      setReservationDrawerRow(null);
+      const { data, error } = await fetchReservationById({
+        restaurantId,
+        id: review.reservationId,
+      });
+      if (error || !data) {
+        toast.error("Reservierung nicht gefunden.");
+        setReservationDrawerOpen(false);
+        return;
+      }
+      setReservationDrawerRow(data);
+    },
+    [restaurantId],
+  );
+
   const googleTotalPages = googlePagination
     ? googleReviewsTotalPages(googlePagination.totalReviewCount)
     : 1;
@@ -830,6 +807,43 @@ export function ReviewsScreen() {
       replyFilter,
       showReplyFilter,
       sortKey,
+    ],
+  );
+
+  const getReviewCardProps = useCallback(
+    (review: UnifiedReview) => {
+      const busyKey = `${review.platform}:${review.id}`;
+      return {
+        isUnread: review.isUnread,
+        visibilityBusy: visibilityBusyKey === busyKey,
+        onMarkUnread: () => void markReviewUnread(review),
+        onProtocol:
+          review.platform === "gwada"
+            ? () => setProtocolReview(review)
+            : undefined,
+        onOpenContact: review.contactId
+          ? () => {
+              setContactDrawerId(review.contactId!);
+              setContactDrawerOpen(true);
+            }
+          : undefined,
+        onOpenReservation: review.reservationId
+          ? () => void openReservationDrawer(review)
+          : undefined,
+        onReply: review.canReply
+          ? () => {
+              setReplyTarget(review);
+              setReplyText(review.reply ?? "");
+            }
+          : undefined,
+        onToggleHidden: () => void toggleReviewVisibility(review),
+      };
+    },
+    [
+      visibilityBusyKey,
+      markReviewUnread,
+      openReservationDrawer,
+      toggleReviewVisibility,
     ],
   );
 
@@ -979,7 +993,7 @@ export function ReviewsScreen() {
       ) : null}
 
       {showSkeleton ? (
-        <ReviewsScreenSkeleton />
+        <ReviewsScreenSkeleton viewMode={viewMode} />
       ) : hasReviewData ? (
         <>
           <ReviewSummaryCard summary={summaryForCard} />
@@ -996,6 +1010,30 @@ export function ReviewsScreen() {
                     className={moduleSearchInputClassName}
                     aria-label="Bewertungen durchsuchen"
                   />
+                </div>
+                <div className="flex shrink-0 items-center gap-1 rounded-full border border-border/50 bg-muted/35 p-1">
+                  <Button
+                    type="button"
+                    variant={viewMode === "grid" ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    className="rounded-full"
+                    aria-pressed={viewMode === "grid"}
+                    onClick={() => setViewMode("grid")}
+                    aria-label="Raster"
+                  >
+                    <LayoutGrid className="size-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={viewMode === "list" ? "secondary" : "ghost"}
+                    size="icon-sm"
+                    className="rounded-full"
+                    aria-pressed={viewMode === "list"}
+                    onClick={() => setViewMode("list")}
+                    aria-label="Liste"
+                  >
+                    <List className="size-4" />
+                  </Button>
                 </div>
                 <div className={moduleSearchFilterButtonWrapClassName}>
                   <Button
@@ -1074,38 +1112,19 @@ export function ReviewsScreen() {
             </Card>
           ) : (
             <>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredSortedReviews.map((review) => (
-                  <ReviewCard
-                    key={`${review.platform}:${review.id}`}
-                    review={review}
-                    isUnread={review.isUnread}
-                    showPlatform={platformFilter === REVIEW_FILTER_ALL}
-                    onMarkUnread={() => void markReviewUnread(review)}
-                    onProtocol={
-                      review.platform === "gwada"
-                        ? () => setProtocolReview(review)
-                        : undefined
-                    }
-                    onOpenContact={
-                      review.contactId
-                        ? () => {
-                            setContactDrawerId(review.contactId!);
-                            setContactDrawerOpen(true);
-                          }
-                        : undefined
-                    }
-                    onReply={
-                      review.canReply
-                        ? () => {
-                            setReplyTarget(review);
-                            setReplyText(review.reply ?? "");
-                          }
-                        : undefined
-                    }
-                  />
-                ))}
-              </div>
+              {viewMode === "list" ? (
+                <ReviewsListView
+                  reviews={filteredSortedReviews}
+                  showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                  getReviewProps={getReviewCardProps}
+                />
+              ) : (
+                <ReviewsGridView
+                  reviews={filteredSortedReviews}
+                  showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                  getReviewProps={getReviewCardProps}
+                />
+              )}
               {isGooglePaginated && googlePagination ? (
                 <ReviewsPagination
                   page={googlePage}
@@ -1213,6 +1232,21 @@ export function ReviewsScreen() {
           defaultCountryIso2={defaultCountryIso2}
         />
       ) : null}
+
+      <ReservationEditDrawer
+        open={reservationDrawerOpen}
+        onOpenChange={(open) => {
+          setReservationDrawerOpen(open);
+          if (!open) setReservationDrawerRow(null);
+        }}
+        reservation={reservationDrawerRow}
+        createFor={null}
+        overlapReservations={[]}
+        onSaved={() => {
+          setReservationDrawerOpen(false);
+          setReservationDrawerRow(null);
+        }}
+      />
 
       <ReviewsFilterDrawer
         open={filterOpen}

@@ -17,9 +17,113 @@ type NotificationEventRow = {
   payload: Record<string, unknown>;
 };
 
+const pushDateTimeFormatter = new Intl.DateTimeFormat("de-DE", {
+  weekday: "short",
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+const pushTimeFormatter = new Intl.DateTimeFormat("de-DE", {
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+function pickString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function pickNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatPushDateTime(iso: unknown): string | null {
+  const raw = pickString(iso);
+  if (!raw) return null;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  return pushDateTimeFormatter.format(date);
+}
+
+function formatPushTime(iso: unknown): string | null {
+  const raw = pickString(iso);
+  if (!raw) return null;
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return null;
+  return pushTimeFormatter.format(date);
+}
+
 function formatStockAmount(value: unknown): string {
   if (typeof value !== "number" || !Number.isFinite(value)) return "—";
   return String(value);
+}
+
+function formatRatingStars(rating: number): string {
+  const rounded = Math.max(0, Math.min(5, Math.round(rating)));
+  if (rounded <= 0) return "";
+  return `${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}`;
+}
+
+function platformLabel(platform: unknown): string | null {
+  const code = pickString(platform)?.toLowerCase();
+  if (!code) return null;
+  const labels: Record<string, string> = {
+    gwada: "Gwada",
+    google: "Google",
+    facebook: "Facebook",
+    whatsapp: "WhatsApp",
+    email: "E-Mail",
+    instagram: "Instagram",
+  };
+  return labels[code] ?? code;
+}
+
+function quotePreview(text: unknown): string | null {
+  const value = pickString(text);
+  if (!value) return null;
+  return `„${value}“`;
+}
+
+function detailLines(lines: Array<string | null | undefined | false>): string {
+  return lines.filter((line): line is string => Boolean(line)).join("\n");
+}
+
+function buildPushMessage(params: {
+  prefix: string;
+  headline: string;
+  subject: string;
+  href: string;
+  details?: string | null;
+}): { text: string; subject: string } {
+  const intro = params.prefix
+    ? `${params.prefix}${params.headline}`
+    : params.headline;
+  const detailBlock = params.details?.trim()
+    ? `\n\n${params.details.trim()}`
+    : "";
+  return {
+    subject: params.subject,
+    text: `${intro}${detailBlock}\n\n${params.href}`,
+  };
+}
+
+function reservationDetails(payload: Record<string, unknown>): string {
+  const guest = pickString(payload.guestLabel) ?? "Gast";
+  const party = pickNumber(payload.partySize);
+  const when = formatPushDateTime(payload.startsAt);
+  const number = pickNumber(payload.reservationNumber);
+  const phone = pickString(payload.guestPhone);
+  const email = pickString(payload.guestEmail);
+  const notes = pickString(payload.notesPreview);
+
+  return detailLines([
+    `Gast: ${guest}`,
+    party != null ? `Personen: ${party}` : null,
+    when ? `Termin: ${when}` : null,
+    number != null ? `Reservierung Nr. ${number}` : null,
+    phone ? `Telefon: ${phone}` : null,
+    email ? `E-Mail: ${email}` : null,
+    notes ? `Hinweis: ${notes}` : null,
+  ]);
 }
 
 export function buildNotificationPushText(
@@ -33,102 +137,154 @@ export function buildNotificationPushText(
 
   switch (event.module) {
     case "messages": {
-      const name =
-        typeof p.contactName === "string" ? p.contactName : "Kontakt";
-      const preview =
-        typeof p.preview === "string" && p.preview.trim()
-          ? `\n„${p.preview.trim()}“`
-          : "";
-      const text = `${prefix}Neue Nachricht von ${name}.${preview}\n\n${href}`;
-      return {
+      const name = pickString(p.contactName) ?? "Kontakt";
+      const platform = platformLabel(p.platform);
+      const when = formatPushDateTime(p.messageCreatedAt);
+      const preview = quotePreview(p.preview);
+      return buildPushMessage({
+        prefix,
+        headline: "Neue Nachricht",
         subject: `${prefix}Neue Nachricht — ${name}`,
-        text,
-      };
+        href,
+        details: detailLines([
+          `Von: ${name}`,
+          platform ? `Kanal: ${platform}` : null,
+          when ? `Empfangen: ${when}` : null,
+          preview,
+        ]),
+      });
     }
     case "reviews": {
-      const author =
-        typeof p.authorName === "string" ? p.authorName : "Gast";
-      const rating =
-        typeof p.rating === "number" ? Math.round(p.rating) : 0;
-      const stars = rating > 0 ? ` (${rating}★)` : "";
-      const platform =
-        typeof p.platform === "string" && p.platform !== "gwada"
-          ? ` (${p.platform})`
-          : "";
-      const text = `${prefix}Neue Bewertung von ${author}${stars}${platform}.\n\n${href}`;
-      return {
-        subject: `${prefix}Neue Bewertung${stars}`,
-        text,
-      };
+      const author = pickString(p.authorName) ?? "Gast";
+      const rating = pickNumber(p.rating);
+      const stars = rating != null && rating > 0 ? formatRatingStars(rating) : null;
+      const platform = platformLabel(p.platform);
+      const when = formatPushDateTime(p.reviewCreatedAt);
+      const preview = quotePreview(p.commentPreview);
+      const ratingLine =
+        stars != null
+          ? `Bewertung: ${stars}${rating != null ? ` (${Math.round(rating)}/5)` : ""}`
+          : null;
+      return buildPushMessage({
+        prefix,
+        headline: platform ? `Neue Bewertung (${platform})` : "Neue Bewertung",
+        subject: `${prefix}Neue Bewertung${rating != null && rating > 0 ? ` — ${Math.round(rating)}★` : ""}`,
+        href,
+        details: detailLines([
+          `Von: ${author}`,
+          ratingLine,
+          when ? `Bewertet am: ${when}` : null,
+          preview,
+        ]),
+      });
     }
     case "reservations_pending": {
-      const guest =
-        typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
-      const party =
-        typeof p.partySize === "number" ? p.partySize : null;
-      const partyText = party ? ` · ${party} Gäste` : "";
-      const text = `${prefix}Neue unbestätigte Reservierung: ${guest}${partyText}.\n\n${href}`;
-      return {
+      const guest = pickString(p.guestLabel) ?? "Gast";
+      return buildPushMessage({
+        prefix,
+        headline: "Neue unbestätigte Reservierung",
         subject: `${prefix}Neue Reservierung — ${guest}`,
-        text,
-      };
+        href,
+        details: reservationDetails(p),
+      });
     }
     case "reservations_change_request": {
-      const guest =
-        typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
-      const text = `${prefix}Änderungsanfrage: ${guest}.\n\n${href}`;
-      return {
+      const guest = pickString(p.guestLabel) ?? "Gast";
+      return buildPushMessage({
+        prefix,
+        headline: "Änderungsanfrage zur Reservierung",
         subject: `${prefix}Änderungsanfrage — ${guest}`,
-        text,
-      };
+        href,
+        details: reservationDetails(p),
+      });
     }
     case "reservations_cancellation": {
-      const guest =
-        typeof p.guestLabel === "string" ? p.guestLabel : "Gast";
-      const text = `${prefix}Stornierung: ${guest}.\n\n${href}`;
-      return {
+      const guest = pickString(p.guestLabel) ?? "Gast";
+      return buildPushMessage({
+        prefix,
+        headline: "Stornierung einer Reservierung",
         subject: `${prefix}Stornierung — ${guest}`,
-        text,
-      };
+        href,
+        details: reservationDetails(p),
+      });
     }
     case "staff_shift_start": {
-      const staffName =
-        typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
-      const text = `${prefix}Schichtbeginn: ${staffName}.\n\n${href}`;
-      return {
+      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const label = pickString(p.label);
+      const start = formatPushTime(p.startsAt);
+      const end = formatPushTime(p.endsAt);
+      const timeRange =
+        start && end ? `${start}–${end} Uhr` : start ? `${start} Uhr` : null;
+      return buildPushMessage({
+        prefix,
+        headline: "Schichtbeginn",
         subject: `${prefix}Schichtbeginn — ${staffName}`,
-        text,
-      };
+        href,
+        details: detailLines([
+          `Mitarbeiter: ${staffName}`,
+          label ? `Schicht: ${label}` : null,
+          timeRange ? `Zeit: ${timeRange}` : null,
+          formatPushDateTime(p.startsAt)
+            ? `Beginn: ${formatPushDateTime(p.startsAt)}`
+            : null,
+        ]),
+      });
     }
     case "staff_shift_end": {
-      const staffName =
-        typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
-      const text = `${prefix}Schichtende: ${staffName}.\n\n${href}`;
-      return {
+      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const label = pickString(p.label);
+      const start = formatPushTime(p.startsAt);
+      const end = formatPushTime(p.endsAt);
+      const timeRange =
+        start && end ? `${start}–${end} Uhr` : end ? `${end} Uhr` : null;
+      return buildPushMessage({
+        prefix,
+        headline: "Schichtende",
         subject: `${prefix}Schichtende — ${staffName}`,
-        text,
-      };
+        href,
+        details: detailLines([
+          `Mitarbeiter: ${staffName}`,
+          label ? `Schicht: ${label}` : null,
+          timeRange ? `Geplant: ${timeRange}` : null,
+          formatPushDateTime(p.endsAt)
+            ? `Ende: ${formatPushDateTime(p.endsAt)}`
+            : null,
+        ]),
+      });
     }
     case "inventory_low_stock": {
-      const name =
-        typeof p.ingredientName === "string" ? p.ingredientName : "Zutat";
+      const name = pickString(p.ingredientName) ?? "Zutat";
       const stock = formatStockAmount(p.currentStock);
       const threshold = formatStockAmount(p.lowStockThreshold);
-      const unit = typeof p.unit === "string" ? p.unit : "";
+      const unit = pickString(p.unit);
       const unitText = unit ? ` ${unit}` : "";
-      const text = `${prefix}Niedrigbestand: ${name} (${stock}${unitText}, Schwelle ${threshold}).\n\n${href}`;
-      return {
+      return buildPushMessage({
+        prefix,
+        headline: "Niedrigbestand",
         subject: `${prefix}Niedrigbestand — ${name}`,
-        text,
-      };
+        href,
+        details: detailLines([
+          `Zutat: ${name}`,
+          `Bestand: ${stock}${unitText}`,
+          `Schwelle: ${threshold}${unitText}`,
+        ]),
+      });
     }
     case "changelog": {
-      const title = typeof p.title === "string" ? p.title : "Changelog";
-      const text = `Neu im Changelog: ${title}\n\n${href}`;
-      return {
+      const title = pickString(p.title) ?? "Changelog";
+      const version = pickString(p.version);
+      const when = formatPushDateTime(p.publishedAt);
+      return buildPushMessage({
+        prefix: "",
+        headline: "Neu im Changelog",
         subject: `Changelog: ${title}`,
-        text,
-      };
+        href,
+        details: detailLines([
+          `Titel: ${title}`,
+          version ? `Version: ${version}` : null,
+          when ? `Veröffentlicht: ${when}` : null,
+        ]),
+      });
     }
   }
 }

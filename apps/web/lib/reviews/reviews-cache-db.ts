@@ -5,6 +5,8 @@ import {
   isReviewsCacheablePlatform,
   type ReviewsCacheablePlatform,
 } from "@/lib/reviews/reviews-cache-constants";
+import { tryAutoReplyToNewReviews } from "@/lib/reviews/review-auto-reply-server";
+import { reviewExternalId } from "@/lib/reviews/review-settings-types";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -22,9 +24,7 @@ export type ReviewsPlatformSyncRow = {
 };
 
 export function externalIdFromReview(review: UnifiedReview): string {
-  const prefix = `${review.platform}:`;
-  if (review.id.startsWith(prefix)) return review.id.slice(prefix.length);
-  return review.id;
+  return reviewExternalId(review);
 }
 
 function parseCachedReview(raw: unknown): UnifiedReview | null {
@@ -119,6 +119,15 @@ export async function upsertReviewsPlatformCache(
   const seenExternalIds = new Set<string>();
   const now = syncedAt;
 
+  const { data: existingRows } = await admin
+    .from("restaurant_reviews_platform_cache")
+    .select("external_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", platform);
+  const previousExternalIds = new Set(
+    (existingRows ?? []).map((row) => row.external_id as string),
+  );
+
   if (reviews.length > 0) {
     const rows = reviews.map((review) => {
       const externalId = externalIdFromReview(review);
@@ -139,6 +148,13 @@ export async function upsertReviewsPlatformCache(
 
     if (upsertError) {
       console.warn("[gwada] reviews cache upsert", platform, upsertError.message);
+    } else {
+      void tryAutoReplyToNewReviews(
+        restaurantId,
+        reviews,
+        previousExternalIds,
+        platform,
+      );
     }
   }
 

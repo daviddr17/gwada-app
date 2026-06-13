@@ -35,6 +35,7 @@ export const APP_ROUTES = {
     root: "/dashboard/bewertungen",
     overview: "/dashboard/bewertungen/uebersicht",
     embed: "/dashboard/bewertungen/einbinden",
+    settings: "/dashboard/bewertungen/einstellungen",
   },
   dokumente: {
     root: "/dashboard/dokumente",

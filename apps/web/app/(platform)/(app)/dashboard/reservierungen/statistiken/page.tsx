@@ -1,3 +1,5 @@
+"use client";
+
 import { ReservationsStatisticsScreen } from "@/components/reservations/reservations-statistics-screen";
 
 export default function ReservierungenStatistikenPage() {

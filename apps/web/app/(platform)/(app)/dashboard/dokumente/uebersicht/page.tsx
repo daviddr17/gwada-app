@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { DocumentsOverview } from "@/components/documents/documents-overview";
 

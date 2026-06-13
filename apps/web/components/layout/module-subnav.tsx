@@ -88,7 +88,7 @@ export function ModuleChipNav({
                 <SidebarMenuButton
                   isActive={active}
                   className="whitespace-nowrap"
-                  render={<Link href={item.href} prefetch />}
+                  render={<Link href={item.href} prefetch={false} scroll={false} />}
                 >
                   <span>{item.label}</span>
                 </SidebarMenuButton>

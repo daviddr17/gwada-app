@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { NewsScreen } from "@/components/news/news-screen";
 

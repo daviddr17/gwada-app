@@ -1,3 +1,5 @@
+"use client";
+
 import { Suspense } from "react";
 import { StaffWorkHoursScreen } from "@/components/staff/staff-work-hours-screen";
 

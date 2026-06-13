@@ -40,7 +40,31 @@ begin
   end if;
 
   return query
-  (
+  select
+    combined.row_kind,
+    combined.delivery_id,
+    combined.event_id,
+    combined.event_created_at,
+    combined.event_processed_at,
+    combined.restaurant_id,
+    combined.restaurant_name,
+    combined.context_restaurant_id,
+    combined.context_restaurant_name,
+    combined.module,
+    combined.reference_id,
+    combined.payload,
+    combined.profile_id,
+    combined.recipient_email,
+    combined.recipient_name,
+    combined.channel,
+    combined.delivery_status,
+    combined.delivery_attempts,
+    combined.last_error,
+    combined.scheduled_at,
+    combined.sent_at,
+    combined.delivery_created_at,
+    combined.idempotency_key
+  from (
     select
       'delivery'::text as row_kind,
       d.id as delivery_id,

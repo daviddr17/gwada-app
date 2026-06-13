@@ -1,7 +1,4 @@
-"use client";
-
-import { DashboardHomePage } from "@/components/dashboard/dashboard-home-page";
-
-export default function DashboardPage() {
-  return <DashboardHomePage />;
+/** Route-Anker für `/dashboard` — UI rendert `DashboardZoneShell` (minimaler RSC-Flight). */
+export default function DashboardRouteAnchor() {
+  return null;
 }

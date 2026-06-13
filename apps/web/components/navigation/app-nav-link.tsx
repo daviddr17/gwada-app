@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { isDashboardHomePath } from "@/lib/navigation/dashboard-home-path";
 import {
   assignCrossAppWorkspaceZone,
   crossAppModuleNavigation,
-  navigateAppPath,
 } from "@/lib/navigation/app-zone-navigation";
-import { isSoftNavFlightActive } from "@/lib/navigation/soft-nav-flight-guard";
+import {
+  beginSoftNavFlight,
+  isSoftNavFlightActive,
+} from "@/lib/navigation/soft-nav-flight-guard";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -20,6 +22,7 @@ function hrefToString(href: string | { pathname?: string; search?: string }): st
 
 /**
  * Interner App-Link: Soft-Nav in der App-Zone; nur Wechsel App ↔ Superadmin per Full-Load.
+ * Modulwechsel über Link (Next-Router-intern), nicht router.push — stabilerer RSC-Flight.
  */
 export function AppNavLink({
   href,
@@ -37,7 +40,6 @@ export function AppNavLink({
   "aria-label"?: string;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const hrefStr = hrefToString(href);
   const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
   const shouldPrefetch =
@@ -57,10 +59,9 @@ export function AppNavLink({
           event.preventDefault();
           return;
         }
-        if (crossModuleNav) {
+        if (!crossModuleNav) return;
+        if (isSoftNavFlightActive() || !beginSoftNavFlight(hrefStr)) {
           event.preventDefault();
-          if (isSoftNavFlightActive()) return;
-          navigateAppPath(router, pathname, hrefStr);
         }
       }}
     >

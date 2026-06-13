@@ -184,14 +184,18 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 5 * 60_000,
     pollIntervalMs: 60_000,
     description:
-      "Visual Crossing — erst nach stabilem Restaurant-Profil (Stadt), kein Doppel-Fetch Default→Stadt.",
+      "Visual Crossing — localStorage + Memory (15 Min), stiller Refetch; erst nach stabilem Restaurant-Profil (Stadt).",
     loadTriggers: [
       "Profil ready + Standort stabil",
+      "Dashboard-Mount: peek Cache, dann silent fetch",
       "Dashboard-Widget-Coordinator 60s (silent)",
     ],
-    invalidateTriggers: ["Standort-Änderung im Profil"],
+    invalidateTriggers: ["Standort-Änderung (neuer Cache-Key)", "TTL abgelaufen"],
     apiEndpoints: ["/api/weather"],
-    implementationFiles: ["components/dashboard/dashboard-weather-tile.tsx"],
+    implementationFiles: [
+      "components/dashboard/dashboard-weather-tile.tsx",
+      "lib/weather/dashboard-weather-cache.ts",
+    ],
     status: "active",
   },
   {

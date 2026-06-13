@@ -8,15 +8,19 @@ import {
 } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  peekDashboardWeatherCache,
+  writeDashboardWeatherCache,
+} from "@/lib/weather/dashboard-weather-cache";
+import { resolveWeatherAmbienceKind } from "@/lib/weather/weather-ambience-kind";
 import {
   buildVisualCrossingLocation,
   DEFAULT_WEATHER_LOCATION,
 } from "@/lib/weather/visual-crossing-location";
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types";
 import { DashboardWeatherAmbience } from "@/components/dashboard/dashboard-weather-ambience";
-import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { resolveWeatherAmbienceKind } from "@/lib/weather/weather-ambience-kind";
 
 const nf1 = new Intl.NumberFormat("de-DE", {
   minimumFractionDigits: 0,
@@ -69,9 +73,11 @@ export function DashboardWeatherTile() {
 
   const load = useCallback(async (loc: string, silent = false) => {
     const initial = !hasDataRef.current;
-    if (!silent && initial) setLoading(true);
-    if (!silent && initial) setErr(null);
-    if (!silent && initial) setData(null);
+    if (!silent && initial) {
+      setLoading(true);
+      setErr(null);
+      setData(null);
+    }
     try {
       const u = new URL("/api/weather", window.location.origin);
       u.searchParams.set("location", loc);
@@ -94,8 +100,11 @@ export function DashboardWeatherTile() {
         return;
       }
 
-      setData(json as VisualCrossingTimelineResponse);
+      const next = json as VisualCrossingTimelineResponse;
+      writeDashboardWeatherCache(loc, next);
+      setData(next);
       hasDataRef.current = true;
+      setErr(null);
     } catch {
       if (!hasDataRef.current) {
         setErr("Wetterdaten konnten nicht geladen werden.");
@@ -113,7 +122,19 @@ export function DashboardWeatherTile() {
 
   useEffect(() => {
     if (!locationStable) return;
-    void load(location, hasDataRef.current);
+
+    const cached = peekDashboardWeatherCache(location);
+    const hadCache = cached != null;
+    if (hadCache) {
+      setData(cached);
+      hasDataRef.current = true;
+      setErr(null);
+      setLoading(false);
+    } else {
+      hasDataRef.current = false;
+    }
+
+    void load(location, hadCache);
   }, [locationStable, location, load]);
 
   useEffect(() => {

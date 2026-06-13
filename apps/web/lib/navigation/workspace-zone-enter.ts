@@ -1,5 +1,4 @@
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
-import { scheduleCrossModuleNavImperative } from "@/lib/navigation/soft-nav-coordinator-bridge";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { appZoneFromPath } from "@/lib/navigation/workspace-zone-meta";
 
@@ -38,11 +37,7 @@ export function navigateAppPath(
 ): void {
   const target = safeInternalPath(toPath.trim() || "/dashboard");
   if (assignCrossAppWorkspaceZone(fromPath, target)) return;
-
-  if (crossAppModuleNavigation(fromPath, target)) {
-    scheduleCrossModuleNavImperative(target);
-    return;
-  }
-
   router.push(target);
 }
+
+export { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";

@@ -2,7 +2,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
 import { AuthCookieCleanupMount } from "@/components/providers/auth-cookie-cleanup-mount";
 import { DashboardBatchPrefetchMount } from "@/components/providers/dashboard-batch-prefetch-mount";
-import { SoftNavCoordinatorProvider } from "@/components/providers/soft-nav-coordinator";
+import { SoftNavGuardProvider } from "@/components/providers/soft-nav-guard-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
@@ -19,13 +19,13 @@ export default function AppLayout({
     <RestaurantProfileProvider>
       <DashboardWidgetPreferencesProvider>
         <AccentColorProvider>
-          <SoftNavCoordinatorProvider>
+          <SoftNavGuardProvider>
             <AuthCookieCleanupMount />
             <DashboardBatchPrefetchMount />
             <ProfilePresenceHeartbeat />
             <AppModuleLiveProviders />
             <AppShell>{children}</AppShell>
-          </SoftNavCoordinatorProvider>
+          </SoftNavGuardProvider>
         </AccentColorProvider>
       </DashboardWidgetPreferencesProvider>
     </RestaurantProfileProvider>

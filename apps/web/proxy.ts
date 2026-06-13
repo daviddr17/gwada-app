@@ -112,6 +112,9 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Legacy-OAuth-Cookies schrumpfen (Live: zu große Cookie-Header → RSC-Soft-Nav schlägt fehl).
+  appendAuthEntryCookieCleanup(response.headers);
+
   return response;
 }
 

@@ -191,7 +191,13 @@ export function PublicProfileInfoSections({
             mapsUrl={mapsUrl}
           />
         ) : (
-          <RestaurantPublicOpeningHours weeklyHours={profile.weeklyHours} />
+          <RestaurantPublicOpeningHours
+            weeklyHours={profile.weeklyHours}
+            kitchenHoursEnabled={profile.kitchenHoursEnabled}
+            kitchenWeeklyHours={profile.kitchenWeeklyHours}
+            dateExceptions={profile.dateExceptions}
+            openingHoursSettings={profile.openingHoursSettings}
+          />
         )}
       </div>
     </div>

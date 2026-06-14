@@ -92,12 +92,58 @@ function PublicReviewRow({ review }: { review: PublicEmbedReview }) {
   );
 }
 
+function PublicReviewCard({ review }: { review: PublicEmbedReview }) {
+  const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+  return (
+    <article className="mb-4 flex w-full break-inside-avoid flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <StarsDisplay rating={review.rating} />
+          <span className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <ReviewPlatformIcon platform={review.platform} className="size-3" />
+            {REVIEW_PLATFORM_LABELS[review.platform]}
+          </span>
+        </div>
+        <time
+          className="shrink-0 text-xs text-muted-foreground"
+          dateTime={review.createdAt}
+        >
+          {date}
+        </time>
+      </div>
+      {review.authorName ? (
+        <p className="mt-2 text-sm font-medium leading-snug">{review.authorName}</p>
+      ) : null}
+      {review.comment ? (
+        <p className="mt-2 line-clamp-4 flex-1 text-sm leading-relaxed text-foreground">
+          {review.comment}
+        </p>
+      ) : (
+        <p className="mt-2 text-sm text-muted-foreground">Kein Kommentar</p>
+      )}
+      {review.reply ? (
+        <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
+          <span className="font-medium text-muted-foreground">Antwort: </span>
+          <span className="line-clamp-3">{review.reply}</span>
+        </div>
+      ) : null}
+    </article>
+  );
+}
+
 export function RestaurantPublicProfileReviews({
   reviews,
   connectedPlatforms,
+  viewMode = "grid",
 }: {
   reviews: PublicEmbedReview[];
   connectedPlatforms: ReviewPlatform[];
+  viewMode?: "grid" | "list";
 }) {
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatform | "all">(
     "all",
@@ -176,10 +222,16 @@ export function RestaurantPublicProfileReviews({
               ? "Noch keine Bewertungen."
               : "Keine Bewertungen für diesen Filter."}
           </p>
-        ) : (
+        ) : viewMode === "list" ? (
           <div>
             {filteredSorted.map((review) => (
               <PublicReviewRow key={`${review.platform}-${review.id}`} review={review} />
+            ))}
+          </div>
+        ) : (
+          <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
+            {filteredSorted.map((review) => (
+              <PublicReviewCard key={`${review.platform}-${review.id}`} review={review} />
             ))}
           </div>
         )}

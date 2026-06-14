@@ -15,6 +15,7 @@ import {
   fetchHiddenReviewKeys,
   filterReviewsForPublicEmbed,
 } from "@/lib/reviews/review-visibility-server";
+import { parseReviewEmbedViewMode } from "@/lib/reviews/review-embed-settings-db";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
@@ -37,6 +38,7 @@ export type PublicEmbedReviews = {
   name: string;
   slug: string;
   accentHex: string;
+  viewMode: "grid" | "list";
   connectedPlatforms: ReviewPlatform[];
   reviews: PublicEmbedReview[];
   summary: {
@@ -179,8 +181,19 @@ export async function fetchPublicEmbedReviews(
 
   const restaurantId = row.id as string;
 
-  const { reviews: unifiedReviews, connectedPlatforms } =
-    await loadConnectedPlatformReviews(restaurantId);
+  const [{ reviews: unifiedReviews, connectedPlatforms }, settingsRow] =
+    await Promise.all([
+      loadConnectedPlatformReviews(restaurantId),
+      admin
+        .from("restaurant_review_settings")
+        .select("default_embed_view")
+        .eq("restaurant_id", restaurantId)
+        .maybeSingle(),
+    ]);
+
+  const viewMode = parseReviewEmbedViewMode(
+    settingsRow.data?.default_embed_view as string | null,
+  );
 
   const hiddenKeys = await fetchHiddenReviewKeys(admin, restaurantId);
   const visibleReviews = filterReviewsForPublicEmbed(unifiedReviews, hiddenKeys);
@@ -201,6 +214,7 @@ export async function fetchPublicEmbedReviews(
       accentHex:
         normalizeHex((row.brand_accent_hex as string | null) ?? "") ??
         DEFAULT_ACCENT_HEX,
+      viewMode,
       connectedPlatforms,
       reviews,
       summary,

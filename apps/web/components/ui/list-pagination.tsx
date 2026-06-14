@@ -142,7 +142,7 @@ export function ListPaginationSurround({
       <ListPagination
         {...paginationProps}
         placement="below"
-        showSummary={false}
+        showSummary
         className={classNameBelow}
       />
     </>

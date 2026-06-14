@@ -842,7 +842,7 @@ function ProfileAppContent({
 
   if (appId === "menu") {
     return (
-      <div className="px-4 pb-8 sm:px-5">
+      <div className="p-4 pb-8 sm:p-5">
         <ModulePanel
           showLoading={deferHeavyWidgets || (!menu && loading.menu)}
           error={errors.menu}
@@ -865,7 +865,7 @@ function ProfileAppContent({
 
   if (appId === "news") {
     return (
-      <div className="px-4 pb-8 sm:px-5">
+      <div className="p-4 pb-8 sm:p-5">
         <ModulePanel
           showLoading={deferHeavyWidgets || (!news && loading.news)}
           error={errors.news}
@@ -887,6 +887,7 @@ function ProfileAppContent({
             <RestaurantPublicProfileReviews
               reviews={reviews.reviews}
               connectedPlatforms={reviews.connectedPlatforms}
+              viewMode={reviews.viewMode}
             />
           </div>
         ) : null}

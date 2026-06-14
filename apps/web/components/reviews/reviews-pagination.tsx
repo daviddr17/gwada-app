@@ -102,7 +102,7 @@ export function ReviewsPaginationSurround({
       <ReviewsPagination
         {...paginationProps}
         placement="below"
-        showSummary={false}
+        showSummary
         className={classNameBelow}
       />
     </>

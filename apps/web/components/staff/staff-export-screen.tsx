@@ -116,7 +116,7 @@ export function StaffExportScreen() {
 
   return (
     <>
-      <div className="mx-auto max-w-2xl space-y-4 pb-16">
+      <div className="space-y-4 pb-16">
         <Card className="border-border/50 shadow-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Zeitraum</CardTitle>

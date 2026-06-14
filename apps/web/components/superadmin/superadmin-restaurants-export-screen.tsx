@@ -62,7 +62,7 @@ export function SuperadminRestaurantsExportScreen() {
 
   return (
     <>
-      <Card className="mx-auto max-w-lg border-border/50 shadow-card">
+      <Card className="border-border/50 shadow-card">
         <CardHeader>
           <CardTitle>Export</CardTitle>
           <CardDescription>

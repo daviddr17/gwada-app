@@ -2,8 +2,11 @@ import type {
   PlatformAppBranding,
   PlatformBrandingAssetKind,
 } from "@/lib/types/platform-app-settings";
+import type { SidebarModuleId } from "@/lib/constants/sidebar-modules";
 
-export type PlatformAppSettingsResponse = PlatformAppBranding;
+export type PlatformAppSettingsResponse = PlatformAppBranding & {
+  sidebarModuleOrder: SidebarModuleId[];
+};
 
 export async function fetchSuperadminPlatformAppSettings(): Promise<PlatformAppSettingsResponse> {
   const res = await fetch("/api/superadmin/platform-app-settings", {
@@ -23,6 +26,21 @@ export async function patchSuperadminPlatformAppName(
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ appName }),
+  });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
+  return (await res.json()) as PlatformAppSettingsResponse;
+}
+
+export async function patchSuperadminSidebarModuleOrder(
+  sidebarModuleOrder: SidebarModuleId[],
+): Promise<PlatformAppSettingsResponse> {
+  const res = await fetch("/api/superadmin/platform-app-settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sidebarModuleOrder }),
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };

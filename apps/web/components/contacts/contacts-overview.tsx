@@ -15,6 +15,8 @@ import { ContactPlatformBadges } from "@/components/contacts/contact-platform-ba
 import { ContactReservationsDrawer } from "@/components/contacts/contact-reservations-drawer";
 import {
   channelCellLabel,
+  contactOverviewFirstName,
+  contactOverviewLastName,
   fetchContactReservationsQuick,
   type ContactReservationLink,
 } from "@/lib/supabase/contacts-db";
@@ -45,6 +47,7 @@ import Link from "next/link";
 type SortKey =
   | "firstName"
   | "lastName"
+  | "company"
   | "email"
   | "phone"
   | "address"
@@ -265,6 +268,8 @@ export function ContactsOverview() {
           return a.first_name.localeCompare(b.first_name, "de") * dir;
         case "lastName":
           return a.last_name.localeCompare(b.last_name, "de") * dir;
+        case "company":
+          return (a.company ?? "").localeCompare(b.company ?? "", "de") * dir;
         case "email":
           return (
             (a.emails[0] ?? "").localeCompare(b.emails[0] ?? "", "de") * dir
@@ -404,7 +409,7 @@ export function ContactsOverview() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Nachname, Vorname, E-Mail, Telefon, Adresse …"
+                  placeholder="Nachname, Vorname, Firma, E-Mail, Telefon, Adresse …"
                   className="h-10 w-full rounded-xl pl-9"
                   aria-label="Kontakte durchsuchen"
                 />
@@ -432,7 +437,7 @@ export function ContactsOverview() {
           ) : null}
 
           <div className="overflow-x-auto rounded-xl border border-border/50">
-            <table className="w-full min-w-[58rem] text-sm">
+            <table className="w-full min-w-[64rem] text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
                   <th className="w-16 px-2 py-2 text-left">
@@ -453,6 +458,15 @@ export function ContactsOverview() {
                     <SortHeader
                       label="Vorname"
                       sortKey="firstName"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                  </th>
+                  <th className="min-w-[9rem] px-2 py-2 text-left">
+                    <SortHeader
+                      label="Firmenname"
+                      sortKey="company"
                       activeKey={sortKey}
                       dir={sortDir}
                       onSort={toggleSort}
@@ -518,7 +532,7 @@ export function ContactsOverview() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       Laden …
@@ -527,7 +541,7 @@ export function ContactsOverview() {
                 ) : filteredSorted.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       {search.trim()
@@ -548,18 +562,18 @@ export function ContactsOverview() {
                           <ContactPlatformBadges platforms={r.platforms} />
                         </td>
                         <td className="px-2 py-2 align-middle font-medium">
-                          {r.last_name || "—"}
-                          {r.company ? (
-                            <span
-                              className="mt-0.5 block truncate text-[10px] font-normal text-muted-foreground max-w-[8rem]"
-                              title={r.company}
-                            >
-                              {r.company}
-                            </span>
-                          ) : null}
+                          {contactOverviewLastName(r)}
                         </td>
                         <td className="px-2 py-2 align-middle">
-                          {r.first_name || "—"}
+                          {contactOverviewFirstName(r)}
+                        </td>
+                        <td
+                          className="px-2 py-2 align-middle text-muted-foreground max-w-[12rem]"
+                          title={r.company ?? undefined}
+                        >
+                          <span className="block truncate">
+                            {r.company?.trim() || "—"}
+                          </span>
                         </td>
                         <td className="px-2 py-2 align-middle text-muted-foreground">
                           <ChannelCell values={r.emails} />

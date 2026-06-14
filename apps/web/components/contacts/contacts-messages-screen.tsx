@@ -90,6 +90,7 @@ import {
 } from "@/lib/contact-messages/fetch-inbox-client";
 import { enrichConversationsWithReadState } from "@/lib/contact-messages/enrich-gwada-conversations-client";
 import {
+  deleteContactThreadCacheEntry,
   peekContactThreadCache,
   setContactThreadCache,
 } from "@/lib/contact-messages/contact-thread-cache";
@@ -1424,6 +1425,23 @@ export function ContactsMessagesScreen() {
     [restaurantId],
   );
 
+  const navigateToContactThread = useCallback(
+    (contactId: string, opts?: { displayName?: string }) => {
+      if (!restaurantId) return;
+      deleteContactThreadCacheEntry(restaurantId, contactId);
+      setMessages([]);
+      setLoadingThread(true);
+      setWhatsappThreadPhone(null);
+      setWhatsappThreadChatId(null);
+      if (opts?.displayName) setContactName(opts.displayName);
+      const params = new URLSearchParams();
+      params.set("platform", INBOX_FILTER_ALL);
+      params.set("contact", contactId);
+      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    },
+    [restaurantId, router],
+  );
+
   const linkMetaThreadToExistingContact = useCallback(
     async (
       pseudoContactId: string,
@@ -1453,15 +1471,15 @@ export function ContactsMessagesScreen() {
               : `${label}-Chat mit „${existingDisplayName}“ verknüpft.`,
           );
         }
-        router.replace(
-          `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
-        );
+        navigateToContactThread(existingContactId, {
+          displayName: existingDisplayName,
+        });
         return true;
       }
       toast.warning(inboxLinkContactErrorMessage(link?.error));
       return false;
     },
-    [restaurantId, router],
+    [restaurantId, navigateToContactThread],
   );
 
   const linkWahaThreadToExistingContact = useCallback(
@@ -1483,15 +1501,15 @@ export function ContactsMessagesScreen() {
             ? `Chat mit „${existingDisplayName}“ verknüpft (${n} Nachrichten importiert).`
             : `Chat mit „${existingDisplayName}“ verknüpft.`,
         );
-        router.replace(
-          `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
-        );
+        navigateToContactThread(existingContactId, {
+          displayName: existingDisplayName,
+        });
         return true;
       }
       toast.warning(inboxLinkContactErrorMessage(link?.error));
       return false;
     },
-    [restaurantId, router],
+    [restaurantId, navigateToContactThread],
   );
 
   const linkEmailThreadToExistingContact = useCallback(
@@ -1513,9 +1531,9 @@ export function ContactsMessagesScreen() {
             ? `E-Mail-Chat mit „${existingDisplayName}“ verknüpft (${n} Nachrichten importiert).`
             : `E-Mail-Chat mit „${existingDisplayName}“ verknüpft.`,
         );
-        router.replace(
-          `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
-        );
+        navigateToContactThread(existingContactId, {
+          displayName: existingDisplayName,
+        });
         return true;
       }
       if (link?.error === "email_on_other_contact") {
@@ -1525,7 +1543,7 @@ export function ContactsMessagesScreen() {
       }
       return false;
     },
-    [restaurantId, router],
+    [restaurantId, navigateToContactThread],
   );
 
   const assignInboxThreadToContact = useCallback(
@@ -2197,13 +2215,13 @@ export function ContactsMessagesScreen() {
               </Button>
             ) : null}
           </div>
-          <CardContent className="flex h-[min(72dvh,680px)] max-h-[min(88dvh,820px)] min-h-0 flex-col gap-0 p-0">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-4 pt-4 sm:px-6 sm:pt-5">
+          <CardContent className="grid h-[min(72dvh,680px)] max-h-[min(88dvh,820px)] min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-0 p-0">
+            <div className="min-h-0 min-w-0 overflow-hidden px-4 pt-4 sm:px-6 sm:pt-5">
               <ContactMessageChatViewport
                 messages={displayMessages}
                 loading={loadingThread && displayMessages.length === 0}
-                threadKey={`${inboxFilter}-${contactParam}`}
-                className="min-h-0 flex-1"
+                threadKey={contactParam}
+                className="h-full min-h-0"
                 onReservationOpen={(id) => void openReservationFromMessage(id)}
                 wahaReactions={
                   restaurantId && whatsappThreadChatId
@@ -2257,7 +2275,7 @@ export function ContactsMessagesScreen() {
               />
             </div>
             {canReply ? (
-              <div className="sticky bottom-0 z-10 shrink-0 overflow-visible border-t border-border/50 bg-card px-4 pt-2 pb-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] sm:px-6">
+              <div className="min-w-0 overflow-visible border-t border-border/50 bg-card px-4 pt-2 pb-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] sm:px-6">
                 <ContactMessageComposer
                   disabled={loadingThread}
                   sending={sending}
@@ -2324,7 +2342,7 @@ export function ContactsMessagesScreen() {
                 />
               </div>
             ) : linkedThread ? (
-              <div className="sticky bottom-0 shrink-0 border-t border-border/50 bg-card px-4 py-4 sm:px-6">
+              <div className="min-w-0 border-t border-border/50 bg-card px-4 py-4 sm:px-6">
                 <p className="text-sm text-muted-foreground">
                   {!emailEnabled &&
                   !whatsappEnabled &&

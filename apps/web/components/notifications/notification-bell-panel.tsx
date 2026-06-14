@@ -16,23 +16,14 @@ import { cn } from "@/lib/utils";
 
 function formatNotificationWhen(iso: string): string {
   const d = new Date(iso);
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-
-  if (sameDay) {
-    return d.toLocaleTimeString("de-DE", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  return d.toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "short",
+  const day = d.toLocaleString("de-DE", { day: "2-digit" });
+  const month = d.toLocaleString("de-DE", { month: "2-digit" });
+  const time = d.toLocaleString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
   });
+  return `${day}.${month}, ${time}`;
 }
 
 type NotificationBellPanelProps = {

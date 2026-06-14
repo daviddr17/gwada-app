@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useState, type MouseEvent } from "react";
 import { ExternalLink } from "lucide-react";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
@@ -20,16 +20,19 @@ export function newsBodyNeedsExpand(body: string): boolean {
 }
 
 const newsCardSurfaceClassName =
-  "flex h-full w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
+  "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
 
 const NewsCard = memo(function NewsCard({
   item,
   onClick,
   inlineExpandBody = false,
+  masonry = false,
 }: {
   item: UnifiedNewsItem;
   onClick?: () => void;
   inlineExpandBody?: boolean;
+  /** Abstand + break-inside für CSS-Columns (Pinterest). */
+  masonry?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const preview = item.media[0];
@@ -39,7 +42,8 @@ const NewsCard = memo(function NewsCard({
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
 
-  const toggleExpanded = useCallback(() => {
+  const toggleExpanded = useCallback((event: MouseEvent) => {
+    event.stopPropagation();
     setExpanded((value) => !value);
   }, []);
 
@@ -67,6 +71,7 @@ const NewsCard = memo(function NewsCard({
           href={externalUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
           className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
         >
           <ExternalLink className="size-3.5 shrink-0" />
@@ -114,48 +119,52 @@ const NewsCard = memo(function NewsCard({
     </>
   );
 
+  const surfaceClassName = cn(
+    newsCardSurfaceClassName,
+    masonry && "mb-4 break-inside-avoid",
+    onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
+  );
+
   if (onClick) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        className={cn(
-          newsCardSurfaceClassName,
-          "cursor-pointer hover:shadow-card active:scale-[0.99]",
-        )}
-      >
+      <button type="button" onClick={onClick} className={surfaceClassName}>
         {cardContent}
       </button>
     );
   }
 
-  return <article className={newsCardSurfaceClassName}>{cardContent}</article>;
+  return <article className={surfaceClassName}>{cardContent}</article>;
 });
 
 const NewsFeedCardRow = memo(function NewsFeedCardRow({
   item,
   onItemClick,
   inlineExpandBody,
+  masonry,
 }: {
   item: UnifiedNewsItem;
   onItemClick?: (item: UnifiedNewsItem) => void;
   inlineExpandBody?: boolean;
+  masonry?: boolean;
 }) {
   const onClick = useCallback(() => {
     onItemClick?.(item);
   }, [item, onItemClick]);
 
+  const expandInline = Boolean(inlineExpandBody && !onItemClick);
+
   return (
     <NewsCard
       item={item}
       onClick={onItemClick ? onClick : undefined}
-      inlineExpandBody={inlineExpandBody}
+      inlineExpandBody={expandInline}
+      masonry={masonry}
     />
   );
 });
 
-/** Zeilen-Raster: neueste links oben, dann zeilenweise nach rechts (Sortierung bleibt erhalten). */
-export function NewsGridView({
+/** Pinterest-Raster: CSS-Columns, neueste links oben. */
+export function NewsMasonryGrid({
   items,
   onItemClick,
   inlineExpandBody = onItemClick == null,
@@ -166,11 +175,12 @@ export function NewsGridView({
   inlineExpandBody?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4 [contain:layout]">
       {items.map((item) => (
         <NewsFeedCardRow
           key={item.id}
           item={item}
+          masonry
           onItemClick={onItemClick}
           inlineExpandBody={inlineExpandBody}
         />
@@ -178,6 +188,9 @@ export function NewsGridView({
     </div>
   );
 }
+
+/** @deprecated Alias — bitte `NewsMasonryGrid` verwenden. */
+export const NewsGridView = NewsMasonryGrid;
 
 export function NewsListView({
   items,

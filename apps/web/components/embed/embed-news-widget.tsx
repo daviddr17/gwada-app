@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import {
-  NewsGridView,
   NewsListView,
+  NewsMasonryGrid,
 } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
@@ -18,8 +18,6 @@ import type {
   PublicEmbedNews,
   PublicEmbedNewsPagination,
 } from "@/lib/news/public-news-server";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
-
 export type EmbedNewsWidgetProps = {
   accentHex: string;
   viewMode: "grid" | "list";
@@ -53,13 +51,14 @@ export function EmbedNewsWidget({
   pagination,
 }: EmbedNewsWidgetProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const [localPlatformFilter, setLocalPlatformFilter] =
     useState<NewsPlatformFilter>(NEWS_FILTER_ALL);
   const [navigating, startTransition] = useTransition();
   const paginated = pagination != null && variant === "embed";
 
-  const platformFilter = paginated
+  const rawPlatformFilter = paginated
     ? (pagination.platformFilter ?? NEWS_FILTER_ALL)
     : localPlatformFilter;
 
@@ -67,6 +66,16 @@ export function EmbedNewsWidget({
     () => new Set(connectedPlatforms),
     [connectedPlatforms],
   );
+
+  const platformFilter = useMemo(() => {
+    if (
+      rawPlatformFilter !== NEWS_FILTER_ALL &&
+      !availablePlatforms.has(rawPlatformFilter)
+    ) {
+      return NEWS_FILTER_ALL;
+    }
+    return rawPlatformFilter;
+  }, [rawPlatformFilter, availablePlatforms]);
 
   const visibleItems = useMemo(
     () =>
@@ -86,12 +95,17 @@ export function EmbedNewsWidget({
     (patch: { page?: number; platform?: NewsPlatformFilter }) => {
       const params = new URLSearchParams(searchParams.toString());
       patchEmbedNewsQuery(params, patch);
-      const qs = params.toString();
+      const nextQs = params.toString();
+      const currentQs = searchParams.toString();
+      if (nextQs === currentQs) return;
+
       startTransition(() => {
-        router.push(qs ? `?${qs}` : "?", { scroll: false });
+        router.push(nextQs ? `${pathname}?${nextQs}` : pathname, {
+          scroll: false,
+        });
       });
     },
-    [router, searchParams],
+    [router, pathname, searchParams],
   );
 
   const setPlatformFilter = useCallback(
@@ -110,19 +124,6 @@ export function EmbedNewsWidget({
     },
     [paginated, pushQuery, availablePlatforms],
   );
-
-  useEffect(() => {
-    if (
-      platformFilter !== NEWS_FILTER_ALL &&
-      !availablePlatforms.has(platformFilter)
-    ) {
-      if (paginated) {
-        pushQuery({ platform: NEWS_FILTER_ALL, page: 1 });
-      } else {
-        setLocalPlatformFilter(NEWS_FILTER_ALL);
-      }
-    }
-  }, [platformFilter, availablePlatforms, paginated, pushQuery]);
 
   useEffect(() => {
     if (!paginated) return;
@@ -163,15 +164,6 @@ export function EmbedNewsWidget({
           </div>
         ) : null}
 
-        {paginated && pagination.totalCount > 0 ? (
-          <ListRangeCount
-            className="mb-4"
-            shown={filtered.length}
-            total={pagination.totalCount}
-            itemLabel="Beiträge"
-          />
-        ) : null}
-
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {platformFilter === NEWS_FILTER_ALL
@@ -184,6 +176,7 @@ export function EmbedNewsWidget({
             classNameBelow="mt-4 border-t-0 pt-0"
             page={pagination.page}
             totalPages={pagination.totalPages}
+            shown={filtered.length}
             totalCount={pagination.totalCount}
             itemLabel="Beiträge"
             canPrevious={pagination.page > 1}
@@ -195,13 +188,13 @@ export function EmbedNewsWidget({
             {viewMode === "list" ? (
               <NewsListView items={filtered} />
             ) : (
-              <NewsGridView items={filtered} />
+              <NewsMasonryGrid items={filtered} />
             )}
           </ListPaginationSurround>
         ) : viewMode === "list" ? (
           <NewsListView items={filtered} />
         ) : (
-          <NewsGridView items={filtered} />
+          <NewsMasonryGrid items={filtered} />
         )}
       </div>
     </EmbedAccentRoot>

@@ -57,7 +57,6 @@ import {
   LIST_PAGE_SIZE_DEFAULT,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -441,14 +440,6 @@ export function DocumentsOverview() {
       </div>
 
       <div className="-mx-4 mb-6 px-4 sm:-mx-6 sm:px-6">
-        {!showSkeleton ? (
-          <ListRangeCount
-            className="mb-3"
-            shown={paginatedRows.length}
-            total={totalCount}
-            itemLabel="Dokumente"
-          />
-        ) : null}
         <Button
           type="button"
           size="lg"
@@ -487,6 +478,7 @@ export function DocumentsOverview() {
             classNameBelow="px-4 pb-4"
             page={currentPage}
             totalPages={totalPages}
+            shown={paginatedRows.length}
             totalCount={totalCount}
             itemLabel="Dokumente"
             canPrevious={currentPage > 1}

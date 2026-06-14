@@ -21,7 +21,7 @@ import {
 import { NewsComposeDrawer } from "@/components/news/news-compose-drawer";
 import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
-import { NewsGridView, NewsListView } from "@/components/news/news-feed-views";
+import { NewsListView, NewsMasonryGrid } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import {
   moduleSearchFieldWrapClassName,
@@ -29,7 +29,6 @@ import {
   moduleSearchInputClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   NEWS_FILTER_ALL,
   type NewsPlatformFilter,
@@ -378,14 +377,6 @@ export function NewsScreen() {
         </div>
       </div>
 
-      {!showFeedSkeleton ? (
-        <ListRangeCount
-          shown={paginatedItems.length}
-          total={totalCount}
-          itemLabel="Beiträge"
-        />
-      ) : null}
-
       {canManage ? (
         <Button
           type="button"
@@ -414,6 +405,7 @@ export function NewsScreen() {
           <ListPaginationSurround
             page={currentPage}
             totalPages={totalPages}
+            shown={paginatedItems.length}
             totalCount={totalCount}
             itemLabel="Beiträge"
             canPrevious={currentPage > 1}
@@ -424,7 +416,7 @@ export function NewsScreen() {
           {viewMode === "list" ? (
             <NewsListView items={paginatedItems} onItemClick={openDetail} />
           ) : (
-            <NewsGridView items={paginatedItems} onItemClick={openDetail} />
+            <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
           )}
           </ListPaginationSurround>
         </>

@@ -10,30 +10,32 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 ## Layout (Reihenfolge)
 
 1. Toolbar (Suche, Filter-Icon / Bottom Sheet)
-2. **Anzahl-Zeile** — direkt **über** dem breiten „Neu anlegen“-Button (`modulePrimaryAddButtonFullWidthClassName`)
-3. Primär-Button „Neu …“
-4. **`ListPaginationSurround`** um Tabelle/Liste:
-   - **`ListPagination`** mit `placement="above"` — **oberhalb** der Tabelle (Seite x/y + Vor/Zurück)
+2. Primär-Button „Neu …“ (`modulePrimaryAddButtonFullWidthClassName`)
+3. **`ListPaginationSurround`** um Tabelle/Liste:
+   - **Oben:** eine kompakte Zeile `{x}/{y} {Label} · Seite {page}/{totalPages}` + Vor/Zurück
    - Tabelle (nur **aktuelle Seite** rendern)
-   - **`ListPagination`** mit `placement="below"` — **unterhalb** der Tabelle (gleiche Steuerung)
+   - **Unten:** nur Vor/Zurück (ohne Text-Doppelung)
 
-## Anzahl-Zeile (x/y)
+## Anzahl + Seite (eine Zeile oben)
 
-- **x** = Einträge auf der **aktuellen Seite** (`paginatedRows.length`)
-- **y** = **gefilterte Gesamtzahl** (`filteredSorted.length` o. Ä.)
-- Format: **`ListRangeCount`** aus `@/lib/ui/list-range-count` — **`{x} von {y} {Label}`**
+- **x** = Einträge auf der **aktuellen Seite** (`paginatedRows.length`) → Prop **`shown`**
+- **y** = **gefilterte Gesamtzahl** → **`totalCount`**
+- Format: **`ListPagination`** oben — **`12/45 Dokumente · Seite 2/3`**
+- **Kein** separates `ListRangeCount` über dem Button, wenn `ListPaginationSurround` paginiert
 
 ```tsx
-<ListRangeCount
-  className="mb-3"
+<ListPaginationSurround
   shown={paginatedRows.length}
-  total={totalCount}
+  totalCount={totalCount}
   itemLabel="Dokumente"
-/>
+  page={currentPage}
+  totalPages={totalPages}
+  /* … */
+>
 ```
 
-- Label plural passend wählen (Dokumente, Zutaten, Belege, …).
-- Zeile **nicht** im Skeleton; erst wenn Daten da sind (`!showSkeleton` / `ready`).
+- **`ListRangeCount`** nur ohne Pagination (z. B. Speisekarte nach Filter, Verträge).
+- Format dort: **`x/y Label`** (nicht „x von y“).
 
 ## Pagination (Technik)
 
@@ -49,6 +51,7 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
   classNameBelow="px-4 pb-4"
   page={currentPage}
   totalPages={totalPages}
+  shown={paginatedRows.length}
   totalCount={totalCount}
   itemLabel="Dokumente"
   canPrevious={currentPage > 1}
@@ -66,7 +69,7 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 |--------|-----------|
 | **Reservierungen** | Kein x/y über Button — Zeitraum-Statistik-Kacheln + Tageszähler in den Karten |
 | **Speisekarte** | Nach Filtern/Suche: `ListRangeCount` über „Gericht hinzufügen“ — x = gefiltert, y = gesamt; **keine** zentrale Tabelle/Pagination (Kategorien-Sektionen) |
-| **News** | Nach Plattform/Suche: `ListRangeCount` über „Neue News“; **`ListPaginationSurround`** um Grid/Liste (`NEWS_FEED_PAGE_SIZE` = 20); Embed analog |
+| **News** | **`ListPaginationSurround`** um Grid/Liste (`shown` + `NEWS_FEED_PAGE_SIZE` = 20); Embed analog — keine separate Anzahl-Zeile |
 | **Verträge (Mitarbeiter)** | `ListRangeCount` über „Neuer Vertrag“ — meist wenige Karten, **keine** Pagination nötig |
 | **Bewertungen** | Server-Pagination + eigener Zähler in Toolbar; **`ReviewsPaginationSurround`** oben/unten um Feed |
 
@@ -81,7 +84,7 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 
 ## Anti-Pattern
 
-- Gesamtzahl nur in Tabellenkopf oder nur unten in `ListPagination`, **ohne** x/y über dem Anlegen-Button
-- Pagination **nur unten** — immer **`ListPaginationSurround`** (oder oben + unten manuell)
+- **`ListRangeCount` über Button** und **`ListPagination`** mit gleicher Info — nur **eine** Zeile oben in `ListPagination`
+- Pagination **nur unten** — immer **`ListPaginationSurround`** (oben mit Text, unten nur Buttons)
 - Alle gefilterten Zeilen rendern und nur optisch paginieren
-- Unterschiedliche Texte („Treffer: 5“ vs. „5 von 20 Dokumente“) ohne Grund
+- Format „x von y“ statt **`x/y`**

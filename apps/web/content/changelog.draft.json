@@ -1,6 +1,6 @@
 {
-  "title": "Embed, News, Öffnungszeiten und Listen-UX",
-  "body": "- **News (Einbindung & Profil):** Lange Texte per „Mehr anzeigen“ direkt in der Karte aufklappen; Instagram-Bilder laden auf externen Webseiten zuverlässig\n- **Embed:** Browser-Tabs zeigen den richtigen Modulnamen (News, Speisekarte, …); neues Widget **Öffnungszeiten** mit Einbindungs-Einstellungen; stabileres Iframe-Höhen-Messaging und optionaler gwada-Footer\n- **Öffnungszeiten:** Auto-Sync zu Google/Facebook beim Speichern ist **opt-in** (Toggles, Standard aus); Küchenzeiten-Hinweis zu Facebook\n- **Listen:** Paginierung oben und unten in Tabellen (Bestand, Kontakte, Mitarbeiter, Dokumente, News, Bewertungen, …)\n- **Benachrichtigungen:** Skeleton beim Laden von Nachrichten-Threads; Gelesen-Status in Chats korrekt nach dem Öffnen\n- **Reservierungen:** Kennzahlen für den gewählten Zeitraum in der Übersicht",
+  "title": "News, Bewertungen, Öffnungszeiten und Listen-Pagination",
+  "body": "- **News & Bewertungen:** Pinterest-Raster (Masonry) wiederhergestellt; News-Embed lädt ohne Hänger, Karten in der Übersicht wieder anklickbar\n- **Öffnungszeiten:** Embed-Vorschau zeigt wieder die Zeiten; Google/Facebook-Sync-Toggles beim Speichern im Sticky-Footer\n- **Listen & Tabellen:** Eine kompakte Zeile `x/y · Seite n/m` statt doppelter Zähler über dem Button und in der Pagination",
   "audience": "customers",
   "version": "2026.06.14"
 }

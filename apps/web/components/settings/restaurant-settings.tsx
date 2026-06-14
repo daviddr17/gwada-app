@@ -1054,8 +1054,15 @@ export function RestaurantSettingsPanel({
             </div>
           </CardContent>
         </Card>
-        {(googleConnected || facebookConnected) ? (
-          <div className="rounded-xl border border-border/50 bg-card px-4 py-4 shadow-card sm:px-6">
+        <SettingsStickySaveBar show={hoursDirty}>
+          <div
+            className={cn(
+              "flex w-full flex-col gap-3 sm:flex-row sm:items-center",
+              googleConnected || facebookConnected
+                ? "sm:justify-between"
+                : "sm:justify-end",
+            )}
+          >
             <OpeningHoursPlatformSyncToggles
               googleConnected={googleConnected}
               facebookConnected={facebookConnected}
@@ -1068,10 +1075,6 @@ export function RestaurantSettingsPanel({
                 updateOpeningHoursSyncToggle({ syncFacebookOnSave: checked })
               }
             />
-          </div>
-        ) : null}
-        <SettingsStickySaveBar show={hoursDirty}>
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <Button
               type="submit"
               className={cn(

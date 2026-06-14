@@ -355,6 +355,19 @@ export function ContactsMessagesScreen() {
     setEditingWahaMessage(null);
   }, [contactParam]);
 
+  useEffect(() => {
+    if (!contactParam || !restaurantId) {
+      setLoadingThread(false);
+      return;
+    }
+    const cached = peekContactThreadCache(restaurantId, contactParam);
+    if (cached) return;
+    setMessages([]);
+    setWhatsappThreadPhone(null);
+    setWhatsappThreadChatId(null);
+    setLoadingThread(true);
+  }, [contactParam, restaurantId]);
+
   const filteredConversations = useMemo(() => {
     const byPlatform = filterInboxConversationsByPlatform(
       conversations,
@@ -803,6 +816,9 @@ export function ContactsMessagesScreen() {
       setWhatsappThreadPhone(null);
       setLoadingThread(false);
       return;
+    }
+    if (!opts?.silent) {
+      setLoadingThread(true);
     }
     if (!isWahaPseudoContactId(contactParam)) {
       setWhatsappThreadPhone(null);
@@ -2219,7 +2235,7 @@ export function ContactsMessagesScreen() {
             <div className="min-h-0 min-w-0 overflow-hidden px-4 pt-4 sm:px-6 sm:pt-5">
               <ContactMessageChatViewport
                 messages={displayMessages}
-                loading={loadingThread && displayMessages.length === 0}
+                loading={loadingThread}
                 threadKey={contactParam}
                 className="h-full min-h-0"
                 onReservationOpen={(id) => void openReservationFromMessage(id)}

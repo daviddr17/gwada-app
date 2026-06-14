@@ -62,6 +62,7 @@ import type {
 import { useMenuSettings } from "@/lib/hooks/use-menu-settings";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { cn } from "@/lib/utils";
 import { useMenuViewMode } from "@/hooks/use-menu-view-mode";
 import { readModuleChipStripHeightPx } from "@/lib/layout/module-chip-strip";
@@ -230,6 +231,11 @@ export function MenuOverviewScreen() {
       ),
     }));
   }, [categories, items, passItemFilters]);
+
+  const visibleItemCount = useMemo(
+    () => sections.reduce((sum, s) => sum + s.items.length, 0),
+    [sections],
+  );
 
   const hasNonDefaultFilters = useMemo(() => {
     return (
@@ -517,6 +523,12 @@ export function MenuOverviewScreen() {
         </div>
 
         <div className="mb-6 mt-5">
+          <ListRangeCount
+            className="mb-3"
+            shown={visibleItemCount}
+            total={items.length}
+            itemLabel="Artikel"
+          />
           <Button
             type="button"
             size="lg"

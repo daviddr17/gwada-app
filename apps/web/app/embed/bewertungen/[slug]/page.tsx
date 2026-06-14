@@ -1,4 +1,6 @@
 import nextDynamic from "next/dynamic";
+import type { Metadata } from "next";
+import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import { fetchPublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 
 const EmbedReviewsWidget = nextDynamic(
@@ -10,6 +12,16 @@ const EmbedReviewsWidget = nextDynamic(
 );
 
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const result = await fetchPublicEmbedReviews(slug);
+  return embedPageMetadata("reviews", result.data?.name);
+}
 
 export default async function EmbedBewertungenPage({
   params,

@@ -59,6 +59,7 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { publicSurfaceScopeHint } from "@/lib/ui/public-surface-settings-copy";
 import {
   DEFAULT_WHATSAPP_TEMPLATES,
   DEFAULT_EMAIL_SUBJECT_BY_KIND,
@@ -983,8 +984,8 @@ export function ReservationSettingsForm() {
                 className="min-h-[6rem] resize-y rounded-xl border border-input bg-transparent px-3 py-2.5 text-sm leading-relaxed"
               />
               <p className="text-xs text-muted-foreground">
-                Wird Gästen im eingebetteten Formular direkt vor dem Absenden-Button
-                angezeigt (optional, max. {EMBED_FOOTER_TEXT_MAX} Zeichen).
+                {publicSurfaceScopeHint("both")} Direkt vor dem Absenden-Button im
+                Reservierungsformular (optional, max. {EMBED_FOOTER_TEXT_MAX} Zeichen).
               </p>
             </div>
 

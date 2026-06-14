@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   Select,
   SelectContent,
@@ -66,6 +67,12 @@ import type {
 } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  clampListPage,
+  LIST_PAGE_SIZE_DEFAULT,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   moduleSearchFieldWrapClassName,
   moduleSearchFilterActiveBadgeClassName,
@@ -629,6 +636,7 @@ export function InventoryScreen() {
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [page, setPage] = useState(1);
 
   const [manageKind, setManageKind] = useState<InventoryTaxonomyKind | null>(
     null,
@@ -778,6 +786,25 @@ export function InventoryScreen() {
     units.items,
     nameById,
     menuItems,
+  ]);
+
+  const totalCount = filteredSorted.length;
+  const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
+  const currentPage = clampListPage(page, totalPages);
+
+  const paginatedRows = useMemo(() => {
+    const from = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return filteredSorted.slice(from, from + LIST_PAGE_SIZE_DEFAULT);
+  }, [filteredSorted, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    search,
+    filterSupplier,
+    filterCategory,
+    filterProduction,
+    filterBrand,
   ]);
 
   const stockProtocolIngredient = useMemo(
@@ -957,6 +984,12 @@ export function InventoryScreen() {
       />
 
       <div className="mb-6">
+        <ListRangeCount
+          className="mb-3"
+          shown={paginatedRows.length}
+          total={totalCount}
+          itemLabel="Zutaten"
+        />
         <Button
           type="button"
           size="lg"
@@ -968,7 +1001,20 @@ export function InventoryScreen() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
+        <ListPaginationSurround
+          classNameAbove="px-4 pt-4"
+          classNameBelow="px-4 pb-4"
+          page={currentPage}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          itemLabel="Zutaten"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+        <div className="overflow-x-auto">
         <table className="w-full min-w-[1260px] text-sm">
           <thead>
             <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -1023,7 +1069,7 @@ export function InventoryScreen() {
                 </td>
               </tr>
             ) : (
-              filteredSorted.map((row) => {
+              paginatedRows.map((row) => {
                 const unitDef = units.items.find((u) => u.id === row.unit);
                 const unitLabel =
                   unitDef != null
@@ -1169,6 +1215,8 @@ export function InventoryScreen() {
             )}
           </tbody>
         </table>
+        </div>
+        </ListPaginationSurround>
       </div>
         </div>
       )}

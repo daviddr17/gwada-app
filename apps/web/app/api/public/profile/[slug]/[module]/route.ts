@@ -59,7 +59,11 @@ export async function GET(
         { status: result.status, headers: { "Cache-Control": "no-store" } },
       );
     }
-    return Response.json(result.data, { headers: { "Cache-Control": CACHE_HEADER } });
+    return Response.json(result.data, {
+      headers: {
+        "Cache-Control": "private, no-cache, no-store, must-revalidate",
+      },
+    });
   }
 
   const result = await fetchPublicEmbedReviews(slug);

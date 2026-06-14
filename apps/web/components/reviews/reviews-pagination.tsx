@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Pagination,
   PaginationContent,
@@ -9,7 +10,7 @@ import {
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 
-type ReviewsPaginationProps = {
+export type ReviewsPaginationProps = {
   page: number;
   totalPages: number;
   onPrevious: () => void;
@@ -18,6 +19,7 @@ type ReviewsPaginationProps = {
   canNext: boolean;
   busy?: boolean;
   className?: string;
+  placement?: "above" | "below";
 };
 
 export function ReviewsPagination({
@@ -29,13 +31,17 @@ export function ReviewsPagination({
   canNext,
   busy = false,
   className,
+  placement = "below",
 }: ReviewsPaginationProps) {
   if (totalPages <= 1 && !canNext) return null;
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        placement === "above"
+          ? "border-b border-border/50 pb-4"
+          : "border-t border-border/50 pt-4",
         className,
       )}
     >
@@ -64,5 +70,32 @@ export function ReviewsPagination({
         </PaginationContent>
       </Pagination>
     </div>
+  );
+}
+
+export function ReviewsPaginationSurround({
+  children,
+  classNameAbove,
+  classNameBelow,
+  ...paginationProps
+}: ReviewsPaginationProps & {
+  children: ReactNode;
+  classNameAbove?: string;
+  classNameBelow?: string;
+}) {
+  return (
+    <>
+      <ReviewsPagination
+        {...paginationProps}
+        placement="above"
+        className={classNameAbove}
+      />
+      {children}
+      <ReviewsPagination
+        {...paginationProps}
+        placement="below"
+        className={classNameBelow}
+      />
+    </>
   );
 }

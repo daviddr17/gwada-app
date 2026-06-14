@@ -41,15 +41,17 @@ export function NewsPlatformFilterChips({
         <LayoutGrid className="size-4 shrink-0" aria-hidden />
         <span>{NEWS_FILTER_LABELS.all}</span>
       </button>
-      {NEWS_PLATFORM_ORDER.map((platform) => (
+      {NEWS_PLATFORM_ORDER.filter((platform) => availablePlatforms.has(platform)).map(
+        (platform) => (
         <NewsPlatformChip
           key={platform}
           platform={platform}
           selected={value === platform}
           onSelect={() => onChange(platform)}
-          disabled={disabled || !availablePlatforms.has(platform)}
+          disabled={disabled}
         />
-      ))}
+      ),
+      )}
     </div>
   );
 }

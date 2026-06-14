@@ -44,6 +44,10 @@ export function igMediaKind(media: IgMedia): "image" | "video" {
   return "image";
 }
 
+const LEGACY_INSTAGRAM_NEWS_MEDIA_PROXY_PATH =
+  "/api/contact-messages/meta/media";
+const PUBLIC_INSTAGRAM_NEWS_MEDIA_PROXY_PATH = "/api/public/news/media";
+
 export function proxyInstagramNewsMediaUrl(
   restaurantId: string,
   url: string,
@@ -53,5 +57,16 @@ export function proxyInstagramNewsMediaUrl(
     platform: "instagram",
     url,
   });
-  return `/api/contact-messages/meta/media?${q}`;
+  return `${PUBLIC_INSTAGRAM_NEWS_MEDIA_PROXY_PATH}?${q}`;
+}
+
+/** Cached items may still reference the staff-only inbox proxy path. */
+export function normalizeInstagramNewsMediaProxyUrl(url: string): string {
+  if (!url.startsWith(`${LEGACY_INSTAGRAM_NEWS_MEDIA_PROXY_PATH}?`)) {
+    return url;
+  }
+  return url.replace(
+    LEGACY_INSTAGRAM_NEWS_MEDIA_PROXY_PATH,
+    PUBLIC_INSTAGRAM_NEWS_MEDIA_PROXY_PATH,
+  );
 }

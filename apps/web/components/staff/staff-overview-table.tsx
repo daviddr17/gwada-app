@@ -1,10 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Pencil, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import {
+  clampListPage,
+  LIST_PAGE_SIZE_DEFAULT,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
 import { cn } from "@/lib/utils";
@@ -74,6 +80,7 @@ type StaffOverviewTableProps = {
   workingIds: Set<string>;
   breakIds: Set<string>;
   onEdit: (row: RestaurantStaffRow) => void;
+  onPageStats?: (stats: { shown: number; total: number }) => void;
 };
 
 export function StaffOverviewTable({
@@ -81,8 +88,10 @@ export function StaffOverviewTable({
   workingIds,
   breakIds,
   onEdit,
+  onPageStats,
 }: StaffOverviewTableProps) {
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<StaffSortKey>("lastName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -149,6 +158,23 @@ export function StaffOverviewTable({
     return list;
   }, [rows, search, sortKey, sortDir]);
 
+  const totalCount = filteredSorted.length;
+  const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
+  const currentPage = clampListPage(page, totalPages);
+
+  const paginatedRows = useMemo(() => {
+    const from = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return filteredSorted.slice(from, from + LIST_PAGE_SIZE_DEFAULT);
+  }, [filteredSorted, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    onPageStats?.({ shown: paginatedRows.length, total: totalCount });
+  }, [onPageStats, paginatedRows.length, totalCount]);
+
   return (
     <>
       <div className="border-b border-border/50 px-4 py-3">
@@ -163,8 +189,20 @@ export function StaffOverviewTable({
           />
         </div>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[52rem] text-left text-sm">
+      <ListPaginationSurround
+        classNameAbove="px-4 pt-4"
+        classNameBelow="px-4 pb-4"
+        page={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        itemLabel="Mitarbeiter"
+        canPrevious={currentPage > 1}
+        canNext={currentPage < totalPages}
+        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[52rem] text-left text-sm">
           <thead>
             <tr className="border-b border-border/60 bg-muted/40">
               <th className="min-w-[7rem] px-4 py-3">
@@ -234,7 +272,7 @@ export function StaffOverviewTable({
             </tr>
           </thead>
           <tbody>
-            {filteredSorted.map((row) => {
+            {paginatedRows.map((row) => {
               const tag = row.position_tag;
               const presence = breakIds.has(row.id)
                 ? "Pause"
@@ -312,7 +350,8 @@ export function StaffOverviewTable({
               : "Keine Treffer für die Suche."}
           </p>
         ) : null}
-      </div>
+        </div>
+      </ListPaginationSurround>
     </>
   );
 }

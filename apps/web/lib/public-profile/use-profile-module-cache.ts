@@ -51,7 +51,10 @@ export function useProfileModuleCache(slug: string) {
     async (module: ProfileModuleKey, options: LoadModuleOptions = {}) => {
       const { force = false, silent = false } = options;
 
-      if (!force && cacheRef.current[module]) return;
+      if (!force && cacheRef.current[module]) {
+        const skipCachedNews = module === "news" && !silent;
+        if (!skipCachedNews) return;
+      }
       if (inflight.current[module]) {
         await inflight.current[module];
         return;

@@ -5,7 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, MessageSquare, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  clampListPage,
+  LIST_PAGE_SIZE_DEFAULT,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactCatalogFilterChips } from "@/components/contacts/contact-catalog-filter-chips";
@@ -140,6 +147,7 @@ export function ContactsOverview() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey | null>("lastInteraction");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [page, setPage] = useState(1);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editContactId, setEditContactId] = useState<string | null>(null);
   const [linksDrawer, setLinksDrawer] = useState<{
@@ -299,6 +307,19 @@ export function ContactsOverview() {
     return list;
   }, [rows, search, sortKey, sortDir, platformFilter]);
 
+  const totalCount = filteredSorted.length;
+  const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
+  const currentPage = clampListPage(page, totalPages);
+
+  const paginatedRows = useMemo(() => {
+    const from = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return filteredSorted.slice(from, from + LIST_PAGE_SIZE_DEFAULT);
+  }, [filteredSorted, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, platformFilter]);
+
   const openCreate = () => {
     setCreateDraft(null);
     setEditContactId(null);
@@ -403,22 +424,23 @@ export function ContactsOverview() {
           ) : null}
 
           <div className="space-y-3">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="relative min-w-0 flex-1 sm:max-w-md">
-                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Nachname, Vorname, Firma, E-Mail, Telefon, Adresse …"
-                  className="h-10 w-full rounded-xl pl-9"
-                  aria-label="Kontakte durchsuchen"
-                />
-              </div>
-              <span className="text-xs text-muted-foreground tabular-nums">
-                {filteredSorted.length} Kontakt
-                {filteredSorted.length === 1 ? "" : "e"}
-              </span>
+            <div className="relative min-w-0">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Nachname, Vorname, Firma, E-Mail, Telefon, Adresse …"
+                className="h-10 w-full rounded-xl pl-9"
+                aria-label="Kontakte durchsuchen"
+              />
             </div>
+            {!loading ? (
+              <ListRangeCount
+                shown={paginatedRows.length}
+                total={totalCount}
+                itemLabel="Kontakte"
+              />
+            ) : null}
             <Button
               type="button"
               size="lg"
@@ -436,7 +458,20 @@ export function ContactsOverview() {
             </p>
           ) : null}
 
-          <div className="overflow-x-auto rounded-xl border border-border/50">
+          <div className="overflow-hidden rounded-xl border border-border/50">
+            <ListPaginationSurround
+              classNameAbove="px-4 pt-4"
+              classNameBelow="px-4 pb-4"
+              page={currentPage}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              itemLabel="Kontakte"
+              canPrevious={currentPage > 1}
+              canNext={currentPage < totalPages}
+              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            >
+            <div className="overflow-x-auto">
             <table className="w-full min-w-[64rem] text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-muted/30">
@@ -550,7 +585,7 @@ export function ContactsOverview() {
                     </td>
                   </tr>
                 ) : (
-                  filteredSorted.map((r) => {
+                  paginatedRows.map((r) => {
                     const addr = unifiedContactAddressLabel(r);
                     return (
                       <tr
@@ -654,6 +689,8 @@ export function ContactsOverview() {
                 )}
               </tbody>
             </table>
+            </div>
+            </ListPaginationSurround>
           </div>
         </CardContent>
       </Card>

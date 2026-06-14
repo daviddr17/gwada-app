@@ -1,6 +1,6 @@
 {
-  "title": "Dashboard: Schnellaktionen per Plus-Button",
-  "body": "- **Dashboard (neu):** Plus-Button unten rechts öffnet ein animiertes Menü mit Shortcuts — z. B. neue Reservierung, Gericht, Zutat, Kontakt, Schicht oder Arbeitszeit\n- **Einstellungen → Dashboard:** Bis zu 5 Shortcuts festlegen, Reihenfolge per Drag & Drop, einzelne Aktionen optional ausblenden\n- **Direktstart:** Shortcut öffnet das passende Modul und den Anlege-Dialog (Bottom Sheet / Drawer)",
+  "title": "Embed, News, Öffnungszeiten und Listen-UX",
+  "body": "- **News (Einbindung & Profil):** Lange Texte per „Mehr anzeigen“ direkt in der Karte aufklappen; Instagram-Bilder laden auf externen Webseiten zuverlässig\n- **Embed:** Browser-Tabs zeigen den richtigen Modulnamen (News, Speisekarte, …); neues Widget **Öffnungszeiten** mit Einbindungs-Einstellungen; stabileres Iframe-Höhen-Messaging und optionaler gwada-Footer\n- **Öffnungszeiten:** Auto-Sync zu Google/Facebook beim Speichern ist **opt-in** (Toggles, Standard aus); Küchenzeiten-Hinweis zu Facebook\n- **Listen:** Paginierung oben und unten in Tabellen (Bestand, Kontakte, Mitarbeiter, Dokumente, News, Bewertungen, …)\n- **Benachrichtigungen:** Skeleton beim Laden von Nachrichten-Threads; Gelesen-Status in Chats korrekt nach dem Öffnen\n- **Reservierungen:** Kennzahlen für den gewählten Zeitraum in der Übersicht",
   "audience": "customers",
-  "version": "2026.06.11"
+  "version": "2026.06.14"
 }

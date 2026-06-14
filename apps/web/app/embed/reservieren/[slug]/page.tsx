@@ -1,4 +1,6 @@
 import nextDynamic from "next/dynamic";
+import type { Metadata } from "next";
+import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import { publicCountries } from "@/lib/reservations/public-embed-shared";
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
 
@@ -11,6 +13,16 @@ const EmbedReservationWidget = nextDynamic(
 );
 
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const result = await fetchPublicEmbedRestaurant(slug);
+  return embedPageMetadata("reservation", result.data?.name);
+}
 
 export default async function EmbedReservierenPage({
   params,

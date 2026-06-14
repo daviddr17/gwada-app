@@ -1,0 +1,1 @@
+export const OPENING_HOURS_EMBED_FOOTER_MAX = 2000;

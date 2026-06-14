@@ -108,7 +108,18 @@ export function NotificationBellPanel({
                       <Link
                         href={item.href}
                         className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2"
-                        onClick={onNavigate}
+                        onClick={() => {
+                          // Nachrichten: Gelesen erst beim Öffnen des Threads (Posteingang-Logik),
+                          // nicht schon beim Klick — Glocke spiegelt nur Ungelesen im Posteingang.
+                          if (mod.id !== "messages") {
+                            void onMarkRead({
+                              module: mod.id,
+                              itemId: item.id,
+                              meta: item.meta,
+                            });
+                          }
+                          onNavigate?.();
+                        }}
                       >
                         {messagePlatform ? (
                           <span

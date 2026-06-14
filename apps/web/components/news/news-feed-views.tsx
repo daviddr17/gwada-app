@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
+import { ExternalLink } from "lucide-react";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
@@ -9,30 +10,74 @@ import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+const PREVIEW_BODY_CHAR_THRESHOLD = 200;
+const PREVIEW_BODY_LINE_THRESHOLD = 4;
+
+export function newsBodyNeedsExpand(body: string): boolean {
+  const trimmed = body.trim();
+  if (trimmed.length > PREVIEW_BODY_CHAR_THRESHOLD) return true;
+  return trimmed.split("\n").length > PREVIEW_BODY_LINE_THRESHOLD;
+}
+
+const newsCardSurfaceClassName =
+  "flex h-full w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
+
 const NewsCard = memo(function NewsCard({
   item,
   onClick,
-  masonry = false,
+  inlineExpandBody = false,
 }: {
   item: UnifiedNewsItem;
   onClick?: () => void;
-  /** Abstand + break-inside für CSS-Columns (Pinterest). */
-  masonry?: boolean;
+  inlineExpandBody?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const preview = item.media[0];
   const dateLabel = formatNewsCardDate(item);
   const dateTime = newsDisplayTimestamp(item);
+  const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
+  const showClampedBody = canExpandBody && !expanded;
+  const externalUrl = item.externalUrl?.trim() || null;
 
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border",
-        masonry && "mb-4 break-inside-avoid",
-        onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
-      )}
-    >
+  const toggleExpanded = useCallback(() => {
+    setExpanded((value) => !value);
+  }, []);
+
+  const bodyBlock = item.body ? (
+    <div className="space-y-1.5">
+      <p
+        className={cn(
+          "text-sm text-muted-foreground",
+          showClampedBody ? "line-clamp-4" : "whitespace-pre-wrap",
+        )}
+      >
+        {item.body}
+      </p>
+      {canExpandBody ? (
+        <button
+          type="button"
+          onClick={toggleExpanded}
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          {expanded ? "Weniger" : "Mehr anzeigen"}
+        </button>
+      ) : null}
+      {expanded && externalUrl ? (
+        <a
+          href={externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
+        >
+          <ExternalLink className="size-3.5 shrink-0" />
+          Auf {NEWS_PLATFORM_LABELS[item.platform]} öffnen
+        </a>
+      ) : null}
+    </div>
+  ) : null;
+
+  const cardContent = (
+    <>
       {preview?.url ? (
         <div className="relative w-full shrink-0 bg-muted/30">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -64,41 +109,71 @@ const NewsCard = memo(function NewsCard({
         {item.title ? (
           <p className="font-medium leading-snug">{item.title}</p>
         ) : null}
-        {item.body ? (
-          <p className="line-clamp-4 text-sm text-muted-foreground">{item.body}</p>
-        ) : null}
+        {bodyBlock}
       </div>
-    </button>
+    </>
   );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          newsCardSurfaceClassName,
+          "cursor-pointer hover:shadow-card active:scale-[0.99]",
+        )}
+      >
+        {cardContent}
+      </button>
+    );
+  }
+
+  return <article className={newsCardSurfaceClassName}>{cardContent}</article>;
 });
 
 const NewsFeedCardRow = memo(function NewsFeedCardRow({
   item,
-  masonry,
   onItemClick,
+  inlineExpandBody,
 }: {
   item: UnifiedNewsItem;
-  masonry?: boolean;
   onItemClick?: (item: UnifiedNewsItem) => void;
+  inlineExpandBody?: boolean;
 }) {
   const onClick = useCallback(() => {
     onItemClick?.(item);
   }, [item, onItemClick]);
 
-  return <NewsCard item={item} masonry={masonry} onClick={onItemClick ? onClick : undefined} />;
+  return (
+    <NewsCard
+      item={item}
+      onClick={onItemClick ? onClick : undefined}
+      inlineExpandBody={inlineExpandBody}
+    />
+  );
 });
 
-export function NewsMasonryGrid({
+/** Zeilen-Raster: neueste links oben, dann zeilenweise nach rechts (Sortierung bleibt erhalten). */
+export function NewsGridView({
   items,
   onItemClick,
+  inlineExpandBody = onItemClick == null,
 }: {
   items: UnifiedNewsItem[];
   onItemClick?: (item: UnifiedNewsItem) => void;
+  /** Profil & Einbindung: Text per „Mehr anzeigen“ in der Karte aufklappen (kein Drawer). */
+  inlineExpandBody?: boolean;
 }) {
   return (
-    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4 [contain:layout]">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {items.map((item) => (
-        <NewsFeedCardRow key={item.id} item={item} masonry onItemClick={onItemClick} />
+        <NewsFeedCardRow
+          key={item.id}
+          item={item}
+          onItemClick={onItemClick}
+          inlineExpandBody={inlineExpandBody}
+        />
       ))}
     </div>
   );
@@ -107,14 +182,21 @@ export function NewsMasonryGrid({
 export function NewsListView({
   items,
   onItemClick,
+  inlineExpandBody = onItemClick == null,
 }: {
   items: UnifiedNewsItem[];
   onItemClick?: (item: UnifiedNewsItem) => void;
+  inlineExpandBody?: boolean;
 }) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <NewsFeedCardRow key={item.id} item={item} onItemClick={onItemClick} />
+        <NewsFeedCardRow
+          key={item.id}
+          item={item}
+          onItemClick={onItemClick}
+          inlineExpandBody={inlineExpandBody}
+        />
       ))}
     </div>
   );

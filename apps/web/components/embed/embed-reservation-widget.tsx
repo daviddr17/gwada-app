@@ -786,7 +786,7 @@ export function EmbedReservationWidget({
   ];
 
   return (
-    <EmbedAccentRoot accentHex={config.accentHex}>
+    <EmbedAccentRoot accentHex={config.accentHex} brandFooter={!profileSheet}>
       {renderTermsSheetInsideWidget ? (
         <EmbedReservationTermsSheet
           open={termsSheetOpen}

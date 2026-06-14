@@ -28,6 +28,7 @@ import { formatStaffContractPaySummary } from "@/lib/staff/staff-contract-pay";
 import { staffDisplayName } from "@/lib/types/staff";
 import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -156,6 +157,13 @@ export function StaffContractsScreen() {
             {staffDisplayName(selectedStaff)}
           </span>
         </p>
+        {!showSkeleton ? (
+          <ListRangeCount
+            shown={contracts.length}
+            total={contracts.length}
+            itemLabel="Verträge"
+          />
+        ) : null}
         <Button
           type="button"
           size="lg"

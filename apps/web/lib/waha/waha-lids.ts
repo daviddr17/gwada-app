@@ -65,6 +65,19 @@ export function isWahaPhoneChatId(chatId: string): boolean {
   );
 }
 
+/**
+ * Nur echte 1:1-Chats (Telefon oder @lid) — keine Gruppen, Status, Kanäle/Newsletter, Broadcast-Listen.
+ * Glocke, Push und Webhook-Import nutzen dieselbe Regel.
+ */
+export function isWahaDirectMessageChatId(chatId: string): boolean {
+  const id = chatId.trim().toLowerCase();
+  if (!id) return false;
+  if (id.endsWith("@g.us")) return false;
+  if (id.includes("@newsletter")) return false;
+  if (id.endsWith("@broadcast")) return false;
+  return isWahaPhoneChatId(id) || isWahaLidChatId(id);
+}
+
 function lidPathSegment(lidChatId: string): string {
   const raw = lidChatId.trim();
   if (raw.includes("@")) return encodeURIComponent(raw);

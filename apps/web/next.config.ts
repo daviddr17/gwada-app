@@ -66,6 +66,11 @@ const nextConfig: NextConfig = {
     root: monorepoRoot,
   },
   images: {
+    localPatterns: [
+      {
+        pathname: "/api/platform/logo",
+      },
+    ],
     remotePatterns: [
       {
         protocol: "https",

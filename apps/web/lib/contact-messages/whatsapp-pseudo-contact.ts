@@ -35,4 +35,4 @@ export function digitsFromWhatsAppChatId(chatId: string): string | null {
   return digits.length >= 8 ? digits : null;
 }
 
-export { isWahaLidChatId } from "@/lib/waha/waha-lids";
+export { isWahaLidChatId, isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";

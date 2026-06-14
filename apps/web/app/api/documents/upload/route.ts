@@ -52,7 +52,7 @@ export async function POST(req: Request) {
   }
 
   const { data: usedRaw, error: usageError } = await admin.rpc(
-    "restaurant_documents_used_bytes",
+    "restaurant_workspace_used_bytes",
     { p_restaurant_id: restaurantId },
   );
   if (usageError) {

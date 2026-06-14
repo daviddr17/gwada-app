@@ -25,6 +25,12 @@ import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspa
 
 const MESSAGES_REFRESH_DEBOUNCE_MS = 3_000;
 
+/** Server markiert das ganze Modul mit itemId null. */
+const NOTIFICATION_MODULES_MARK_ALL_BULK = new Set<NotificationModuleId>([
+  "changelog",
+  "reviews",
+]);
+
 export function useNotificationSummary() {
   const queryClient = useQueryClient();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -74,8 +80,9 @@ export function useNotificationSummary() {
     if (!ready || !restaurantId) return;
 
     const invalidate = () => {
-      void queryClient.invalidateQueries({
+      void queryClient.refetchQueries({
         queryKey: queryKeys.notifications.summaryRoot(restaurantId),
+        type: "active",
       });
     };
 
@@ -148,11 +155,62 @@ export function useNotificationSummary() {
 
       if (!result.ok) {
         void refresh({ silent: true });
-      } else {
-        dispatchNotificationsRefresh();
       }
 
       return result;
+    },
+    [queryClient, restaurantId, refresh],
+  );
+
+  const markModuleRead = useCallback(
+    async (params: { module: NotificationModuleId }) => {
+      if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
+
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      const moduleSnapshot = queryClient
+        .getQueryData<NotificationSummary>(summaryKey)
+        ?.modules.find((mod) => mod.id === params.module);
+
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        const modules = prev.modules.filter((mod) => mod.id !== params.module);
+        const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
+        return { ...prev, modules, totalCount };
+      });
+
+      let ok = true;
+
+      if (NOTIFICATION_MODULES_MARK_ALL_BULK.has(params.module)) {
+        const result = await markNotificationReadClient({
+          restaurantId,
+          module: params.module,
+          itemId: null,
+        });
+        ok = result.ok;
+      } else if (moduleSnapshot?.items.length) {
+        const results = await Promise.all(
+          moduleSnapshot.items.map((item) =>
+            markNotificationReadClient(
+              {
+                restaurantId,
+                module: params.module,
+                itemId: item.id,
+                meta: item.meta,
+              },
+              { notify: false },
+            ),
+          ),
+        );
+        ok = results.every((r) => r.ok);
+        if (ok) dispatchNotificationsRefresh();
+      }
+
+      if (!ok) {
+        void refresh({ silent: true });
+        return { ok: false as const, error: "mark_module_read_failed" };
+      }
+
+      return { ok: true as const, error: null };
     },
     [queryClient, restaurantId, refresh],
   );
@@ -165,5 +223,6 @@ export function useNotificationSummary() {
     ready,
     refresh,
     markRead,
+    markModuleRead,
   };
 }

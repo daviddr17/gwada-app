@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
   FileText,
+  Images,
   MessageCircle,
   Newspaper,
   Package,
@@ -19,6 +20,7 @@ export const SIDEBAR_MODULE_IDS = [
   "kontakte",
   "news",
   "bewertungen",
+  "galerie",
   "buchfuehrung",
   "dokumente",
   "mitarbeiter",
@@ -89,6 +91,14 @@ export const SIDEBAR_MODULE_DEFINITIONS: readonly SidebarModuleDefinition[] = [
     href: "/dashboard/bewertungen/uebersicht",
     pathPrefix: "/dashboard/bewertungen",
     icon: Star,
+  },
+  {
+    id: "galerie",
+    label: "Galerie",
+    tooltip: "Galerie",
+    href: "/dashboard/galerie/uebersicht",
+    pathPrefix: "/dashboard/galerie",
+    icon: Images,
   },
   {
     id: "buchfuehrung",

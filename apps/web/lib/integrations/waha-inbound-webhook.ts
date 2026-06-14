@@ -8,6 +8,7 @@ import { displayNameFromWahaChatId } from "@/lib/contact-messages/waha-chat-labe
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { emitMessageNotificationEventIfNew } from "@/lib/notifications/emit-message-notification-event";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
+import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WahaWebhookBody = {
@@ -93,6 +94,9 @@ export async function handleWahaInboundWebhook(
   const chatId = whatsappChatIdFromPayloadAddress(payload.from);
   if (!chatId) {
     return { ok: true, imported: false, reason: "no_chat_id" };
+  }
+  if (!isWahaDirectMessageChatId(chatId)) {
+    return { ok: true, imported: false, reason: "non_direct_chat" };
   }
 
   const contactId = await resolveOrCreateContactForWhatsappInbound(admin, {

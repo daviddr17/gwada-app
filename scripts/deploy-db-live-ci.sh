@@ -48,12 +48,12 @@ fi
 export SUPABASE_DB_URL="postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres"
 export PGSSLMODE=disable
 
-DB_URL="${SUPABASE_DB_URL}?sslmode=disable"
-
 echo ""
-echo "=== Live-DB: Migration history repair (falls nötig) ==="
-# Galerie 20260623120000: Datei nach erstem Live-Versuch angepasst — als applied markieren.
-supabase migration repair --status applied --db-url "${DB_URL}" --yes 20260623120000 2>/dev/null || true
+echo "=== Live-DB: blockierenden Galerie-Migrationseintrag entfernen ==="
+# 20260623120000 steht in schema_migrations, INSERT am Ende schlägt fehl → gesamte Transaktion rollback.
+gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
+  "docker exec ${DB_CONTAINER} psql -U postgres -v ON_ERROR_STOP=0 -c \"DELETE FROM supabase_migrations.schema_migrations WHERE version = '20260623120000';\"" \
+  2>/dev/null || true
 
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="

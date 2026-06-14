@@ -25,6 +25,7 @@ import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
 import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
 import { RestaurantPublicProfileNews } from "@/components/public/restaurant-public-profile-news";
+import { RestaurantPublicProfileGallery } from "@/components/public/restaurant-public-profile-gallery";
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import type { EmbedReservationProfileTermsSheet } from "@/components/embed/embed-reservation-widget";
 import {
@@ -78,6 +79,7 @@ import {
 import { publicCountries } from "@/lib/reservations/public-embed-shared";
 import type { PublicEmbedRestaurant } from "@/lib/reservations/public-embed-shared";
 import type { PublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
+import type { PublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
 import {
@@ -156,6 +158,7 @@ function ProfileAppSheetOverlay({
   menu,
   reviews,
   news,
+  gallery,
   loading,
   errors,
   addressLine,
@@ -178,6 +181,7 @@ function ProfileAppSheetOverlay({
   menu: PublicEmbedMenu | null;
   reviews: PublicEmbedReviews | null;
   news: PublicEmbedNews | null;
+  gallery: PublicEmbedGallery | null;
   loading: Record<ProfileModuleKey, boolean>;
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
@@ -712,6 +716,7 @@ function ProfileAppSheetOverlay({
                       menu={menu}
                       reviews={reviews}
                       news={news}
+                      gallery={gallery}
                       loading={loading}
                       errors={errors}
                       addressLine={addressLine}
@@ -749,6 +754,7 @@ function ProfileAppContent({
   menu,
   reviews,
   news,
+  gallery,
   loading,
   errors,
   addressLine,
@@ -766,6 +772,7 @@ function ProfileAppContent({
   menu: PublicEmbedMenu | null;
   reviews: PublicEmbedReviews | null;
   news: PublicEmbedNews | null;
+  gallery: PublicEmbedGallery | null;
   loading: Record<ProfileModuleKey, boolean>;
   errors: Record<ProfileModuleKey, string | null>;
   addressLine: string;
@@ -871,6 +878,19 @@ function ProfileAppContent({
           error={errors.news}
         >
           {news ? <RestaurantPublicProfileNews news={news} /> : null}
+        </ModulePanel>
+      </div>
+    );
+  }
+
+  if (appId === "gallery") {
+    return (
+      <div className="p-4 pb-8 sm:p-5">
+        <ModulePanel
+          showLoading={deferHeavyWidgets || (!gallery && loading.gallery)}
+          error={errors.gallery}
+        >
+          {gallery ? <RestaurantPublicProfileGallery gallery={gallery} /> : null}
         </ModulePanel>
       </div>
     );
@@ -1016,6 +1036,7 @@ export function RestaurantPublicProfileAppLauncher({
   const menu = cache.menu as PublicEmbedMenu | null;
   const reviews = cache.reviews as PublicEmbedReviews | null;
   const news = cache.news as PublicEmbedNews | null;
+  const gallery = cache.gallery as PublicEmbedGallery | null;
 
   const isAppOpen = activeApp !== null;
 
@@ -1024,12 +1045,14 @@ export function RestaurantPublicProfileAppLauncher({
     menu: state.menu.loading,
     reviews: state.reviews.loading,
     news: state.news.loading,
+    gallery: state.gallery.loading,
   };
   const errors = {
     reservation: state.reservation.error,
     menu: state.menu.error,
     reviews: state.reviews.error,
     news: state.news.error,
+    gallery: state.gallery.error,
   };
 
   const dockBridge = useProfilePublicDockBridge();
@@ -1087,6 +1110,7 @@ export function RestaurantPublicProfileAppLauncher({
                 menu={menu}
                 reviews={reviews}
                 news={news}
+                gallery={gallery}
                 loading={loading}
                 errors={errors}
                 addressLine={addressLine}

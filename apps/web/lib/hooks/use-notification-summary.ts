@@ -9,7 +9,6 @@ import {
 } from "@/lib/notifications/fetch-notifications-client";
 import {
   GWADA_NOTIFICATIONS_REFRESH_EVENT,
-  dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
@@ -24,12 +23,6 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
 const MESSAGES_REFRESH_DEBOUNCE_MS = 3_000;
-
-/** Server markiert das ganze Modul mit itemId null. */
-const NOTIFICATION_MODULES_MARK_ALL_BULK = new Set<NotificationModuleId>([
-  "changelog",
-  "reviews",
-]);
 
 export function useNotificationSummary() {
   const queryClient = useQueryClient();
@@ -167,10 +160,6 @@ export function useNotificationSummary() {
       if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
 
       const summaryKey = queryKeys.notifications.summary(restaurantId);
-      const moduleSnapshot = queryClient
-        .getQueryData<NotificationSummary>(summaryKey)
-        ?.modules.find((mod) => mod.id === params.module);
-
       queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
         if (!prev) return prev;
         const modules = prev.modules.filter((mod) => mod.id !== params.module);
@@ -178,34 +167,13 @@ export function useNotificationSummary() {
         return { ...prev, modules, totalCount };
       });
 
-      let ok = true;
+      const result = await markNotificationReadClient({
+        restaurantId,
+        module: params.module,
+        itemId: null,
+      });
 
-      if (NOTIFICATION_MODULES_MARK_ALL_BULK.has(params.module)) {
-        const result = await markNotificationReadClient({
-          restaurantId,
-          module: params.module,
-          itemId: null,
-        });
-        ok = result.ok;
-      } else if (moduleSnapshot?.items.length) {
-        const results = await Promise.all(
-          moduleSnapshot.items.map((item) =>
-            markNotificationReadClient(
-              {
-                restaurantId,
-                module: params.module,
-                itemId: item.id,
-                meta: item.meta,
-              },
-              { notify: false },
-            ),
-          ),
-        );
-        ok = results.every((r) => r.ok);
-        if (ok) dispatchNotificationsRefresh();
-      }
-
-      if (!ok) {
+      if (!result.ok) {
         void refresh({ silent: true });
         return { ok: false as const, error: "mark_module_read_failed" };
       }

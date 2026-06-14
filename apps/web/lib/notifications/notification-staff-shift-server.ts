@@ -330,3 +330,40 @@ export async function dismissStaffShiftNotification(
 
   return { error: error?.message ?? null };
 }
+
+export async function dismissAllStaffShiftNotifications(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    kind: "start" | "end";
+  },
+): Promise<{ error: string | null }> {
+  const summary =
+    params.kind === "start"
+      ? await loadStaffShiftStartBellSummary(sb, {
+          restaurantId: params.restaurantId,
+          userId: params.userId,
+          limit: 500,
+        })
+      : await loadStaffShiftEndBellSummary(sb, {
+          restaurantId: params.restaurantId,
+          userId: params.userId,
+          limit: 500,
+        });
+
+  if (summary.items.length === 0) return { error: null };
+
+  const rows = summary.items.map((item) => ({
+    profile_id: params.userId,
+    restaurant_id: params.restaurantId,
+    shift_id: item.id,
+    kind: params.kind,
+  }));
+
+  const { error } = await sb
+    .from("restaurant_staff_shift_notification_dismissals")
+    .upsert(rows, { onConflict: "profile_id,shift_id,kind" });
+
+  return { error: error?.message ?? null };
+}

@@ -1,20 +1,37 @@
+import type { Metadata } from "next";
 import { EmbedGalleryWidget } from "@/components/embed/embed-gallery-widget";
+import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 
-type Props = {
-  params: Promise<{ slug: string }>;
-};
+export const dynamic = "force-dynamic";
 
-export default async function EmbedGalleryPage({ params }: Props) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
-  const data = await fetchPublicEmbedGallery(slug);
-  if (!data) {
+  const result = await fetchPublicEmbedGallery(slug);
+  return embedPageMetadata("gallery", result.data?.name);
+}
+
+export default async function EmbedGalleryPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const result = await fetchPublicEmbedGallery(slug);
+
+  if (!result.data) {
     return (
-      <div className="flex min-h-[240px] items-center justify-center p-6 text-sm text-muted-foreground">
-        Galerie nicht verfügbar.
+      <div className="flex min-h-[12rem] items-center justify-center px-6 py-10 text-center text-sm text-muted-foreground">
+        {result.error === "not_found"
+          ? "Diese Galerie ist derzeit nicht verfügbar."
+          : "Die Galerie konnte nicht geladen werden."}
       </div>
     );
   }
 
-  return <EmbedGalleryWidget data={data} variant="embed" />;
+  return <EmbedGalleryWidget data={result.data} variant="embed" />;
 }

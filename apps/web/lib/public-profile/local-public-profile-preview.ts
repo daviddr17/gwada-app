@@ -75,6 +75,7 @@ export function withLocalPublicProfilePreview(
       menu: true,
       reviews: true,
       news: true,
+      gallery: true,
     },
   };
 }

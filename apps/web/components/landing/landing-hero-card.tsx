@@ -38,6 +38,7 @@ export function LandingHeroCard({
             height={48}
             priority
             fetchPriority="high"
+            unoptimized
             sizes="(max-width: 768px) 120px, 192px"
             className="h-10 w-auto max-w-[10rem] object-contain md:h-12"
           />

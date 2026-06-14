@@ -92,19 +92,20 @@ export async function loadReservationNotificationItems(
     query = query.gte("starts_at", new Date().toISOString());
   }
 
+  const limit = params.limit ?? 5;
+  const queryLimit = Math.min(Math.max(limit, 5), 500);
+
   const { data, error } = await query
     .order(
       params.module === "reservations_cancellation" ? "updated_at" : "starts_at",
       { ascending: params.module !== "reservations_cancellation" },
     )
-    .limit(20);
+    .limit(queryLimit);
 
   if (error) {
     console.warn("[gwada] reservation notification items", error.message);
     return { items: [], totalCount: 0 };
   }
-
-  const limit = params.limit ?? 5;
 
   const filtered = (data ?? [])
     .map((row) => mapRawToReservationListRow(row as Record<string, unknown>))
@@ -162,6 +163,40 @@ export async function dismissReservationNotification(
       },
       { onConflict: "profile_id,reservation_id,module" },
     );
+
+  return { error: error?.message ?? null };
+}
+
+export async function dismissAllReservationNotifications(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module:
+      | "reservations_pending"
+      | "reservations_change_request"
+      | "reservations_cancellation";
+  },
+): Promise<{ error: string | null }> {
+  const { items } = await loadReservationNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: 500,
+  });
+
+  if (items.length === 0) return { error: null };
+
+  const rows = items.map((item) => ({
+    profile_id: params.userId,
+    restaurant_id: params.restaurantId,
+    reservation_id: item.id,
+    module: params.module,
+  }));
+
+  const { error } = await sb
+    .from("restaurant_reservation_notification_dismissals")
+    .upsert(rows, { onConflict: "profile_id,reservation_id,module" });
 
   return { error: error?.message ?? null };
 }

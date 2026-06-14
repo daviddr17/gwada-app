@@ -34,13 +34,16 @@ async function getGoogleLocation(restaurantId: string) {
   return { accessToken: auth.accessToken, parent };
 }
 
-function mapGoogleMedia(item: GoogleMediaItem): UnifiedGalleryItem | null {
+function mapGoogleMedia(
+  item: GoogleMediaItem,
+  categoryOverride?: string | null,
+): UnifiedGalleryItem | null {
   const id = item.name?.split("/").pop() ?? item.name ?? "";
   if (!id) return null;
   const url = item.googleUrl?.trim() || item.thumbnailUrl?.trim();
   if (!url) return null;
   const format = (item.mediaFormat ?? "PHOTO").toUpperCase();
-  const category = item.locationAssociation?.category ?? null;
+  const category = categoryOverride ?? item.locationAssociation?.category ?? null;
   return {
     id: `google_business:${id}`,
     platform: "google_business",
@@ -67,6 +70,48 @@ function mapGoogleMedia(item: GoogleMediaItem): UnifiedGalleryItem | null {
   };
 }
 
+async function listGoogleMediaPages(
+  url: string,
+  accessToken: string,
+): Promise<{ items: GoogleMediaItem[]; error?: string }> {
+  const items: GoogleMediaItem[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const requestUrl = new URL(url);
+    if (pageToken) requestUrl.searchParams.set("pageToken", pageToken);
+    requestUrl.searchParams.set("pageSize", "200");
+
+    const res = await fetch(requestUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    const body = (await res.json()) as {
+      mediaItems?: GoogleMediaItem[];
+      nextPageToken?: string;
+      error?: { message?: string };
+    };
+    if (!res.ok) {
+      return { items, error: body.error?.message ?? `google_media_${res.status}` };
+    }
+    items.push(...(body.mediaItems ?? []));
+    pageToken = body.nextPageToken;
+  } while (pageToken);
+
+  return { items };
+}
+
+function dedupeGoogleItems(items: UnifiedGalleryItem[]): UnifiedGalleryItem[] {
+  const seen = new Set<string>();
+  const out: UnifiedGalleryItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.externalId)) continue;
+    seen.add(item.externalId);
+    out.push(item);
+  }
+  return out;
+}
+
 export const googleBusinessGalleryConnector: GalleryPlatformConnector = {
   key: "google_business",
   displayName: "Google",
@@ -79,24 +124,25 @@ export const googleBusinessGalleryConnector: GalleryPlatformConnector = {
     const auth = await getGoogleLocation(restaurantId);
     if ("error" in auth) return { error: auth.error ?? "google_not_connected" };
 
-    const url = `https://mybusiness.googleapis.com/v4/${auth.parent}/media`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
-      cache: "no-store",
-    });
-    const body = (await res.json()) as {
-      mediaItems?: GoogleMediaItem[];
-      error?: { message?: string };
-    };
-    if (!res.ok) {
-      return { error: body.error?.message ?? `google_media_${res.status}` };
+    const ownerUrl = `https://mybusiness.googleapis.com/v4/${auth.parent}/media`;
+    const customerUrl = `https://mybusiness.googleapis.com/v4/${auth.parent}/media/customers`;
+
+    const [ownerResult, customerResult] = await Promise.all([
+      listGoogleMediaPages(ownerUrl, auth.accessToken),
+      listGoogleMediaPages(customerUrl, auth.accessToken),
+    ]);
+
+    const errors = [ownerResult.error, customerResult.error].filter(Boolean);
+    const mapped = [
+      ...ownerResult.items.map((item) => mapGoogleMedia(item)),
+      ...customerResult.items.map((item) => mapGoogleMedia(item, "CUSTOMER")),
+    ].filter((item): item is UnifiedGalleryItem => item !== null);
+
+    if (mapped.length === 0 && errors.length > 0) {
+      return { error: errors[0] ?? "google_media_failed" };
     }
 
-    const items = (body.mediaItems ?? [])
-      .map(mapGoogleMedia)
-      .filter((item): item is UnifiedGalleryItem => item !== null);
-
-    return { items };
+    return { items: dedupeGoogleItems(mapped) };
   },
   async uploadItem(restaurantId, _sb, input) {
     const auth = await getGoogleLocation(restaurantId);

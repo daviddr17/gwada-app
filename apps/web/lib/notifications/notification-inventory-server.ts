@@ -113,3 +113,28 @@ export async function dismissInventoryLowStockNotification(
 
   return { error: error?.message ?? null };
 }
+
+export async function dismissAllInventoryLowStockNotifications(
+  sb: SupabaseClient,
+  params: { restaurantId: string; userId: string },
+): Promise<{ error: string | null }> {
+  const summary = await loadInventoryLowStockBellSummary(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    limit: 500,
+  });
+
+  if (summary.items.length === 0) return { error: null };
+
+  const rows = summary.items.map((item) => ({
+    profile_id: params.userId,
+    restaurant_id: params.restaurantId,
+    ingredient_id: item.id,
+  }));
+
+  const { error } = await sb
+    .from("restaurant_inventory_low_stock_dismissals")
+    .upsert(rows, { onConflict: "profile_id,restaurant_id,ingredient_id" });
+
+  return { error: error?.message ?? null };
+}

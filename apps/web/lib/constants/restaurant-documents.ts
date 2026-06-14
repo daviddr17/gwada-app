@@ -1,5 +1,5 @@
-/** Max storage per restaurant (1 GB). */
-export const RESTAURANT_DOCUMENTS_QUOTA_BYTES = 1_073_741_824;
+/** Workspace-Speicher gesamt (3 GB) — siehe restaurant_workspace_quota_bytes(). */
+export const RESTAURANT_DOCUMENTS_QUOTA_BYTES = 3 * 1024 * 1024 * 1024;
 
 /** Max single upload (100 MB); bucket limit matches migration. */
 export const RESTAURANT_DOCUMENT_MAX_FILE_BYTES = 100 * 1024 * 1024;

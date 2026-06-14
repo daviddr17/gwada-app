@@ -47,6 +47,7 @@ import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-w
 import { digitsFromWhatsAppChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import {
   isWahaLidChatId,
+  isWahaDirectMessageChatId,
   wahaGetAllContacts,
   wahaGetAllLidMappings,
   wahaResolveLidToPhoneChatId,
@@ -172,7 +173,7 @@ export async function fetchWahaInboxConversations(
 
   for (const chat of overview.data) {
     const chatId = resolveWahaOverviewChatId(chat, lookupMaps);
-    if (!chatId || chatId.endsWith("@g.us")) continue;
+    if (!chatId || !isWahaDirectMessageChatId(chatId)) continue;
 
     let phoneDigits =
       extractPhoneDigitsFromWahaOverview(chat, lookupMaps) ??

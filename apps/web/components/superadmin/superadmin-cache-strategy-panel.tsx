@@ -90,8 +90,8 @@ function TimingPills({ entry }: { entry: ModuleCachePolicyEntry }) {
 
 function FlowStepCard({ entry }: { entry: ModuleCachePolicyEntry }) {
   return (
-    <div className="flex min-w-[9.5rem] max-w-[11rem] shrink-0 flex-col gap-2 rounded-xl border border-border/50 bg-card p-3 shadow-card">
-      <div className="flex items-start justify-between gap-2">
+    <div className="flex min-w-[9.5rem] max-w-[11rem] shrink-0 flex-col gap-2 overflow-hidden rounded-xl border border-border/50 bg-card p-3 shadow-card">
+      <div className="space-y-1.5">
         <p className="text-xs font-semibold leading-snug text-foreground">
           {entry.label}
         </p>

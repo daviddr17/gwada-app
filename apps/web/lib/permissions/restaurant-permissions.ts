@@ -26,6 +26,10 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "pos.kasse.export",
   "accounting.manage",
   "news.manage",
+  "gallery.read",
+  "gallery.create",
+  "gallery.update",
+  "gallery.delete",
 ] as const;
 
 export type RestaurantPermissionKey =
@@ -138,6 +142,30 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "News",
       description:
         "News und Posts veröffentlichen, planen und Kanäle verwalten.",
+      group: "buchfuehrung",
+    },
+    {
+      key: "gallery.read",
+      label: "Galerie ansehen",
+      description: "Bilder und Highlights in der Galerie einsehen.",
+      group: "buchfuehrung",
+    },
+    {
+      key: "gallery.create",
+      label: "Galerie: Anlegen",
+      description: "Neue Bilder und Highlights hochladen.",
+      group: "buchfuehrung",
+    },
+    {
+      key: "gallery.update",
+      label: "Galerie: Bearbeiten",
+      description: "Bilder, Kategorien und Highlights ändern.",
+      group: "buchfuehrung",
+    },
+    {
+      key: "gallery.delete",
+      label: "Galerie: Löschen",
+      description: "Bilder und Highlights entfernen.",
       group: "buchfuehrung",
     },
     {

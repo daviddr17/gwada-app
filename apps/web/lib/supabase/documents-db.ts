@@ -1,5 +1,6 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { RESTAURANT_DOCUMENTS_QUOTA_BYTES } from "@/lib/constants/restaurant-documents";
+import { RESTAURANT_WORKSPACE_QUOTA_BYTES } from "@/lib/constants/workspace-storage";
 import type {
   DocumentTagDefinition,
   RestaurantDocumentRow,
@@ -323,19 +324,31 @@ export async function fetchDocumentsStorageUsage(
   restaurantId: string,
 ): Promise<{ data: RestaurantDocumentsStorageUsage; error: string | null }> {
   const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase.rpc("restaurant_documents_used_bytes", {
+  const { data, error } = await supabase.rpc("restaurant_workspace_storage_breakdown", {
     p_restaurant_id: restaurantId,
   });
   if (error) {
     return {
-      data: { usedBytes: 0, quotaBytes: RESTAURANT_DOCUMENTS_QUOTA_BYTES },
+      data: {
+        usedBytes: 0,
+        quotaBytes: RESTAURANT_WORKSPACE_QUOTA_BYTES,
+        documentsBytes: 0,
+        galleryBytes: 0,
+        newsBytes: 0,
+        accountingBytes: 0,
+      },
       error: error.message,
     };
   }
+  const raw = (data ?? {}) as Record<string, number>;
   return {
     data: {
-      usedBytes: Number(data ?? 0),
-      quotaBytes: RESTAURANT_DOCUMENTS_QUOTA_BYTES,
+      usedBytes: Number(raw.totalBytes ?? 0),
+      quotaBytes: Number(raw.quotaBytes ?? RESTAURANT_DOCUMENTS_QUOTA_BYTES),
+      documentsBytes: Number(raw.documentsBytes ?? 0),
+      galleryBytes: Number(raw.galleryBytes ?? 0),
+      newsBytes: Number(raw.newsBytes ?? 0),
+      accountingBytes: Number(raw.accountingBytes ?? 0),
     },
     error: null,
   };

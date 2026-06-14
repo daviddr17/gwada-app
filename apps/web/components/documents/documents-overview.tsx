@@ -37,6 +37,7 @@ import {
 } from "@/lib/documents/documents-api";
 import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { formatStorageBytes } from "@/lib/documents/format-storage";
+import { WORKSPACE_STORAGE_MODULE_LABELS } from "@/lib/constants/workspace-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -165,7 +166,14 @@ export function DocumentsOverview() {
   const documentTags = useDocumentTagsStorage(restaurantId);
 
   const [rows, setRows] = useState<RestaurantDocumentRow[]>([]);
-  const [usage, setUsage] = useState({ usedBytes: 0, quotaBytes: 1_073_741_824 });
+  const [usage, setUsage] = useState({
+    usedBytes: 0,
+    quotaBytes: 3 * 1024 * 1024 * 1024,
+    documentsBytes: 0,
+    galleryBytes: 0,
+    newsBytes: 0,
+    accountingBytes: 0,
+  });
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
 
@@ -411,6 +419,25 @@ export function DocumentsOverview() {
               )}
               style={{ width: `${usagePercent}%` }}
             />
+          </div>
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            {(
+              [
+                ["documentsBytes", usage.documentsBytes],
+                ["galleryBytes", usage.galleryBytes],
+                ["newsBytes", usage.newsBytes],
+                ["accountingBytes", usage.accountingBytes],
+              ] as const
+            )
+              .filter(([, bytes]) => bytes > 0)
+              .map(([key, bytes]) => (
+                <span key={key}>
+                  {WORKSPACE_STORAGE_MODULE_LABELS[key]}:{" "}
+                  <span className="font-medium tabular-nums text-foreground">
+                    {formatStorageBytes(bytes)}
+                  </span>
+                </span>
+              ))}
           </div>
         </CardContent>
       </Card>

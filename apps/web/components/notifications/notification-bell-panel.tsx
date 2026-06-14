@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Settings } from "lucide-react";
+import { Check, CheckCheck, Settings } from "lucide-react";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +34,9 @@ type NotificationBellPanelProps = {
     itemId: string;
     meta?: Record<string, string>;
   }) => Promise<unknown>;
+  onMarkModuleRead?: (params: {
+    module: NotificationModuleId;
+  }) => Promise<unknown>;
   onNavigate?: () => void;
 };
 
@@ -41,6 +44,7 @@ export function NotificationBellPanel({
   summary,
   loading,
   onMarkRead,
+  onMarkModuleRead,
   onNavigate,
 }: NotificationBellPanelProps) {
   const hasItems = (summary?.totalCount ?? 0) > 0;
@@ -77,13 +81,27 @@ export function NotificationBellPanel({
                     {mod.count}
                   </span>
                 </div>
-                <Link
-                  href={mod.href}
-                  className="shrink-0 text-xs font-medium text-foreground/80 underline-offset-2 hover:underline"
-                  onClick={onNavigate}
-                >
-                  Alle
-                </Link>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-7 rounded-full text-muted-foreground hover:text-foreground"
+                    aria-label={`Alle ${mod.label} als gelesen markieren`}
+                    onClick={() => {
+                      void onMarkModuleRead?.({ module: mod.id });
+                    }}
+                  >
+                    <CheckCheck className="size-3.5" />
+                  </Button>
+                  <Link
+                    href={mod.href}
+                    className="px-1 text-xs font-medium text-foreground/80 underline-offset-2 hover:underline"
+                    onClick={onNavigate}
+                  >
+                    Alle
+                  </Link>
+                </div>
               </div>
               <ul className="list-none space-y-0.5 px-2 pb-2">
                 {mod.items.map((item) => {

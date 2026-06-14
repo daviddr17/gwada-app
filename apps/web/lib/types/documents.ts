@@ -34,4 +34,8 @@ export type RestaurantDocumentRow = {
 export type RestaurantDocumentsStorageUsage = {
   usedBytes: number;
   quotaBytes: number;
+  documentsBytes: number;
+  galleryBytes: number;
+  newsBytes: number;
+  accountingBytes: number;
 };

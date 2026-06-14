@@ -4,6 +4,7 @@ import type { NotificationContact } from "@/lib/notifications/notification-conta
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationPreferences } from "@/lib/notifications/notification-preferences";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
+import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
 
 export type NotificationPreferencesResponse = {
   preferences: NotificationPreferences;
@@ -55,12 +56,15 @@ export async function fetchNotificationSummaryClient(
   }
 }
 
-export async function markNotificationReadClient(params: {
-  restaurantId: string;
-  module: NotificationModuleId;
-  itemId?: string | null;
-  meta?: Record<string, string>;
-}): Promise<{ ok: boolean; error: string | null }> {
+export async function markNotificationReadClient(
+  params: {
+    restaurantId: string;
+    module: NotificationModuleId;
+    itemId?: string | null;
+    meta?: Record<string, string>;
+  },
+  options?: { notify?: boolean },
+): Promise<{ ok: boolean; error: string | null }> {
   try {
     const res = await fetch("/api/notifications/mark-read", {
       method: "POST",
@@ -70,6 +74,9 @@ export async function markNotificationReadClient(params: {
     const body = (await res.json()) as { error?: string };
     if (!res.ok) {
       return { ok: false, error: body.error ?? `http_${res.status}` };
+    }
+    if (options?.notify !== false) {
+      dispatchNotificationsRefresh();
     }
     return { ok: true, error: null };
   } catch {

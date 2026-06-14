@@ -29,7 +29,7 @@ function NotificationBellSkeleton() {
 
 export function AppChromeNotificationBell() {
   const [open, setOpen] = React.useState(false);
-  const { summary, totalCount, isLoading, ready, markRead, refresh } =
+  const { summary, totalCount, isLoading, ready, markRead, markModuleRead, refresh } =
     useNotificationSummary();
   const showSkeleton = useDeferredSkeleton(isLoading && !summary);
 
@@ -82,6 +82,7 @@ export function AppChromeNotificationBell() {
                 summary={summary}
                 loading={isLoading}
                 onMarkRead={markRead}
+                onMarkModuleRead={markModuleRead}
                 onNavigate={() => setOpen(false)}
               />
             )}

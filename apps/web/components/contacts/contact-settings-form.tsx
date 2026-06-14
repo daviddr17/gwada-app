@@ -21,23 +21,65 @@ import {
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 
+type SettingsSnapshot = {
+  autoCreateFromReservations: boolean;
+  autoCreateFromMessages: boolean;
+};
+
+function ContactSettingsToggleRow({
+  id,
+  label,
+  description,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  id: string;
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-lg border border-border/40 bg-background/60 p-4">
+      <div className="space-y-1">
+        <Label htmlFor={id} className="text-sm font-medium">
+          {label}
+        </Label>
+        <p className="max-w-prose text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch
+        id={id}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={(v) => onCheckedChange(v === true)}
+      />
+    </div>
+  );
+}
+
 export function ContactSettingsForm() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
-  const [autoCreate, setAutoCreate] = useState(true);
+  const [autoCreateFromReservations, setAutoCreateFromReservations] =
+    useState(true);
+  const [autoCreateFromMessages, setAutoCreateFromMessages] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedRef = useRef<string | null>(null);
 
   const snapshot = useMemo(
-    () => JSON.stringify({ autoCreate }),
-    [autoCreate],
+    () =>
+      JSON.stringify({
+        autoCreateFromReservations,
+        autoCreateFromMessages,
+      } satisfies SettingsSnapshot),
+    [autoCreateFromReservations, autoCreateFromMessages],
   );
 
   const dirty =
-    savedRef.current !== null &&
-    !loading &&
-    snapshot !== savedRef.current;
+    savedRef.current !== null && !loading && snapshot !== savedRef.current;
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -52,9 +94,14 @@ export function ContactSettingsForm() {
         toast.error(error.message);
         return;
       }
-      const nextAuto = data?.auto_create_from_reservations ?? true;
-      setAutoCreate(nextAuto);
-      savedRef.current = JSON.stringify({ autoCreate: nextAuto });
+      const next: SettingsSnapshot = {
+        autoCreateFromReservations:
+          data?.auto_create_from_reservations ?? true,
+        autoCreateFromMessages: data?.auto_create_from_messages ?? true,
+      };
+      setAutoCreateFromReservations(next.autoCreateFromReservations);
+      setAutoCreateFromMessages(next.autoCreateFromMessages);
+      savedRef.current = JSON.stringify(next);
     })();
     return () => {
       cancel = true;
@@ -67,7 +114,8 @@ export function ContactSettingsForm() {
     void (async () => {
       const { error } = await upsertContactSettings({
         restaurantId,
-        autoCreateFromReservations: autoCreate,
+        autoCreateFromReservations,
+        autoCreateFromMessages,
       });
       setSaving(false);
       if (error) toast.error(error.message);
@@ -104,25 +152,23 @@ export function ContactSettingsForm() {
         }}
       >
         <Card className="border-border/50 shadow-card">
-          <CardContent className="pt-6">
-            <div className="flex items-start justify-between gap-4 rounded-lg border border-border/40 bg-background/60 p-4">
-              <div className="space-y-1">
-                <Label htmlFor="auto-create-contacts" className="text-sm font-medium">
-                  Kontakte aus Reservierungen
-                </Label>
-                <p className="text-xs text-muted-foreground max-w-prose">
-                  Bei neuer oder geänderter Reservierung wird anhand von Telefonnummer
-                  oder E-Mail ein bestehender Kontakt verknüpft. Ist keiner vorhanden
-                  und diese Option aktiv, wird automatisch ein neuer Kontakt angelegt.
-                </p>
-              </div>
-              <Switch
-                id="auto-create-contacts"
-                checked={autoCreate}
-                disabled={loading}
-                onCheckedChange={(v) => setAutoCreate(v === true)}
-              />
-            </div>
+          <CardContent className="space-y-3 pt-6">
+            <ContactSettingsToggleRow
+              id="auto-create-contacts-reservations"
+              label="Kontakte aus Reservierungen"
+              description="Bei neuer oder geänderter Reservierung wird anhand von Telefonnummer oder E-Mail ein bestehender Kontakt verknüpft. Ist keiner vorhanden und diese Option aktiv, wird automatisch ein neuer Kontakt angelegt."
+              checked={autoCreateFromReservations}
+              disabled={loading}
+              onCheckedChange={setAutoCreateFromReservations}
+            />
+            <ContactSettingsToggleRow
+              id="auto-create-contacts-messages"
+              label="Kontakte aus Nachrichten"
+              description="Bei eingehender WhatsApp-, E-Mail- oder Facebook/Instagram-Nachricht wird ein passender Kontakt gesucht. Ist keiner vorhanden und diese Option aktiv, wird automatisch ein neuer Kontakt angelegt und die Nachricht zugeordnet."
+              checked={autoCreateFromMessages}
+              disabled={loading}
+              onCheckedChange={setAutoCreateFromMessages}
+            />
           </CardContent>
         </Card>
 

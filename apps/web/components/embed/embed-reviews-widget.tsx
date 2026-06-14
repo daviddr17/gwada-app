@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Star } from "lucide-react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
-import type { PublicEmbedReview } from "@/lib/reviews/public-reviews-server";
+import type {
+  PublicEmbedReview,
+  PublicEmbedReviewsPagination,
+} from "@/lib/reviews/public-reviews-server";
 import { cn } from "@/lib/utils";
 
 export type EmbedReviewsWidgetProps = {
@@ -21,6 +26,8 @@ export type EmbedReviewsWidgetProps = {
   };
   /** Raster (Standard) oder Liste — Einbindung nutzt Raster. */
   viewMode?: "grid" | "list";
+  /** Server-Pagination (Embed-Route) — x/y + Seiten unten. */
+  pagination?: PublicEmbedReviewsPagination;
 };
 
 function StarsDisplay({ rating, size = "md" }: { rating: number; size?: "sm" | "md" }) {
@@ -190,12 +197,44 @@ export function EmbedReviewsWidget({
   reviews,
   summary,
   viewMode = "grid",
+  pagination,
 }: EmbedReviewsWidgetProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [navigating, startTransition] = useTransition();
+  const paginated = pagination != null;
+
+  const pushPage = useCallback(
+    (page: number) => {
+      const params = new URLSearchParams(searchParams.toString());
+      if (page <= 1) params.delete("page");
+      else params.set("page", String(page));
+      const nextQs = params.toString();
+      const currentQs = searchParams.toString();
+      if (nextQs === currentQs) return;
+
+      startTransition(() => {
+        router.push(nextQs ? `${pathname}?${nextQs}` : pathname, {
+          scroll: false,
+        });
+      });
+    },
+    [router, pathname, searchParams],
+  );
+
+  useEffect(() => {
+    if (!paginated) return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [paginated, pagination?.page]);
+
   const resizeDeps = useMemo(
     () => [
       restaurantName,
       viewMode,
       reviews.length,
+      pagination?.page ?? 1,
+      pagination?.totalCount ?? reviews.length,
       summary.count,
       summary.average,
       summary.median,
@@ -211,8 +250,34 @@ export function EmbedReviewsWidget({
         )
         .join("|"),
     ],
-    [restaurantName, viewMode, reviews, summary],
+    [restaurantName, viewMode, reviews, pagination, summary],
   );
+
+  const showPagination =
+    paginated &&
+    pagination != null &&
+    (pagination.totalPages > 1 || pagination.totalCount > 0);
+
+  const reviewList =
+    viewMode === "list" ? (
+      <div>
+        {reviews.map((review) => (
+          <EmbedReviewRow
+            key={`${review.platform}-${review.id}`}
+            review={review}
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
+        {reviews.map((review) => (
+          <EmbedReviewCard
+            key={`${review.platform}-${review.id}`}
+            review={review}
+          />
+        ))}
+      </div>
+    );
 
   return (
     <EmbedAccentRoot accentHex={accentHex}>
@@ -234,24 +299,25 @@ export function EmbedReviewsWidget({
               Noch keine Bewertungen — Gäste können nach dem Besuch über Gwada
               bewerten.
             </p>
-          ) : viewMode === "list" ? (
-            <div>
-              {reviews.map((review) => (
-                <EmbedReviewRow
-                  key={`${review.platform}-${review.id}`}
-                  review={review}
-                />
-              ))}
-            </div>
+          ) : showPagination && pagination ? (
+            <ListPaginationSurround
+              classNameAbove="mb-4 border-b-0 pb-0"
+              classNameBelow="mt-4 border-t-0 pt-0"
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              shown={reviews.length}
+              totalCount={pagination.totalCount}
+              itemLabel="Bewertungen"
+              canPrevious={pagination.page > 1}
+              canNext={pagination.page < pagination.totalPages}
+              busy={navigating}
+              onPrevious={() => pushPage(pagination.page - 1)}
+              onNext={() => pushPage(pagination.page + 1)}
+            >
+              {reviewList}
+            </ListPaginationSurround>
           ) : (
-            <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
-              {reviews.map((review) => (
-                <EmbedReviewCard
-                  key={`${review.platform}-${review.id}`}
-                  review={review}
-                />
-              ))}
-            </div>
+            reviewList
           )}
         </section>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Star } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ReviewPlatformChip } from "@/components/reviews/review-platform-chip";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import {
@@ -11,10 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   REVIEW_PLATFORM_LABELS,
   type ReviewPlatform,
 } from "@/lib/constants/review-platforms";
+import { paginateListItems } from "@/lib/constants/list-pagination";
 import {
   REVIEW_SORT_OPTIONS,
   reviewSortOptionLabel,
@@ -22,6 +24,7 @@ import {
   type ReviewSortKey,
 } from "@/lib/reviews/filter-sort-reviews";
 import type { PublicEmbedReview } from "@/lib/reviews/public-reviews-server";
+import { PUBLIC_EMBED_REVIEWS_PAGE_SIZE } from "@/lib/reviews/public-embed-reviews-pagination";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -149,6 +152,7 @@ export function RestaurantPublicProfileReviews({
     "all",
   );
   const [sortKey, setSortKey] = useState<ReviewSortKey>("created_desc");
+  const [page, setPage] = useState(1);
 
   const filteredSorted = useMemo(() => {
     const filtered =
@@ -157,6 +161,38 @@ export function RestaurantPublicProfileReviews({
         : reviews.filter((r) => r.platform === platformFilter);
     return sortReviews(filtered, sortKey);
   }, [platformFilter, reviews, sortKey]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [platformFilter, sortKey]);
+
+  const pagination = useMemo(
+    () =>
+      paginateListItems(
+        filteredSorted,
+        page,
+        PUBLIC_EMBED_REVIEWS_PAGE_SIZE,
+      ),
+    [filteredSorted, page],
+  );
+
+  const showPagination =
+    pagination.totalPages > 1 || pagination.totalCount > 0;
+
+  const reviewList =
+    viewMode === "list" ? (
+      <div>
+        {pagination.items.map((review) => (
+          <PublicReviewRow key={`${review.platform}-${review.id}`} review={review} />
+        ))}
+      </div>
+    ) : (
+      <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
+        {pagination.items.map((review) => (
+          <PublicReviewCard key={`${review.platform}-${review.id}`} review={review} />
+        ))}
+      </div>
+    );
 
   const showPlatformChips = connectedPlatforms.length > 1;
 
@@ -222,18 +258,26 @@ export function RestaurantPublicProfileReviews({
               ? "Noch keine Bewertungen."
               : "Keine Bewertungen für diesen Filter."}
           </p>
-        ) : viewMode === "list" ? (
-          <div>
-            {filteredSorted.map((review) => (
-              <PublicReviewRow key={`${review.platform}-${review.id}`} review={review} />
-            ))}
-          </div>
+        ) : showPagination ? (
+          <ListPaginationSurround
+            classNameAbove="mb-4 border-b-0 pb-0"
+            classNameBelow="mt-4 border-t-0 pt-0"
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            shown={pagination.items.length}
+            totalCount={pagination.totalCount}
+            itemLabel="Bewertungen"
+            canPrevious={pagination.page > 1}
+            canNext={pagination.page < pagination.totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() =>
+              setPage((p) => Math.min(pagination.totalPages, p + 1))
+            }
+          >
+            {reviewList}
+          </ListPaginationSurround>
         ) : (
-          <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
-            {filteredSorted.map((review) => (
-              <PublicReviewCard key={`${review.platform}-${review.id}`} review={review} />
-            ))}
-          </div>
+          reviewList
         )}
       </section>
     </div>

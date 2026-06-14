@@ -4,10 +4,6 @@ import { useMemo } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { PublicOpeningHoursDisplay } from "@/components/opening-hours/public-opening-hours-display";
-import {
-  openingHoursWeekdayRows,
-  upcomingOpeningExceptions,
-} from "@/lib/opening-hours/embed-display-utils";
 import type { PublicEmbedOpeningHoursData } from "@/lib/opening-hours/public-opening-hours-server";
 
 export type EmbedOpeningHoursWidgetProps = PublicEmbedOpeningHoursData;
@@ -21,37 +17,29 @@ export function EmbedOpeningHoursWidget({
   dateExceptions,
   settings,
 }: EmbedOpeningHoursWidgetProps) {
-  const businessRows = useMemo(
-    () => openingHoursWeekdayRows(weeklyHours),
-    [weeklyHours],
-  );
-  const kitchenRows = useMemo(
-    () => openingHoursWeekdayRows(kitchenWeeklyHours),
-    [kitchenWeeklyHours],
-  );
-  const upcoming = useMemo(
-    () =>
-      settings.embedShowExceptions
-        ? upcomingOpeningExceptions(dateExceptions)
-        : [],
-    [dateExceptions, settings.embedShowExceptions],
-  );
-
-  const showKitchen =
-    settings.embedShowKitchenHours && kitchenHoursEnabled;
-
   const footerText = settings.embedFooterText?.trim() ?? "";
 
   const resizeDeps = useMemo(
     () => [
       restaurantName,
-      businessRows,
-      kitchenRows,
-      upcoming,
-      showKitchen,
+      weeklyHours,
+      kitchenWeeklyHours,
+      dateExceptions,
+      settings.embedShowExceptions,
+      settings.embedShowKitchenHours,
+      kitchenHoursEnabled,
       footerText,
     ],
-    [restaurantName, businessRows, kitchenRows, upcoming, showKitchen, footerText],
+    [
+      restaurantName,
+      weeklyHours,
+      kitchenWeeklyHours,
+      dateExceptions,
+      settings.embedShowExceptions,
+      settings.embedShowKitchenHours,
+      kitchenHoursEnabled,
+      footerText,
+    ],
   );
 
   return (

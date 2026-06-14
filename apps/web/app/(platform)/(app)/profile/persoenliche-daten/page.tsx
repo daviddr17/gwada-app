@@ -77,76 +77,66 @@ export default function ProfilePersoenlicheDatenPage() {
     patchImagePaths,
     save,
     isHydrated,
+    isRemoteLoaded,
   } = usePersonalProfileNames();
 
   const [savedFlash, setSavedFlash] = useState(false);
-  const [baselineTick, setBaselineTick] = useState(0);
-  const baselineRef = useRef<ProfileBaseline | null>(null);
+  const savedRef = useRef<string | null>(null);
+
+  const profileSnapshot = useMemo(
+    () =>
+      JSON.stringify(
+        snapshotFromHook({
+          firstName,
+          lastName,
+          nickname,
+          birthDate,
+          street,
+          postalCode,
+          city,
+          country,
+        }),
+      ),
+    [
+      firstName,
+      lastName,
+      nickname,
+      birthDate,
+      street,
+      postalCode,
+      city,
+      country,
+    ],
+  );
 
   useEffect(() => {
-    if (!isHydrated || baselineRef.current) return;
-    baselineRef.current = snapshotFromHook({
-      firstName,
-      lastName,
-      nickname,
-      birthDate,
-      street,
-      postalCode,
-      city,
-      country,
-    });
-  }, [
-    isHydrated,
-    firstName,
-    lastName,
-    nickname,
-    birthDate,
-    street,
-    postalCode,
-    city,
-    country,
-  ]);
+    if (!isHydrated || !isRemoteLoaded) {
+      savedRef.current = null;
+      return;
+    }
+    if (savedRef.current === null) {
+      savedRef.current = profileSnapshot;
+    }
+  }, [isHydrated, isRemoteLoaded, profileSnapshot]);
 
-  const profileDirty = useMemo(() => {
-    if (!isHydrated || !baselineRef.current) return false;
-    const cur = snapshotFromHook({
-      firstName,
-      lastName,
-      nickname,
-      birthDate,
-      street,
-      postalCode,
-      city,
-      country,
-    });
-    return JSON.stringify(cur) !== JSON.stringify(baselineRef.current);
-  }, [
-    baselineTick,
-    isHydrated,
-    firstName,
-    lastName,
-    nickname,
-    birthDate,
-    street,
-    postalCode,
-    city,
-    country,
-  ]);
+  const profileDirty =
+    savedRef.current !== null && profileSnapshot !== savedRef.current;
 
   const handleSave = useCallback(async () => {
     const ok = await save();
     if (!ok) return;
-    baselineRef.current = snapshotFromHook({
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      nickname: nickname.trim(),
-      birthDate: birthDate.trim(),
-      street: street.trim(),
-      postalCode: postalCode.trim(),
-      city: city.trim(),
-      country: country.trim() || "DE",
-    });
-    setBaselineTick((t) => t + 1);
+    savedRef.current = JSON.stringify(
+      snapshotFromHook({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        nickname: nickname.trim(),
+        birthDate: birthDate.trim(),
+        street: street.trim(),
+        postalCode: postalCode.trim(),
+        city: city.trim(),
+        country: country.trim() || "DE",
+      }),
+    );
     setSavedFlash(true);
     window.setTimeout(() => setSavedFlash(false), 2000);
   }, [
@@ -161,7 +151,7 @@ export default function ProfilePersoenlicheDatenPage() {
     country,
   ]);
 
-  const profileLoading = !isHydrated;
+  const profileLoading = !isHydrated || !isRemoteLoaded;
   const showProfileSkeleton = useDeferredSkeleton(profileLoading);
 
   if (profileLoading) {

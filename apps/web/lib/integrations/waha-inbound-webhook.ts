@@ -2,10 +2,8 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
-import {
-  resolveContactIdByWhatsappChat,
-  whatsappChatIdFromPayloadAddress,
-} from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
+import { resolveOrCreateContactForWhatsappInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
+import { whatsappChatIdFromPayloadAddress } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { displayNameFromWahaChatId } from "@/lib/contact-messages/waha-chat-label";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { emitMessageNotificationEventIfNew } from "@/lib/notifications/emit-message-notification-event";
@@ -97,7 +95,7 @@ export async function handleWahaInboundWebhook(
     return { ok: true, imported: false, reason: "no_chat_id" };
   }
 
-  const contactId = await resolveContactIdByWhatsappChat(admin, {
+  const contactId = await resolveOrCreateContactForWhatsappInbound(admin, {
     restaurantId,
     chatId,
   });

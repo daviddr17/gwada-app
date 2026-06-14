@@ -22,7 +22,7 @@ const PROFILE_NAV: readonly ModuleSubnavItem[] = [
   },
   {
     href: "/profile/arbeitszeiten",
-    label: "Arbeitszeiten",
+    label: "Meine Arbeitszeiten",
     matchMode: "exact",
   },
   {

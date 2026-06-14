@@ -1,8 +1,14 @@
 import "server-only";
 
 import { unstable_cache } from "next/cache";
+import {
+  clampListPage,
+  parseListPageParam,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
+import { PUBLIC_EMBED_REVIEWS_PAGE_SIZE } from "@/lib/reviews/public-embed-reviews-pagination";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import {
   averageRating,
@@ -33,6 +39,13 @@ export type PublicEmbedReview = {
   reply: string | null;
 };
 
+export type PublicEmbedReviewsPagination = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};
+
 export type PublicEmbedReviews = {
   restaurantId: string;
   name: string;
@@ -47,9 +60,55 @@ export type PublicEmbedReviews = {
     median: number | null;
     distribution: Record<1 | 2 | 3 | 4 | 5, number>;
   };
+  /** Gesetzt bei paginiertem Embed (`paginate: true`). */
+  pagination?: PublicEmbedReviewsPagination;
+};
+
+export type FetchPublicEmbedReviewsOptions = {
+  /** Embed-Route: nur eine Seite laden (schneller für iframes). */
+  paginate?: boolean;
+  page?: number;
 };
 
 const PUBLIC_REVIEW_LIMIT = 100;
+
+function paginateEmbedReviews(
+  allReviews: PublicEmbedReview[],
+  options: Pick<FetchPublicEmbedReviewsOptions, "paginate" | "page">,
+): { reviews: PublicEmbedReview[]; pagination: PublicEmbedReviewsPagination } {
+  const totalCount = allReviews.length;
+
+  if (!options.paginate) {
+    return {
+      reviews: allReviews,
+      pagination: {
+        page: 1,
+        pageSize: Math.max(totalCount, 1),
+        totalCount,
+        totalPages: 1,
+      },
+    };
+  }
+
+  const pageSize = PUBLIC_EMBED_REVIEWS_PAGE_SIZE;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  const page = clampListPage(
+    parseListPageParam(
+      options.page != null ? String(options.page) : undefined,
+    ),
+    totalPages,
+  );
+  const from = (page - 1) * pageSize;
+  return {
+    reviews: allReviews.slice(from, from + pageSize),
+    pagination: {
+      page,
+      pageSize,
+      totalCount,
+      totalPages,
+    },
+  };
+}
 
 function adminOrError(): SupabaseClient | { error: string; status: number } {
   const admin = createSupabaseAdminClient();
@@ -152,6 +211,7 @@ const loadConnectedPlatformReviews = (restaurantId: string) =>
 
 export async function fetchPublicEmbedReviews(
   slugInput: string,
+  options: FetchPublicEmbedReviewsOptions = {},
 ): Promise<
   | { data: PublicEmbedReviews; error: null }
   | { data: null; error: string; status: number }
@@ -197,10 +257,11 @@ export async function fetchPublicEmbedReviews(
 
   const hiddenKeys = await fetchHiddenReviewKeys(admin, restaurantId);
   const visibleReviews = filterReviewsForPublicEmbed(unifiedReviews, hiddenKeys);
-  const reviews = visibleReviews.map(toPublicReview);
+  const allReviews = visibleReviews.map(toPublicReview);
+  const { reviews, pagination } = paginateEmbedReviews(allReviews, options);
 
   const summary = {
-    count: reviews.length,
+    count: allReviews.length,
     average: averageRating(visibleReviews),
     median: medianRating(visibleReviews),
     distribution: ratingDistribution(visibleReviews),
@@ -218,6 +279,7 @@ export async function fetchPublicEmbedReviews(
       connectedPlatforms,
       reviews,
       summary,
+      ...(options.paginate ? { pagination } : {}),
     },
     error: null,
   };

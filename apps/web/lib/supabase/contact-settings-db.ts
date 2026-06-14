@@ -4,6 +4,7 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 export type RestaurantContactSettingsRow = {
   restaurant_id: string;
   auto_create_from_reservations: boolean;
+  auto_create_from_messages: boolean;
 };
 
 export async function fetchContactSettings(
@@ -15,7 +16,9 @@ export async function fetchContactSettings(
   const sb = createSupabaseBrowserClient();
   const { data, error } = await sb
     .from("restaurant_contact_settings")
-    .select("restaurant_id, auto_create_from_reservations")
+    .select(
+      "restaurant_id, auto_create_from_reservations, auto_create_from_messages",
+    )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
 
@@ -27,6 +30,7 @@ export async function fetchContactSettings(
       data: {
         restaurant_id: restaurantId,
         auto_create_from_reservations: true,
+        auto_create_from_messages: true,
       },
       error: null,
     };
@@ -37,6 +41,7 @@ export async function fetchContactSettings(
 export async function upsertContactSettings(params: {
   restaurantId: string;
   autoCreateFromReservations: boolean;
+  autoCreateFromMessages: boolean;
 }): Promise<{ error: Error | null }> {
   if (!isUuidRestaurantId(params.restaurantId)) {
     return { error: new Error("Ungültige Restaurant-ID.") };
@@ -46,6 +51,7 @@ export async function upsertContactSettings(params: {
     {
       restaurant_id: params.restaurantId,
       auto_create_from_reservations: params.autoCreateFromReservations,
+      auto_create_from_messages: params.autoCreateFromMessages,
     },
     { onConflict: "restaurant_id" },
   );

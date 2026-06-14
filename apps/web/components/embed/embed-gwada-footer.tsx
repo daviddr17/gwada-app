@@ -60,7 +60,7 @@ export function EmbedGwadaFooter({ className }: { className?: string }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="opacity-60 transition-opacity hover:opacity-85"
+        className="transition-opacity hover:opacity-90"
       >
         {showLogo ? (
           // eslint-disable-next-line @next/next/no-img-element

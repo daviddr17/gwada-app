@@ -263,6 +263,9 @@ export function usePersonalProfileNames() {
   const [isHydrated, setIsHydrated] = useState(
     !workspacePersistenceConfigured(),
   );
+  const [isRemoteLoaded, setIsRemoteLoaded] = useState(
+    !workspacePersistenceConfigured(),
+  );
   const [authTick, setAuthTick] = useState(0);
 
   useEffect(() => {
@@ -280,6 +283,7 @@ export function usePersonalProfileNames() {
 
   useEffect(() => {
     let cancelled = false;
+    setIsRemoteLoaded(false);
 
     const localDraft = loadLocal();
     if (!isDraftEmpty(localDraft)) {
@@ -360,6 +364,7 @@ export function usePersonalProfileNames() {
       setPostalCode(draft.postalCode);
       setCity(draft.city);
       setCountry(draft.country || "DE");
+      if (!cancelled) setIsRemoteLoaded(true);
     })();
     return () => {
       cancelled = true;
@@ -545,5 +550,6 @@ export function usePersonalProfileNames() {
     actor,
     resolvedFullName,
     isHydrated,
+    isRemoteLoaded,
   };
 }

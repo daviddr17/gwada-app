@@ -842,7 +842,7 @@ function ProfileAppContent({
 
   if (appId === "menu") {
     return (
-      <div className="p-4 pb-8 sm:p-5">
+      <div className="px-4 pb-8 pt-0 sm:px-5">
         <ModulePanel
           showLoading={deferHeavyWidgets || (!menu && loading.menu)}
           error={errors.menu}

@@ -10,7 +10,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -24,7 +23,7 @@ import {
   PASSWORD_POLICY_ERROR_MESSAGE,
   passwordMeetsPolicy,
 } from "@/lib/auth/password-policy";
-import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
+import { settingsAccentSaveButtonClassName, SettingsStickySaveBar } from "@/components/settings/settings-sticky-save-bar";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
   anyOAuthProviderShownInLogin,
@@ -129,6 +128,11 @@ function ProfileAnmeldungContent() {
   const authLoading = !authResolved;
   const showAuthSkeleton = useDeferredSkeleton(authLoading);
   const showOAuthProviders = anyOAuthProviderShownInLogin(oauthFlags);
+  const passwordDirty =
+    canChangePassword &&
+    (currentPassword.length > 0 ||
+      newPassword.length > 0 ||
+      confirmPassword.length > 0);
   const oauthCardDescription =
     showGoogleOAuth && showAppleOAuth
       ? "Google- und Apple-Konto mit deinem Profil verknüpfen oder trennen."
@@ -417,7 +421,12 @@ function ProfileAnmeldungContent() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && canChangePassword && !pwBusy) {
+                if (
+                  e.key === "Enter" &&
+                  passwordDirty &&
+                  canChangePassword &&
+                  !pwBusy
+                ) {
                   void handlePasswordChange();
                 }
               }}
@@ -427,27 +436,28 @@ function ProfileAnmeldungContent() {
             <PasswordStrengthBar password={confirmPassword} showRequirements={false} />
           </div>
         </CardContent>
-        <CardFooter className="flex-col items-stretch gap-2 border-t border-border/40 bg-muted/15 px-6 py-4 sm:flex-row sm:items-center sm:px-8">
-          <Button
-            type="button"
-            className={cn(
-              "h-11 w-full sm:w-auto",
-              settingsAccentSaveButtonClassName,
-            )}
-            disabled={!canChangePassword || pwBusy}
-            onClick={() => void handlePasswordChange()}
-          >
-            {pwBusy ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" />
-                Wird geändert…
-              </>
-            ) : (
-              "Passwort aktualisieren"
-            )}
-          </Button>
-        </CardFooter>
       </Card>
+
+      <SettingsStickySaveBar show={passwordDirty}>
+        <Button
+          type="button"
+          className={cn(
+            "h-11 w-full min-w-[12rem] sm:w-auto",
+            settingsAccentSaveButtonClassName,
+          )}
+          disabled={!canChangePassword || pwBusy}
+          onClick={() => void handlePasswordChange()}
+        >
+          {pwBusy ? (
+            <>
+              <Loader2 className="mr-2 size-4 animate-spin" />
+              Wird geändert…
+            </>
+          ) : (
+            "Passwort aktualisieren"
+          )}
+        </Button>
+      </SettingsStickySaveBar>
     </div>
   );
 }

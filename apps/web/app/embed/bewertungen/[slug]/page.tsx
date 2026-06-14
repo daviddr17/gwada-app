@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
+import { parseListPageParam } from "@/lib/constants/list-pagination";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import { fetchPublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 
@@ -10,6 +11,8 @@ const EmbedReviewsWidget = nextDynamic(
     ),
   { ssr: true },
 );
+
+export const dynamic = "force-dynamic";
 
 export const revalidate = 60;
 
@@ -25,11 +28,17 @@ export async function generateMetadata({
 
 export default async function EmbedBewertungenPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const { slug } = await params;
-  const result = await fetchPublicEmbedReviews(slug);
+  const sp = await searchParams;
+  const result = await fetchPublicEmbedReviews(slug, {
+    paginate: true,
+    page: parseListPageParam(sp.page),
+  });
 
   if (!result.data) {
     return (
@@ -41,7 +50,7 @@ export default async function EmbedBewertungenPage({
     );
   }
 
-  const { name, accentHex, reviews, summary, viewMode } = result.data;
+  const { name, accentHex, reviews, summary, viewMode, pagination } = result.data;
 
   return (
     <EmbedReviewsWidget
@@ -50,6 +59,7 @@ export default async function EmbedBewertungenPage({
       reviews={reviews}
       summary={summary}
       viewMode={viewMode}
+      pagination={pagination}
     />
   );
 }

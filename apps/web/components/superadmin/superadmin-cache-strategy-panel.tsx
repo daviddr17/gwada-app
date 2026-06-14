@@ -271,8 +271,8 @@ export function SuperadminCacheStrategyPanel() {
         </div>
         <p className="text-sm text-muted-foreground">
           Beim Öffnen von <code className="font-mono text-xs">/dashboard</code> —
-          von links nach rechts. Parallele Schritte starten unabhängig; spätere
-          Schritte warten ggf. auf frühere (z. B. Inbox-Warm nach Batch).
+          von links nach rechts. KPI-Prefetch startet schon im App-Layout; parallele
+          Schritte sind unabhängig, Inbox-Warm wartet ggf. auf Batch (unter 30 s).
         </p>
         <div className="overflow-x-auto pb-2">
           <div className="flex min-w-max items-stretch gap-2">

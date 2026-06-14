@@ -76,7 +76,7 @@ as $$
 $$;
 
 -- ---------------------------------------------------------------------------
--- Workspace-Speicher (3 GB gesamt)
+-- Workspace-Speicher (3 GB gesamt) — Quota-Funktion ohne Tabellen-Abhängigkeit
 -- ---------------------------------------------------------------------------
 create or replace function public.restaurant_workspace_quota_bytes()
 returns bigint
@@ -86,6 +86,77 @@ as $$
   select 3221225472::bigint;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Einstellungen
+-- ---------------------------------------------------------------------------
+create table if not exists public.restaurant_gallery_settings (
+  restaurant_id uuid primary key references public.restaurants (id) on delete cascade,
+  embed_max_items integer not null default 48
+    check (embed_max_items between 1 and 200),
+  embed_platforms jsonb not null default '["gwada","facebook","instagram","google_business"]'::jsonb,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint restaurant_gallery_settings_embed_platforms_is_array
+    check (jsonb_typeof(embed_platforms) = 'array')
+);
+
+create trigger restaurant_gallery_settings_set_updated_at
+  before update on public.restaurant_gallery_settings
+  for each row execute function public.set_updated_at();
+
+alter table public.restaurant_gallery_settings enable row level security;
+
+create policy restaurant_gallery_settings_staff_select
+  on public.restaurant_gallery_settings for select
+  to authenticated
+  using (
+    public.auth_is_restaurant_staff(restaurant_id)
+    and public.auth_has_restaurant_permission(restaurant_id, 'gallery.read')
+  );
+
+create policy restaurant_gallery_settings_staff_write
+  on public.restaurant_gallery_settings for all
+  to authenticated
+  using (
+    public.auth_has_restaurant_permission(restaurant_id, 'gallery.update')
+  )
+  with check (
+    public.auth_has_restaurant_permission(restaurant_id, 'gallery.update')
+  );
+
+-- ---------------------------------------------------------------------------
+-- Gwada-Galerie-Bilder
+-- ---------------------------------------------------------------------------
+create table if not exists public.gwada_gallery_items (
+  id uuid primary key default gen_random_uuid(),
+  restaurant_id uuid not null references public.restaurants (id) on delete cascade,
+  title text,
+  caption text,
+  category text,
+  storage_path text not null,
+  mime_type text not null,
+  size_bytes bigint not null,
+  width integer,
+  height integer,
+  sort_order integer not null default 0,
+  created_by uuid references public.profiles (id) on delete set null,
+  updated_by uuid references public.profiles (id) on delete set null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint gwada_gallery_items_size_positive check (size_bytes > 0),
+  constraint gwada_gallery_items_storage_path_len check (char_length(storage_path) between 1 and 512)
+);
+
+create unique index if not exists gwada_gallery_items_storage_path_idx
+  on public.gwada_gallery_items (storage_path);
+
+create index if not exists gwada_gallery_items_restaurant_created_idx
+  on public.gwada_gallery_items (restaurant_id, created_at desc);
+
+create index if not exists gwada_gallery_items_restaurant_category_idx
+  on public.gwada_gallery_items (restaurant_id, category);
+
+-- Workspace-Speicher-Funktionen (nach gwada_gallery_items)
 create or replace function public.restaurant_gallery_used_bytes(p_restaurant_id uuid)
 returns bigint
 language sql
@@ -208,76 +279,6 @@ begin
   return new;
 end;
 $$;
-
--- ---------------------------------------------------------------------------
--- Einstellungen
--- ---------------------------------------------------------------------------
-create table if not exists public.restaurant_gallery_settings (
-  restaurant_id uuid primary key references public.restaurants (id) on delete cascade,
-  embed_max_items integer not null default 48
-    check (embed_max_items between 1 and 200),
-  embed_platforms jsonb not null default '["gwada","facebook","instagram","google_business"]'::jsonb,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  constraint restaurant_gallery_settings_embed_platforms_is_array
-    check (jsonb_typeof(embed_platforms) = 'array')
-);
-
-create trigger restaurant_gallery_settings_set_updated_at
-  before update on public.restaurant_gallery_settings
-  for each row execute function public.set_updated_at();
-
-alter table public.restaurant_gallery_settings enable row level security;
-
-create policy restaurant_gallery_settings_staff_select
-  on public.restaurant_gallery_settings for select
-  to authenticated
-  using (
-    public.auth_is_restaurant_staff(restaurant_id)
-    and public.auth_has_restaurant_permission(restaurant_id, 'gallery.read')
-  );
-
-create policy restaurant_gallery_settings_staff_write
-  on public.restaurant_gallery_settings for all
-  to authenticated
-  using (
-    public.auth_has_restaurant_permission(restaurant_id, 'gallery.update')
-  )
-  with check (
-    public.auth_has_restaurant_permission(restaurant_id, 'gallery.update')
-  );
-
--- ---------------------------------------------------------------------------
--- Gwada-Galerie-Bilder
--- ---------------------------------------------------------------------------
-create table if not exists public.gwada_gallery_items (
-  id uuid primary key default gen_random_uuid(),
-  restaurant_id uuid not null references public.restaurants (id) on delete cascade,
-  title text,
-  caption text,
-  category text,
-  storage_path text not null,
-  mime_type text not null,
-  size_bytes bigint not null,
-  width integer,
-  height integer,
-  sort_order integer not null default 0,
-  created_by uuid references public.profiles (id) on delete set null,
-  updated_by uuid references public.profiles (id) on delete set null,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now()),
-  constraint gwada_gallery_items_size_positive check (size_bytes > 0),
-  constraint gwada_gallery_items_storage_path_len check (char_length(storage_path) between 1 and 512)
-);
-
-create unique index if not exists gwada_gallery_items_storage_path_idx
-  on public.gwada_gallery_items (storage_path);
-
-create index if not exists gwada_gallery_items_restaurant_created_idx
-  on public.gwada_gallery_items (restaurant_id, created_at desc);
-
-create index if not exists gwada_gallery_items_restaurant_category_idx
-  on public.gwada_gallery_items (restaurant_id, category);
 
 create trigger gwada_gallery_items_set_updated_at
   before update on public.gwada_gallery_items

@@ -4,6 +4,11 @@ export function NotificationPreferencesPanelSkeleton() {
   return (
     <div className="space-y-6" aria-hidden>
       <SkeletonCardFrame className="space-y-3 p-6">
+        <div className="skeleton-shimmer h-6 w-36 rounded-md bg-muted" />
+        <div className="skeleton-shimmer h-4 w-full max-w-md rounded-md bg-muted" />
+        <div className="skeleton-shimmer h-24 rounded-xl bg-muted" />
+      </SkeletonCardFrame>
+      <SkeletonCardFrame className="space-y-3 p-6">
         <div className="skeleton-shimmer h-6 w-28 rounded-md bg-muted" />
         <div className="skeleton-shimmer h-11 rounded-xl bg-muted" />
         <div className="skeleton-shimmer h-11 rounded-xl bg-muted" />

@@ -13,7 +13,10 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
-import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
+import {
+  SettingsStickySaveBar,
+  settingsAccentSaveButtonClassName,
+} from "@/components/settings/settings-sticky-save-bar";
 import {
   REVIEW_PLATFORM_LABELS,
   REVIEW_PLATFORM_ORDER,
@@ -228,16 +231,19 @@ export function ReviewsSettingsPanel() {
         </div>
       )}
 
-      <div className="sticky bottom-0 z-10 -mx-1 border-t border-border/50 bg-background/95 px-1 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <SettingsStickySaveBar show={dirty}>
         <Button
           type="button"
-          className={settingsAccentSaveButtonClassName}
-          disabled={!dirty || saving || loading}
+          disabled={saving || loading}
+          className={cn(
+            "h-11 w-full min-w-[12rem] sm:w-auto",
+            settingsAccentSaveButtonClassName,
+          )}
           onClick={() => void save()}
         >
           {saving ? "Speichern …" : "Speichern"}
         </Button>
-      </div>
+      </SettingsStickySaveBar>
     </div>
   );
 }

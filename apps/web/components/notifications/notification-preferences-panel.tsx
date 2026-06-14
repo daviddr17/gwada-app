@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { NotificationPushHistorySection } from "@/components/notifications/notification-push-history-section";
 import { NotificationPreferencesPanelSkeleton } from "@/components/notifications/notification-preferences-panel-skeleton";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -180,6 +181,8 @@ export function NotificationPreferencesPanel() {
 
   return (
     <div className="space-y-6">
+      <NotificationPushHistorySection />
+
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">Zustellung</CardTitle>

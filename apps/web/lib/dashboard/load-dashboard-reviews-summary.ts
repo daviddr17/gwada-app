@@ -5,7 +5,9 @@ import {
   type ReviewPlatform,
 } from "@/lib/constants/review-platforms";
 import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
+import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
 import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readPlatformSyncMeta, readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
 import { averageRating } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
@@ -30,6 +32,8 @@ export type DashboardReviewRecentItem = {
   createdAt: string;
   href: string;
   isUnread: boolean;
+  /** Gwada: verknüpfter Kontakt, falls ermittelbar */
+  contactId?: string | null;
 };
 
 export type DashboardReviewsSummary = {
@@ -60,6 +64,7 @@ function toRecentItem(review: UnifiedReview): DashboardReviewRecentItem {
     createdAt: review.createdAt,
     href: PLATFORM_HREF[review.platform],
     isUnread: review.isUnread ?? true,
+    contactId: review.contactId ?? null,
   };
 }
 
@@ -70,15 +75,30 @@ export async function loadDashboardReviewsSummary(
 ): Promise<DashboardReviewsSummary> {
   const { data: gwadaRows, count: gwadaCountRaw } = await sb
     .from("gwada_reviews")
-    .select("id, rating, comment, guest_display_name, created_at", {
-      count: "exact",
-    })
+    .select(
+      "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id",
+      { count: "exact" },
+    )
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false })
     .limit(500);
 
   const gwadaAll = gwadaRows ?? [];
   const gwadaRecentRows = gwadaAll.slice(0, 8);
+
+  const admin = createSupabaseAdminClient();
+  const contactByReviewId =
+    admin && gwadaRecentRows.length > 0
+      ? await enrichGwadaReviewsWithContactIds(
+          admin,
+          restaurantId,
+          gwadaRecentRows.map((r) => ({
+            id: r.id as string,
+            reservation_id: (r.reservation_id as string | null) ?? null,
+            invitation_id: r.invitation_id as string,
+          })),
+        )
+      : new Map<string, string>();
 
   const gwadaReviews: UnifiedReview[] = gwadaRecentRows.map((r) => ({
     id: r.id as string,
@@ -90,6 +110,7 @@ export async function loadDashboardReviewsSummary(
     reply: null,
     canReply: false,
     externalUrl: null,
+    contactId: contactByReviewId.get(r.id as string) ?? null,
   }));
 
   const gwadaCount = gwadaCountRaw ?? gwadaAll.length;

@@ -17,6 +17,15 @@ function externalIdForUid(uid: number): string {
   return `${EXTERNAL_PREFIX}${uid}`;
 }
 
+/** Hintergrund-Sync: nur ungelesene IMAP-Nachrichten importieren (kein historischer Unread-Bulk). */
+function shouldImportEnvelopeInBackgroundSync(env: {
+  outbound: boolean;
+  seen: boolean;
+}): boolean {
+  if (env.outbound) return false;
+  return !env.seen;
+}
+
 async function emailToContactMap(
   admin: SupabaseClient,
   restaurantId: string,
@@ -60,7 +69,7 @@ export async function syncRestaurantEmailInbox(
 
   const inboundByContact = new Map<string, number[]>();
   for (const env of envelopes) {
-    if (env.outbound) continue;
+    if (!shouldImportEnvelopeInBackgroundSync(env)) continue;
     const party = imapCounterpartyEmail(env, creds.email);
     if (!party) continue;
     let contactId = contactByEmail.get(party) ?? null;

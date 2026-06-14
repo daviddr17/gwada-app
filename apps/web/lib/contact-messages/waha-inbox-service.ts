@@ -270,6 +270,7 @@ export async function fetchWahaInboxConversations(
       );
       if (fromPseudo) contact_name = fromPseudo;
     }
+    const unreadCount = p.message_count ?? 0;
     return {
       contact_id: p.contact_id,
       contact_name,
@@ -280,9 +281,10 @@ export async function fetchWahaInboxConversations(
       last_is_reaction: p.last_is_reaction,
       last_attachment_kind: p.last_attachment_kind,
       message_count: 0,
-      unread_count: p.message_count,
-      is_unread: (p.message_count ?? 0) > 0,
+      unread_count: unreadCount,
+      is_unread: unreadCount > 0,
       has_reservation_link: false,
+      whatsapp_unread_count: unreadCount,
     };
   });
 

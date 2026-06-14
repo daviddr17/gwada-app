@@ -4,6 +4,7 @@ import type {
   ContactMessagePlatform,
 } from "@/lib/constants/contact-message-platforms";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
@@ -73,6 +74,10 @@ export type ContactConversationPreview = {
   last_message_platform?: ContactMessagePlatform;
   /** Letzter eingehender Kanal des Gastes (Antwort-Default). */
   last_inbound_platform?: ContactMessagePlatform;
+  /** Live-IMAP-Unread (vor Merge, für verknüpfte Kontakte). */
+  email_unread_count?: number;
+  /** Live-WAHA-Unread (vor Merge, für verknüpfte Kontakte). */
+  whatsapp_unread_count?: number;
 };
 
 const MESSAGE_SELECT = `
@@ -258,6 +263,7 @@ export async function fetchContactConversations(params: {
 
   const countByContact = new Map<string, number>();
   const hasReservationByContact = new Map<string, boolean>();
+  const inboundAfter = new Map<string, number>();
   const previews = new Map<string, ContactConversationPreview>();
   const lastInboundByContact = new Map<string, ContactMessagePlatform>();
 
@@ -274,6 +280,15 @@ export async function fetchContactConversations(params: {
       attachmentsByMessage.get(row.id as string) ?? [],
     );
     const msgPlatform = messageDisplayPlatform(mapped);
+    const ext = (mapped.external_source_id as string | null) ?? "";
+    if (
+      countsTowardGwadaUnread({
+        direction: mapped.direction,
+        externalSourceId: ext || null,
+      })
+    ) {
+      inboundAfter.set(contactId, (inboundAfter.get(contactId) ?? 0) + 1);
+    }
     if (
       mapped.direction === "inbound" &&
       !lastInboundByContact.has(contactId)
@@ -289,7 +304,6 @@ export async function fetchContactConversations(params: {
       : (contactRaw as { first_name: string; last_name: string } | null);
     if (!contact) continue;
 
-    const ext = (mapped.external_source_id as string | null) ?? "";
     const mirrored =
       ext.startsWith("waha:") || msgPlatform === "whatsapp"
         ? previewBodyAndKindFromWhatsappMirror(mapped.body.trim())
@@ -306,7 +320,7 @@ export async function fetchContactConversations(params: {
       unread_count: 0,
       is_unread: false,
       has_reservation_link: false,
-      inbound_since_preview: mapped.direction === "inbound" ? 1 : 0,
+      inbound_since_preview: inboundAfter.get(contactId) ?? 0,
       last_attachment_kind:
         primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??
         mirrored.attachmentKind,
@@ -316,6 +330,7 @@ export async function fetchContactConversations(params: {
 
   for (const [contactId, preview] of previews) {
     preview.message_count = countByContact.get(contactId) ?? 0;
+    preview.inbound_since_preview = inboundAfter.get(contactId) ?? 0;
     preview.has_reservation_link =
       hasReservationByContact.get(contactId) ?? false;
     preview.last_inbound_platform = lastInboundByContact.get(contactId);

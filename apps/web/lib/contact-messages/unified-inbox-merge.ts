@@ -42,6 +42,14 @@ function mergePreviewFields(
     last_attachment_kind:
       newer.last_attachment_kind ?? older.last_attachment_kind,
     last_is_reaction: newer.last_is_reaction ?? older.last_is_reaction,
+    email_unread_count: Math.max(
+      newer.email_unread_count ?? 0,
+      older.email_unread_count ?? 0,
+    ),
+    whatsapp_unread_count: Math.max(
+      newer.whatsapp_unread_count ?? 0,
+      older.whatsapp_unread_count ?? 0,
+    ),
   };
 }
 

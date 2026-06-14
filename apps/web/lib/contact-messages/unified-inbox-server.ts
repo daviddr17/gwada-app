@@ -1,6 +1,7 @@
 import "server-only";
 
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { enrichUnifiedInboxReadStateServer } from "@/lib/contact-messages/unified-inbox-read-state";
 import { fetchEmailInboxConversations } from "@/lib/contact-messages/email-inbox-service";
@@ -78,11 +79,21 @@ async function fetchGwadaConversationsAdmin(
       waha_message_id: (row.waha_message_id as string | null) ?? null,
     });
 
-    if (direction === "inbound") {
+    if (
+      countsTowardGwadaUnread({
+        direction,
+        externalSourceId: ext || null,
+      })
+    ) {
       inboundAfter.set(contactId, (inboundAfter.get(contactId) ?? 0) + 1);
       if (!lastInboundByContact.has(contactId)) {
         lastInboundByContact.set(contactId, msgPlatform);
       }
+    } else if (
+      direction === "inbound" &&
+      !lastInboundByContact.has(contactId)
+    ) {
+      lastInboundByContact.set(contactId, msgPlatform);
     }
 
     if (previews.has(contactId)) continue;
@@ -180,11 +191,21 @@ async function fetchGwadaConversationsAdminLight(
       waha_message_id: (row.waha_message_id as string | null) ?? null,
     });
 
-    if (direction === "inbound") {
+    if (
+      countsTowardGwadaUnread({
+        direction,
+        externalSourceId: ext || null,
+      })
+    ) {
       inboundAfter.set(contactId, (inboundAfter.get(contactId) ?? 0) + 1);
       if (!lastInboundByContact.has(contactId)) {
         lastInboundByContact.set(contactId, msgPlatform);
       }
+    } else if (
+      direction === "inbound" &&
+      !lastInboundByContact.has(contactId)
+    ) {
+      lastInboundByContact.set(contactId, msgPlatform);
     }
 
     if (previews.has(contactId)) continue;

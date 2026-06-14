@@ -1,6 +1,7 @@
 import {
   computeConversationUnread,
   conversationReadLookupKey,
+  countsTowardGwadaUnread,
   type ConversationReadRow,
 } from "@/lib/contact-messages/conversation-read-state";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
@@ -65,8 +66,7 @@ function enrichOneConversation(
       conversation: {
         last_at: c.last_at,
         last_direction: c.last_direction,
-        external_unread_count:
-          c.last_message_platform === "whatsapp" ? c.unread_count : null,
+        external_unread_count: c.whatsapp_unread_count ?? null,
       },
     });
     const unreadEm = computeConversationUnread({
@@ -74,8 +74,7 @@ function enrichOneConversation(
       conversation: {
         last_at: c.last_at,
         last_direction: c.last_direction,
-        external_unread_count:
-          c.last_message_platform === "email" ? c.unread_count : null,
+        external_unread_count: c.email_unread_count ?? null,
       },
     });
     const unread_count = Math.max(

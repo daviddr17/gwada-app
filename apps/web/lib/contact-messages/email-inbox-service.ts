@@ -104,6 +104,7 @@ export async function fetchEmailInboxConversations(
         is_unread: unseenInbound,
         has_reservation_link: false,
         inbound_since_preview: unseenInbound ? 1 : 0,
+        email_unread_count: unseenInbound ? 1 : 0,
       });
       continue;
     }
@@ -113,6 +114,8 @@ export async function fetchEmailInboxConversations(
       existing.unread_count += 1;
       existing.inbound_since_preview =
         (existing.inbound_since_preview ?? 0) + 1;
+      existing.email_unread_count =
+        (existing.email_unread_count ?? 0) + 1;
     }
     if (lastAt > existing.last_at) {
       existing.last_body = msg.snippet;
@@ -124,6 +127,7 @@ export async function fetchEmailInboxConversations(
 
   for (const preview of byKey.values()) {
     preview.is_unread = preview.unread_count > 0;
+    preview.email_unread_count = preview.unread_count;
   }
 
   const latestUidByKey = new Map<string, number>();

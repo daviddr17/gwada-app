@@ -14,6 +14,22 @@ export type ConversationUnreadInput = {
   external_unread_count?: number | null;
 };
 
+/** IMAP-/WAHA-Spiegel in `contact_messages` — Unread kommt von externer Quelle. */
+export function isExternalInboxMirrorSource(
+  externalSourceId: string | null | undefined,
+): boolean {
+  const ext = externalSourceId?.trim() ?? "";
+  return ext.startsWith("email-imap:") || ext.startsWith("waha:");
+}
+
+export function countsTowardGwadaUnread(params: {
+  direction: "inbound" | "outbound";
+  externalSourceId?: string | null;
+}): boolean {
+  if (params.direction !== "inbound") return false;
+  return !isExternalInboxMirrorSource(params.externalSourceId);
+}
+
 export function isConversationMarkedUnread(row: ConversationReadRow | undefined): boolean {
   if (!row?.marked_unread_at) return false;
   if (!row.last_read_at) return true;

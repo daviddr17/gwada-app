@@ -1,6 +1,6 @@
 -- Messenger/Instagram Sender-IDs pro Kontakt (PSID / IGSID), getrennt pro Plattform.
 
-create table public.contact_messaging_ids (
+create table if not exists public.contact_messaging_ids (
   id uuid primary key default gen_random_uuid(),
   restaurant_id uuid not null references public.restaurants (id) on delete cascade,
   contact_id uuid not null references public.contacts (id) on delete cascade,
@@ -18,17 +18,18 @@ create table public.contact_messaging_ids (
   )
 );
 
-create unique index contact_messaging_ids_restaurant_platform_sender_idx
+create unique index if not exists contact_messaging_ids_restaurant_platform_sender_idx
   on public.contact_messaging_ids (restaurant_id, platform, external_sender_id);
 
-create unique index contact_messaging_ids_contact_platform_idx
+create unique index if not exists contact_messaging_ids_contact_platform_idx
   on public.contact_messaging_ids (contact_id, platform);
 
-create index contact_messaging_ids_contact_id_idx
+create index if not exists contact_messaging_ids_contact_id_idx
   on public.contact_messaging_ids (contact_id);
 
 alter table public.contact_messaging_ids enable row level security;
 
+drop policy if exists "contact_messaging_ids_staff_all" on public.contact_messaging_ids;
 create policy "contact_messaging_ids_staff_all"
   on public.contact_messaging_ids for all
   using (public.auth_is_restaurant_staff(restaurant_id))

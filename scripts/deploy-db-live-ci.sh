@@ -48,6 +48,13 @@ fi
 export SUPABASE_DB_URL="postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres"
 export PGSSLMODE=disable
 
+DB_URL="${SUPABASE_DB_URL}?sslmode=disable"
+
+echo ""
+echo "=== Live-DB: Migration history repair (falls nötig) ==="
+# Galerie 20260623120000: SQL teils/fehl angewendet, schema_migrations-Eintrag blockiert erneutes push.
+supabase migration repair --status applied --db-url "${DB_URL}" --yes 20260623120000 2>/dev/null || true
+
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
 bash scripts/db-push-live.sh --include-all --yes "$@"

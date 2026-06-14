@@ -3,7 +3,7 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { StripeHeroCanvas } from "@/components/landing/stripe-hero-canvas";
 import { LandingHeroCard } from "@/components/landing/landing-hero-card";
-import { useResolvedPlatformLogoSrc } from "@/lib/hooks/use-resolved-platform-logo-src";
+import { useMarketingHeroLogoSrc } from "@/lib/hooks/use-marketing-hero-logo-src";
 
 type ParallaxProps = {
   mouse: { x: number; y: number };
@@ -44,7 +44,7 @@ type Props = {
  * Full-viewport Hero: Stripe-Gradient + Glas-Card, starke Typo, CTAs.
  */
 export function LandingHero({ mouse, parallaxEnabled, onScrollToSection }: Props) {
-  const logoUrl = useResolvedPlatformLogoSrc();
+  const logoUrl = useMarketingHeroLogoSrc();
   const cardProps = { mouse, logoUrl, onScrollToSection };
 
   return (

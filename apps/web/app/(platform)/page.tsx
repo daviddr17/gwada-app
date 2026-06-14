@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
+import { preload } from "react-dom";
 import { LandingPage } from "@/components/landing/landing-page";
+import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
+import { platformMarketingLogoHref } from "@/lib/platform/platform-marketing-logo-url";
 
 export const metadata: Metadata = {
   description:
     "Reservierungen, Menü und Branding in einer ruhigen, hochwertigen Oberfläche.",
 };
 
-export default function Home() {
+export default async function Home() {
+  const branding = await getCachedRootLayoutBranding();
+  const heroLogo = platformMarketingLogoHref(branding, "light");
+  if (heroLogo) {
+    preload(heroLogo, { as: "image", fetchPriority: "high" });
+  }
+
   return (
     <div className="min-h-dvh">
       <LandingPage />

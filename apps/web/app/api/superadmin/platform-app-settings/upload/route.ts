@@ -3,6 +3,10 @@ import {
   isPlatformBrandingAssetKind,
   PLATFORM_BRANDING_ASSET_FIELDS,
 } from "@/lib/superadmin/platform-branding-asset-kind";
+import {
+  isSvgLogoMime,
+  optimizeLogoBufferForStorage,
+} from "@/lib/platform/platform-logo-optimize";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   fetchPlatformAppBranding,
@@ -118,12 +122,47 @@ export async function POST(req: Request) {
 
   const ext = extForMime(file.type);
   const storagePath = `${storagePrefix}-${Date.now()}.${ext}`;
-  const bytes = new Uint8Array(await file.arrayBuffer());
+  let bytes = new Uint8Array(await file.arrayBuffer());
+  let uploadContentType = file.type;
+
+  if (
+    (kind === "logo" || kind === "logo_dark") &&
+    !isSvgLogoMime(file.type)
+  ) {
+    const optimized = await optimizeLogoBufferForStorage(Buffer.from(bytes));
+    bytes = new Uint8Array(optimized.buffer);
+    uploadContentType = optimized.contentType;
+    const storagePathWebp = `${storagePrefix}-${Date.now()}.webp`;
+    const { error: uploadError } = await admin.storage
+      .from(BUCKET)
+      .upload(storagePathWebp, bytes, {
+        contentType: uploadContentType,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      return Response.json({ error: uploadError.message }, { status: 500 });
+    }
+
+    const { error: updateError } = await updatePlatformBrandingAssetPath(
+      admin,
+      dbField,
+      storagePathWebp,
+    );
+
+    if (updateError) {
+      await admin.storage.from(BUCKET).remove([storagePathWebp]);
+      return Response.json({ error: updateError }, { status: 500 });
+    }
+
+    await removeStorageObject(admin, prevPath);
+    return jsonBranding(admin);
+  }
 
   const { error: uploadError } = await admin.storage
     .from(BUCKET)
     .upload(storagePath, bytes, {
-      contentType: file.type,
+      contentType: uploadContentType,
       upsert: true,
     });
 

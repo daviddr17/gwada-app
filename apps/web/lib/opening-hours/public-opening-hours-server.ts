@@ -8,6 +8,8 @@ import {
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
+import { normalizeHex } from "@/lib/theme/color-utils";
 import { timeToHHmm } from "@/lib/supabase/opening-hours-db";
 import type {
   DateHoursException,
@@ -87,11 +89,14 @@ export async function fetchPublicEmbedOpeningHours(
 
   const { data: restaurant, error: restaurantError } = await admin
     .from("restaurants")
-    .select("id, name, is_published, accent_hex")
+    .select("id, name, is_published, brand_accent_hex")
     .eq("slug", slug)
     .maybeSingle();
 
-  if (restaurantError || !restaurant?.id) {
+  if (restaurantError) {
+    return { data: null, error: "db_error", status: 500 };
+  }
+  if (!restaurant?.id) {
     return { data: null, error: "not_found", status: 404 };
   }
   if (!restaurant.is_published) {
@@ -153,7 +158,9 @@ export async function fetchPublicEmbedOpeningHours(
   return {
     data: {
       restaurantName: restaurant.name?.trim() || "Restaurant",
-      accentHex: restaurant.accent_hex?.trim() || "#6366f1",
+      accentHex:
+        normalizeHex(String(restaurant.brand_accent_hex ?? "")) ??
+        DEFAULT_ACCENT_HEX,
       weeklyHours,
       kitchenHoursEnabled,
       kitchenWeeklyHours,

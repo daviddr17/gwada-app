@@ -12,7 +12,6 @@ import {
   LIST_PAGE_SIZE_DEFAULT,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactCatalogFilterChips } from "@/components/contacts/contact-catalog-filter-chips";
@@ -434,13 +433,6 @@ export function ContactsOverview() {
                 aria-label="Kontakte durchsuchen"
               />
             </div>
-            {!loading ? (
-              <ListRangeCount
-                shown={paginatedRows.length}
-                total={totalCount}
-                itemLabel="Kontakte"
-              />
-            ) : null}
             <Button
               type="button"
               size="lg"
@@ -464,6 +456,7 @@ export function ContactsOverview() {
               classNameBelow="px-4 pb-4"
               page={currentPage}
               totalPages={totalPages}
+              shown={paginatedRows.length}
               totalCount={totalCount}
               itemLabel="Kontakte"
               canPrevious={currentPage > 1}

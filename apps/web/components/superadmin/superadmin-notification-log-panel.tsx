@@ -295,6 +295,7 @@ export function SuperadminNotificationLogPanel() {
         classNameBelow="pt-4"
         page={page}
         totalPages={totalPages}
+        shown={rows.length}
         totalCount={totalCount}
         itemLabel="Einträge"
         canPrevious={page > 1}

@@ -55,7 +55,6 @@ import {
 } from "@/lib/accounting/accounting-corrections";
 import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -294,15 +293,6 @@ export function AccountingVouchersScreen() {
         </div>
       ) : null}
 
-      {!loading && !showSkeleton ? (
-        <ListRangeCount
-          className="mb-3"
-          shown={rows.length}
-          total={listMeta.totalCount}
-          itemLabel="Belege"
-        />
-      ) : null}
-
       {canManage ? (
         <Button
           type="button"
@@ -335,6 +325,7 @@ export function AccountingVouchersScreen() {
               classNameBelow="px-4 pb-4"
               page={listMeta.page}
               totalPages={listMeta.totalPages}
+              shown={rows.length}
               totalCount={listMeta.totalCount}
               itemLabel={listCountLabel}
               canPrevious={listMeta.page > 1}

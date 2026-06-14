@@ -54,7 +54,7 @@ function EmbedReviewCard({ review }: { review: PublicEmbedReview }) {
   const date = formatReviewDate(review.createdAt);
 
   return (
-    <article className="flex h-full flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
+    <article className="mb-4 flex w-full break-inside-avoid flex-col rounded-xl border border-border/50 bg-card p-4 shadow-card">
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <ReviewPlatformIcon
@@ -244,7 +244,7 @@ export function EmbedReviewsWidget({
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [contain:layout]">
               {reviews.map((review) => (
                 <EmbedReviewCard
                   key={`${review.platform}-${review.id}`}

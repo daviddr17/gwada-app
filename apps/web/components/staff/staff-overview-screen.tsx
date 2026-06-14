@@ -43,7 +43,6 @@ import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -83,10 +82,6 @@ export function StaffOverviewScreen() {
     mode: "create" | "edit";
     initial?: { id: string; name: string; active: boolean; backgroundColor: string };
   } | null>(null);
-  const [tablePageStats, setTablePageStats] = useState({
-    shown: 0,
-    total: 0,
-  });
 
   const reload = useCallback(async () => {
     if (!restaurantId) return;
@@ -291,13 +286,6 @@ export function StaffOverviewScreen() {
             Positionen
           </Button>
         </div>
-        {!showSkeleton ? (
-          <ListRangeCount
-            shown={tablePageStats.shown}
-            total={tablePageStats.total}
-            itemLabel="Mitarbeiter"
-          />
-        ) : null}
         <Button
           type="button"
           size="lg"
@@ -325,7 +313,6 @@ export function StaffOverviewScreen() {
               rows={rows}
               workingIds={workingIds}
               breakIds={breakIds}
-              onPageStats={setTablePageStats}
               onEdit={(row) => {
                 setFormMode("edit");
                 setEditStaff(row);

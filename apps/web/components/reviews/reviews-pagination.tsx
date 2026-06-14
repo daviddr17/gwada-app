@@ -20,6 +20,7 @@ export type ReviewsPaginationProps = {
   busy?: boolean;
   className?: string;
   placement?: "above" | "below";
+  showSummary?: boolean;
 };
 
 export function ReviewsPagination({
@@ -32,26 +33,32 @@ export function ReviewsPagination({
   busy = false,
   className,
   placement = "below",
+  showSummary = true,
 }: ReviewsPaginationProps) {
   if (totalPages <= 1 && !canNext) return null;
+  if (showSummary === false && totalPages <= 1 && !canNext) return null;
+
+  const summary =
+    showSummary && totalPages > 1 ? `Seite ${page}/${totalPages}` : null;
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2",
         placement === "above"
           ? "border-b border-border/50 pb-4"
           : "border-t border-border/50 pt-4",
         className,
       )}
     >
-      <p className="text-sm text-muted-foreground tabular-nums">
-        Seite{" "}
-        <span className="font-medium text-foreground">{page}</span>
-        {" / "}
-        <span className="font-medium text-foreground">{totalPages}</span>
-      </p>
-      <Pagination className="mx-0 w-auto justify-end">
+      {summary ? (
+        <p className="min-w-0 text-sm text-muted-foreground tabular-nums">
+          {summary}
+        </p>
+      ) : (
+        <span className="min-w-0 flex-1" aria-hidden />
+      )}
+      <Pagination className="mx-0 w-auto shrink-0 justify-end">
         <PaginationContent>
           <PaginationItem>
             <PaginationPrevious
@@ -88,12 +95,14 @@ export function ReviewsPaginationSurround({
       <ReviewsPagination
         {...paginationProps}
         placement="above"
+        showSummary
         className={classNameAbove}
       />
       {children}
       <ReviewsPagination
         {...paginationProps}
         placement="below"
+        showSummary={false}
         className={classNameBelow}
       />
     </>

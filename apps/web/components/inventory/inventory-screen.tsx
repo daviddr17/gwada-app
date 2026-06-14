@@ -72,7 +72,6 @@ import {
   LIST_PAGE_SIZE_DEFAULT,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   moduleSearchFieldWrapClassName,
   moduleSearchFilterActiveBadgeClassName,
@@ -984,12 +983,6 @@ export function InventoryScreen() {
       />
 
       <div className="mb-6">
-        <ListRangeCount
-          className="mb-3"
-          shown={paginatedRows.length}
-          total={totalCount}
-          itemLabel="Zutaten"
-        />
         <Button
           type="button"
           size="lg"
@@ -1007,6 +1000,7 @@ export function InventoryScreen() {
           classNameBelow="px-4 pb-4"
           page={currentPage}
           totalPages={totalPages}
+          shown={paginatedRows.length}
           totalCount={totalCount}
           itemLabel="Zutaten"
           canPrevious={currentPage > 1}

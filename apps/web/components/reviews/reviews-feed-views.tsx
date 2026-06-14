@@ -216,7 +216,7 @@ export function ReviewCard({
   return (
     <Card
       className={cn(
-        "border-border/50 shadow-card",
+        "mb-4 break-inside-avoid border-border/50 shadow-card",
         isUnread && "border-accent/35 bg-accent/[0.03]",
         review.hiddenFromPublic && "opacity-80",
       )}
@@ -324,7 +324,7 @@ export function ReviewsGridView({
   getReviewProps: (review: UnifiedReview) => Omit<ReviewCardActions, "review" | "showPlatform">;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="columns-1 gap-4 sm:columns-2 xl:columns-3 [contain:layout]">
       {reviews.map((review) => (
         <ReviewCard
           key={`${review.platform}:${review.id}`}

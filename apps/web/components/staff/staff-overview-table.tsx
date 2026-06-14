@@ -80,7 +80,6 @@ type StaffOverviewTableProps = {
   workingIds: Set<string>;
   breakIds: Set<string>;
   onEdit: (row: RestaurantStaffRow) => void;
-  onPageStats?: (stats: { shown: number; total: number }) => void;
 };
 
 export function StaffOverviewTable({
@@ -88,7 +87,6 @@ export function StaffOverviewTable({
   workingIds,
   breakIds,
   onEdit,
-  onPageStats,
 }: StaffOverviewTableProps) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -171,10 +169,6 @@ export function StaffOverviewTable({
     setPage(1);
   }, [search]);
 
-  useEffect(() => {
-    onPageStats?.({ shown: paginatedRows.length, total: totalCount });
-  }, [onPageStats, paginatedRows.length, totalCount]);
-
   return (
     <>
       <div className="border-b border-border/50 px-4 py-3">
@@ -194,6 +188,7 @@ export function StaffOverviewTable({
         classNameBelow="px-4 pb-4"
         page={currentPage}
         totalPages={totalPages}
+        shown={paginatedRows.length}
         totalCount={totalCount}
         itemLabel="Mitarbeiter"
         canPrevious={currentPage > 1}

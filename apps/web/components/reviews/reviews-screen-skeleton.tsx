@@ -77,9 +77,11 @@ export function ReviewsScreenSkeleton({
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="columns-1 gap-4 sm:columns-2 xl:columns-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <ReviewCardSkeleton key={i} />
+              <div key={i} className="mb-4 break-inside-avoid">
+                <ReviewCardSkeleton />
+              </div>
             ))}
           </div>
         )}

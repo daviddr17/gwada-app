@@ -17,6 +17,15 @@ export async function upsertContactMessagingId(
   const senderId = params.externalSenderId.trim();
   if (!senderId) return { ok: false, error: "empty_sender_id" };
 
+  const { error: releaseErr } = await admin
+    .from("contact_messaging_ids")
+    .delete()
+    .eq("restaurant_id", params.restaurantId)
+    .eq("platform", params.platform)
+    .eq("external_sender_id", senderId);
+
+  if (releaseErr) return { ok: false, error: releaseErr.message };
+
   const { error } = await admin.from("contact_messaging_ids").upsert(
     {
       restaurant_id: params.restaurantId,
@@ -30,9 +39,21 @@ export async function upsertContactMessagingId(
     { onConflict: "contact_id,platform" },
   );
 
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    if (error.message.includes("contact_messaging_ids_restaurant_platform_sender")) {
+      return { ok: false, error: "sender_already_linked" };
+    }
+    return { ok: false, error: error.message };
+  }
   return { ok: true, error: null };
 }
+
+export type LinkMetaThreadToContactResult = {
+  ok: boolean;
+  imported: number;
+  error: string | null;
+  messageImportError?: string | null;
+};
 
 export async function linkMetaThreadToContact(
   admin: SupabaseClient,
@@ -41,7 +62,7 @@ export async function linkMetaThreadToContact(
     contactId: string;
     metaContactId: string;
   },
-): Promise<{ ok: boolean; imported: number; error: string | null }> {
+): Promise<LinkMetaThreadToContactResult> {
   const parsed = parseMetaPseudoContactId(params.metaContactId);
   if (!parsed) {
     return { ok: false, imported: 0, error: "invalid_meta_contact" };
@@ -77,7 +98,12 @@ export async function linkMetaThreadToContact(
   );
 
   if (fetchErr) {
-    return { ok: false, imported: 0, error: fetchErr };
+    return {
+      ok: true,
+      imported: 0,
+      error: null,
+      messageImportError: fetchErr,
+    };
   }
 
   if (messages.length === 0) {
@@ -128,7 +154,12 @@ export async function linkMetaThreadToContact(
 
   const { error: insErr } = await admin.from("contact_messages").insert(rows);
   if (insErr) {
-    return { ok: false, imported: 0, error: insErr.message };
+    return {
+      ok: true,
+      imported: 0,
+      error: null,
+      messageImportError: insErr.message,
+    };
   }
 
   return { ok: true, imported: rows.length, error: null };

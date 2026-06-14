@@ -123,6 +123,10 @@ import {
   emailAddressFromPseudoContactId,
   isEmailPseudoContactId,
 } from "@/lib/contact-messages/email-pseudo-contact";
+import {
+  inboxLinkContactErrorMessage,
+  inboxLinkContactImportWarning,
+} from "@/lib/contact-messages/inbox-link-contact-errors";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import {
   sendContactMessageUserMessage,
@@ -1437,17 +1441,24 @@ export function ContactsMessagesScreen() {
         const platform = metaPlatformFromPseudoContactId(pseudoContactId);
         const label =
           platform === "instagram" ? "Instagram" : "Messenger";
-        toast.success(
-          n > 0
-            ? `${label}-Chat mit „${existingDisplayName}“ verknüpft (${n} Nachrichten importiert).`
-            : `${label}-Chat mit „${existingDisplayName}“ verknüpft.`,
+        const importWarn = inboxLinkContactImportWarning(
+          link.messageImportError ?? undefined,
         );
+        if (importWarn) {
+          toast.warning(importWarn);
+        } else {
+          toast.success(
+            n > 0
+              ? `${label}-Chat mit „${existingDisplayName}“ verknüpft (${n} Nachrichten importiert).`
+              : `${label}-Chat mit „${existingDisplayName}“ verknüpft.`,
+          );
+        }
         router.replace(
           `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
         );
         return true;
       }
-      toast.warning("Verknüpfung mit bestehendem Kontakt fehlgeschlagen.");
+      toast.warning(inboxLinkContactErrorMessage(link?.error));
       return false;
     },
     [restaurantId, router],
@@ -1477,7 +1488,7 @@ export function ContactsMessagesScreen() {
         );
         return true;
       }
-      toast.warning("Verknüpfung mit bestehendem Kontakt fehlgeschlagen.");
+      toast.warning(inboxLinkContactErrorMessage(link?.error));
       return false;
     },
     [restaurantId, router],
@@ -1508,11 +1519,9 @@ export function ContactsMessagesScreen() {
         return true;
       }
       if (link?.error === "email_on_other_contact") {
-        toast.warning(
-          "Diese E-Mail-Adresse ist bereits bei einem anderen Kontakt hinterlegt.",
-        );
+        toast.warning(inboxLinkContactErrorMessage(link.error));
       } else {
-        toast.warning("Verknüpfung mit bestehendem Kontakt fehlgeschlagen.");
+        toast.warning(inboxLinkContactErrorMessage(link?.error));
       }
       return false;
     },

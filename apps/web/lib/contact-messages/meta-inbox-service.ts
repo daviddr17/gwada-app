@@ -186,7 +186,10 @@ export async function fetchMetaThreadMessages(
       "messages.limit(50){id,message,from,created_time,attachments,sticker,reactions}",
   });
   const msgUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${conversationId}?${msgQ}`;
-  const msgRes = await metaGraphGet<MetaConversation>(msgUrl);
+  const msgRes = await metaGraphGet<MetaConversation>(msgUrl, {
+    platform: parsed.platform,
+    feature: "messages",
+  });
   if (msgRes.error) return { data: [], error: msgRes.error };
 
   const rows = (msgRes.data?.messages?.data ?? [])

@@ -264,7 +264,12 @@ export async function triggerLinkMetaThreadToContact(body: {
   restaurantId: string;
   metaContactId: string;
   contactId: string;
-}): Promise<{ ok: boolean; imported?: number; error?: string } | null> {
+}): Promise<{
+  ok: boolean;
+  imported?: number;
+  error?: string;
+  messageImportError?: string | null;
+} | null> {
   try {
     const res = await fetch("/api/contact-messages/meta/link-contact", {
       method: "POST",
@@ -275,6 +280,7 @@ export async function triggerLinkMetaThreadToContact(body: {
       ok: boolean;
       imported?: number;
       error?: string;
+      messageImportError?: string | null;
     };
   } catch {
     return null;

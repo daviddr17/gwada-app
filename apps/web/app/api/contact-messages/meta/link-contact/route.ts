@@ -48,5 +48,9 @@ export async function POST(req: Request) {
     );
   }
 
-  return Response.json({ ok: true, imported: result.imported });
+  return Response.json({
+    ok: true,
+    imported: result.imported,
+    messageImportError: result.messageImportError ?? null,
+  });
 }

@@ -167,11 +167,14 @@ export function useNotificationSummary() {
         return { ...prev, modules, totalCount };
       });
 
-      const result = await markNotificationReadClient({
-        restaurantId,
-        module: params.module,
-        itemId: null,
-      });
+      const result = await markNotificationReadClient(
+        {
+          restaurantId,
+          module: params.module,
+          itemId: null,
+        },
+        { notify: false },
+      );
 
       if (!result.ok) {
         void refresh({ silent: true });

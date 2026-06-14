@@ -40,6 +40,7 @@ import { ContactMessagePlatformIcon } from "@/components/contacts/contact-messag
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -115,6 +116,11 @@ import {
   parseConversationReadFilter,
   type ConversationReadFilter,
 } from "@/lib/contact-messages/filter-conversations";
+import {
+  clampListPage,
+  LIST_PAGE_SIZE_DEFAULT,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
 import { draftFromEmailChat } from "@/lib/contact-messages/draft-from-email-chat";
 import {
   draftFromWahaChat,
@@ -342,6 +348,7 @@ export function ContactsMessagesScreen() {
   const [readFilter, setReadFilter] = useState<ConversationReadFilter>(() =>
     parseConversationReadFilter(readParam),
   );
+  const [chatListPage, setChatListPage] = useState(1);
   const [refreshingInbox, setRefreshingInbox] = useState(false);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
@@ -349,7 +356,12 @@ export function ContactsMessagesScreen() {
   useEffect(() => {
     setChatSearch("");
     setReadFilter("all");
+    setChatListPage(1);
   }, [inboxFilter]);
+
+  useEffect(() => {
+    setChatListPage(1);
+  }, [chatSearch, readFilter]);
 
   useEffect(() => {
     setEditingWahaMessage(null);
@@ -376,6 +388,17 @@ export function ContactsMessagesScreen() {
     const searched = filterContactConversations(byPlatform, chatSearch);
     return filterConversationsByRead(searched, readFilter);
   }, [conversations, chatSearch, readFilter, inboxFilter]);
+
+  const chatListTotalCount = filteredConversations.length;
+  const chatListTotalPages = totalPagesFromCount(
+    chatListTotalCount,
+    LIST_PAGE_SIZE_DEFAULT,
+  );
+  const currentChatListPage = clampListPage(chatListPage, chatListTotalPages);
+  const paginatedConversations = useMemo(() => {
+    const from = (currentChatListPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return filteredConversations.slice(from, from + LIST_PAGE_SIZE_DEFAULT);
+  }, [filteredConversations, currentChatListPage]);
 
   const linkedThread =
     Boolean(contactParam) && isLinkedContactId(contactParam!);
@@ -2457,8 +2480,25 @@ export function ContactsMessagesScreen() {
                       : "Keine Chats gefunden."}
               </p>
             ) : (
+              <ListPaginationSurround
+                classNameAbove="px-4 pt-3 sm:px-6"
+                classNameBelow="px-4 pb-4 sm:px-6"
+                page={currentChatListPage}
+                totalPages={chatListTotalPages}
+                shown={paginatedConversations.length}
+                totalCount={chatListTotalCount}
+                itemLabel="Chats"
+                canPrevious={currentChatListPage > 1}
+                canNext={currentChatListPage < chatListTotalPages}
+                onPrevious={() =>
+                  setChatListPage((p) => Math.max(1, p - 1))
+                }
+                onNext={() =>
+                  setChatListPage((p) => Math.min(chatListTotalPages, p + 1))
+                }
+              >
               <ul className="divide-y divide-border/50">
-                {filteredConversations.map((c) => {
+                {paginatedConversations.map((c) => {
                   const listName = wahaConversationDisplayName(c);
                   const unread = c.is_unread;
                   return (
@@ -2668,6 +2708,7 @@ export function ContactsMessagesScreen() {
                   );
                 })}
               </ul>
+              </ListPaginationSurround>
             )}
           </CardContent>
         </Card>

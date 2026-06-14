@@ -66,7 +66,7 @@ export async function fetchPublicEmbedGallery(
 
   const { data: row, error } = await admin
     .from("restaurants")
-    .select("id, name, slug, accent_color, is_published")
+    .select("id, name, slug, brand_accent_hex, is_published")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -86,7 +86,7 @@ export async function fetchPublicEmbedGallery(
       name: (row.name as string) ?? "Restaurant",
       slug: (row.slug as string) ?? slug,
       accentHex:
-        normalizeHex((row.accent_color as string) ?? DEFAULT_ACCENT_HEX) ??
+        normalizeHex((row.brand_accent_hex as string | null) ?? "") ??
         DEFAULT_ACCENT_HEX,
       items: feed.items,
       highlights: feed.highlights,

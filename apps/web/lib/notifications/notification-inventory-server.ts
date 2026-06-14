@@ -118,18 +118,44 @@ export async function dismissAllInventoryLowStockNotifications(
   sb: SupabaseClient,
   params: { restaurantId: string; userId: string },
 ): Promise<{ error: string | null }> {
-  const summary = await loadInventoryLowStockBellSummary(sb, {
+  const dismissed = await fetchDismissedIngredientIds(sb, {
+    profileId: params.userId,
     restaurantId: params.restaurantId,
-    userId: params.userId,
-    limit: 500,
   });
 
-  if (summary.items.length === 0) return { error: null };
+  const { data: ingredients, error: ingError } = await sb
+    .from("inventory_ingredients")
+    .select("id, current_stock, low_stock_threshold, is_active")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("is_active", true);
 
-  const rows = summary.items.map((item) => ({
+  if (ingError) return { error: ingError.message };
+
+  const ingredientIds = (ingredients ?? [])
+    .map((row) => {
+      const r = row as {
+        id: string;
+        current_stock: number;
+        low_stock_threshold: number;
+        is_active: boolean;
+      };
+      return {
+        id: r.id,
+        currentStock: Number(r.current_stock),
+        lowStockThreshold: Number(r.low_stock_threshold ?? 0),
+        active: r.is_active !== false,
+      };
+    })
+    .filter((ing) => isIngredientLowStock(ing))
+    .filter((ing) => !dismissed.has(ing.id))
+    .map((ing) => ing.id);
+
+  if (ingredientIds.length === 0) return { error: null };
+
+  const rows = ingredientIds.map((ingredientId) => ({
     profile_id: params.userId,
     restaurant_id: params.restaurantId,
-    ingredient_id: item.id,
+    ingredient_id: ingredientId,
   }));
 
   const { error } = await sb

@@ -17,18 +17,14 @@ export function mergeUnreadIntoConversations(
     );
     const { unread_count, is_unread } = computeConversationUnread({
       read,
-      conversation: {
-        last_at: c.last_at,
-        last_direction: c.last_direction,
-        inbound_count: c.inbound_since_preview ?? undefined,
-        external_unread_count:
-          platform === "whatsapp" ||
-          platform === "email" ||
-          platform === "facebook" ||
-          platform === "instagram"
-            ? c.unread_count
-            : null,
-      },
+      conversation:
+        platform === "gwada"
+          ? { last_at: c.last_at, last_direction: c.last_direction }
+          : {
+              last_at: c.last_at,
+              last_direction: c.last_direction,
+              external_unread_count: c.unread_count,
+            },
     });
     return {
       ...c,

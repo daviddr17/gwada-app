@@ -397,9 +397,11 @@ export function RestaurantSettingsPanel({
   );
 
   const updateOpeningHoursSyncToggle = useCallback(
-    (patch: Pick<
-      OpeningHoursSettingsRow,
-      "syncGoogleOnSave" | "syncFacebookOnSave"
+    (patch: Partial<
+      Pick<
+        OpeningHoursSettingsRow,
+        "syncGoogleOnSave" | "syncFacebookOnSave"
+      >
     >) => {
       const next = { ...openingHoursSettings, ...patch };
       setOpeningHoursSettings(next);

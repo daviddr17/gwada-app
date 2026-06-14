@@ -2,13 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { useReducedMotion } from "framer-motion";
 import { Home, LogIn } from "lucide-react";
 import {
   RouteSweepOverlay,
   type RouteSweepMeta,
   sweepDurationMs,
 } from "@/components/layout/route-sweep-overlay";
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 const MARKETING_ROUTES = new Set(["/", "/login"]);
 
@@ -40,13 +44,21 @@ function normalizeMarketingPath(pathname: string): string | null {
 /** Sweep beim Wechsel zwischen Startseite und Anmeldung. */
 export function MarketingAuthRouteTransition() {
   const pathname = usePathname();
-  const reducedMotion = useReducedMotion() ?? false;
-  const reducedMotionRef = useRef(reducedMotion);
-  reducedMotionRef.current = reducedMotion;
+  const reducedMotionRef = useRef(prefersReducedMotion());
 
   const prevPathRef = useRef(pathname);
   const [overlayMeta, setOverlayMeta] = useState<RouteSweepMeta | null>(null);
   const clearTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => {
+      reducedMotionRef.current = mq.matches;
+    };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     const prev = normalizeMarketingPath(prevPathRef.current);

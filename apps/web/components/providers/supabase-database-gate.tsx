@@ -13,9 +13,6 @@ import {
   GWADA_DB_UNAVAILABLE_MESSAGE,
   isSupabaseOnlyMode,
 } from "@/lib/constants/database-mode";
-import {
-  checkWorkspaceDatabaseReachable,
-} from "@/lib/supabase/workspace-persistence";
 
 type GateState = "ready" | "checking" | "error";
 
@@ -71,6 +68,9 @@ export function SupabaseDatabaseGate({
     }
     setState("checking");
     try {
+      const { checkWorkspaceDatabaseReachable } = await import(
+        "@/lib/supabase/check-workspace-database-reachable"
+      );
       const result = await checkWorkspaceDatabaseReachable();
       if (result.ok) {
         setState("ready");

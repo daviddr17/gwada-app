@@ -82,10 +82,8 @@ function enrichOneConversation(
       unreadWa.unread_count,
       unreadEm.unread_count,
     );
-    const is_unread =
-      unreadGwada.is_unread ||
-      unreadWa.is_unread ||
-      unreadEm.is_unread;
+    /** IMAP/WAHA-Zähler sind maßgeblich — kein Gwada-Fallback mit is_unread bei count 0. */
+    const is_unread = unread_count > 0;
     return { ...c, unread_count, is_unread };
   }
 

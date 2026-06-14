@@ -6,7 +6,9 @@ import {
   resolveContactIdByWhatsappChat,
   whatsappChatIdFromPayloadAddress,
 } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
+import { displayNameFromWahaChatId } from "@/lib/contact-messages/waha-chat-label";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
+import { emitMessageNotificationEventIfNew } from "@/lib/notifications/emit-message-notification-event";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -112,6 +114,21 @@ export async function handleWahaInboundWebhook(
       restaurantId,
       source: "waha",
     });
+
+    const messageCreatedAt =
+      wahaTimestampToIso(payload.timestamp) ?? new Date().toISOString();
+    await emitMessageNotificationEventIfNew(admin, {
+      restaurantId,
+      referenceId: `waha:${payload.id}`,
+      payload: {
+        contactId: `waha:${chatId}`,
+        contactName: displayNameFromWahaChatId(chatId) ?? "WhatsApp",
+        preview: bodyText.slice(0, 120),
+        platform: "whatsapp",
+        messageCreatedAt,
+      },
+    });
+
     return { ok: true, imported: false, reason: "contact_not_linked" };
   }
 

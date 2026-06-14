@@ -35,6 +35,13 @@ export function setContactThreadCache(
   });
 }
 
+export function deleteContactThreadCacheEntry(
+  restaurantId: string,
+  contactId: string,
+): void {
+  cache.delete(cacheKey(restaurantId, contactId));
+}
+
 export function clearContactThreadCache(restaurantId?: string): void {
   if (!restaurantId) {
     cache.clear();

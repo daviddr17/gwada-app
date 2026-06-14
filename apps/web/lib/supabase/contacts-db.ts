@@ -552,11 +552,47 @@ export async function deleteContact(params: {
   return { error: null };
 }
 
-export function contactDisplayName(row: {
+const DEFAULT_CONTACT_FIRST_NAME = "Gast";
+
+/** Persönlicher Name ohne DB-Platzhalter „Gast“ (nur Vorname, kein Nachname). */
+export function contactPersonalName(row: {
   first_name: string;
   last_name: string;
 }): string {
-  return `${row.first_name} ${row.last_name}`.trim() || "Unbenannt";
+  const first = row.first_name.trim();
+  const last = row.last_name.trim();
+  const effectiveFirst =
+    first === DEFAULT_CONTACT_FIRST_NAME && !last ? "" : first;
+  return `${effectiveFirst} ${last}`.trim();
+}
+
+export function contactDisplayName(row: {
+  first_name: string;
+  last_name: string;
+  company?: string | null;
+}): string {
+  const personal = contactPersonalName(row);
+  if (personal) return personal;
+  const company = row.company?.trim();
+  if (company) return company;
+  return "Unbenannt";
+}
+
+/** Tabellen-Spalten Vorname/Nachname — „—“ wenn kein persönlicher Name. */
+export function contactOverviewFirstName(row: {
+  first_name: string;
+  last_name: string;
+}): string {
+  if (!contactPersonalName(row)) return "—";
+  return row.first_name.trim() || "—";
+}
+
+export function contactOverviewLastName(row: {
+  first_name: string;
+  last_name: string;
+}): string {
+  if (!contactPersonalName(row)) return "—";
+  return row.last_name.trim() || "—";
 }
 
 /** Chat-/Thread-Überschrift inkl. Firma, wenn hinterlegt. */
@@ -565,7 +601,7 @@ export function contactThreadDisplayName(row: {
   last_name: string;
   company?: string | null;
 }): string {
-  return formatGwadaContactTitle(contactDisplayName(row), row.company);
+  return formatGwadaContactTitle(contactPersonalName(row), row.company);
 }
 
 export {

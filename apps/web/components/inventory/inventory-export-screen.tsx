@@ -128,7 +128,7 @@ export function InventoryExportScreen() {
 
   return (
     <>
-      <div className="relative mx-auto grid max-w-3xl gap-6">
+      <div className="relative grid gap-6">
         {!ready && !showSkeleton ? (
           <div className="min-h-[24rem] rounded-2xl" aria-busy />
         ) : null}

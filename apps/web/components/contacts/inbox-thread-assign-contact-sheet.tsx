@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
-  contactDisplayName,
+  contactThreadDisplayName,
   fetchContactsForRestaurant,
   type ContactListRow,
 } from "@/lib/supabase/contacts-db";
@@ -68,7 +68,7 @@ export function InboxThreadAssignContactSheet({
     () =>
       contacts.map((c) => ({
         value: c.id,
-        label: contactDisplayName(c),
+        label: contactThreadDisplayName(c),
       })),
     [contacts],
   );

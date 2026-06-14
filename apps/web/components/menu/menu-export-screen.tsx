@@ -29,7 +29,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
 function MenuExportCardSkeleton() {
   return (
-    <SkeletonCardFrame className="mx-auto max-w-lg space-y-4">
+    <SkeletonCardFrame className="space-y-4">
       <div className="space-y-2">
         <Skeleton className="h-6 w-24" />
         <Skeleton className="h-4 w-full max-w-md" />
@@ -88,7 +88,7 @@ export function MenuExportScreen() {
 
   return (
     <>
-      <div className="relative mx-auto max-w-lg">
+      <div className="relative">
         {!ready && !showSkeleton ? (
           <div className="min-h-[14rem] rounded-2xl" aria-busy />
         ) : null}

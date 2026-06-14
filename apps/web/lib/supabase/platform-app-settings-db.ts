@@ -2,6 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  DEFAULT_SIDEBAR_MODULE_ORDER,
+  normalizeSidebarModuleOrder,
+  type SidebarModuleId,
+} from "@/lib/constants/sidebar-modules";
+import {
   DEFAULT_PLATFORM_APP_NAME,
   type PlatformAppBranding,
 } from "@/lib/types/platform-app-settings";
@@ -15,6 +20,7 @@ type SettingsRow = {
   logo_path: string | null;
   logo_dark_path: string | null;
   favicon_path: string | null;
+  sidebar_module_order: unknown;
 };
 
 function rowToBranding(row: SettingsRow): PlatformAppBranding {
@@ -60,6 +66,37 @@ export async function fetchPlatformAppBranding(
   }
 
   return rowToBranding(data as SettingsRow);
+}
+
+export async function fetchSidebarModuleOrder(
+  client: SupabaseClient,
+): Promise<SidebarModuleId[]> {
+  const { data, error } = await client
+    .from("platform_app_settings")
+    .select("sidebar_module_order")
+    .eq("id", "default")
+    .maybeSingle();
+
+  if (error || !data) {
+    return [...DEFAULT_SIDEBAR_MODULE_ORDER];
+  }
+
+  return normalizeSidebarModuleOrder(
+    (data as Pick<SettingsRow, "sidebar_module_order">).sidebar_module_order,
+  );
+}
+
+export async function updateSidebarModuleOrder(
+  admin: SupabaseClient,
+  order: SidebarModuleId[],
+): Promise<{ error: string | null }> {
+  const normalized = normalizeSidebarModuleOrder(order);
+  const { error } = await admin
+    .from("platform_app_settings")
+    .update({ sidebar_module_order: normalized })
+    .eq("id", "default");
+
+  return { error: error?.message ?? null };
 }
 
 export async function updatePlatformAppName(

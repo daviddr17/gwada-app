@@ -92,9 +92,9 @@ export function ContactMessageChatViewport({
     });
   }, [scrollToBottom]);
 
-  useLayoutEffect(() => {
-    if (!showMessages) return;
+  const prevLoadingRef = useRef(loading);
 
+  const startBottomAnchor = useCallback(() => {
     userReleasedScrollRef.current = false;
     stickToBottomRef.current = true;
     anchorInitialRef.current = true;
@@ -117,7 +117,22 @@ export function ContactMessageChatViewport({
       for (const id of timers) window.clearTimeout(id);
       window.clearTimeout(endAnchor);
     };
-  }, [threadKey, runScrollToBottom, showMessages]);
+  }, [runScrollToBottom]);
+
+  useLayoutEffect(() => {
+    if (!showMessages) return;
+    return startBottomAnchor();
+  }, [threadKey, showMessages, startBottomAnchor]);
+
+  useLayoutEffect(() => {
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = loading;
+    if (!showMessages || loading) return;
+    if (!wasLoading || sorted.length === 0 || userReleasedScrollRef.current) {
+      return;
+    }
+    return startBottomAnchor();
+  }, [loading, showMessages, sorted.length, startBottomAnchor]);
 
   useLayoutEffect(() => {
     if (!showMessages || userReleasedScrollRef.current) return;

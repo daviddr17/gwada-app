@@ -624,7 +624,7 @@ export function ContactEditDrawer({
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Firma (optional)</Label>
+              <Label className="text-xs text-muted-foreground">Firma</Label>
               <Input
                 value={company}
                 disabled={loading}
@@ -634,7 +634,7 @@ export function ContactEditDrawer({
             </div>
 
             <div className="space-y-3 rounded-lg border border-border/40 bg-background/60 p-3 dark:bg-background/40">
-              <p className="text-sm font-medium">Adresse (optional)</p>
+              <p className="text-sm font-medium">Adresse</p>
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">
                   Straße & Hausnummer

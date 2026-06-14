@@ -4,7 +4,10 @@ import * as React from "react";
 
 /** Desktop / Maus: feiner Pointer; Touch-Geräte: meist false → z. B. keine Scroll-Pfeile. */
 export function usePointerFine() {
-  const [fine, setFine] = React.useState<boolean | undefined>(undefined);
+  const [fine, setFine] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(pointer: fine)").matches;
+  });
 
   React.useEffect(() => {
     const mq = window.matchMedia("(pointer: fine)");
@@ -14,5 +17,5 @@ export function usePointerFine() {
     return () => mq.removeEventListener("change", apply);
   }, []);
 
-  return fine === true;
+  return fine;
 }

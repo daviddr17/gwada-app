@@ -1,0 +1,198 @@
+/* Marketing + öffentliche Profile: Hero-Blobs und Landing-Rise (nicht im globalen Bundle). */
+
+.gwada-hero-blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(80px);
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gwada-hero-blob {
+    animation: none !important;
+  }
+}
+.gwada-hero-blob-a {
+  width: min(92vw, 620px);
+  height: min(92vw, 620px);
+  left: -14%;
+  top: -12%;
+  background: radial-gradient(
+    circle at 45% 42%,
+    rgba(99, 91, 255, 0.88) 0%,
+    rgba(129, 140, 248, 0.35) 42%,
+    transparent 68%
+  );
+}
+.dark .gwada-hero-blob-a {
+  background: radial-gradient(
+    circle at 45% 42%,
+    rgba(99, 91, 255, 0.62) 0%,
+    rgba(99, 102, 241, 0.28) 45%,
+    transparent 70%
+  );
+}
+.gwada-hero-blob-b {
+  width: min(88vw, 540px);
+  height: min(88vw, 540px);
+  right: -18%;
+  top: 4%;
+  background: radial-gradient(
+    circle at 55% 48%,
+    rgba(244, 114, 182, 0.72) 0%,
+    rgba(236, 72, 153, 0.38) 45%,
+    transparent 70%
+  );
+}
+.dark .gwada-hero-blob-b {
+  background: radial-gradient(
+    circle at 55% 48%,
+    rgba(217, 70, 239, 0.55) 0%,
+    rgba(244, 63, 94, 0.28) 48%,
+    transparent 72%
+  );
+}
+.gwada-hero-blob-c {
+  width: min(100vw, 680px);
+  height: min(100vw, 680px);
+  left: 18%;
+  bottom: -28%;
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(34, 211, 238, 0.62) 0%,
+    rgba(59, 130, 246, 0.35) 48%,
+    transparent 72%
+  );
+}
+.dark .gwada-hero-blob-c {
+  background: radial-gradient(
+    circle at 50% 40%,
+    rgba(56, 189, 248, 0.48) 0%,
+    rgba(99, 102, 241, 0.25) 50%,
+    transparent 74%
+  );
+}
+.gwada-hero-blob-d {
+  width: min(75vw, 480px);
+  height: min(75vw, 480px);
+  left: 38%;
+  top: 22%;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(253, 186, 116, 0.55) 0%,
+    rgba(251, 113, 133, 0.32) 46%,
+    transparent 72%
+  );
+  opacity: 0.95;
+}
+.dark .gwada-hero-blob-d {
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(251, 113, 133, 0.42) 0%,
+    rgba(168, 85, 247, 0.22) 50%,
+    transparent 74%
+  );
+  opacity: 0.9;
+}
+@keyframes gwada-hero-blob-a {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(6vw, 4vh, 0) scale(1.08);
+  }
+}
+@keyframes gwada-hero-blob-b {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.02);
+  }
+  50% {
+    transform: translate3d(-5vw, 6vh, 0) scale(1.12);
+  }
+}
+@keyframes gwada-hero-blob-c {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  50% {
+    transform: translate3d(-4vw, -5vh, 0) scale(1.06);
+  }
+}
+@keyframes gwada-hero-blob-d {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(5vw, -3vh, 0) scale(1.07);
+  }
+  66% {
+    transform: translate3d(-3vw, 4vh, 0) scale(1.03);
+  }
+}
+
+@keyframes landing-hero-rise {
+  from {
+    transform: translate3d(0, var(--landing-hero-rise-y, 14px), 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.landing-hero-rise-logo {
+  --landing-hero-rise-y: 14px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-hero-rise-h1 {
+  --landing-hero-rise-y: 20px;
+  animation: landing-hero-rise 0.65s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both;
+}
+
+.landing-hero-rise-sub {
+  --landing-hero-rise-y: 12px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+}
+
+.landing-hero-rise-modules {
+  --landing-hero-rise-y: 14px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+}
+
+.landing-hero-rise-cta {
+  --landing-hero-rise-y: 18px;
+  animation: landing-hero-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-rise-logo,
+  .landing-hero-rise-h1,
+  .landing-hero-rise-sub,
+  .landing-hero-rise-modules,
+  .landing-hero-rise-cta {
+    animation: none;
+  }
+}
+
+/** Statischer Hero-Hintergrund bei reduced motion (ohne JS / framer-motion). */
+.gwada-hero-static-gradient {
+  background: radial-gradient(
+    ellipse 120% 80% at 50% 38%,
+    rgba(99, 91, 255, 0.52) 0%,
+    rgba(236, 72, 153, 0.34) 32%,
+    rgba(34, 211, 238, 0.28) 52%,
+    #f4f6fd 100%
+  );
+}
+.dark .gwada-hero-static-gradient {
+  background: radial-gradient(
+    ellipse 120% 80% at 50% 38%,
+    rgba(99, 91, 255, 0.45) 0%,
+    rgba(192, 38, 211, 0.3) 40%,
+    #0b1020 100%
+  );
+}

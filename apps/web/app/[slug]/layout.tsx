@@ -1,5 +1,6 @@
 import { PublicThemeToggleDeferred } from "@/components/public/public-theme-toggle-deferred";
 import { EmbedProviders } from "@/components/providers/embed-providers";
+import "../marketing-surface.css";
 
 export const revalidate = 60;
 

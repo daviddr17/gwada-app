@@ -1,12 +1,20 @@
 "use client";
 
-import { MarketingProviders } from "@/components/providers/marketing-providers";
-import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
+import dynamic from "next/dynamic";
+import { PlatformProviders } from "@/components/providers/platform-providers";
 import type { PlatformAppBranding } from "@/lib/types/platform-app-settings";
 import type { SidebarModuleId } from "@/lib/constants/sidebar-modules";
 
-/** Voller Provider-Stack — Kompatibilitäts-Export; neue Routen bevorzugt Marketing/Workspace getrennt. */
-export function AppProviders({
+const MarketingAuthRouteTransition = dynamic(
+  () =>
+    import("@/components/layout/marketing-auth-route-transition").then((m) => ({
+      default: m.MarketingAuthRouteTransition,
+    })),
+  { ssr: false },
+);
+
+/** Marketing-Zone: schlanke Provider ohne Toaster, Tooltips oder Supabase-Init. */
+export function MarketingProviders({
   children,
   serverFaviconHref,
   initialBranding,
@@ -18,12 +26,13 @@ export function AppProviders({
   initialSidebarModuleOrder?: SidebarModuleId[] | null;
 }) {
   return (
-    <MarketingProviders
+    <PlatformProviders
       serverFaviconHref={serverFaviconHref}
       initialBranding={initialBranding}
       initialSidebarModuleOrder={initialSidebarModuleOrder}
     >
-      <WorkspaceShellProviders>{children}</WorkspaceShellProviders>
-    </MarketingProviders>
+      <MarketingAuthRouteTransition />
+      {children}
+    </PlatformProviders>
   );
 }

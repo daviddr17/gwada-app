@@ -5,9 +5,11 @@ import { DashboardBatchPrefetchMount } from "@/components/providers/dashboard-ba
 import { SoftNavLockProvider } from "@/components/providers/soft-nav-lock-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presence-heartbeat";
+import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
 import { DashboardWidgetPreferencesProvider } from "@/lib/contexts/dashboard-widget-preferences-context";
 import { RestaurantProfileProvider } from "@/lib/contexts/restaurant-profile-context";
+import "../../app-calendar.css";
 
 export default function AppLayout({
   children,
@@ -15,20 +17,22 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <QueryProvider>
-    <RestaurantProfileProvider>
-      <DashboardWidgetPreferencesProvider>
-        <AccentColorProvider>
-          <SoftNavLockProvider>
-            <AuthCookieCleanupMount />
-            <DashboardBatchPrefetchMount />
-            <ProfilePresenceHeartbeat />
-            <AppModuleLiveProviders />
-            <AppShell>{children}</AppShell>
-          </SoftNavLockProvider>
-        </AccentColorProvider>
-      </DashboardWidgetPreferencesProvider>
-    </RestaurantProfileProvider>
-    </QueryProvider>
+    <WorkspaceShellProviders>
+      <QueryProvider>
+        <RestaurantProfileProvider>
+          <DashboardWidgetPreferencesProvider>
+            <AccentColorProvider>
+              <SoftNavLockProvider>
+                <AuthCookieCleanupMount />
+                <DashboardBatchPrefetchMount />
+                <ProfilePresenceHeartbeat />
+                <AppModuleLiveProviders />
+                <AppShell>{children}</AppShell>
+              </SoftNavLockProvider>
+            </AccentColorProvider>
+          </DashboardWidgetPreferencesProvider>
+        </RestaurantProfileProvider>
+      </QueryProvider>
+    </WorkspaceShellProviders>
   );
 }

@@ -1,0 +1,102 @@
+@import "react-day-picker/style.css";
+
+/*
+ * Theme + layout for react-day-picker. Unlayered so it wins over library defaults.
+ * Nur App-Workspace — nicht auf Marketing-Landing (PageSpeed: kleineres globales CSS).
+ */
+.rdp-root {
+  --rdp-accent-color: var(--primary);
+  --rdp-accent-background-color: var(--muted);
+  --rdp-range_start-date-background-color: var(--primary);
+  --rdp-range_end-date-background-color: var(--primary);
+  --rdp-today-color: var(--foreground);
+  --rdp-day_button-border-radius: 0.375rem;
+  --rdp-day-height: 2.25rem;
+  --rdp-day-width: 2.25rem;
+  --rdp-day_button-height: 2.25rem;
+  --rdp-day_button-width: 2.25rem;
+  --rdp-day_button-border: 1px solid transparent;
+}
+.rdp-root .rdp-chevron {
+  fill: currentColor;
+}
+.rdp-root svg.lucide {
+  fill: none;
+}
+
+/* Caption: gleiche Seitenstreifen, Monat/Jahr mittig zwischen den Pfeilen (ein Monat). */
+.rdp-root[data-nav-layout="around"]:not([data-multiple-months]) .rdp-month {
+  display: grid;
+  grid-template-columns:
+    var(--rdp-nav_button-width) minmax(0, 1fr) var(--rdp-nav_button-width);
+  grid-template-rows: auto auto;
+  align-items: center;
+}
+.rdp-root[data-nav-layout="around"]:not([data-multiple-months])
+  .rdp-button_previous {
+  position: relative !important;
+  inset: unset !important;
+  top: auto !important;
+  height: var(--rdp-nav-height);
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: center;
+}
+.rdp-root[data-nav-layout="around"]:not([data-multiple-months])
+  .rdp-month_caption {
+  grid-column: 2;
+  grid-row: 1;
+  margin-inline: 0 !important;
+  min-width: 0;
+  width: 100%;
+}
+.rdp-root[data-nav-layout="around"]:not([data-multiple-months]) .rdp-button_next {
+  position: relative !important;
+  inset: unset !important;
+  top: auto !important;
+  height: var(--rdp-nav-height);
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: center;
+}
+.rdp-root[data-nav-layout="around"]:not([data-multiple-months]) .rdp-month_grid {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/*
+ * react-day-picker/style.css setzt u. a. `background: none` / `border: none` auf
+ * `.rdp-day_button` und Nav-Buttons — damit gewinnen die Regeln oft gegenüber
+ * Tailwind-`background-color` auf :hover. Hier explizit wie DropdownMenuItem:
+ * `hover:bg-muted/80` + `hover:text-foreground`.
+ */
+.rdp-root .rdp-button_previous,
+.rdp-root .rdp-button_next {
+  border: none;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--muted-foreground);
+}
+.rdp-root .rdp-button_previous:hover:not([aria-disabled="true"]),
+.rdp-root .rdp-button_next:hover:not([aria-disabled="true"]) {
+  background-color: color-mix(in oklch, var(--muted) 80%, transparent);
+  color: var(--foreground);
+}
+
+.rdp-root .rdp-day_button {
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+}
+.rdp-root
+  .rdp-day:not([data-disabled])
+  > .rdp-day_button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: color-mix(in oklch, var(--muted) 80%, transparent);
+  color: var(--foreground);
+}
+.rdp-root
+  .rdp-day[data-selected]:not([data-disabled])
+  > .rdp-day_button:hover:not(:disabled):not([aria-disabled="true"]) {
+  background-color: color-mix(in oklch, var(--muted) 90%, transparent);
+  color: var(--foreground);
+}

@@ -1,7 +1,9 @@
-import { AppProviders } from "@/components/providers/app-providers";
+import { MarketingCriticalCss } from "@/components/marketing/marketing-critical-css";
+import { MarketingProviders } from "@/components/providers/marketing-providers";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import { getCachedSidebarModuleOrder } from "@/lib/platform/cached-sidebar-module-order";
 import { platformFaviconHref } from "@/lib/platform/branding-asset-url";
+import "../marketing-surface.css";
 
 export default async function PlatformLayout({
   children,
@@ -13,12 +15,15 @@ export default async function PlatformLayout({
   const faviconHref = platformFaviconHref(branding.faviconPath);
 
   return (
-    <AppProviders
-      serverFaviconHref={faviconHref}
-      initialBranding={branding}
-      initialSidebarModuleOrder={sidebarModuleOrder}
-    >
-      {children}
-    </AppProviders>
+    <>
+      <MarketingCriticalCss />
+      <MarketingProviders
+        serverFaviconHref={faviconHref}
+        initialBranding={branding}
+        initialSidebarModuleOrder={sidebarModuleOrder}
+      >
+        {children}
+      </MarketingProviders>
+    </>
   );
 }

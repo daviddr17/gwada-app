@@ -6,7 +6,10 @@ import {
   type GoogleBusinessIntegrationConfig,
   type MetaOAuthIntegrationConfig,
 } from "@/lib/integrations/oauth-integration-types";
-import { loadOpeningHoursAdmin } from "@/lib/reservations/public-reservation-server";
+import {
+  loadPublicOpeningHoursForRestaurant,
+  type PublicEmbedOpeningHoursSettings,
+} from "@/lib/opening-hours/public-opening-hours-server";
 import {
   normalizeRestaurantSlugInput,
 } from "@/lib/restaurant/restaurant-slug";
@@ -42,6 +45,9 @@ export type PublicRestaurantProfile = {
   socialLinks: PublicRestaurantSocialLink[];
   weeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
+  kitchenHoursEnabled: boolean;
+  kitchenWeeklyHours: Record<Weekday, DayHours>;
+  openingHoursSettings: PublicEmbedOpeningHoursSettings;
   modules: {
     reservation: boolean;
     menu: boolean;
@@ -185,12 +191,12 @@ export async function fetchPublicRestaurantProfile(
   const accentHex =
     normalizeHex(String(row.brand_accent_hex ?? "")) ?? DEFAULT_ACCENT_HEX;
 
-  const [avatarUrl, coverUrl, socialLinks, { weeklyHours, dateExceptions }, menuCountRes] =
+  const [avatarUrl, coverUrl, socialLinks, openingHours, menuCountRes] =
     await Promise.all([
       signRestaurantAvatarUrl(admin, row.avatar_storage_path as string | null),
       signRestaurantAvatarUrl(admin, row.cover_storage_path as string | null),
       loadSocialLinks(admin, restaurantId),
-      loadOpeningHoursAdmin(admin, restaurantId),
+      loadPublicOpeningHoursForRestaurant(admin, restaurantId),
       admin
         .from("menu_categories")
         .select("id", { count: "exact", head: true })
@@ -239,8 +245,11 @@ export async function fetchPublicRestaurantProfile(
           ? row.website.trim()
           : null,
       socialLinks,
-      weeklyHours,
-      dateExceptions,
+      weeklyHours: openingHours.weeklyHours,
+      dateExceptions: openingHours.dateExceptions,
+      kitchenHoursEnabled: openingHours.kitchenHoursEnabled,
+      kitchenWeeklyHours: openingHours.kitchenWeeklyHours,
+      openingHoursSettings: openingHours.settings,
       modules: {
         reservation: true,
         menu: menuCount > 0,

@@ -41,7 +41,7 @@ export default async function EmbedBewertungenPage({
     );
   }
 
-  const { name, accentHex, reviews, summary } = result.data;
+  const { name, accentHex, reviews, summary, viewMode } = result.data;
 
   return (
     <EmbedReviewsWidget
@@ -49,6 +49,7 @@ export default async function EmbedBewertungenPage({
       accentHex={accentHex}
       reviews={reviews}
       summary={summary}
+      viewMode={viewMode}
     />
   );
 }

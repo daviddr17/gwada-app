@@ -14,7 +14,7 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 3. **`ListPaginationSurround`** um Tabelle/Liste:
    - **Oben:** eine kompakte Zeile `{x}/{y} {Label} · Seite {page}/{totalPages}` + Vor/Zurück
    - Tabelle (nur **aktuelle Seite** rendern)
-   - **Unten:** nur Vor/Zurück (ohne Text-Doppelung)
+   - **Unten:** dieselbe Zeile `{x}/{y} {Label} · Seite {page}/{totalPages}` + Vor/Zurück
 
 ## Anzahl + Seite (eine Zeile oben)
 
@@ -84,7 +84,6 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 
 ## Anti-Pattern
 
-- **`ListRangeCount` über Button** und **`ListPagination`** mit gleicher Info — nur **eine** Zeile oben in `ListPagination`
-- Pagination **nur unten** — immer **`ListPaginationSurround`** (oben mit Text, unten nur Buttons)
+- **`ListRangeCount` über Button** und unterschiedliche Texte oben/unten in `ListPagination`
 - Alle gefilterten Zeilen rendern und nur optisch paginieren
 - Format „x von y“ statt **`x/y`**

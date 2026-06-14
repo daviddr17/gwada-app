@@ -16,6 +16,7 @@ import type {
   DayHours,
   Weekday,
 } from "@/lib/types/restaurant";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PublicEmbedOpeningHoursSettings = {
   embedFooterText: string | null;
@@ -23,14 +24,17 @@ export type PublicEmbedOpeningHoursSettings = {
   embedShowExceptions: boolean;
 };
 
-export type PublicEmbedOpeningHoursData = {
-  restaurantName: string;
-  accentHex: string;
+export type PublicOpeningHoursPayload = {
   weeklyHours: Record<Weekday, DayHours>;
   kitchenHoursEnabled: boolean;
   kitchenWeeklyHours: Record<Weekday, DayHours>;
   dateExceptions: DateHoursException[];
   settings: PublicEmbedOpeningHoursSettings;
+};
+
+export type PublicEmbedOpeningHoursData = PublicOpeningHoursPayload & {
+  restaurantName: string;
+  accentHex: string;
 };
 
 function adminOrError() {
@@ -71,51 +75,37 @@ function mergeWeeklyFromRows(
   return weekly;
 }
 
-export async function fetchPublicEmbedOpeningHours(
-  slugInput: string,
-): Promise<
-  | { data: PublicEmbedOpeningHoursData; error: null }
-  | { data: null; error: string; status: number }
-> {
-  const admin = adminOrError();
-  if ("error" in admin) {
-    return { data: null, error: admin.error, status: admin.status };
-  }
+function parseOpeningHoursSettingsRow(
+  settingsRow: {
+    embed_footer_text?: string | null;
+    embed_show_kitchen_hours?: boolean | null;
+    embed_show_exceptions?: boolean | null;
+  } | null,
+): PublicEmbedOpeningHoursSettings {
+  return {
+    embedFooterText: settingsRow?.embed_footer_text?.trim() || null,
+    embedShowKitchenHours: settingsRow?.embed_show_kitchen_hours ?? true,
+    embedShowExceptions: settingsRow?.embed_show_exceptions ?? true,
+  };
+}
 
-  const slug = normalizeRestaurantSlugInput(slugInput);
-  if (!slug || isReservedRestaurantSlug(slug)) {
-    return { data: null, error: "not_found", status: 404 };
-  }
-
-  const { data: restaurant, error: restaurantError } = await admin
-    .from("restaurants")
-    .select("id, name, is_published, brand_accent_hex")
-    .eq("slug", slug)
-    .maybeSingle();
-
-  if (restaurantError) {
-    return { data: null, error: "db_error", status: 500 };
-  }
-  if (!restaurant?.id) {
-    return { data: null, error: "not_found", status: 404 };
-  }
-  if (!restaurant.is_published) {
-    return { data: null, error: "not_published", status: 404 };
-  }
-
+export async function loadPublicOpeningHoursForRestaurant(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<PublicOpeningHoursPayload> {
   const [hoursRes, settingsRes] = await Promise.all([
     admin
       .from("opening_hours")
       .select(
         "kind,weekday,exception_date,closed,opens_at,closes_at,note,schedule_role",
       )
-      .eq("restaurant_id", restaurant.id),
+      .eq("restaurant_id", restaurantId),
     admin
       .from("restaurant_opening_hours_settings")
       .select(
         "embed_footer_text, embed_show_kitchen_hours, embed_show_exceptions",
       )
-      .eq("restaurant_id", restaurant.id)
+      .eq("restaurant_id", restaurantId)
       .maybeSingle(),
   ]);
 
@@ -149,11 +139,57 @@ export async function fetchPublicEmbedOpeningHours(
   }
   dateExceptions.sort((a, b) => a.date.localeCompare(b.date));
 
-  const settingsRow = settingsRes.data as {
-    embed_footer_text?: string | null;
-    embed_show_kitchen_hours?: boolean | null;
-    embed_show_exceptions?: boolean | null;
-  } | null;
+  return {
+    weeklyHours,
+    kitchenHoursEnabled,
+    kitchenWeeklyHours,
+    dateExceptions,
+    settings: parseOpeningHoursSettingsRow(
+      settingsRes.data as {
+        embed_footer_text?: string | null;
+        embed_show_kitchen_hours?: boolean | null;
+        embed_show_exceptions?: boolean | null;
+      } | null,
+    ),
+  };
+}
+
+export async function fetchPublicEmbedOpeningHours(
+  slugInput: string,
+): Promise<
+  | { data: PublicEmbedOpeningHoursData; error: null }
+  | { data: null; error: string; status: number }
+> {
+  const admin = adminOrError();
+  if ("error" in admin) {
+    return { data: null, error: admin.error, status: admin.status };
+  }
+
+  const slug = normalizeRestaurantSlugInput(slugInput);
+  if (!slug || isReservedRestaurantSlug(slug)) {
+    return { data: null, error: "not_found", status: 404 };
+  }
+
+  const { data: restaurant, error: restaurantError } = await admin
+    .from("restaurants")
+    .select("id, name, is_published, brand_accent_hex")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (restaurantError) {
+    return { data: null, error: "db_error", status: 500 };
+  }
+  if (!restaurant?.id) {
+    return { data: null, error: "not_found", status: 404 };
+  }
+  if (!restaurant.is_published) {
+    return { data: null, error: "not_published", status: 404 };
+  }
+
+  const openingHours = await loadPublicOpeningHoursForRestaurant(
+    admin,
+    restaurant.id,
+  );
 
   return {
     data: {
@@ -161,15 +197,7 @@ export async function fetchPublicEmbedOpeningHours(
       accentHex:
         normalizeHex(String(restaurant.brand_accent_hex ?? "")) ??
         DEFAULT_ACCENT_HEX,
-      weeklyHours,
-      kitchenHoursEnabled,
-      kitchenWeeklyHours,
-      dateExceptions,
-      settings: {
-        embedFooterText: settingsRow?.embed_footer_text?.trim() || null,
-        embedShowKitchenHours: settingsRow?.embed_show_kitchen_hours ?? true,
-        embedShowExceptions: settingsRow?.embed_show_exceptions ?? true,
-      },
+      ...openingHours,
     },
     error: null,
   };

@@ -3,15 +3,34 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { EmbedReviewsWidget } from "@/components/embed/embed-reviews-widget";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { buildReviewsEmbedSnippet } from "@/lib/embed/build-embed-snippet";
 import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
 import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import {
+  defaultReviewEmbedSettingsRow,
+  type ReviewEmbedSettingsRow,
+} from "@/lib/reviews/review-embed-settings-db";
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  publicSurfaceProfileAndEmbedDescription,
+  publicSurfaceScopeHint,
+} from "@/lib/ui/public-surface-settings-copy";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 async function copyText(text: string, label: string) {
@@ -25,7 +44,38 @@ async function copyText(text: string, label: string) {
 
 const REVIEWS_PREVIEW_EMBED_ID = "gwada-reviews-embed-preview";
 
-function EmbedPreviewFrame({ src }: { src: string }) {
+const PREVIEW_REVIEWS = [
+  {
+    id: "preview-1",
+    platform: "gwada" as const,
+    rating: 5,
+    comment: "Tolles Essen und sehr freundlicher Service — kommen gerne wieder!",
+    authorName: "Anna M.",
+    createdAt: new Date().toISOString(),
+    reply: null,
+  },
+  {
+    id: "preview-2",
+    platform: "google" as const,
+    rating: 4,
+    comment: "Leckere Gerichte, etwas Wartezeit am Freitagabend.",
+    authorName: "Thomas K.",
+    createdAt: new Date(Date.now() - 86400000).toISOString(),
+    reply: "Danke für euren Besuch!",
+  },
+];
+
+function EmbedPreviewFrame({
+  src,
+  viewMode,
+  accentHex,
+  restaurantName,
+}: {
+  src: string;
+  viewMode: ReviewEmbedSettingsRow["defaultEmbedView"];
+  accentHex: string;
+  restaurantName: string;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -50,25 +100,37 @@ function EmbedPreviewFrame({ src }: { src: string }) {
   }, [previewSrc]);
 
   return (
-    <iframe
-      ref={iframeRef}
-      id={REVIEWS_PREVIEW_EMBED_ID}
-      src={previewSrc}
-      title="Bewertungen Vorschau"
-      className="block w-full min-h-[520px] border-0"
-      loading="lazy"
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
+    <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+      <EmbedReviewsWidget
+        restaurantName={restaurantName}
+        accentHex={accentHex}
+        reviews={PREVIEW_REVIEWS}
+        summary={{
+          count: 2,
+          average: 4.5,
+          median: 4.5,
+          distribution: { 5: 1, 4: 1, 3: 0, 2: 0, 1: 0 },
+        }}
+        viewMode={viewMode}
+      />
+    </div>
   );
 }
 
 export function ReviewsEmbedPanel() {
   const { restaurantId: restaurantUuid, ready } = useWorkspaceRestaurantUuid();
+  const { accentHex } = useAccentColor();
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
   const [published, setPublished] = useState<boolean | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [settings, setSettings] = useState(defaultReviewEmbedSettingsRow());
+  const [savedSettings, setSavedSettings] = useState(
+    defaultReviewEmbedSettingsRow(),
+  );
 
   const profile = useMemo(() => {
     if (!restaurantUuid || !profileReady) return null;
@@ -76,6 +138,7 @@ export function ReviewsEmbedPanel() {
   }, [restaurantUuid, profileReady, getProfileForRestaurantId]);
 
   const slug = profile?.slug?.trim() ?? "";
+  const restaurantName = profile?.name?.trim() || "Restaurant";
 
   useEffect(() => {
     if (!restaurantUuid) {
@@ -105,18 +168,84 @@ export function ReviewsEmbedPanel() {
     };
   }, [restaurantUuid]);
 
+  useEffect(() => {
+    if (!restaurantUuid) {
+      setLoadingSettings(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadingSettings(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/reviews/embed-settings?${new URLSearchParams({ restaurantId: restaurantUuid })}`,
+        );
+        const json = (await res.json()) as {
+          defaultEmbedView?: ReviewEmbedSettingsRow["defaultEmbedView"];
+          error?: string;
+        };
+        if (cancelled) return;
+        if (!res.ok) {
+          toast.error(json.error ?? "Einstellungen konnten nicht geladen werden.");
+          return;
+        }
+        const next: ReviewEmbedSettingsRow = {
+          defaultEmbedView:
+            json.defaultEmbedView === "list" ? "list" : "grid",
+        };
+        setSettings(next);
+        setSavedSettings(next);
+      } catch {
+        if (!cancelled) toast.error("Netzwerkfehler beim Laden.");
+      } finally {
+        if (!cancelled) setLoadingSettings(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [restaurantUuid]);
+
   const origin =
     typeof window !== "undefined" ? window.location.origin : undefined;
   const snippet = slug ? buildReviewsEmbedSnippet(slug, origin) : null;
 
-  const showSkeleton = useDeferredSkeleton(!ready || loadingMeta);
+  const showSkeleton = useDeferredSkeleton(!ready || loadingMeta || loadingSettings);
+  const dirty =
+    settings.defaultEmbedView !== savedSettings.defaultEmbedView;
 
   const markCopied = useCallback((key: string) => {
     setCopiedKey(key);
     window.setTimeout(() => setCopiedKey(null), 2000);
   }, []);
 
-  if (!ready || loadingMeta || showSkeleton) {
+  const saveSettings = async () => {
+    if (!restaurantUuid || !dirty) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/reviews/embed-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: restaurantUuid,
+          defaultEmbedView: settings.defaultEmbedView,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(json.error ?? "Speichern fehlgeschlagen.");
+        return;
+      }
+      setSavedSettings(settings);
+      toast.success("Einstellungen gespeichert.");
+    } catch {
+      toast.error("Netzwerkfehler beim Speichern.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!ready || loadingMeta || loadingSettings || showSkeleton) {
     return (
       <SkeletonCardFrame className="rounded-2xl border border-border/50 p-6 shadow-card">
         <Skeleton className="h-6 w-48" />
@@ -142,6 +271,50 @@ export function ReviewsEmbedPanel() {
           Bewertungs-Widget ist für Gäste erst nach Veröffentlichung erreichbar.
         </p>
       ) : null}
+
+      <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
+        <div>
+          <h2 className="text-base font-semibold">Profil & Einbindung</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {publicSurfaceProfileAndEmbedDescription}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Ansicht</Label>
+          <Select
+            value={settings.defaultEmbedView}
+            onValueChange={(value) => {
+              if (value === "grid" || value === "list") {
+                setSettings((prev) => ({ ...prev, defaultEmbedView: value }));
+              }
+            }}
+          >
+            <SelectTrigger className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="grid">Raster (Masonry)</SelectItem>
+              <SelectItem value="list">Liste</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            {publicSurfaceScopeHint("both")} Raster: Pinterest-Layout mit
+            unterschiedlich hohen Karten. Liste: chronologisch untereinander.
+          </p>
+        </div>
+
+        {dirty ? (
+          <Button
+            type="button"
+            className="rounded-xl"
+            disabled={saving}
+            onClick={() => void saveSettings()}
+          >
+            {saving ? "Speichern …" : "Einstellungen speichern"}
+          </Button>
+        ) : null}
+      </section>
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Code zum Einbinden</h2>
@@ -185,9 +358,14 @@ export function ReviewsEmbedPanel() {
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
-        <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-          {snippet ? <EmbedPreviewFrame src={snippet.embedUrl} /> : null}
-        </div>
+        {snippet ? (
+          <EmbedPreviewFrame
+            src={snippet.embedUrl}
+            viewMode={settings.defaultEmbedView}
+            accentHex={accentHex}
+            restaurantName={restaurantName}
+          />
+        ) : null}
       </section>
     </div>
   );

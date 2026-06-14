@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
+  Images,
   MapPin,
   Newspaper,
   Star,
@@ -8,7 +9,7 @@ import {
 } from "lucide-react";
 import type { ProfileModuleKey } from "@/lib/public-profile/use-profile-module-cache";
 
-export type ProfileAppId = "reserve" | "menu" | "reviews" | "news" | "info";
+export type ProfileAppId = "reserve" | "menu" | "reviews" | "news" | "gallery" | "info";
 
 export type ProfileAppDefinition = {
   id: ProfileAppId;
@@ -28,6 +29,14 @@ export const PROFILE_APP_DEFINITIONS: ProfileAppDefinition[] = [
     module: "news",
     icon: Newspaper,
     gradient: "from-rose-500 via-pink-600 to-fuchsia-600",
+  },
+  {
+    id: "gallery",
+    label: "Galerie",
+    subtitle: "Fotos & Highlights",
+    module: "gallery",
+    icon: Images,
+    gradient: "from-violet-500 via-purple-600 to-indigo-600",
   },
   {
     id: "menu",
@@ -67,12 +76,14 @@ export function profileAppsForModules(modules: {
   menu: boolean;
   reviews: boolean;
   news: boolean;
+  gallery: boolean;
 }): ProfileAppDefinition[] {
   return PROFILE_APP_DEFINITIONS.filter((app) => {
     if (app.id === "reserve") return modules.reservation;
     if (app.id === "menu") return modules.menu;
     if (app.id === "reviews") return modules.reviews;
     if (app.id === "news") return modules.news;
+    if (app.id === "gallery") return modules.gallery;
     return true;
   });
 }

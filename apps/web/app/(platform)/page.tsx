@@ -13,7 +13,11 @@ export default async function Home() {
   const branding = await getCachedRootLayoutBranding();
   const heroLogo = platformMarketingLogoHref(branding, "light");
   if (heroLogo) {
-    preload(heroLogo, { as: "image", fetchPriority: "high" });
+    try {
+      preload(heroLogo, { as: "image", fetchPriority: "high" });
+    } catch {
+      // Preload darf die Startseite nicht crashen (Logo-API / Optimizer).
+    }
   }
 
   return (

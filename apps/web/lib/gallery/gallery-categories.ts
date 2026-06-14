@@ -16,6 +16,7 @@ const GOOGLE_GALLERY_CATEGORY_LABELS: Record<string, string> = {
   ADDITIONAL: "Weitere",
   AT_WORK: "Bei der Arbeit",
   PRODUCT: "Produkt",
+  CUSTOMER: "Kundenfotos",
 };
 
 export function googleGalleryCategoryLabel(raw: string | null | undefined): string | null {

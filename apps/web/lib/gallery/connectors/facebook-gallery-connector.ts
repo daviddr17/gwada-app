@@ -19,6 +19,10 @@ const CAPABILITIES = {
   supportsCategories: true,
 } as const;
 
+/** Album-Namen, die Timeline-/Beitrags-Fotos enthalten — nicht in der Galerie. */
+const FACEBOOK_EXCLUDED_ALBUM_NAME =
+  /^(timeline photos|chronik(?:-fotos)?|cover photos|titelfotos|profile pictures|profilfotos|mobile uploads|wall photos)$/i;
+
 type FbPhoto = {
   id?: string;
   name?: string;
@@ -78,41 +82,58 @@ function mapFbPhoto(photo: FbPhoto, category: string | null): UnifiedGalleryItem
   };
 }
 
+function dedupeFacebookItems(items: UnifiedGalleryItem[]): UnifiedGalleryItem[] {
+  const seen = new Set<string>();
+  const out: UnifiedGalleryItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.externalId)) continue;
+    seen.add(item.externalId);
+    out.push(item);
+  }
+  return out;
+}
+
 async function fetchFacebookGalleryPhotos(
   auth: { pageId: string; token: string },
 ): Promise<{ items: UnifiedGalleryItem[] } | { error: string }> {
-  const albumResult = await metaGraphListFetch<{ id?: string; name?: string; photos?: { data?: FbPhoto[] } }>({
-    path: `${auth.pageId}/albums?fields=${encodeURIComponent("id,name,photos{id,name,created_time,images}")}&limit=25`,
-    token: auth.token,
-    context: { platform: "facebook", feature: "gallery" },
-  });
-
   const items: UnifiedGalleryItem[] = [];
-  if (albumResult.ok) {
-    for (const album of albumResult.data) {
-      const category = album.name?.trim() ?? null;
-      for (const photo of album.photos?.data ?? []) {
-        const mapped = mapFbPhoto(photo, category);
-        if (mapped) items.push(mapped);
-      }
-    }
-    if (items.length > 0) return { items };
-  }
 
   const photosResult = await metaGraphListFetch<FbPhoto>({
     path: `${auth.pageId}/photos?type=uploaded&fields=${encodeURIComponent("id,name,created_time,images")}&limit=100`,
     token: auth.token,
     context: { platform: "facebook", feature: "gallery" },
   });
-  if (!photosResult.ok) {
+  if (photosResult.ok) {
+    for (const photo of photosResult.data) {
+      const mapped = mapFbPhoto(photo, null);
+      if (mapped) items.push(mapped);
+    }
+  } else if (items.length === 0) {
     return { error: photosResult.error ?? "facebook_photos_failed" };
   }
 
-  return {
-    items: photosResult.data
-      .map((photo) => mapFbPhoto(photo, null))
-      .filter((item): item is UnifiedGalleryItem => item !== null),
-  };
+  const albumResult = await metaGraphListFetch<{ id?: string; name?: string; photos?: { data?: FbPhoto[] } }>({
+    path: `${auth.pageId}/albums?fields=${encodeURIComponent("id,name,photos{id,name,created_time,images}")}&limit=50`,
+    token: auth.token,
+    context: { platform: "facebook", feature: "gallery" },
+  });
+
+  if (albumResult.ok) {
+    for (const album of albumResult.data) {
+      const albumName = album.name?.trim() ?? "";
+      if (!albumName || FACEBOOK_EXCLUDED_ALBUM_NAME.test(albumName)) continue;
+      for (const photo of album.photos?.data ?? []) {
+        const mapped = mapFbPhoto(photo, albumName);
+        if (mapped) items.push(mapped);
+      }
+    }
+  }
+
+  if (items.length === 0 && !photosResult.ok) {
+    return { error: photosResult.error ?? "facebook_photos_failed" };
+  }
+
+  return { items: dedupeFacebookItems(items) };
 }
 
 export const facebookGalleryConnector: GalleryPlatformConnector = {

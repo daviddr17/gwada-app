@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
@@ -57,7 +57,6 @@ export function GalleryScreen() {
   const [categories, setCategories] = useState<GalleryCategoryOption[]>([]);
   const [syncMeta, setSyncMeta] = useState<GalleryFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading && items.length === 0);
 
   const [composeOpen, setComposeOpen] = useState(false);
@@ -121,20 +120,10 @@ export function GalleryScreen() {
     return filtered.slice(from, from + GALLERY_FEED_PAGE_SIZE);
   }, [filtered, currentPage]);
 
-  const handleSync = useCallback(async () => {
-    if (!restaurantId) return;
-    setSyncing(true);
-    try {
-      await fetch("/api/gallery/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId }),
-      });
-      await load();
-    } finally {
-      setSyncing(false);
-    }
-  }, [restaurantId, load]);
+  useEffect(() => {
+    if (!syncMeta?.stale || loading) return;
+    void load();
+  }, [syncMeta?.stale, loading, load]);
 
   const handleDelete = useCallback(async () => {
     if (!restaurantId || !selectedItem) return;
@@ -169,19 +158,11 @@ export function GalleryScreen() {
 
   return (
     <div className="space-y-4 px-4 pb-8 sm:px-6">
-      <div className="flex items-center justify-end gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          className="rounded-full border-border/60"
-          disabled={syncing}
-          onClick={() => void handleSync()}
-          aria-label="Galerie synchronisieren"
-        >
-          <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
-        </Button>
-      </div>
+      {syncMeta?.stale ? (
+        <p className="text-xs text-muted-foreground">
+          Externe Kanäle werden im Hintergrund synchronisiert …
+        </p>
+      ) : null}
 
       <GalleryPlatformFilterChips
         value={platformFilter}

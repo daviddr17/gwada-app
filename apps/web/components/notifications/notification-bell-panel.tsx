@@ -2,10 +2,16 @@
 
 import Link from "next/link";
 import { Check, Settings } from "lucide-react";
+import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
 import { Button } from "@/components/ui/button";
+import {
+  CONTACT_MESSAGE_PLATFORM_LABELS,
+  isContactMessagePlatform,
+} from "@/lib/constants/contact-message-platforms";
 import { NOTIFICATION_MODULES } from "@/lib/notifications/notification-modules";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { cn } from "@/lib/utils";
 
 function formatNotificationWhen(iso: string): string {
@@ -89,14 +95,44 @@ export function NotificationBellPanel({
                 </Link>
               </div>
               <ul className="list-none space-y-0.5 px-2 pb-2">
-                {mod.items.map((item) => (
+                {mod.items.map((item) => {
+                  const messagePlatform =
+                    mod.id === "messages" &&
+                    item.meta?.platform &&
+                    isContactMessagePlatform(item.meta.platform)
+                      ? item.meta.platform
+                      : null;
+                  const fromContact = isLinkedContactId(item.meta?.contactId ?? "");
+
+                  return (
                   <li key={`${mod.id}:${item.id}`}>
-                    <div className="group flex items-stretch gap-1 rounded-xl hover:bg-muted/50">
+                    <div
+                      className={cn(
+                        "group flex items-stretch gap-1 rounded-xl",
+                        fromContact
+                          ? "border border-accent/15 bg-accent/10 hover:bg-accent/15"
+                          : "hover:bg-muted/50",
+                      )}
+                    >
                       <Link
                         href={item.href}
                         className="flex min-w-0 flex-1 items-start gap-2 px-2 py-2"
                         onClick={onNavigate}
                       >
+                        {messagePlatform ? (
+                          <span
+                            className="mt-0.5 shrink-0"
+                            title={CONTACT_MESSAGE_PLATFORM_LABELS[messagePlatform]}
+                          >
+                            <ContactMessagePlatformIcon
+                              platform={messagePlatform}
+                              className="size-4"
+                            />
+                            <span className="sr-only">
+                              {CONTACT_MESSAGE_PLATFORM_LABELS[messagePlatform]}
+                            </span>
+                          </span>
+                        ) : null}
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium leading-snug text-foreground">
                             {item.title}
@@ -131,7 +167,8 @@ export function NotificationBellPanel({
                       </Button>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </section>
           );

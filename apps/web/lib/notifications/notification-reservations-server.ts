@@ -129,7 +129,10 @@ export async function loadReservationNotificationItems(
           params.module === "reservations_cancellation"
             ? (r.updated_at ?? r.starts_at)
             : r.starts_at,
-        meta: { reservationId: r.id },
+        meta: {
+          reservationId: r.id,
+          ...(r.contact_id ? { contactId: r.contact_id } : {}),
+        },
       };
     });
 

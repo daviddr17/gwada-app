@@ -302,6 +302,27 @@ export async function triggerLinkWahaThreadToContact(body: {
   }
 }
 
+export async function triggerLinkEmailThreadToContact(body: {
+  restaurantId: string;
+  emailPseudoContactId: string;
+  contactId: string;
+}): Promise<{ ok: boolean; imported?: number; error?: string } | null> {
+  try {
+    const res = await fetch("/api/contact-messages/email/link-contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return (await res.json().catch(() => null)) as {
+      ok: boolean;
+      imported?: number;
+      error?: string;
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function sendContactMessageUserMessage(
   result: SendContactMessageApiResult | null,
 ): string | null {

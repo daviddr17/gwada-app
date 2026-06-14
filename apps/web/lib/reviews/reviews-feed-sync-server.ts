@@ -1,6 +1,5 @@
 import "server-only";
 
-import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import {
   REVIEWS_CACHEABLE_PLATFORMS,
@@ -15,9 +14,9 @@ import {
 import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
 import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
 import { GOOGLE_REVIEWS_PAGE_SIZE } from "@/lib/reviews/google-reviews-pagination";
+import { isReviewsPlatformConnected } from "@/lib/reviews/reviews-platform-connected-server";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const inFlightSync = new Set<string>();
@@ -25,19 +24,6 @@ const GOOGLE_SYNC_MAX_PAGES = 10;
 
 function syncLockKey(restaurantId: string, platform: ReviewsCacheablePlatform): string {
   return `${restaurantId}:${platform}`;
-}
-
-async function isReviewsPlatformConnected(
-  restaurantId: string,
-  platform: ReviewsCacheablePlatform,
-): Promise<boolean> {
-  const oauthKey = platform === "google" ? "google_business" : "facebook";
-  const row = await fetchRestaurantOAuthIntegrationAdmin(
-    restaurantId,
-    oauthKey,
-    (raw) => oauthConfigFromJson(raw),
-  );
-  return row?.status === "working";
 }
 
 async function fetchAllGoogleReviewsForSync(
@@ -82,7 +68,10 @@ async function fetchReviewsForPlatform(
   }
   const result = await fetchFacebookReviewsForRestaurant(restaurantId);
   if ("error" in result) return result;
-  return { reviews: result.reviews, meta: {} };
+  return {
+    reviews: result.reviews,
+    meta: { totalReviewCount: result.reviews.length },
+  };
 }
 
 export async function syncRestaurantReviewsPlatform(

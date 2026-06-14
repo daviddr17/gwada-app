@@ -132,7 +132,11 @@ async function buildReviewsModule(
         `${"★".repeat(Math.round(r.rating))}${"☆".repeat(5 - Math.round(r.rating))}`,
       href: r.href,
       at: r.createdAt,
-      meta: { platform: r.platform, reviewId: r.id },
+      meta: {
+        platform: r.platform,
+        reviewId: r.id,
+        ...(r.contactId ? { contactId: r.contactId } : {}),
+      },
     }));
 
   return {

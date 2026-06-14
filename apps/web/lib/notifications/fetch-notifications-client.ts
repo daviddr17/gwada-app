@@ -1,3 +1,4 @@
+import type { UserNotificationPushHistoryResult } from "@/lib/notifications/user-notification-push-history";
 import type { NotificationChannelsInfo } from "@/lib/notifications/notification-channels-server";
 import type { NotificationContact } from "@/lib/notifications/notification-contact-types";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
@@ -8,6 +9,32 @@ export type NotificationPreferencesResponse = {
   preferences: NotificationPreferences;
   channels: NotificationChannelsInfo;
 };
+
+export async function fetchNotificationPushHistoryClient(params: {
+  restaurantId: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{
+  data: UserNotificationPushHistoryResult | null;
+  error: string | null;
+}> {
+  try {
+    const q = new URLSearchParams({ restaurantId: params.restaurantId });
+    if (params.limit != null) q.set("limit", String(params.limit));
+    if (params.offset != null) q.set("offset", String(params.offset));
+    const res = await fetch(`/api/notifications/push-history?${q}`);
+    const body = (await res.json()) as {
+      data?: UserNotificationPushHistoryResult;
+      error?: string;
+    };
+    if (!res.ok) {
+      return { data: null, error: body.error ?? `http_${res.status}` };
+    }
+    return { data: body.data ?? null, error: null };
+  } catch {
+    return { data: null, error: "network_error" };
+  }
+}
 
 export async function fetchNotificationSummaryClient(
   restaurantId: string,

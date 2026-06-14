@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   CalendarDays,
+  Link2,
   MailOpen,
   Mail,
   MoreVertical,
@@ -29,6 +30,7 @@ import { ContactConversationsReadFilter } from "@/components/contacts/contact-co
 import { ContactConversationsSearchBar } from "@/components/contacts/contact-conversations-search-bar";
 import { toast } from "sonner";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
+import { InboxThreadAssignContactSheet } from "@/components/contacts/inbox-thread-assign-contact-sheet";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
@@ -121,9 +123,11 @@ import {
   emailAddressFromPseudoContactId,
   isEmailPseudoContactId,
 } from "@/lib/contact-messages/email-pseudo-contact";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import {
   sendContactMessageUserMessage,
   triggerEmailInboxSend,
+  triggerLinkEmailThreadToContact,
   triggerLinkMetaThreadToContact,
   triggerLinkWahaThreadToContact,
   triggerMetaSendMessage,
@@ -218,15 +222,7 @@ function previewSnippet(
   return "—";
 }
 
-/** Verknüpfter Kontakt in der DB (kein WAHA-/E-Mail-Pseudo-Chat). */
-function isLinkedContactId(contactId: string): boolean {
-  return (
-    isUuidRestaurantId(contactId) &&
-    !isWahaPseudoContactId(contactId) &&
-    !isEmailPseudoContactId(contactId)
-  );
-}
-
+/** Inbox-Pseudo-Chat (noch nicht mit Gwada-Kontakt verknüpft). */
 function isInboxPseudoContactId(contactId: string): boolean {
   return (
     isWahaPseudoContactId(contactId) ||
@@ -329,6 +325,11 @@ export function ContactsMessagesScreen() {
     useState<ContactCreateDraft | null>(null);
   const [pendingInboxLink, setPendingInboxLink] =
     useState<PendingInboxLink | null>(null);
+  const [assignInboxThread, setAssignInboxThread] = useState<{
+    pseudoContactId: string;
+    displayName: string;
+  } | null>(null);
+  const [assigningInboxThread, setAssigningInboxThread] = useState(false);
   const [reservationDrawerOpen, setReservationDrawerOpen] = useState(false);
   const [reservationForDrawer, setReservationForDrawer] =
     useState<ReservationListRow | null>(null);
@@ -1482,6 +1483,88 @@ export function ContactsMessagesScreen() {
     [restaurantId, router],
   );
 
+  const linkEmailThreadToExistingContact = useCallback(
+    async (
+      pseudoContactId: string,
+      existingContactId: string,
+      existingDisplayName: string,
+    ) => {
+      if (!restaurantId) return false;
+      const link = await triggerLinkEmailThreadToContact({
+        restaurantId,
+        emailPseudoContactId: pseudoContactId,
+        contactId: existingContactId,
+      });
+      if (link?.ok) {
+        const n = link.imported ?? 0;
+        toast.success(
+          n > 0
+            ? `E-Mail-Chat mit „${existingDisplayName}“ verknüpft (${n} Nachrichten importiert).`
+            : `E-Mail-Chat mit „${existingDisplayName}“ verknüpft.`,
+        );
+        router.replace(
+          `/dashboard/kontakte/nachrichten?platform=all&contact=${existingContactId}`,
+        );
+        return true;
+      }
+      if (link?.error === "email_on_other_contact") {
+        toast.warning(
+          "Diese E-Mail-Adresse ist bereits bei einem anderen Kontakt hinterlegt.",
+        );
+      } else {
+        toast.warning("Verknüpfung mit bestehendem Kontakt fehlgeschlagen.");
+      }
+      return false;
+    },
+    [restaurantId, router],
+  );
+
+  const assignInboxThreadToContact = useCallback(
+    async (targetContactId: string, targetDisplayName: string) => {
+      const thread = assignInboxThread;
+      if (!thread || !restaurantId) return;
+
+      setAssigningInboxThread(true);
+      try {
+        const { pseudoContactId } = thread;
+        let ok = false;
+        if (isWahaPseudoContactId(pseudoContactId)) {
+          ok = await linkWahaThreadToExistingContact(
+            pseudoContactId,
+            targetContactId,
+            targetDisplayName,
+          );
+        } else if (isMetaPseudoContactId(pseudoContactId)) {
+          ok = await linkMetaThreadToExistingContact(
+            pseudoContactId,
+            targetContactId,
+            targetDisplayName,
+          );
+        } else if (isEmailPseudoContactId(pseudoContactId)) {
+          ok = await linkEmailThreadToExistingContact(
+            pseudoContactId,
+            targetContactId,
+            targetDisplayName,
+          );
+        }
+        if (ok) {
+          setAssignInboxThread(null);
+          void loadConversations();
+        }
+      } finally {
+        setAssigningInboxThread(false);
+      }
+    },
+    [
+      assignInboxThread,
+      linkEmailThreadToExistingContact,
+      linkMetaThreadToExistingContact,
+      linkWahaThreadToExistingContact,
+      loadConversations,
+      restaurantId,
+    ],
+  );
+
   const openCreateContactFromPseudo = useCallback(
     (pseudoContactId: string, displayName: string) => {
       if (!restaurantId || !isInboxPseudoContactId(pseudoContactId)) return;
@@ -2436,17 +2519,30 @@ export function ContactsMessagesScreen() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="min-w-44">
                               {isInboxPseudoContactId(c.contact_id) ? (
-                                <DropdownMenuItem
-                                  onClick={() =>
-                                    openCreateContactFromPseudo(
-                                      c.contact_id,
-                                      listName,
-                                    )
-                                  }
-                                >
-                                  <UserPlus className="size-4" aria-hidden />
-                                  Kontakt hinzufügen
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      openCreateContactFromPseudo(
+                                        c.contact_id,
+                                        listName,
+                                      )
+                                    }
+                                  >
+                                    <UserPlus className="size-4" aria-hidden />
+                                    Kontakt hinzufügen
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setAssignInboxThread({
+                                        pseudoContactId: c.contact_id,
+                                        displayName: listName,
+                                      })
+                                    }
+                                  >
+                                    <Link2 className="size-4" aria-hidden />
+                                    Bestehendem Kontakt zuordnen
+                                  </DropdownMenuItem>
+                                </>
                               ) : null}
                               {unread ? (
                                 <DropdownMenuItem
@@ -2641,6 +2737,17 @@ export function ContactsMessagesScreen() {
             else void loadConversations();
           })();
         }}
+      />
+
+      <InboxThreadAssignContactSheet
+        open={assignInboxThread != null}
+        onOpenChange={(open) => {
+          if (!open) setAssignInboxThread(null);
+        }}
+        restaurantId={restaurantId}
+        threadDisplayName={assignInboxThread?.displayName ?? ""}
+        assigning={assigningInboxThread}
+        onAssign={assignInboxThreadToContact}
       />
     </div>
   );

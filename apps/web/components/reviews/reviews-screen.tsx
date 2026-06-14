@@ -65,12 +65,17 @@ import {
   type ReviewViewMode,
 } from "@/lib/reviews/reviews-screen-query";
 import {
+  createEmptyReviewsFeedClientCache,
+  markReviewsReadInFeedCache,
+  patchReviewInFeedCache,
+  type ReviewsFeedClientCache,
+} from "@/lib/reviews/reviews-feed-client-cache";
+import {
   fetchReservationById,
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import {
   filterReviews,
-  filterReviewsByPlatform,
   hasActiveReviewFilters,
   sortReviews,
   type ReviewCommentFilter,
@@ -87,6 +92,9 @@ import type { ReviewReadFilter } from "@/lib/reviews/review-read-state";
 import { reviewReadLookupKey } from "@/lib/reviews/review-read-state";
 import type { GoogleReviewsPaginationMeta } from "@/lib/reviews/google-reviews-pagination";
 import { googleReviewsTotalPages } from "@/lib/reviews/google-reviews-pagination";
+import type { MergedReviewsPaginationMeta } from "@/lib/reviews/reviews-list-pagination";
+import type { ReviewListPaginationMeta } from "@/lib/reviews/reviews-list-pagination";
+import { reviewListTotalPages } from "@/lib/reviews/reviews-list-pagination";
 import {
   averageRating,
   medianRating,
@@ -109,6 +117,10 @@ type ReviewsApiResponse = {
     scope?: "google_location" | "page";
   };
   googlePagination?: GoogleReviewsPaginationMeta;
+  mergedPagination?: MergedReviewsPaginationMeta;
+  facebookPagination?: ReviewListPaginationMeta;
+  platformTotals?: Partial<Record<ReviewPlatform, number>>;
+  loadErrors?: Partial<Record<ReviewPlatform, string>>;
   loadError?: string | null;
 };
 
@@ -119,6 +131,15 @@ type GoogleLocationSummary = {
   distribution: Record<1 | 2 | 3 | 4 | 5, number>;
   scope: "google_location";
 };
+
+function withNextPageToken(
+  currentPage: number,
+  nextToken: string | null | undefined,
+  prev: Record<number, string>,
+): Record<number, string> {
+  if (!nextToken) return prev;
+  return { ...prev, [currentPage + 1]: nextToken };
+}
 
 export function ReviewsScreen() {
   const router = useRouter();
@@ -134,13 +155,17 @@ export function ReviewsScreen() {
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatformFilter>(() =>
     parseReviewPlatformFilter(platformParam),
   );
-  const [mergedLoading, setMergedLoading] = useState(true);
-  const [mergedReviews, setMergedReviews] = useState<UnifiedReview[]>([]);
-  const [mergedLoadErrors, setMergedLoadErrors] = useState<
-    Partial<Record<ReviewPlatform, string>>
-  >({});
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [googleData, setGoogleData] = useState<ReviewsApiResponse | null>(null);
+  const [feedCache, setFeedCache] = useState<ReviewsFeedClientCache>(() =>
+    createEmptyReviewsFeedClientCache(),
+  );
+  const [feedPrefetchLoading, setFeedPrefetchLoading] = useState(true);
+  const [paginationBusy, setPaginationBusy] = useState(false);
+  const [googlePage, setGooglePage] = useState(1);
+  const [allPage, setAllPage] = useState(1);
+  const [facebookPage, setFacebookPage] = useState(1);
+  const [googleLocationSummary, setGoogleLocationSummary] =
+    useState<GoogleLocationSummary | null>(null);
+  const [googleStatsError, setGoogleStatsError] = useState<string | null>(null);
   const [replyTarget, setReplyTarget] = useState<UnifiedReview | null>(null);
   const [replyText, setReplyText] = useState("");
   const [replyBusy, setReplyBusy] = useState(false);
@@ -153,16 +178,6 @@ export function ReviewsScreen() {
   const [readLocal, setReadLocal] = useState<Record<string, boolean>>({});
   const [sortKey, setSortKey] = useState<ReviewSortKey>("created_desc");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [googlePage, setGooglePage] = useState(1);
-  const [googleTokenByPage, setGoogleTokenByPage] = useState<
-    Record<number, string>
-  >({});
-  const [googlePagination, setGooglePagination] =
-    useState<GoogleReviewsPaginationMeta | null>(null);
-  const [googleLocationSummary, setGoogleLocationSummary] =
-    useState<GoogleLocationSummary | null>(null);
-  const [googleStatsError, setGoogleStatsError] = useState<string | null>(null);
-  const [googleStatsLoading, setGoogleStatsLoading] = useState(false);
   const [inviteSheetOpen, setInviteSheetOpen] = useState(false);
   const [viewMode, setViewModeState] = useState<ReviewViewMode>(() =>
     readReviewsScreenQueryFromSearch(searchParams.toString()).viewMode,
@@ -211,8 +226,14 @@ export function ReviewsScreen() {
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
   const isGooglePaginated = platformFilter === "google";
-  const loading = isGooglePaginated ? googleLoading : mergedLoading;
-  const showSkeleton = useDeferredSkeleton(loading);
+  const isAllPaginated = platformFilter === REVIEW_FILTER_ALL;
+  const isFacebookPaginated = platformFilter === "facebook";
+  const googlePagination = feedCache.googlePagination;
+  const mergedPagination = feedCache.allPagination;
+  const facebookPagination = feedCache.facebookPagination;
+  const mergedLoadErrors = feedCache.loadErrors;
+  const mergedPlatformTotals = feedCache.platformTotals;
+  const showSkeleton = useDeferredSkeleton(feedPrefetchLoading);
   const readAllStartedRef = useRef<string | null>(null);
 
   const markLoadedReviewsRead = useCallback(
@@ -274,10 +295,16 @@ export function ReviewsScreen() {
 
   const allReviews = useMemo(() => {
     if (platformFilter === "google") {
-      return googleData?.reviews ?? [];
+      return feedCache.googlePages[googlePage] ?? [];
     }
-    return filterReviewsByPlatform(mergedReviews, platformFilter);
-  }, [platformFilter, mergedReviews, googleData?.reviews]);
+    if (platformFilter === "facebook") {
+      return feedCache.facebookPages[facebookPage] ?? [];
+    }
+    if (platformFilter === REVIEW_FILTER_ALL) {
+      return feedCache.allPages[allPage] ?? [];
+    }
+    return feedCache.gwada;
+  }, [platformFilter, feedCache, googlePage, facebookPage, allPage]);
 
   useEffect(() => {
     if (!reviewProtocolParam || platformFilter !== "gwada" || !ready) return;
@@ -346,165 +373,373 @@ export function ReviewsScreen() {
     );
   };
 
-  const loadMerged = useCallback(async () => {
+  const fetchReviewsJson = useCallback(
+    async (params: URLSearchParams) => {
+      const res = await fetch(`/api/reviews?${params}`);
+      const json = (await res.json()) as ReviewsApiResponse & { error?: string };
+      return { res, json };
+    },
+    [],
+  );
+
+  const prefetchFeed = useCallback(async () => {
     if (!restaurantId) {
-      setMergedLoading(false);
+      setFeedPrefetchLoading(false);
       return;
     }
-    setMergedLoading(true);
-    setMergedLoadErrors({});
-    try {
-      const platforms: ReviewPlatform[] = ["gwada"];
-      if (googleConnected) platforms.push("google");
-      if (facebookConnected) platforms.push("facebook");
+    setFeedPrefetchLoading(true);
+    setFeedCache(createEmptyReviewsFeedClientCache());
+    setGooglePage(1);
+    setAllPage(1);
+    setFacebookPage(1);
+    setGoogleLocationSummary(null);
+    setGoogleStatsError(null);
 
-      const results = await Promise.all(
-        platforms.map(async (platform) => {
-          const params = new URLSearchParams({ restaurantId, platform });
-          const res = await fetch(`/api/reviews?${params}`);
-          const json = (await res.json()) as ReviewsApiResponse & {
-            error?: string;
-          };
-          return { platform, ok: res.ok, json };
-        }),
+    try {
+      const requests: Promise<void>[] = [];
+
+      requests.push(
+        (async () => {
+          const params = new URLSearchParams({ restaurantId, platform: "all" });
+          const { res, json } = await fetchReviewsJson(params);
+          if (!res.ok) {
+            toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+            return;
+          }
+          const reviewsRead = json.reviews.map((review) => ({
+            ...review,
+            isUnread: false,
+          }));
+          markLoadedReviewsRead(reviewsRead);
+          setFeedCache((prev) => ({
+            ...prev,
+            allPages: { 1: reviewsRead },
+            allPagination: json.mergedPagination ?? null,
+            allTokenByPage: withNextPageToken(
+              1,
+              json.mergedPagination?.nextPageToken,
+              {},
+            ),
+            platformTotals:
+              json.platformTotals ?? json.mergedPagination?.platformTotals ?? {},
+            loadErrors: json.loadErrors ?? {},
+          }));
+        })(),
       );
 
-      const reviews: UnifiedReview[] = [];
-      const errors: Partial<Record<ReviewPlatform, string>> = {};
+      requests.push(
+        (async () => {
+          const params = new URLSearchParams({ restaurantId, platform: "gwada" });
+          const { res, json } = await fetchReviewsJson(params);
+          if (!res.ok) return;
+          const reviewsRead = json.reviews.map((review) => ({
+            ...review,
+            isUnread: false,
+          }));
+          markLoadedReviewsRead(reviewsRead);
+          setFeedCache((prev) => ({
+            ...prev,
+            gwada: reviewsRead,
+            platformTotals: {
+              ...prev.platformTotals,
+              gwada: reviewsRead.length,
+            },
+          }));
+        })(),
+      );
 
-      for (const result of results) {
-        if (result.ok && Array.isArray(result.json.reviews)) {
-          reviews.push(
-            ...result.json.reviews.map((review) => ({
+      if (googleConnected) {
+        requests.push(
+          (async () => {
+            const params = new URLSearchParams({ restaurantId, platform: "google" });
+            const { res, json } = await fetchReviewsJson(params);
+            if (!res.ok) return;
+            const reviewsRead = json.reviews.map((review) => ({
               ...review,
               isUnread: false,
-            })),
-          );
-        } else {
-          const err =
-            result.json.loadError ??
-            result.json.error ??
-            "Bewertungen konnten nicht geladen werden.";
-          errors[result.platform] = err;
-        }
+            }));
+            markLoadedReviewsRead(reviewsRead);
+            setFeedCache((prev) => ({
+              ...prev,
+              googlePages: { 1: reviewsRead },
+              googlePagination: json.googlePagination ?? null,
+              googleTokenByPage: withNextPageToken(
+                1,
+                json.googlePagination?.nextPageToken,
+                {},
+              ),
+              platformTotals: {
+                ...prev.platformTotals,
+                google: json.googlePagination?.totalReviewCount ?? reviewsRead.length,
+              },
+              loadErrors: json.loadError
+                ? { ...prev.loadErrors, google: json.loadError }
+                : prev.loadErrors,
+            }));
+          })(),
+        );
+
+        requests.push(
+          (async () => {
+            try {
+              const res = await fetch(
+                `/api/reviews/google-stats?${new URLSearchParams({ restaurantId })}`,
+              );
+              const json = (await res.json()) as {
+                averageRating?: number | null;
+                totalReviewCount?: number;
+                loadError?: string;
+                error?: string;
+              };
+              if (!res.ok) {
+                setGoogleStatsError(
+                  json.loadError ?? json.error ?? "Google-Statistik nicht verfügbar.",
+                );
+                return;
+              }
+              const total = Number(json.totalReviewCount ?? 0);
+              setGoogleLocationSummary({
+                count: total,
+                average:
+                  typeof json.averageRating === "number" ? json.averageRating : null,
+                median: null,
+                distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+                scope: "google_location",
+              });
+              setFeedCache((prev) => ({
+                ...prev,
+                platformTotals: { ...prev.platformTotals, google: total },
+              }));
+            } catch {
+              setGoogleStatsError("Netzwerkfehler bei Google-Statistik.");
+            }
+          })(),
+        );
       }
 
-      setMergedReviews(reviews);
-      setMergedLoadErrors(errors);
-      if (reviews.length > 0) {
-        markLoadedReviewsRead(reviews);
+      if (facebookConnected) {
+        requests.push(
+          (async () => {
+            const params = new URLSearchParams({ restaurantId, platform: "facebook" });
+            const { res, json } = await fetchReviewsJson(params);
+            if (!res.ok) return;
+            const reviewsRead = json.reviews.map((review) => ({
+              ...review,
+              isUnread: false,
+            }));
+            markLoadedReviewsRead(reviewsRead);
+            setFeedCache((prev) => ({
+              ...prev,
+              facebookPages: { 1: reviewsRead },
+              facebookPagination: json.facebookPagination ?? null,
+              facebookTokenByPage: withNextPageToken(
+                1,
+                json.facebookPagination?.nextPageToken,
+                {},
+              ),
+              platformTotals: {
+                ...prev.platformTotals,
+                facebook:
+                  json.facebookPagination?.totalReviewCount ?? reviewsRead.length,
+              },
+              loadErrors: json.loadError
+                ? { ...prev.loadErrors, facebook: json.loadError }
+                : prev.loadErrors,
+            }));
+          })(),
+        );
       }
+
+      await Promise.all(requests);
+      setFeedCache((prev) => ({ ...prev, ready: true }));
     } catch {
       toast.error("Netzwerkfehler beim Laden der Bewertungen.");
-      setMergedReviews([]);
     } finally {
-      setMergedLoading(false);
+      setFeedPrefetchLoading(false);
     }
-  }, [restaurantId, googleConnected, facebookConnected, markLoadedReviewsRead]);
+  }, [
+    restaurantId,
+    googleConnected,
+    facebookConnected,
+    fetchReviewsJson,
+    markLoadedReviewsRead,
+  ]);
 
-  const loadGoogle = useCallback(
-    async (opts?: { googlePage?: number; googlePageToken?: string | null }) => {
-      if (!restaurantId) {
-        setGoogleLoading(false);
+  const loadAllPage = useCallback(
+    async (page: number, opts?: { force?: boolean }) => {
+      if (!restaurantId) return;
+      if (!opts?.force && feedCache.allPages[page]) {
+        setAllPage(page);
         return;
       }
-      setGoogleLoading(true);
+      setPaginationBusy(true);
       try {
-        const params = new URLSearchParams({ restaurantId, platform: "google" });
-        const page = opts?.googlePage ?? 1;
-        const token =
-          opts?.googlePageToken !== undefined
-            ? opts.googlePageToken
-            : page <= 1
-              ? null
-              : (googleTokenByPage[page] ?? null);
-        if (token) params.set("googlePageToken", token);
-
-        const res = await fetch(`/api/reviews?${params}`);
-        const json = (await res.json()) as ReviewsApiResponse & { error?: string };
+        const params = new URLSearchParams({ restaurantId, platform: "all" });
+        const token = page <= 1 ? null : (feedCache.allTokenByPage[page] ?? null);
+        if (token) params.set("pageToken", token);
+        const { res, json } = await fetchReviewsJson(params);
         if (!res.ok) {
           toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
-          setGoogleData(null);
           return;
         }
         const reviewsRead = json.reviews.map((review) => ({
           ...review,
           isUnread: false,
         }));
-        setGoogleData({ ...json, reviews: reviewsRead });
         markLoadedReviewsRead(reviewsRead);
-
-        if (json.googlePagination) {
-          setGooglePage(page);
-          setGooglePagination(json.googlePagination);
-          const next = json.googlePagination.nextPageToken;
-          if (next) {
-            setGoogleTokenByPage((prev) => ({ ...prev, [page + 1]: next }));
-          }
-        }
+        setFeedCache((prev) => ({
+          ...prev,
+          allPages: { ...prev.allPages, [page]: reviewsRead },
+          allPagination: json.mergedPagination ?? prev.allPagination,
+          allTokenByPage: withNextPageToken(
+            page,
+            json.mergedPagination?.nextPageToken,
+            prev.allTokenByPage,
+          ),
+          platformTotals:
+            json.platformTotals ??
+            json.mergedPagination?.platformTotals ??
+            prev.platformTotals,
+          loadErrors: { ...prev.loadErrors, ...(json.loadErrors ?? {}) },
+        }));
+        setAllPage(page);
       } catch {
         toast.error("Netzwerkfehler beim Laden der Bewertungen.");
-        setGoogleData(null);
       } finally {
-        setGoogleLoading(false);
+        setPaginationBusy(false);
       }
     },
-    [restaurantId, googleTokenByPage, markLoadedReviewsRead],
+    [restaurantId, feedCache.allPages, feedCache.allTokenByPage, fetchReviewsJson, markLoadedReviewsRead],
   );
 
-  const loadMergedRef = useRef(loadMerged);
-  loadMergedRef.current = loadMerged;
-  const loadGoogleRef = useRef(loadGoogle);
-  loadGoogleRef.current = loadGoogle;
-
-  const loadGoogleStats = useCallback(async () => {
-    if (!restaurantId || !isGooglePaginated) return;
-    setGoogleStatsLoading(true);
-    setGoogleStatsError(null);
-    try {
-      const res = await fetch(
-        `/api/reviews/google-stats?${new URLSearchParams({ restaurantId })}`,
-      );
-      const json = (await res.json()) as {
-        averageRating?: number | null;
-        totalReviewCount?: number;
-        loadError?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        const err = json.loadError ?? json.error ?? "Google-Statistik nicht verfügbar.";
-        setGoogleStatsError(err);
-        setGoogleLocationSummary(null);
+  const loadGooglePage = useCallback(
+    async (page: number, opts?: { force?: boolean }) => {
+      if (!restaurantId) return;
+      if (!opts?.force && feedCache.googlePages[page]) {
+        setGooglePage(page);
         return;
       }
-      const total = Number(json.totalReviewCount ?? 0);
-      setGoogleLocationSummary({
-        count: total,
-        average:
-          typeof json.averageRating === "number" ? json.averageRating : null,
-        median: null,
-        distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
-        scope: "google_location",
-      });
-    } catch {
-      setGoogleStatsError("Netzwerkfehler bei Google-Statistik.");
-      setGoogleLocationSummary(null);
-    } finally {
-      setGoogleStatsLoading(false);
-    }
-  }, [restaurantId, isGooglePaginated]);
+      setPaginationBusy(true);
+      try {
+        const params = new URLSearchParams({ restaurantId, platform: "google" });
+        const token =
+          page <= 1 ? null : (feedCache.googleTokenByPage[page] ?? null);
+        if (token) params.set("googlePageToken", token);
+        const { res, json } = await fetchReviewsJson(params);
+        if (!res.ok) {
+          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          return;
+        }
+        const reviewsRead = json.reviews.map((review) => ({
+          ...review,
+          isUnread: false,
+        }));
+        markLoadedReviewsRead(reviewsRead);
+        setFeedCache((prev) => ({
+          ...prev,
+          googlePages: { ...prev.googlePages, [page]: reviewsRead },
+          googlePagination: json.googlePagination ?? prev.googlePagination,
+          googleTokenByPage: withNextPageToken(
+            page,
+            json.googlePagination?.nextPageToken,
+            prev.googleTokenByPage,
+          ),
+        }));
+        setGooglePage(page);
+      } catch {
+        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+      } finally {
+        setPaginationBusy(false);
+      }
+    },
+    [
+      restaurantId,
+      feedCache.googlePages,
+      feedCache.googleTokenByPage,
+      fetchReviewsJson,
+      markLoadedReviewsRead,
+    ],
+  );
+
+  const loadFacebookPage = useCallback(
+    async (page: number, opts?: { force?: boolean }) => {
+      if (!restaurantId) return;
+      if (!opts?.force && feedCache.facebookPages[page]) {
+        setFacebookPage(page);
+        return;
+      }
+      setPaginationBusy(true);
+      try {
+        const params = new URLSearchParams({ restaurantId, platform: "facebook" });
+        const token =
+          page <= 1 ? null : (feedCache.facebookTokenByPage[page] ?? null);
+        if (token) params.set("pageToken", token);
+        const { res, json } = await fetchReviewsJson(params);
+        if (!res.ok) {
+          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          return;
+        }
+        const reviewsRead = json.reviews.map((review) => ({
+          ...review,
+          isUnread: false,
+        }));
+        markLoadedReviewsRead(reviewsRead);
+        setFeedCache((prev) => ({
+          ...prev,
+          facebookPages: { ...prev.facebookPages, [page]: reviewsRead },
+          facebookPagination: json.facebookPagination ?? prev.facebookPagination,
+          facebookTokenByPage: withNextPageToken(
+            page,
+            json.facebookPagination?.nextPageToken,
+            prev.facebookTokenByPage,
+          ),
+        }));
+        setFacebookPage(page);
+      } catch {
+        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+      } finally {
+        setPaginationBusy(false);
+      }
+    },
+    [
+      restaurantId,
+      feedCache.facebookPages,
+      feedCache.facebookTokenByPage,
+      fetchReviewsJson,
+      markLoadedReviewsRead,
+    ],
+  );
+
+  const prefetchFeedRef = useRef(prefetchFeed);
+  prefetchFeedRef.current = prefetchFeed;
 
   const reloadCurrent = useCallback(() => {
+    const force = { force: true as const };
     if (isGooglePaginated) {
-      void loadGoogle({
-        googlePage,
-        googlePageToken:
-          googlePage <= 1 ? null : (googleTokenByPage[googlePage] ?? null),
-      });
+      void loadGooglePage(googlePage, force);
       return;
     }
-    void loadMerged();
-  }, [loadGoogle, loadMerged, isGooglePaginated, googlePage, googleTokenByPage]);
+    if (isAllPaginated) {
+      void loadAllPage(allPage, force);
+      return;
+    }
+    if (isFacebookPaginated) {
+      void loadFacebookPage(facebookPage, force);
+      return;
+    }
+    void prefetchFeed();
+  }, [
+    loadGooglePage,
+    loadAllPage,
+    loadFacebookPage,
+    prefetchFeed,
+    isGooglePaginated,
+    isAllPaginated,
+    isFacebookPaginated,
+    googlePage,
+    allPage,
+    facebookPage,
+  ]);
 
   useEffect(() => {
     if (!restaurantId || connectionsLoading) return;
@@ -515,38 +750,8 @@ export function ReviewsScreen() {
     setReadFilter("all");
     setReadLocal({});
     setSortKey("created_desc");
-    setGooglePage(1);
-    setGoogleTokenByPage({});
-    setGooglePagination(null);
-    setGoogleLocationSummary(null);
-    setGoogleStatsError(null);
-    setGoogleData(null);
-    void loadMergedRef.current();
+    void prefetchFeedRef.current();
   }, [restaurantId, connectionsLoading, googleConnected, facebookConnected]);
-
-  useEffect(() => {
-    if (!restaurantId || connectionsLoading || platformFilter !== "google") {
-      return;
-    }
-    if (!googleConnected) {
-      setGoogleData(null);
-      setGoogleLoading(false);
-      return;
-    }
-    setGooglePage(1);
-    setGoogleTokenByPage({});
-    setGooglePagination(null);
-    setGoogleLocationSummary(null);
-    setGoogleStatsError(null);
-    void loadGoogleStats();
-    void loadGoogleRef.current({ googlePage: 1, googlePageToken: null });
-  }, [
-    restaurantId,
-    platformFilter,
-    googleConnected,
-    connectionsLoading,
-    loadGoogleStats,
-  ]);
 
   useEffect(() => {
     if (!restaurantId || !platformViewReady) return;
@@ -555,20 +760,12 @@ export function ReviewsScreen() {
     void markAllReviewsReadClient(restaurantId).then(({ ok }) => {
       if (ok) {
         setReadLocal({});
-        setMergedReviews((prev) =>
-          prev.map((review) => ({ ...review, isUnread: false })),
-        );
-        setGoogleData((prev) =>
-          prev
-            ? {
-                ...prev,
-                reviews: prev.reviews.map((review) => ({
-                  ...review,
-                  isUnread: false,
-                })),
-              }
-            : prev,
-        );
+        setFeedCache((prev) => markReviewsReadInFeedCache(prev, [
+          ...prev.gwada,
+          ...Object.values(prev.allPages).flat(),
+          ...Object.values(prev.googlePages).flat(),
+          ...Object.values(prev.facebookPages).flat(),
+        ]));
       }
     });
   }, [restaurantId, platformViewReady]);
@@ -596,7 +793,9 @@ export function ReviewsScreen() {
       setReplyTarget(null);
       setReplyText("");
       reloadCurrent();
-      if (isGooglePaginated) void loadGoogleStats();
+      if (isGooglePaginated && googleLocationSummary == null) {
+        void prefetchFeedRef.current();
+      }
     } finally {
       setReplyBusy(false);
     }
@@ -604,21 +803,9 @@ export function ReviewsScreen() {
 
   const patchReviewInState = useCallback(
     (review: UnifiedReview, patch: Partial<UnifiedReview>) => {
-      const key = `${review.platform}:${review.id}`;
-      const apply = (items: UnifiedReview[]) =>
-        items.map((item) =>
-          `${item.platform}:${item.id}` === key ? { ...item, ...patch } : item,
-        );
-
-      if (isGooglePaginated) {
-        setGoogleData((prev) =>
-          prev ? { ...prev, reviews: apply(prev.reviews) } : prev,
-        );
-      } else {
-        setMergedReviews((prev) => apply(prev));
-      }
+      setFeedCache((prev) => patchReviewInFeedCache(prev, review, patch));
     },
-    [isGooglePaginated],
+    [],
   );
 
   const toggleReviewVisibility = useCallback(
@@ -682,31 +869,67 @@ export function ReviewsScreen() {
     : 1;
 
   const goGooglePrevious = () => {
-    if (googlePage <= 1 || loading) return;
-    const prev = googlePage - 1;
-    void loadGoogle({
-      googlePage: prev,
-      googlePageToken: prev <= 1 ? null : (googleTokenByPage[prev] ?? null),
-    });
+    if (googlePage <= 1 || paginationBusy) return;
+    void loadGooglePage(googlePage - 1);
   };
 
   const goGoogleNext = () => {
-    if (!googlePagination?.nextPageToken || loading) return;
-    void loadGoogle({
-      googlePage: googlePage + 1,
-      googlePageToken: googlePagination.nextPageToken,
-    });
+    if (paginationBusy) return;
+    if (
+      feedCache.googlePages[googlePage + 1] ||
+      feedCache.googleTokenByPage[googlePage + 1]
+    ) {
+      void loadGooglePage(googlePage + 1);
+    }
+  };
+
+  const allTotalPages = mergedPagination
+    ? reviewListTotalPages(mergedPagination.totalReviewCount)
+    : 1;
+
+  const goAllPrevious = () => {
+    if (allPage <= 1 || paginationBusy) return;
+    void loadAllPage(allPage - 1);
+  };
+
+  const goAllNext = () => {
+    if (paginationBusy) return;
+    if (feedCache.allPages[allPage + 1] || feedCache.allTokenByPage[allPage + 1]) {
+      void loadAllPage(allPage + 1);
+    }
+  };
+
+  const facebookTotalPages = facebookPagination
+    ? reviewListTotalPages(facebookPagination.totalReviewCount)
+    : 1;
+
+  const goFacebookPrevious = () => {
+    if (facebookPage <= 1 || paginationBusy) return;
+    void loadFacebookPage(facebookPage - 1);
+  };
+
+  const goFacebookNext = () => {
+    if (paginationBusy) return;
+    if (
+      feedCache.facebookPages[facebookPage + 1] ||
+      feedCache.facebookTokenByPage[facebookPage + 1]
+    ) {
+      void loadFacebookPage(facebookPage + 1);
+    }
   };
 
   const loadError = useMemo(() => {
     if (platformFilter === "google") {
-      return googleData?.loadError ?? null;
+      return mergedLoadErrors.google ?? null;
+    }
+    if (platformFilter === "facebook") {
+      return mergedLoadErrors.facebook ?? null;
     }
     if (platformFilter === REVIEW_FILTER_ALL) {
       return null;
     }
     return mergedLoadErrors[platformFilter] ?? null;
-  }, [platformFilter, googleData?.loadError, mergedLoadErrors]);
+  }, [platformFilter, mergedLoadErrors]);
 
   const mergedLoadErrorEntries = useMemo(
     () =>
@@ -714,9 +937,7 @@ export function ReviewsScreen() {
     [mergedLoadErrors],
   );
 
-  const hasReviewData = isGooglePaginated
-    ? googleData !== null
-    : !mergedLoading;
+  const hasReviewData = feedCache.ready && !feedPrefetchLoading;
 
   const reviewIsUnread = useCallback(
     (review: UnifiedReview) => {
@@ -790,6 +1011,32 @@ export function ReviewsScreen() {
     [filteredSortedReviews],
   );
 
+  const mergedGrandTotal = useMemo(() => {
+    if (platformFilter !== REVIEW_FILTER_ALL) return null;
+    if (typeof mergedPagination?.totalReviewCount === "number") {
+      return mergedPagination.totalReviewCount;
+    }
+    const platforms: ReviewPlatform[] = ["gwada"];
+    if (googleConnected) platforms.push("google");
+    if (facebookConnected) platforms.push("facebook");
+    let sum = 0;
+    let hasAny = false;
+    for (const platform of platforms) {
+      const count = mergedPlatformTotals[platform];
+      if (typeof count === "number") {
+        sum += count;
+        hasAny = true;
+      }
+    }
+    return hasAny ? sum : null;
+  }, [
+    platformFilter,
+    mergedPagination?.totalReviewCount,
+    mergedPlatformTotals,
+    googleConnected,
+    facebookConnected,
+  ]);
+
   const drawerFilterActiveCount = useMemo(
     () =>
       countReviewsDrawerActiveFilters({
@@ -861,8 +1108,22 @@ export function ReviewsScreen() {
     if (isGooglePaginated && !filtersActive && googleLocationSummary) {
       return googleLocationSummary;
     }
+    if (
+      platformFilter === REVIEW_FILTER_ALL &&
+      !filtersActive &&
+      mergedGrandTotal != null
+    ) {
+      return { ...filteredSummary, count: mergedGrandTotal };
+    }
     return filteredSummary;
-  }, [isGooglePaginated, filtersActive, googleLocationSummary, filteredSummary]);
+  }, [
+    isGooglePaginated,
+    filtersActive,
+    googleLocationSummary,
+    filteredSummary,
+    platformFilter,
+    mergedGrandTotal,
+  ]);
 
   if (!ready) {
     return <WorkspaceRestaurantResolvePlaceholder />;
@@ -905,7 +1166,7 @@ export function ReviewsScreen() {
 
       {platformViewReady ? (
       <div className="space-y-6">
-      {platformFilter === "gwada" && !loading && !showSkeleton ? (
+      {platformFilter === "gwada" && !feedPrefetchLoading && !showSkeleton ? (
         <div className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <p className="max-w-2xl text-sm text-muted-foreground">
@@ -944,7 +1205,7 @@ export function ReviewsScreen() {
         </div>
       ) : null}
 
-      {loadError && !loading ? (
+      {loadError && !feedPrefetchLoading ? (
         <Card className="border-destructive/30 bg-destructive/5">
           <CardContent className="p-4 text-sm text-destructive">
             {platformFilter === "google"
@@ -957,7 +1218,7 @@ export function ReviewsScreen() {
 
       {platformFilter === REVIEW_FILTER_ALL &&
       mergedLoadErrorEntries.length > 0 &&
-      !loading ? (
+      !feedPrefetchLoading ? (
         <div className="space-y-2">
           {mergedLoadErrorEntries.map(([platform, message]) => (
             <Card
@@ -977,7 +1238,7 @@ export function ReviewsScreen() {
         </div>
       ) : null}
 
-      {platformFilter === "google" && googleStatsError && !googleStatsLoading ? (
+      {platformFilter === "google" && googleStatsError && !googleLocationSummary ? (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="p-4 text-sm text-foreground">
             Google-Durchschnitt konnte nicht geladen werden.
@@ -988,7 +1249,7 @@ export function ReviewsScreen() {
         </Card>
       ) : null}
 
-      {loading && !showSkeleton ? (
+      {feedPrefetchLoading && !showSkeleton ? (
         <div className="min-h-[24rem]" aria-busy="true" />
       ) : null}
 
@@ -1062,10 +1323,22 @@ export function ReviewsScreen() {
                     ? filtersActive
                       ? `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${googlePage}/${googleTotalPages})`
                       : `${allReviews.length} auf dieser Seite · insgesamt ${googleLocationSummary?.count ?? googlePagination.totalReviewCount} bei Google`
-                    : filtersActive
-                      ? `${filteredSortedReviews.length} von ${allReviews.length} Bewertungen`
-                      : `${allReviews.length} Bewertungen`}
+                    : isFacebookPaginated && facebookPagination
+                      ? filtersActive
+                        ? `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${facebookPage}/${facebookTotalPages})`
+                        : `${allReviews.length} auf dieser Seite · insgesamt ${facebookPagination.totalReviewCount} bei Facebook`
+                      : isAllPaginated && mergedPagination
+                        ? filtersActive
+                          ? `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${allPage}/${allTotalPages})`
+                          : `${allReviews.length} auf dieser Seite · insgesamt ${mergedPagination.totalReviewCount} Bewertungen`
+                        : filtersActive
+                          ? `${filteredSortedReviews.length} von ${allReviews.length} Bewertungen`
+                          : `${allReviews.length} Bewertungen`}
                   {isGooglePaginated && filtersActive ? (
+                    <span className="mt-0.5 block text-xs">
+                      Filter und Sortierung gelten nur für die aktuelle Seite.
+                    </span>
+                  ) : (isAllPaginated || isFacebookPaginated) && filtersActive ? (
                     <span className="mt-0.5 block text-xs">
                       Filter und Sortierung gelten nur für die aktuelle Seite.
                     </span>
@@ -1132,8 +1405,39 @@ export function ReviewsScreen() {
                   onPrevious={goGooglePrevious}
                   onNext={goGoogleNext}
                   canPrevious={googlePage > 1}
-                  canNext={Boolean(googlePagination.nextPageToken)}
-                  busy={loading}
+                  canNext={
+                    Boolean(feedCache.googlePages[googlePage + 1]) ||
+                    Boolean(feedCache.googleTokenByPage[googlePage + 1])
+                  }
+                  busy={paginationBusy}
+                />
+              ) : null}
+              {isAllPaginated && mergedPagination ? (
+                <ReviewsPagination
+                  page={allPage}
+                  totalPages={allTotalPages}
+                  onPrevious={goAllPrevious}
+                  onNext={goAllNext}
+                  canPrevious={allPage > 1}
+                  canNext={
+                    Boolean(feedCache.allPages[allPage + 1]) ||
+                    Boolean(feedCache.allTokenByPage[allPage + 1])
+                  }
+                  busy={paginationBusy}
+                />
+              ) : null}
+              {isFacebookPaginated && facebookPagination ? (
+                <ReviewsPagination
+                  page={facebookPage}
+                  totalPages={facebookTotalPages}
+                  onPrevious={goFacebookPrevious}
+                  onNext={goFacebookNext}
+                  canPrevious={facebookPage > 1}
+                  canNext={
+                    Boolean(feedCache.facebookPages[facebookPage + 1]) ||
+                    Boolean(feedCache.facebookTokenByPage[facebookPage + 1])
+                  }
+                  busy={paginationBusy}
                 />
               ) : null}
             </>

@@ -65,10 +65,8 @@ export function computeConversationUnread(params: {
   const lastRead = params.read?.last_read_at;
   if (!lastRead) {
     if (params.conversation.last_direction === "inbound") {
-      return {
-        unread_count: params.conversation.inbound_count ?? 1,
-        is_unread: true,
-      };
+      const count = params.conversation.inbound_count ?? 1;
+      return { unread_count: count, is_unread: count > 0 };
     }
     return { unread_count: 0, is_unread: false };
   }
@@ -76,8 +74,8 @@ export function computeConversationUnread(params: {
   const lastAt = new Date(params.conversation.last_at).getTime();
   const readAt = new Date(lastRead).getTime();
   if (lastAt > readAt && params.conversation.last_direction === "inbound") {
-    const n = params.conversation.inbound_count ?? 1;
-    return { unread_count: n, is_unread: true };
+    const count = params.conversation.inbound_count ?? 1;
+    return { unread_count: count, is_unread: count > 0 };
   }
 
   return { unread_count: 0, is_unread: false };

@@ -49,15 +49,7 @@ export SUPABASE_DB_URL="postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:${L
 export PGSSLMODE=disable
 
 echo ""
-echo "=== Live-DB: blockierenden Galerie-Migrationseintrag entfernen ==="
-# 20260623120000 steht in schema_migrations, INSERT am Ende schlägt fehl → gesamte Transaktion rollback.
-gwada_ssh_cmd "${LIVE_SSH_USER}@${LIVE_VPS_HOST}" \
-  "docker exec ${DB_CONTAINER} psql -U postgres -v ON_ERROR_STOP=0 -c \"DELETE FROM supabase_migrations.schema_migrations WHERE version = '20260623120000';\"" \
-  2>/dev/null || true
-
-echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
-# Kein --include-all: sonst werden geänderte, bereits registrierte Migrationen erneut ausgeführt.
 bash scripts/db-push-live.sh --yes "$@"
 
 echo ""

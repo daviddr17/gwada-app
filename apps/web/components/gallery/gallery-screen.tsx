@@ -11,6 +11,7 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { GalleryCategoryFilterChips } from "@/components/gallery/gallery-category-filter-chips";
 import { GalleryComposeDrawer } from "@/components/gallery/gallery-compose-drawer";
+import { GalleryHighlightComposeDrawer } from "@/components/gallery/gallery-highlight-compose-drawer";
 import { GalleryHighlightViewer } from "@/components/gallery/gallery-highlight-viewer";
 import { GalleryHighlightsRow } from "@/components/gallery/gallery-highlights-row";
 import { GalleryItemActionSheet } from "@/components/gallery/gallery-item-action-sheet";
@@ -64,6 +65,7 @@ export function GalleryScreen() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [activeHighlight, setActiveHighlight] = useState<UnifiedGalleryHighlight | null>(null);
   const [highlightOpen, setHighlightOpen] = useState(false);
+  const [highlightComposeOpen, setHighlightComposeOpen] = useState(false);
 
   const { availablePlatforms } = useGalleryPlatformConnections(restaurantId);
 
@@ -119,6 +121,15 @@ export function GalleryScreen() {
     const from = (currentPage - 1) * GALLERY_FEED_PAGE_SIZE;
     return filtered.slice(from, from + GALLERY_FEED_PAGE_SIZE);
   }, [filtered, currentPage]);
+
+  const gwadaItemsForHighlights = useMemo(
+    () =>
+      items.filter(
+        (item): item is UnifiedGalleryItem & { itemId: string } =>
+          item.platform === "gwada" && Boolean(item.itemId),
+      ),
+    [items],
+  );
 
   useEffect(() => {
     if (!syncMeta?.stale || loading) return;
@@ -179,6 +190,8 @@ export function GalleryScreen() {
 
       <GalleryHighlightsRow
         highlights={highlights}
+        canManage={canUpdate}
+        onAddHighlight={() => setHighlightComposeOpen(true)}
         onHighlightClick={(h) => {
           setActiveHighlight(h);
           setHighlightOpen(true);
@@ -242,6 +255,14 @@ export function GalleryScreen() {
         canDelete={canDelete}
         onEdit={() => toast.message("Bearbeiten folgt in Kürze")}
         onDelete={() => void handleDelete()}
+      />
+
+      <GalleryHighlightComposeDrawer
+        open={highlightComposeOpen}
+        onOpenChange={setHighlightComposeOpen}
+        restaurantId={restaurantId}
+        gwadaItems={gwadaItemsForHighlights}
+        onSaved={() => void load()}
       />
 
       <GalleryHighlightViewer

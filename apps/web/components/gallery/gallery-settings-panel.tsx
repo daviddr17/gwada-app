@@ -18,8 +18,8 @@ export function GallerySettingsPanel() {
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-2 p-4 text-sm text-muted-foreground">
           <p>
-            Highlights kannst du in der Übersicht über Gwada-Bilder anlegen. Plattform-Highlights
-            erscheinen automatisch, sobald die jeweilige API sie liefert.
+            Highlights legst du in der Galerie-Übersicht über „Neu“ neben den runden
+            Vorschauen an — nur mit eigenen Gwada-Bildern.
           </p>
           <p>
             Google-Kategorien werden beim Upload als GBP-Medienkategorie übermittelt.

@@ -339,25 +339,36 @@ export async function dismissAllStaffShiftNotifications(
     kind: "start" | "end";
   },
 ): Promise<{ error: string | null }> {
-  const summary =
+  const now = Date.now();
+  const dismissed = await fetchDismissedShiftKeys(sb, {
+    profileId: params.userId,
+    restaurantId: params.restaurantId,
+    kind: params.kind,
+  });
+
+  const shifts =
     params.kind === "start"
-      ? await loadStaffShiftStartBellSummary(sb, {
+      ? await fetchShiftsInRange(sb, {
           restaurantId: params.restaurantId,
-          userId: params.userId,
-          limit: 500,
+          rangeStartIso: new Date(now).toISOString(),
+          rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
         })
-      : await loadStaffShiftEndBellSummary(sb, {
+      : await fetchShiftsEndingInRange(sb, {
           restaurantId: params.restaurantId,
-          userId: params.userId,
-          limit: 500,
+          rangeStartIso: new Date(now - STAFF_SHIFT_BELL_END_TRAIL_MS).toISOString(),
+          rangeEndIso: new Date(now).toISOString(),
         });
 
-  if (summary.items.length === 0) return { error: null };
+  const activeIds = shifts
+    .filter((s) => !dismissed.has(s.id))
+    .map((s) => s.id);
 
-  const rows = summary.items.map((item) => ({
+  if (activeIds.length === 0) return { error: null };
+
+  const rows = activeIds.map((shiftId) => ({
     profile_id: params.userId,
     restaurant_id: params.restaurantId,
-    shift_id: item.id,
+    shift_id: shiftId,
     kind: params.kind,
   }));
 

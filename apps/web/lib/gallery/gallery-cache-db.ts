@@ -26,7 +26,21 @@ function parseCachedItem(raw: unknown): UnifiedGalleryItem | null {
   const o = raw as Record<string, unknown>;
   if (typeof o.id !== "string" || typeof o.platform !== "string") return null;
   if (typeof o.previewUrl !== "string") return null;
-  return raw as UnifiedGalleryItem;
+  const item = raw as UnifiedGalleryItem;
+  if (item.platform === "facebook" && isFacebookPostGalleryItem(item)) return null;
+  return item;
+}
+
+/** Veraltete Cache-Zeilen: Beitrags-Links statt Foto-URLs. */
+function isFacebookPostGalleryItem(item: UnifiedGalleryItem): boolean {
+  const url = item.externalUrl?.trim().toLowerCase() ?? "";
+  if (!url) return false;
+  return (
+    url.includes("/posts/") ||
+    url.includes("/videos/") ||
+    url.includes("/permalink/") ||
+    url.includes("/story.php")
+  );
 }
 
 export async function readGalleryPlatformSyncState(

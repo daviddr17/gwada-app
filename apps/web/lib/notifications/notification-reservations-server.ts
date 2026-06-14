@@ -178,25 +178,50 @@ export async function dismissAllReservationNotifications(
       | "reservations_cancellation";
   },
 ): Promise<{ error: string | null }> {
-  const { items } = await loadReservationNotificationItems(sb, {
+  const statusCode = STATUS_BY_MODULE[params.module];
+  const statusId = await fetchStatusIdByCode(sb, statusCode);
+  if (!statusId) return { error: null };
+
+  const dismissed = await fetchDismissedReservationIds(sb, {
+    profileId: params.userId,
     restaurantId: params.restaurantId,
-    userId: params.userId,
     module: params.module,
-    limit: 500,
   });
 
-  if (items.length === 0) return { error: null };
+  let query = sb
+    .from("reservations")
+    .select("id")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("status_id", statusId);
 
-  const rows = items.map((item) => ({
+  if (params.module === "reservations_cancellation") {
+    const since = new Date(
+      Date.now() - RESERVATION_CANCELLATION_LOOKBACK_MS,
+    ).toISOString();
+    query = query.gte("updated_at", since);
+  } else {
+    query = query.gte("starts_at", new Date().toISOString());
+  }
+
+  const { data, error } = await query.limit(500);
+  if (error) return { error: error.message };
+
+  const reservationIds = (data ?? [])
+    .map((row) => (row as { id: string }).id)
+    .filter((id) => !dismissed.has(id));
+
+  if (reservationIds.length === 0) return { error: null };
+
+  const rows = reservationIds.map((reservationId) => ({
     profile_id: params.userId,
     restaurant_id: params.restaurantId,
-    reservation_id: item.id,
+    reservation_id: reservationId,
     module: params.module,
   }));
 
-  const { error } = await sb
+  const { error: upsertError } = await sb
     .from("restaurant_reservation_notification_dismissals")
     .upsert(rows, { onConflict: "profile_id,reservation_id,module" });
 
-  return { error: error?.message ?? null };
+  return { error: upsertError?.message ?? null };
 }

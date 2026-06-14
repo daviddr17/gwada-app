@@ -77,7 +77,7 @@ export async function markNotificationReadServer(
 
     case "reviews": {
       if (!itemId) {
-        const all = await markAllReviewsReadForUserServer(sb, {
+        const all = await markAllReviewsReadForUserServer(admin, {
           restaurantId,
           userId,
         });
@@ -103,7 +103,7 @@ export async function markNotificationReadServer(
     case "reservations_change_request":
     case "reservations_cancellation": {
       if (!itemId) {
-        const all = await dismissAllReservationNotifications(sb, {
+        const all = await dismissAllReservationNotifications(admin, {
           restaurantId,
           userId,
           module,
@@ -125,7 +125,7 @@ export async function markNotificationReadServer(
     case "staff_shift_end": {
       const kind = module === "staff_shift_start" ? "start" : "end";
       if (!itemId) {
-        const all = await dismissAllStaffShiftNotifications(sb, {
+        const all = await dismissAllStaffShiftNotifications(admin, {
           restaurantId,
           userId,
           kind,
@@ -150,7 +150,7 @@ export async function markNotificationReadServer(
 
     case "inventory_low_stock": {
       if (!itemId) {
-        const all = await dismissAllInventoryLowStockNotifications(sb, {
+        const all = await dismissAllInventoryLowStockNotifications(admin, {
           restaurantId,
           userId,
         });
@@ -169,7 +169,7 @@ export async function markNotificationReadServer(
     case "changelog": {
       const changelogEntryId = itemId ?? meta?.changelogEntryId;
       if (!changelogEntryId) {
-        const all = await markAllChangelogReadForUserServer(sb, { userId });
+        const all = await markAllChangelogReadForUserServer(admin, { userId });
         return all.error ? { ok: false, error: all.error } : { ok: true };
       }
       const { error } = await sb.from("platform_changelog_reads").upsert(

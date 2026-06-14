@@ -1401,13 +1401,13 @@ export function ReviewsScreen() {
                   {viewMode === "list" ? (
                     <ReviewsListView
                       reviews={filteredSortedReviews}
-                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      showPlatform={false}
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
                     <ReviewsGridView
                       reviews={filteredSortedReviews}
-                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      showPlatform={false}
                       getReviewProps={getReviewCardProps}
                     />
                   )}
@@ -1428,13 +1428,13 @@ export function ReviewsScreen() {
                   {viewMode === "list" ? (
                     <ReviewsListView
                       reviews={filteredSortedReviews}
-                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      showPlatform={true}
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
                     <ReviewsGridView
                       reviews={filteredSortedReviews}
-                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      showPlatform={true}
                       getReviewProps={getReviewCardProps}
                     />
                   )}
@@ -1455,13 +1455,13 @@ export function ReviewsScreen() {
                   {viewMode === "list" ? (
                     <ReviewsListView
                       reviews={filteredSortedReviews}
-                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      showPlatform={false}
                       getReviewProps={getReviewCardProps}
                     />
                   ) : (
                     <ReviewsGridView
                       reviews={filteredSortedReviews}
-                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      showPlatform={false}
                       getReviewProps={getReviewCardProps}
                     />
                   )}

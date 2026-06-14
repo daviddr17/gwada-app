@@ -1,29 +1,21 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Building2,
-  CalendarDays,
   Database,
-  FileText,
   LayoutDashboard,
   LogOut,
-  MessageCircle,
-  Newspaper,
-  Package,
   Plug,
   ScrollText,
-  Star,
-  Receipt,
   Settings,
   Settings2,
   Shield,
   Users,
-  UtensilsCrossed,
   Workflow,
 } from "lucide-react";
 import {
@@ -47,6 +39,11 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AppSidebarBrandLogo } from "@/components/layout/app-sidebar-brand-logo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import {
+  SIDEBAR_MODULE_BY_ID,
+  type SidebarModuleId,
+} from "@/lib/constants/sidebar-modules";
+import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -72,7 +69,16 @@ export function AppSidebar() {
   const { profile } = useRestaurantProfile();
   const { firstName, lastName } = usePersonalProfileNames();
   const { isSuperadmin } = useIsSuperadmin();
+  const { order: sidebarModuleOrder } = useSidebarModuleOrder();
   const inSuperadmin = pathname.startsWith("/superadmin");
+
+  const orderedSidebarModules = useMemo(
+    () =>
+      sidebarModuleOrder
+        .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
+        .filter((mod): mod is NonNullable<typeof mod> => mod != null),
+    [sidebarModuleOrder],
+  );
 
   const displayName =
     profile.name.trim() || "Restaurant";
@@ -250,104 +256,21 @@ export function AppSidebar() {
                       <span>Dashboard</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/menu")}
-                      tooltip="Speisekarte"
-                      render={<AppNavLink href="/dashboard/menu/uebersicht" />}
-                    >
-                      <UtensilsCrossed />
-                      <span>Speisekarte</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/inventory")}
-                      tooltip="Bestand"
-                      render={<AppNavLink href="/dashboard/inventory/uebersicht" />}
-                    >
-                      <Package />
-                      <span>Bestand</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/reservierungen")}
-                      tooltip="Reservierungen"
-                      render={
-                        <AppNavLink href="/dashboard/reservierungen/uebersicht" />
-                      }
-                    >
-                      <CalendarDays />
-                      <span>Reservierungen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/kontakte")}
-                      tooltip="Nachrichten"
-                      render={
-                        <AppNavLink href="/dashboard/kontakte/nachrichten?platform=all" />
-                      }
-                    >
-                      <MessageCircle />
-                      <span>Nachrichten</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/news")}
-                      tooltip="News"
-                      render={<AppNavLink href="/dashboard/news/uebersicht" />}
-                    >
-                      <Newspaper />
-                      <span>News</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/bewertungen")}
-                      tooltip="Bewertungen"
-                      render={<AppNavLink href="/dashboard/bewertungen/uebersicht" />}
-                    >
-                      <Star />
-                      <span>Bewertungen</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/buchfuehrung")}
-                      tooltip="Buchführung"
-                      render={
-                        <AppNavLink href="/dashboard/buchfuehrung/rechnungen" />
-                      }
-                    >
-                      <Receipt />
-                      <span>Buchführung</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/dokumente")}
-                      tooltip="Dokumente"
-                      render={<AppNavLink href="/dashboard/dokumente/uebersicht" />}
-                    >
-                      <FileText />
-                      <span>Dokumente</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith("/dashboard/mitarbeiter")}
-                      tooltip="Mitarbeiter"
-                      render={
-                        <AppNavLink href="/dashboard/mitarbeiter/uebersicht" />
-                      }
-                    >
-                      <Users />
-                      <span>Mitarbeiter</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {orderedSidebarModules.map((mod) => {
+                    const Icon = mod.icon;
+                    return (
+                      <SidebarMenuItem key={mod.id}>
+                        <SidebarMenuButton
+                          isActive={pathname.startsWith(mod.pathPrefix)}
+                          tooltip={mod.tooltip}
+                          render={<AppNavLink href={mod.href} />}
+                        >
+                          <Icon />
+                          <span>{mod.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
                 </>
               )}
             </SidebarMenu>

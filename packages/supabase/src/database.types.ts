@@ -1614,6 +1614,7 @@ export type Database = {
           id: string
           logo_dark_path: string | null
           logo_path: string | null
+          sidebar_module_order: Json | null
           updated_at: string
         }
         Insert: {
@@ -1623,6 +1624,7 @@ export type Database = {
           id: string
           logo_dark_path?: string | null
           logo_path?: string | null
+          sidebar_module_order?: Json | null
           updated_at?: string
         }
         Update: {
@@ -1632,6 +1634,7 @@ export type Database = {
           id?: string
           logo_dark_path?: string | null
           logo_path?: string | null
+          sidebar_module_order?: Json | null
           updated_at?: string
         }
         Relationships: []

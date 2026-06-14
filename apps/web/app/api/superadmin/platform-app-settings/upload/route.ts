@@ -6,6 +6,7 @@ import {
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   fetchPlatformAppBranding,
+  fetchSidebarModuleOrder,
   updatePlatformBrandingAssetPath,
 } from "@/lib/supabase/platform-app-settings-db";
 import type { PlatformBrandingAssetKind } from "@/lib/types/platform-app-settings";
@@ -44,9 +45,11 @@ function extForMime(mime: string): string {
   }
 }
 
-function jsonBranding(
-  branding: Awaited<ReturnType<typeof fetchPlatformAppBranding>>,
+async function jsonBranding(
+  admin: NonNullable<Awaited<ReturnType<typeof createSupabaseAdminClient>>>,
 ) {
+  const branding = await fetchPlatformAppBranding(admin);
+  const sidebarModuleOrder = await fetchSidebarModuleOrder(admin);
   return Response.json({
     appName: branding.appName,
     logoUrl: branding.logoUrl,
@@ -55,6 +58,7 @@ function jsonBranding(
     logoPath: branding.logoPath,
     logoDarkPath: branding.logoDarkPath,
     faviconPath: branding.faviconPath,
+    sidebarModuleOrder,
   });
 }
 
@@ -140,8 +144,7 @@ export async function POST(req: Request) {
 
   await removeStorageObject(admin, prevPath);
 
-  const branding = await fetchPlatformAppBranding(admin);
-  return jsonBranding(branding);
+  return jsonBranding(admin);
 }
 
 export async function DELETE(req: Request) {
@@ -180,6 +183,5 @@ export async function DELETE(req: Request) {
 
   await removeStorageObject(admin, prevPath);
 
-  const branding = await fetchPlatformAppBranding(admin);
-  return jsonBranding(branding);
+  return jsonBranding(admin);
 }

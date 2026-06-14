@@ -31,14 +31,14 @@ drop policy if exists restaurant_opening_hours_settings_staff_select
   on public.restaurant_opening_hours_settings;
 create policy restaurant_opening_hours_settings_staff_select
   on public.restaurant_opening_hours_settings for select
-  using (public.user_has_restaurant_access(restaurant_id));
+  using (public.auth_is_restaurant_staff(restaurant_id));
 
 drop policy if exists restaurant_opening_hours_settings_staff_write
   on public.restaurant_opening_hours_settings;
 create policy restaurant_opening_hours_settings_staff_write
   on public.restaurant_opening_hours_settings for all
-  using (public.user_has_restaurant_access(restaurant_id))
-  with check (public.user_has_restaurant_access(restaurant_id));
+  using (public.auth_is_restaurant_staff(restaurant_id))
+  with check (public.auth_is_restaurant_staff(restaurant_id));
 
 comment on table public.restaurant_opening_hours_settings is
   'Embed- und Anzeigeoptionen für Öffnungszeiten (Website-Widget).';

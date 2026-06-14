@@ -45,3 +45,21 @@ export function clampListPage(page: number, totalPages: number): number {
   if (totalPages < 1) return 1;
   return Math.min(Math.max(1, page), totalPages);
 }
+
+export function paginateListItems<T>(
+  items: T[],
+  page: number,
+  pageSize: number,
+): PaginatedListResult<T> {
+  const totalCount = items.length;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  const safePage = clampListPage(page, totalPages);
+  const from = (safePage - 1) * pageSize;
+  return {
+    items: items.slice(from, from + pageSize),
+    page: safePage,
+    pageSize,
+    totalCount,
+    totalPages,
+  };
+}

@@ -2655,6 +2655,7 @@ export type Database = {
       }
       restaurant_contact_settings: {
         Row: {
+          auto_create_from_messages: boolean
           auto_create_from_reservations: boolean
           guest_chat_code_valid_hours: number
           guest_chat_session_hours: number
@@ -2663,6 +2664,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          auto_create_from_messages?: boolean
           auto_create_from_reservations?: boolean
           guest_chat_code_valid_hours?: number
           guest_chat_session_hours?: number
@@ -2671,6 +2673,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          auto_create_from_messages?: boolean
           auto_create_from_reservations?: boolean
           guest_chat_code_valid_hours?: number
           guest_chat_session_hours?: number

@@ -296,8 +296,7 @@ export function ProfileAppSheetHeader({
         data-profile-app-sheet-drag-chrome
         data-profile-sheet-no-pull
         className={cn(
-          "sticky z-10 shrink-0 py-2",
-          activeApp !== "menu" && "border-b border-border/40",
+          "sticky z-10 shrink-0 border-b border-border/40 py-2",
           profileSheetDragChromeClassName,
           profileSheetStickyChromeClassName,
         )}

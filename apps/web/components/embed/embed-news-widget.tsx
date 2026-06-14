@@ -14,10 +14,12 @@ import {
   NEWS_FILTER_ALL,
   type NewsPlatformFilter,
 } from "@/lib/constants/news-platforms";
+import { paginateListItems } from "@/lib/constants/list-pagination";
 import type {
   PublicEmbedNews,
   PublicEmbedNewsPagination,
 } from "@/lib/news/public-news-server";
+import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
 export type EmbedNewsWidgetProps = {
   accentHex: string;
   viewMode: "grid" | "list";
@@ -55,8 +57,10 @@ export function EmbedNewsWidget({
   const searchParams = useSearchParams();
   const [localPlatformFilter, setLocalPlatformFilter] =
     useState<NewsPlatformFilter>(NEWS_FILTER_ALL);
+  const [localPage, setLocalPage] = useState(1);
   const [navigating, startTransition] = useTransition();
   const paginated = pagination != null && variant === "embed";
+  const profilePaginated = variant === "profileSheet";
 
   const rawPlatformFilter = paginated
     ? (pagination.platformFilter ?? NEWS_FILTER_ALL)
@@ -121,6 +125,7 @@ export function EmbedNewsWidget({
         return;
       }
       setLocalPlatformFilter(next);
+      setLocalPage(1);
     },
     [paginated, pushQuery, availablePlatforms],
   );
@@ -130,25 +135,55 @@ export function EmbedNewsWidget({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [paginated, pagination?.page, pagination?.platformFilter]);
 
+  useEffect(() => {
+    if (!profilePaginated) return;
+    setLocalPage(1);
+  }, [profilePaginated, platformFilter]);
+
+  const clientPagination = useMemo(() => {
+    if (!profilePaginated) return null;
+    return paginateListItems(filtered, localPage, NEWS_FEED_PAGE_SIZE);
+  }, [profilePaginated, filtered, localPage]);
+
+  const displayItems = paginated
+    ? filtered
+    : profilePaginated
+      ? clientPagination!.items
+      : filtered;
+
   const resizeDeps = useMemo(
     () => [
       viewMode,
       platformFilter,
-      filtered.length,
-      pagination?.page ?? 1,
-      pagination?.totalCount ?? filtered.length,
-      filtered.map((i) => `${i.id}:${i.body.length}:${i.media.length}`).join("|"),
+      displayItems.length,
+      pagination?.page ?? clientPagination?.page ?? 1,
+      pagination?.totalCount ??
+        clientPagination?.totalCount ??
+        filtered.length,
+      displayItems.map((i) => `${i.id}:${i.body.length}:${i.media.length}`).join("|"),
     ],
-    [viewMode, platformFilter, filtered, pagination],
+    [viewMode, platformFilter, displayItems, pagination, clientPagination, filtered.length],
   );
 
   const paddingClass =
     variant === "profileSheet" ? "px-0 py-0" : "px-4 py-5 sm:px-6";
 
-  const showPagination =
+  const showServerPagination =
     paginated &&
     pagination != null &&
     (pagination.totalPages > 1 || pagination.totalCount > 0);
+
+  const showClientPagination =
+    profilePaginated &&
+    clientPagination != null &&
+    (clientPagination.totalPages > 1 || clientPagination.totalCount > 0);
+
+  const newsContent =
+    viewMode === "list" ? (
+      <NewsListView items={displayItems} />
+    ) : (
+      <NewsMasonryGrid items={displayItems} />
+    );
 
   return (
     <EmbedAccentRoot accentHex={accentHex} brandFooter={variant !== "profileSheet"}>
@@ -170,13 +205,13 @@ export function EmbedNewsWidget({
               ? "Noch keine News veröffentlicht."
               : "Keine News für diese Plattform."}
           </p>
-        ) : showPagination && pagination ? (
+        ) : showServerPagination && pagination ? (
           <ListPaginationSurround
             classNameAbove="mb-4 border-b-0 pb-0"
             classNameBelow="mt-4 border-t-0 pt-0"
             page={pagination.page}
             totalPages={pagination.totalPages}
-            shown={filtered.length}
+            shown={displayItems.length}
             totalCount={pagination.totalCount}
             itemLabel="Beiträge"
             canPrevious={pagination.page > 1}
@@ -185,16 +220,28 @@ export function EmbedNewsWidget({
             onPrevious={() => pushQuery({ page: pagination.page - 1 })}
             onNext={() => pushQuery({ page: pagination.page + 1 })}
           >
-            {viewMode === "list" ? (
-              <NewsListView items={filtered} />
-            ) : (
-              <NewsMasonryGrid items={filtered} />
-            )}
+            {newsContent}
           </ListPaginationSurround>
-        ) : viewMode === "list" ? (
-          <NewsListView items={filtered} />
+        ) : showClientPagination && clientPagination ? (
+          <ListPaginationSurround
+            classNameAbove="mb-4 border-b-0 pb-0"
+            classNameBelow="mt-4 border-t-0 pt-0"
+            page={clientPagination.page}
+            totalPages={clientPagination.totalPages}
+            shown={displayItems.length}
+            totalCount={clientPagination.totalCount}
+            itemLabel="Beiträge"
+            canPrevious={clientPagination.page > 1}
+            canNext={clientPagination.page < clientPagination.totalPages}
+            onPrevious={() => setLocalPage((p) => Math.max(1, p - 1))}
+            onNext={() =>
+              setLocalPage((p) => Math.min(clientPagination.totalPages, p + 1))
+            }
+          >
+            {newsContent}
+          </ListPaginationSurround>
         ) : (
-          <NewsMasonryGrid items={filtered} />
+          newsContent
         )}
       </div>
     </EmbedAccentRoot>

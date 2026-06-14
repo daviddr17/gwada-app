@@ -147,12 +147,12 @@ function EmbedMenuToolbar({
         profileSheet &&
           "top-[var(--profile-sheet-module-title-h,0px)]",
         profileSheet &&
-          "z-30 -mx-4 border-y border-border/40 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80 sm:-mx-5",
+          "z-30 -mx-4 border-b border-border/40 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/80 sm:-mx-5",
       )}
     >
       <div
         className={cn(
-          profileSheet ? "w-full min-w-0 px-4 sm:px-5" : "mx-auto w-full max-w-2xl px-4 sm:px-6",
+          profileSheet ? "w-full min-w-0 px-4 sm:px-5" : "w-full min-w-0 px-4 sm:px-6",
         )}
       >
         <div
@@ -558,7 +558,7 @@ export function EmbedMenuWidget({
       <div
         ref={widgetRootRef}
         className={cn(
-          profileSheet ? "w-full min-w-0 pb-6" : "mx-auto w-full max-w-2xl py-6",
+          profileSheet ? "w-full min-w-0 pb-6" : "w-full min-w-0 py-6",
         )}
       >
         {profileSheet ? null : (

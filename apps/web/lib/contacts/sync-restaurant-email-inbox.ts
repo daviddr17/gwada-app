@@ -1,6 +1,7 @@
 import "server-only";
 
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { resolveOrCreateContactForEmailInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import {
@@ -53,7 +54,6 @@ export async function syncRestaurantEmailInbox(
   if (!creds) return { imported: 0, error: null };
 
   const contactByEmail = await emailToContactMap(admin, restaurantId);
-  if (contactByEmail.size === 0) return { imported: 0, error: null };
 
   const { data: envelopes, error } = await fetchImapRecentEnvelopes(creds);
   if (error) return { imported: 0, error };
@@ -63,7 +63,14 @@ export async function syncRestaurantEmailInbox(
     if (env.outbound) continue;
     const party = imapCounterpartyEmail(env, creds.email);
     if (!party) continue;
-    const contactId = contactByEmail.get(party);
+    let contactId = contactByEmail.get(party) ?? null;
+    if (!contactId) {
+      contactId = await resolveOrCreateContactForEmailInbound(admin, {
+        restaurantId,
+        email: party,
+      });
+      if (contactId) contactByEmail.set(party, contactId);
+    }
     if (!contactId) continue;
     const list = inboundByContact.get(contactId) ?? [];
     list.push(env.uid);

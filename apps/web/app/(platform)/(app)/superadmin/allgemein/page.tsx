@@ -5,7 +5,7 @@ import { PlatformSidebarModuleOrderPanel } from "@/components/superadmin/platfor
 
 export default function SuperadminAllgemeinPage() {
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-1">
+    <div className="space-y-6 pt-2">
       <div className="space-y-2">
         <p className="text-sm text-muted-foreground">
           Plattformweite Darstellung: Name, Logo und Favicon für Tab und

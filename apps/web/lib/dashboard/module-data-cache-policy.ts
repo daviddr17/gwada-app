@@ -67,7 +67,7 @@ export const MODULE_CACHE_STRATEGY_META: Record<
     shortLabel: "Live",
     colorClass: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
     whenToUse:
-      "Änderungen müssen ohne Reload sichtbar sein — Supabase Realtime + Invalidation.",
+      "Änderungen ohne Reload — Supabase Realtime + Invalidation. Live-Provider einmal pro App-Zone mounten (nicht route-conditional bei Soft-Nav).",
   },
   poll: {
     label: "Polling",
@@ -125,10 +125,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — ein GET /api/dashboard/summary. Sofort aus localStorage (SWR), Hintergrund-Prefetch nach Login, stilles Nachladen.",
+      "Reservierungen, Nachrichten, Bestand, Team, Integrationen, Bewertungen, Speisekarte — ein GET /api/dashboard/summary. Sofort aus localStorage (SWR), Hintergrund-Prefetch sobald Workspace-Restaurant ready, stilles Nachladen.",
     loadTriggers: [
+      "DashboardBatchPrefetchMount im App-Layout (Workspace ready)",
       "Mount Dashboard-Startseite (nur sichtbare Widgets)",
-      "React Query refetchInterval 60s",
+      "React Query refetchInterval 60s (sichtbarer Tab)",
       "Tab-Focus nach staleTime",
     ],
     invalidateTriggers: [
@@ -157,13 +158,18 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Unread-Items aller Module in der Glocke — React Query, kein Doppel-Poll mit Widget-Coordinator.",
-    loadTriggers: ["App-Chrome Mount", "Popover öffnen", "Poll 60s"],
+      "Unread-Items aller Module in der Glocke — React Query, kein Doppel-Poll mit Widget-Coordinator. Nachrichten: vor dem Count ggf. E-Mail-Inbox sync (IMAP), damit Glocke und Push übereinstimmen.",
+    loadTriggers: [
+      "App-Chrome Mount (Workspace ready)",
+      "Popover öffnen",
+      "Poll 60s (nur sichtbarer Tab)",
+    ],
     invalidateTriggers: [
       "GWADA_NOTIFICATIONS_REFRESH",
-      "GWADA_DASHBOARD_MESSAGES_REFRESH (debounced)",
+      "GWADA_DASHBOARD_MESSAGES_REFRESH (debounced 3s)",
       "Workspace-Wechsel",
       "Mark as read",
+      "Server: syncRestaurantEmailInbox vor Messages-Count (wenn E-Mail verbunden)",
     ],
     apiEndpoints: ["/api/notifications/summary"],
     implementationFiles: [
@@ -173,7 +179,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     ],
     status: "active",
     notes:
-      "Messages-Modul in der Glocke nutzt serverseitig dieselbe WAHA-Quelle — nicht parallel zum Inbox-Warm starten.",
+      "Messages nutzt serverseitig WAHA + optional E-Mail-Sync — nicht parallel zum Inbox-Warm starten, wenn Batch kürzlich lief.",
   },
   {
     id: "dashboardWeather",
@@ -181,10 +187,10 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     scope: "dashboard",
     appModule: "Dashboard",
     strategy: "stale-while-revalidate",
-    staleTimeMs: 5 * 60_000,
+    staleTimeMs: 15 * 60_000,
     pollIntervalMs: 60_000,
     description:
-      "Visual Crossing — localStorage + Memory (15 Min), stiller Refetch; erst nach stabilem Restaurant-Profil (Stadt).",
+      "Visual Crossing — localStorage + Memory (15 Min Anzeige-Cache), stiller Refetch über Dashboard-Widget-Coordinator (60s); erst nach stabilem Restaurant-Profil (Stadt).",
     loadTriggers: [
       "Profil ready + Standort stabil",
       "Dashboard-Mount: peek Cache, dann silent fetch",
@@ -206,8 +212,11 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     strategy: "stale-while-revalidate",
     staleTimeMs: 90_000,
     description:
-      "WhatsApp/E-Mail verbunden — sessionStorage-Cache 90s, WAHA-Live-Check nur bei Cache-Miss.",
-    loadTriggers: ["Inbox-Background-Mount (wenn Nachrichten-Widget sichtbar)"],
+      "WhatsApp/E-Mail/Facebook/Instagram verbunden — sessionStorage-Cache 90s, WAHA-Live-Check nur bei Cache-Miss.",
+    loadTriggers: [
+      "Unified-Inbox-Mount (Dashboard-Widget, Kontakte, …)",
+      "Weitere Screens mit Kanal-Status (Bewertungen, Mitarbeiter, …)",
+    ],
     invalidateTriggers: ["TTL abgelaufen", "manuell refresh()"],
     apiEndpoints: ["/api/contact-messages/channels-status"],
     implementationFiles: [
@@ -308,13 +317,22 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     appModule: "Reservierungen",
     strategy: "realtime",
     staleTimeMs: 60_000,
+    pollIntervalMs: 60_000,
     description:
-      "Provider nur auf Dashboard + Reservierungs-Routen — nicht app-weit.",
-    loadTriggers: ["/dashboard", "/dashboard/reservierungen/**"],
-    invalidateTriggers: ["Supabase Realtime", "GWADA_DASHBOARD_RESERVATIONS_REFRESH"],
+      "Neue Reservierungen per Supabase Realtime — Provider in AppModuleLiveProviders (einmal pro App-Zone, solange Workspace-Restaurant ready). Nicht route-conditional mounten (Soft-Nav). Fallback-Polling 60s bei Realtime-Ausfall oder /sb-Proxy.",
+    loadTriggers: [
+      "App-Zone platform/(app) + Workspace-Restaurant ready",
+      "Fallback: sichtbares Intervall-Polling 60s",
+    ],
+    invalidateTriggers: [
+      "Supabase Realtime reservations INSERT",
+      "GWADA_DASHBOARD_RESERVATIONS_REFRESH",
+    ],
     implementationFiles: [
       "components/providers/app-module-live-providers.tsx",
       "components/providers/app-reservations-live.tsx",
+      "lib/hooks/use-platform-reservations-live.ts",
+      "lib/supabase/restaurant-table-realtime.ts",
     ],
     status: "active",
   },
@@ -325,12 +343,22 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     appModule: "Mitarbeiter",
     strategy: "realtime",
     staleTimeMs: 30_000,
-    description: "Schicht-/Team-Updates — Provider nur auf relevanten Routen.",
-    loadTriggers: ["/dashboard", "/dashboard/mitarbeiter/**"],
-    invalidateTriggers: ["Supabase Realtime", "GWADA_STAFF_DATA_REFRESH"],
+    pollIntervalMs: 30_000,
+    description:
+      "Schicht-/Team-Updates per Realtime — gleicher App-Zone-Provider wie Reservierungen (nicht route-conditional). Fallback-Polling 30s bei Realtime-Ausfall oder /sb-Proxy.",
+    loadTriggers: [
+      "App-Zone platform/(app) + Workspace-Restaurant ready",
+      "Fallback: sichtbares Intervall-Polling 30s",
+    ],
+    invalidateTriggers: [
+      "Supabase Realtime staff_* / shifts",
+      "GWADA_STAFF_DATA_REFRESH (debounced)",
+    ],
     implementationFiles: [
       "components/providers/app-module-live-providers.tsx",
       "components/providers/app-staff-live.tsx",
+      "lib/hooks/use-restaurant-staff-realtime.ts",
+      "lib/supabase/restaurant-table-realtime.ts",
     ],
     status: "active",
   },
@@ -520,7 +548,7 @@ export const MODULE_CACHE_DECISION_GUIDE: {
   {
     question: "Muss sofort bei DB-Änderung aktualisieren?",
     recommendation: "realtime",
-    hint: "Supabase Channel + invalidateQueries / Patch — staleTime kurz.",
+    hint: "Supabase Channel + invalidateQueries / Patch — Provider app-weit in AppModuleLiveProviders, nicht pro Route ein-/ausblenden.",
   },
   {
     question: "Selten ändernde Listen, Zurück-Navigation wichtig?",

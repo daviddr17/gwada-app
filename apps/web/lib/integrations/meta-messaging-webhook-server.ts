@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
-import { resolveContactIdByMetaSender } from "@/lib/contact-messages/resolve-meta-sender-server";
+import { resolveOrCreateContactForMetaInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
@@ -120,7 +120,7 @@ export async function handleMetaMessagingWebhook(
       const text = message.text?.trim();
       if (!senderId || !text) continue;
 
-      const contactId = await resolveContactIdByMetaSender(admin, {
+      const contactId = await resolveOrCreateContactForMetaInbound(admin, {
         restaurantId: resolved.restaurantId,
         platform,
         senderId,

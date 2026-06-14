@@ -206,8 +206,8 @@
     style.id = "gwada-embed-brand-footer-styles";
     style.textContent =
       "[data-gwada-brand-footer]{display:flex;justify-content:center;padding:8px 16px 12px;margin:0}" +
-      "[data-gwada-brand-footer] a{opacity:.6;line-height:0;text-decoration:none;transition:opacity .15s ease}" +
-      "[data-gwada-brand-footer] a:hover{opacity:.85}" +
+      "[data-gwada-brand-footer] a{opacity:1;line-height:0;text-decoration:none;transition:opacity .15s ease}" +
+      "[data-gwada-brand-footer] a:hover{opacity:.9}" +
       "[data-gwada-brand-footer] img{height:20px;width:auto;max-width:5.5rem;object-fit:contain;display:block}" +
       "[data-gwada-brand-footer] span{font:500 11px/1.2 system-ui,-apple-system,sans-serif;color:#737373;letter-spacing:-.01em}";
     document.head.appendChild(style);

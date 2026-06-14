@@ -74,40 +74,36 @@ async function insertEntry(
     publishedAt: string;
   },
   createdBy: string | null,
-): Promise<{ entry: PlatformChangelogEntry | null; error: string | null }> {
+): Promise<{
+  entry: PlatformChangelogEntry | null;
+  error: string | null;
+  duplicate?: boolean;
+}> {
+  const row = {
+    title: input.title.trim(),
+    body: input.body.trim(),
+    published_at: input.publishedAt,
+    version: input.version?.trim() || null,
+    audience: input.audience,
+    source_git_sha: input.sourceGitSha,
+    created_by: createdBy,
+  };
+
   const { data, error } = await admin
     .from("platform_changelog_entries")
-    .upsert(
-      {
-        title: input.title.trim(),
-        body: input.body.trim(),
-        published_at: input.publishedAt,
-        version: input.version?.trim() || null,
-        audience: input.audience,
-        source_git_sha: input.sourceGitSha,
-        created_by: createdBy,
-      },
-      { onConflict: "source_git_sha", ignoreDuplicates: true },
-    )
+    .insert(row)
     .select(CHANGELOG_SELECT)
     .maybeSingle();
 
   if (error) {
+    if (error.code === "23505") {
+      return { entry: null, error: null, duplicate: true };
+    }
     return { entry: null, error: error.message ?? "insert_failed" };
   }
 
   if (!data) {
-    const { data: existing } = await admin
-      .from("platform_changelog_entries")
-      .select(CHANGELOG_SELECT)
-      .eq("source_git_sha", input.sourceGitSha)
-      .maybeSingle();
-    if (!existing) {
-      return { entry: null, error: "insert_failed" };
-    }
-    const mappedExisting = rowToEntry(existing as ChangelogRow);
-    const { sourceGitSha: _s2, ...entryExisting } = mappedExisting;
-    return { entry: entryExisting, error: null };
+    return { entry: null, error: "insert_failed" };
   }
 
   const mapped = rowToEntry(data as ChangelogRow);
@@ -156,7 +152,11 @@ export async function syncChangelogItems(
             sourceGitSha: item.payload.sourceGitSha,
           };
 
-    const { entry, error } = await insertEntry(admin, input, createdBy);
+    const { entry, error, duplicate } = await insertEntry(admin, input, createdBy);
+    if (duplicate) {
+      result.skipped.push(sha);
+      continue;
+    }
     if (error || !entry) {
       result.errors.push(`${sha}: ${error ?? "unknown"}`);
       continue;

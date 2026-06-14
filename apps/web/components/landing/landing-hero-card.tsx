@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { LANDING_APP_MODULES } from "@/components/landing/landing-app-modules";
 import { Button } from "@/components/ui/button";
@@ -30,13 +31,14 @@ export function LandingHeroCard({
       {overlay}
       <div className="landing-hero-rise-logo flex flex-col items-center gap-3">
         {logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={logoUrl}
             alt=""
             width={120}
             height={48}
-            decoding="async"
+            priority
+            fetchPriority="high"
+            sizes="(max-width: 768px) 120px, 192px"
             className="h-10 w-auto max-w-[10rem] object-contain md:h-12"
           />
         ) : null}

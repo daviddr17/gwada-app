@@ -96,3 +96,11 @@ export function buildNewsEmbedSnippet(
 ): GwadaEmbedSnippet {
   return buildGwadaEmbedSnippet({ widget: "news", slug, origin });
 }
+
+/** Öffnungszeiten-Widget — reguläre Zeiten, optional Küche + Sondertermine. */
+export function buildOpeningHoursEmbedSnippet(
+  slug: string,
+  origin?: string,
+): GwadaEmbedSnippet {
+  return buildGwadaEmbedSnippet({ widget: "opening_hours", slug, origin });
+}

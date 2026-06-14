@@ -39,7 +39,7 @@ import { GwadaReviewProtocolDrawer } from "@/components/reviews/gwada-review-pro
 import { ReviewInvitationSheet } from "@/components/reviews/review-invitation-sheet";
 import { ReviewSummaryCard } from "@/components/reviews/review-summary-card";
 import { ReviewsScreenSkeleton } from "@/components/reviews/reviews-screen-skeleton";
-import { ReviewsPagination } from "@/components/reviews/reviews-pagination";
+import { ReviewsPaginationSurround } from "@/components/reviews/reviews-pagination";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import {
   moduleSearchFieldWrapClassName,
@@ -1385,7 +1385,88 @@ export function ReviewsScreen() {
             </Card>
           ) : (
             <>
-              {viewMode === "list" ? (
+              {isGooglePaginated && googlePagination ? (
+                <ReviewsPaginationSurround
+                  page={googlePage}
+                  totalPages={googleTotalPages}
+                  onPrevious={goGooglePrevious}
+                  onNext={goGoogleNext}
+                  canPrevious={googlePage > 1}
+                  canNext={
+                    Boolean(feedCache.googlePages[googlePage + 1]) ||
+                    Boolean(feedCache.googleTokenByPage[googlePage + 1])
+                  }
+                  busy={paginationBusy}
+                >
+                  {viewMode === "list" ? (
+                    <ReviewsListView
+                      reviews={filteredSortedReviews}
+                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  ) : (
+                    <ReviewsGridView
+                      reviews={filteredSortedReviews}
+                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  )}
+                </ReviewsPaginationSurround>
+              ) : isAllPaginated && mergedPagination ? (
+                <ReviewsPaginationSurround
+                  page={allPage}
+                  totalPages={allTotalPages}
+                  onPrevious={goAllPrevious}
+                  onNext={goAllNext}
+                  canPrevious={allPage > 1}
+                  canNext={
+                    Boolean(feedCache.allPages[allPage + 1]) ||
+                    Boolean(feedCache.allTokenByPage[allPage + 1])
+                  }
+                  busy={paginationBusy}
+                >
+                  {viewMode === "list" ? (
+                    <ReviewsListView
+                      reviews={filteredSortedReviews}
+                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  ) : (
+                    <ReviewsGridView
+                      reviews={filteredSortedReviews}
+                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  )}
+                </ReviewsPaginationSurround>
+              ) : isFacebookPaginated && facebookPagination ? (
+                <ReviewsPaginationSurround
+                  page={facebookPage}
+                  totalPages={facebookTotalPages}
+                  onPrevious={goFacebookPrevious}
+                  onNext={goFacebookNext}
+                  canPrevious={facebookPage > 1}
+                  canNext={
+                    Boolean(feedCache.facebookPages[facebookPage + 1]) ||
+                    Boolean(feedCache.facebookTokenByPage[facebookPage + 1])
+                  }
+                  busy={paginationBusy}
+                >
+                  {viewMode === "list" ? (
+                    <ReviewsListView
+                      reviews={filteredSortedReviews}
+                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  ) : (
+                    <ReviewsGridView
+                      reviews={filteredSortedReviews}
+                      showPlatform={platformFilter === REVIEW_FILTER_ALL}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  )}
+                </ReviewsPaginationSurround>
+              ) : viewMode === "list" ? (
                 <ReviewsListView
                   reviews={filteredSortedReviews}
                   showPlatform={platformFilter === REVIEW_FILTER_ALL}
@@ -1398,48 +1479,6 @@ export function ReviewsScreen() {
                   getReviewProps={getReviewCardProps}
                 />
               )}
-              {isGooglePaginated && googlePagination ? (
-                <ReviewsPagination
-                  page={googlePage}
-                  totalPages={googleTotalPages}
-                  onPrevious={goGooglePrevious}
-                  onNext={goGoogleNext}
-                  canPrevious={googlePage > 1}
-                  canNext={
-                    Boolean(feedCache.googlePages[googlePage + 1]) ||
-                    Boolean(feedCache.googleTokenByPage[googlePage + 1])
-                  }
-                  busy={paginationBusy}
-                />
-              ) : null}
-              {isAllPaginated && mergedPagination ? (
-                <ReviewsPagination
-                  page={allPage}
-                  totalPages={allTotalPages}
-                  onPrevious={goAllPrevious}
-                  onNext={goAllNext}
-                  canPrevious={allPage > 1}
-                  canNext={
-                    Boolean(feedCache.allPages[allPage + 1]) ||
-                    Boolean(feedCache.allTokenByPage[allPage + 1])
-                  }
-                  busy={paginationBusy}
-                />
-              ) : null}
-              {isFacebookPaginated && facebookPagination ? (
-                <ReviewsPagination
-                  page={facebookPage}
-                  totalPages={facebookTotalPages}
-                  onPrevious={goFacebookPrevious}
-                  onNext={goFacebookNext}
-                  canPrevious={facebookPage > 1}
-                  canNext={
-                    Boolean(feedCache.facebookPages[facebookPage + 1]) ||
-                    Boolean(feedCache.facebookTokenByPage[facebookPage + 1])
-                  }
-                  busy={paginationBusy}
-                />
-              ) : null}
             </>
           )}
         </>

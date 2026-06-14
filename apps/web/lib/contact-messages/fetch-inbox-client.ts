@@ -1,5 +1,6 @@
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { dispatchDashboardMessagesRefresh } from "@/lib/dashboard/dashboard-live-events";
+import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
 import type { MessagesUnreadSummary } from "@/lib/contact-messages/messages-unread-summary";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
@@ -183,6 +184,7 @@ export async function markConversationReadClient(params: {
     const body = (await res.json()) as { error?: string };
     if (!res.ok) return { ok: false, error: body.error ?? `http_${res.status}` };
     dispatchDashboardMessagesRefresh();
+    dispatchNotificationsRefresh();
     return { ok: true, error: null };
   } catch {
     return { ok: false, error: "network_error" };

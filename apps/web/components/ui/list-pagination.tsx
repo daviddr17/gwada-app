@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Pagination,
   PaginationContent,
@@ -9,7 +10,7 @@ import {
 } from "@/components/ui/pagination";
 import { cn } from "@/lib/utils";
 
-type ListPaginationProps = {
+export type ListPaginationProps = {
   page: number;
   totalPages: number;
   totalCount?: number;
@@ -20,7 +21,21 @@ type ListPaginationProps = {
   canNext: boolean;
   busy?: boolean;
   className?: string;
+  /** `above`: oberhalb der Tabelle/Liste; `below`: unterhalb (Standard). */
+  placement?: "above" | "below";
 };
+
+function listPaginationVisible({
+  totalPages,
+  canNext,
+  totalCount,
+}: Pick<ListPaginationProps, "totalPages" | "canNext" | "totalCount">) {
+  return !(
+    totalPages <= 1 &&
+    !canNext &&
+    (totalCount == null || totalCount === 0)
+  );
+}
 
 export function ListPagination({
   page,
@@ -33,15 +48,19 @@ export function ListPagination({
   canNext,
   busy = false,
   className,
+  placement = "below",
 }: ListPaginationProps) {
-  if (totalPages <= 1 && !canNext && (totalCount == null || totalCount === 0)) {
+  if (!listPaginationVisible({ totalPages, canNext, totalCount })) {
     return null;
   }
 
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-t border-border/50 pt-4 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        placement === "above"
+          ? "border-b border-border/50 pb-4"
+          : "border-t border-border/50 pt-4",
         className,
       )}
     >
@@ -77,5 +96,33 @@ export function ListPagination({
         </PaginationContent>
       </Pagination>
     </div>
+  );
+}
+
+/** Gleiche Pagination-Leiste oben und unten um Tabelle/Liste — ein Props-Objekt. */
+export function ListPaginationSurround({
+  children,
+  classNameAbove,
+  classNameBelow,
+  ...paginationProps
+}: ListPaginationProps & {
+  children: ReactNode;
+  classNameAbove?: string;
+  classNameBelow?: string;
+}) {
+  return (
+    <>
+      <ListPagination
+        {...paginationProps}
+        placement="above"
+        className={classNameAbove}
+      />
+      {children}
+      <ListPagination
+        {...paginationProps}
+        placement="below"
+        className={classNameBelow}
+      />
+    </>
   );
 }

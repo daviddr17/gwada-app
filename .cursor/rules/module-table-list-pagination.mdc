@@ -1,0 +1,87 @@
+---
+description: Tabellen-Listen — x/y über Anlegen-Button, Pagination oben und unten
+alwaysApply: true
+---
+
+# Modul-Tabellen: Anzahl + Pagination
+
+Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, …) nutzen **dieselbe Struktur** — nicht nur Pagination unten oder nur eine Gesamtzahl.
+
+## Layout (Reihenfolge)
+
+1. Toolbar (Suche, Filter-Icon / Bottom Sheet)
+2. **Anzahl-Zeile** — direkt **über** dem breiten „Neu anlegen“-Button (`modulePrimaryAddButtonFullWidthClassName`)
+3. Primär-Button „Neu …“
+4. **`ListPaginationSurround`** um Tabelle/Liste:
+   - **`ListPagination`** mit `placement="above"` — **oberhalb** der Tabelle (Seite x/y + Vor/Zurück)
+   - Tabelle (nur **aktuelle Seite** rendern)
+   - **`ListPagination`** mit `placement="below"` — **unterhalb** der Tabelle (gleiche Steuerung)
+
+## Anzahl-Zeile (x/y)
+
+- **x** = Einträge auf der **aktuellen Seite** (`paginatedRows.length`)
+- **y** = **gefilterte Gesamtzahl** (`filteredSorted.length` o. Ä.)
+- Format: **`ListRangeCount`** aus `@/lib/ui/list-range-count` — **`{x} von {y} {Label}`**
+
+```tsx
+<ListRangeCount
+  className="mb-3"
+  shown={paginatedRows.length}
+  total={totalCount}
+  itemLabel="Dokumente"
+/>
+```
+
+- Label plural passend wählen (Dokumente, Zutaten, Belege, …).
+- Zeile **nicht** im Skeleton; erst wenn Daten da sind (`!showSkeleton` / `ready`).
+
+## Pagination (Technik)
+
+- `@/components/ui/list-pagination` — **`ListPaginationSurround`** (bevorzugt) oder zwei **`ListPagination`** mit gleichen Props (`placement="above"` / `"below"`)
+- Hilfen aus `@/lib/constants/list-pagination`: `LIST_PAGE_SIZE_DEFAULT`, `totalPagesFromCount`, `clampListPage`
+- Bei **Filter- oder Suchwechsel**: `setPage(1)`
+- `itemLabel` in `ListPagination` = gleiches Wort wie in der Anzahl-Zeile
+- Oben und unten **identische** Seitenanzeige und Vor/Zurück-Buttons — Nutzer müssen nicht erst ans Listenende scrollen
+
+```tsx
+<ListPaginationSurround
+  classNameAbove="px-4 pt-4"
+  classNameBelow="px-4 pb-4"
+  page={currentPage}
+  totalPages={totalPages}
+  totalCount={totalCount}
+  itemLabel="Dokumente"
+  canPrevious={currentPage > 1}
+  canNext={currentPage < totalPages}
+  onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+  onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+>
+  <div className="overflow-x-auto">{/* Tabelle */}</div>
+</ListPaginationSurround>
+```
+
+## Ausnahmen (bewusst anders)
+
+| Muster | Verhalten |
+|--------|-----------|
+| **Reservierungen** | Kein x/y über Button — Zeitraum-Statistik-Kacheln + Tageszähler in den Karten |
+| **Speisekarte** | Nach Filtern/Suche: `ListRangeCount` über „Gericht hinzufügen“ — x = gefiltert, y = gesamt; **keine** zentrale Tabelle/Pagination (Kategorien-Sektionen) |
+| **News** | Nach Plattform/Suche: `ListRangeCount` über „Neue News“; **`ListPaginationSurround`** um Grid/Liste (`NEWS_FEED_PAGE_SIZE` = 20); Embed analog |
+| **Verträge (Mitarbeiter)** | `ListRangeCount` über „Neuer Vertrag“ — meist wenige Karten, **keine** Pagination nötig |
+| **Bewertungen** | Server-Pagination + eigener Zähler in Toolbar; **`ReviewsPaginationSurround`** oben/unten um Feed |
+
+## Referenz
+
+- `components/documents/documents-overview.tsx`
+- `components/inventory/inventory-screen.tsx`
+- `components/accounting/accounting-vouchers-screen.tsx` (Server-Pagination — x = `rows.length`, y = `listMeta.totalCount`)
+- `components/contacts/contacts-overview.tsx`
+- `components/staff/staff-overview-screen.tsx` + `staff-overview-table.tsx`
+- `components/news/news-screen.tsx`, `components/embed/embed-news-widget.tsx`
+
+## Anti-Pattern
+
+- Gesamtzahl nur in Tabellenkopf oder nur unten in `ListPagination`, **ohne** x/y über dem Anlegen-Button
+- Pagination **nur unten** — immer **`ListPaginationSurround`** (oder oben + unten manuell)
+- Alle gefilterten Zeilen rendern und nur optisch paginieren
+- Unterschiedliche Texte („Treffer: 5“ vs. „5 von 20 Dokumente“) ohne Grund

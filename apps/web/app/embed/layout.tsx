@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { EmbedProviders } from "@/components/providers/embed-providers";
 
 export const metadata: Metadata = {
-  title: "Reservierung",
   robots: { index: false, follow: false },
 };
 

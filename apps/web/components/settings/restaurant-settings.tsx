@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DatePickerField, formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -42,11 +43,22 @@ import { integrationSyncErrorMessage } from "@/lib/integrations/integration-sync
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useOpeningHoursPlatformStatus } from "@/lib/hooks/use-opening-hours-platform-status";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import {
+  defaultOpeningHoursSettingsRow,
+  fetchOpeningHoursSettingsForRestaurant,
+  upsertOpeningHoursSettingsForRestaurant,
+  type OpeningHoursSettingsRow,
+} from "@/lib/supabase/opening-hours-settings-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 import { WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
-import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { OPENING_HOURS_EMBED_FOOTER_MAX } from "@/lib/constants/opening-hours-embed";
+import {
+  publicSurfaceEmbedOnlyDescription,
+  publicSurfaceScopeHint,
+} from "@/lib/ui/public-surface-settings-copy";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import {
@@ -125,8 +137,10 @@ export function RestaurantSettingsPanel({
   const [showPastExceptions, setShowPastExceptions] = useState(false);
   const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
   const [platformStatusRefresh, setPlatformStatusRefresh] = useState(0);
-  const [syncGoogleOnSave, setSyncGoogleOnSave] = useState(true);
-  const [syncFacebookOnSave, setSyncFacebookOnSave] = useState(true);
+  const [openingHoursSettings, setOpeningHoursSettings] =
+    useState<OpeningHoursSettingsRow>(defaultOpeningHoursSettingsRow);
+  const [savedOpeningHoursSettings, setSavedOpeningHoursSettings] =
+    useState<OpeningHoursSettingsRow>(defaultOpeningHoursSettingsRow);
 
   const pendingExceptionDateLabel = useMemo(() => {
     if (!exceptionDeleteId || !draft) return "";
@@ -306,9 +320,11 @@ export function RestaurantSettingsPanel({
         JSON.stringify(profile.dateExceptions) ||
       draft.kitchenHoursEnabled !== profile.kitchenHoursEnabled ||
       JSON.stringify(draft.kitchenWeeklyHours) !==
-        JSON.stringify(profile.kitchenWeeklyHours)
+        JSON.stringify(profile.kitchenWeeklyHours) ||
+      openingHoursSettings.embedFooterText !==
+        savedOpeningHoursSettings.embedFooterText
     );
-  }, [draft, profile, isReady]);
+  }, [draft, profile, isReady, openingHoursSettings, savedOpeningHoursSettings]);
 
   const addException = () => {
     setDraft((prev) => {
@@ -356,6 +372,62 @@ export function RestaurantSettingsPanel({
   const awaitingDraft = !isReady || draft === null;
   const showSkeleton = useDeferredSkeleton(awaitingDraft);
   const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
+
+  const persistOpeningHoursSettings = useCallback(
+    async (
+      next: OpeningHoursSettingsRow,
+      opts?: { silent?: boolean },
+    ): Promise<boolean> => {
+      if (!workspaceRestaurantId) return false;
+      const result = await upsertOpeningHoursSettingsForRestaurant(
+        workspaceRestaurantId,
+        next,
+      );
+      if (!result.ok) {
+        if (!opts?.silent) {
+          setError(result.error);
+        }
+        return false;
+      }
+      setOpeningHoursSettings(next);
+      setSavedOpeningHoursSettings(next);
+      return true;
+    },
+    [workspaceRestaurantId],
+  );
+
+  const updateOpeningHoursSyncToggle = useCallback(
+    (patch: Pick<
+      OpeningHoursSettingsRow,
+      "syncGoogleOnSave" | "syncFacebookOnSave"
+    >) => {
+      const next = { ...openingHoursSettings, ...patch };
+      setOpeningHoursSettings(next);
+      if (!workspaceRestaurantId) return;
+      void persistOpeningHoursSettings(next, { silent: true });
+    },
+    [
+      openingHoursSettings,
+      workspaceRestaurantId,
+      persistOpeningHoursSettings,
+    ],
+  );
+
+  useEffect(() => {
+    if (section !== "hours" || !workspaceRestaurantId) return;
+    let cancelled = false;
+    void (async () => {
+      const row = await fetchOpeningHoursSettingsForRestaurant(
+        workspaceRestaurantId,
+      );
+      if (cancelled) return;
+      setOpeningHoursSettings(row);
+      setSavedOpeningHoursSettings(row);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [section, workspaceRestaurantId]);
   const {
     loading: platformConnectionsLoading,
     googleConnected,
@@ -375,12 +447,12 @@ export function RestaurantSettingsPanel({
     }> = [
       {
         target: "opening_hours_google",
-        enabled: syncGoogleOnSave,
+        enabled: openingHoursSettings.syncGoogleOnSave,
         connected: googleConnected,
       },
       {
         target: "opening_hours_facebook",
-        enabled: syncFacebookOnSave,
+        enabled: openingHoursSettings.syncFacebookOnSave,
         connected: facebookConnected,
       },
     ];
@@ -413,9 +485,27 @@ export function RestaurantSettingsPanel({
       setError(msg);
       return;
     }
+    const footerTrim = openingHoursSettings.embedFooterText.trim();
+    if (footerTrim.length > OPENING_HOURS_EMBED_FOOTER_MAX) {
+      setError(
+        `Hinweistext: maximal ${OPENING_HOURS_EMBED_FOOTER_MAX} Zeichen.`,
+      );
+      return;
+    }
     setError(null);
     const ok = await saveOpeningHours({ ...normalized, id: draft.id });
     if (!ok) return;
+
+    if (workspaceRestaurantId) {
+      const settingsResult = await persistOpeningHoursSettings({
+        ...openingHoursSettings,
+        embedFooterText: footerTrim,
+      });
+      if (!settingsResult) {
+        return;
+      }
+    }
+
     setDraft(cloneProfile({ ...normalized, id: draft.id }));
     setSavedHoursFlash(true);
     setPlatformStatusRefresh((n) => n + 1);
@@ -682,8 +772,8 @@ export function RestaurantSettingsPanel({
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     Wann die Küche Gerichte zubereitet (kann kürzer sein als die
-                    Restaurant-Öffnungszeiten). Bei Google als „Küchenzeiten“ unter
-                    Zusatzzeiten.
+                    Restaurant-Öffnungszeiten). Übertragung nur an Google — Facebook
+                    unterstützt keine separaten Küchenzeiten.
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1.5">
@@ -902,6 +992,36 @@ export function RestaurantSettingsPanel({
             </>
           )}
 
+              <Separator />
+
+              <div className="max-w-2xl space-y-1.5">
+                <Label
+                  htmlFor="opening-hours-embed-footer"
+                  className="text-xs text-muted-foreground"
+                >
+                  Hinweistext unter den Öffnungszeiten
+                </Label>
+                <Textarea
+                  id="opening-hours-embed-footer"
+                  value={openingHoursSettings.embedFooterText}
+                  onChange={(e) =>
+                    setOpeningHoursSettings((prev) => ({
+                      ...prev,
+                      embedFooterText: e.target.value,
+                    }))
+                  }
+                  placeholder="z. B. Parkplätze, Feiertags-Hinweise, Dresscode …"
+                  maxLength={OPENING_HOURS_EMBED_FOOTER_MAX}
+                  rows={4}
+                  className="min-h-[6rem] resize-y rounded-xl border border-input bg-transparent px-3 py-2.5 text-sm leading-relaxed"
+                />
+                <p className="text-xs text-muted-foreground">
+                  {publicSurfaceScopeHint("embed")} Optional, max.{" "}
+                  {OPENING_HOURS_EMBED_FOOTER_MAX} Zeichen. Küche- und
+                  Sondertermine-Optionen unter Einbinden ({publicSurfaceEmbedOnlyDescription})
+                </p>
+              </div>
+
               <OpeningHoursPlatformSyncStatusRow
                 badges={
                   <OpeningHoursPlatformSyncStatusBadge
@@ -932,23 +1052,24 @@ export function RestaurantSettingsPanel({
             </div>
           </CardContent>
         </Card>
-        <SettingsStickySaveBar show={hoursDirty}>
-          <div
-            className={cn(
-              "flex w-full flex-col gap-3 sm:flex-row sm:items-center",
-              googleConnected || facebookConnected
-                ? "sm:justify-between"
-                : "sm:justify-end",
-            )}
-          >
+        {(googleConnected || facebookConnected) ? (
+          <div className="rounded-xl border border-border/50 bg-card px-4 py-4 shadow-card sm:px-6">
             <OpeningHoursPlatformSyncToggles
               googleConnected={googleConnected}
               facebookConnected={facebookConnected}
-              syncGoogle={syncGoogleOnSave}
-              syncFacebook={syncFacebookOnSave}
-              onSyncGoogleChange={setSyncGoogleOnSave}
-              onSyncFacebookChange={setSyncFacebookOnSave}
+              syncGoogle={openingHoursSettings.syncGoogleOnSave}
+              syncFacebook={openingHoursSettings.syncFacebookOnSave}
+              onSyncGoogleChange={(checked) =>
+                updateOpeningHoursSyncToggle({ syncGoogleOnSave: checked })
+              }
+              onSyncFacebookChange={(checked) =>
+                updateOpeningHoursSyncToggle({ syncFacebookOnSave: checked })
+              }
             />
+          </div>
+        ) : null}
+        <SettingsStickySaveBar show={hoursDirty}>
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
             <Button
               type="submit"
               className={cn(

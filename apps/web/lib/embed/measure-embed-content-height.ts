@@ -13,7 +13,7 @@ export function measureEmbedContentHeight(
   );
   const scrollHeight = measureTarget.scrollHeight;
 
-  // CSS multi-column (Pinterest/Masonry) kann scrollHeight als Einspaltiger-Stapel melden.
+  // Früher CSS-Columns („Masonry“): scrollHeight konnte den Einspalt-Stapel melden.
   const plausibleScrollHeight =
     scrollHeight <= layoutHeight * 1.15 + 24 ? scrollHeight : layoutHeight;
 

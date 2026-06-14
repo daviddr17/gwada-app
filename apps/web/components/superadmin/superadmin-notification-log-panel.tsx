@@ -16,7 +16,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { ListPagination } from "@/components/ui/list-pagination";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   Select,
   SelectContent,
@@ -290,6 +290,19 @@ export function SuperadminNotificationLogPanel() {
         </div>
       </div>
 
+      <ListPaginationSurround
+        classNameAbove="pb-4"
+        classNameBelow="pt-4"
+        page={page}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        itemLabel="Einträge"
+        canPrevious={page > 1}
+        canNext={page < totalPages}
+        busy={loading}
+        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+      >
       <SuperadminDataTable
         loading={loading}
         rows={rows}
@@ -417,18 +430,7 @@ export function SuperadminNotificationLogPanel() {
           },
         ]}
       />
-
-      <ListPagination
-        page={page}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        itemLabel="Einträge"
-        canPrevious={page > 1}
-        canNext={page < totalPages}
-        busy={loading}
-        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-      />
+      </ListPaginationSurround>
 
       <Drawer
         open={selected != null}

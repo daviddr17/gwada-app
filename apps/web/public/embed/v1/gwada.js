@@ -18,6 +18,8 @@
   var LAZY_MARGIN = "240px";
   var HOST_RESIZE_DEBOUNCE = 40;
   var HEIGHT_TRANSITION = "height 0.24s cubic-bezier(0.33, 1, 0.68, 1)";
+  var BRAND_FOOTER_LOGO_PATH = "/api/platform/favicon";
+  var BRAND_FOOTER_ATTR = "data-gwada-brand-footer";
 
   var WIDGETS = {
     reservation: {
@@ -49,6 +51,14 @@
       minHeight: 520,
       path: function (slug) {
         return "/embed/news/" + encodeURIComponent(slug);
+      },
+      available: true,
+    },
+    opening_hours: {
+      title: "Öffnungszeiten",
+      minHeight: 420,
+      path: function (slug) {
+        return "/embed/oeffnungszeiten/" + encodeURIComponent(slug);
       },
       available: true,
     },
@@ -166,7 +176,8 @@
     }
 
     var mount = function () {
-      createIframe(el, widgetKey, slug, origin);
+      var frame = createIframe(el, widgetKey, slug, origin);
+      if (frame) appendBrandFooter(el, origin);
     };
 
     if (!isLazyEnabled(el) || !("IntersectionObserver" in global)) {
@@ -187,6 +198,51 @@
       { rootMargin: LAZY_MARGIN, threshold: 0.01 },
     );
     observer.observe(el);
+  }
+
+  function ensureBrandFooterStyles() {
+    if (document.getElementById("gwada-embed-brand-footer-styles")) return;
+    var style = document.createElement("style");
+    style.id = "gwada-embed-brand-footer-styles";
+    style.textContent =
+      "[data-gwada-brand-footer]{display:flex;justify-content:center;padding:8px 16px 12px;margin:0}" +
+      "[data-gwada-brand-footer] a{opacity:.6;line-height:0;text-decoration:none;transition:opacity .15s ease}" +
+      "[data-gwada-brand-footer] a:hover{opacity:.85}" +
+      "[data-gwada-brand-footer] img{height:20px;width:auto;max-width:5.5rem;object-fit:contain;display:block}" +
+      "[data-gwada-brand-footer] span{font:500 11px/1.2 system-ui,-apple-system,sans-serif;color:#737373;letter-spacing:-.01em}";
+    document.head.appendChild(style);
+  }
+
+  function appendBrandFooter(container, origin) {
+    if (!container || container.querySelector("[" + BRAND_FOOTER_ATTR + "]")) return;
+    ensureBrandFooterStyles();
+
+    var footer = document.createElement("div");
+    footer.setAttribute(BRAND_FOOTER_ATTR, "true");
+
+    var link = document.createElement("a");
+    link.href = origin || "https://gwada.app";
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.setAttribute("aria-label", "gwada");
+
+    var img = document.createElement("img");
+    img.src = (origin || "") + BRAND_FOOTER_LOGO_PATH;
+    img.alt = "gwada";
+    img.loading = "lazy";
+    img.decoding = "async";
+    img.onerror = function () {
+      if (link.contains(img)) link.removeChild(img);
+      if (!link.querySelector("span")) {
+        var label = document.createElement("span");
+        label.textContent = "gwada";
+        link.appendChild(label);
+      }
+    };
+
+    link.appendChild(img);
+    footer.appendChild(link);
+    container.appendChild(footer);
   }
 
   function applyHeight(embedId, height, immediate) {

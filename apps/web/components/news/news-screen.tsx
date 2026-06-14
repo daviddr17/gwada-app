@@ -13,7 +13,7 @@ import { LayoutGrid, List, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ListPagination } from "@/components/ui/list-pagination";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -21,7 +21,7 @@ import {
 import { NewsComposeDrawer } from "@/components/news/news-compose-drawer";
 import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
-import { NewsMasonryGrid, NewsListView } from "@/components/news/news-feed-views";
+import { NewsGridView, NewsListView } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import {
   moduleSearchFieldWrapClassName,
@@ -29,6 +29,7 @@ import {
   moduleSearchInputClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   NEWS_FILTER_ALL,
   type NewsPlatformFilter,
@@ -286,18 +287,6 @@ export function NewsScreen() {
 
   return (
     <div className="space-y-4">
-      {canManage ? (
-        <Button
-          type="button"
-          size="lg"
-          className={modulePrimaryAddButtonFullWidthClassName}
-          onClick={() => setComposeOpen(true)}
-        >
-          <Plus className="size-4" />
-          Neue News
-        </Button>
-      ) : null}
-
       <NewsPlatformFilterChips
         value={platformFilter}
         onChange={setPlatformFilter}
@@ -389,6 +378,26 @@ export function NewsScreen() {
         </div>
       </div>
 
+      {!showFeedSkeleton ? (
+        <ListRangeCount
+          shown={paginatedItems.length}
+          total={totalCount}
+          itemLabel="Beiträge"
+        />
+      ) : null}
+
+      {canManage ? (
+        <Button
+          type="button"
+          size="lg"
+          className={modulePrimaryAddButtonFullWidthClassName}
+          onClick={() => setComposeOpen(true)}
+        >
+          <Plus className="size-4" />
+          Neue News
+        </Button>
+      ) : null}
+
       {showFeedSkeleton ? (
         <NewsFeedSkeleton viewMode={viewMode} />
       ) : filtered.length === 0 ? (
@@ -402,12 +411,7 @@ export function NewsScreen() {
         </p>
       ) : (
         <>
-          {viewMode === "list" ? (
-            <NewsListView items={paginatedItems} onItemClick={openDetail} />
-          ) : (
-            <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
-          )}
-          <ListPagination
+          <ListPaginationSurround
             page={currentPage}
             totalPages={totalPages}
             totalCount={totalCount}
@@ -416,7 +420,13 @@ export function NewsScreen() {
             canNext={currentPage < totalPages}
             onPrevious={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-          />
+          >
+          {viewMode === "list" ? (
+            <NewsListView items={paginatedItems} onItemClick={openDetail} />
+          ) : (
+            <NewsGridView items={paginatedItems} onItemClick={openDetail} />
+          )}
+          </ListPaginationSurround>
         </>
       )}
 

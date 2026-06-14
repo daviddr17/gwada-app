@@ -18,7 +18,7 @@ import { AccountingVoucherSheet } from "@/components/accounting/accounting-vouch
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ListPagination } from "@/components/ui/list-pagination";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   createAccountingVoucher,
   fetchAccountingCatalog,
@@ -55,6 +55,7 @@ import {
 } from "@/lib/accounting/accounting-corrections";
 import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -293,6 +294,15 @@ export function AccountingVouchersScreen() {
         </div>
       ) : null}
 
+      {!loading && !showSkeleton ? (
+        <ListRangeCount
+          className="mb-3"
+          shown={rows.length}
+          total={listMeta.totalCount}
+          itemLabel="Belege"
+        />
+      ) : null}
+
       {canManage ? (
         <Button
           type="button"
@@ -320,6 +330,19 @@ export function AccountingVouchersScreen() {
       ) : (
         <Card className="border-border/50 py-0 shadow-card">
           <CardContent className="p-0">
+            <ListPaginationSurround
+              classNameAbove="px-4 pt-4"
+              classNameBelow="px-4 pb-4"
+              page={listMeta.page}
+              totalPages={listMeta.totalPages}
+              totalCount={listMeta.totalCount}
+              itemLabel={listCountLabel}
+              canPrevious={listMeta.page > 1}
+              canNext={listMeta.page < listMeta.totalPages}
+              busy={loading}
+              onPrevious={() => setPage(listMeta.page - 1)}
+              onNext={() => setPage(listMeta.page + 1)}
+            >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[860px] text-sm">
                 <thead>
@@ -476,18 +499,7 @@ export function AccountingVouchersScreen() {
                 </tbody>
               </table>
             </div>
-            <ListPagination
-              className="px-4 pb-4"
-              page={listMeta.page}
-              totalPages={listMeta.totalPages}
-              totalCount={listMeta.totalCount}
-              itemLabel={listCountLabel}
-              canPrevious={listMeta.page > 1}
-              canNext={listMeta.page < listMeta.totalPages}
-              busy={loading}
-              onPrevious={() => setPage(listMeta.page - 1)}
-              onNext={() => setPage(listMeta.page + 1)}
-            />
+            </ListPaginationSurround>
           </CardContent>
         </Card>
       )}

@@ -6,6 +6,7 @@ import {
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
+import { normalizeInstagramNewsMediaProxyUrl } from "@/lib/news/connectors/instagram-media-map";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,6 +29,23 @@ function parseCachedItem(raw: unknown): UnifiedNewsItem | null {
   if (typeof o.id !== "string" || typeof o.platform !== "string") return null;
   if (typeof o.body !== "string") return null;
   return raw as UnifiedNewsItem;
+}
+
+function normalizeCachedNewsItemMediaUrls(
+  item: UnifiedNewsItem,
+): UnifiedNewsItem {
+  if (item.platform !== "instagram" || item.media.length === 0) return item;
+
+  let changed = false;
+  const media = item.media.map((entry) => {
+    if (!entry.url) return entry;
+    const normalized = normalizeInstagramNewsMediaProxyUrl(entry.url);
+    if (normalized === entry.url) return entry;
+    changed = true;
+    return { ...entry, url: normalized };
+  });
+
+  return changed ? { ...item, media } : item;
 }
 
 export async function readNewsPlatformSyncState(
@@ -93,7 +111,7 @@ export async function readCachedNewsItems(
     if (rowPublishedAt && !item.publishedAt) {
       item.publishedAt = rowPublishedAt;
     }
-    items.push(item);
+    items.push(normalizeCachedNewsItemMediaUrls(item));
   }
   return sortNewsItemsByDate(items);
 }

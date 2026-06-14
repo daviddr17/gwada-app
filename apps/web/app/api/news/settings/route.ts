@@ -7,6 +7,7 @@ import {
   type NewsEmbedPlatforms,
 } from "@/lib/news/news-embed-platforms";
 import { syncRestaurantNewsPlatformAfterPublish } from "@/lib/news/news-feed-sync-server";
+import { revalidatePublicNewsEmbedForRestaurant } from "@/lib/news/revalidate-public-news-embed";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 
 export const dynamic = "force-dynamic";
@@ -116,6 +117,8 @@ export async function PUT(req: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await revalidatePublicNewsEmbedForRestaurant(auth.sb, restaurantId);
 
   after(() => {
     void syncRestaurantNewsPlatformAfterPublish(restaurantId, "whatsapp_channel");

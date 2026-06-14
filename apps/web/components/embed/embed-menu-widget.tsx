@@ -553,7 +553,7 @@ export function EmbedMenuWidget({
   };
 
   return (
-    <EmbedAccentRoot accentHex={accentHex}>
+    <EmbedAccentRoot accentHex={accentHex} brandFooter={variant !== "profileSheet"}>
       <EmbedResizeReporter deps={resizeDeps} widget="menu" />
       <div
         ref={widgetRootRef}

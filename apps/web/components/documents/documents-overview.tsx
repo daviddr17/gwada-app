@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,6 +52,12 @@ import type {
   RestaurantDocumentRow,
 } from "@/lib/types/documents";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  clampListPage,
+  LIST_PAGE_SIZE_DEFAULT,
+  totalPagesFromCount,
+} from "@/lib/constants/list-pagination";
+import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -167,6 +174,7 @@ export function DocumentsOverview() {
   const [tagFilter, setTagFilter] = useState(ALL_TAGS_FILTER);
   const [sortKey, setSortKey] = useState<SortKey | null>("created_at");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [page, setPage] = useState(1);
 
   const [manageTagsOpen, setManageTagsOpen] = useState(false);
   const [tagSheet, setTagSheet] = useState<
@@ -311,6 +319,19 @@ export function DocumentsOverview() {
     });
   }, [rows, search, tagFilter, sortKey, sortDir, uploaderNames]);
 
+  const totalCount = filteredSorted.length;
+  const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
+  const currentPage = clampListPage(page, totalPages);
+
+  const paginatedRows = useMemo(() => {
+    const from = (currentPage - 1) * LIST_PAGE_SIZE_DEFAULT;
+    return filteredSorted.slice(from, from + LIST_PAGE_SIZE_DEFAULT);
+  }, [filteredSorted, currentPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, tagFilter]);
+
   const usagePercent = Math.min(
     100,
     usage.quotaBytes > 0 ? (usage.usedBytes / usage.quotaBytes) * 100 : 0,
@@ -420,6 +441,14 @@ export function DocumentsOverview() {
       </div>
 
       <div className="-mx-4 mb-6 px-4 sm:-mx-6 sm:px-6">
+        {!showSkeleton ? (
+          <ListRangeCount
+            className="mb-3"
+            shown={paginatedRows.length}
+            total={totalCount}
+            itemLabel="Dokumente"
+          />
+        ) : null}
         <Button
           type="button"
           size="lg"
@@ -453,6 +482,18 @@ export function DocumentsOverview() {
         </Card>
       ) : (
         <Card className="border-border/50 shadow-card overflow-hidden">
+          <ListPaginationSurround
+            classNameAbove="px-4 pt-4"
+            classNameBelow="px-4 pb-4"
+            page={currentPage}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            itemLabel="Dokumente"
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[52rem] text-sm">
               <thead>
@@ -517,7 +558,7 @@ export function DocumentsOverview() {
                 </tr>
               </thead>
               <tbody>
-                {filteredSorted.map((row) => (
+                {paginatedRows.map((row) => (
                   <tr
                     key={row.id}
                     className="border-b border-border/40 last:border-0 hover:bg-muted/20"
@@ -604,6 +645,7 @@ export function DocumentsOverview() {
               </tbody>
             </table>
           </div>
+          </ListPaginationSurround>
         </Card>
       )}
 

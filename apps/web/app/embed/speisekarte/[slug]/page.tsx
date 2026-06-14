@@ -1,4 +1,6 @@
 import nextDynamic from "next/dynamic";
+import type { Metadata } from "next";
+import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
 
 const EmbedMenuWidget = nextDynamic(
@@ -8,6 +10,16 @@ const EmbedMenuWidget = nextDynamic(
 );
 
 export const revalidate = 60;
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const result = await fetchPublicEmbedMenu(slug);
+  return embedPageMetadata("menu", result.data?.name);
+}
 
 export default async function EmbedSpeisekartePage({
   params,

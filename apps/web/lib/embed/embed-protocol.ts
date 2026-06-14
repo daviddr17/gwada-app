@@ -21,6 +21,7 @@ export type GwadaEmbedWidgetId =
   | "menu"
   | "reviews"
   | "news"
+  | "opening_hours"
   | "contact";
 
 export type GwadaEmbedResizeMessage = {

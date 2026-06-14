@@ -26,7 +26,7 @@ function PlatformSyncToggle({
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(value === true)}
         size="sm"
-        aria-label={`${platform}: Öffnungszeiten beim Speichern übertragen`}
+        aria-label={`${platform}: reguläre Öffnungszeiten beim Speichern übertragen`}
       />
     </div>
   );
@@ -53,10 +53,15 @@ export function OpeningHoursPlatformSyncToggles({
 
   return (
     <div
-      className={cn("flex flex-wrap items-center gap-3 sm:gap-4", className)}
+      className={cn("flex flex-col gap-2", className)}
       role="group"
-      aria-label="Plattformen beim Speichern übertragen"
+      aria-label="Reguläre Öffnungszeiten beim Speichern an Plattformen übertragen"
     >
+      <p className="text-xs text-muted-foreground">
+        Nur die regulären Wochentage — Küchenzeiten und Ausnahmen weiterhin manuell
+        pro Abschnitt. Standard: aus.
+      </p>
+      <div className="flex flex-wrap items-center gap-3 sm:gap-4">
       {googleConnected ? (
         <PlatformSyncToggle
           platform="Google"
@@ -73,6 +78,7 @@ export function OpeningHoursPlatformSyncToggles({
           icon={<FacebookGlyph className="size-4 shrink-0" aria-hidden />}
         />
       ) : null}
+      </div>
     </div>
   );
 }

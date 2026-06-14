@@ -1,5 +1,11 @@
 import nextDynamic from "next/dynamic";
-import { fetchPublicEmbedNews } from "@/lib/news/public-news-server";
+import type { Metadata } from "next";
+import { parseListPageParam } from "@/lib/constants/list-pagination";
+import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import {
+  fetchPublicEmbedNews,
+  parseNewsEmbedPlatformFilter,
+} from "@/lib/news/public-news-server";
 
 const EmbedNewsWidget = nextDynamic(
   () =>
@@ -7,15 +13,32 @@ const EmbedNewsWidget = nextDynamic(
   { ssr: true },
 );
 
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
-export default async function EmbedNewsPage({
+export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
-}) {
+}): Promise<Metadata> {
   const { slug } = await params;
   const result = await fetchPublicEmbedNews(slug);
+  return embedPageMetadata("news", result.data?.name);
+}
+
+export default async function EmbedNewsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string; platform?: string }>;
+}) {
+  const { slug } = await params;
+  const sp = await searchParams;
+  const result = await fetchPublicEmbedNews(slug, {
+    paginate: true,
+    page: parseListPageParam(sp.page),
+    platform: parseNewsEmbedPlatformFilter(sp.platform),
+  });
 
   if (!result.data) {
     return (
@@ -27,7 +50,8 @@ export default async function EmbedNewsPage({
     );
   }
 
-  const { accentHex, viewMode, connectedPlatforms, items } = result.data;
+  const { accentHex, viewMode, connectedPlatforms, items, pagination } =
+    result.data;
 
   return (
     <EmbedNewsWidget
@@ -35,6 +59,7 @@ export default async function EmbedNewsPage({
       viewMode={viewMode}
       connectedPlatforms={connectedPlatforms}
       items={items}
+      pagination={pagination}
     />
   );
 }

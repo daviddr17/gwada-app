@@ -19,7 +19,7 @@ export function openingHoursDbEnabled(): boolean {
   return workspacePersistenceConfigured();
 }
 
-function timeToHHmm(t: string | null | undefined): string | undefined {
+export function timeToHHmm(t: string | null | undefined): string | undefined {
   if (!t) return undefined;
   const m = /^(\d{1,2}):(\d{2})/.exec(t.trim());
   if (!m) return undefined;
@@ -229,8 +229,7 @@ export async function replaceOpeningHoursForRestaurant(
   }
 
   for (const ex of profile.dateExceptions) {
-    const idOk = isUuidRestaurantId(ex.id);
-    const row: Record<string, unknown> = {
+    inserts.push({
       restaurant_id: restaurantId,
       kind: "exception",
       weekday: null,
@@ -240,9 +239,7 @@ export async function replaceOpeningHoursForRestaurant(
       closes_at: ex.closed ? null : hhmmToPgTime(ex.close),
       note: ex.note?.trim() || null,
       schedule_role: "business",
-    };
-    if (idOk) row.id = ex.id;
-    inserts.push(row);
+    });
   }
 
   const { error: insErr } = await supabase.from("opening_hours").insert(inserts);

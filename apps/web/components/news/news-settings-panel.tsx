@@ -36,7 +36,10 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
-import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
+import {
+  SettingsStickySaveBar,
+  settingsAccentSaveButtonClassName,
+} from "@/components/settings/settings-sticky-save-bar";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import {
   NEWS_PLATFORM_LABELS,
@@ -54,6 +57,11 @@ import {
 } from "@/lib/news/news-embed-platforms";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  publicSurfaceProfileAndEmbedDescription,
+  publicSurfaceProfileAndEmbedTitle,
+  publicSurfaceScopeHint,
+} from "@/lib/ui/public-surface-settings-copy";
 import { cn } from "@/lib/utils";
 
 type WahaChannelOption = { id: string; name: string };
@@ -63,6 +71,23 @@ type NewsSettings = {
   embed_max_items: number;
   embed_platforms: NewsEmbedPlatforms;
 };
+
+function defaultNewsSettings(): NewsSettings {
+  return {
+    whatsapp_channel_ids: [],
+    default_embed_view: "grid",
+    embed_max_items: 24,
+    embed_platforms: defaultEmbedPlatforms(),
+  };
+}
+
+function cloneNewsSettings(settings: NewsSettings): NewsSettings {
+  return {
+    ...settings,
+    whatsapp_channel_ids: [...settings.whatsapp_channel_ids],
+    embed_platforms: { ...settings.embed_platforms },
+  };
+}
 
 export function NewsSettingsPanel() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -74,13 +99,14 @@ export function NewsSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [channels, setChannels] = useState<WahaChannelOption[]>([]);
   const [previewItems, setPreviewItems] = useState<UnifiedNewsItem[]>([]);
-  const [settings, setSettings] = useState<NewsSettings>({
-    whatsapp_channel_ids: [],
-    default_embed_view: "grid",
-    embed_max_items: 24,
-    embed_platforms: defaultEmbedPlatforms(),
-  });
+  const [settings, setSettings] = useState<NewsSettings>(defaultNewsSettings);
+  const [savedSettings, setSavedSettings] = useState<NewsSettings>(defaultNewsSettings);
   const [channelsOpen, setChannelsOpen] = useState(false);
+
+  const dirty = useMemo(
+    () => JSON.stringify(settings) !== JSON.stringify(savedSettings),
+    [settings, savedSettings],
+  );
 
   const load = useCallback(async () => {
     if (!restaurantId) return;
@@ -102,7 +128,9 @@ export function NewsSettingsPanel() {
       };
       const newsData = (await newsRes.json()) as { items?: UnifiedNewsItem[] };
       if (settingsRes.ok && settingsData.settings) {
-        setSettings(settingsData.settings);
+        const next = cloneNewsSettings(settingsData.settings);
+        setSettings(next);
+        setSavedSettings(next);
       }
       setChannels(channelsData.channels ?? []);
       setPreviewItems(newsData.items ?? []);
@@ -156,7 +184,7 @@ export function NewsSettingsPanel() {
   );
 
   const save = async () => {
-    if (!restaurantId) return;
+    if (!restaurantId || !dirty) return;
     setSaving(true);
     try {
       const res = await fetch("/api/news/settings", {
@@ -172,6 +200,7 @@ export function NewsSettingsPanel() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "save_failed");
+      setSavedSettings(cloneNewsSettings(settings));
       toast.success("Einstellungen gespeichert.");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Speichern fehlgeschlagen.");
@@ -216,7 +245,13 @@ export function NewsSettingsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-6 pb-4">
+    <form
+      className={cn("flex flex-col gap-6", dirty ? "pb-24" : "pb-4")}
+      onSubmit={(e) => {
+        e.preventDefault();
+        void save();
+      }}
+    >
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
           <CardTitle className="text-xl">Dashboard</CardTitle>
@@ -339,19 +374,25 @@ export function NewsSettingsPanel() {
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">
-          <CardTitle className="text-xl">Embed</CardTitle>
+          <CardTitle className="text-xl">{publicSurfaceProfileAndEmbedTitle}</CardTitle>
           <CardDescription>
-            Darstellung und Plattformen für die eingebettete News-Integration auf
-            eurer Website.
+            {publicSurfaceProfileAndEmbedDescription} Änderungen gelten erst nach
+            Speichern (sticky Leiste unten).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {dirty ? (
+            <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-foreground">
+              Ungespeicherte Änderungen — bitte unten speichern, damit Profil und
+              Einbindung aktualisiert werden.
+            </p>
+          ) : null}
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label className="text-sm font-medium">Plattformen im Embed</Label>
+              <Label className="text-sm font-medium">Plattformen</Label>
               <p className="text-xs text-muted-foreground">
-                Nur aktivierte und verbundene Plattformen erscheinen in der
-                Einbindung.
+                {publicSurfaceScopeHint("both")} Nur aktivierte und verbundene
+                Plattformen erscheinen in der Ansicht.
               </p>
             </div>
             <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/15 p-3">
@@ -377,7 +418,7 @@ export function NewsSettingsPanel() {
                       onCheckedChange={(value) =>
                         setEmbedPlatformEnabled(platform, value === true)
                       }
-                      aria-label={`${NEWS_PLATFORM_LABELS[platform]} im Embed`}
+                      aria-label={`${NEWS_PLATFORM_LABELS[platform]} in Profil & Einbindung`}
                     />
                   </li>
                 );
@@ -399,10 +440,14 @@ export function NewsSettingsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="grid">Raster (Pinterest)</SelectItem>
+                <SelectItem value="grid">Raster (Kacheln)</SelectItem>
                 <SelectItem value="list">Liste</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-xs text-muted-foreground">
+              {publicSurfaceScopeHint("both")} Raster: neueste Beiträge links oben,
+              zeilenweise. Liste: chronologisch untereinander.
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -421,6 +466,9 @@ export function NewsSettingsPanel() {
               }
               className="h-10 rounded-xl"
             />
+            <p className="text-xs text-muted-foreground">
+              {publicSurfaceScopeHint("both")}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -434,21 +482,25 @@ export function NewsSettingsPanel() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Vorschau mit aktuellen Einstellungen (noch nicht gespeicherte
-              Änderungen sind sichtbar). Embed-Code unter Einbinden.
+              Vorschau inkl. ungespeicherter Änderungen ({publicSurfaceScopeHint("both").replace(/\.$/, "")}).
+              Nach dem Speichern sind Profil und Einbindung aktualisiert.
             </p>
           </div>
-
-          <Button
-            type="button"
-            className={cn("h-11 rounded-xl", settingsAccentSaveButtonClassName)}
-            disabled={saving}
-            onClick={() => void save()}
-          >
-            {saving ? "Speichern …" : "Speichern"}
-          </Button>
         </CardContent>
       </Card>
-    </div>
+
+      <SettingsStickySaveBar show={dirty}>
+        <Button
+          type="submit"
+          disabled={saving || loading}
+          className={cn(
+            "h-11 w-full min-w-[12rem] sm:w-auto",
+            settingsAccentSaveButtonClassName,
+          )}
+        >
+          {saving ? "Speichern …" : "Speichern"}
+        </Button>
+      </SettingsStickySaveBar>
+    </form>
   );
 }

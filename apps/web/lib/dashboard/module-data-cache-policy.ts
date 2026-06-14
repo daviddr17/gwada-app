@@ -441,7 +441,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "„Jetzt synchronisieren“",
       "TTL 30 Min (kein sofortiges Rendern mehr)",
     ],
-    apiEndpoints: ["/api/news", "/api/news/sync"],
+    apiEndpoints: ["/api/news", "/api/news/sync", "/api/public/news/media"],
     implementationFiles: [
       "components/news/news-screen.tsx",
       "lib/news/news-feed-client-cache.ts",

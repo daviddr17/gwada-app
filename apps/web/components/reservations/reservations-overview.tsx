@@ -60,6 +60,7 @@ import { ReservationGwadaReviewSheet } from "@/components/reservations/reservati
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ReservationsFilterDrawer } from "@/components/reservations/reservations-filter-drawer";
+import { ReservationsOverviewPeriodStats } from "@/components/reservations/reservations-overview-period-stats";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
@@ -529,6 +530,26 @@ export function ReservationsOverview() {
     today,
   ]);
 
+  const visiblePeriodStats = useMemo(() => {
+    let reservationCount = 0;
+    let guestCount = 0;
+    let daysWithReservations = 0;
+    for (const d of visibleDays) {
+      const list = byDay.get(localDayKey(d)) ?? [];
+      if (list.length > 0) daysWithReservations++;
+      reservationCount += list.length;
+      guestCount += list.reduce((sum, r) => sum + r.party_size, 0);
+    }
+    return {
+      reservationCount,
+      guestCount,
+      avgPartySize:
+        reservationCount > 0 ? guestCount / reservationCount : 0,
+      daysWithReservations,
+      dayCount: visibleDays.length,
+    };
+  }, [visibleDays, byDay]);
+
   const filterActiveCount = useMemo(() => {
     if (unconfirmedMode) {
       let n = 1;
@@ -767,6 +788,13 @@ export function ReservationsOverview() {
               ? "Keine Tage mit Reservierungen im gewählten Zeitraum."
               : "Keine Reservierungen in diesem Monat."}
         </p>
+      ) : null}
+
+      {dbOk && !loading && visibleDays.length > 0 ? (
+        <ReservationsOverviewPeriodStats
+          className="mb-4"
+          {...visiblePeriodStats}
+        />
       ) : null}
 
       {dbOk && !unconfirmedMode ? (

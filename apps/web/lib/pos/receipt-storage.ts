@@ -20,6 +20,13 @@ export function posPaymentReceiptStoragePath(
   return `${restaurantId}/payments/${paymentId}.pdf`;
 }
 
+/** Split-bill receipts live under …/payments/{paymentId}.pdf — not order-level paths. */
+export function isPosPaymentReceiptStoragePath(
+  storagePath: string | null | undefined,
+): boolean {
+  return Boolean(storagePath?.trim().includes("/payments/"));
+}
+
 export async function uploadPosReceiptPdf(
   restaurantId: string,
   orderId: string,

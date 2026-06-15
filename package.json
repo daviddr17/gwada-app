@@ -16,6 +16,7 @@
     "dev:staff": "pnpm --filter staff start",
     "dev:staff:ios": "bash scripts/staff-ios-simulator.sh",
     "staff:env:lan": "node scripts/staff-lan-env.mjs && node apps/staff/scripts/generate-staff-env.js",
+    "staff:env:simulator": "node scripts/staff-simulator-env.mjs",
     "staff:eas-env:preview-lan": "node scripts/staff-eas-env-preview-lan.mjs",
     "staff:eas-env:production": "node scripts/staff-eas-env-production.mjs",
     "staff:verify:live": "node scripts/verify-live-staff-backend.mjs",

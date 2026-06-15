@@ -50,8 +50,8 @@ if [[ ! -f "$STAFF/.env" ]]; then
   echo "Hinweis: $STAFF/.env fehlt — cp apps/staff/.env.example apps/staff/.env"
 fi
 
-echo "→ Staff-Env aus .env generieren …"
-node "$STAFF/scripts/generate-staff-env.js"
+echo "→ Staff-Env für Simulator (Port auto) …"
+node "$ROOT/scripts/staff-simulator-env.mjs"
 
 if [[ ! -f "$ROOT/apps/web/.env.local" && ! -f "$ROOT/.env.local" ]]; then
   echo "→ Web .env.local fehlt — sync aus supabase status …"

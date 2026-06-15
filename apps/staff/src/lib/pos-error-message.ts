@@ -31,10 +31,10 @@ export function posApiErrorMessage(err: unknown, fallback: string): string {
   }
   if (err instanceof Error) {
     if (err.name === "AbortError") {
-      return "Zeitüberschreitung — Web-API erreichbar? (`pnpm dev` im Projektroot)";
+      return "Zeitüberschreitung — Web-API erreichbar? (`pnpm dev` + `pnpm staff:env:simulator`)";
     }
     if (/network request failed|failed to fetch/i.test(err.message)) {
-      return "Keine Verbindung zur Web-API. `pnpm dev` starten und URL in apps/staff/.env prüfen.";
+      return "Keine Verbindung zur Web-API. `pnpm dev` starten, dann `pnpm staff:env:simulator` und Metro mit r neu laden.";
     }
     return err.message;
   }

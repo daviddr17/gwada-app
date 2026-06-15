@@ -3,6 +3,7 @@ import "server-only";
 import { allocationAmountCents, derivePosPaymentState, type PosOrderStatus } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadFiscalForOrderReceipt } from "@/lib/pos/order-fiscal-for-receipt";
+import { orderHasAllocationPayments } from "@/lib/pos/pos-payment-pipeline";
 import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -255,15 +256,22 @@ export async function loadPosOrderDto(
 
   let storagePath = order.receipt_url?.trim() || null;
 
+  const splitBill =
+    admin != null && (await orderHasAllocationPayments(admin, orderId));
+
   const needsTseReceiptRegeneration =
+    !splitBill &&
     Boolean(fiscal?.signature) &&
     order.status === "delivered" &&
     dto.paymentState === "paid" &&
-    (!storagePath || fiscal?.split_group != null);
+    !storagePath;
 
   if (
-    needsTseReceiptRegeneration ||
-    (!storagePath && order.status === "delivered" && dto.paymentState === "paid")
+    !splitBill &&
+    (needsTseReceiptRegeneration ||
+      (!storagePath &&
+        order.status === "delivered" &&
+        dto.paymentState === "paid"))
   ) {
     const { tryGeneratePosReceipt } = await import("@/lib/pos/generate-pos-receipt");
     const generated = await tryGeneratePosReceipt(orderId, { force: true });

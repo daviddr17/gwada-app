@@ -45,6 +45,10 @@ async function staffAccessToken(): Promise<string> {
 const POS_FETCH_TIMEOUT_MS = 12_000;
 const DSFINVK_EXPORT_SERVER_WAIT_MS = 90_000;
 
+function apiUnreachableMessage(base: string): string {
+  return `Web-API nicht erreichbar (${base}). \`pnpm dev\` im Projektroot starten, dann \`pnpm staff:env:simulator\` und Metro mit r neu laden.`;
+}
+
 async function posFetch<T>(
   path: string,
   init: RequestInit & { restaurantId?: string; timeoutMs?: number } = {},
@@ -86,7 +90,7 @@ async function posFetch<T>(
     throw new PosApiError(
       503,
       "api_unreachable",
-      `Web-API nicht erreichbar (${base}). Läuft pnpm dev auf Port 3000?`,
+      apiUnreachableMessage(base),
     );
   } finally {
     clearTimeout(timeoutId);
@@ -550,7 +554,7 @@ export async function downloadDsfinvkExportForDate(params: {
     throw new PosApiError(
       503,
       "api_unreachable",
-      `Web-API nicht erreichbar (${base}). Läuft pnpm dev auf Port 3000?`,
+      apiUnreachableMessage(base),
     );
   } finally {
     clearTimeout(timeoutId);

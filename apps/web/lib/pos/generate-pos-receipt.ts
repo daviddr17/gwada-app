@@ -11,6 +11,7 @@ import { loadFiscalForOrderReceipt } from "@/lib/pos/order-fiscal-for-receipt";
 import {
   uploadPosPaymentReceiptPdf,
   uploadPosReceiptPdf,
+  isPosPaymentReceiptStoragePath,
 } from "@/lib/pos/receipt-storage";
 
 function formatRestaurantAddress(row: {
@@ -209,7 +210,7 @@ async function generatePosReceipt(
     throw new Error(orderUpdateError.message);
   }
 
-  if (fiscal?.id) {
+  if (fiscal?.id && fiscal.split_group == null) {
     await admin
       .from("pos_fiscal_transactions")
       .update({ custom_receipt_url: storagePath })
@@ -268,7 +269,11 @@ async function generatePosPaymentReceipt(
     .eq("split_group", splitGroup)
     .maybeSingle();
 
-  if (!options?.force && fiscal?.custom_receipt_url?.trim()) {
+  if (
+    !options?.force &&
+    fiscal?.custom_receipt_url?.trim() &&
+    isPosPaymentReceiptStoragePath(fiscal.custom_receipt_url)
+  ) {
     return fiscal.custom_receipt_url.trim();
   }
 

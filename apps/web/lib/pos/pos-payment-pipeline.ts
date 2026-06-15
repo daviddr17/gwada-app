@@ -67,6 +67,30 @@ async function isOrderFullyPaidByLines(
   );
 }
 
+/** True when any paid payment on this order has line allocations (session split bill). */
+export async function orderHasAllocationPayments(
+  admin: SupabaseClient,
+  orderId: string,
+): Promise<boolean> {
+  const { data: payments } = await admin
+    .from("pos_payments")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("status", "paid");
+
+  if (!payments?.length) return false;
+
+  const { count, error } = await admin
+    .from("pos_payment_line_allocations")
+    .select("id", { count: "exact", head: true })
+    .in(
+      "payment_id",
+      payments.map((p) => p.id as string),
+    );
+
+  return !error && (count ?? 0) > 0;
+}
+
 async function finalizeOrderIfFullyPaid(
   admin: SupabaseClient,
   orderId: string,
@@ -84,7 +108,10 @@ async function finalizeOrderIfFullyPaid(
   const fullyPaid = await isOrderFullyPaidByLines(admin, orderId);
   if (!fullyPaid) return;
 
-  await tryGeneratePosReceipt(orderId, { force: true });
+  const splitBill = await orderHasAllocationPayments(admin, orderId);
+  if (!splitBill) {
+    await tryGeneratePosReceipt(orderId, { force: true });
+  }
 
   await admin
     .from("pos_orders")
@@ -493,7 +520,10 @@ export async function retryPosOrderFiskalySigning(
     .eq("id", orderId);
 
   await tryCreateEReceiptForOrder(orderId);
-  await tryGeneratePosReceipt(orderId, { force: true });
+  const splitBill = await orderHasAllocationPayments(admin, orderId);
+  if (!splitBill) {
+    await tryGeneratePosReceipt(orderId, { force: true });
+  }
 
   return { ok: true, signed: true };
 }

@@ -12,7 +12,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { runPosPaymentPipelineForPayment } from "@/lib/pos/pos-payment-pipeline";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 import { tryGeneratePosPaymentReceipt } from "@/lib/pos/generate-pos-receipt";
-import { resolvePosReceiptSignedUrl } from "@/lib/pos/receipt-storage";
+import {
+  isPosPaymentReceiptStoragePath,
+  resolvePosReceiptSignedUrl,
+} from "@/lib/pos/receipt-storage";
 
 export type SessionSummaryLine = {
   id: string;
@@ -285,10 +288,17 @@ async function loadSessionPayments(
     const fiscal = fiscalBySplitGroup.get(splitGroup);
 
     let storagePath = fiscal?.custom_receipt_url?.trim() ?? null;
-    if (!storagePath && allocationsByPayment.has(paymentId)) {
-      const generated = await tryGeneratePosPaymentReceipt(paymentId);
-      if (generated.ok) {
-        storagePath = generated.storagePath;
+    const allocations = allocationsByPayment.get(paymentId) ?? [];
+    if (allocations.length > 0) {
+      const needsRegenerate =
+        !storagePath || !isPosPaymentReceiptStoragePath(storagePath);
+      if (needsRegenerate) {
+        const generated = await tryGeneratePosPaymentReceipt(paymentId, {
+          force: true,
+        });
+        if (generated.ok) {
+          storagePath = generated.storagePath;
+        }
       }
     }
 
@@ -306,7 +316,7 @@ async function loadSessionPayments(
       tipCents: Number(row.tip_cents),
       paidAt: (row.paid_at as string | null) ?? (row.created_at as string),
       receiptUrl: signedUrl,
-      allocations: allocationsByPayment.get(paymentId) ?? [],
+      allocations,
     });
   }
 

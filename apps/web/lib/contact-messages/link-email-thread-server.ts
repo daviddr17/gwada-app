@@ -1,6 +1,6 @@
 import "server-only";
 
-import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import {
   emailAddressFromPseudoContactId,
   isEmailPseudoContactId,
@@ -105,7 +105,7 @@ export async function linkEmailThreadToContact(
     const body = m.body?.trim();
     if (!ext || !body) continue;
 
-    const inserted = await insertContactMessageIfNew(admin, {
+    const result = await ingestInboundContactMessage(admin, {
       restaurantId: params.restaurantId,
       contactId: params.contactId,
       platform: "email",
@@ -114,7 +114,7 @@ export async function linkEmailThreadToContact(
       externalSourceId: ext,
       createdAt: m.created_at,
     });
-    if (inserted) imported += 1;
+    if (result.imported) imported += 1;
   }
 
   return { ok: true, imported, error: null };

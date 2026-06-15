@@ -1,5 +1,5 @@
 import {
-  handleWahaInboundWebhook,
+  handleWahaWebhook,
   verifyWahaWebhookHmac,
   type WahaWebhookBody,
 } from "@/lib/integrations/waha-inbound-webhook";
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const result = await handleWahaInboundWebhook(admin, body);
+  const result = await handleWahaWebhook(admin, body);
   if (!result.ok) {
     return Response.json(result, { status: 422 });
   }

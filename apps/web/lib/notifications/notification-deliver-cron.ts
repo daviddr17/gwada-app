@@ -24,6 +24,8 @@ import {
 } from "@/lib/notifications/notification-preferences";
 import {
   claimNotificationDeliveries,
+  claimNotificationDeliveriesForEvent,
+  claimNotificationEventById,
   claimUnprocessedNotificationEvents,
   completeNotificationEventProcessing,
   releaseNotificationEventLock,
@@ -32,7 +34,11 @@ import {
   type ClaimedNotificationDelivery,
 } from "@/lib/notifications/notification-deliver-claim";
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
+import { actorProfileIdFromPayload } from "@/lib/notifications/notification-self-origin";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** Budget für Sofort-Zustellung eines einzelnen Events (Webhook-Pfad). */
+export const NOTIFICATION_IMMEDIATE_DELIVER_BUDGET_MS = 60_000;
 
 type NotificationEventRow = {
   id: string;
@@ -161,19 +167,6 @@ function prefsForTarget(
   );
 }
 
-/** Profil, das die Aktion selbst ausgelöst hat — erhält keinen Push an sich selbst. */
-function actorProfileIdToSkip(
-  payload: Record<string, unknown>,
-): string | null {
-  for (const key of ["actorProfileId", "createdByProfileId"] as const) {
-    const value = payload[key];
-    if (typeof value === "string" && value.trim()) {
-      return value.trim();
-    }
-  }
-  return null;
-}
-
 async function fanOutEvent(
   admin: SupabaseClient,
   event: NotificationEventRow,
@@ -187,7 +180,7 @@ async function fanOutEvent(
   if (targets.length === 0) return { created: 0, error: null };
 
   const prefsMap = await loadPreferencesMap(admin, targets);
-  const skipProfileId = actorProfileIdToSkip(event.payload ?? {});
+  const skipProfileId = actorProfileIdFromPayload(event.payload ?? {});
   const rows: {
     event_id: string;
     profile_id: string;
@@ -561,6 +554,98 @@ async function processPendingDeliveries(
   }
 
   return { processed, sent, failed, skipped };
+}
+
+export type NotificationDeliverForEventResult = {
+  ok: boolean;
+  reason?: string;
+  deliveriesCreated?: number;
+  sent?: number;
+  failed?: number;
+  skipped?: number;
+};
+
+/**
+ * Fan-out + Versand für ein Event (Webhook/Ingest). Idempotent:
+ * - Event-Claim per RPC (SKIP LOCKED) — kein Doppel-Fan-out mit Cron
+ * - Deliveries: idempotency_key + processing-Claim — kein Doppelversand
+ */
+export async function runNotificationDeliverForEvent(
+  admin: SupabaseClient,
+  eventId: string,
+): Promise<NotificationDeliverForEventResult> {
+  const event = await claimNotificationEventById(admin, eventId);
+  if (!event) {
+    return { ok: true, reason: "not_claimed" };
+  }
+
+  const fanOut = await fanOutEvent(admin, event as NotificationEventRow);
+  if (fanOut.error) {
+    await releaseNotificationEventLock(admin, eventId);
+    return { ok: false, reason: fanOut.error };
+  }
+
+  const completed = await completeNotificationEventProcessing(admin, eventId);
+  if (!completed) {
+    await releaseNotificationEventLock(admin, eventId);
+    return { ok: false, reason: "complete_failed" };
+  }
+
+  const deadlineMs = Date.now() + NOTIFICATION_IMMEDIATE_DELIVER_BUDGET_MS;
+  const eventRow = event as NotificationEventRow;
+  const restaurantNames = new Map<string, string | null>();
+  let sent = 0;
+  let failed = 0;
+  let skipped = 0;
+  let iterations = 0;
+
+  while (
+    beforeDeadline(deadlineMs) &&
+    iterations < NOTIFICATION_DELIVER_MAX_LOOP_ITERATIONS
+  ) {
+    iterations += 1;
+
+    const claimed = await claimNotificationDeliveriesForEvent(
+      admin,
+      eventId,
+      NOTIFICATION_DELIVER_SEND_BATCH,
+    );
+    if (!claimed.length) break;
+
+    for (const delivery of claimed) {
+      if (!beforeDeadline(deadlineMs)) break;
+
+      const restaurantId = delivery.context_restaurant_id;
+      if (!restaurantNames.has(restaurantId)) {
+        restaurantNames.set(
+          restaurantId,
+          await fetchRestaurantName(admin, restaurantId),
+        );
+      }
+
+      const outcome = await deliverOne(
+        admin,
+        {
+          ...delivery,
+          notification_events: eventRow,
+        },
+        restaurantNames,
+      );
+      if (outcome === "sent") sent += 1;
+      else if (outcome === "skipped") skipped += 1;
+      else failed += 1;
+    }
+
+    if (claimed.length < NOTIFICATION_DELIVER_SEND_BATCH) break;
+  }
+
+  return {
+    ok: true,
+    deliveriesCreated: fanOut.created,
+    sent,
+    failed,
+    skipped,
+  };
 }
 
 async function countPendingQueue(

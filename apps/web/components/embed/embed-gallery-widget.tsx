@@ -50,7 +50,11 @@ export function EmbedGalleryWidget({ data, variant = "embed" }: Props) {
 
   return (
     <div
-      className={variant === "embed" ? "min-h-[480px] bg-background p-4" : "space-y-4 p-4"}
+      className={
+        variant === "embed"
+          ? "min-h-[480px] bg-background p-4"
+          : "space-y-4 py-4"
+      }
       style={{ ["--accent" as string]: data.accentHex }}
     >
       <GalleryPlatformFilterChips

@@ -1,12 +1,14 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
-import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForWhatsappInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { whatsappChatIdFromPayloadAddress } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { displayNameFromWahaChatId } from "@/lib/contact-messages/waha-chat-label";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { emitMessageNotificationEventIfNew } from "@/lib/notifications/emit-message-notification-event";
+import { scheduleNotificationDeliverForEvent } from "@/lib/notifications/schedule-notification-deliver";
+import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -23,7 +25,15 @@ export type WahaWebhookBody = {
     fromMe?: boolean;
     body?: string;
     hasMedia?: boolean;
+    ack?: number;
+    ackName?: string;
   };
+};
+
+export type WahaWebhookResult = {
+  ok: boolean;
+  imported?: boolean;
+  reason?: string;
 };
 
 export function verifyWahaWebhookHmac(
@@ -69,15 +79,24 @@ function wahaTimestampToIso(ts: number | undefined): string | undefined {
   return new Date(ms).toISOString();
 }
 
+export async function handleWahaWebhook(
+  admin: SupabaseClient,
+  body: WahaWebhookBody,
+): Promise<WahaWebhookResult> {
+  const event = body.event?.trim();
+  if (event === "message") {
+    return handleWahaInboundWebhook(admin, body);
+  }
+  if (event === "message.ack") {
+    return handleWahaMessageAck(admin, body);
+  }
+  return { ok: true, imported: false, reason: "ignored_event" };
+}
+
 export async function handleWahaInboundWebhook(
   admin: SupabaseClient,
   body: WahaWebhookBody,
-): Promise<{ ok: boolean; imported: boolean; reason?: string }> {
-  const event = body.event?.trim();
-  if (event !== "message") {
-    return { ok: true, imported: false, reason: "ignored_event" };
-  }
-
+): Promise<WahaWebhookResult> {
   const payload = body.payload;
   if (!payload?.id || payload.fromMe === true) {
     return { ok: true, imported: false, reason: "skipped_outbound" };
@@ -119,7 +138,7 @@ export async function handleWahaInboundWebhook(
 
     const messageCreatedAt =
       wahaTimestampToIso(payload.timestamp) ?? new Date().toISOString();
-    await emitMessageNotificationEventIfNew(admin, {
+    const { eventId } = await emitMessageNotificationEventIfNew(admin, {
       restaurantId,
       referenceId: `waha:${payload.id}`,
       payload: {
@@ -130,12 +149,15 @@ export async function handleWahaInboundWebhook(
         messageCreatedAt,
       },
     });
+    if (eventId) {
+      scheduleNotificationDeliverForEvent(admin, eventId);
+    }
 
     return { ok: true, imported: false, reason: "contact_not_linked" };
   }
 
   const externalSourceId = `waha:${payload.id}`;
-  const inserted = await insertContactMessageIfNew(admin, {
+  const { imported } = await ingestInboundContactMessage(admin, {
     restaurantId,
     contactId,
     platform: "whatsapp",
@@ -145,5 +167,46 @@ export async function handleWahaInboundWebhook(
     createdAt: wahaTimestampToIso(payload.timestamp),
   });
 
-  return { ok: true, imported: inserted };
+  return { ok: true, imported };
+}
+
+export async function handleWahaMessageAck(
+  admin: SupabaseClient,
+  body: WahaWebhookBody,
+): Promise<WahaWebhookResult> {
+  const payload = body.payload;
+  if (!payload?.id) {
+    return { ok: true, imported: false, reason: "no_message_id" };
+  }
+
+  let restaurantId = restaurantIdFromWebhook(body);
+  if (!restaurantId && body.session) {
+    restaurantId = await restaurantIdFromSessionName(admin, body.session);
+  }
+  if (!restaurantId) {
+    return { ok: false, imported: false, reason: "unknown_restaurant" };
+  }
+
+  const fromMe = payload.fromMe === true;
+  const ack =
+    typeof payload.ack === "number" && Number.isFinite(payload.ack)
+      ? payload.ack
+      : null;
+  const externalSourceId = `waha:${payload.id}`;
+
+  if (ack != null) {
+    const deliveryStatus = wahaAckToDeliveryStatus(ack, fromMe);
+    await admin
+      .from("contact_messages")
+      .update({ delivery_status: deliveryStatus })
+      .eq("restaurant_id", restaurantId)
+      .eq("external_source_id", externalSourceId);
+  }
+
+  await insertInboxSignalServer(admin, {
+    restaurantId,
+    source: "waha_ack",
+  });
+
+  return { ok: true, imported: false, reason: "ack_signal" };
 }

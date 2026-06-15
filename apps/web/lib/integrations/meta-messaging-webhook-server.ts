@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
-import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForMetaInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import {
   oauthConfigFromJson,
@@ -132,7 +132,7 @@ export async function handleMetaMessagingWebhook(
         ? new Date(event.timestamp).toISOString()
         : undefined;
 
-      const inserted = await insertContactMessageIfNew(admin, {
+      const result = await ingestInboundContactMessage(admin, {
         restaurantId: resolved.restaurantId,
         contactId,
         platform,
@@ -141,7 +141,7 @@ export async function handleMetaMessagingWebhook(
         externalSourceId,
         createdAt,
       });
-      if (inserted) processed += 1;
+      if (result.imported) processed += 1;
     }
   }
 

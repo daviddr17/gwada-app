@@ -1,6 +1,6 @@
 import "server-only";
 
-import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { fetchWahaThreadMessages } from "@/lib/contact-messages/waha-inbox-service";
 import {
   whatsappMirrorBodyFromContactRow,
@@ -69,7 +69,7 @@ export async function syncContactWhatsappInbound(
       continue;
     }
 
-    const inserted = await insertContactMessageIfNew(admin, {
+    const result = await ingestInboundContactMessage(admin, {
       restaurantId: params.restaurantId,
       contactId: params.contactId,
       platform: "whatsapp",
@@ -80,7 +80,7 @@ export async function syncContactWhatsappInbound(
       deliveryStatus: m.delivery_status,
       reservationId: m.reservation_id,
     });
-    if (inserted) imported += 1;
+    if (result.imported) imported += 1;
   }
 
   return { imported, error: null };

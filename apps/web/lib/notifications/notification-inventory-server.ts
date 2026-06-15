@@ -1,6 +1,9 @@
 import "server-only";
 
 import { isIngredientLowStock } from "@/lib/inventory/low-stock";
+import {
+  isSelfOriginatedNotification,
+} from "@/lib/notifications/notification-self-origin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 async function fetchDismissedIngredientIds(
@@ -29,7 +32,9 @@ export async function loadInventoryLowStockBellSummary(
 
   const { data: ingredients, error: ingError } = await sb
     .from("inventory_ingredients")
-    .select("id, name, unit, current_stock, low_stock_threshold, is_active, updated_at")
+    .select(
+      "id, name, unit, current_stock, low_stock_threshold, is_active, updated_at, last_stock_changed_by_profile_id",
+    )
     .eq("restaurant_id", params.restaurantId)
     .eq("is_active", true)
     .order("name", { ascending: true });
@@ -63,6 +68,7 @@ export async function loadInventoryLowStockBellSummary(
         low_stock_threshold: number;
         is_active: boolean;
         updated_at: string;
+        last_stock_changed_by_profile_id: string | null;
       };
       return {
         id: r.id,
@@ -72,10 +78,18 @@ export async function loadInventoryLowStockBellSummary(
         lowStockThreshold: Number(r.low_stock_threshold ?? 0),
         active: r.is_active !== false,
         updatedAt: r.updated_at,
+        lastStockChangedByProfileId: r.last_stock_changed_by_profile_id,
       };
     })
     .filter((ing) => isIngredientLowStock(ing))
-    .filter((ing) => !dismissed.has(ing.id));
+    .filter((ing) => !dismissed.has(ing.id))
+    .filter(
+      (ing) =>
+        !isSelfOriginatedNotification(
+          params.userId,
+          ing.lastStockChangedByProfileId,
+        ),
+    );
 
   const items = lowStock.slice(0, limit).map((ing) => {
     const unitLabel = unitLabels.get(ing.unit) ?? ing.unit;

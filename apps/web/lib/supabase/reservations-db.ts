@@ -92,6 +92,7 @@ export type ReservationListRow = {
   created_at: string;
   updated_at?: string;
   created_by_profile_id: string | null;
+  last_status_changed_by_profile_id?: string | null;
   created_by_profile: ReservationCreatorProfileJoin | null;
   guest_first_name: string;
   guest_last_name: string;
@@ -140,6 +141,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       created_at,
       updated_at,
       created_by_profile_id,
+      last_status_changed_by_profile_id,
       guest_first_name,
       guest_last_name,
       guest_phone,

@@ -2,6 +2,7 @@ import {
   assertPlatformFacebookEnabled,
   assertPlatformGoogleBusinessEnabled,
   assertPlatformInstagramEnabled,
+  assertPlatformMollieEnabled,
 } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -90,6 +91,14 @@ export function authorizeGoogleBusinessRestaurantRoute(
     restaurantIdRaw,
     permission: "integrations.google_business",
     assertPlatform: assertPlatformGoogleBusinessEnabled,
+  });
+}
+
+export function authorizeMollieRestaurantRoute(restaurantIdRaw: string | null) {
+  return authorizeRestaurantOAuthRoute({
+    restaurantIdRaw,
+    permission: "integrations.mollie",
+    assertPlatform: assertPlatformMollieEnabled,
   });
 }
 

@@ -16,6 +16,7 @@ import {
   fetchOrder,
   retryFiskalySigning,
 } from "@/src/lib/pos-api";
+import { useMollieCheckout } from "@/src/components/MollieCheckoutModal";
 import { posApiErrorMessage } from "@/src/lib/pos-error-message";
 import { orderStatusLabel, paymentStateLabel } from "@/src/lib/ui/status-labels";
 import { useDeferredSkeleton } from "@/src/lib/hooks/use-deferred-skeleton";
@@ -30,6 +31,9 @@ export default function OrderDetailScreen() {
   const restaurantId = useAuthStore((s) => s.activeRestaurantId);
   const queryClient = useQueryClient();
   const [paying, setPaying] = useState(false);
+  const [payingMollie, setPayingMollie] = useState<"card" | "paypal" | null>(
+    null,
+  );
   const [retryingTse, setRetryingTse] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
 
@@ -88,6 +92,43 @@ export default function OrderDetailScreen() {
       );
     } finally {
       setPaying(false);
+    }
+  };
+
+  const refreshAfterPayment = async () => {
+    if (!restaurantId) return;
+    await refetch();
+    await queryClient.invalidateQueries({
+      queryKey: ["session-summary", restaurantId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["pos-active-orders", restaurantId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["pos-paid-today-orders", restaurantId],
+    });
+    Alert.alert("Bezahlt", "Zahlung erfasst.");
+  };
+
+  const { startPayment, starting: mollieStarting, modal: mollieModal } =
+    useMollieCheckout({
+      restaurantId: restaurantId ?? undefined,
+      onSuccess: () => void refreshAfterPayment(),
+      onFailed: (msg) => Alert.alert("Zahlung fehlgeschlagen", msg),
+    });
+
+  const handleMolliePay = async (method: "card" | "paypal") => {
+    if (!id) return;
+    setPayingMollie(method);
+    try {
+      await startPayment({ method, orderId: id });
+    } catch (err) {
+      Alert.alert(
+        "Zahlung fehlgeschlagen",
+        err instanceof Error ? err.message : posApiErrorMessage(err, "Unbekannter Fehler"),
+      );
+    } finally {
+      setPayingMollie(null);
     }
   };
 
@@ -196,7 +237,35 @@ export default function OrderDetailScreen() {
                 <ListRow
                   label={paying ? "Wird bezahlt …" : "Rest bar bezahlen"}
                   variant="navigation"
-                  onPress={() => !paying && void handleCashPay()}
+                  onPress={() => !paying && !mollieStarting && void handleCashPay()}
+                />
+                <ListSeparator />
+                <ListRow
+                  label={
+                    payingMollie === "card" || mollieStarting
+                      ? "Karte wird geöffnet …"
+                      : "Mit Karte bezahlen"
+                  }
+                  variant="navigation"
+                  onPress={() =>
+                    !paying &&
+                    !mollieStarting &&
+                    void handleMolliePay("card")
+                  }
+                />
+                <ListSeparator />
+                <ListRow
+                  label={
+                    payingMollie === "paypal" || mollieStarting
+                      ? "PayPal wird geöffnet …"
+                      : "Mit PayPal bezahlen"
+                  }
+                  variant="navigation"
+                  onPress={() =>
+                    !paying &&
+                    !mollieStarting &&
+                    void handleMolliePay("paypal")
+                  }
                 />
                 <ListSeparator />
                 <ListRow
@@ -259,6 +328,7 @@ export default function OrderDetailScreen() {
           onClose={() => setReceiptOpen(false)}
         />
       ) : null}
+      {mollieModal}
     </SafeAreaView>
   );
 }

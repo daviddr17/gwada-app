@@ -304,6 +304,37 @@ export async function collectCash(params: {
   });
 }
 
+export type MolliePaymentMethod = "card" | "paypal";
+
+export async function createMolliePayment(params: {
+  restaurantId: string;
+  orderId?: string;
+  tableSessionId?: string;
+  method: MolliePaymentMethod;
+  allocations?: Array<{ orderLineId: string; quantity: number }>;
+  tipCents?: number;
+}): Promise<{
+  paymentId: string;
+  molliePaymentId: string;
+  checkoutUrl: string | null;
+}> {
+  return posFetch("/payments", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function recheckMolliePayment(params: {
+  restaurantId: string;
+  molliePaymentId: string;
+}): Promise<{ status: string; posPaymentId: string | null }> {
+  const { restaurantId, molliePaymentId } = params;
+  return posFetch(`/payments/recheck/${encodeURIComponent(molliePaymentId)}`, {
+    method: "POST",
+    restaurantId,
+  });
+}
+
 export async function retryFiskalySigning(params: {
   restaurantId: string;
   orderId: string;

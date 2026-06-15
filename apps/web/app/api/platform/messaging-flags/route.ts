@@ -21,6 +21,7 @@ export async function GET() {
       instagramEnabled: flags.instagramEnabled,
       googleBusinessEnabled: flags.googleBusinessEnabled,
       lexofficeEnabled: flags.lexofficeEnabled,
+      mollieEnabled: flags.mollieEnabled,
     },
     {
       headers: {

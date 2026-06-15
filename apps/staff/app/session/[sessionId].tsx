@@ -35,6 +35,7 @@ import {
   type LineSelection,
 } from "@/src/components/SessionLinePicker";
 import { SessionPayBar } from "@/src/components/SessionPayBar";
+import { useMollieCheckout } from "@/src/components/MollieCheckoutModal";
 import { SessionPaymentRow } from "@/src/components/SessionPaymentRow";
 import { SessionSummaryCard } from "@/src/components/SessionSummaryCard";
 import type { SessionTab } from "@/src/components/SessionTabBar";
@@ -216,6 +217,45 @@ export default function TableSessionScreen() {
       );
     } finally {
       setPaying(false);
+    }
+  };
+
+  const invalidateAfterPayment = async () => {
+    setSelection({});
+    await refetch();
+    if (!restaurantId) return;
+    await queryClient.invalidateQueries({
+      queryKey: ["dining-floor", restaurantId],
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ["pos-active-orders", restaurantId],
+    });
+    setTab("payments");
+    Alert.alert("Bezahlt", "Zahlung erfasst — Beleg unter Zahlungen.");
+  };
+
+  const { startPayment, starting: mollieStarting, modal: mollieModal } =
+    useMollieCheckout({
+      restaurantId: restaurantId ?? undefined,
+      onSuccess: () => void invalidateAfterPayment(),
+      onFailed: (msg) => Alert.alert("Zahlung fehlgeschlagen", msg),
+    });
+
+  const handleMolliePay = async (method: "card" | "paypal") => {
+    if (!sessionId || !summary) return;
+    const allocations = buildAllocationsFromSelection(selection);
+    if (allocations.length === 0) return;
+    try {
+      await startPayment({
+        method,
+        tableSessionId: sessionId,
+        allocations,
+      });
+    } catch (err) {
+      Alert.alert(
+        "Zahlung fehlgeschlagen",
+        err instanceof Error ? err.message : posApiErrorMessage(err, "Unbekannter Fehler"),
+      );
     }
   };
 
@@ -420,10 +460,15 @@ export default function TableSessionScreen() {
           <SessionPayBar
             selectedCents={selectedCents}
             paying={paying}
-            onPay={() => void handlePay()}
+            mollieStarting={mollieStarting}
+            onPayCash={() => void handlePay()}
+            onPayCard={() => void handleMolliePay("card")}
+            onPayPayPal={() => void handleMolliePay("paypal")}
           />
         ) : null}
       </View>
+
+      {mollieModal}
 
       {receiptViewer ? (
         <ReceiptViewerModal

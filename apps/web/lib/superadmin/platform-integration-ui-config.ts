@@ -11,6 +11,10 @@ import {
   weatherConfigFromJson,
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
+import {
+  mollieConfigFromJson,
+  mollieConfigToUi,
+} from "@/lib/integrations/platform-mollie-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 /** Antwort für Superadmin-UI — niemals Klartext-Secrets. */
@@ -30,6 +34,13 @@ export function platformIntegrationConfigForUi(
 
   if (key === "fiskaly") {
     return fiskalyConfigToUi(fiskalyConfigFromJson(raw));
+  }
+
+  if (key === "mollie") {
+    return mollieConfigToUi(mollieConfigFromJson(raw)) as unknown as Record<
+      string,
+      unknown
+    >;
   }
 
   if (key === "email") {

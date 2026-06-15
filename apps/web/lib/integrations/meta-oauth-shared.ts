@@ -199,14 +199,16 @@ export function pickMetaPageForInstagram(
 }
 
 export function settingsIntegrationsUrl(params?: {
-  provider?: "facebook" | "instagram" | "google_business";
-  result?: "connected" | "error" | "select_page" | "select_location";
+  provider?: "facebook" | "instagram" | "google_business" | "mollie";
+  result?: "connected" | "success" | "error" | "select_page" | "select_location";
   message?: string;
 }): string {
   const base = "/settings/integrationen";
   if (!params?.provider) return base;
   const q = new URLSearchParams();
-  q.set(params.provider, params.result ?? "connected");
+  const result =
+    params.result === "success" ? "connected" : (params.result ?? "connected");
+  q.set(params.provider, result);
   if (params.message) q.set("message", params.message);
   return `${base}?${q.toString()}`;
 }

@@ -1,7 +1,7 @@
-# Gwada Staff — E2E-Testprotokoll (Phase 6)
+# Gwada Staff — E2E-Testprotokoll (Produktionsreife / TestFlight)
 
-> **Branch:** `plan/expo-iphone-integration`  
-> **Ziel:** Cash-POS + Fiskaly TSE + PDF-Beleg lokal durchspielen, bevor TestFlight / Mollie.
+> **Ziel:** Kern-POS (Bar + Mollie), Fiskaly TSE, PDF-Beleg, PIN-Lock — abnahmereif für internes TestFlight.  
+> **Restaurants:** Fadis BurgerStation + Gwada Demo (jeweils LAN und Live).
 
 ---
 
@@ -10,29 +10,30 @@
 | Dienst | Befehl | Prüfung |
 |--------|--------|---------|
 | Supabase lokal | `pnpm db:start` | Studio: http://127.0.0.1:54323 |
-| Schema aktuell | `pnpm db:push:local` | Keine ausstehenden Migrationen |
-| Demo-Daten | `pnpm db:seed` (falls nötig) | User `demo@gwada.app`, Restaurant gwada-demo |
-| Tischplan | `pnpm db:seed:dining-floor` | Mind. 1 aktiver Tisch |
+| Schema aktuell | `pnpm db:push:local` | Migration `20260610180000_staff_app_pin_and_mollie_integration.sql` |
 | Web-API | `pnpm dev` (Root) | http://localhost:3000 |
-| Staff-Env | `cp apps/staff/.env.example apps/staff/.env` + `node apps/staff/scripts/generate-staff-env.js` | `EXPO_PUBLIC_GWADA_API_URL=http://localhost:3000` |
-| Fiskaly TEST | Superadmin → Integrationen → Fiskaly | `api_key_configured` + `api_secret_configured` |
-| Restaurant-Fiskal | Einstellungen → Kasse | TSS provisioniert, Kasse geöffnet |
+| Staff LAN | `pnpm staff:env:lan` + Expo | `EXPO_PUBLIC_GWADA_API_URL` = Mac-LAN-IP |
+| Staff Live | TestFlight `production` | `https://new.gwada.app` |
+| Fiskaly | Superadmin → Integrationen → Fiskaly | TEST-Keys, Restaurants `ready` |
+| Mollie | Superadmin → Mollie aktiv + OAuth-Credentials | Restaurant → Integrationen → Mollie verbinden (Testmodus) |
 
-**Simulator starten:** `./scripts/staff-ios-simulator.sh` (Expo Go SDK 56 + Metro)
+**Tabs in der Staff-App:** Tische · Reservierungen · Bestellungen · **Menü** (nicht „Einstellungen“).
 
 ---
 
 ## Testfälle
 
-### TC-01 Login & Restaurant
+### TC-01 Login, PIN & Restaurant
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | App öffnen | Login-Screen |
-| 2 | `demo@gwada.app` + Passwort | Session aktiv |
-| 3 | Restaurant wählen (gwada-demo) | Tabs: Tische / Bestellungen / Einstellungen |
+| 1 | App öffnen (nach Login) | PIN festlegen (4 Ziffern) beim ersten Start |
+| 2 | PIN bestätigen | Tabs sichtbar |
+| 3 | App in Hintergrund, wieder öffnen | PIN-Eingabe (Unlock) |
+| 4 | Restaurant wählen | Tabs: Tische / Reservierungen / Bestellungen / Menü |
+| 5 | 5× falscher PIN | Abmelden |
 
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
 
 ---
 
@@ -40,13 +41,12 @@
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | Tab **Tische** | Bereichs-Chips, Tische mit Kapazität + Status (Frei/Besetzt) |
-| 2 | Freien Tisch tippen (Kasse offen) | Sheet **Personen am Tisch** → Session starten → „Neue Bestellung“ |
-| 3 | Gerichte wählen, **Bestellung senden** | Redirect zu Bestelldetail, Status `open` / `submitted` |
+| 1 | Tab **Tische** | Bereichs-Chips, Tische mit Status |
+| 2 | Freien Tisch → Session starten → **Neue Bestellung** | Kategorie-Chips, Warenkorb-Leiste |
+| 3 | Gerichte wählen, **Bestellung senden** | Bestelldetail, Status offen |
 | 4 | Tab **Bestellungen → Offen** | Bestellung sichtbar |
-| 5 | Besetzten Tisch erneut tippen | **Tisch-Session**-Hub: Personen, Bestellliste, „Neue Bestellung“ |
 
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
 
 ---
 
@@ -54,27 +54,12 @@
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | 3 Bestellungen an einem Tisch (Getränke, Hauptgang, Dessert) | Session-Hub zeigt alle Bestellungen |
-| 2 | Einzelne Positionen/Mengen wählen, **Bar kassieren** | Teilzahlung, offener Rest bleibt sichtbar |
-| 3 | Restliche Positionen kassieren | `canReleaseTable`, **Tisch freigeben** aktiv |
-| 4 | **Tisch freigeben** | Session `closed`, Tisch in Liste **Frei** |
-| 5 | Freigabe vor vollständiger Zahlung versuchen | Fehler `session_has_open_lines` |
-| 6 | Bereichs-Chip „Innenraum“ | Text vollständig lesbar (kein Clipping links) |
+| 1 | Mehrere Bestellungen an einem Tisch | Session-Hub |
+| 2 | Positionen wählen, **Bar kassieren** | Teilzahlung |
+| 3 | Rest kassieren, **Tisch freigeben** | Tisch **Frei** |
+| 4 | Freigabe mit offenen Positionen | `session_has_open_lines` |
 
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
-
----
-
-### TC-02b Kassen-Gate vor neuer Tisch-Session
-
-| Schritt | Aktion | Erwartung |
-|---------|--------|-----------|
-| 1 | Kasse schließen (Tab **Kasse** oder Web) | `register-status`: `isOpen: false` |
-| 2 | Freien Tisch tippen (User **ohne** `pos.kasse.manage`) | Alert „Kasse geschlossen“, **keine** neue `pos_table_sessions`-Zeile |
-| 3 | Mit `pos.kasse.manage`: freien Tisch tippen | Sheet **Kasse öffnen** mit Soll-Bar-Vorschlag → Personen → Session + Bestellung |
-| 4 | Kasse geschlossen, Bestellung senden (bestehende Session) | API-Fehler `register_closed` |
-
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
 
 ---
 
@@ -82,27 +67,22 @@
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | Bestelldetail öffnen | Summe, Positionen, **Bar kassieren** |
-| 2 | Barzahlung bestätigen | `paymentState: paid`, Order `delivered` |
-| 3 | Fiskaly-Block | `fiscalState: signed` (oder Retry-Button bei Fehler) |
-| 4 | Tab **Bezahlt (heute)** | Bestellung erscheint |
+| 1 | Bestelldetail → **Rest bar bezahlen** | `paymentState: paid` |
+| 2 | Fiskaly | `fiscalState: signed` oder Retry |
+| 3 | Tab **Bezahlt (heute)** | Bestellung sichtbar |
 
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
 
 ---
 
-### TC-04 PDF-Beleg (nicht Fiskaly-Webseite)
+### TC-04 PDF-Beleg
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | **Beleg anzeigen** (Detail oder Bezahlt-Liste) | Thermales PDF (Loyaro-Layout), kein Fiskaly-eReceipt-Webview |
-| 2 | **Teilen** | PDF teilbar |
-| 3 | Supabase Storage | Bucket `pos-receipts`: `{restaurantId}/{orderId}.pdf` |
-| 4 | DB `pos_orders` | `receipt_url` = Storage-Pfad (kein HTTP) |
+| 1 | **Beleg anzeigen** | Thermales PDF (kein Fiskaly-Webview) |
+| 2 | **Teilen** | iOS Share-Sheet |
 
-**Hinweis:** Nach API-Codeänderungen `pnpm dev` neu starten.
-
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
 
 ---
 
@@ -111,27 +91,7 @@
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
 | 1 | Web → Einstellungen → Kasse | Fiskal-Übersicht |
-| 2 | Kasse öffnen (Anfangsbestand) | Register-Session `open` |
-| 3 | Zahlung TC-03 | TSE-Signatur erfolgreich |
-| 4 | Kasse schließen (Z-Bon, Endbestand) | Antwort **&lt; 10 s**, Erfolg-Toast; **kein** Timeout-Fehler |
-| 5 | Terminal-Log | `POST …/register/close` antwortet schnell (kein serverseitiger ZIP-Upload) |
-
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
-
----
-
-### TC-07 DSFinV-K ZIP — Download & Teilen (Staff)
-
-| Schritt | Aktion | Erwartung |
-|---------|--------|-----------|
-| 1 | Nach TC-05 (Z-Bon) | Fiskaly-Export typisch nach wenigen Sekunden `COMPLETED` (kein Server-Cache) |
-| 2 | Staff → Tab **Kasse** | Geschlossene Sitzung: Button **„ZIP teilen“** sichtbar |
-| 3 | **ZIP teilen** tippen | Ladevorgang (einige Sekunden), dann iOS Share-Sheet, Dateiname `dsfinvk-YYYY-MM-DD.zip` |
-| 4 | Terminal-Log | `GET …/register/sessions/{id}/dsfinvk-download` → **200**, `Content-Type: application/zip`, Header `X-Dsfinvk-Source` |
-| 5 | DB / Storage | **Kein** `dsfinvk_export_storage_path`, **keine** ZIP in `pos-receipts` (Runtime-only) |
-| 6 | Optional: ZIP entpacken | DSFinV-K-Struktur (nicht leer / kein HTML-Fehlerbody) |
-
-**Vorprüfung (lokal):** `node scripts/verify-dsfinvk-session-export.mjs`
+| 2 | Kasse öffnen / schließen (Z-Bon) | Erfolg &lt; 10 s |
 
 **Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
 
@@ -141,32 +101,66 @@
 
 | Schritt | Aktion | Erwartung |
 |---------|--------|-----------|
-| 1 | Order mit `fiscalState: failed` simulieren (oder Netzwerk kurz trennen) | Retry-Button sichtbar |
+| 1 | Order mit `fiscalState: failed` (oder Netz kurz trennen) | Retry sichtbar |
 | 2 | **TSE erneut signieren** | `signed`, Beleg regeneriert |
 
-**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
 
 ---
 
-## Automatisierte Vorprüfung (Agent/CI)
+### TC-07 DSFinV-K ZIP (Staff)
+
+| Schritt | Aktion | Erwartung |
+|---------|--------|-----------|
+| 1 | Nach Z-Bon | Export bei Fiskaly `COMPLETED` |
+| 2 | Menü → **Kasse** → **ZIP teilen** | Share-Sheet, `dsfinvk-YYYY-MM-DD.zip` |
+
+**Vorprüfung:** `node scripts/verify-dsfinvk-session-export.mjs`
+
+**Status LAN:** ☐ Fadis ☐ Gwada Demo — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
+
+---
+
+### TC-08 Mollie (Karte + PayPal)
+
+| Schritt | Aktion | Erwartung |
+|---------|--------|-----------|
+| 1 | Mollie im Web verbunden (Testmodus) | Staff zeigt **Karte** / **PayPal** |
+| 2 | Bestelldetail → **Mit Karte bezahlen** | Mollie-Checkout (WebView), danach `paid` + TSE |
+| 3 | Session-Split → **PayPal** | Zahlung unter Tab **Zahlungen**, Beleg |
+| 4 | Ohne Mollie-Verbindung | Klare Meldung `mollie_not_configured` |
+| 5 | Webhook | `POST /api/pos/mollie/webhook` auf Live-Domain |
+
+**Hinweis:** Mollie-Webhooks brauchen **öffentliche URL** — Live/TestFlight, nicht localhost.
+
+**Status LAN:** ☐ (optional) — **Live:** ☐ Fadis ☐ Gwada Demo — Notiz: _______________
+
+---
+
+## Automatisierte Vorprüfung
 
 ```bash
-pnpm --filter web exec tsc --noEmit
 pnpm --filter staff exec tsc --noEmit
+pnpm --filter web exec tsc --noEmit
 node scripts/test-dsfinvk-runtime-export.mjs
 node scripts/verify-dsfinvk-session-export.mjs
 ```
-
-## Bekannte Lücken (noch nicht in diesem Protokoll)
-
-- **Mollie-Zahlung** — nach TestFlight/Staging-Domain (Webhook braucht öffentliche URL, localhost ungeeignet)
-- **Magic-Link-Login** — Staff nutzt aktuell Passwort
-- **TestFlight** — Apple Team ID + Bundle ID noch offen
 
 ---
 
 ## Ergebnis-Log
 
-| Datum | Tester | TC-01 | TC-02 | TC-03 | TC-04 | TC-05 | TC-06 | TC-07 |
-|-------|--------|-------|-------|-------|-------|-------|-------|-------|
-| 2026-06-08 | Nutzer + Agent | ✓ | ✓ | ✓ | ✓ | ✓ | offen | ✓ (Runtime-Script + Share) |
+| Datum | Tester | Umgebung | Restaurant | TC-01 | TC-02 | TC-03 | TC-04 | TC-05 | TC-06 | TC-07 | TC-08 |
+|-------|--------|---------|------------|-------|-------|-------|-------|-------|-------|-------|-------|
+| | | LAN / Live | Fadis / Gwada | | | | | | | | |
+
+---
+
+## Session-Timeout (manuell, Stichprobe)
+
+| Schritt | Erwartung |
+|---------|-----------|
+| 15 Min ohne App-Nutzung (oder Timer verkürzt zum Test) | PIN-Unlock, Session-Daten erhalten |
+| Offene Tisch-Session nach Timeout | Kein Datenverlust, nur PIN |
+
+**Status:** ☐ bestanden ☐ fehlgeschlagen — Notiz: _______________

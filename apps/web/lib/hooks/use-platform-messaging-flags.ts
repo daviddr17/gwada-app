@@ -26,6 +26,9 @@ export function usePlatformMessagingFlags(
   const [lexofficeEnabled, setLexofficeEnabled] = useState(
     initial?.lexofficeEnabled ?? false,
   );
+  const [mollieEnabled, setMollieEnabled] = useState(
+    initial?.mollieEnabled ?? false,
+  );
   const [loading, setLoading] = useState(initial == null);
 
   const applyFlags = useCallback((flags: PlatformMessagingFlags) => {
@@ -35,6 +38,7 @@ export function usePlatformMessagingFlags(
     setInstagramEnabled(flags.instagramEnabled);
     setGoogleBusinessEnabled(flags.googleBusinessEnabled);
     setLexofficeEnabled(flags.lexofficeEnabled);
+    setMollieEnabled(flags.mollieEnabled);
   }, []);
 
   const load = useCallback(async () => {
@@ -53,6 +57,7 @@ export function usePlatformMessagingFlags(
           instagramEnabled: false,
           googleBusinessEnabled: false,
           lexofficeEnabled: false,
+          mollieEnabled: false,
         });
         setLoading(false);
         return;
@@ -65,6 +70,7 @@ export function usePlatformMessagingFlags(
         instagramEnabled: data.instagramEnabled === true,
         googleBusinessEnabled: data.googleBusinessEnabled === true,
         lexofficeEnabled: data.lexofficeEnabled === true,
+        mollieEnabled: data.mollieEnabled === true,
       });
     } catch {
       applyFlags({
@@ -74,6 +80,7 @@ export function usePlatformMessagingFlags(
         instagramEnabled: false,
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
+        mollieEnabled: false,
       });
     }
     setLoading(false);
@@ -96,6 +103,7 @@ export function usePlatformMessagingFlags(
     instagramEnabled,
     googleBusinessEnabled,
     lexofficeEnabled,
+    mollieEnabled,
     loading,
   };
 }

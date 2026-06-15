@@ -11,6 +11,7 @@ import { IntegrationProviderCard } from "@/components/superadmin/integration-pro
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
 import { PlatformFiskalyFeatureCard } from "@/components/superadmin/platform-fiskaly-feature-card";
 import { PlatformLexofficeFeatureCard } from "@/components/superadmin/platform-lexoffice-feature-card";
+import { PlatformMollieFeatureCard } from "@/components/superadmin/platform-mollie-feature-card";
 import { PlatformWeatherFeatureCard } from "@/components/superadmin/platform-weather-feature-card";
 import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,7 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
   weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
   fiskaly: { key: "fiskaly", enabled: false, config: { env: "TEST" }, updated_at: "" },
   lexoffice: { key: "lexoffice", enabled: false, config: {}, updated_at: "" },
+  mollie: { key: "mollie", enabled: false, config: {}, updated_at: "" },
 };
 
 function SuperadminIntegrationsContent() {
@@ -191,6 +193,10 @@ function SuperadminIntegrationsContent() {
         <div className="space-y-4">
           <PlatformLexofficeFeatureCard
             row={byKey.get("lexoffice") ?? EMPTY_PLATFORM_ROW.lexoffice}
+            onSaved={() => void load()}
+          />
+          <PlatformMollieFeatureCard
+            row={byKey.get("mollie") ?? EMPTY_PLATFORM_ROW.mollie}
             onSaved={() => void load()}
           />
           <PlatformFiskalyFeatureCard

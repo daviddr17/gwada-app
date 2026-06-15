@@ -5,7 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as SplashScreen from "expo-splash-screen";
 import { initStaffLanHost } from "@/src/lib/staff-lan-host";
 import { checkForStaffUpdatesOnLaunch } from "@/src/lib/staff-updates";
+import { useStaffInactivityTimeout } from "@/src/lib/hooks/use-staff-inactivity-timeout";
+import { StaffPinGate } from "@/src/components/StaffPinGate";
 import { useAuthStore } from "@/src/stores/auth-store";
+import { usePinLockStore } from "@/src/stores/pin-lock-store";
 import {
   StaffThemeProvider,
   ThemedStatusBar,
@@ -21,6 +24,39 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function PinGate({ children }: { children: React.ReactNode }) {
+  const session = useAuthStore((s) => s.session);
+  const activeRestaurantId = useAuthStore((s) => s.activeRestaurantId);
+  const pinHydrated = usePinLockStore((s) => s.hydrated);
+  const pinSet = usePinLockStore((s) => s.pinSet);
+  const unlocked = usePinLockStore((s) => s.unlocked);
+  const initPin = usePinLockStore((s) => s.init);
+  const segments = useSegments();
+
+  useEffect(() => {
+    if (session?.user) void initPin();
+  }, [session?.user, initPin]);
+
+  const inAuthFlow =
+    segments[0] === "login" || segments[0] === "restaurant-select";
+  const pinActive = Boolean(session && activeRestaurantId && !inAuthFlow);
+  useStaffInactivityTimeout(pinActive && pinSet && unlocked);
+
+  if (!pinActive || !pinHydrated) {
+    return <>{children}</>;
+  }
+
+  if (!pinSet) {
+    return <StaffPinGate mode="setup" />;
+  }
+
+  if (!unlocked) {
+    return <StaffPinGate mode="unlock" />;
+  }
+
+  return <>{children}</>;
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -133,8 +169,10 @@ export default function RootLayout() {
       <StaffThemeProvider>
         <ThemedRoot>
           <AuthGate>
-            <ThemedStatusBar />
-            <ThemedStack />
+            <PinGate>
+              <ThemedStatusBar />
+              <ThemedStack />
+            </PinGate>
           </AuthGate>
         </ThemedRoot>
       </StaffThemeProvider>

@@ -58,6 +58,9 @@ export default function NewOrderScreen() {
   const [cart, setCart] = useState<OrderCartLine[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string | null>(
+    null,
+  );
 
   const { data: menuItems, isLoading } = useQuery({
     queryKey: ["menu-items", restaurantId],
@@ -103,13 +106,19 @@ export default function NewOrderScreen() {
       grouped.set(key, bucket);
     }
 
-    return [...grouped.values()]
-      .sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))
-      .map((section) => ({
+    return [...grouped.entries()]
+      .sort(([, a], [, b]) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))
+      .map(([key, section]) => ({
+        key,
         title: section.title,
         data: section.data.sort((a, b) => a.name.localeCompare(b.name)),
       }));
   }, [menuItems]);
+
+  const visibleSections = useMemo(() => {
+    if (!selectedCategoryKey) return menuSections;
+    return menuSections.filter((s) => s.key === selectedCategoryKey);
+  }, [menuSections, selectedCategoryKey]);
 
   const styles = useThemedStyles(createStyles);
   const showSkeleton = useDeferredSkeleton(isLoading);
@@ -183,16 +192,66 @@ export default function NewOrderScreen() {
         <ScrollView
           contentContainerStyle={{ paddingBottom: listBottomPadding }}
           showsVerticalScrollIndicator={false}
+          stickyHeaderIndices={menuSections.length > 1 ? [0] : undefined}
         >
-          {menuSections.length === 0 ? (
+          {menuSections.length > 1 ? (
+            <View style={styles.categoryBar}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryScroll}
+              >
+                <Pressable
+                  onPress={() => setSelectedCategoryKey(null)}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategoryKey === null && styles.categoryChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.categoryChipText,
+                      selectedCategoryKey === null &&
+                        styles.categoryChipTextActive,
+                    ]}
+                  >
+                    Alle
+                  </Text>
+                </Pressable>
+                {menuSections.map((section) => (
+                  <Pressable
+                    key={section.key}
+                    onPress={() => setSelectedCategoryKey(section.key)}
+                    style={[
+                      styles.categoryChip,
+                      selectedCategoryKey === section.key &&
+                        styles.categoryChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selectedCategoryKey === section.key &&
+                          styles.categoryChipTextActive,
+                      ]}
+                    >
+                      {section.title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          ) : null}
+
+          {visibleSections.length === 0 ? (
             <Text allowFontScaling style={styles.empty}>
               Keine aktiven Gerichte in der Speisekarte.
             </Text>
           ) : (
-            menuSections.map((section) => (
+            visibleSections.map((section) => (
               <GroupedSection
-                key={section.title}
-                title={section.title}
+                key={section.key}
+                title={selectedCategoryKey ? undefined : section.title}
                 style={styles.menuSection}
               >
                 <GroupedList>
@@ -255,6 +314,36 @@ function createStyles(colors: GwadaColors) {
       backgroundColor: colors.groupedBackground,
       paddingHorizontal: gwadaSpacing.md,
       paddingTop: gwadaSpacing.sm,
+    },
+    categoryBar: {
+      backgroundColor: colors.groupedBackground,
+      paddingBottom: gwadaSpacing.sm,
+      marginHorizontal: -gwadaSpacing.md,
+      paddingHorizontal: gwadaSpacing.md,
+    },
+    categoryScroll: {
+      gap: gwadaSpacing.sm,
+      paddingVertical: gwadaSpacing.xs,
+    },
+    categoryChip: {
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: colors.surface,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.separator,
+    },
+    categoryChipActive: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    categoryChipText: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: colors.text,
+    },
+    categoryChipTextActive: {
+      color: colors.accentForeground,
     },
     menuSection: {
       marginBottom: gwadaSpacing.md,

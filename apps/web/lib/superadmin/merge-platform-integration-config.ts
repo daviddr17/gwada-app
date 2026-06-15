@@ -11,9 +11,9 @@ import {
   fiskalyConfigFromJson,
 } from "@/lib/integrations/platform-fiskaly-config";
 import {
-  mergeWeatherApiKey,
-  weatherConfigFromJson,
-} from "@/lib/integrations/platform-weather-config";
+  mergeMollieSecretFields,
+  mollieConfigFromJson,
+} from "@/lib/integrations/platform-mollie-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 export function mergePlatformIntegrationConfig(
@@ -104,6 +104,38 @@ export function mergePlatformIntegrationConfig(
       typeof incoming.password === "string" ? incoming.password : undefined;
     merged.password = mergeSmtpPassword(incPass, exSmtp);
     return merged;
+  }
+
+  if (key === "mollie") {
+    const ex = mollieConfigFromJson(existing);
+    const withSecrets = mergeMollieSecretFields(
+      {
+        api_key:
+          typeof incoming.api_key === "string" ? incoming.api_key : undefined,
+        webhook_secret:
+          typeof incoming.webhook_secret === "string"
+            ? incoming.webhook_secret
+            : undefined,
+        client_secret:
+          typeof incoming.client_secret === "string"
+            ? incoming.client_secret
+            : undefined,
+      },
+      ex,
+    );
+    const clientId =
+      typeof incoming.client_id === "string"
+        ? incoming.client_id.trim() || undefined
+        : ex.client_id;
+    const profileId =
+      typeof incoming.profile_id === "string"
+        ? incoming.profile_id.trim() || undefined
+        : ex.profile_id;
+    return {
+      ...withSecrets,
+      client_id: clientId,
+      profile_id: profileId,
+    };
   }
 
   const incSecret =

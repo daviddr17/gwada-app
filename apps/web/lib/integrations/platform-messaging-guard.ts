@@ -60,3 +60,13 @@ export async function assertPlatformLexofficeEnabled(
   }
   return { ok: true };
 }
+
+export async function assertPlatformMollieEnabled(
+  sb: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const flags = await fetchPlatformMessagingFlags(sb);
+  if (!flags.mollieEnabled) {
+    return { ok: false, error: "mollie_disabled" };
+  }
+  return { ok: true };
+}

@@ -9,6 +9,7 @@ export const INTEGRATION_PANEL_ACCENT = {
   lexoffice: "#00A88F",
   weather: "#0ea5e9",
   fiskaly: "#64748b",
+  mollie: "#0a0a0a",
 } as const;
 
 export type IntegrationPanelAccentKey = keyof typeof INTEGRATION_PANEL_ACCENT;

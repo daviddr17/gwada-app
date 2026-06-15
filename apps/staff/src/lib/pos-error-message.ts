@@ -13,6 +13,9 @@ const POS_ERROR_MESSAGES: Record<string, string> = {
   empty_allocations: "Bitte mindestens eine Position auswählen.",
   allocation_exceeds_open_quantity: "Menge übersteigt den offenen Rest.",
   order_already_paid: "Diese Bestellung ist bereits vollständig bezahlt.",
+  mollie_not_configured:
+    "Mollie ist nicht eingerichtet. Bitte im Web unter Einstellungen → Integrationen verbinden.",
+  mollie_disabled: "Mollie ist auf der Plattform nicht freigeschaltet.",
 };
 
 /** Einheitliche Fehlermeldungen für POS-API-Aufrufe in der Staff-App. */

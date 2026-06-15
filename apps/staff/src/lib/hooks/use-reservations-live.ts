@@ -6,6 +6,10 @@ import { getStaffSupabase } from "@/src/lib/supabase";
 
 const POLL_MS = 60_000;
 
+function uniqueChannelSuffix(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 export function useReservationsLive(restaurantId: string | null | undefined) {
   const queryClient = useQueryClient();
   const [realtimeOk, setRealtimeOk] = useState(false);
@@ -37,13 +41,16 @@ export function useReservationsLive(restaurantId: string | null | undefined) {
       }
     };
 
+    const removeChannel = (ch: RealtimeChannel | null) => {
+      if (!ch) return;
+      void sb.removeChannel(ch);
+    };
+
     const unsubscribe = () => {
       clearRetry();
       subscribing = false;
-      if (channel) {
-        void sb.removeChannel(channel);
-        channel = null;
-      }
+      removeChannel(channel);
+      channel = null;
       setRealtimeOk(false);
     };
 
@@ -56,8 +63,8 @@ export function useReservationsLive(restaurantId: string | null | undefined) {
       }
 
       subscribing = true;
-      let ch = sb.channel(`staff-reservations-${restaurantId}`);
-      ch = ch
+      const ch = sb
+        .channel(`staff-reservations-${restaurantId}-${uniqueChannelSuffix()}`)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "reservations" },
@@ -86,17 +93,20 @@ export function useReservationsLive(restaurantId: string | null | undefined) {
           },
         );
 
+      channel = ch;
+
       ch.subscribe((status) => {
         subscribing = false;
         if (status === "SUBSCRIBED") {
-          channel = ch;
           setRealtimeOk(true);
           return;
         }
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           setRealtimeOk(false);
-          void sb.removeChannel(ch);
-          channel = null;
+          if (channel === ch) {
+            removeChannel(ch);
+            channel = null;
+          }
           clearRetry();
           if (AppState.currentState === "active") {
             retryTimer = setTimeout(subscribe, 3_000);

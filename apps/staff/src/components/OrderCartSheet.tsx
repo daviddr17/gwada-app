@@ -2,6 +2,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { formatCentsEUR } from "@gwada/shared";
 import { Button } from "@/src/components/Button";
 import { SheetChrome } from "@/src/components/sheets/SheetChrome";
+import { useStaffTheme } from "@/src/theme/staff-theme";
 import { GroupedList } from "@/src/components/ui/GroupedList";
 import { ListSeparator } from "@/src/components/ui/ListSeparator";
 import { useThemedStyles } from "@/src/theme/use-themed-styles";
@@ -38,6 +39,7 @@ export function OrderCartSheet({
   onSubmit,
 }: OrderCartSheetProps) {
   const styles = useThemedStyles(createStyles);
+  const { colors } = useStaffTheme();
 
   return (
     <Modal
@@ -60,6 +62,9 @@ export function OrderCartSheet({
         }
       >
         <ScrollView contentContainerStyle={styles.listContent}>
+          {lines.length === 0 ? (
+            <Text style={styles.empty}>Noch keine Artikel im Warenkorb.</Text>
+          ) : (
           <GroupedList>
             {lines.map((line, index) => (
               <View key={line.menuItemId}>
@@ -76,24 +81,38 @@ export function OrderCartSheet({
                   <View style={styles.qtyRow}>
                     <Pressable
                       onPress={() => onChangeQty(line.menuItemId, -1)}
-                      style={styles.qtyBtn}
+                      style={[styles.qtyBtn, { borderColor: colors.accent }]}
                       accessibilityLabel={`${line.name} Menge verringern`}
                     >
-                      <Text style={styles.qtyBtnText}>−</Text>
+                      <Text style={[styles.qtyBtnText, { color: colors.accent }]}>
+                        −
+                      </Text>
                     </Pressable>
                     <Text style={styles.qtyValue}>{line.quantity}</Text>
                     <Pressable
                       onPress={() => onChangeQty(line.menuItemId, 1)}
-                      style={styles.qtyBtn}
+                      style={[
+                        styles.qtyBtn,
+                        styles.qtyBtnPlus,
+                        { backgroundColor: colors.accent },
+                      ]}
                       accessibilityLabel={`${line.name} Menge erhöhen`}
                     >
-                      <Text style={styles.qtyBtnText}>+</Text>
+                      <Text
+                        style={[
+                          styles.qtyBtnText,
+                          { color: colors.accentForeground },
+                        ]}
+                      >
+                        +
+                      </Text>
                     </Pressable>
                   </View>
                 </View>
               </View>
             ))}
           </GroupedList>
+          )}
         </ScrollView>
       </SheetChrome>
     </Modal>
@@ -122,20 +141,28 @@ function createStyles(colors: GwadaColors) {
     qtyBtn: {
       width: 36,
       height: 36,
-      borderRadius: 8,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.separator,
+      borderRadius: 18,
+      borderWidth: 1.5,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.fillSecondary,
+      backgroundColor: colors.surface,
     },
-    qtyBtnText: { fontSize: 18, fontWeight: "600", color: colors.text },
+    qtyBtnPlus: {
+      borderWidth: 0,
+    },
+    qtyBtnText: { fontSize: 20, fontWeight: "600", lineHeight: 22 },
     qtyValue: {
-      minWidth: 24,
+      minWidth: 28,
       textAlign: "center",
-      fontSize: 15,
-      fontWeight: "600",
+      fontSize: 16,
+      fontWeight: "700",
       color: colors.text,
+    },
+    empty: {
+      textAlign: "center",
+      color: colors.textMuted,
+      padding: gwadaSpacing.xl,
+      fontSize: 15,
     },
   });
 }

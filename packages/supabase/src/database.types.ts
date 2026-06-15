@@ -4436,6 +4436,7 @@ export type Database = {
           google_business_enabled: boolean
           instagram_enabled: boolean
           lexoffice_enabled: boolean
+          mollie_enabled: boolean
           whatsapp_enabled: boolean
         }[]
       }
@@ -4513,6 +4514,17 @@ export type Database = {
         Args: { p_pin: string; p_staff_id: string }
         Returns: boolean
       }
+      set_staff_app_pin: {
+        Args: { p_pin: string }
+        Returns: undefined
+      }
+      staff_app_pin_status: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          failed_attempts: number
+          pin_set: boolean
+        }[]
+      }
       staff_display_permission_keys: {
         Args: { p_staff_id: string }
         Returns: string[]
@@ -4570,6 +4582,10 @@ export type Database = {
       }
       verify_restaurant_staff_display_pin: {
         Args: { p_pin: string; p_restaurant_id: string; p_staff_id: string }
+        Returns: boolean
+      }
+      verify_staff_app_pin: {
+        Args: { p_pin: string }
         Returns: boolean
       }
     }

@@ -5,6 +5,7 @@ import { EmailIntegrationCard } from "@/components/settings/email-integration-ca
 import { FacebookIntegrationCard } from "@/components/settings/facebook-integration-card";
 import { GoogleBusinessIntegrationCard } from "@/components/settings/google-business-integration-card";
 import { LexofficeIntegrationCard } from "@/components/settings/lexoffice-integration-card";
+import { MollieIntegrationCard } from "@/components/settings/mollie-integration-card";
 import { InstagramIntegrationCard } from "@/components/settings/instagram-integration-card";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import {
@@ -32,6 +33,7 @@ function IntegrationenContent({
     instagramEnabled,
     googleBusinessEnabled,
     lexofficeEnabled,
+    mollieEnabled,
     loading,
   } = usePlatformMessagingFlags(initialPlatformFlags);
   const { dirty, saving, saveAll } = useSettingsIntegrationSave();
@@ -55,7 +57,8 @@ function IntegrationenContent({
     facebookEnabled ||
     instagramEnabled ||
     googleBusinessEnabled ||
-    lexofficeEnabled;
+    lexofficeEnabled ||
+    mollieEnabled;
 
   if (!anyEnabled) {
     return (
@@ -88,6 +91,7 @@ function IntegrationenContent({
           <EmailIntegrationCard key={emailReload} onSaved={onEmailSaved} />
         ) : null}
         {lexofficeEnabled ? <LexofficeIntegrationCard /> : null}
+        {mollieEnabled ? <MollieIntegrationCard /> : null}
       </div>
 
       {emailEnabled || lexofficeEnabled ? (

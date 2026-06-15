@@ -9,17 +9,24 @@ import { gwadaSpacing } from "@/src/theme/tokens";
 type SessionPayBarProps = {
   selectedCents: number;
   paying: boolean;
-  onPay: () => void;
+  mollieStarting?: boolean;
+  onPayCash: () => void;
+  onPayCard?: () => void;
+  onPayPayPal?: () => void;
 };
 
 export function SessionPayBar({
   selectedCents,
   paying,
-  onPay,
+  mollieStarting = false,
+  onPayCash,
+  onPayCard,
+  onPayPayPal,
 }: SessionPayBarProps) {
   const insets = useSafeAreaInsets();
   const styles = useThemedStyles(createStyles);
   const canPay = selectedCents > 0;
+  const busy = paying || mollieStarting;
 
   return (
     <View
@@ -34,11 +41,31 @@ export function SessionPayBar({
       </View>
       <Button
         label="Bar kassieren"
-        onPress={onPay}
+        onPress={onPayCash}
         loading={paying}
-        disabled={!canPay}
+        disabled={!canPay || busy}
         style={styles.button}
       />
+      {onPayCard ? (
+        <Button
+          label="Karte"
+          variant="secondary"
+          onPress={onPayCard}
+          loading={mollieStarting}
+          disabled={!canPay || busy}
+          style={styles.button}
+        />
+      ) : null}
+      {onPayPayPal ? (
+        <Button
+          label="PayPal"
+          variant="secondary"
+          onPress={onPayPayPal}
+          loading={mollieStarting}
+          disabled={!canPay || busy}
+          style={styles.button}
+        />
+      ) : null}
     </View>
   );
 }

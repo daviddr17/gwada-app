@@ -1,11 +1,10 @@
 import "server-only";
 
 import { syncRestaurantEmailInbox } from "@/lib/contacts/sync-restaurant-email-inbox";
-import { syncContactWhatsappInbound } from "@/lib/contacts/sync-contact-whatsapp-inbound";
-import { fetchWahaInboxConversations } from "@/lib/contact-messages/waha-inbox-service";
+import { syncRestaurantWhatsappInbox } from "@/lib/contacts/sync-restaurant-whatsapp-inbox";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
-import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { wahaGetSession } from "@/lib/waha/waha-client";
+import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -60,37 +59,11 @@ export async function runContactInboxSyncCron(
     if (email.error) stats.errors.push(`${restaurantId}:email:${email.error}`);
     stats.emailImported += email.imported;
 
-    const wahaConfig = await getWahaServerConfigAdmin();
-    if (!wahaConfig) continue;
-
-    const session = wahaSessionNameForRestaurant(restaurantId);
-    const sessionRes = await wahaGetSession(wahaConfig, session);
-    if (!sessionRes.ok || sessionRes.data?.status !== "WORKING") continue;
-
-    const conv = await fetchWahaInboxConversations(admin, restaurantId);
-    if (conv.error) {
-      stats.errors.push(`${restaurantId}:waha:${conv.error}`);
-      continue;
+    const wa = await syncRestaurantWhatsappInbox(admin, restaurantId);
+    if (wa.error) {
+      stats.errors.push(`${restaurantId}:waha:${wa.error}`);
     }
-
-    const syncedContacts = new Set<string>();
-    for (const c of conv.data) {
-      const contactId = c.contact_id;
-      if (!contactId || contactId.startsWith("waha:") || contactId.startsWith("email:")) {
-        continue;
-      }
-      if (syncedContacts.has(contactId)) continue;
-      syncedContacts.add(contactId);
-
-      const wa = await syncContactWhatsappInbound(admin, {
-        restaurantId,
-        contactId,
-      });
-      if (wa.error && wa.error !== "no_whatsapp_chat") {
-        stats.errors.push(`${restaurantId}:wa:${contactId}:${wa.error}`);
-      }
-      stats.whatsappImported += wa.imported;
-    }
+    stats.whatsappImported += wa.imported;
   }
 
   return stats;

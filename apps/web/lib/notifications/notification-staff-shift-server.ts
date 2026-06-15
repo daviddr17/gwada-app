@@ -1,5 +1,8 @@
 import "server-only";
 
+import {
+  isSelfOriginatedNotification,
+} from "@/lib/notifications/notification-self-origin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Schichtbeginn: Glocke bis zu 60 Min. vor Start. */
@@ -24,6 +27,8 @@ type ShiftRow = {
   starts_at: string;
   ends_at: string;
   status: string;
+  created_by: string | null;
+  last_modified_by_profile_id: string | null;
   restaurant_staff:
     | { given_name: string | null; family_name: string | null }
     | { given_name: string | null; family_name: string | null }[]
@@ -68,6 +73,22 @@ async function fetchDismissedShiftKeys(
   );
 }
 
+function shiftActorProfileId(s: ShiftRow): string | null {
+  return s.last_modified_by_profile_id ?? s.created_by ?? null;
+}
+
+function filterShiftsForViewer(
+  shifts: ShiftRow[],
+  viewerProfileId: string,
+  dismissed: Set<string>,
+): ShiftRow[] {
+  return shifts.filter(
+    (s) =>
+      !dismissed.has(s.id) &&
+      !isSelfOriginatedNotification(viewerProfileId, shiftActorProfileId(s)),
+  );
+}
+
 async function fetchShiftsInRange(
   sb: SupabaseClient,
   params: {
@@ -79,7 +100,7 @@ async function fetchShiftsInRange(
   const { data, error } = await sb
     .from("restaurant_staff_scheduled_shifts")
     .select(
-      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, restaurant_staff ( given_name, family_name )",
+      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, created_by, last_modified_by_profile_id, restaurant_staff ( given_name, family_name )",
     )
     .eq("restaurant_id", params.restaurantId)
     .in("status", ["confirmed", "pending"])
@@ -106,7 +127,7 @@ async function fetchShiftsEndingInRange(
   const { data, error } = await sb
     .from("restaurant_staff_scheduled_shifts")
     .select(
-      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, restaurant_staff ( given_name, family_name )",
+      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, created_by, last_modified_by_profile_id, restaurant_staff ( given_name, family_name )",
     )
     .eq("restaurant_id", params.restaurantId)
     .in("status", ["confirmed", "pending"])
@@ -158,7 +179,7 @@ export async function loadStaffShiftStartBellSummary(
     rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
   });
 
-  const active = shifts.filter((s) => !dismissed.has(s.id));
+  const active = filterShiftsForViewer(shifts, params.userId, dismissed);
   const limit = params.limit ?? 5;
 
   return {
@@ -184,7 +205,7 @@ export async function loadStaffShiftEndBellSummary(
     rangeEndIso: new Date(now).toISOString(),
   });
 
-  const active = shifts.filter((s) => !dismissed.has(s.id));
+  const active = filterShiftsForViewer(shifts, params.userId, dismissed);
   const limit = params.limit ?? 5;
 
   return {
@@ -211,6 +232,7 @@ async function emitShiftNotificationEvents(
       startsAt: shift.starts_at,
       endsAt: shift.ends_at,
       kind,
+      actorProfileId: shiftActorProfileId(shift),
     };
 
     const { data: existing } = await admin
@@ -267,7 +289,7 @@ export async function runStaffShiftNotificationsCron(
   const { data: startShifts, error: startErr } = await admin
     .from("restaurant_staff_scheduled_shifts")
     .select(
-      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, restaurant_staff ( given_name, family_name )",
+      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, created_by, last_modified_by_profile_id, restaurant_staff ( given_name, family_name )",
     )
     .in("status", ["confirmed", "pending"])
     .gte("starts_at", startWindowFrom)
@@ -280,7 +302,7 @@ export async function runStaffShiftNotificationsCron(
   const { data: endShifts, error: endErr } = await admin
     .from("restaurant_staff_scheduled_shifts")
     .select(
-      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, restaurant_staff ( given_name, family_name )",
+      "id, restaurant_id, staff_id, label, starts_at, ends_at, status, created_by, last_modified_by_profile_id, restaurant_staff ( given_name, family_name )",
     )
     .in("status", ["confirmed", "pending"])
     .gte("ends_at", endWindowFrom)

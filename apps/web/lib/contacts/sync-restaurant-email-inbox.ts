@@ -1,6 +1,6 @@
 import "server-only";
 
-import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForEmailInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
@@ -119,7 +119,7 @@ export async function syncRestaurantEmailInbox(
       const body = parsed.body?.trim();
       if (!body) continue;
 
-      const inserted = await insertContactMessageIfNew(admin, {
+      const result = await ingestInboundContactMessage(admin, {
         restaurantId,
         contactId,
         platform: "email",
@@ -127,7 +127,7 @@ export async function syncRestaurantEmailInbox(
         body,
         externalSourceId: externalIdForUid(uid),
       });
-      if (inserted) {
+      if (result.imported) {
         imported += 1;
         known.add(externalIdForUid(uid));
       }
@@ -203,7 +203,7 @@ export async function syncContactEmailInbox(
     const body = parsed.body?.trim();
     if (!body) continue;
 
-    const inserted = await insertContactMessageIfNew(admin, {
+    const result = await ingestInboundContactMessage(admin, {
       restaurantId: params.restaurantId,
       contactId: params.contactId,
       platform: "email",
@@ -211,7 +211,7 @@ export async function syncContactEmailInbox(
       body,
       externalSourceId: externalIdForUid(uid),
     });
-    if (inserted) imported += 1;
+    if (result.imported) imported += 1;
   }
 
   return { imported, error: null };

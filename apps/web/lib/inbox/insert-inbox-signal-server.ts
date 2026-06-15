@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type InboxSignalSource = "waha" | "email";
+export type InboxSignalSource = "waha" | "waha_ack" | "email";
 
 /** Realtime-Hinweis für Client: Inbox im Hintergrund aktualisieren (Service-Role). */
 export async function insertInboxSignalServer(

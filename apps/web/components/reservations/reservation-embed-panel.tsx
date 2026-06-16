@@ -1,17 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
-import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
-import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { EmbedDualThemePreviewFrame } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildReservationEmbedSnippet } from "@/lib/embed/build-embed-snippet";
-import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
 async function copyText(text: string, label: string) {
@@ -21,22 +21,6 @@ async function copyText(text: string, label: string) {
   } catch {
     toast.error("Kopieren fehlgeschlagen.");
   }
-}
-
-function EmbedPreviewFrame({ src }: { src: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  useEmbedPreviewResize(iframeRef, src);
-
-  return (
-    <iframe
-      ref={iframeRef}
-      src={src}
-      title="Reservierungsformular Vorschau"
-      className="block w-full min-h-[420px] border-0"
-      loading="lazy"
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
-  );
 }
 
 export function ReservationEmbedPanel() {
@@ -127,9 +111,18 @@ export function ReservationEmbedPanel() {
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
-        <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-          {snippet ? <EmbedPreviewFrame src={snippet.embedUrl} /> : null}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Beide Schriftvarianten auf passendem Hintergrund — auf deiner Website bleibt
+          der Widget-Hintergrund transparent.
+        </p>
+        {snippet ? (
+          <EmbedDualThemePreviewFrame
+            embedUrl={snippet.embedUrl}
+            widget="reservation"
+            title="Reservierungsformular Vorschau"
+            minHeight={420}
+          />
+        ) : null}
       </section>
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">

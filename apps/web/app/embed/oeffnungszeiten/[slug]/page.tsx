@@ -1,6 +1,10 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import {
+  EMBED_PREVIEW_TEXT_THEME_PARAM,
+  resolveEmbedTextTheme,
+} from "@/lib/embed/embed-appearance";
 import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { fetchPublicEmbedOpeningHours } from "@/lib/opening-hours/public-opening-hours-server";
 
@@ -26,10 +30,13 @@ export async function generateMetadata({
 
 export default async function EmbedOeffnungszeitenPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [EMBED_PREVIEW_TEXT_THEME_PARAM]?: string }>;
 }) {
   const { slug } = await params;
+  const sp = await searchParams;
   const [result, textTheme] = await Promise.all([
     fetchPublicEmbedOpeningHours(slug),
     fetchEmbedTextThemeForSlug(slug, "opening_hours"),
@@ -45,5 +52,10 @@ export default async function EmbedOeffnungszeitenPage({
     );
   }
 
-  return <EmbedOpeningHoursWidget {...result.data} textTheme={textTheme} />;
+  return (
+    <EmbedOpeningHoursWidget
+      {...result.data}
+      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
+    />
+  );
 }

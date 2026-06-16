@@ -6,7 +6,10 @@ export const CHANGELOG_DRAFT_RELATIVE_PATH = "content/changelog.draft.json";
 
 export type ChangelogDraftFile = {
   title: string;
+  /** Was Endkunden betrifft — verständlich, ohne Technik. */
   body: string;
+  /** Optional: Deploy, Migration, Interna — nur für Superadmins sichtbar. */
+  superadminBody?: string;
   audience?: PlatformChangelogAudience;
   version?: string | null;
 };
@@ -24,6 +27,10 @@ export function readChangelogDraftFromRepo(
     return {
       title: data.title.trim(),
       body: data.body.trim(),
+      superadminBody:
+        typeof data.superadminBody === "string"
+          ? data.superadminBody.trim() || undefined
+          : undefined,
       audience:
         data.audience === "superadmin" ? "superadmin" : "customers",
       version: data.version?.trim() || null,

@@ -1,6 +1,7 @@
 {
-  "title": "Changelog: ein Eintrag pro Release",
-  "body": "- Pro Deploy nur noch ein Changelog-Eintrag aus changelog.draft.json\n- Jeder Eintrag enthält eine Versionsnummer\n- Neuerungen werden ohne Markdown-Fettschrift angezeigt",
+  "title": "Neue Funktionen im Juni",
+  "body": "- In der Speisekarte findest du Gerichte schneller über die Suche\n- Belege in der Buchführung kannst du per Drag-and-Drop hochladen\n- Das Changelog zeigt dir nur noch verständliche Neuerungen für dein Team",
+  "superadminBody": "- Changelog: getrennte Kunden- und Superadmin-Texte\n- Ein Eintrag pro Release aus changelog.draft.json",
   "audience": "customers",
   "version": "2026.06.17"
 }

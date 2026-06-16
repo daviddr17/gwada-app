@@ -75,6 +75,10 @@ function readDraft() {
     return {
       title: data.title.trim(),
       body: data.body.trim(),
+      superadminBody:
+        typeof data.superadminBody === "string"
+          ? data.superadminBody.trim() || undefined
+          : undefined,
       audience: data.audience === "superadmin" ? "superadmin" : "customers",
       version: data.version?.trim() || null,
     };

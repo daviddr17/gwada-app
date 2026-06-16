@@ -1,24 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { EmbedDualThemePreviewPane } from "@/components/embed/embed-dual-theme-preview";
+import { EmbedOpeningHoursWidget } from "@/components/embed/embed-opening-hours-widget";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildOpeningHoursEmbedSnippet } from "@/lib/embed/build-embed-snippet";
-import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
-import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
+import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import type { PublicEmbedOpeningHoursSettings } from "@/lib/opening-hours/public-opening-hours-server";
 import {
   fetchOpeningHoursSettingsForRestaurant,
   upsertOpeningHoursSettingsForRestaurant,
 } from "@/lib/supabase/opening-hours-settings-db";
+import { loadOpeningHoursForRestaurant } from "@/lib/supabase/opening-hours-db";
 import { publicSurfaceEmbedOnlyDescription, publicSurfaceScopeHint } from "@/lib/ui/public-surface-settings-copy";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -31,47 +34,43 @@ async function copyText(text: string, label: string) {
   }
 }
 
-const OPENING_HOURS_PREVIEW_EMBED_ID = "gwada-opening-hours-embed-preview";
 
-function EmbedPreviewFrame({ src }: { src: string }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const previewSrc = useMemo(() => {
-    if (!mounted) return src;
-    const url = new URL(src, window.location.origin);
-    url.searchParams.set("gwada_embed_id", OPENING_HOURS_PREVIEW_EMBED_ID);
-    url.searchParams.set("gwada_widget", "opening_hours");
-    return url.toString();
-  }, [src, mounted]);
-
-  useEmbedPreviewResize(iframeRef, previewSrc);
-
-  useEffect(() => {
-    const frame = iframeRef.current;
-    if (!frame) return;
-    return attachEmbedHostBridge(frame, window.location.origin);
-  }, [previewSrc]);
+function OpeningHoursEmbedDualPreview({
+  accentHex,
+  restaurantName,
+  hours,
+  settings,
+}: {
+  accentHex: string;
+  restaurantName: string;
+  hours: NonNullable<Awaited<ReturnType<typeof loadOpeningHoursForRestaurant>>>;
+  settings: PublicEmbedOpeningHoursSettings;
+}) {
+  const widgetProps = {
+    restaurantName,
+    accentHex,
+    weeklyHours: hours.weeklyHours,
+    kitchenHoursEnabled: hours.kitchenHoursEnabled,
+    kitchenWeeklyHours: hours.kitchenWeeklyHours,
+    dateExceptions: hours.dateExceptions,
+    settings,
+  };
 
   return (
-    <iframe
-      ref={iframeRef}
-      id={OPENING_HOURS_PREVIEW_EMBED_ID}
-      src={previewSrc}
-      title="Öffnungszeiten Vorschau"
-      className="block w-full min-h-[420px] border-0"
-      loading="lazy"
-      referrerPolicy="strict-origin-when-cross-origin"
-    />
+    <div className="grid gap-4 lg:grid-cols-2">
+      <EmbedDualThemePreviewPane textTheme="dark" label="Dunkle Schrift">
+        <EmbedOpeningHoursWidget {...widgetProps} textTheme="dark" />
+      </EmbedDualThemePreviewPane>
+      <EmbedDualThemePreviewPane textTheme="light" label="Helle Schrift">
+        <EmbedOpeningHoursWidget {...widgetProps} textTheme="light" />
+      </EmbedDualThemePreviewPane>
+    </div>
   );
 }
 
 export function OpeningHoursEmbedPanel() {
   const { restaurantId: restaurantUuid, ready } = useWorkspaceRestaurantUuid();
+  const { accentHex } = useAccentColor();
   const { getProfileForRestaurantId, isReady: profileReady } =
     useRestaurantProfile();
   const [published, setPublished] = useState<boolean | null>(null);
@@ -79,6 +78,10 @@ export function OpeningHoursEmbedPanel() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [embedShowKitchenHours, setEmbedShowKitchenHours] = useState(true);
   const [embedShowExceptions, setEmbedShowExceptions] = useState(true);
+  const [embedFooterText, setEmbedFooterText] = useState("");
+  const [hoursPayload, setHoursPayload] = useState<
+    Awaited<ReturnType<typeof loadOpeningHoursForRestaurant>>
+  >(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
 
   const profile = useMemo(() => {
@@ -124,10 +127,15 @@ export function OpeningHoursEmbedPanel() {
     let cancelled = false;
     setSettingsLoading(true);
     void (async () => {
-      const row = await fetchOpeningHoursSettingsForRestaurant(restaurantUuid);
+      const [row, hours] = await Promise.all([
+        fetchOpeningHoursSettingsForRestaurant(restaurantUuid),
+        loadOpeningHoursForRestaurant(restaurantUuid),
+      ]);
       if (cancelled) return;
       setEmbedShowKitchenHours(row.embedShowKitchenHours);
       setEmbedShowExceptions(row.embedShowExceptions);
+      setEmbedFooterText(row.embedFooterText);
+      setHoursPayload(hours);
       setSettingsLoading(false);
     })();
     return () => {
@@ -161,6 +169,15 @@ export function OpeningHoursEmbedPanel() {
   const origin =
     typeof window !== "undefined" ? window.location.origin : undefined;
   const snippet = slug ? buildOpeningHoursEmbedSnippet(slug, origin) : null;
+  const previewSettings = useMemo(
+    (): PublicEmbedOpeningHoursSettings => ({
+      embedFooterText: embedFooterText.trim() || null,
+      embedShowKitchenHours,
+      embedShowExceptions,
+    }),
+    [embedFooterText, embedShowKitchenHours, embedShowExceptions],
+  );
+  const restaurantName = profile?.name?.trim() || "Restaurant";
 
   const showSkeleton = useDeferredSkeleton(
     !ready || loadingMeta || settingsLoading,
@@ -294,9 +311,22 @@ export function OpeningHoursEmbedPanel() {
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
-        <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-          {snippet ? <EmbedPreviewFrame src={snippet.embedUrl} /> : null}
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Beide Schriftvarianten auf passendem Hintergrund — Änderungen oben werden
+          sofort in der Vorschau angezeigt.
+        </p>
+        {hoursPayload ? (
+          <OpeningHoursEmbedDualPreview
+            accentHex={accentHex}
+            restaurantName={restaurantName}
+            hours={hoursPayload}
+            settings={previewSettings}
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Öffnungszeiten konnten nicht geladen werden.
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">

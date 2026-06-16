@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { EmbedDualThemePreviewPane } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedReviewsWidget } from "@/components/embed/embed-reviews-widget";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,8 +18,6 @@ import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildReviewsEmbedSnippet } from "@/lib/embed/build-embed-snippet";
-import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
-import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -43,8 +42,6 @@ async function copyText(text: string, label: string) {
   }
 }
 
-const REVIEWS_PREVIEW_EMBED_ID = "gwada-reviews-embed-preview";
-
 const PREVIEW_REVIEWS = [
   {
     id: "preview-1",
@@ -66,54 +63,36 @@ const PREVIEW_REVIEWS = [
   },
 ];
 
-function EmbedPreviewFrame({
-  src,
+function EmbedReviewsDualPreview({
   viewMode,
   accentHex,
   restaurantName,
 }: {
-  src: string;
   viewMode: ReviewEmbedSettingsRow["defaultEmbedView"];
   accentHex: string;
   restaurantName: string;
 }) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const previewSrc = useMemo(() => {
-    if (!mounted) return src;
-    const url = new URL(src, window.location.origin);
-    url.searchParams.set("gwada_embed_id", REVIEWS_PREVIEW_EMBED_ID);
-    url.searchParams.set("gwada_widget", "reviews");
-    return url.toString();
-  }, [src, mounted]);
-
-  useEmbedPreviewResize(iframeRef, previewSrc);
-
-  useEffect(() => {
-    const frame = iframeRef.current;
-    if (!frame) return;
-    return attachEmbedHostBridge(frame, window.location.origin);
-  }, [previewSrc]);
+  const previewProps = {
+    restaurantName,
+    accentHex,
+    reviews: PREVIEW_REVIEWS,
+    summary: {
+      count: 2,
+      average: 4.5,
+      median: 4.5,
+      distribution: { 5: 1, 4: 1, 3: 0, 2: 0, 1: 0 },
+    } as const,
+    viewMode,
+  };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
-      <EmbedReviewsWidget
-        restaurantName={restaurantName}
-        accentHex={accentHex}
-        reviews={PREVIEW_REVIEWS}
-        summary={{
-          count: 2,
-          average: 4.5,
-          median: 4.5,
-          distribution: { 5: 1, 4: 1, 3: 0, 2: 0, 1: 0 },
-        }}
-        viewMode={viewMode}
-      />
+    <div className="grid gap-4 lg:grid-cols-2">
+      <EmbedDualThemePreviewPane textTheme="dark" label="Dunkle Schrift">
+        <EmbedReviewsWidget {...previewProps} textTheme="dark" />
+      </EmbedDualThemePreviewPane>
+      <EmbedDualThemePreviewPane textTheme="light" label="Helle Schrift">
+        <EmbedReviewsWidget {...previewProps} textTheme="light" />
+      </EmbedDualThemePreviewPane>
     </div>
   );
 }
@@ -361,9 +340,12 @@ export function ReviewsEmbedPanel() {
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
+        <p className="text-xs text-muted-foreground">
+          Beide Schriftvarianten auf passendem Hintergrund — auf deiner Website bleibt
+          der Widget-Hintergrund transparent.
+        </p>
         {snippet ? (
-          <EmbedPreviewFrame
-            src={snippet.embedUrl}
+          <EmbedReviewsDualPreview
             viewMode={settings.defaultEmbedView}
             accentHex={accentHex}
             restaurantName={restaurantName}

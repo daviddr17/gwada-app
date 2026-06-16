@@ -88,13 +88,21 @@ export function peekUnifiedInboxCacheAgeMs(restaurantId: string): number | null 
   return Date.now() - entry.cachedAt;
 }
 
+export type UnifiedInboxReadStatePatch = Pick<
+  ContactConversationPreview,
+  "is_unread" | "unread_count"
+> & {
+  whatsapp_unread_count?: number;
+  email_unread_count?: number;
+};
+
 /** Lesestatus einer Zeile im Cache anpassen (z. B. nach „gelesen“ / „ungelesen“). */
 export function patchUnifiedInboxCacheConversation(
   restaurantId: string,
   contactId: string,
-  patch: Pick<ContactConversationPreview, "is_unread" | "unread_count">,
+  patch: UnifiedInboxReadStatePatch,
 ): void {
-  const entry = cache.get(restaurantId);
+  const entry = cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
   if (!entry) return;
 
   const conversations = entry.conversations.map((c) =>

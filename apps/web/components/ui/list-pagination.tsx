@@ -1,14 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
-import { formatListPageSummary } from "@/lib/ui/list-range-count";
+import { PaginationPageControl } from "@/components/ui/pagination";
+import { formatListRangeSummaryPart } from "@/lib/ui/list-range-count";
 import { cn } from "@/lib/utils";
 
 export type ListPaginationProps = {
@@ -26,7 +20,7 @@ export type ListPaginationProps = {
   className?: string;
   /** `above`: oberhalb der Tabelle/Liste; `below`: unterhalb (Standard). */
   placement?: "above" | "below";
-  /** Text-Zusammenfassung ausblenden (z. B. unten nur Vor/Zurück). */
+  /** Text-Zusammenfassung ausblenden (z. B. nur Seitensteuerung). */
   showSummary?: boolean;
 };
 
@@ -47,6 +41,13 @@ function listPaginationVisible({
     !canNext &&
     (totalCount == null || totalCount === 0)
   );
+}
+
+function showPageNav({
+  totalPages,
+  canNext,
+}: Pick<ListPaginationProps, "totalPages" | "canNext">) {
+  return totalPages > 1 || canNext;
 }
 
 export function ListPagination({
@@ -70,51 +71,41 @@ export function ListPagination({
     return null;
   }
 
-  const summary =
+  const rangeSummary =
     showSummary &&
-    formatListPageSummary({
-      shown,
-      totalCount,
-      itemLabel,
-      page,
-      totalPages,
-    });
+    formatListRangeSummaryPart({ shown, totalCount, itemLabel });
+
+  const pageNavVisible = showPageNav({ totalPages, canNext });
 
   return (
     <div
       className={cn(
-        "flex flex-row flex-wrap items-center justify-between gap-x-4 gap-y-2",
+        "flex flex-row flex-wrap items-center justify-between gap-x-3 gap-y-1",
         placement === "above"
           ? "border-b border-border/50 pb-4"
           : "border-t border-border/50 pt-4",
         className,
       )}
     >
-      {summary ? (
+      {rangeSummary ? (
         <p className="min-w-0 text-sm text-muted-foreground tabular-nums">
-          {summary}
+          {rangeSummary}
         </p>
       ) : (
         <span className="min-w-0 flex-1" aria-hidden />
       )}
-      <Pagination className="mx-0 w-auto shrink-0 justify-end">
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious
-              disabled={!canPrevious || busy}
-              onClick={onPrevious}
-              aria-label="Vorherige Seite"
-            />
-          </PaginationItem>
-          <PaginationItem>
-            <PaginationNext
-              disabled={!canNext || busy}
-              onClick={onNext}
-              aria-label="Nächste Seite"
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+      {pageNavVisible ? (
+        <PaginationPageControl
+          page={page}
+          totalPages={Math.max(totalPages, 1)}
+          canPrevious={canPrevious}
+          canNext={canNext}
+          onPrevious={onPrevious}
+          onNext={onNext}
+          busy={busy}
+          className={cn(!rangeSummary && "ml-auto")}
+        />
+      ) : null}
     </div>
   );
 }

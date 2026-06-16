@@ -14,12 +14,11 @@ function AccountingCatalogToolbarSkeleton() {
   );
 }
 
-function AccountingFilterChipsSkeleton() {
+function AccountingSearchFilterRowSkeleton() {
   return (
-    <div className="flex flex-wrap gap-2">
-      {["w-[4.5rem]", "w-[5.5rem]", "w-[5rem]"].map((w, i) => (
-        <Skeleton key={i} className={cn("h-8 rounded-full", w)} />
-      ))}
+    <div className="flex w-full items-center gap-2">
+      <Skeleton className="h-11 min-w-0 flex-1 rounded-2xl" />
+      <Skeleton className="size-11 shrink-0 rounded-full" />
     </div>
   );
 }
@@ -109,9 +108,7 @@ export function AccountingListScreenSkeleton({
     >
       {showCatalogToolbar ? <AccountingCatalogToolbarSkeleton /> : null}
 
-      <AccountingFilterChipsSkeleton />
-
-      <Skeleton className="h-11 max-w-xl rounded-2xl" />
+      <AccountingSearchFilterRowSkeleton />
 
       {showLexwareSync ? (
         <div className="flex justify-end">

@@ -45,6 +45,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/buchfuehrung/rechnungen": "Rechnungen",
   "/dashboard/buchfuehrung/angebote": "Angebote",
   "/dashboard/buchfuehrung/belege": "Belege",
+  "/dashboard/buchfuehrung/kasse": "Kasse",
   "/dashboard/buchfuehrung/einstellungen": "Einstellungen",
   "/dashboard/reservierungen": "Reservierungen",
   "/dashboard/reservierungen/uebersicht": "Übersicht",

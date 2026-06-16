@@ -12,6 +12,8 @@ import {
   EmbedSlidingSegmentTabs,
   type EmbedSlidingSegmentTab,
 } from "@/components/embed/embed-sliding-segment-tabs";
+import { Separator } from "@/components/ui/separator";
+import { PublicProfileContactForm } from "@/components/public/public-profile-contact-form";
 import { PublicProfileSocialChip } from "@/components/public/public-profile-social-chip";
 import { RestaurantPublicOpeningHours } from "@/components/public/restaurant-public-opening-hours";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
@@ -76,18 +78,10 @@ function PublicProfileContactPanel({
   const website = profile.website?.trim();
   const socialLinks = profile.socialLinks;
   const hasContactChips = Boolean(addressLine || phone || email || website);
-  const hasContent = hasContactChips || socialLinks.length > 0;
-
-  if (!hasContent) {
-    return (
-      <p className="py-6 text-center text-sm text-muted-foreground">
-        Keine Kontaktdaten hinterlegt.
-      </p>
-    );
-  }
+  const hasSocial = socialLinks.length > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {hasContactChips ? (
         <div className={profileContactChipGridClassName}>
           {addressLine ? (
@@ -138,7 +132,7 @@ function PublicProfileContactPanel({
         </div>
       ) : null}
 
-      {socialLinks.length > 0 ? (
+      {hasSocial ? (
         <div
           className={cn(
             profileContactSocialRowClassName,
@@ -153,6 +147,10 @@ function PublicProfileContactPanel({
           ))}
         </div>
       ) : null}
+
+      {hasContactChips || hasSocial ? <Separator className="bg-border/50" /> : null}
+
+      <PublicProfileContactForm slug={profile.slug} restaurantName={profile.name} />
     </div>
   );
 }

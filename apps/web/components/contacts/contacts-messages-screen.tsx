@@ -31,6 +31,7 @@ import { ContactConversationsSearchBar } from "@/components/contacts/contact-con
 import { toast } from "sonner";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { InboxThreadAssignContactSheet } from "@/components/contacts/inbox-thread-assign-contact-sheet";
+import { ContactInboxThreadOverlay } from "@/components/contacts/contact-inbox-thread-overlay";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
@@ -1369,17 +1370,24 @@ export function ContactsMessagesScreen() {
   }, [restaurantId, contactParam, inboxFilter]);
 
   useEffect(() => {
-    if (!restaurantId || !contactParam) return;
+    if (!restaurantId) return;
 
-    const onLive = () => {
-      void loadThread({ silent: true });
+    const onMessagesRefresh = () => {
+      if (contactParam) {
+        void loadThread({ silent: true });
+      } else {
+        void loadConversations({ silent: true, force: true });
+      }
     };
 
-    window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onLive);
+    window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onMessagesRefresh);
     return () => {
-      window.removeEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onLive);
+      window.removeEventListener(
+        GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
+        onMessagesRefresh,
+      );
     };
-  }, [restaurantId, contactParam, loadThread]);
+  }, [restaurantId, contactParam, loadThread, loadConversations]);
 
   useLayoutEffect(() => {
     if (!restaurantId) return;
@@ -2140,6 +2148,8 @@ export function ContactsMessagesScreen() {
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-4 pt-2">
+      {!contactParam ? (
+        <>
       <ContactInboxFilterChips
         filter={inboxFilter}
         onFilterChange={selectInboxFilter}
@@ -2183,165 +2193,114 @@ export function ContactsMessagesScreen() {
           Instagram-Business-Konto verknüpfen.
         </p>
       ) : null}
+        </>
+      ) : null}
 
       {contactParam ? (
-        <Card className="flex w-full min-w-0 flex-col gap-0 overflow-visible border-border/50 py-0 shadow-card">
-          <div className="flex items-center gap-2 border-b border-border/50 px-4 py-3 sm:px-6">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="shrink-0"
-              aria-label="Zurück zur Liste"
-              onClick={backToList}
-            >
-              <ArrowLeft className="size-4" />
-            </Button>
-            <div className="min-w-0 flex-1">
-              {contactParam && canOpenLinkedContact(contactParam) ? (
-                <button
+        <ContactInboxThreadOverlay
+          open
+          onClose={backToList}
+          aria-label={contactName ? `Chat mit ${contactName}` : "Chat"}
+          header={
+            <div className="flex items-center gap-2 px-4 py-3 sm:px-5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0"
+                aria-label="Zurück zur Liste"
+                onClick={backToList}
+              >
+                <ArrowLeft className="size-4" />
+              </Button>
+              <div className="min-w-0 flex-1">
+                {canOpenLinkedContact(contactParam) ? (
+                  <button
+                    type="button"
+                    className="max-w-full truncate text-left text-base font-semibold tracking-tight hover:underline"
+                    onClick={() => openLinkedContact(contactParam)}
+                  >
+                    {contactName || "Kontakt"}
+                  </button>
+                ) : (
+                  <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
+                )}
+                {linkedThread && lastGuestPlatform ? (
+                  <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>Zuletzt aktiv über</span>
+                    <ContactMessagePlatformIcon
+                      platform={lastGuestPlatform}
+                      variant="meta"
+                    />
+                    <span className="font-medium text-foreground">
+                      {CONTACT_MESSAGE_PLATFORM_LABELS[lastGuestPlatform]}
+                    </span>
+                  </p>
+                ) : isWahaPseudoContactId(contactParam) ? (
+                  whatsappHeaderSubtitle ? (
+                    <p className="text-xs text-muted-foreground">
+                      {whatsappHeaderSubtitle}
+                    </p>
+                  ) : showWhatsAppMissingPhoneHint ? (
+                    <p className="text-xs text-muted-foreground">
+                      Nummer nicht verfügbar
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">WhatsApp</p>
+                  )
+                ) : isEmailPseudoContactId(contactParam) ? (
+                  <p className="text-xs text-muted-foreground">E-Mail</p>
+                ) : isMetaPseudoContactId(contactParam) ? (
+                  <p className="text-xs text-muted-foreground">
+                    {CONTACT_MESSAGE_PLATFORM_LABELS[
+                      metaPlatformFromPseudoContactId(contactParam) ?? "facebook"
+                    ]}
+                  </p>
+                ) : null}
+              </div>
+              {isInboxPseudoContactId(contactParam) ? (
+                <Button
                   type="button"
-                  className="max-w-full truncate text-left text-base font-semibold tracking-tight hover:underline"
+                  variant="outline"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
+                  aria-label={
+                    isEmailPseudoContactId(contactParam)
+                      ? "Kontakt aus E-Mail-Chat anlegen"
+                      : isMetaPseudoContactId(contactParam)
+                        ? "Kontakt aus Messenger/Instagram-Chat anlegen"
+                        : "Kontakt aus WhatsApp-Chat anlegen"
+                  }
+                  onClick={() =>
+                    openCreateContactFromPseudo(
+                      contactParam,
+                      contactName ||
+                        (isEmailPseudoContactId(contactParam)
+                          ? "E-Mail"
+                          : "WhatsApp"),
+                    )
+                  }
+                >
+                  <Plus className="size-4" />
+                </Button>
+              ) : null}
+              {canOpenLinkedContact(contactParam) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  className="shrink-0 rounded-full"
+                  aria-label="Kontakt öffnen"
                   onClick={() => openLinkedContact(contactParam)}
                 >
-                  {contactName || "Kontakt"}
-                </button>
-              ) : (
-                <p className="truncate font-semibold">{contactName || "Kontakt"}</p>
-              )}
-              {linkedThread && lastGuestPlatform ? (
-                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span>Zuletzt aktiv über</span>
-                  <ContactMessagePlatformIcon
-                    platform={lastGuestPlatform}
-                    variant="meta"
-                  />
-                  <span className="font-medium text-foreground">
-                    {CONTACT_MESSAGE_PLATFORM_LABELS[lastGuestPlatform]}
-                  </span>
-                </p>
-              ) : isWahaPseudoContactId(contactParam) ? (
-                whatsappHeaderSubtitle ? (
-                  <p className="text-xs text-muted-foreground">
-                    {whatsappHeaderSubtitle}
-                  </p>
-                ) : showWhatsAppMissingPhoneHint ? (
-                  <p className="text-xs text-muted-foreground">
-                    Nummer nicht verfügbar
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">WhatsApp</p>
-                )
-              ) : isEmailPseudoContactId(contactParam) ? (
-                <p className="text-xs text-muted-foreground">E-Mail</p>
-              ) : isMetaPseudoContactId(contactParam) ? (
-                <p className="text-xs text-muted-foreground">
-                  {CONTACT_MESSAGE_PLATFORM_LABELS[
-                    metaPlatformFromPseudoContactId(contactParam) ?? "facebook"
-                  ]}
-                </p>
+                  <UserRound className="size-4" />
+                </Button>
               ) : null}
             </div>
-            {contactParam && isInboxPseudoContactId(contactParam) ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                className="shrink-0 rounded-full"
-                aria-label={
-                  isEmailPseudoContactId(contactParam)
-                    ? "Kontakt aus E-Mail-Chat anlegen"
-                    : isMetaPseudoContactId(contactParam)
-                      ? "Kontakt aus Messenger/Instagram-Chat anlegen"
-                      : "Kontakt aus WhatsApp-Chat anlegen"
-                }
-                onClick={() =>
-                  openCreateContactFromPseudo(
-                    contactParam,
-                    contactName ||
-                      (isEmailPseudoContactId(contactParam)
-                        ? "E-Mail"
-                        : "WhatsApp"),
-                  )
-                }
-              >
-                <Plus className="size-4" />
-              </Button>
-            ) : null}
-            {contactParam && canOpenLinkedContact(contactParam) ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon-sm"
-                className="shrink-0 rounded-full"
-                aria-label="Kontakt öffnen"
-                onClick={() => openLinkedContact(contactParam)}
-              >
-                <UserRound className="size-4" />
-              </Button>
-            ) : null}
-          </div>
-          <CardContent className="grid h-[min(72dvh,680px)] max-h-[min(88dvh,820px)] min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-0 p-0">
-            <div className="min-h-0 min-w-0 overflow-hidden px-4 pt-4 sm:px-6 sm:pt-5">
-              <ContactMessageChatViewport
-                messages={displayMessages}
-                loading={loadingThread}
-                threadKey={contactParam}
-                className="h-full min-h-0"
-                onReservationOpen={(id) => void openReservationFromMessage(id)}
-                wahaReactions={
-                  restaurantId && whatsappThreadChatId
-                    ? linkedThread &&
-                      displayMessages.some((m) => m.waha_message_id)
-                      ? {
-                          restaurantId,
-                          chatId: whatsappThreadChatId,
-                          onReactionChange: () => {
-                            void loadThread();
-                            void loadConversations();
-                          },
-                          onMessageDeleted: () => {
-                            void loadConversations({ silent: true });
-                          },
-                          onOptimisticMessageDelete: handleOptimisticDeleteWahaMessage,
-                          onEditMessage: handleStartEditWahaMessage,
-                          editingMessageId: editingWahaMessage?.messageId ?? null,
-                        }
-                      : isWahaPseudoContactId(contactParam)
-                        ? {
-                            restaurantId,
-                            chatId: whatsappThreadChatId,
-                            onReactionChange: () => {
-                              void loadThread();
-                              void loadConversations();
-                            },
-                            onMessageDeleted: () => {
-                              void loadConversations({ silent: true });
-                            },
-                            onOptimisticMessageDelete: handleOptimisticDeleteWahaMessage,
-                            onEditMessage: handleStartEditWahaMessage,
-                            editingMessageId:
-                              editingWahaMessage?.messageId ?? null,
-                          }
-                        : undefined
-                    : undefined
-                }
-                metaReactions={
-                  restaurantId &&
-                  (isMetaPseudoContactId(contactParam) || linkedThread)
-                    ? {
-                        restaurantId,
-                        onReactionChange: () => {
-                          void loadThread({ silent: true });
-                          void loadConversations({ silent: true });
-                        },
-                      }
-                    : undefined
-                }
-              />
-            </div>
-            {canReply ? (
-              <div className="min-w-0 overflow-visible border-t border-border/50 bg-card px-4 pt-2 pb-3 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] sm:px-6">
+          }
+          footer={
+            canReply ? (
+              <div className="min-w-0 overflow-visible px-4 py-2 sm:px-5 sm:py-3">
                 <ContactMessageComposer
                   disabled={loadingThread}
                   sending={sending}
@@ -2408,7 +2367,7 @@ export function ContactsMessagesScreen() {
                 />
               </div>
             ) : linkedThread ? (
-              <div className="min-w-0 border-t border-border/50 bg-card px-4 py-4 sm:px-6">
+              <div className="px-4 py-4 sm:px-5">
                 <p className="text-sm text-muted-foreground">
                   {!emailEnabled &&
                   !whatsappEnabled &&
@@ -2439,10 +2398,71 @@ export function ContactsMessagesScreen() {
                             : "Kein Versandweg verfügbar — Kanäle und Kontaktdaten prüfen."}
                 </p>
               </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : showConversationList ? (
+            ) : null
+          }
+        >
+          <div className="flex h-full min-h-0 flex-col px-4 pt-4 sm:px-5 sm:pt-5">
+            <ContactMessageChatViewport
+              messages={displayMessages}
+              loading={loadingThread}
+              threadKey={contactParam}
+              className="h-full min-h-0 flex-1"
+              onReservationOpen={(id) => void openReservationFromMessage(id)}
+              wahaReactions={
+                restaurantId && whatsappThreadChatId
+                  ? linkedThread &&
+                    displayMessages.some((m) => m.waha_message_id)
+                    ? {
+                        restaurantId,
+                        chatId: whatsappThreadChatId,
+                        onReactionChange: () => {
+                          void loadThread();
+                          void loadConversations();
+                        },
+                        onMessageDeleted: () => {
+                          void loadConversations({ silent: true });
+                        },
+                        onOptimisticMessageDelete: handleOptimisticDeleteWahaMessage,
+                        onEditMessage: handleStartEditWahaMessage,
+                        editingMessageId: editingWahaMessage?.messageId ?? null,
+                      }
+                    : isWahaPseudoContactId(contactParam)
+                      ? {
+                          restaurantId,
+                          chatId: whatsappThreadChatId,
+                          onReactionChange: () => {
+                            void loadThread();
+                            void loadConversations();
+                          },
+                          onMessageDeleted: () => {
+                            void loadConversations({ silent: true });
+                          },
+                          onOptimisticMessageDelete: handleOptimisticDeleteWahaMessage,
+                          onEditMessage: handleStartEditWahaMessage,
+                          editingMessageId:
+                            editingWahaMessage?.messageId ?? null,
+                        }
+                      : undefined
+                  : undefined
+              }
+              metaReactions={
+                restaurantId &&
+                (isMetaPseudoContactId(contactParam) || linkedThread)
+                  ? {
+                      restaurantId,
+                      onReactionChange: () => {
+                        void loadThread({ silent: true });
+                        void loadConversations({ silent: true });
+                      },
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        </ContactInboxThreadOverlay>
+      ) : null}
+
+      {showConversationList ? (
         <Card className="w-full min-w-0 border-border/50 shadow-card">
           <div className="space-y-3 border-b border-border/50 px-4 py-3 sm:px-6">
             <div className="flex gap-2">

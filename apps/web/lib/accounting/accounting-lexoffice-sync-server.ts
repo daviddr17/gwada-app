@@ -106,16 +106,13 @@ function salesDocumentShellFromListItem(
 ): Record<string, unknown> {
   const isCreditNote = isCreditNoteListItem(kind, item);
 
-  return {
+  const shell: Record<string, unknown> = {
     source: "lexoffice",
     external_id: item.id,
     external_version: null,
     external_edit_url: isCreditNote
       ? `${LEXWARE_APP_BASE}/permalink/credit-notes/edit/${item.id}`
       : lexofficeEditUrl(kind, item.id),
-    external_document_type: isCreditNote ? "credit_note" : kind,
-    document_variant: isCreditNote ? "correction" : "standard",
-    corrects_id: null,
     finalize_on_create: false,
     ...listOnlySalesPatch(kind, item),
     line_items: [],
@@ -125,6 +122,15 @@ function salesDocumentShellFromListItem(
     remark: null,
     ...(kind === "quotation" ? { expiration_date: null } : {}),
   };
+
+  /** Korrektur-Metadaten nur auf accounting_invoices — nicht auf accounting_quotations. */
+  if (kind === "invoice") {
+    shell.external_document_type = isCreditNote ? "credit_note" : kind;
+    shell.document_variant = isCreditNote ? "correction" : "standard";
+    shell.corrects_id = null;
+  }
+
+  return shell;
 }
 
 function needsSalesDetailFetch(
@@ -333,14 +339,32 @@ export async function syncLexofficeSalesDocuments(
         );
       } else {
         imported += 1;
-        const { data: inserted } = await sb
-          .from(table)
-          .select("id, voucher_number, document_variant, source")
-          .eq("restaurant_id", params.restaurantId)
-          .eq("source", "lexoffice")
-          .eq("external_id", item.id)
-          .maybeSingle();
+        const insertedFilter = {
+          restaurantId: params.restaurantId,
+          externalId: item.id,
+        };
+        const { data: inserted } =
+          params.kind === "invoice"
+            ? await sb
+                .from(table)
+                .select("id, voucher_number, document_variant, source")
+                .eq("restaurant_id", insertedFilter.restaurantId)
+                .eq("source", "lexoffice")
+                .eq("external_id", insertedFilter.externalId)
+                .maybeSingle()
+            : await sb
+                .from(table)
+                .select("id, voucher_number, source")
+                .eq("restaurant_id", insertedFilter.restaurantId)
+                .eq("source", "lexoffice")
+                .eq("external_id", insertedFilter.externalId)
+                .maybeSingle();
         if (inserted) {
+          const documentVariant =
+            params.kind === "invoice"
+              ? ((inserted as { document_variant?: string | null })
+                  .document_variant ?? null)
+              : null;
           existingByExternalId.set(item.id, {
             id: inserted.id as string,
             external_id: item.id,
@@ -358,11 +382,11 @@ export async function syncLexofficeSalesDocuments(
             details: {
               source: "lexoffice",
               voucherNumber: inserted.voucher_number as string | null,
-              documentVariant: inserted.document_variant as string | null,
+              documentVariant,
               summary: salesDocumentCreatedLogSummary(params.kind, {
                 source: "lexoffice",
                 voucherNumber: inserted.voucher_number as string | null,
-                documentVariant: inserted.document_variant as string | null,
+                documentVariant,
               }),
             },
           });

@@ -2,6 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
+import { invalidateMessagesInboxAfterMarkRead } from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import {
   fetchNotificationSummaryClient,
@@ -9,6 +10,7 @@ import {
 } from "@/lib/notifications/fetch-notifications-client";
 import {
   GWADA_NOTIFICATIONS_REFRESH_EVENT,
+  dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
@@ -120,34 +122,51 @@ export function useNotificationSummary() {
     }) => {
       if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
 
+      const isMessages = params.module === "messages";
       const summaryKey = queryKeys.notifications.summary(restaurantId);
-      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
-        if (!prev) return prev;
-        const modules = prev.modules
-          .map((mod) => {
-            if (mod.id !== params.module) return mod;
-            const items = mod.items.filter((i) => i.id !== params.itemId);
-            const removed = mod.items.length - items.length;
-            return {
-              ...mod,
-              items,
-              count: Math.max(0, mod.count - removed),
-            };
-          })
-          .filter((mod) => mod.count > 0);
-        const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
-        return { ...prev, modules, totalCount };
-      });
 
-      const result = await markNotificationReadClient({
-        restaurantId,
-        module: params.module,
-        itemId: params.itemId,
-        meta: params.meta,
-      });
+      /** Nachrichten: WAHA/IMAP erst serverseitig — kein optimistisches Badge-0. */
+      if (!isMessages) {
+        queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+          if (!prev) return prev;
+          const modules = prev.modules
+            .map((mod) => {
+              if (mod.id !== params.module) return mod;
+              const items = mod.items.filter((i) => i.id !== params.itemId);
+              const removed = mod.items.length - items.length;
+              return {
+                ...mod,
+                items,
+                count: Math.max(0, mod.count - removed),
+              };
+            })
+            .filter((mod) => mod.count > 0);
+          const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
+          return { ...prev, modules, totalCount };
+        });
+      }
 
-      if (!result.ok) {
+      const result = await markNotificationReadClient(
+        {
+          restaurantId,
+          module: params.module,
+          itemId: params.itemId,
+          meta: params.meta,
+        },
+        { notify: false },
+      );
+
+      if (result.ok && isMessages) {
+        invalidateMessagesInboxAfterMarkRead({
+          restaurantId,
+          contactId: params.itemId ?? params.meta?.contactId,
+        });
+        dispatchNotificationsRefresh();
+        await refresh({ silent: true });
+      } else if (!result.ok && !isMessages) {
         void refresh({ silent: true });
+      } else if (result.ok && !isMessages) {
+        dispatchNotificationsRefresh();
       }
 
       return result;
@@ -159,13 +178,17 @@ export function useNotificationSummary() {
     async (params: { module: NotificationModuleId }) => {
       if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
 
+      const isMessages = params.module === "messages";
       const summaryKey = queryKeys.notifications.summary(restaurantId);
-      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
-        if (!prev) return prev;
-        const modules = prev.modules.filter((mod) => mod.id !== params.module);
-        const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
-        return { ...prev, modules, totalCount };
-      });
+
+      if (!isMessages) {
+        queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+          if (!prev) return prev;
+          const modules = prev.modules.filter((mod) => mod.id !== params.module);
+          const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
+          return { ...prev, modules, totalCount };
+        });
+      }
 
       const result = await markNotificationReadClient(
         {
@@ -177,8 +200,14 @@ export function useNotificationSummary() {
       );
 
       if (!result.ok) {
-        void refresh({ silent: true });
+        if (!isMessages) void refresh({ silent: true });
         return { ok: false as const, error: "mark_module_read_failed" };
+      }
+
+      if (isMessages) {
+        invalidateMessagesInboxAfterMarkRead({ restaurantId, all: true });
+        dispatchNotificationsRefresh();
+        await refresh({ silent: true });
       }
 
       return { ok: true as const, error: null };

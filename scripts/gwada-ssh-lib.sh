@@ -8,7 +8,12 @@ GWADA_SSH=( -o ConnectTimeout=15 )
 
 # Nur für nicht-interaktive CI: GWADA_SSH_BATCH=1 setzen
 if [[ -n "${GWADA_SSH_BATCH:-}" ]]; then
-  GWADA_SSH+=( -o BatchMode=yes )
+  GWADA_SSH+=(
+    -o BatchMode=yes
+    -o ServerAliveInterval=30
+    -o ServerAliveCountMax=120
+    -o TCPKeepAlive=yes
+  )
 fi
 
 if [[ -f "${GWADA_SSH_IDENTITY}" ]]; then

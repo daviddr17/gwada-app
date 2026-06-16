@@ -1,6 +1,7 @@
 import type { ConversationReadFilter } from "@/lib/contact-messages/filter-conversations";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { inboxPreviewSnippet } from "@/lib/contact-messages/inbox-preview-snippet";
+import { conversationNotificationPlatform } from "@/lib/contact-messages/conversation-notification-platform";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
 export const DASHBOARD_MESSAGES_UNREAD_LIMIT = 4;
@@ -54,7 +55,7 @@ export function deriveMessagesUnreadSummaryFromConversations(
       lastAt: c.last_at,
       href: dashboardMessageThreadHref(c.contact_id),
       unreadCount: c.unread_count,
-      platform: c.last_message_platform ?? "gwada",
+      platform: conversationNotificationPlatform(c),
     }));
 
   return {

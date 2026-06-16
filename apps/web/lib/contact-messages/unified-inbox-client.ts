@@ -6,6 +6,7 @@ import {
   fetchEmailConversationsClient,
   fetchMetaConversationsClient,
   fetchWahaConversationsClient,
+  markConversationReadClient,
 } from "@/lib/contact-messages/fetch-inbox-client";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
@@ -113,65 +114,14 @@ export async function fetchUnifiedInboxConversations(params: {
 export async function markUnifiedInboxConversationReadClient(params: {
   restaurantId: string;
   contactId: string;
-  whatsappConnected: boolean;
-  emailConnected: boolean;
+  whatsappConnected?: boolean;
+  emailConnected?: boolean;
 }): Promise<{ ok: boolean; error: string | null }> {
-  const { markConversationReadClient } = await import(
-    "@/lib/contact-messages/fetch-inbox-client"
-  );
-
-  if (isWahaPseudoContactId(params.contactId)) {
-    return markConversationReadClient({
-      restaurantId: params.restaurantId,
-      conversationKey: params.contactId,
-      platform: "whatsapp",
-    });
-  }
-  if (isEmailPseudoContactId(params.contactId)) {
-    return markConversationReadClient({
-      restaurantId: params.restaurantId,
-      conversationKey: params.contactId,
-      platform: "email",
-    });
-  }
-  const meta = parseMetaPseudoContactId(params.contactId);
-  if (meta) {
-    return markConversationReadClient({
-      restaurantId: params.restaurantId,
-      conversationKey: params.contactId,
-      platform: meta.platform,
-    });
-  }
-
-  const tasks: Promise<{ ok: boolean; error: string | null }>[] = [
-    markConversationReadClient({
-      restaurantId: params.restaurantId,
-      conversationKey: params.contactId,
-      platform: "gwada",
-    }),
-  ];
-  if (params.whatsappConnected) {
-    tasks.push(
-      markConversationReadClient({
-        restaurantId: params.restaurantId,
-        conversationKey: params.contactId,
-        platform: "whatsapp",
-      }),
-    );
-  }
-  if (params.emailConnected) {
-    tasks.push(
-      markConversationReadClient({
-        restaurantId: params.restaurantId,
-        conversationKey: params.contactId,
-        platform: "email",
-      }),
-    );
-  }
-
-  const results = await Promise.all(tasks);
-  const failed = results.find((r) => !r.ok);
-  return failed ?? { ok: true, error: null };
+  return markConversationReadClient({
+    restaurantId: params.restaurantId,
+    conversationKey: params.contactId,
+    platform: "gwada",
+  });
 }
 
 export function isUnifiedInboxFilter(filter: InboxPlatformFilter): boolean {

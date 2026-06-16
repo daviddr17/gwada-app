@@ -15,6 +15,26 @@ LOG="${GWADA_DEPLOY_LOG:-/tmp/gwada-deploy-live-app.log}"
 LOCK="${GWADA_DEPLOY_LOCK:-/tmp/gwada-deploy-live-app.lock}"
 LOCK_WAIT_MAX_SEC="${GWADA_DEPLOY_LOCK_WAIT_SEC:-2100}"
 
+force_clear_deploy_lock() {
+  if [[ "${GWADA_DEPLOY_FORCE_UNLOCK:-}" != "1" ]]; then
+    return 0
+  fi
+  if [[ ! -f "${LOCK}" ]]; then
+    echo "Force unlock: kein Lock vorhanden."
+    return 0
+  fi
+  local lock_pid
+  lock_pid="$(cat "${LOCK}" 2>/dev/null || echo "")"
+  echo "Force unlock: beende Deploy PID ${lock_pid:-?}, entferne Lock."
+  if [[ -n "${lock_pid}" ]]; then
+    kill "${lock_pid}" 2>/dev/null || true
+    sleep 2
+    kill -9 "${lock_pid}" 2>/dev/null || true
+  fi
+  rm -f "${LOCK}"
+  pkill -f "${BUILD_DIR}" 2>/dev/null || true
+}
+
 acquire_deploy_lock() {
   local waited=0
   while [[ -f "${LOCK}" ]]; do
@@ -39,6 +59,7 @@ acquire_deploy_lock() {
   echo "$$" > "${LOCK}"
 }
 
+force_clear_deploy_lock
 acquire_deploy_lock
 trap 'rm -f "${LOCK}"' EXIT
 

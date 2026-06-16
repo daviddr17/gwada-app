@@ -2,6 +2,12 @@ import "server-only";
 
 import { markAllChangelogReadForUserServer } from "@/lib/changelog/mark-all-changelog-read-server";
 import { markAllConversationsReadForUserServer } from "@/lib/contact-messages/mark-all-conversations-read-server";
+import {
+  markUnifiedInboxConversationReadServer,
+  resolveInboxChannelConnections,
+} from "@/lib/contact-messages/mark-unified-conversation-read-server";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
 import { markReviewReadServer } from "@/lib/reviews/mark-review-read-server";
 import { markAllReviewsReadForUserServer } from "@/lib/reviews/mark-all-reviews-read-server";
 import {
@@ -25,7 +31,6 @@ import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { markConversationReadServer } from "@/lib/contact-messages/mark-conversation-read-server";
 import {
   isContactMessagePlatform,
-  type ContactMessagePlatform,
 } from "@/lib/constants/contact-message-platforms";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -62,15 +67,34 @@ export async function markNotificationReadServer(
         return all.error ? { ok: false, error: all.error } : { ok: true };
       }
       const contactId = itemId ?? meta?.contactId;
-      const platformRaw = meta?.platform ?? "gwada";
-      if (!contactId || !isContactMessagePlatform(platformRaw)) {
+      if (!contactId) {
+        return { ok: false, error: "invalid_request" };
+      }
+
+      if (isLinkedContactId(contactId)) {
+        const channelConnections = await resolveInboxChannelConnections(
+          admin,
+          restaurantId,
+        );
+        const result = await markUnifiedInboxConversationReadServer(admin, {
+          restaurantId,
+          userId,
+          conversationKey: contactId,
+          channelConnections,
+        });
+        return result.error ? { ok: false, error: result.error } : { ok: true };
+      }
+
+      const platformRaw =
+        meta?.platform ?? conversationChannelForRead(contactId);
+      if (!isContactMessagePlatform(platformRaw)) {
         return { ok: false, error: "invalid_request" };
       }
       const result = await markConversationReadServer(admin, {
         restaurantId,
         userId,
         conversationKey: contactId,
-        platform: platformRaw as ContactMessagePlatform,
+        platform: platformRaw,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

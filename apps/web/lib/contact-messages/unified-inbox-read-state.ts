@@ -60,8 +60,9 @@ function enrichOneConversation(
     const rEm = readsByPlatform.email.get(
       conversationReadLookupKey(c.contact_id, "email"),
     );
-    const gwadaRelevant =
-      c.last_inbound_platform === "gwada" || c.last_message_platform === "gwada";
+    const inboundChannel =
+      c.last_inbound_platform ?? c.last_message_platform ?? "gwada";
+    const gwadaRelevant = inboundChannel === "gwada";
     const unreadGwada = gwadaRelevant
       ? computeConversationUnread({
           read: readsByPlatform.gwada.get(

@@ -615,6 +615,7 @@ export function ContactsMessagesScreen() {
         if (cached) {
           setConversations(cached);
           setLoadingList(false);
+          void loadConversations({ silent: true, force: true });
           return;
         }
 
@@ -872,22 +873,54 @@ export function ContactsMessagesScreen() {
     };
 
     if (linkedThread) {
-      const syncInbox = () =>
-        fetch("/api/contact-messages/inbox-sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      void fetch("/api/contact-messages/inbox-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId,
+          contactId: contactParam,
+        }),
+      }).catch(() => undefined);
+
+      const [{ data: contact }, { data: msgs, error: msgErr }] =
+        await Promise.all([
+          fetchContactById({
             restaurantId,
             contactId: contactParam,
           }),
-        }).catch(() => undefined);
-      if (opts?.silent) void syncInbox();
-      else await syncInbox();
+          fetchContactMessages({
+            restaurantId,
+            contactId: contactParam,
+          }),
+        ]);
 
-      const { data: contact } = await fetchContactById({
-        restaurantId,
-        contactId: contactParam,
-      });
+      if (msgErr) toast.error(msgErr.message);
+      else if (msgs && msgs.length > 0) {
+        threadLoaded = true;
+        setMessages((prev) => {
+          const next = dropOptimisticMatchingAnchors(
+            mergeLoadedThreadWithOptimistic(msgs, prev),
+          );
+          return next;
+        });
+        setLoadingThread(false);
+      }
+
+      if (contact) {
+        setContactName(contactThreadDisplayName(contact));
+        setHasPhone(Boolean(primaryPhone(contact)?.trim()));
+        setHasEmail(Boolean(primaryEmail(contact)?.trim()));
+        setHasFacebookId(
+          hasMessagingPlatform(contact.contact_messaging_ids, "facebook"),
+        );
+        setHasInstagramId(
+          hasMessagingPlatform(contact.contact_messaging_ids, "instagram"),
+        );
+        setWhatsappThreadChatId(
+          guestPhoneToWhatsAppChatId(primaryPhone(contact)?.trim() ?? null),
+        );
+      }
+
       const fbSenderId = contact
         ? contact.contact_messaging_ids.find((r) => r.platform === "facebook")
             ?.external_sender_id
@@ -897,51 +930,42 @@ export function ContactsMessagesScreen() {
             ?.external_sender_id
         : null;
 
-      const [
-        { data: msgs, error: msgErr },
-        emailThread,
-        wahaThread,
-        fbMetaThread,
-        igMetaThread,
-      ] = await Promise.all([
-        fetchContactMessages({
-          restaurantId,
-          contactId: contactParam,
-        }),
-        emailConnected
-          ? fetchEmailMessagesClient({
-              restaurantId,
-              contactId: contactParam,
-            })
-          : Promise.resolve({ data: [], error: null as string | null }),
-        whatsappConnected
-          ? fetchWahaMessagesClient({
-              restaurantId,
-              contactId: contactParam,
-            })
-          : Promise.resolve({ data: [], error: null as string | null }),
-        facebookConnected && fbSenderId
-          ? fetchMetaMessagesClient({
-              restaurantId,
-              contactId: metaPseudoContactId("facebook", fbSenderId),
-            })
-          : Promise.resolve({ data: [], error: null as string | null }),
-        instagramConnected && igSenderId
-          ? fetchMetaMessagesClient({
-              restaurantId,
-              contactId: metaPseudoContactId("instagram", igSenderId),
-            })
-          : Promise.resolve({ data: [], error: null as string | null }),
-      ]);
-      if (msgErr) toast.error(msgErr.message);
-      else threadLoaded = true;
+      const [emailThread, wahaThread, fbMetaThread, igMetaThread] =
+        await Promise.all([
+          emailConnected
+            ? fetchEmailMessagesClient({
+                restaurantId,
+                contactId: contactParam,
+              })
+            : Promise.resolve({ data: [], error: null as string | null }),
+          whatsappConnected
+            ? fetchWahaMessagesClient({
+                restaurantId,
+                contactId: contactParam,
+              })
+            : Promise.resolve({ data: [], error: null as string | null }),
+          facebookConnected && fbSenderId
+            ? fetchMetaMessagesClient({
+                restaurantId,
+                contactId: metaPseudoContactId("facebook", fbSenderId),
+              })
+            : Promise.resolve({ data: [], error: null as string | null }),
+          instagramConnected && igSenderId
+            ? fetchMetaMessagesClient({
+                restaurantId,
+                contactId: metaPseudoContactId("instagram", igSenderId),
+              })
+            : Promise.resolve({ data: [], error: null as string | null }),
+        ]);
+
+      if (!msgErr) threadLoaded = true;
       const metaLive = [
         ...(fbMetaThread.error ? [] : fbMetaThread.data),
         ...(igMetaThread.error ? [] : igMetaThread.data),
       ];
       const mergedMessages = mergeWahaLiveMetadataIntoThread(
         mergeLinkedContactThreadMessages({
-          dbMessages: msgs,
+          dbMessages: msgs ?? [],
           imapEmailMessages:
             emailThread.error || emailThread.data.length === 0
               ? null
@@ -985,12 +1009,6 @@ export function ContactsMessagesScreen() {
         setContactName(resolvedName);
         setHasPhone(resolvedPhone);
         setHasEmail(resolvedEmail);
-        setHasFacebookId(
-          hasMessagingPlatform(contact.contact_messaging_ids, "facebook"),
-        );
-        setHasInstagramId(
-          hasMessagingPlatform(contact.contact_messaging_ids, "instagram"),
-        );
         setWhatsappThreadChatId(resolvedChatId);
       }
       setLoadingThread(false);
@@ -1364,6 +1382,15 @@ export function ContactsMessagesScreen() {
   }, [restaurantId, contactParam, loadThread]);
 
   useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekUnifiedInboxCache(restaurantId);
+    if (cached?.length) {
+      setConversations(cached);
+      setLoadingList(false);
+    }
+  }, [restaurantId]);
+
+  useLayoutEffect(() => {
     if (connectionsLoading || !restaurantId || !contactParam) return;
 
     const cached = peekContactThreadCache(restaurantId, contactParam);
@@ -1378,13 +1405,11 @@ export function ContactsMessagesScreen() {
   }, [contactParam, connectionsLoading, restaurantId]);
 
   useEffect(() => {
-    if (connectionsLoading || !restaurantId) return;
+    if (!restaurantId || connectionsLoading) return;
 
     if (!contactParam) {
-      const hasList =
-        conversationsRef.current.length > 0 ||
-        Boolean(peekUnifiedInboxCache(restaurantId)?.length);
-      void loadConversations(hasList ? { silent: true } : undefined);
+      const hasInboxCache = Boolean(peekUnifiedInboxCache(restaurantId)?.length);
+      void loadConversations(hasInboxCache ? { silent: true } : undefined);
       return;
     }
 
@@ -1748,6 +1773,9 @@ export function ContactsMessagesScreen() {
   const openConversation = (contactId: string) => {
     const cached =
       restaurantId && peekContactThreadCache(restaurantId, contactId);
+    const preview = conversationsRef.current.find(
+      (c) => c.contact_id === contactId,
+    );
     if (cached) {
       setMessages(cached.messages);
       setContactName(cached.contactName);
@@ -1756,12 +1784,11 @@ export function ContactsMessagesScreen() {
       setWhatsappThreadChatId(cached.whatsappThreadChatId);
       setLoadingThread(false);
     } else {
-      const preview = conversationsRef.current.find(
-        (c) => c.contact_id === contactId,
-      );
-      const previewTitle = wahaThreadTitleFromPreview(preview);
+      const previewTitle =
+        preview?.contact_name?.trim() ||
+        wahaThreadTitleFromPreview(preview) ||
+        "";
       if (previewTitle) setContactName(previewTitle);
-      setMessages([]);
       setLoadingThread(true);
     }
 

@@ -265,14 +265,16 @@ export function SuperadminChangelogPanel() {
             Automatisch bei <strong>Push auf</strong>{" "}
             <code className="text-xs">main</code> (GitHub Action), wenn{" "}
             <code className="text-xs">CHANGELOG_SYNC_URL</code> und Secret
-            gesetzt sind. Commits brauchen einen{" "}
-            <code className="text-xs">Changelog:</code>-Block im Body — oder
-            lege{" "}
-            <code className="text-xs">content/changelog.draft.json</code> an.
-            Zielgruppe optional:{" "}
-            <code className="text-xs">Changelog-Audience: superadmin</code>.
-            Duplikate werden anhand der Git-SHA übersprungen. Einträge kannst
-            du danach hier noch bearbeiten.
+            gesetzt sind. Quelle:{" "}
+            <code className="text-xs">content/changelog.draft.json</code> mit{" "}
+            <code className="text-xs">title</code>,{" "}
+            <code className="text-xs">body</code> (Bullet-Zeilen, ohne{" "}
+            <code className="text-xs">**</code>) und{" "}
+            <code className="text-xs">version</code>. Kein zusätzlicher{" "}
+            <code className="text-xs">Changelog:</code>-Block im Commit — sonst
+            doppelte Einträge. Zielgruppe optional über{" "}
+            <code className="text-xs">audience</code> in der Draft-Datei.
+            Duplikate werden anhand der Commit-SHA übersprungen.
           </CardDescription>
         </CardHeader>
       </Card>

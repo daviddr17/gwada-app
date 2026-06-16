@@ -6,6 +6,10 @@ import {
   type ChangelogDraftFile,
 } from "@/lib/changelog/changelog-draft-file";
 import {
+  normalizeChangelogDraft,
+  resolveDraftSourceGitSha,
+} from "@/lib/changelog/changelog-entry-normalize";
+import {
   draftSourceGitSha,
   extractChangelogPayloadsFromGit,
 } from "@/lib/changelog/extract-changelog-from-git-server";
@@ -50,11 +54,14 @@ function parseDraft(value: unknown): ChangelogDraftFile | null {
       : typeof o.version === "string"
         ? o.version
         : null;
-  return { title, body, audience, version };
+  return normalizeChangelogDraft({ title, body, audience, version });
 }
 
-function hashDraft(draft: ChangelogDraftFile): string {
-  return draftSourceGitSha(draft);
+function draftShaForSync(
+  draft: ChangelogDraftFile,
+  commitSha: string | null | undefined,
+): string {
+  return resolveDraftSourceGitSha(commitSha) ?? draftSourceGitSha(draft);
 }
 
 export async function POST(req: Request) {
@@ -74,60 +81,60 @@ export async function POST(req: Request) {
     runGit?: boolean;
     gitRange?: string;
     archiveDraft?: boolean;
+    commitSha?: string;
   };
+
+  const commitSha =
+    (typeof body.commitSha === "string" ? body.commitSha.trim() : "") ||
+    process.env.GITHUB_SHA?.trim() ||
+    null;
 
   const items: ChangelogSyncItem[] = [];
 
-  if (body.runGit === true) {
-    try {
-      for (const payload of await extractChangelogPayloadsFromGit(
-        body.gitRange,
-      )) {
-        items.push({ kind: "git", payload });
-      }
-    } catch (e) {
-      const raw = e instanceof Error ? e.message : "git_failed";
-      const message =
-        raw.includes("not a git repository") ||
-        raw.includes("ENOENT") ||
-        raw.includes("spawn git") ||
-        raw === "git_not_available"
-          ? "Changelog-Quelle nicht erreichbar (weder lokales Git noch GitHub-API)."
-          : raw;
-      return Response.json({ error: message }, { status: 500 });
-    }
-  }
-
-  if (Array.isArray(body.gitRecords)) {
-    for (const record of body.gitRecords) {
-      if (typeof record !== "string" || !record.trim()) continue;
-      const fields = record.trim().split("\x1f");
-      const payload = gitFieldsToChangelogPayload(fields);
-      if (payload) items.push({ kind: "git", payload });
-    }
-  }
-
   const draftFromBody = parseDraft(body.draft);
-  if (draftFromBody) {
-    items.push({
-      kind: "draft",
-      payload: {
-        ...draftFromBody,
-        sourceGitSha: hashDraft(draftFromBody),
-      },
-    });
-  }
-
   const repoRoot = process.cwd();
-  const draftFromFile = readChangelogDraftFromRepo(repoRoot);
-  if (draftFromFile) {
+  const draftFromFile = draftFromBody
+    ? null
+    : readChangelogDraftFromRepo(repoRoot);
+  const draft = draftFromBody ?? (draftFromFile ? normalizeChangelogDraft(draftFromFile) : null);
+
+  if (draft) {
     items.push({
       kind: "draft",
       payload: {
-        ...draftFromFile,
-        sourceGitSha: hashDraft(draftFromFile),
+        ...draft,
+        sourceGitSha: draftShaForSync(draft, commitSha),
       },
     });
+  } else {
+    if (body.runGit === true) {
+      try {
+        for (const payload of await extractChangelogPayloadsFromGit(
+          body.gitRange,
+        )) {
+          items.push({ kind: "git", payload });
+        }
+      } catch (e) {
+        const raw = e instanceof Error ? e.message : "git_failed";
+        const message =
+          raw.includes("not a git repository") ||
+          raw.includes("ENOENT") ||
+          raw.includes("spawn git") ||
+          raw === "git_not_available"
+            ? "Changelog-Quelle nicht erreichbar (weder lokales Git noch GitHub-API)."
+            : raw;
+        return Response.json({ error: message }, { status: 500 });
+      }
+    }
+
+    if (Array.isArray(body.gitRecords)) {
+      for (const record of body.gitRecords) {
+        if (typeof record !== "string" || !record.trim()) continue;
+        const fields = record.trim().split("\x1f");
+        const payload = gitFieldsToChangelogPayload(fields);
+        if (payload) items.push({ kind: "git", payload });
+      }
+    }
   }
 
   const result = await syncChangelogItems(admin, items, auth.userId);

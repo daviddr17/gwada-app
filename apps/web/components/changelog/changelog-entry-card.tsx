@@ -2,6 +2,7 @@ import {
   formatChangelogPublishedAt,
   isChangelogEntryNew,
 } from "@/lib/changelog/changelog-format";
+import { stripMarkdownBold } from "@/lib/changelog/changelog-entry-normalize";
 import {
   CHANGELOG_AUDIENCE_LABELS,
   type PlatformChangelogEntry,
@@ -18,7 +19,7 @@ export function ChangelogEntryBody({ body }: { body: string }) {
     return (
       <ul className="list-disc space-y-1.5 pl-5 text-sm text-muted-foreground">
         {lines.map((line, i) => (
-          <li key={i}>{line.trim().replace(/^[-•*]\s+/, "")}</li>
+          <li key={i}>{stripMarkdownBold(line.trim().replace(/^[-•*]\s+/, ""))}</li>
         ))}
       </ul>
     );
@@ -31,11 +32,11 @@ export function ChangelogEntryBody({ body }: { body: string }) {
         if (/^[-•*]\s/.test(trimmed)) {
           return (
             <p key={i} className="pl-4 before:mr-2 before:content-['•']">
-              {trimmed.replace(/^[-•*]\s+/, "")}
+              {stripMarkdownBold(trimmed.replace(/^[-•*]\s+/, ""))}
             </p>
           );
         }
-        return <p key={i}>{trimmed}</p>;
+        return <p key={i}>{stripMarkdownBold(trimmed)}</p>;
       })}
     </div>
   );

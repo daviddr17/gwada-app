@@ -47,6 +47,9 @@ fi
 if [[ -n "${CRON_SECRET:-}" ]]; then
   REMOTE_PREFIX="${REMOTE_PREFIX}CRON_SECRET=$(printf '%q' "${CRON_SECRET}") "
 fi
+if [[ "${GWADA_DEPLOY_FORCE_UNLOCK:-}" == "1" ]]; then
+  REMOTE_PREFIX="${REMOTE_PREFIX}GWADA_DEPLOY_FORCE_UNLOCK=1 "
+fi
 
 gwada_ssh "${SSH_USER}@${VPS}" "${REMOTE_PREFIX}bash -s -- '${COMMIT}'" \
   < "${ROOT}/scripts/vps-deploy-live-app.sh"

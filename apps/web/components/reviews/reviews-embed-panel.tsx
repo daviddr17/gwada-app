@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
+import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildReviewsEmbedSnippet } from "@/lib/embed/build-embed-snippet";
 import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
 import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
@@ -303,6 +304,8 @@ export function ReviewsEmbedPanel() {
             unterschiedlich hohen Karten. Liste: chronologisch untereinander.
           </p>
         </div>
+
+        <EmbedTextThemeSetting restaurantId={restaurantUuid} widget="reviews" />
 
         {dirty ? (
           <Button

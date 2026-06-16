@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { EmbedGalleryWidget } from "@/components/embed/embed-gallery-widget";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,10 @@ export default async function EmbedGalleryPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const result = await fetchPublicEmbedGallery(slug);
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedGallery(slug),
+    fetchEmbedTextThemeForSlug(slug, "gallery"),
+  ]);
 
   if (!result.data) {
     return (
@@ -33,5 +37,5 @@ export default async function EmbedGalleryPage({
     );
   }
 
-  return <EmbedGalleryWidget data={result.data} variant="embed" />;
+  return <EmbedGalleryWidget data={result.data} variant="embed" textTheme={textTheme} />;
 }

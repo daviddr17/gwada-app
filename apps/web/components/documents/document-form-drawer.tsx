@@ -47,6 +47,8 @@ type DocumentFormDrawerProps = {
   }) => Promise<boolean>;
   canEditNotes?: boolean;
   onNotesChanged?: () => void;
+  /** Vorausgewählte Datei (z. B. per Drop auf die Übersicht). */
+  initialFile?: File | null;
 };
 
 export function DocumentFormDrawer({
@@ -59,6 +61,7 @@ export function DocumentFormDrawer({
   onSaveEdit,
   canEditNotes = false,
   onNotesChanged,
+  initialFile = null,
 }: DocumentFormDrawerProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const dragDepthRef = useRef(0);
@@ -93,13 +96,17 @@ export function DocumentFormDrawer({
       setTagId(document.tag_id ?? DOCUMENT_TAG_NONE);
       setFile(null);
     } else {
-      setTitle("");
       setTagId(DOCUMENT_TAG_NONE);
-      setFile(null);
+      if (initialFile) {
+        applySelectedFile(initialFile);
+      } else {
+        setTitle("");
+        setFile(null);
+      }
     }
     dragDepthRef.current = 0;
     setIsDragOver(false);
-  }, [open, mode, document]);
+  }, [open, mode, document, initialFile, applySelectedFile]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();

@@ -1,6 +1,7 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { fetchPublicEmbedOpeningHours } from "@/lib/opening-hours/public-opening-hours-server";
 
 const EmbedOpeningHoursWidget = nextDynamic(
@@ -29,7 +30,10 @@ export default async function EmbedOeffnungszeitenPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const result = await fetchPublicEmbedOpeningHours(slug);
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedOpeningHours(slug),
+    fetchEmbedTextThemeForSlug(slug, "opening_hours"),
+  ]);
 
   if (!result.data) {
     return (
@@ -41,5 +45,5 @@ export default async function EmbedOeffnungszeitenPage({
     );
   }
 
-  return <EmbedOpeningHoursWidget {...result.data} />;
+  return <EmbedOpeningHoursWidget {...result.data} textTheme={textTheme} />;
 }

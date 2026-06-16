@@ -2,6 +2,7 @@ import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { parseListPageParam } from "@/lib/constants/list-pagination";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { fetchPublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 
 const EmbedReviewsWidget = nextDynamic(
@@ -35,10 +36,13 @@ export default async function EmbedBewertungenPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const result = await fetchPublicEmbedReviews(slug, {
-    paginate: true,
-    page: parseListPageParam(sp.page),
-  });
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedReviews(slug, {
+      paginate: true,
+      page: parseListPageParam(sp.page),
+    }),
+    fetchEmbedTextThemeForSlug(slug, "reviews"),
+  ]);
 
   if (!result.data) {
     return (
@@ -60,6 +64,7 @@ export default async function EmbedBewertungenPage({
       summary={summary}
       viewMode={viewMode}
       pagination={pagination}
+      textTheme={textTheme}
     />
   );
 }

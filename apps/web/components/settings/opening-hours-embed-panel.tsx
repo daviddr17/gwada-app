@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
+import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildOpeningHoursEmbedSnippet } from "@/lib/embed/build-embed-snippet";
 import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
 import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
@@ -204,6 +205,10 @@ export function OpeningHoursEmbedPanel() {
           Hinweistext unter Öffnungszeiten findest du in den Öffnungszeiten-Einstellungen.
         </p>
         <div className="space-y-3">
+          <EmbedTextThemeSetting
+            restaurantId={restaurantUuid}
+            widget="opening_hours"
+          />
           <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
             <div className="space-y-0.5">
               <Label htmlFor="embed-show-kitchen" className="text-sm">

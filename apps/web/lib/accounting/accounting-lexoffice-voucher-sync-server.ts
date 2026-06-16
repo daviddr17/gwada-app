@@ -18,8 +18,14 @@ import {
   mapLexofficeBookkeepingTypeToKind,
   voucherItemsFromLexoffice,
 } from "@/lib/integrations/lexoffice-bookkeeping-vouchers";
-import { LEXOFFICE_SYNC_COOLDOWN_MS } from "@/lib/integrations/lexoffice-api-cache";
-import { invalidateLexofficeCachePrefix } from "@/lib/integrations/lexoffice-api-cache";
+import {
+  invalidateLexofficeCachePrefix,
+  isLexofficeRateLimited,
+  LEXOFFICE_SYNC_COOLDOWN_MS,
+  markLexofficeRateLimited,
+} from "@/lib/integrations/lexoffice-api-cache";
+import { LexofficeDetailFetchBudget } from "@/lib/integrations/lexoffice-detail-fetch-budget";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import {
   fetchAllLexofficeBookkeepingVoucherList,
   type LexofficeVoucherListItem,
@@ -35,6 +41,7 @@ export type LexofficeVoucherSyncResult = {
   updated: number;
   listed: number;
   skipped?: boolean;
+  rateLimited?: boolean;
   error: string | null;
 };
 
@@ -160,6 +167,7 @@ async function buildVoucherPayload(
   item: LexofficeVoucherListItem,
   existing: ExistingLexofficeVoucher | undefined,
   isNew: boolean,
+  detailBudget?: LexofficeDetailFetchBudget,
 ): Promise<{ payload: Record<string, unknown>; detailFetched: boolean }> {
   const base: Record<string, unknown> = {
     source: "lexoffice",
@@ -172,13 +180,25 @@ async function buildVoucherPayload(
     return { payload: base, detailFetched: false };
   }
 
+  if (detailBudget && !detailBudget.canFetchDetail(restaurantId)) {
+    return { payload: base, detailFetched: false };
+  }
+
+  if (detailBudget) {
+    await detailBudget.beforeDetailFetch();
+  }
+
   const detail = await fetchLexofficeBookkeepingDetail(restaurantId, item.id);
   if (detail.ok) {
+    if (detailBudget) {
+      detailBudget.consume();
+    }
     Object.assign(base, voucherPatchFromLexofficeDetail(detail.detail, item));
     base.external_updated_at = listItemUpdatedAt(item);
     return { payload: base, detailFetched: true };
   }
 
+  detailBudget?.noteFetchError(restaurantId, detail.error);
   return { payload: base, detailFetched: false };
 }
 
@@ -237,6 +257,17 @@ export async function syncLexofficeBookkeepingVouchers(
   sb: SupabaseClient,
   params: { restaurantId: string; userId: string; force?: boolean },
 ): Promise<LexofficeVoucherSyncResult> {
+  if (!params.force && isLexofficeRateLimited(params.restaurantId)) {
+    return {
+      imported: 0,
+      updated: 0,
+      listed: 0,
+      skipped: true,
+      rateLimited: true,
+      error: null,
+    };
+  }
+
   const settings = await getAccountingSettings(sb, params.restaurantId);
   const lastSyncAt = connectorSyncCooldownLastAt(
     settings,
@@ -261,9 +292,21 @@ export async function syncLexofficeBookkeepingVouchers(
     { skipCache: params.force },
   );
   if (!list.ok) {
+    if (isLexofficeRateLimitError(list.error)) {
+      markLexofficeRateLimited(params.restaurantId);
+      return {
+        imported: 0,
+        updated: 0,
+        listed: 0,
+        skipped: true,
+        rateLimited: true,
+        error: null,
+      };
+    }
     return { imported: 0, updated: 0, listed: 0, error: list.error };
   }
 
+  const detailBudget = new LexofficeDetailFetchBudget();
   const actorUserId = await resolveAccountingActorUserId(sb, params.userId);
 
   const { data: existingRows, error: existingRowsError } = await sb
@@ -320,6 +363,7 @@ export async function syncLexofficeBookkeepingVouchers(
       item,
       existing,
       isNew,
+      detailBudget,
     );
     payload.restaurant_id = params.restaurantId;
     if (actorUserId) {
@@ -435,5 +479,11 @@ export async function syncLexofficeBookkeepingVouchers(
     };
   }
 
-  return { imported, updated, listed: list.items.length, error: null };
+  return {
+    imported,
+    updated,
+    listed: list.items.length,
+    error: null,
+    ...(detailBudget.rateLimitedDuringSync ? { rateLimited: true } : {}),
+  };
 }

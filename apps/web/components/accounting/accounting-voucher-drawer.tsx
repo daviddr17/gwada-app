@@ -61,6 +61,9 @@ import {
   accountingFormSectionTitleClassName,
   accountingFormSelectClassName,
 } from "@/lib/ui/accounting-form-styles";
+import {
+  accountingVoucherDrawerContentClassName,
+} from "@/lib/ui/accounting-drawer-layout";
 import { cn } from "@/lib/utils";
 import { DatePickerField } from "@/components/ui/date-picker";
 
@@ -89,6 +92,8 @@ type AccountingVoucherDrawerProps = {
     id: string,
     input: Partial<AccountingVoucherInput> & { status?: string },
   ) => Promise<void>;
+  /** Vorausgewählte Beleg-Datei (z. B. per Drop auf die Seite). */
+  initialFile?: File | null;
 };
 
 export function AccountingVoucherDrawer({
@@ -103,6 +108,7 @@ export function AccountingVoucherDrawer({
   onSaved,
   onCreate,
   onUpdate,
+  initialFile = null,
 }: AccountingVoucherDrawerProps) {
   const isEdit = Boolean(editRow);
   const connectorConnected =
@@ -265,8 +271,8 @@ export function AccountingVoucherDrawer({
     setItems([createEmptyVoucherItem()]);
     setSyncToLexoffice(false);
     setSaveNewContact(false);
-    setFile(null);
-  }, [open, editRow, correctionOf, connectorConnected]);
+    setFile(initialFile ?? null);
+  }, [open, editRow, correctionOf, connectorConnected, initialFile]);
 
   useEffect(() => {
     if (!open || !editRow?.contact_id || contacts.length === 0) return;
@@ -462,7 +468,7 @@ export function AccountingVoucherDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden">
+      <DrawerContent className={accountingVoucherDrawerContentClassName}>
         <DrawerHeader className="shrink-0 border-b border-border/50 pb-3 text-left">
           <DrawerTitle>
             {isEdit
@@ -483,7 +489,7 @@ export function AccountingVoucherDrawer({
         </DrawerHeader>
 
         <form
-          className="flex min-h-0 flex-1 flex-col"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(e) => {
             e.preventDefault();
             void handleSubmit();
@@ -492,18 +498,19 @@ export function AccountingVoucherDrawer({
           <div
             className={cn(
               "min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 md:px-6",
-              showDocumentPanel && "lg:overflow-hidden",
+              showDocumentPanel &&
+                "lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden",
             )}
           >
             <div
               className={cn(
                 "space-y-4",
                 showDocumentPanel &&
-                  "lg:grid lg:min-h-0 lg:grid-cols-[minmax(280px,42%)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0",
+                  "lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(280px,42%)_minmax(0,1fr)] lg:items-stretch lg:gap-6 lg:space-y-0 lg:overflow-hidden",
               )}
             >
               {showDocumentPanel ? (
-                <div className="lg:sticky lg:top-0 lg:max-h-[calc(92dvh-10rem)] lg:overflow-y-auto lg:pr-1">
+                <div className="min-h-0 overflow-y-auto lg:pr-1">
                   <AccountingVoucherDocumentPanel
                     mode={isEdit && hasExistingFile && !file ? "preview" : "upload"}
                     file={file}
@@ -517,7 +524,7 @@ export function AccountingVoucherDrawer({
                 </div>
               ) : null}
 
-              <div className="min-h-0 space-y-4 lg:overflow-y-auto lg:max-h-[calc(92dvh-10rem)] lg:pr-1">
+              <div className="min-h-0 space-y-4 overflow-y-auto lg:pr-1">
                 {readOnly ? (
                   <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
                     Lexware-Belege können nur in Lexware bearbeitet werden.

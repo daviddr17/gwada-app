@@ -58,7 +58,7 @@ export function ContactMessageChatViewport({
 
   const tailId = sorted.length > 0 ? sorted[sorted.length - 1]?.id : null;
   const hasMessages = messages.length > 0;
-  const showMessages = hasMessages || !loading;
+  const showEmpty = !loading && !hasMessages;
   const showSkeleton = useDeferredSkeleton(loading && !hasMessages);
 
   const releaseAutoScroll = useCallback(() => {
@@ -120,28 +120,28 @@ export function ContactMessageChatViewport({
   }, [runScrollToBottom]);
 
   useLayoutEffect(() => {
-    if (!showMessages) return;
+    if (!hasMessages && loading) return;
     return startBottomAnchor();
-  }, [threadKey, showMessages, startBottomAnchor]);
+  }, [threadKey, hasMessages, loading, startBottomAnchor]);
 
   useLayoutEffect(() => {
     const wasLoading = prevLoadingRef.current;
     prevLoadingRef.current = loading;
-    if (!showMessages || loading) return;
-    if (!wasLoading || sorted.length === 0 || userReleasedScrollRef.current) {
+    if (loading || !hasMessages) return;
+    if (!wasLoading || userReleasedScrollRef.current) {
       return;
     }
     return startBottomAnchor();
-  }, [loading, showMessages, sorted.length, startBottomAnchor]);
+  }, [loading, hasMessages, startBottomAnchor]);
 
   useLayoutEffect(() => {
-    if (!showMessages || userReleasedScrollRef.current) return;
+    if (!hasMessages || userReleasedScrollRef.current) return;
     if (!stickToBottomRef.current && !anchorInitialRef.current) return;
     runScrollToBottom();
-  }, [sorted.length, tailId, runScrollToBottom, showMessages]);
+  }, [sorted.length, tailId, runScrollToBottom, hasMessages]);
 
   useLayoutEffect(() => {
-    if (!showMessages) return;
+    if (!hasMessages) return;
     const content = contentRef.current;
     if (!content) return;
 
@@ -160,7 +160,7 @@ export function ContactMessageChatViewport({
       ro.disconnect();
       window.removeEventListener("gwada:contact-chat-content-layout", onLayout);
     };
-  }, [scrollToBottom, threadKey, showMessages]);
+  }, [scrollToBottom, threadKey, hasMessages]);
 
   return (
     <div
@@ -190,7 +190,12 @@ export function ContactMessageChatViewport({
           <ContactMessageChatSkeleton />
         </div>
       ) : null}
-      {showMessages ? (
+      {showEmpty ? (
+        <p className="py-8 text-center text-sm text-muted-foreground">
+          Noch keine Nachrichten in diesem Verlauf.
+        </p>
+      ) : null}
+      {hasMessages ? (
         <div
           ref={contentRef}
           className="flex min-h-full flex-col justify-end px-0"

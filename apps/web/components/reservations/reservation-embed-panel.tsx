@@ -9,6 +9,7 @@ import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context"
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
+import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildReservationEmbedSnippet } from "@/lib/embed/build-embed-snippet";
 import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -118,6 +119,11 @@ export function ReservationEmbedPanel() {
           für Gäste erst nach Veröffentlichung erreichbar.
         </p>
       ) : null}
+
+      <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
+        <h2 className="text-base font-semibold">Darstellung in der Einbindung</h2>
+        <EmbedTextThemeSetting restaurantId={restaurantUuid} widget="reservation" />
+      </section>
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>

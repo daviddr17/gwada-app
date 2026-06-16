@@ -1,6 +1,7 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
 
 const EmbedMenuWidget = nextDynamic(
@@ -27,7 +28,10 @@ export default async function EmbedSpeisekartePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const result = await fetchPublicEmbedMenu(slug);
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedMenu(slug),
+    fetchEmbedTextThemeForSlug(slug, "menu"),
+  ]);
 
   if (!result.data) {
     return (
@@ -50,6 +54,7 @@ export default async function EmbedSpeisekartePage({
       categories={categories}
       items={items}
       tagDefinitions={tagDefinitions}
+      textTheme={textTheme}
     />
   );
 }

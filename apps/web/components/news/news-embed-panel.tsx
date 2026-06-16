@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
+import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildNewsEmbedSnippet } from "@/lib/embed/build-embed-snippet";
 import { attachEmbedHostBridge } from "@/lib/embed/embed-host-bridge";
 import { useEmbedPreviewResize } from "@/lib/embed/use-embed-preview-resize";
@@ -142,6 +143,11 @@ export function NewsEmbedPanel() {
           für Gäste erst nach Veröffentlichung erreichbar.
         </p>
       ) : null}
+
+      <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
+        <h2 className="text-base font-semibold">Darstellung in der Einbindung</h2>
+        <EmbedTextThemeSetting restaurantId={restaurantUuid} widget="news" />
+      </section>
 
       <section className="space-y-4 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Code zum Einbinden</h2>

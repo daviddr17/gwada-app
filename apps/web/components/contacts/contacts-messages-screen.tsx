@@ -31,7 +31,10 @@ import { ContactConversationsSearchBar } from "@/components/contacts/contact-con
 import { toast } from "sonner";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { InboxThreadAssignContactSheet } from "@/components/contacts/inbox-thread-assign-contact-sheet";
-import { ContactInboxThreadOverlay } from "@/components/contacts/contact-inbox-thread-overlay";
+import {
+  ContactInboxThreadOverlay,
+  CONTACT_INBOX_THREAD_OVERLAY_MS,
+} from "@/components/contacts/contact-inbox-thread-overlay";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ContactConversationAttachmentIcon } from "@/components/contacts/contact-conversation-attachment-icon";
@@ -320,6 +323,9 @@ export function ContactsMessagesScreen() {
   const [hasInstagramId, setHasInstagramId] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingThread, setLoadingThread] = useState(false);
+  const [threadOverlayOpen, setThreadOverlayOpen] = useState(false);
+  const [closingThreadId, setClosingThreadId] = useState<string | null>(null);
+  const overlayThreadId = contactParam ?? closingThreadId;
   const [sending, setSending] = useState(false);
   const [editingWahaMessage, setEditingWahaMessage] = useState<{
     messageId: string;
@@ -365,6 +371,13 @@ export function ContactsMessagesScreen() {
   }, [chatSearch, readFilter]);
 
   useEffect(() => {
+    if (contactParam) {
+      setThreadOverlayOpen(true);
+      setClosingThreadId(null);
+    }
+  }, [contactParam]);
+
+  useEffect(() => {
     setEditingWahaMessage(null);
   }, [contactParam]);
 
@@ -374,7 +387,7 @@ export function ContactsMessagesScreen() {
       return;
     }
     const cached = peekContactThreadCache(restaurantId, contactParam);
-    if (cached) return;
+    if (cached && cached.messages.length > 0) return;
     setMessages([]);
     setWhatsappThreadPhone(null);
     setWhatsappThreadChatId(null);
@@ -844,6 +857,11 @@ export function ContactsMessagesScreen() {
     }
     if (!opts?.silent) {
       setLoadingThread(true);
+    } else {
+      const cachedThread = peekContactThreadCache(restaurantId, contactParam);
+      if (!cachedThread?.messages.length) {
+        setLoadingThread(true);
+      }
     }
     if (!isWahaPseudoContactId(contactParam)) {
       setWhatsappThreadPhone(null);
@@ -883,29 +901,35 @@ export function ContactsMessagesScreen() {
         }),
       }).catch(() => undefined);
 
-      const [{ data: contact }, { data: msgs, error: msgErr }] =
-        await Promise.all([
-          fetchContactById({
-            restaurantId,
-            contactId: contactParam,
-          }),
-          fetchContactMessages({
-            restaurantId,
-            contactId: contactParam,
-          }),
-        ]);
+      const [
+        { data: contact },
+        { data: msgs, error: msgErr },
+        emailThread,
+        wahaThread,
+      ] = await Promise.all([
+        fetchContactById({
+          restaurantId,
+          contactId: contactParam,
+        }),
+        fetchContactMessages({
+          restaurantId,
+          contactId: contactParam,
+        }),
+        emailConnected
+          ? fetchEmailMessagesClient({
+              restaurantId,
+              contactId: contactParam,
+            })
+          : Promise.resolve({ data: [], error: null as string | null }),
+        whatsappConnected
+          ? fetchWahaMessagesClient({
+              restaurantId,
+              contactId: contactParam,
+            })
+          : Promise.resolve({ data: [], error: null as string | null }),
+      ]);
 
       if (msgErr) toast.error(msgErr.message);
-      else if (msgs && msgs.length > 0) {
-        threadLoaded = true;
-        setMessages((prev) => {
-          const next = dropOptimisticMatchingAnchors(
-            mergeLoadedThreadWithOptimistic(msgs, prev),
-          );
-          return next;
-        });
-        setLoadingThread(false);
-      }
 
       if (contact) {
         setContactName(contactThreadDisplayName(contact));
@@ -931,33 +955,20 @@ export function ContactsMessagesScreen() {
             ?.external_sender_id
         : null;
 
-      const [emailThread, wahaThread, fbMetaThread, igMetaThread] =
-        await Promise.all([
-          emailConnected
-            ? fetchEmailMessagesClient({
-                restaurantId,
-                contactId: contactParam,
-              })
-            : Promise.resolve({ data: [], error: null as string | null }),
-          whatsappConnected
-            ? fetchWahaMessagesClient({
-                restaurantId,
-                contactId: contactParam,
-              })
-            : Promise.resolve({ data: [], error: null as string | null }),
-          facebookConnected && fbSenderId
-            ? fetchMetaMessagesClient({
-                restaurantId,
-                contactId: metaPseudoContactId("facebook", fbSenderId),
-              })
-            : Promise.resolve({ data: [], error: null as string | null }),
-          instagramConnected && igSenderId
-            ? fetchMetaMessagesClient({
-                restaurantId,
-                contactId: metaPseudoContactId("instagram", igSenderId),
-              })
-            : Promise.resolve({ data: [], error: null as string | null }),
-        ]);
+      const [fbMetaThread, igMetaThread] = await Promise.all([
+        facebookConnected && fbSenderId
+          ? fetchMetaMessagesClient({
+              restaurantId,
+              contactId: metaPseudoContactId("facebook", fbSenderId),
+            })
+          : Promise.resolve({ data: [], error: null as string | null }),
+        instagramConnected && igSenderId
+          ? fetchMetaMessagesClient({
+              restaurantId,
+              contactId: metaPseudoContactId("instagram", igSenderId),
+            })
+          : Promise.resolve({ data: [], error: null as string | null }),
+      ]);
 
       if (!msgErr) threadLoaded = true;
       const metaLive = [
@@ -1402,7 +1413,7 @@ export function ContactsMessagesScreen() {
     if (connectionsLoading || !restaurantId || !contactParam) return;
 
     const cached = peekContactThreadCache(restaurantId, contactParam);
-    if (cached) {
+    if (cached && cached.messages.length > 0) {
       setMessages(cached.messages);
       setContactName(cached.contactName);
       setHasPhone(cached.hasPhone);
@@ -1422,7 +1433,9 @@ export function ContactsMessagesScreen() {
     }
 
     const cached = peekContactThreadCache(restaurantId, contactParam);
-    void loadThread({ silent: Boolean(cached) });
+    void loadThread({
+      silent: Boolean(cached && cached.messages.length > 0),
+    });
   }, [
     contactParam,
     connectionsLoading,
@@ -1784,7 +1797,7 @@ export function ContactsMessagesScreen() {
     const preview = conversationsRef.current.find(
       (c) => c.contact_id === contactId,
     );
-    if (cached) {
+    if (cached && cached.messages.length > 0) {
       setMessages(cached.messages);
       setContactName(cached.contactName);
       setHasPhone(cached.hasPhone);
@@ -1800,18 +1813,28 @@ export function ContactsMessagesScreen() {
       setLoadingThread(true);
     }
 
+    setThreadOverlayOpen(true);
+    setClosingThreadId(null);
+
     const params = new URLSearchParams(searchParams.toString());
     params.set("platform", inboxFilter);
     params.set("contact", contactId);
     router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
   };
 
-  const backToList = () => {
-    const params = new URLSearchParams();
-    params.set("platform", inboxFilter);
-    applyConversationReadFilterToSearchParams(params, readFilter);
-    router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
-  };
+  const backToList = useCallback(() => {
+    setThreadOverlayOpen(false);
+    if (contactParam) {
+      setClosingThreadId(contactParam);
+    }
+    window.setTimeout(() => {
+      setClosingThreadId(null);
+      const params = new URLSearchParams();
+      params.set("platform", inboxFilter);
+      applyConversationReadFilterToSearchParams(params, readFilter);
+      router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    }, CONTACT_INBOX_THREAD_OVERLAY_MS);
+  }, [contactParam, inboxFilter, readFilter, router]);
 
   const restaurantName = profile.name.trim() || undefined;
   const canSendViaExternal =
@@ -2196,9 +2219,9 @@ export function ContactsMessagesScreen() {
         </>
       ) : null}
 
-      {contactParam ? (
+      {overlayThreadId ? (
         <ContactInboxThreadOverlay
-          open
+          open={threadOverlayOpen}
           onClose={backToList}
           aria-label={contactName ? `Chat mit ${contactName}` : "Chat"}
           header={
@@ -2214,11 +2237,11 @@ export function ContactsMessagesScreen() {
                 <ArrowLeft className="size-4" />
               </Button>
               <div className="min-w-0 flex-1">
-                {canOpenLinkedContact(contactParam) ? (
+                {canOpenLinkedContact(overlayThreadId) ? (
                   <button
                     type="button"
                     className="max-w-full truncate text-left text-base font-semibold tracking-tight hover:underline"
-                    onClick={() => openLinkedContact(contactParam)}
+                    onClick={() => openLinkedContact(overlayThreadId)}
                   >
                     {contactName || "Kontakt"}
                   </button>
@@ -2236,7 +2259,7 @@ export function ContactsMessagesScreen() {
                       {CONTACT_MESSAGE_PLATFORM_LABELS[lastGuestPlatform]}
                     </span>
                   </p>
-                ) : isWahaPseudoContactId(contactParam) ? (
+                ) : isWahaPseudoContactId(overlayThreadId) ? (
                   whatsappHeaderSubtitle ? (
                     <p className="text-xs text-muted-foreground">
                       {whatsappHeaderSubtitle}
@@ -2248,34 +2271,34 @@ export function ContactsMessagesScreen() {
                   ) : (
                     <p className="text-xs text-muted-foreground">WhatsApp</p>
                   )
-                ) : isEmailPseudoContactId(contactParam) ? (
+                ) : isEmailPseudoContactId(overlayThreadId) ? (
                   <p className="text-xs text-muted-foreground">E-Mail</p>
-                ) : isMetaPseudoContactId(contactParam) ? (
+                ) : isMetaPseudoContactId(overlayThreadId) ? (
                   <p className="text-xs text-muted-foreground">
                     {CONTACT_MESSAGE_PLATFORM_LABELS[
-                      metaPlatformFromPseudoContactId(contactParam) ?? "facebook"
+                      metaPlatformFromPseudoContactId(overlayThreadId) ?? "facebook"
                     ]}
                   </p>
                 ) : null}
               </div>
-              {isInboxPseudoContactId(contactParam) ? (
+              {isInboxPseudoContactId(overlayThreadId) ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="icon-sm"
                   className="shrink-0 rounded-full"
                   aria-label={
-                    isEmailPseudoContactId(contactParam)
+                    isEmailPseudoContactId(overlayThreadId)
                       ? "Kontakt aus E-Mail-Chat anlegen"
-                      : isMetaPseudoContactId(contactParam)
+                      : isMetaPseudoContactId(overlayThreadId)
                         ? "Kontakt aus Messenger/Instagram-Chat anlegen"
                         : "Kontakt aus WhatsApp-Chat anlegen"
                   }
                   onClick={() =>
                     openCreateContactFromPseudo(
-                      contactParam,
+                      overlayThreadId,
                       contactName ||
-                        (isEmailPseudoContactId(contactParam)
+                        (isEmailPseudoContactId(overlayThreadId)
                           ? "E-Mail"
                           : "WhatsApp"),
                     )
@@ -2284,14 +2307,14 @@ export function ContactsMessagesScreen() {
                   <Plus className="size-4" />
                 </Button>
               ) : null}
-              {canOpenLinkedContact(contactParam) ? (
+              {canOpenLinkedContact(overlayThreadId) ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="icon-sm"
                   className="shrink-0 rounded-full"
                   aria-label="Kontakt öffnen"
-                  onClick={() => openLinkedContact(contactParam)}
+                  onClick={() => openLinkedContact(overlayThreadId)}
                 >
                   <UserRound className="size-4" />
                 </Button>
@@ -2305,10 +2328,10 @@ export function ContactsMessagesScreen() {
                   disabled={loadingThread}
                   sending={sending}
                   hasPhone={
-                    isWahaPseudoContactId(contactParam) ? true : hasPhone
+                    isWahaPseudoContactId(overlayThreadId) ? true : hasPhone
                   }
                   hasEmail={
-                    isEmailPseudoContactId(contactParam) ? true : hasEmail
+                    isEmailPseudoContactId(overlayThreadId) ? true : hasEmail
                   }
                   hasFacebook={hasFacebookId}
                   hasInstagram={hasInstagramId}
@@ -2329,21 +2352,21 @@ export function ContactsMessagesScreen() {
                   variant={
                     linkedThread
                       ? "inbox-reply"
-                      : isWahaPseudoContactId(contactParam)
+                      : isWahaPseudoContactId(overlayThreadId)
                         ? "whatsapp-only"
-                        : isEmailPseudoContactId(contactParam)
+                      : isEmailPseudoContactId(overlayThreadId)
                           ? "email-only"
-                          : isMetaPseudoContactId(contactParam)
+                          : isMetaPseudoContactId(overlayThreadId)
                             ? "meta-only"
                             : "unified"
                   }
                   stickyFooter
                   placeholder={
-                    isWahaPseudoContactId(contactParam)
+                    isWahaPseudoContactId(overlayThreadId)
                       ? "WhatsApp-Nachricht …"
-                      : isEmailPseudoContactId(contactParam)
+                      : isEmailPseudoContactId(overlayThreadId)
                         ? "E-Mail schreiben …"
-                        : isMetaPseudoContactId(contactParam) && metaThreadPlatform
+                        : isMetaPseudoContactId(overlayThreadId) && metaThreadPlatform
                           ? `${CONTACT_MESSAGE_PLATFORM_LABELS[metaThreadPlatform]}-Nachricht …`
                           : "Antwort schreiben …"
                   }
@@ -2353,7 +2376,7 @@ export function ContactsMessagesScreen() {
                     !editingWahaMessage &&
                     (linkedThread
                       ? defaultReplySend.whatsapp
-                      : isWahaPseudoContactId(contactParam))
+                      : isWahaPseudoContactId(overlayThreadId))
                       ? {
                           restaurantId,
                           chatId: whatsappThreadChatId,
@@ -2405,7 +2428,7 @@ export function ContactsMessagesScreen() {
             <ContactMessageChatViewport
               messages={displayMessages}
               loading={loadingThread}
-              threadKey={contactParam}
+              threadKey={overlayThreadId}
               className="h-full min-h-0 flex-1"
               onReservationOpen={(id) => void openReservationFromMessage(id)}
               wahaReactions={
@@ -2426,7 +2449,7 @@ export function ContactsMessagesScreen() {
                         onEditMessage: handleStartEditWahaMessage,
                         editingMessageId: editingWahaMessage?.messageId ?? null,
                       }
-                    : isWahaPseudoContactId(contactParam)
+                    : isWahaPseudoContactId(overlayThreadId)
                       ? {
                           restaurantId,
                           chatId: whatsappThreadChatId,
@@ -2447,7 +2470,7 @@ export function ContactsMessagesScreen() {
               }
               metaReactions={
                 restaurantId &&
-                (isMetaPseudoContactId(contactParam) || linkedThread)
+                (isMetaPseudoContactId(overlayThreadId) || linkedThread)
                   ? {
                       restaurantId,
                       onReactionChange: () => {

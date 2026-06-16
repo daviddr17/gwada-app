@@ -1,6 +1,6 @@
 {
-  "title": "News, Bewertungen, Öffnungszeiten und Listen-Pagination",
-  "body": "- **News & Bewertungen:** Pinterest-Raster (Masonry) wiederhergestellt; News-Embed lädt ohne Hänger, Karten in der Übersicht wieder anklickbar\n- **Öffnungszeiten:** Embed-Vorschau zeigt wieder die Zeiten; Google/Facebook-Sync-Toggles beim Speichern im Sticky-Footer\n- **Listen & Tabellen:** Eine kompakte Zeile `x/y · Seite n/m` statt doppelter Zähler über dem Button und in der Pagination",
+  "title": "Kasse, Buchführungs-Filter, Profil-Kontakt & kompakte Pagination",
+  "body": "- **Pagination:** App-weit kompakte Seitensteuerung ‹ Seite n/m › statt großer Zurück/Weiter-Buttons\n- **Buchführung:** Filter für Rechnungen, Angebote und Belege als Bottom Sheet (Quelle, Status, Belegtyp)\n- **Buchführung Kasse:** Neues Untermodul mit Anfangsbestand, Einnahmen/Ausgaben, Kategorien und Steuersätzen\n- **Öffentliches Profil:** Kontaktformular auf dem Tab Kontakt — Nachrichten erscheinen in der Inbox mit Gwada-Symbol\n- **Spam-Schutz:** Honeypot, Mindest-Wartezeit und Rate-Limit für Profil-Kontaktanfragen\n- **Nachrichten:** Chat-Thread als Vollbild-Overlay (WhatsApp-ähnlich); Glocke und Inbox bleiben nach Gelesen synchron\n- **News:** Mehr/Weniger und externer Link überlappen in Embed-Karten nicht mehr",
   "audience": "customers",
-  "version": "2026.06.14"
+  "version": "2026.06.16"
 }

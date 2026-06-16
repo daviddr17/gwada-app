@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { AccountingCatalogToolbar } from "@/components/accounting/accounting-catalog-toolbar";
-import { AccountingFilterChips } from "@/components/accounting/accounting-filter-chips";
+import { AccountingFilterDrawer } from "@/components/accounting/accounting-filter-drawer";
 import { AccountingListSearch } from "@/components/accounting/accounting-list-search";
 import { AccountingSourceIcon } from "@/components/accounting/accounting-source-icon";
 import { AccountingStatusBadge } from "@/components/accounting/accounting-status-badge";
@@ -55,6 +55,7 @@ import {
 } from "@/lib/accounting/accounting-corrections";
 import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -83,14 +84,22 @@ export function AccountingVouchersScreen() {
     page,
     search,
     platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
     sortKey,
     sortDir,
     setSearchQuery,
     setPage,
     setPlatformFilter,
+    setStatusFilter,
+    setVariantFilter,
+    setVoucherKindFilter,
     syncPageFromServer,
     toggleSort,
   } = useAccountingListUrl("voucher");
+
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [rows, setRows] = useState<AccountingVoucherRow[]>([]);
   const [statuses, setStatuses] = useState<AccountingDocumentStatusRow[]>([]);
@@ -118,11 +127,12 @@ export function AccountingVouchersScreen() {
     if (!restaurantId) return;
     setLoading(true);
     try {
-      const source =
-        platformFilter === "all" ? undefined : platformFilter;
       const [list, statusRows, catalog] = await Promise.all([
         fetchAccountingVouchers(restaurantId, {
-          source,
+          source: platformFilter === "all" ? undefined : platformFilter,
+          status: statusFilter === "all" ? undefined : statusFilter,
+          documentVariant: variantFilter === "all" ? undefined : variantFilter,
+          voucherKind: voucherKindFilter === "all" ? undefined : voucherKindFilter,
           search,
           page,
           ...(isDefaultVoucherSort(sortKey, sortDir)
@@ -152,7 +162,19 @@ export function AccountingVouchersScreen() {
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, platformFilter, search, page, sortKey, sortDir, syncPageFromServer, canManage]);
+  }, [
+    restaurantId,
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
+    search,
+    page,
+    sortKey,
+    sortDir,
+    syncPageFromServer,
+    canManage,
+  ]);
 
   useEffect(() => {
     void load();
@@ -224,6 +246,13 @@ export function AccountingVouchersScreen() {
 
   const selectPlatform = setPlatformFilter;
 
+  const filterActiveCount = countAccountingListActiveFilters({
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
+  });
+
   const emptyLabel = search.trim()
     ? "Keine Belege für diese Suche."
     : `Noch keine Belege — oben anlegen${connector.connected ? ` oder aus ${connector.displayName} abrufen` : ""}.`;
@@ -262,19 +291,30 @@ export function AccountingVouchersScreen() {
         />
       ) : null}
 
-      <AccountingFilterChips
-        filter={platformFilter}
-        onFilterChange={selectPlatform}
-        externalConnectorConnected={connector.connected}
-        disabled={loading}
-      />
-
       <AccountingListSearch
         value={search}
         onDebouncedChange={setSearchQuery}
         placeholder="Nummer oder Kontakt …"
         disabled={loading}
         hint="Suche in Belegnummer und Kontaktname."
+        filterActiveCount={filterActiveCount}
+        onFilterClick={() => setFilterOpen(true)}
+      />
+
+      <AccountingFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        mode="voucher"
+        platformFilter={platformFilter}
+        onPlatformFilterChange={selectPlatform}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        variantFilter={variantFilter}
+        onVariantFilterChange={setVariantFilter}
+        voucherKindFilter={voucherKindFilter}
+        onVoucherKindFilterChange={setVoucherKindFilter}
+        statuses={statuses}
+        connectorConnected={connector.connected}
       />
 
       {canManage && connector.connected && connector.capabilities.canSyncVouchers ? (

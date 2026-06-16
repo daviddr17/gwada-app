@@ -13,6 +13,13 @@ import {
   type AccountingVoucherSortKey,
 } from "@/lib/accounting/accounting-list-sort";
 import {
+  parseAccountingDocumentVariantFilter,
+  parseAccountingStatusFilter,
+  parseAccountingVoucherKindFilter,
+  type AccountingDocumentVariantFilter,
+  type AccountingVoucherKindFilter,
+} from "@/lib/constants/accounting-list-filters";
+import {
   parseAccountingPlatformFilter,
   type AccountingPlatformFilter,
 } from "@/lib/constants/accounting-platforms";
@@ -20,29 +27,31 @@ import { parseListPageParam } from "@/lib/constants/list-pagination";
 
 export type AccountingListSortMode = "sales" | "voucher";
 
-type SalesListUrl = {
+type AccountingListUrlBase = {
   page: number;
   search: string;
   platformFilter: AccountingPlatformFilter;
-  sortKey: AccountingSalesDocumentSortKey;
-  sortDir: AccountingListSortDir;
+  statusFilter: string;
+  variantFilter: AccountingDocumentVariantFilter;
+  voucherKindFilter: AccountingVoucherKindFilter;
   setSearchQuery: (q: string) => void;
   setPage: (nextPage: number) => void;
   setPlatformFilter: (filter: AccountingPlatformFilter) => void;
+  setStatusFilter: (status: string) => void;
+  setVariantFilter: (variant: AccountingDocumentVariantFilter) => void;
+  setVoucherKindFilter: (kind: AccountingVoucherKindFilter) => void;
   syncPageFromServer: (serverPage: number) => void;
+};
+
+type SalesListUrl = AccountingListUrlBase & {
+  sortKey: AccountingSalesDocumentSortKey;
+  sortDir: AccountingListSortDir;
   toggleSort: (key: AccountingSalesDocumentSortKey) => void;
 };
 
-type VoucherListUrl = {
-  page: number;
-  search: string;
-  platformFilter: AccountingPlatformFilter;
+type VoucherListUrl = AccountingListUrlBase & {
   sortKey: AccountingVoucherSortKey;
   sortDir: AccountingListSortDir;
-  setSearchQuery: (q: string) => void;
-  setPage: (nextPage: number) => void;
-  setPlatformFilter: (filter: AccountingPlatformFilter) => void;
-  syncPageFromServer: (serverPage: number) => void;
   toggleSort: (key: AccountingVoucherSortKey) => void;
 };
 
@@ -59,6 +68,13 @@ export function useAccountingListUrl(
   const search = searchParams.get("q") ?? "";
   const platformFilter = parseAccountingPlatformFilter(
     searchParams.get("platform"),
+  );
+  const statusFilter = parseAccountingStatusFilter(searchParams.get("status"));
+  const variantFilter = parseAccountingDocumentVariantFilter(
+    searchParams.get("variant"),
+  );
+  const voucherKindFilter = parseAccountingVoucherKindFilter(
+    searchParams.get("kind"),
   );
   const sortDir = parseAccountingListSortDir(searchParams.get("dir"));
   const sortKey =
@@ -104,6 +120,39 @@ export function useAccountingListUrl(
       replaceParams((next) => {
         if (filter === "all") next.delete("platform");
         else next.set("platform", filter);
+        next.delete("page");
+      });
+    },
+    [replaceParams],
+  );
+
+  const setStatusFilter = useCallback(
+    (status: string) => {
+      replaceParams((next) => {
+        if (!status || status === "all") next.delete("status");
+        else next.set("status", status);
+        next.delete("page");
+      });
+    },
+    [replaceParams],
+  );
+
+  const setVariantFilter = useCallback(
+    (variant: AccountingDocumentVariantFilter) => {
+      replaceParams((next) => {
+        if (variant === "all") next.delete("variant");
+        else next.set("variant", variant);
+        next.delete("page");
+      });
+    },
+    [replaceParams],
+  );
+
+  const setVoucherKindFilter = useCallback(
+    (kind: AccountingVoucherKindFilter) => {
+      replaceParams((next) => {
+        if (kind === "all") next.delete("kind");
+        else next.set("kind", kind);
         next.delete("page");
       });
     },
@@ -161,11 +210,17 @@ export function useAccountingListUrl(
     page,
     search,
     platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
     sortKey,
     sortDir,
     setSearchQuery,
     setPage,
     setPlatformFilter,
+    setStatusFilter,
+    setVariantFilter,
+    setVoucherKindFilter,
     syncPageFromServer,
     toggleSort,
   } as SalesListUrl | VoucherListUrl;

@@ -55,6 +55,7 @@ export const APP_ROUTES = {
     invoices: "/dashboard/buchfuehrung/rechnungen",
     quotations: "/dashboard/buchfuehrung/angebote",
     vouchers: "/dashboard/buchfuehrung/belege",
+    cashBook: "/dashboard/buchfuehrung/kasse",
     settings: "/dashboard/buchfuehrung/einstellungen",
   },
 } as const;

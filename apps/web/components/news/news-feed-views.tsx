@@ -57,26 +57,30 @@ const NewsCard = memo(function NewsCard({
       >
         {item.body}
       </p>
-      {canExpandBody ? (
-        <button
-          type="button"
-          onClick={toggleExpanded}
-          className="text-xs font-medium text-accent hover:underline"
-        >
-          {expanded ? "Weniger" : "Mehr anzeigen"}
-        </button>
-      ) : null}
-      {expanded && externalUrl ? (
-        <a
-          href={externalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(event) => event.stopPropagation()}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
-        >
-          <ExternalLink className="size-3.5 shrink-0" />
-          Auf {NEWS_PLATFORM_LABELS[item.platform]} öffnen
-        </a>
+      {canExpandBody || (expanded && externalUrl) ? (
+        <div className="flex flex-col items-start gap-1.5">
+          {canExpandBody ? (
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              {expanded ? "Weniger" : "Mehr anzeigen"}
+            </button>
+          ) : null}
+          {expanded && externalUrl ? (
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
+            >
+              <ExternalLink className="size-3.5 shrink-0" />
+              Auf {NEWS_PLATFORM_LABELS[item.platform]} öffnen
+            </a>
+          ) : null}
+        </div>
       ) : null}
     </div>
   ) : null;

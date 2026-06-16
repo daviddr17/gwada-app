@@ -327,7 +327,7 @@ export async function fetchWahaThreadMessages(
     restaurantId: params.restaurantId,
     chatId,
     limit: 100,
-    downloadMedia: true,
+    downloadMedia: false,
   });
   if (!result.ok) {
     return { data: [], error: result.error };

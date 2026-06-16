@@ -7,11 +7,15 @@ import {
 import {
   getLexofficeCache,
   invalidateLexofficeCachePrefix,
+  isLexofficeRateLimited,
   lexofficeCacheKey,
   LEXOFFICE_DETAIL_CACHE_MS,
+  LEXOFFICE_DETAIL_FETCH_DELAY_MS,
   LEXOFFICE_LIST_CACHE_MS,
+  markLexofficeRateLimited,
   setLexofficeCache,
 } from "@/lib/integrations/lexoffice-api-cache";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { fetchRestaurantLexofficeApiKey } from "@/lib/supabase/restaurant-lexoffice-integration-db";
 
 export type LexofficeVoucherListItem = {
@@ -65,6 +69,10 @@ async function lexofficeFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  if (isLexofficeRateLimited(restaurantId)) {
+    return { ok: false, error: "Lexware API: Rate-Limit erreicht." };
+  }
+
   const apiKey = await fetchRestaurantLexofficeApiKey(restaurantId);
   if (!apiKey) {
     return { ok: false, error: "Lexware ist nicht verbunden." };
@@ -72,6 +80,9 @@ async function lexofficeFetch<T>(
 
   const result = await fetchLexofficeJson<T>(apiKey, path, init);
   if (!result.ok) {
+    if (result.status === 429 || isLexofficeRateLimitError(result.error)) {
+      markLexofficeRateLimited(restaurantId);
+    }
     return { ok: false, error: result.error };
   }
   return { ok: true, data: result.data };
@@ -135,6 +146,11 @@ export async function fetchAllLexofficeVoucherList(
   let totalPages = 1;
 
   while (page < totalPages) {
+    if (page > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, LEXOFFICE_DETAIL_FETCH_DELAY_MS),
+      );
+    }
     const batch = await fetchLexofficeVoucherListPage(
       restaurantId,
       {
@@ -209,6 +225,11 @@ export async function fetchAllLexofficeBookkeepingVoucherList(
   let totalPages = 1;
 
   while (page < totalPages) {
+    if (page > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, LEXOFFICE_DETAIL_FETCH_DELAY_MS),
+      );
+    }
     const batch = await fetchLexofficeBookkeepingVoucherListPage(
       restaurantId,
       { page },

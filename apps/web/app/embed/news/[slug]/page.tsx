@@ -2,6 +2,7 @@ import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { parseListPageParam } from "@/lib/constants/list-pagination";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import {
   fetchPublicEmbedNews,
   parseNewsEmbedPlatformFilter,
@@ -34,11 +35,14 @@ export default async function EmbedNewsPage({
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const result = await fetchPublicEmbedNews(slug, {
-    paginate: true,
-    page: parseListPageParam(sp.page),
-    platform: parseNewsEmbedPlatformFilter(sp.platform),
-  });
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedNews(slug, {
+      paginate: true,
+      page: parseListPageParam(sp.page),
+      platform: parseNewsEmbedPlatformFilter(sp.platform),
+    }),
+    fetchEmbedTextThemeForSlug(slug, "news"),
+  ]);
 
   if (!result.data) {
     return (
@@ -60,6 +64,7 @@ export default async function EmbedNewsPage({
       connectedPlatforms={connectedPlatforms}
       items={items}
       pagination={pagination}
+      textTheme={textTheme}
     />
   );
 }

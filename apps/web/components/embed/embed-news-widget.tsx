@@ -20,8 +20,10 @@ import type {
   PublicEmbedNewsPagination,
 } from "@/lib/news/public-news-server";
 import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
+import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 export type EmbedNewsWidgetProps = {
   accentHex: string;
+  textTheme?: EmbedTextTheme;
   viewMode: "grid" | "list";
   connectedPlatforms: PublicEmbedNews["connectedPlatforms"];
   items: PublicEmbedNews["items"];
@@ -46,6 +48,7 @@ function patchEmbedNewsQuery(
 
 export function EmbedNewsWidget({
   accentHex,
+  textTheme = "dark",
   viewMode,
   connectedPlatforms,
   items,
@@ -186,7 +189,11 @@ export function EmbedNewsWidget({
     );
 
   return (
-    <EmbedAccentRoot accentHex={accentHex} brandFooter={variant !== "profileSheet"}>
+    <EmbedAccentRoot
+      accentHex={accentHex}
+      textTheme={textTheme}
+      brandFooter={variant !== "profileSheet"}
+    >
       <EmbedResizeReporter widget="news" deps={resizeDeps} />
       <div className={paddingClass}>
         {connectedPlatforms.length > 1 ? (

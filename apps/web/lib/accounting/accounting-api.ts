@@ -330,6 +330,7 @@ export async function syncAccountingDocuments(
     updated: number;
     listed?: number;
     skipped?: boolean;
+    rateLimited?: boolean;
   };
 }
 

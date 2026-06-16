@@ -36,6 +36,7 @@ export type ConnectorSyncResult = {
   updated: number;
   listed?: number;
   skipped?: boolean;
+  rateLimited?: boolean;
   error?: string | null;
 };
 

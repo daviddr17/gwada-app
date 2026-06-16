@@ -13,8 +13,12 @@ import {
 import { salesDocumentKindToSyncScope } from "@/lib/accounting/accounting-connector-settings";
 import {
   invalidateLexofficeCachePrefix,
+  isLexofficeRateLimited,
   LEXOFFICE_SYNC_COOLDOWN_MS,
+  markLexofficeRateLimited,
 } from "@/lib/integrations/lexoffice-api-cache";
+import { LexofficeDetailFetchBudget } from "@/lib/integrations/lexoffice-detail-fetch-budget";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import {
   listTotalsFallbackFromListItem,
   salesDocumentPatchFromLexofficeDetail,
@@ -157,10 +161,26 @@ async function buildSalesDocumentPayload(
   item: LexofficeVoucherListItem,
   existing: ExistingLexofficeSalesDocument | undefined,
   isNew: boolean,
-  opts?: { skipDetailCache?: boolean },
+  opts?: {
+    skipDetailCache?: boolean;
+    detailBudget?: LexofficeDetailFetchBudget;
+  },
 ): Promise<{ payload: Record<string, unknown>; detailFetched: boolean }> {
   if (!needsSalesDetailFetch(item, existing, isNew)) {
     return { payload: listOnlySalesPatch(kind, item), detailFetched: false };
+  }
+
+  if (opts?.detailBudget && !opts.detailBudget.canFetchDetail(restaurantId)) {
+    return {
+      payload: isNew
+        ? salesDocumentShellFromListItem(kind, item)
+        : listOnlySalesPatch(kind, item),
+      detailFetched: false,
+    };
+  }
+
+  if (opts?.detailBudget) {
+    await opts.detailBudget.beforeDetailFetch();
   }
 
   const detail = await fetchLexofficeSalesDetail(
@@ -172,12 +192,17 @@ async function buildSalesDocumentPayload(
   );
 
   if (!detail.ok) {
+    opts?.detailBudget?.noteFetchError(restaurantId, detail.error);
     return {
       payload: isNew
         ? salesDocumentShellFromListItem(kind, item)
         : listOnlySalesPatch(kind, item),
       detailFetched: false,
     };
+  }
+
+  if (opts?.detailBudget) {
+    opts.detailBudget.consume();
   }
 
   const detailPatch = salesDocumentPatchFromLexofficeDetail(
@@ -229,8 +254,20 @@ export async function syncLexofficeSalesDocuments(
   updated: number;
   listed: number;
   skipped?: boolean;
+  rateLimited?: boolean;
   error: string | null;
 }> {
+  if (!params.force && isLexofficeRateLimited(params.restaurantId)) {
+    return {
+      imported: 0,
+      updated: 0,
+      listed: 0,
+      skipped: true,
+      rateLimited: true,
+      error: null,
+    };
+  }
+
   const settings = await getAccountingSettings(sb, params.restaurantId);
   const scope = salesDocumentKindToSyncScope(params.kind);
   const lastSyncAt = connectorSyncCooldownLastAt(
@@ -258,9 +295,21 @@ export async function syncLexofficeSalesDocuments(
     { skipCache: params.force },
   );
   if (!list.ok) {
+    if (isLexofficeRateLimitError(list.error)) {
+      markLexofficeRateLimited(params.restaurantId);
+      return {
+        imported: 0,
+        updated: 0,
+        listed: 0,
+        skipped: true,
+        rateLimited: true,
+        error: null,
+      };
+    }
     return { imported: 0, updated: 0, listed: 0, error: list.error };
   }
 
+  const detailBudget = new LexofficeDetailFetchBudget();
   const actorUserId = await resolveAccountingActorUserId(sb, params.userId);
 
   const table =
@@ -317,7 +366,7 @@ export async function syncLexofficeSalesDocuments(
       item,
       existing,
       isNew,
-      { skipDetailCache: params.force },
+      { skipDetailCache: params.force, detailBudget },
     );
     payload.restaurant_id = params.restaurantId;
     if (actorUserId) {
@@ -466,7 +515,13 @@ export async function syncLexofficeSalesDocuments(
     };
   }
 
-  return { imported, updated, listed: list.items.length, error: null };
+  return {
+    imported,
+    updated,
+    listed: list.items.length,
+    error: null,
+    ...(detailBudget.rateLimitedDuringSync ? { rateLimited: true } : {}),
+  };
 }
 
 function lexofficeListVoucherTypeForRow(

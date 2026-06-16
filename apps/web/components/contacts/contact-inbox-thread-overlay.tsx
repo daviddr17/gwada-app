@@ -12,6 +12,8 @@ const THREAD_OVERLAY_MS = 380;
 /** iOS-ähnliches Sheet-Easing */
 const THREAD_OVERLAY_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
 
+export { THREAD_OVERLAY_MS as CONTACT_INBOX_THREAD_OVERLAY_MS };
+
 type ContactInboxThreadOverlayProps = {
   open: boolean;
   onClose: () => void;

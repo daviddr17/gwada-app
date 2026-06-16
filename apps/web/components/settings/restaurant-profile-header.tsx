@@ -1,7 +1,8 @@
 "use client";
 
 import { Camera } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { RestaurantLogoMark } from "@/components/ui/restaurant-logo-mark";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,27 @@ import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { cn } from "@/lib/utils";
 
 const ACCEPT = "image/jpeg,image/png,image/webp";
+const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_PROFILE_IMAGE_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const ALLOWED_PROFILE_IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "webp"]);
+
+function validateProfileImageFile(file: File): string | null {
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  const mimeOk = file.type
+    ? ALLOWED_PROFILE_IMAGE_MIMES.has(file.type)
+    : Boolean(ext && ALLOWED_PROFILE_IMAGE_EXTENSIONS.has(ext));
+  if (!mimeOk) {
+    return "Nur JPEG-, PNG- oder WebP-Bilder bis 5 MB sind erlaubt.";
+  }
+  if (file.size <= 0 || file.size > MAX_PROFILE_IMAGE_BYTES) {
+    return "Nur JPEG-, PNG- oder WebP-Bilder bis 5 MB sind erlaubt.";
+  }
+  return null;
+}
 
 function restaurantInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -64,6 +86,8 @@ export function RestaurantProfileHeader({
 }: RestaurantProfileHeaderProps) {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const avatarDragDepthRef = useRef(0);
+  const coverDragDepthRef = useRef(0);
 
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [coverUrl, setCoverUrl] = useState<string | null>(null);
@@ -71,6 +95,8 @@ export function RestaurantProfileHeader({
   const [coverLocalPreview, setCoverLocalPreview] = useState<string | null>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
+  const [isAvatarDragOver, setIsAvatarDragOver] = useState(false);
+  const [isCoverDragOver, setIsCoverDragOver] = useState(false);
 
   const initials = useMemo(() => restaurantInitials(name), [name]);
   const canUpload = isUuidRestaurantId(restaurantId);
@@ -162,6 +188,98 @@ export function RestaurantProfileHeader({
     }
   };
 
+  const handleCoverDragEnter = useCallback((e: React.DragEvent) => {
+    if (!canUpload || coverUploading) return;
+    e.preventDefault();
+    e.stopPropagation();
+    coverDragDepthRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsCoverDragOver(true);
+    }
+  }, [canUpload, coverUploading]);
+
+  const handleCoverDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    coverDragDepthRef.current = Math.max(0, coverDragDepthRef.current - 1);
+    if (coverDragDepthRef.current === 0) {
+      setIsCoverDragOver(false);
+    }
+  }, []);
+
+  const handleCoverDragOver = useCallback((e: React.DragEvent) => {
+    if (!canUpload || coverUploading) return;
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }, [canUpload, coverUploading]);
+
+  const handleCoverDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      coverDragDepthRef.current = 0;
+      setIsCoverDragOver(false);
+      if (!canUpload || coverUploading) return;
+      const dropped = e.dataTransfer.files?.[0];
+      if (!dropped) return;
+      const err = validateProfileImageFile(dropped);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      void handleFileSelect("cover", dropped);
+    },
+    [canUpload, coverUploading],
+  );
+
+  const handleAvatarDragEnter = useCallback((e: React.DragEvent) => {
+    if (!canUpload || avatarUploading) return;
+    e.preventDefault();
+    e.stopPropagation();
+    avatarDragDepthRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsAvatarDragOver(true);
+    }
+  }, [canUpload, avatarUploading]);
+
+  const handleAvatarDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    avatarDragDepthRef.current = Math.max(0, avatarDragDepthRef.current - 1);
+    if (avatarDragDepthRef.current === 0) {
+      setIsAvatarDragOver(false);
+    }
+  }, []);
+
+  const handleAvatarDragOver = useCallback((e: React.DragEvent) => {
+    if (!canUpload || avatarUploading) return;
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }, [canUpload, avatarUploading]);
+
+  const handleAvatarDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      avatarDragDepthRef.current = 0;
+      setIsAvatarDragOver(false);
+      if (!canUpload || avatarUploading) return;
+      const dropped = e.dataTransfer.files?.[0];
+      if (!dropped) return;
+      const err = validateProfileImageFile(dropped);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      void handleFileSelect("avatar", dropped);
+    },
+    [canUpload, avatarUploading],
+  );
+
   return (
     <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20 shadow-card">
       <input
@@ -182,8 +300,15 @@ export function RestaurantProfileHeader({
       <button
         type="button"
         disabled={!canUpload || coverUploading}
-        className="group relative block h-36 w-full overflow-hidden bg-muted md:h-44"
+        className={cn(
+          "group relative block h-36 w-full overflow-hidden bg-muted md:h-44",
+          isCoverDragOver && "ring-2 ring-inset ring-accent",
+        )}
         onClick={() => coverInputRef.current?.click()}
+        onDragEnter={handleCoverDragEnter}
+        onDragLeave={handleCoverDragLeave}
+        onDragOver={handleCoverDragOver}
+        onDrop={handleCoverDrop}
         aria-label="Titelbild ändern"
       >
         {coverDisplayUrl ? (
@@ -198,7 +323,12 @@ export function RestaurantProfileHeader({
             <span className="text-sm text-muted-foreground">Titelbild hinzufügen</span>
           </div>
         )}
-        <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-60">
+        <span
+          className={cn(
+            "absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity group-disabled:opacity-60",
+            isCoverDragOver ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}
+        >
           <Camera className="size-7 text-white" aria-hidden />
         </span>
       </button>
@@ -210,8 +340,15 @@ export function RestaurantProfileHeader({
               <button
                 type="button"
                 disabled={!canUpload || avatarUploading}
-                className="group relative block"
+                className={cn(
+                  "group relative block rounded-full",
+                  isAvatarDragOver && "ring-2 ring-accent ring-offset-2 ring-offset-card",
+                )}
                 onClick={() => avatarInputRef.current?.click()}
+                onDragEnter={handleAvatarDragEnter}
+                onDragLeave={handleAvatarDragLeave}
+                onDragOver={handleAvatarDragOver}
+                onDrop={handleAvatarDrop}
                 aria-label="Profilbild ändern"
               >
                 <RestaurantLogoMark
@@ -221,7 +358,14 @@ export function RestaurantProfileHeader({
                   size="header"
                   variant="header"
                 />
-                <span className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 transition-opacity group-hover:opacity-100 group-disabled:opacity-60">
+                <span
+                  className={cn(
+                    "absolute inset-0 flex items-center justify-center rounded-full bg-black/40 transition-opacity group-disabled:opacity-60",
+                    isAvatarDragOver
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100",
+                  )}
+                >
                   <Camera className="size-6 text-white" aria-hidden />
                 </span>
               </button>

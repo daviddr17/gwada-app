@@ -26,7 +26,13 @@ import type {
   AccountingDocumentStatusRow,
   AccountingVoucherRow,
 } from "@/lib/types/accounting";
-import { cn } from "@/lib/utils";
+import {
+  accountingVoucherDrawerBodyClassName,
+  accountingVoucherDrawerContentClassName,
+  accountingVoucherDrawerScrollBodyClassName,
+  accountingVoucherDrawerSplitGridClassName,
+  accountingVoucherDrawerSplitPaneClassName,
+} from "@/lib/ui/accounting-drawer-layout";
 
 type AccountingVoucherSheetProps = {
   open: boolean;
@@ -68,7 +74,7 @@ export function AccountingVoucherSheet({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[92dvh] w-full max-w-6xl flex-col overflow-hidden">
+      <DrawerContent className={accountingVoucherDrawerContentClassName}>
         <DrawerHeader className="shrink-0 border-b border-border/50 pb-3 text-left">
           <DrawerTitle className="flex flex-wrap items-center gap-2">
             {row.voucher_number ?? "Beleg ohne Nummer"}
@@ -78,21 +84,10 @@ export function AccountingVoucherSheet({
           </DrawerTitle>
         </DrawerHeader>
 
-        <div
-          className={cn(
-            "min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 md:px-6",
-            hasFile && "lg:overflow-hidden",
-          )}
-        >
-          <div
-            className={cn(
-              "space-y-4",
-              hasFile &&
-                "lg:grid lg:min-h-0 lg:grid-cols-[minmax(280px,42%)_minmax(0,1fr)] lg:items-start lg:gap-6 lg:space-y-0",
-            )}
-          >
-            {hasFile && previewUrl ? (
-              <div className="lg:sticky lg:top-0 lg:max-h-[calc(92dvh-8rem)] lg:overflow-y-auto lg:pr-1">
+        <div className={accountingVoucherDrawerBodyClassName}>
+          {hasFile && previewUrl ? (
+            <div className={accountingVoucherDrawerSplitGridClassName}>
+              <div className={accountingVoucherDrawerSplitPaneClassName}>
                 <AccountingVoucherDocumentPanel
                   mode="preview"
                   previewUrl={previewUrl}
@@ -102,56 +97,106 @@ export function AccountingVoucherSheet({
                   label="Beleg-Anhang"
                 />
               </div>
-            ) : null}
 
-            <div className="min-h-0 space-y-4 lg:overflow-y-auto lg:max-h-[calc(92dvh-8rem)] lg:pr-1">
-              <AccountingVoucherDetailsView row={row} statuses={statuses} />
+              <div className={accountingVoucherDrawerSplitPaneClassName}>
+                <AccountingVoucherDetailsView row={row} statuses={statuses} />
 
-              <div className="flex flex-wrap gap-2">
-                {isExternalAccountingSource(row.source) && row.external_edit_url ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    render={
-                      <a
-                        href={row.external_edit_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      />
-                    }
-                  >
-                    <ExternalLink className="size-4" />
-                    In {accountingSourceDisplayLabel(row.source)}
-                  </Button>
-                ) : canManage && row.source === "gwada" ? (
-                  <Button type="button" size="sm" onClick={onEdit}>
-                    <Pencil className="size-4" />
-                    Bearbeiten
-                  </Button>
-                ) : null}
-                {showCorrectionAction ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={onCreateCorrection}
-                  >
-                    <RotateCcw className="size-4" />
-                    Korrektur anlegen
-                  </Button>
-                ) : null}
+                <div className="flex flex-wrap gap-2 pt-4">
+                  {isExternalAccountingSource(row.source) && row.external_edit_url ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      render={
+                        <a
+                          href={row.external_edit_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        />
+                      }
+                    >
+                      <ExternalLink className="size-4" />
+                      In {accountingSourceDisplayLabel(row.source)}
+                    </Button>
+                  ) : canManage && row.source === "gwada" ? (
+                    <Button type="button" size="sm" onClick={onEdit}>
+                      <Pencil className="size-4" />
+                      Bearbeiten
+                    </Button>
+                  ) : null}
+                  {showCorrectionAction ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={onCreateCorrection}
+                    >
+                      <RotateCcw className="size-4" />
+                      Korrektur anlegen
+                    </Button>
+                  ) : null}
+                </div>
+
+                <AccountingDocumentProtocolPanel
+                  restaurantId={restaurantId}
+                  documentKind="voucher"
+                  documentId={row.id}
+                  open={open}
+                  refreshToken={row.updated_at}
+                />
               </div>
             </div>
-          </div>
+          ) : (
+            <div className={accountingVoucherDrawerScrollBodyClassName}>
+              <div className="space-y-4">
+                <AccountingVoucherDetailsView row={row} statuses={statuses} />
 
-          <AccountingDocumentProtocolPanel
-            restaurantId={restaurantId}
-            documentKind="voucher"
-            documentId={row.id}
-            open={open}
-            refreshToken={row.updated_at}
-          />
+                <div className="flex flex-wrap gap-2">
+                  {isExternalAccountingSource(row.source) && row.external_edit_url ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      render={
+                        <a
+                          href={row.external_edit_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        />
+                      }
+                    >
+                      <ExternalLink className="size-4" />
+                      In {accountingSourceDisplayLabel(row.source)}
+                    </Button>
+                  ) : canManage && row.source === "gwada" ? (
+                    <Button type="button" size="sm" onClick={onEdit}>
+                      <Pencil className="size-4" />
+                      Bearbeiten
+                    </Button>
+                  ) : null}
+                  {showCorrectionAction ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={onCreateCorrection}
+                    >
+                      <RotateCcw className="size-4" />
+                      Korrektur anlegen
+                    </Button>
+                  ) : null}
+                </div>
+
+                <AccountingDocumentProtocolPanel
+                  restaurantId={restaurantId}
+                  documentKind="voucher"
+                  documentId={row.id}
+                  open={open}
+                  refreshToken={row.updated_at}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </DrawerContent>
     </Drawer>

@@ -27,6 +27,7 @@ import {
   syncAccountingDocuments,
   updateAccountingVoucher,
 } from "@/lib/accounting/accounting-api";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultVoucherSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -34,6 +35,7 @@ import {
   markAccountingLexofficeAutoSync,
   shouldRunAccountingLexofficeAutoSync,
 } from "@/lib/hooks/use-accounting-lexoffice-auto-sync";
+import { useAccountingVoucherPageFileDrop } from "@/lib/hooks/use-accounting-voucher-page-file-drop";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
 import {
   accountingSourceDisplayLabel,
@@ -113,6 +115,7 @@ export function AccountingVouchersScreen() {
   });
   const [loading, setLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [uploadInitialFile, setUploadInitialFile] = useState<File | null>(null);
   const [editRow, setEditRow] = useState<AccountingVoucherRow | null>(null);
   const [correctionOf, setCorrectionOf] = useState<AccountingVoucherRow | null>(
     null,
@@ -196,11 +199,20 @@ export function AccountingVouchersScreen() {
           force: opts?.force === true,
         });
         if (result.skipped) {
+          if (!opts?.silent && result.rateLimited) {
+            toast.message(
+              `${connector.displayName}: API-Limit — Anzeige aus dem letzten Stand.`,
+            );
+          }
           return;
         }
         if (!opts?.silent) {
           const label = connector.displayName;
-          if (result.listed === 0) {
+          if (result.rateLimited) {
+            toast.message(
+              `${label}: Teilweise aktualisiert (API-Limit). Rest folgt beim nächsten Abruf.`,
+            );
+          } else if (result.listed === 0) {
             toast.message(`${label}: Keine Belege gefunden.`);
           } else {
             toast.success(
@@ -210,10 +222,12 @@ export function AccountingVouchersScreen() {
         }
         await load();
       } catch (e) {
+        const message = e instanceof Error ? e.message : "";
+        if (opts?.silent && isLexofficeRateLimitError(message)) {
+          return;
+        }
         toast.error(
-          e instanceof Error
-            ? e.message
-            : `${connector.displayName}-Abruf fehlgeschlagen.`,
+          message || `${connector.displayName}-Abruf fehlgeschlagen.`,
         );
       } finally {
         setSyncing(false);
@@ -239,10 +253,23 @@ export function AccountingVouchersScreen() {
         markAccountingLexofficeAutoSync(restaurantId, "vouchers");
         await runConnectorSync({ silent: true });
       } catch {
-        toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
+        /* runConnectorSync behandelt Fehler selbst */
       }
     })();
   }, [restaurantId, canManage, connector, runConnectorSync]);
+
+  const openNewVoucher = useCallback((file?: File | null) => {
+    setEditRow(null);
+    setCorrectionOf(null);
+    setUploadInitialFile(file ?? null);
+    setDrawerOpen(true);
+  }, []);
+
+  const voucherPageDrop = useAccountingVoucherPageFileDrop({
+    enabled: canManage,
+    blockDrop: drawerOpen && Boolean(editRow),
+    onFile: (file) => openNewVoucher(file),
+  });
 
   const selectPlatform = setPlatformFilter;
 
@@ -265,7 +292,7 @@ export function AccountingVouchersScreen() {
   const showInitialSkeleton = loading && showSkeleton && rows.length === 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" {...voucherPageDrop}>
       {showInitialSkeleton ? (
         <AccountingListScreenSkeleton
           columnCount={10}
@@ -338,11 +365,7 @@ export function AccountingVouchersScreen() {
           type="button"
           size="lg"
           className={modulePrimaryAddButtonFullWidthClassName}
-          onClick={() => {
-            setEditRow(null);
-            setCorrectionOf(null);
-            setDrawerOpen(true);
-          }}
+          onClick={() => openNewVoucher()}
         >
           <Plus className="size-4" />
           Neuer Beleg
@@ -568,13 +591,17 @@ export function AccountingVouchersScreen() {
         open={drawerOpen}
         onOpenChange={(open) => {
           setDrawerOpen(open);
-          if (!open) setCorrectionOf(null);
+          if (!open) {
+            setCorrectionOf(null);
+            setUploadInitialFile(null);
+          }
         }}
         restaurantId={restaurantId}
         editRow={editRow}
         correctionOf={correctionOf}
         statuses={statuses}
         externalConnectorConnected={connector.connected}
+        initialFile={uploadInitialFile}
         onSaved={() => void load()}
         onCreate={async (input, file) => {
           await createAccountingVoucher(restaurantId, input, file);

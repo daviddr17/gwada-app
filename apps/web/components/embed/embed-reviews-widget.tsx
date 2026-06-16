@@ -12,11 +12,13 @@ import type {
   PublicEmbedReview,
   PublicEmbedReviewsPagination,
 } from "@/lib/reviews/public-reviews-server";
+import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import { cn } from "@/lib/utils";
 
 export type EmbedReviewsWidgetProps = {
   restaurantName: string;
   accentHex: string;
+  textTheme?: EmbedTextTheme;
   reviews: PublicEmbedReview[];
   summary: {
     count: number;
@@ -194,6 +196,7 @@ function EmbedReviewsSummary({
 export function EmbedReviewsWidget({
   restaurantName,
   accentHex,
+  textTheme = "dark",
   reviews,
   summary,
   viewMode = "grid",
@@ -280,7 +283,7 @@ export function EmbedReviewsWidget({
     );
 
   return (
-    <EmbedAccentRoot accentHex={accentHex}>
+    <EmbedAccentRoot accentHex={accentHex} textTheme={textTheme}>
       <EmbedResizeReporter deps={resizeDeps} widget="reviews" />
       <div className="w-full min-w-0 px-4 py-5 sm:px-6">
         <header className="border-b border-border/40 pb-5">

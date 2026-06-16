@@ -33,6 +33,7 @@ import {
   updateAccountingInvoice,
   updateAccountingQuotation,
 } from "@/lib/accounting/accounting-api";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -219,11 +220,20 @@ export function AccountingSalesDocumentsScreen({
           force: opts?.force === true,
         });
         if (result.skipped) {
+          if (!opts?.silent && result.rateLimited) {
+            toast.message(
+              `${connector.displayName}: API-Limit — Anzeige aus dem letzten Stand.`,
+            );
+          }
           return;
         }
         if (!opts?.silent) {
           const label = connector.displayName;
-          if (result.listed === 0) {
+          if (result.rateLimited) {
+            toast.message(
+              `${label}: Teilweise aktualisiert (API-Limit). Rest folgt beim nächsten Abruf.`,
+            );
+          } else if (result.listed === 0) {
             toast.message(`${label}: Keine Dokumente gefunden.`);
           } else {
             toast.success(
@@ -233,10 +243,12 @@ export function AccountingSalesDocumentsScreen({
         }
         await load();
       } catch (e) {
+        const message = e instanceof Error ? e.message : "";
+        if (opts?.silent && isLexofficeRateLimitError(message)) {
+          return;
+        }
         toast.error(
-          e instanceof Error
-            ? e.message
-            : `${connector.displayName}-Abruf fehlgeschlagen.`,
+          message || `${connector.displayName}-Abruf fehlgeschlagen.`,
         );
       } finally {
         setSyncing(false);
@@ -263,7 +275,7 @@ export function AccountingSalesDocumentsScreen({
         markAccountingLexofficeAutoSync(restaurantId, scope);
         await runConnectorSync({ silent: true });
       } catch {
-        toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
+        /* runConnectorSync behandelt Fehler selbst */
       }
     })();
   }, [restaurantId, canManage, connector, documentKind, runConnectorSync]);

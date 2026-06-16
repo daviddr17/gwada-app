@@ -1,6 +1,6 @@
 {
-  "title": "Kasse, Buchführungs-Filter, Profil-Kontakt & kompakte Pagination",
-  "body": "- **Pagination:** App-weit kompakte Seitensteuerung ‹ Seite n/m › statt großer Zurück/Weiter-Buttons\n- **Buchführung:** Filter für Rechnungen, Angebote und Belege als Bottom Sheet (Quelle, Status, Belegtyp)\n- **Buchführung Kasse:** Neues Untermodul mit Anfangsbestand, Einnahmen/Ausgaben, Kategorien und Steuersätzen\n- **Öffentliches Profil:** Kontaktformular auf dem Tab Kontakt — Nachrichten erscheinen in der Inbox mit Gwada-Symbol\n- **Spam-Schutz:** Honeypot, Mindest-Wartezeit und Rate-Limit für Profil-Kontaktanfragen\n- **Nachrichten:** Chat-Thread als Vollbild-Overlay (WhatsApp-ähnlich); Glocke und Inbox bleiben nach Gelesen synchron\n- **News:** Mehr/Weniger und externer Link überlappen in Embed-Karten nicht mehr",
+  "title": "Embed-Darstellung, Drag-and-Drop & Lexware-Sync",
+  "body": "- **Einbinden:** Transparenter Hintergrund und helle/dunkle Schrift pro Widget — Öffnungszeiten-Embed ohne Überschriften\n- **Drag-and-Drop:** Dokumente, Restaurant-Titelbild/Logo und Belege per Datei auf die Seite ziehen — Bottom Sheet öffnet sich mit vorgeladener Datei\n- **Buchführung:** Lexware-Sync entlastet Rate-Limits — Hintergrundsync ohne störende Fehlermeldungen, Beleg-Sheet höher auf kleinen Screens\n- **Nachrichten:** Thread-Overlay schließt weicher; leerer Chat ohne Skeleton; schnellerer Erstload",
   "audience": "customers",
   "version": "2026.06.16"
 }

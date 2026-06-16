@@ -57,32 +57,41 @@ REMOTE_SCRIPT="/tmp/gwada-vps-deploy-live-app.sh"
 
 if [[ -n "${GWADA_SSH_BATCH:-}" ]]; then
   # CI: Deploy auf dem VPS entkoppeln — langer Docker-Build darf SSH-Abbruch überleben.
+  DEPLOY_MARKER="gwada-deploy-$(date +%s)-$$"
   gwada_ssh "${SSH_USER}@${VPS}" "cat > '${REMOTE_SCRIPT}'" \
     < "${ROOT}/scripts/vps-deploy-live-app.sh"
   gwada_ssh "${SSH_USER}@${VPS}" \
+    "echo '=== ${DEPLOY_MARKER} START commit=${COMMIT} ===' >> '${DEPLOY_LOG}'"
+  gwada_ssh "${SSH_USER}@${VPS}" \
     "${REMOTE_PREFIX}nohup bash '${REMOTE_SCRIPT}' '${COMMIT}' >> '${DEPLOY_LOG}' 2>&1 & disown; echo deploy_started"
 
-  echo "→ Deploy auf VPS gestartet, warte auf Abschluss (Log: ${DEPLOY_LOG}) …"
+  echo "→ Deploy auf VPS gestartet (${DEPLOY_MARKER}), warte auf Abschluss …"
   POLL_MAX=90
   for (( poll = 0; poll < POLL_MAX; poll++ )); do
-    if gwada_ssh "${SSH_USER}@${VPS}" "grep -q '=== DEPLOY_OK' '${DEPLOY_LOG}' 2>/dev/null"; then
-      gwada_ssh "${SSH_USER}@${VPS}" "tail -40 '${DEPLOY_LOG}'"
+    if gwada_ssh "${SSH_USER}@${VPS}" \
+      "awk '/=== ${DEPLOY_MARKER} START/,0' '${DEPLOY_LOG}' | grep -q '=== DEPLOY_OK'"; then
+      gwada_ssh "${SSH_USER}@${VPS}" \
+        "awk '/=== ${DEPLOY_MARKER} START/,0' '${DEPLOY_LOG}' | tail -40"
       exit 0
     fi
     if ! gwada_ssh "${SSH_USER}@${VPS}" \
       "test -f '${DEPLOY_LOCK}' && kill -0 \"\$(cat '${DEPLOY_LOCK}')\" 2>/dev/null"; then
-      if gwada_ssh "${SSH_USER}@${VPS}" "grep -q '=== DEPLOY_OK' '${DEPLOY_LOG}' 2>/dev/null"; then
-        gwada_ssh "${SSH_USER}@${VPS}" "tail -40 '${DEPLOY_LOG}'"
+      if gwada_ssh "${SSH_USER}@${VPS}" \
+        "awk '/=== ${DEPLOY_MARKER} START/,0' '${DEPLOY_LOG}' | grep -q '=== DEPLOY_OK'"; then
+        gwada_ssh "${SSH_USER}@${VPS}" \
+          "awk '/=== ${DEPLOY_MARKER} START/,0' '${DEPLOY_LOG}' | tail -40"
         exit 0
       fi
-      echo "Deploy auf VPS beendet ohne DEPLOY_OK:" >&2
-      gwada_ssh "${SSH_USER}@${VPS}" "tail -80 '${DEPLOY_LOG}'" >&2 || true
+      echo "Deploy auf VPS beendet ohne DEPLOY_OK (${DEPLOY_MARKER}):" >&2
+      gwada_ssh "${SSH_USER}@${VPS}" \
+        "awk '/=== ${DEPLOY_MARKER} START/,0' '${DEPLOY_LOG}' | tail -80" >&2 || true
       exit 1
     fi
-    gwada_ssh "${SSH_USER}@${VPS}" "tail -5 '${DEPLOY_LOG}' 2>/dev/null" || true
+    gwada_ssh "${SSH_USER}@${VPS}" \
+      "awk '/=== ${DEPLOY_MARKER} START/,0' '${DEPLOY_LOG}' | tail -5" 2>/dev/null || true
     sleep 30
   done
-  echo "Deploy-Timeout nach $((POLL_MAX * 30 / 60)) Minuten — Log auf VPS prüfen: ${DEPLOY_LOG}" >&2
+  echo "Deploy-Timeout nach $((POLL_MAX * 30 / 60)) Minuten — Log auf VPS: ${DEPLOY_LOG}" >&2
   exit 1
 fi
 

@@ -18,6 +18,23 @@ export function parseEmbedTextTheme(
   return raw === "light" ? "light" : "dark";
 }
 
+/** Nur für Admin-Vorschau — überschreibt gespeichertes Theme pro iframe. */
+export const EMBED_PREVIEW_TEXT_THEME_PARAM = "gwada_preview_text_theme";
+
+export function parseEmbedPreviewTextThemeOverride(
+  raw: string | null | undefined,
+): EmbedTextTheme | null {
+  if (raw === "light" || raw === "dark") return raw;
+  return null;
+}
+
+export function resolveEmbedTextTheme(
+  stored: EmbedTextTheme,
+  previewOverride: string | null | undefined,
+): EmbedTextTheme {
+  return parseEmbedPreviewTextThemeOverride(previewOverride) ?? stored;
+}
+
 export function parseEmbedAppearanceWidget(
   raw: string | null | undefined,
 ): EmbedAppearanceWidget | null {

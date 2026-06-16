@@ -808,15 +808,6 @@ export function EmbedReservationWidget({
           profileSheet && "pt-3",
         )}
       >
-        {!profileSheet ? (
-          <header className="mb-4 space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Reservierung
-            </p>
-            <h1 className="text-xl font-semibold tracking-tight">{config.name}</h1>
-          </header>
-        ) : null}
-
         <EmbedSlidingSegmentTabs
           tabs={RESERVATION_SEGMENT_TABS}
           value={tab}

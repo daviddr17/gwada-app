@@ -23,8 +23,12 @@ import type {
   SuperadminDatabaseStatus,
   SuperadminGithubDeployWorkflowRun,
   SuperadminGithubDeployWorkflowStatus,
-  SuperadminLiveAppDeploySyncState,
 } from "@/lib/types/superadmin-ops-status";
+import {
+  formatDeploySha,
+  liveAppSyncBadgeClass,
+  liveAppSyncLabel,
+} from "@/lib/superadmin/superadmin-live-app-sync-ui";
 import { cn } from "@/lib/utils";
 
 function StatusDot({ ok }: { ok: boolean }) {
@@ -102,37 +106,6 @@ function formatCheckedAt(iso: string | null | undefined): string {
   });
 }
 
-function formatSha(value: string | null | undefined): string {
-  if (!value) return "—";
-  return value.length > 12 ? value.slice(0, 12) : value;
-}
-
-function liveAppSyncLabel(state: SuperadminLiveAppDeploySyncState): string {
-  switch (state) {
-    case "in_sync":
-      return "Live ist aktuell";
-    case "out_of_sync":
-      return "Live ist veraltet";
-    case "deploying":
-      return "Deploy läuft";
-    default:
-      return "Status unklar";
-  }
-}
-
-function liveAppSyncBadgeClass(state: SuperadminLiveAppDeploySyncState): string {
-  switch (state) {
-    case "in_sync":
-      return "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200";
-    case "out_of_sync":
-      return "border-destructive/40 bg-destructive/10 text-destructive";
-    case "deploying":
-      return "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200";
-    default:
-      return "border-border/50 bg-muted/40 text-muted-foreground";
-  }
-}
-
 function githubRunStatusLabel(
   status: string | null,
   conclusion: string | null,
@@ -197,7 +170,7 @@ function WorkflowRunSummary({
       ) : null}
       {run.headSha ? (
         <span className="ml-2 font-mono text-xs text-muted-foreground">
-          {formatSha(run.headSha)}
+          {formatDeploySha(run.headSha)}
         </span>
       ) : null}
       {run.htmlUrl ? (
@@ -398,7 +371,7 @@ export function SuperadminDatabasePanel() {
               label="Live (build-info)"
               value={
                 <span className="font-mono text-xs">
-                  {formatSha(
+                  {formatDeploySha(
                     status.liveApp.liveShortSha ?? status.liveApp.liveSha,
                   )}
                   {status.liveApp.siteUrl ? (
@@ -419,7 +392,7 @@ export function SuperadminDatabasePanel() {
               label={`GitHub ${github.deployBranch}`}
               value={
                 <span className="font-mono text-xs">
-                  {formatSha(head.shortSha ?? head.sha)}
+                  {formatDeploySha(head.shortSha ?? head.sha)}
                   {head.htmlUrl ? (
                     <a
                       href={head.htmlUrl}
@@ -459,7 +432,7 @@ export function SuperadminDatabasePanel() {
             />
             <InfoRow
               label="Container (GWADA_BUILD_SHA)"
-              value={formatSha(status.liveApp.containerSha)}
+              value={formatDeploySha(status.liveApp.containerSha)}
               mono
             />
             <InfoRow

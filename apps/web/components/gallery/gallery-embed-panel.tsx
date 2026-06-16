@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmbedDualThemePreviewFrame } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
@@ -17,7 +18,6 @@ import {
 export function GalleryEmbedPanel() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { getProfileForRestaurantId, isReady: profileReady } = useRestaurantProfile();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const profile = useMemo(() => {
     if (!restaurantId || !profileReady) return null;
@@ -49,12 +49,11 @@ export function GalleryEmbedPanel() {
           <EmbedTextThemeSetting restaurantId={restaurantId} widget="gallery" />
           {embedUrl ? (
             <>
-              <iframe
-                ref={iframeRef}
-                src={embedUrl}
+              <EmbedDualThemePreviewFrame
+                embedUrl={embedUrl}
+                widget="gallery"
                 title="Galerie Vorschau"
-                className="block min-h-[480px] w-full rounded-xl border border-border/50"
-                loading="lazy"
+                minHeight={480}
               />
               <EmbedSnippetCodeBlock code={snippet} />
               <Button

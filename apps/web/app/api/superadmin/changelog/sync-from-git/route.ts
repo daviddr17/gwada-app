@@ -54,7 +54,15 @@ function parseDraft(value: unknown): ChangelogDraftFile | null {
       : typeof o.version === "string"
         ? o.version
         : null;
-  return normalizeChangelogDraft({ title, body, audience, version });
+  const superadminBody =
+    typeof o.superadminBody === "string" ? o.superadminBody.trim() : "";
+  return normalizeChangelogDraft({
+    title,
+    body,
+    superadminBody: superadminBody || undefined,
+    audience,
+    version,
+  });
 }
 
 function draftShaForSync(

@@ -34,6 +34,7 @@ import {
   datetimeLocalToIso,
   isoToDatetimeLocal,
 } from "@/lib/changelog/changelog-format";
+import { joinChangelogBody, parseChangelogBody } from "@/lib/changelog/changelog-body-sections";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
   createSuperadminChangelogEntry,
@@ -53,7 +54,8 @@ import { cn } from "@/lib/utils";
 
 type FormState = {
   title: string;
-  body: string;
+  customerBody: string;
+  superadminBody: string;
   publishedAtLocal: string;
   version: string;
   audience: PlatformChangelogAudience;
@@ -62,7 +64,8 @@ type FormState = {
 function emptyForm(): FormState {
   return {
     title: "",
-    body: "",
+    customerBody: "",
+    superadminBody: "",
     publishedAtLocal: isoToDatetimeLocal(new Date().toISOString()),
     version: "",
     audience: "customers",
@@ -70,9 +73,13 @@ function emptyForm(): FormState {
 }
 
 function entryToForm(entry: PlatformChangelogEntry): FormState {
+  const { customerBody, superadminBody } = parseChangelogBody(entry.body);
   return {
     title: entry.title,
-    body: entry.body,
+    customerBody:
+      entry.audience === "superadmin" ? "" : customerBody,
+    superadminBody:
+      entry.audience === "superadmin" ? entry.body : superadminBody,
     publishedAtLocal: isoToDatetimeLocal(entry.publishedAt),
     version: entry.version ?? "",
     audience: entry.audience,
@@ -123,11 +130,23 @@ export function SuperadminChangelogPanel() {
       toast.error("Bitte Datum und Uhrzeit setzen.");
       return;
     }
+    if (form.audience === "customers" && !form.customerBody.trim()) {
+      toast.error("Bitte mindestens einen Kunden-Punkt eintragen.");
+      return;
+    }
+    if (form.audience === "superadmin" && !form.superadminBody.trim()) {
+      toast.error("Bitte internen Text eintragen.");
+      return;
+    }
 
     setSaving(true);
+    const body =
+      form.audience === "superadmin"
+        ? form.superadminBody
+        : joinChangelogBody(form.customerBody, form.superadminBody);
     const payload = {
       title: form.title,
-      body: form.body,
+      body,
       publishedAt,
       version: form.version.trim() || null,
       audience: form.audience,
@@ -193,7 +212,7 @@ export function SuperadminChangelogPanel() {
           type="button"
           variant="outline"
           size="lg"
-          className="rounded-xl"
+          className="h-12 rounded-xl px-4"
           disabled={syncing}
           onClick={() => void handleGitSync()}
         >
@@ -229,6 +248,7 @@ export function SuperadminChangelogPanel() {
               key={entry.id}
               entry={entry}
               showAudienceBadge
+              showSuperadminSections
               actions={
                 <>
                   <Button
@@ -261,20 +281,26 @@ export function SuperadminChangelogPanel() {
       <Card className="border-border/50 shadow-card">
         <CardHeader>
           <CardTitle className="text-base">Hinweis</CardTitle>
-          <CardDescription>
-            Automatisch bei <strong>Push auf</strong>{" "}
-            <code className="text-xs">main</code> (GitHub Action), wenn{" "}
-            <code className="text-xs">CHANGELOG_SYNC_URL</code> und Secret
-            gesetzt sind. Quelle:{" "}
-            <code className="text-xs">content/changelog.draft.json</code> mit{" "}
-            <code className="text-xs">title</code>,{" "}
-            <code className="text-xs">body</code> (Bullet-Zeilen, ohne{" "}
-            <code className="text-xs">**</code>) und{" "}
-            <code className="text-xs">version</code>. Kein zusätzlicher{" "}
-            <code className="text-xs">Changelog:</code>-Block im Commit — sonst
-            doppelte Einträge. Zielgruppe optional über{" "}
-            <code className="text-xs">audience</code> in der Draft-Datei.
-            Duplikate werden anhand der Commit-SHA übersprungen.
+          <CardDescription className="space-y-2">
+            <p>
+              <strong>Kunden-Teil:</strong> Was sich für Restaurant-Teams merkbar
+              ändert — in Alltagssprache, mit Nutzen („Du kannst jetzt …“). Keine
+              Commits, APIs, Migrationen oder interne Begriffe.
+            </p>
+            <p>
+              <strong>Superadmin-Teil (optional):</strong> Deploy, Schema, Sync —
+              wird violett hervorgehoben und ist für Endkunden unsichtbar.
+            </p>
+            <p>
+              Automatisch bei Push auf <code className="text-xs">main</code>, wenn{" "}
+              <code className="text-xs">CHANGELOG_SYNC_URL</code> gesetzt ist. Quelle:{" "}
+              <code className="text-xs">content/changelog.draft.json</code> mit{" "}
+              <code className="text-xs">title</code>,{" "}
+              <code className="text-xs">body</code>, optional{" "}
+              <code className="text-xs">superadminBody</code>,{" "}
+              <code className="text-xs">version</code>. Kein{" "}
+              <code className="text-xs">Changelog:</code>-Block im Commit.
+            </p>
           </CardDescription>
         </CardHeader>
       </Card>
@@ -295,7 +321,7 @@ export function SuperadminChangelogPanel() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, title: e.target.value }))
                 }
-                placeholder="z. B. Reservierungen: WhatsApp-Erinnerungen"
+                placeholder="z. B. Reservierungen: Erinnerungen per WhatsApp"
                 className="rounded-xl"
               />
             </div>
@@ -356,17 +382,44 @@ export function SuperadminChangelogPanel() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="changelog-body">Neuigkeiten</Label>
+              <Label htmlFor="changelog-customer-body">Für alle Kunden</Label>
               <Textarea
-                id="changelog-body"
-                value={form.body}
+                id="changelog-customer-body"
+                value={form.customerBody}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, body: e.target.value }))
+                  setForm((f) => ({ ...f, customerBody: e.target.value }))
                 }
-                rows={8}
-                placeholder={"- Speisekarte lädt schneller\n- Changelog in der Sidebar\n- …"}
-                className="rounded-xl font-mono text-sm"
+                rows={6}
+                disabled={form.audience === "superadmin"}
+                placeholder={
+                  "- Gäste können Reservierungen per WhatsApp bestätigen lassen\n- In der Speisekarte findest du Gerichte schneller über die Suche"
+                }
+                className="rounded-xl text-sm"
               />
+              <p className="text-xs text-muted-foreground">
+                Bullet-Zeilen mit „-“. Was ändert sich im Alltag — nicht wie es
+                technisch umgesetzt ist.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="changelog-superadmin-body">
+                Intern (optional)
+              </Label>
+              <Textarea
+                id="changelog-superadmin-body"
+                value={form.superadminBody}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, superadminBody: e.target.value }))
+                }
+                rows={4}
+                placeholder={
+                  "- Deploy-Workflow angepasst\n- Migration platform_changelog …"
+                }
+                className="rounded-xl border-violet-500/25 bg-violet-500/[0.04] font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Nur für Superadmins sichtbar — violett markiert im Changelog.
+              </p>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-0">

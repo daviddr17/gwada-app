@@ -1,3 +1,7 @@
+import {
+  sanitizeChangelogBody,
+  sanitizeChangelogText,
+} from "@/lib/changelog/changelog-entry-normalize";
 import type { PlatformChangelogAudience } from "@/lib/types/platform-changelog";
 
 export type GitCommitChangelogPayload = {
@@ -75,8 +79,10 @@ export function gitCommitToChangelogPayload(
   if (!parsed) return null;
 
   const title =
-    subject.trim() ||
-    `Update ${new Date(committedAt).toLocaleDateString("de-DE")}`;
+    sanitizeChangelogText(
+      subject.trim() ||
+        `Update ${new Date(committedAt).toLocaleDateString("de-DE")}`,
+    );
 
   return {
     sha,
@@ -84,7 +90,9 @@ export function gitCommitToChangelogPayload(
     committedAt,
     audience: parsed.audience,
     title,
-    body: parsed.bullets.map((b) => `- ${b}`).join("\n"),
+    body: sanitizeChangelogBody(
+      parsed.bullets.map((b) => `- ${b}`).join("\n"),
+    ),
   };
 }
 

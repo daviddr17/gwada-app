@@ -1,6 +1,6 @@
 {
-  "title": "Embed-Darstellung, Drag-and-Drop & Lexware-Sync",
-  "body": "- **Einbinden:** Transparenter Hintergrund und helle/dunkle Schrift pro Widget — Öffnungszeiten-Embed ohne Überschriften\n- **Drag-and-Drop:** Dokumente, Restaurant-Titelbild/Logo und Belege per Datei auf die Seite ziehen — Bottom Sheet öffnet sich mit vorgeladener Datei\n- **Buchführung:** Lexware-Sync entlastet Rate-Limits — Hintergrundsync ohne störende Fehlermeldungen, Beleg-Sheet höher auf kleinen Screens\n- **Nachrichten:** Thread-Overlay schließt weicher; leerer Chat ohne Skeleton; schnellerer Erstload",
+  "title": "Changelog: ein Eintrag pro Release",
+  "body": "- Pro Deploy nur noch ein Changelog-Eintrag aus changelog.draft.json\n- Jeder Eintrag enthält eine Versionsnummer\n- Neuerungen werden ohne Markdown-Fettschrift angezeigt",
   "audience": "customers",
-  "version": "2026.06.16"
+  "version": "2026.06.17"
 }

@@ -4,6 +4,7 @@ import type {
   PlatformChangelogEntry,
   PlatformChangelogEntryInput,
 } from "@/lib/types/platform-changelog";
+import { normalizeChangelogEntryInput } from "@/lib/changelog/changelog-entry-normalize";
 
 type ChangelogRow = {
   id: string;
@@ -55,7 +56,8 @@ export async function createPlatformChangelogEntry(
   input: PlatformChangelogEntryInput,
   createdBy: string,
 ): Promise<{ entry: PlatformChangelogEntry | null; error: string | null }> {
-  const title = input.title.trim();
+  const normalized = normalizeChangelogEntryInput(input);
+  const title = normalized.title.trim();
   if (!title) {
     return { entry: null, error: "title_required" };
   }
@@ -64,10 +66,10 @@ export async function createPlatformChangelogEntry(
     .from("platform_changelog_entries")
     .insert({
       title,
-      body: input.body.trim(),
-      published_at: input.publishedAt,
-      version: input.version?.trim() || null,
-      audience: input.audience,
+      body: normalized.body,
+      published_at: normalized.publishedAt,
+      version: normalized.version,
+      audience: normalized.audience,
       created_by: createdBy,
     })
     .select(CHANGELOG_SELECT)
@@ -85,7 +87,8 @@ export async function updatePlatformChangelogEntry(
   id: string,
   input: PlatformChangelogEntryInput,
 ): Promise<{ entry: PlatformChangelogEntry | null; error: string | null }> {
-  const title = input.title.trim();
+  const normalized = normalizeChangelogEntryInput(input);
+  const title = normalized.title.trim();
   if (!title) {
     return { entry: null, error: "title_required" };
   }
@@ -94,10 +97,10 @@ export async function updatePlatformChangelogEntry(
     .from("platform_changelog_entries")
     .update({
       title,
-      body: input.body.trim(),
-      published_at: input.publishedAt,
-      version: input.version?.trim() || null,
-      audience: input.audience,
+      body: normalized.body,
+      published_at: normalized.publishedAt,
+      version: normalized.version,
+      audience: normalized.audience,
     })
     .eq("id", id)
     .select(CHANGELOG_SELECT)

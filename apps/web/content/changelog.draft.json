@@ -1,6 +1,7 @@
 {
-  "title": "News, Bewertungen, Öffnungszeiten und Listen-Pagination",
-  "body": "- **News & Bewertungen:** Pinterest-Raster (Masonry) wiederhergestellt; News-Embed lädt ohne Hänger, Karten in der Übersicht wieder anklickbar\n- **Öffnungszeiten:** Embed-Vorschau zeigt wieder die Zeiten; Google/Facebook-Sync-Toggles beim Speichern im Sticky-Footer\n- **Listen & Tabellen:** Eine kompakte Zeile `x/y · Seite n/m` statt doppelter Zähler über dem Button und in der Pagination",
+  "title": "Neue Funktionen im Juni",
+  "body": "- In der Speisekarte findest du Gerichte schneller über die Suche\n- Belege in der Buchführung kannst du per Drag-and-Drop hochladen\n- Das Changelog zeigt dir nur noch verständliche Neuerungen für dein Team",
+  "superadminBody": "- Changelog: getrennte Kunden- und Superadmin-Texte\n- Ein Eintrag pro Release aus changelog.draft.json",
   "audience": "customers",
-  "version": "2026.06.14"
+  "version": "2026.06.17"
 }

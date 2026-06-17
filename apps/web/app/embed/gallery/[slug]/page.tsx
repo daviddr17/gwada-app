@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import { EmbedGalleryWidget } from "@/components/embed/embed-gallery-widget";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import {
+  EMBED_PREVIEW_TEXT_THEME_PARAM,
+  resolveEmbedTextTheme,
+} from "@/lib/embed/embed-appearance";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +22,17 @@ export async function generateMetadata({
 
 export default async function EmbedGalleryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [EMBED_PREVIEW_TEXT_THEME_PARAM]?: string }>;
 }) {
   const { slug } = await params;
-  const result = await fetchPublicEmbedGallery(slug);
+  const sp = await searchParams;
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedGallery(slug),
+    fetchEmbedTextThemeForSlug(slug, "gallery"),
+  ]);
 
   if (!result.data) {
     return (
@@ -33,5 +44,11 @@ export default async function EmbedGalleryPage({
     );
   }
 
-  return <EmbedGalleryWidget data={result.data} variant="embed" />;
+  return (
+    <EmbedGalleryWidget
+      data={result.data}
+      variant="embed"
+      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
+    />
+  );
 }

@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ChangelogEntryCard } from "@/components/changelog/changelog-entry-card";
 import { ChangelogOverviewSkeleton } from "@/components/changelog/changelog-overview-skeleton";
 import { markAllChangelogReadClient } from "@/lib/changelog/fetch-changelog-read-client";
+import { parseChangelogBody } from "@/lib/changelog/changelog-body-sections";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { fetchPlatformChangelogEntries } from "@/lib/supabase/platform-changelog-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -13,11 +15,21 @@ import type { PlatformChangelogEntry } from "@/lib/types/platform-changelog";
 
 export function ChangelogOverview() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const { isSuperadmin } = useIsSuperadmin();
   const [entries, setEntries] = useState<PlatformChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadSucceeded, setLoadSucceeded] = useState(false);
   const readAllStartedRef = useRef<string | null>(null);
   const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
+
+  const visibleEntries = useMemo(() => {
+    return entries.filter((entry) => {
+      if (!entry.approvedAt) return false;
+      if (isSuperadmin) return true;
+      if (entry.audience === "superadmin") return false;
+      return parseChangelogBody(entry.body).customerBody.trim().length > 0;
+    });
+  }, [entries, isSuperadmin]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -50,7 +62,7 @@ export function ChangelogOverview() {
     return <ChangelogOverviewSkeleton />;
   }
 
-  if (!loading && entries.length === 0) {
+  if (!loading && visibleEntries.length === 0) {
     return (
       <p className="rounded-2xl border border-border/50 bg-card px-4 py-8 text-center text-sm text-muted-foreground shadow-card">
         Noch keine Einträge — neue Funktionen erscheinen hier nach dem nächsten
@@ -65,8 +77,12 @@ export function ChangelogOverview() {
 
   return (
     <div className="space-y-4">
-      {entries.map((entry) => (
-        <ChangelogEntryCard key={entry.id} entry={entry} />
+      {visibleEntries.map((entry) => (
+        <ChangelogEntryCard
+          key={entry.id}
+          entry={entry}
+          showSuperadminSections={isSuperadmin}
+        />
       ))}
     </div>
   );

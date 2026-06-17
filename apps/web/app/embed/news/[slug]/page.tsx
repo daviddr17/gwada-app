@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import { parseListPageParam } from "@/lib/constants/list-pagination";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import {
+  EMBED_PREVIEW_TEXT_THEME_PARAM,
+  resolveEmbedTextTheme,
+} from "@/lib/embed/embed-appearance";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
+import {
   fetchPublicEmbedNews,
   parseNewsEmbedPlatformFilter,
 } from "@/lib/news/public-news-server";
@@ -30,15 +35,22 @@ export default async function EmbedNewsPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string; platform?: string }>;
+  searchParams: Promise<{
+    page?: string;
+    platform?: string;
+    [EMBED_PREVIEW_TEXT_THEME_PARAM]?: string;
+  }>;
 }) {
   const { slug } = await params;
   const sp = await searchParams;
-  const result = await fetchPublicEmbedNews(slug, {
-    paginate: true,
-    page: parseListPageParam(sp.page),
-    platform: parseNewsEmbedPlatformFilter(sp.platform),
-  });
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedNews(slug, {
+      paginate: true,
+      page: parseListPageParam(sp.page),
+      platform: parseNewsEmbedPlatformFilter(sp.platform),
+    }),
+    fetchEmbedTextThemeForSlug(slug, "news"),
+  ]);
 
   if (!result.data) {
     return (
@@ -60,6 +72,7 @@ export default async function EmbedNewsPage({
       connectedPlatforms={connectedPlatforms}
       items={items}
       pagination={pagination}
+      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
     />
   );
 }

@@ -113,8 +113,12 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
         }
       },
       onInsert: (payload) => {
-        if (payload.new.source !== "waha") return;
-        scheduleRefresh(true);
+        const source = payload.new.source;
+        if (source === "waha") {
+          scheduleRefresh(true);
+        } else if (source === "waha_ack") {
+          scheduleRefresh(false);
+        }
       },
     });
 

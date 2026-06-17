@@ -1,7 +1,7 @@
 import "server-only";
 
-import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
 import { syncRestaurantEmailInbox } from "@/lib/contacts/sync-restaurant-email-inbox";
+import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import {
@@ -37,6 +37,7 @@ async function fetchUnreadChangelogItems(
     .from("platform_changelog_entries")
     .select("id, title, published_at, version")
     .eq("audience", "customers")
+    .not("approved_at", "is", null)
     .order("published_at", { ascending: false })
     .limit(20);
 
@@ -86,8 +87,7 @@ async function buildMessagesModule(
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES.messages;
 
-  // Bell nutzt Live-IMAP; Push läuft über notification_events beim contact_messages-INSERT.
-  // Vor dem Unread-Count eingehende Mails importieren, damit Push und Verlauf mit der Glocke übereinstimmen.
+  // Bell: E-Mail-Sync (IMAP-Pull). WhatsApp: Webhooks (message + message.ack) + Cron-Fallback.
   if (params.emailConnected) {
     await syncRestaurantEmailInbox(admin, params.restaurantId).catch(() => undefined);
   }

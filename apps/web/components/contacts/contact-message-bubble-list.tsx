@@ -75,11 +75,7 @@ export function ContactMessageBubbleList({
   metaReactions?: ContactMessageMetaReactionsConfig;
 }) {
   if (messages.length === 0) {
-    return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        Noch keine Nachrichten in diesem Verlauf.
-      </p>
-    );
+    return null;
   }
 
   const groups = groupContactMessageBubbles(messages);

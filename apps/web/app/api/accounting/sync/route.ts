@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     force: body.force === true,
   });
 
-  if (result.error && !result.skipped) {
+  if (result.error && !result.skipped && !result.rateLimited) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }
 
@@ -42,6 +42,7 @@ export async function POST(req: Request) {
     updated: result.updated,
     listed: result.listed,
     skipped: result.skipped ?? false,
+    rateLimited: result.rateLimited ?? false,
     error: result.error ?? null,
   });
 }

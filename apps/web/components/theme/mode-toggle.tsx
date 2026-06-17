@@ -1,5 +1,6 @@
 "use client";
 
+import type { ComponentProps } from "react";
 import { useTheme } from "@/components/providers/theme-provider";
 import { ThemeModeIcon } from "@/components/theme/theme-mode-icon";
 import { runThemeTransition } from "@/lib/ui/theme-transition";
@@ -7,7 +8,16 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export function ModeToggle({ className }: { className?: string }) {
+const modeToggleClassName =
+  "shrink-0 rounded-full border-border/60 bg-card/80 shadow-none backdrop-blur-sm dark:shadow-sm";
+
+export function ModeToggle({
+  className,
+  size = "icon",
+}: {
+  className?: string;
+  size?: ComponentProps<typeof Button>["size"];
+}) {
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -20,9 +30,10 @@ export function ModeToggle({ className }: { className?: string }) {
     return (
       <Button
         variant="outline"
-        size="icon"
+        size={size}
         className={cn(
-          "size-10 shrink-0 rounded-full border-border/60 bg-card/80",
+          modeToggleClassName,
+          size === "icon" && "size-10",
           className,
         )}
         aria-label="Theme laden"
@@ -37,9 +48,10 @@ export function ModeToggle({ className }: { className?: string }) {
     <Button
       type="button"
       variant="outline"
-      size="icon"
+      size={size}
       className={cn(
-        "size-10 shrink-0 rounded-full border-border/60 bg-card/80 shadow-none backdrop-blur-sm dark:shadow-sm",
+        modeToggleClassName,
+        size === "icon" && "size-10",
         className,
       )}
       aria-label={isDark ? "Hellmodus" : "Dunkelmodus"}

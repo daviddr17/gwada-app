@@ -7,6 +7,7 @@ export const APP_ROUTES = {
   menu: {
     root: "/dashboard/menu",
     overview: "/dashboard/menu/uebersicht",
+    statistics: "/dashboard/menu/statistiken",
     export: "/dashboard/menu/export",
     embed: "/dashboard/menu/einbinden",
   },
@@ -14,6 +15,7 @@ export const APP_ROUTES = {
     root: "/dashboard/inventory",
     overview: "/dashboard/inventory/uebersicht",
     order: "/dashboard/inventory/bestellung",
+    statistics: "/dashboard/inventory/statistiken",
     export: "/dashboard/inventory/export",
   },
   reservierungen: {
@@ -28,18 +30,21 @@ export const APP_ROUTES = {
     root: "/dashboard/kontakte",
     messages: "/dashboard/kontakte/nachrichten",
     overview: "/dashboard/kontakte/uebersicht",
+    statistics: "/dashboard/kontakte/statistiken",
     export: "/dashboard/kontakte/export",
     settings: "/dashboard/kontakte/einstellungen",
   },
   bewertungen: {
     root: "/dashboard/bewertungen",
     overview: "/dashboard/bewertungen/uebersicht",
+    statistics: "/dashboard/bewertungen/statistiken",
     embed: "/dashboard/bewertungen/einbinden",
     settings: "/dashboard/bewertungen/einstellungen",
   },
   dokumente: {
     root: "/dashboard/dokumente",
     overview: "/dashboard/dokumente/uebersicht",
+    statistics: "/dashboard/dokumente/statistiken",
     log: "/dashboard/dokumente/protokoll",
   },
   mitarbeiter: {
@@ -48,6 +53,7 @@ export const APP_ROUTES = {
     schedule: "/dashboard/mitarbeiter/schichtplan",
     contracts: "/dashboard/mitarbeiter/vertraege",
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
+    statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
   },
   buchfuehrung: {
@@ -55,7 +61,19 @@ export const APP_ROUTES = {
     invoices: "/dashboard/buchfuehrung/rechnungen",
     quotations: "/dashboard/buchfuehrung/angebote",
     vouchers: "/dashboard/buchfuehrung/belege",
+    cashBook: "/dashboard/buchfuehrung/kasse",
+    statistics: "/dashboard/buchfuehrung/statistiken",
     settings: "/dashboard/buchfuehrung/einstellungen",
+  },
+  galerie: {
+    root: "/dashboard/galerie",
+    overview: "/dashboard/galerie/uebersicht",
+    statistics: "/dashboard/galerie/statistiken",
+    embed: "/dashboard/galerie/einbinden",
+    settings: "/dashboard/galerie/einstellungen",
+  },
+  events: {
+    root: "/dashboard/events",
   },
 } as const;
 

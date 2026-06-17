@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Bell } from "lucide-react";
 import { NotificationBellPanel } from "@/components/notifications/notification-bell-panel";
+import { NotificationBellPanelSkeleton } from "@/components/notifications/notification-bell-panel-skeleton";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -14,18 +15,6 @@ import {
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
 import { cn } from "@/lib/utils";
-
-function NotificationBellSkeleton() {
-  return (
-    <div className="w-[min(100vw-1.5rem,22rem)] p-4" aria-hidden>
-      <div className="skeleton-shimmer mb-3 h-4 w-32 rounded-md bg-muted" />
-      <div className="space-y-2">
-        <div className="skeleton-shimmer h-10 rounded-xl bg-muted" />
-        <div className="skeleton-shimmer h-10 rounded-xl bg-muted" />
-      </div>
-    </div>
-  );
-}
 
 export function AppChromeNotificationBell() {
   const [open, setOpen] = React.useState(false);
@@ -76,7 +65,7 @@ export function AppChromeNotificationBell() {
         <PopoverPositioner align="end" side="bottom" sideOffset={8}>
           <PopoverContent className="p-0">
             {showSkeleton && !summary ? (
-              <NotificationBellSkeleton />
+              <NotificationBellPanelSkeleton />
             ) : (
               <NotificationBellPanel
                 summary={summary}

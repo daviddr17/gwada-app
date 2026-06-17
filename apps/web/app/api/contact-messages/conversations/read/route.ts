@@ -2,6 +2,9 @@ import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route
 import {
   markConversationReadServer,
 } from "@/lib/contact-messages/mark-conversation-read-server";
+import { markUnifiedInboxConversationReadServer } from "@/lib/contact-messages/mark-unified-conversation-read-server";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   isContactMessagePlatform,
@@ -31,7 +34,7 @@ export async function POST(req: Request) {
 
   const conversationKey = body.conversationKey?.trim() ?? "";
   const platform = body.platform?.trim() ?? "";
-  if (!conversationKey || !isContactMessagePlatform(platform)) {
+  if (!conversationKey) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
@@ -40,11 +43,31 @@ export async function POST(req: Request) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
+  if (isLinkedContactId(conversationKey)) {
+    const result = await markUnifiedInboxConversationReadServer(admin, {
+      restaurantId: auth.restaurantId,
+      userId: auth.userId,
+      conversationKey,
+    });
+    if (result.error) {
+      return Response.json({ error: result.error }, { status: 502 });
+    }
+    return Response.json({ ok: true });
+  }
+
+  const readPlatform =
+    platform && isContactMessagePlatform(platform)
+      ? platform
+      : conversationChannelForRead(conversationKey);
+  if (!isContactMessagePlatform(readPlatform)) {
+    return Response.json({ error: "invalid_request" }, { status: 400 });
+  }
+
   const result = await markConversationReadServer(admin, {
     restaurantId: auth.restaurantId,
     userId: auth.userId,
     conversationKey,
-    platform: platform as ContactMessagePlatform,
+    platform: readPlatform as ContactMessagePlatform,
   });
 
   if (result.error) {

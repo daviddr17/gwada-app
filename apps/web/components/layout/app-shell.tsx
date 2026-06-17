@@ -124,7 +124,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               >
                 <Settings className="size-4" />
               </Button>
-              <ModeToggle />
+              <ModeToggle size="icon-sm" />
             </div>
           </div>
         </div>

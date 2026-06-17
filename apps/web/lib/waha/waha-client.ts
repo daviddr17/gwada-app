@@ -87,6 +87,9 @@ function sessionConfigForRestaurant(restaurantId: string): Record<string, unknow
     noweb: {
       store: { enabled: true, fullSync: false },
     },
+    webjs: {
+      tagsEventsOn: true,
+    },
     ...(webhook
       ? {
           webhooks: webhook.webhooks,

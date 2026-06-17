@@ -16,7 +16,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { SkeletonCardFrame } from "@/components/ui/skeleton";
+import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNotificationPushHistory } from "@/lib/hooks/use-notification-push-history";
 import {
@@ -77,9 +77,9 @@ function PushHistoryTable({
 function PushHistoryPreviewSkeleton() {
   return (
     <SkeletonCardFrame className="space-y-3 p-6">
-      <div className="skeleton-shimmer h-6 w-40 rounded-md bg-muted" />
-      <div className="skeleton-shimmer h-4 w-full max-w-md rounded-md bg-muted" />
-      <div className="skeleton-shimmer h-24 rounded-xl bg-muted" />
+      <Skeleton className="h-6 w-40 rounded-md" />
+      <Skeleton className="h-4 w-full max-w-md rounded-md" />
+      <Skeleton className="h-24 rounded-xl" />
     </SkeletonCardFrame>
   );
 }
@@ -173,10 +173,7 @@ export function NotificationPushHistorySection() {
             {historyLoading ? (
               <div className="space-y-2 px-2 py-4" aria-busy="true">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="skeleton-shimmer h-12 rounded-xl bg-muted"
-                  />
+                  <Skeleton key={i} className="h-12 rounded-xl" />
                 ))}
               </div>
             ) : historyRows.length === 0 ? (

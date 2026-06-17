@@ -21,6 +21,9 @@ import {
 export type AccountingListQueryOptions = {
   source?: string | null;
   search?: string | null;
+  status?: string | null;
+  documentVariant?: string | null;
+  voucherKind?: string | null;
   page?: number | null;
   pageSize?: number | null;
   sort?: string | null;
@@ -48,6 +51,33 @@ export function applyAccountingSourceFilter<
 >(query: T, source?: string | null): T {
   if (source && source !== "all") {
     return query.eq("source", source);
+  }
+  return query;
+}
+
+export function applyAccountingStatusFilter<
+  T extends { eq: (column: string, value: string) => T },
+>(query: T, status?: string | null): T {
+  if (status && status !== "all") {
+    return query.eq("status", status);
+  }
+  return query;
+}
+
+export function applyAccountingDocumentVariantFilter<
+  T extends { eq: (column: string, value: string) => T },
+>(query: T, variant?: string | null): T {
+  if (variant && variant !== "all") {
+    return query.eq("document_variant", variant);
+  }
+  return query;
+}
+
+export function applyAccountingVoucherKindFilter<
+  T extends { eq: (column: string, value: string) => T },
+>(query: T, kind?: string | null): T {
+  if (kind && kind !== "all") {
+    return query.eq("voucher_kind", kind);
   }
   return query;
 }
@@ -88,6 +118,9 @@ export async function fetchAccountingPaginatedList<T>(params: {
   );
   const search = params.options?.search ?? null;
   const source = params.options?.source ?? null;
+  const status = params.options?.status ?? null;
+  const documentVariant = params.options?.documentVariant ?? null;
+  const voucherKind = params.options?.voucherKind ?? null;
   const sortColumn =
     params.options?.sortColumn ??
     salesDocumentSortColumn(DEFAULT_ACCOUNTING_SALES_DOCUMENT_SORT);
@@ -107,6 +140,16 @@ export async function fetchAccountingPaginatedList<T>(params: {
     query = applyAccountingListSort(query, sortColumn, sortDir);
 
     query = applyAccountingSourceFilter(query, source);
+    query = applyAccountingStatusFilter(query, status);
+    if (
+      params.table === "accounting_invoices" ||
+      params.table === "accounting_vouchers"
+    ) {
+      query = applyAccountingDocumentVariantFilter(query, documentVariant);
+    }
+    if (params.table === "accounting_vouchers") {
+      query = applyAccountingVoucherKindFilter(query, voucherKind);
+    }
     query = params.applySearch(query, search);
     return query;
   };
@@ -146,8 +189,11 @@ export async function fetchAccountingPaginatedList<T>(params: {
 
 export function parseAccountingListQueryFromUrl(url: URL): AccountingListQueryOptions {
   return {
-    source: url.searchParams.get("source"),
+    source: url.searchParams.get("source") ?? url.searchParams.get("platform"),
     search: url.searchParams.get("q"),
+    status: url.searchParams.get("status"),
+    documentVariant: url.searchParams.get("variant"),
+    voucherKind: url.searchParams.get("kind"),
     page: parseListPageParam(url.searchParams.get("page")),
     pageSize: clampListPageSize(
       url.searchParams.get("pageSize")

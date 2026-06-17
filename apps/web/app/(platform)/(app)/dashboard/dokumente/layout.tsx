@@ -12,6 +12,11 @@ const DOCUMENTS_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/dokumente"],
   },
   {
+    href: "/dashboard/dokumente/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/dokumente/protokoll",
     label: "Protokoll",
     matchMode: "exact",

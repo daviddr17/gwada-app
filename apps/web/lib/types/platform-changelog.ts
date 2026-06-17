@@ -7,6 +7,7 @@ export type PlatformChangelogEntry = {
   body: string;
   version: string | null;
   audience: PlatformChangelogAudience;
+  approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };

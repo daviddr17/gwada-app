@@ -5,7 +5,7 @@ import { ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingCatalogToolbar } from "@/components/accounting/accounting-catalog-toolbar";
-import { AccountingFilterChips } from "@/components/accounting/accounting-filter-chips";
+import { AccountingFilterDrawer } from "@/components/accounting/accounting-filter-drawer";
 import { AccountingListSearch } from "@/components/accounting/accounting-list-search";
 import {
   AccountingListScreenSkeleton,
@@ -33,6 +33,7 @@ import {
   updateAccountingInvoice,
   updateAccountingQuotation,
 } from "@/lib/accounting/accounting-api";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -61,6 +62,7 @@ import {
   isAccountingCorrectionVariant,
 } from "@/lib/accounting/accounting-corrections";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -98,14 +100,22 @@ export function AccountingSalesDocumentsScreen({
     page,
     search,
     platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
     sortKey,
     sortDir,
     setSearchQuery,
     setPage,
     setPlatformFilter,
+    setStatusFilter,
+    setVariantFilter,
+    setVoucherKindFilter,
     syncPageFromServer,
     toggleSort,
   } = useAccountingListUrl("sales");
+
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const [rows, setRows] = useState<SalesDocumentRow[]>([]);
   const [listMeta, setListMeta] = useState({
@@ -137,6 +147,9 @@ export function AccountingSalesDocumentsScreen({
         platformFilter === "all" ? undefined : platformFilter;
       const listParams = {
         source,
+        status: statusFilter === "all" ? undefined : statusFilter,
+        documentVariant:
+          isInvoice && variantFilter !== "all" ? variantFilter : undefined,
         search,
         page,
         ...(isDefaultSalesDocumentSort(sortKey, sortDir)
@@ -173,7 +186,18 @@ export function AccountingSalesDocumentsScreen({
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, platformFilter, search, page, sortKey, sortDir, isInvoice, syncPageFromServer]);
+  }, [
+    restaurantId,
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    search,
+    page,
+    sortKey,
+    sortDir,
+    isInvoice,
+    syncPageFromServer,
+  ]);
 
   useEffect(() => {
     void load();
@@ -196,11 +220,20 @@ export function AccountingSalesDocumentsScreen({
           force: opts?.force === true,
         });
         if (result.skipped) {
+          if (!opts?.silent && result.rateLimited) {
+            toast.message(
+              `${connector.displayName}: API-Limit — Anzeige aus dem letzten Stand.`,
+            );
+          }
           return;
         }
         if (!opts?.silent) {
           const label = connector.displayName;
-          if (result.listed === 0) {
+          if (result.rateLimited) {
+            toast.message(
+              `${label}: Teilweise aktualisiert (API-Limit). Rest folgt beim nächsten Abruf.`,
+            );
+          } else if (result.listed === 0) {
             toast.message(`${label}: Keine Dokumente gefunden.`);
           } else {
             toast.success(
@@ -210,10 +243,12 @@ export function AccountingSalesDocumentsScreen({
         }
         await load();
       } catch (e) {
+        const message = e instanceof Error ? e.message : "";
+        if (opts?.silent && isLexofficeRateLimitError(message)) {
+          return;
+        }
         toast.error(
-          e instanceof Error
-            ? e.message
-            : `${connector.displayName}-Abruf fehlgeschlagen.`,
+          message || `${connector.displayName}-Abruf fehlgeschlagen.`,
         );
       } finally {
         setSyncing(false);
@@ -240,7 +275,7 @@ export function AccountingSalesDocumentsScreen({
         markAccountingLexofficeAutoSync(restaurantId, scope);
         await runConnectorSync({ silent: true });
       } catch {
-        toast.error(`${connector.displayName}-Hintergrundsync fehlgeschlagen.`);
+        /* runConnectorSync behandelt Fehler selbst */
       }
     })();
   }, [restaurantId, canManage, connector, documentKind, runConnectorSync]);
@@ -259,6 +294,12 @@ export function AccountingSalesDocumentsScreen({
   }, [searchParams, canManage, router, pathname]);
 
   const selectPlatform = setPlatformFilter;
+
+  const filterActiveCount = countAccountingListActiveFilters({
+    platformFilter,
+    statusFilter,
+    variantFilter: isInvoice ? variantFilter : undefined,
+  });
 
   const searchEmptyLabel = isInvoice
     ? "Keine Rechnungen für diese Suche."
@@ -301,19 +342,30 @@ export function AccountingSalesDocumentsScreen({
         />
       ) : null}
 
-      <AccountingFilterChips
-        filter={platformFilter}
-        onFilterChange={selectPlatform}
-        externalConnectorConnected={connector.connected}
-        disabled={loading}
-      />
-
       <AccountingListSearch
         value={search}
         onDebouncedChange={setSearchQuery}
         placeholder="Nummer oder Empfänger …"
         disabled={loading}
         hint="Suche in Belegnummer und Empfängername."
+        filterActiveCount={filterActiveCount}
+        onFilterClick={() => setFilterOpen(true)}
+      />
+
+      <AccountingFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        mode={isInvoice ? "invoice" : "quotation"}
+        platformFilter={platformFilter}
+        onPlatformFilterChange={selectPlatform}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        variantFilter={variantFilter}
+        onVariantFilterChange={setVariantFilter}
+        voucherKindFilter="all"
+        onVoucherKindFilterChange={setVoucherKindFilter}
+        statuses={statuses}
+        connectorConnected={connector.connected}
       />
 
       {canManage && connector.connected && connector.capabilities.canSyncSales ? (

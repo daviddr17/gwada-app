@@ -17,7 +17,7 @@ export default function EmbedLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <EmbedProviders>
-      <div id="gwada-embed-root" className="min-h-0 w-full min-w-0 bg-background text-foreground">
+      <div id="gwada-embed-root" className="min-h-0 w-full min-w-0 bg-transparent text-foreground">
         {children}
       </div>
     </EmbedProviders>

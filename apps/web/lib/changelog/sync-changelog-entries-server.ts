@@ -3,13 +3,19 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { GitCommitChangelogPayload } from "@/lib/changelog/parse-changelog-from-commits";
 import type { ChangelogDraftFile } from "@/lib/changelog/changelog-draft-file";
+import {
+  normalizeChangelogDraft,
+  resolveChangelogVersion,
+  sanitizeChangelogBody,
+  sanitizeChangelogText,
+} from "@/lib/changelog/changelog-entry-normalize";
 import type {
   PlatformChangelogEntry,
   PlatformChangelogEntryInput,
 } from "@/lib/types/platform-changelog";
 
 const CHANGELOG_SELECT =
-  "id, published_at, title, body, version, audience, created_at, updated_at, source_git_sha";
+  "id, published_at, title, body, version, audience, approved_at, created_at, updated_at, source_git_sha";
 
 type ChangelogRow = {
   id: string;
@@ -18,6 +24,7 @@ type ChangelogRow = {
   body: string;
   version: string | null;
   audience: PlatformChangelogEntry["audience"];
+  approved_at: string | null;
   created_at: string;
   updated_at: string;
   source_git_sha: string | null;
@@ -33,6 +40,7 @@ function rowToEntry(row: ChangelogRow): PlatformChangelogEntry & {
     body: row.body,
     version: row.version,
     audience: row.audience,
+    approvedAt: row.approved_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sourceGitSha: row.source_git_sha,
@@ -80,10 +88,10 @@ async function insertEntry(
   duplicate?: boolean;
 }> {
   const row = {
-    title: input.title.trim(),
-    body: input.body.trim(),
+    title: sanitizeChangelogText(input.title),
+    body: sanitizeChangelogBody(input.body),
     published_at: input.publishedAt,
-    version: input.version?.trim() || null,
+    version: resolveChangelogVersion(input.version, input.publishedAt),
     audience: input.audience,
     source_git_sha: input.sourceGitSha,
     created_by: createdBy,
@@ -122,7 +130,12 @@ export async function syncChangelogItems(
     errors: [],
   };
 
-  for (const item of items) {
+  const hasDraft = items.some((item) => item.kind === "draft");
+  const queue = hasDraft
+    ? items.filter((item) => item.kind === "draft")
+    : items;
+
+  for (const item of queue) {
     const sha =
       item.kind === "git" ? item.payload.sha : item.payload.sourceGitSha;
     if (await findByGitSha(admin, sha)) {
@@ -136,21 +149,25 @@ export async function syncChangelogItems(
     } =
       item.kind === "git"
         ? {
-            title: item.payload.title,
-            body: item.payload.body,
+            title: sanitizeChangelogText(item.payload.title),
+            body: sanitizeChangelogBody(item.payload.body),
             publishedAt: item.payload.committedAt,
             audience: item.payload.audience,
-            version: null,
+            version: resolveChangelogVersion(null, item.payload.committedAt),
             sourceGitSha: item.payload.sha,
           }
-        : {
-            title: item.payload.title,
-            body: item.payload.body,
-            publishedAt: new Date().toISOString(),
-            audience: item.payload.audience ?? "customers",
-            version: item.payload.version ?? null,
-            sourceGitSha: item.payload.sourceGitSha,
-          };
+        : (() => {
+            const draft = normalizeChangelogDraft(item.payload);
+            const publishedAt = new Date().toISOString();
+            return {
+              title: draft.title,
+              body: draft.body,
+              publishedAt,
+              audience: draft.audience ?? "customers",
+              version: resolveChangelogVersion(draft.version, publishedAt),
+              sourceGitSha: item.payload.sourceGitSha,
+            };
+          })();
 
     const { entry, error, duplicate } = await insertEntry(admin, input, createdBy);
     if (duplicate) {

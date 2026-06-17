@@ -1,5 +1,13 @@
 import type { PaginatedListResult } from "@/lib/constants/list-pagination";
 import type {
+  AccountingCashBookListResult,
+  AccountingCashBookSettingsRow,
+  AccountingCashCategoryRow,
+  AccountingCashDirection,
+  AccountingCashEntryInput,
+  AccountingCashEntryRow,
+} from "@/lib/types/accounting-cash-book";
+import type {
   AccountingArticleRow,
   AccountingDocumentKind,
   AccountingDocumentStatusRow,
@@ -25,6 +33,9 @@ export async function fetchAccountingCatalog(restaurantId: string): Promise<{
 
 export type AccountingListFetchParams = {
   source?: string;
+  status?: string;
+  documentVariant?: string;
+  voucherKind?: string;
   search?: string;
   page?: number;
   pageSize?: number;
@@ -38,6 +49,13 @@ function accountingListSearchParams(
 ): URLSearchParams {
   const qs = new URLSearchParams({ restaurantId });
   if (params?.source && params.source !== "all") qs.set("source", params.source);
+  if (params?.status && params.status !== "all") qs.set("status", params.status);
+  if (params?.documentVariant && params.documentVariant !== "all") {
+    qs.set("variant", params.documentVariant);
+  }
+  if (params?.voucherKind && params.voucherKind !== "all") {
+    qs.set("kind", params.voucherKind);
+  }
   if (params?.search?.trim()) qs.set("q", params.search.trim());
   if (params?.page && params.page > 1) qs.set("page", String(params.page));
   if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
@@ -312,6 +330,7 @@ export async function syncAccountingDocuments(
     updated: number;
     listed?: number;
     skipped?: boolean;
+    rateLimited?: boolean;
   };
 }
 
@@ -655,6 +674,171 @@ export async function deleteAccountingDocumentStatus(
 ) {
   const params = new URLSearchParams({ restaurantId, id, kind: documentKind });
   const res = await fetch(`/api/accounting/catalog/statuses?${params}`, {
+    method: "DELETE",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "delete_failed");
+}
+
+// ── Kassenbuch ────────────────────────────────────────────────────────────────
+
+export async function fetchAccountingCashBook(
+  restaurantId: string,
+  params?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    direction?: AccountingCashDirection | "all";
+  },
+): Promise<AccountingCashBookListResult> {
+  const qs = new URLSearchParams({ restaurantId });
+  if (params?.page && params.page > 1) qs.set("page", String(params.page));
+  if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
+  if (params?.search?.trim()) qs.set("q", params.search.trim());
+  if (params?.direction && params.direction !== "all") {
+    qs.set("direction", params.direction);
+  }
+  const res = await fetch(`/api/accounting/cash-book?${qs}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("cash_book_load_failed");
+  return res.json();
+}
+
+export async function fetchAccountingCashEntry(
+  restaurantId: string,
+  entryId: string,
+): Promise<AccountingCashEntryRow> {
+  const qs = new URLSearchParams({ restaurantId });
+  const res = await fetch(`/api/accounting/cash-book/${entryId}?${qs}`, {
+    cache: "no-store",
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "cash_entry_load_failed");
+  return data.entry as AccountingCashEntryRow;
+}
+
+export async function fetchAccountingCashCategories(
+  restaurantId: string,
+  direction?: AccountingCashDirection,
+  options?: { includeArchived?: boolean },
+): Promise<AccountingCashCategoryRow[]> {
+  const qs = new URLSearchParams({ restaurantId });
+  if (direction) qs.set("direction", direction);
+  if (options?.includeArchived) qs.set("includeArchived", "1");
+  const res = await fetch(`/api/accounting/cash-book/categories?${qs}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("cash_categories_load_failed");
+  const data = (await res.json()) as { categories: AccountingCashCategoryRow[] };
+  return data.categories;
+}
+
+export async function saveAccountingCashCategory(
+  restaurantId: string,
+  payload: {
+    id?: string;
+    direction: AccountingCashDirection;
+    name: string;
+    archived?: boolean;
+  },
+): Promise<AccountingCashCategoryRow> {
+  const method = payload.id ? "PATCH" : "POST";
+  const res = await fetch("/api/accounting/cash-book/categories", {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, restaurantId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "save_failed");
+  return data.category as AccountingCashCategoryRow;
+}
+
+export async function reorderAccountingCashCategories(
+  restaurantId: string,
+  direction: AccountingCashDirection,
+  reorder: string[],
+) {
+  const res = await fetch("/api/accounting/cash-book/categories", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restaurantId, direction, reorder }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "reorder_failed");
+}
+
+export async function deleteAccountingCashCategory(
+  restaurantId: string,
+  id: string,
+) {
+  const params = new URLSearchParams({ restaurantId, id });
+  const res = await fetch(`/api/accounting/cash-book/categories?${params}`, {
+    method: "DELETE",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error ?? "delete_failed");
+}
+
+export async function fetchAccountingCashBookSettings(
+  restaurantId: string,
+): Promise<AccountingCashBookSettingsRow> {
+  const qs = new URLSearchParams({ restaurantId });
+  const res = await fetch(`/api/accounting/cash-book/settings?${qs}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("cash_settings_load_failed");
+  const data = (await res.json()) as { settings: AccountingCashBookSettingsRow };
+  return data.settings;
+}
+
+export async function saveAccountingCashBookOpeningBalance(
+  restaurantId: string,
+  openingBalance: number,
+): Promise<AccountingCashBookSettingsRow> {
+  const res = await fetch("/api/accounting/cash-book/settings", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restaurantId, opening_balance: openingBalance }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "save_failed");
+  return data.settings as AccountingCashBookSettingsRow;
+}
+
+export async function createAccountingCashEntry(
+  restaurantId: string,
+  input: AccountingCashEntryInput,
+): Promise<AccountingCashEntryRow> {
+  const res = await fetch("/api/accounting/cash-book", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, restaurantId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "create_failed");
+  return data.entry as AccountingCashEntryRow;
+}
+
+export async function updateAccountingCashEntry(
+  restaurantId: string,
+  entryId: string,
+  input: Partial<AccountingCashEntryInput>,
+): Promise<AccountingCashEntryRow> {
+  const res = await fetch(`/api/accounting/cash-book/${entryId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...input, restaurantId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "update_failed");
+  return data.entry as AccountingCashEntryRow;
+}
+
+export async function deleteAccountingCashEntry(
+  restaurantId: string,
+  entryId: string,
+) {
+  const params = new URLSearchParams({ restaurantId });
+  const res = await fetch(`/api/accounting/cash-book/${entryId}?${params}`, {
     method: "DELETE",
   });
   const data = await res.json().catch(() => ({}));

@@ -4,11 +4,14 @@ import { randomUUID } from "crypto";
 import { fetchLexofficeJson, LEXOFFICE_API_BASE } from "@/lib/integrations/lexoffice-api";
 import {
   getLexofficeCache,
+  isLexofficeRateLimited,
   lexofficeCacheKey,
   LEXOFFICE_DETAIL_CACHE_MS,
   LEXOFFICE_FILE_CACHE_MS,
+  markLexofficeRateLimited,
   setLexofficeCache,
 } from "@/lib/integrations/lexoffice-api-cache";
+import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { fetchRestaurantLexofficeApiKey } from "@/lib/supabase/restaurant-lexoffice-integration-db";
 import type {
   AccountingVoucherInput,
@@ -50,6 +53,10 @@ async function lexofficeFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
+  if (isLexofficeRateLimited(restaurantId)) {
+    return { ok: false, error: "Lexware API: Rate-Limit erreicht." };
+  }
+
   const apiKey = await fetchRestaurantLexofficeApiKey(restaurantId);
   if (!apiKey) {
     return { ok: false, error: "Lexware ist nicht verbunden." };
@@ -57,6 +64,9 @@ async function lexofficeFetch<T>(
 
   const result = await fetchLexofficeJson<T>(apiKey, path, init);
   if (!result.ok) {
+    if (result.status === 429 || isLexofficeRateLimitError(result.error)) {
+      markLexofficeRateLimited(restaurantId);
+    }
     return { ok: false, error: result.error };
   }
   return { ok: true, data: result.data };

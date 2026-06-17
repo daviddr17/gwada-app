@@ -1,6 +1,7 @@
 import "server-only";
 
 import { inboxPreviewSnippet } from "@/lib/contact-messages/inbox-preview-snippet";
+import { conversationNotificationPlatform } from "@/lib/contact-messages/conversation-notification-platform";
 import {
   DASHBOARD_MESSAGES_UNREAD_LIMIT,
   dashboardMessageThreadHref,
@@ -49,7 +50,7 @@ export async function fetchMessagesUnreadSummary(
       lastAt: c.last_at,
       href: dashboardMessageThreadHref(c.contact_id),
       unreadCount: c.unread_count,
-      platform: c.last_message_platform ?? "gwada",
+      platform: conversationNotificationPlatform(c),
     }));
 
   return {

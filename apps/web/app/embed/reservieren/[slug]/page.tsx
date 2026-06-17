@@ -1,6 +1,11 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
+import {
+  EMBED_PREVIEW_TEXT_THEME_PARAM,
+  resolveEmbedTextTheme,
+} from "@/lib/embed/embed-appearance";
+import { fetchEmbedTextThemeForSlug } from "@/lib/embed/fetch-embed-appearance-server";
 import { publicCountries } from "@/lib/reservations/public-embed-shared";
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
 
@@ -26,11 +31,17 @@ export async function generateMetadata({
 
 export default async function EmbedReservierenPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ [EMBED_PREVIEW_TEXT_THEME_PARAM]?: string }>;
 }) {
   const { slug } = await params;
-  const result = await fetchPublicEmbedRestaurant(slug);
+  const sp = await searchParams;
+  const [result, textTheme] = await Promise.all([
+    fetchPublicEmbedRestaurant(slug),
+    fetchEmbedTextThemeForSlug(slug, "reservation"),
+  ]);
 
   if (!result.data) {
     return (
@@ -46,6 +57,7 @@ export default async function EmbedReservierenPage({
     <EmbedReservationWidget
       config={result.data}
       countries={publicCountries()}
+      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
     />
   );
 }

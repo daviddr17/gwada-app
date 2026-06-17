@@ -7,10 +7,15 @@ on:
         description: Git-Ref (Branch, Tag oder SHA)
         required: false
         default: main
+      force_unlock:
+        description: Hängenden VPS-Deploy beenden (Lock + Prozess) und neu starten
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-live-app
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -42,4 +47,7 @@ jobs:
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
           DEPLOY_SHA="${{ inputs.ref || 'main' }}"
+          if [ "${{ inputs.force_unlock }}" = "true" ]; then
+            export GWADA_DEPLOY_FORCE_UNLOCK=1
+          fi
           bash scripts/deploy-app-live.sh "${DEPLOY_SHA}"

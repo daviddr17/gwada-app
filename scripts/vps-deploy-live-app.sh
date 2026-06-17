@@ -13,13 +13,54 @@ APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
 UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 LOG="${GWADA_DEPLOY_LOG:-/tmp/gwada-deploy-live-app.log}"
 LOCK="${GWADA_DEPLOY_LOCK:-/tmp/gwada-deploy-live-app.lock}"
+LOCK_WAIT_MAX_SEC="${GWADA_DEPLOY_LOCK_WAIT_SEC:-2100}"
 
-if [[ -f "${LOCK}" ]]; then
-  echo "Deploy läuft bereits (Lock ${LOCK}, PID $(cat "${LOCK}" 2>/dev/null || echo '?'))." >&2
-  echo "Parallele Builds (Coolify + GitHub Action) vermeiden — warten oder anderen abbrechen." >&2
-  exit 1
-fi
-echo "$$" > "${LOCK}"
+force_clear_deploy_lock() {
+  if [[ "${GWADA_DEPLOY_FORCE_UNLOCK:-}" != "1" ]]; then
+    return 0
+  fi
+  if [[ ! -f "${LOCK}" ]]; then
+    echo "Force unlock: kein Lock vorhanden."
+    return 0
+  fi
+  local lock_pid
+  lock_pid="$(cat "${LOCK}" 2>/dev/null || echo "")"
+  echo "Force unlock: beende Deploy PID ${lock_pid:-?}, entferne Lock."
+  if [[ -n "${lock_pid}" ]]; then
+    kill "${lock_pid}" 2>/dev/null || true
+    sleep 2
+    kill -9 "${lock_pid}" 2>/dev/null || true
+  fi
+  rm -f "${LOCK}"
+  pkill -f "${BUILD_DIR}" 2>/dev/null || true
+}
+
+acquire_deploy_lock() {
+  local waited=0
+  while [[ -f "${LOCK}" ]]; do
+    local lock_pid
+    lock_pid="$(cat "${LOCK}" 2>/dev/null || echo "")"
+    if [[ -z "${lock_pid}" ]] || ! kill -0 "${lock_pid}" 2>/dev/null; then
+      echo "Stale deploy lock (PID ${lock_pid:-?} nicht aktiv) — entferne ${LOCK}."
+      rm -f "${LOCK}"
+      break
+    fi
+    if (( waited >= LOCK_WAIT_MAX_SEC )); then
+      echo "Deploy-Lock aktiv (PID ${lock_pid}) nach ${LOCK_WAIT_MAX_SEC}s — abbrechen." >&2
+      echo "Parallele Builds vermeiden — anderen Deploy beenden oder später erneut starten." >&2
+      exit 1
+    fi
+    if (( waited == 0 )); then
+      echo "Deploy läuft bereits (PID ${lock_pid}) — warte auf Abschluss …"
+    fi
+    sleep 30
+    waited=$((waited + 30))
+  done
+  echo "$$" > "${LOCK}"
+}
+
+force_clear_deploy_lock
+acquire_deploy_lock
 trap 'rm -f "${LOCK}"' EXIT
 
 exec > >(tee -a "$LOG") 2>&1

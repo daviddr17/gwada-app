@@ -12,11 +12,13 @@ import type {
   PublicEmbedReview,
   PublicEmbedReviewsPagination,
 } from "@/lib/reviews/public-reviews-server";
+import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import { cn } from "@/lib/utils";
 
 export type EmbedReviewsWidgetProps = {
   restaurantName: string;
   accentHex: string;
+  textTheme?: EmbedTextTheme;
   reviews: PublicEmbedReview[];
   summary: {
     count: number;
@@ -194,6 +196,7 @@ function EmbedReviewsSummary({
 export function EmbedReviewsWidget({
   restaurantName,
   accentHex,
+  textTheme = "dark",
   reviews,
   summary,
   viewMode = "grid",
@@ -280,20 +283,16 @@ export function EmbedReviewsWidget({
     );
 
   return (
-    <EmbedAccentRoot accentHex={accentHex}>
+    <EmbedAccentRoot accentHex={accentHex} textTheme={textTheme}>
       <EmbedResizeReporter deps={resizeDeps} widget="reviews" />
       <div className="w-full min-w-0 px-4 py-5 sm:px-6">
-        <header className="border-b border-border/40 pb-5">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Bewertungen
-          </p>
-          <h1 className="mt-1 text-xl font-semibold tracking-tight">
-            {restaurantName}
-          </h1>
-          <EmbedReviewsSummary summary={summary} />
-        </header>
+        {summary.count > 0 ? (
+          <div className="border-b border-border/40 pb-5">
+            <EmbedReviewsSummary summary={summary} />
+          </div>
+        ) : null}
 
-        <section className="mt-5">
+        <section className={cn(summary.count > 0 && "mt-5")}>
           {reviews.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Noch keine Bewertungen — Gäste können nach dem Besuch über Gwada

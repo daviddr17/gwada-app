@@ -65,13 +65,16 @@ function PaginationPrevious({
   return (
     <Button
       type="button"
-      variant="outline"
-      size="default"
-      className={cn("gap-1 pr-2.5 pl-2", className)}
+      variant="ghost"
+      size="icon-sm"
+      className={cn(
+        "size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground",
+        className,
+      )}
       {...props}
     >
       <ChevronLeftIcon className="size-4" />
-      <span>Zurück</span>
+      <span className="sr-only">Zurück</span>
     </Button>
   );
 }
@@ -83,14 +86,56 @@ function PaginationNext({
   return (
     <Button
       type="button"
-      variant="outline"
-      size="default"
-      className={cn("gap-1 pr-2 pl-2.5", className)}
+      variant="ghost"
+      size="icon-sm"
+      className={cn(
+        "size-8 shrink-0 rounded-full text-muted-foreground hover:text-foreground",
+        className,
+      )}
       {...props}
     >
-      <span>Weiter</span>
       <ChevronRightIcon className="size-4" />
+      <span className="sr-only">Weiter</span>
     </Button>
+  );
+}
+
+/** Kompakt: ‹ Seite 2/5 › — app-weit für Listen-Pagination. */
+function PaginationPageControl({
+  page,
+  totalPages,
+  canPrevious,
+  canNext,
+  onPrevious,
+  onNext,
+  busy = false,
+  className,
+}: {
+  page: number;
+  totalPages: number;
+  canPrevious: boolean;
+  canNext: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  busy?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex shrink-0 items-center gap-0.5", className)}>
+      <PaginationPrevious
+        disabled={!canPrevious || busy}
+        onClick={onPrevious}
+        aria-label="Vorherige Seite"
+      />
+      <span className="min-w-[5.25rem] px-0.5 text-center text-sm tabular-nums text-muted-foreground">
+        Seite {page}/{totalPages}
+      </span>
+      <PaginationNext
+        disabled={!canNext || busy}
+        onClick={onNext}
+        aria-label="Nächste Seite"
+      />
+    </div>
   );
 }
 
@@ -119,6 +164,7 @@ export {
   PaginationItem,
   PaginationLink,
   PaginationNext,
+  PaginationPageControl,
   PaginationPrevious,
   buttonVariants,
 };

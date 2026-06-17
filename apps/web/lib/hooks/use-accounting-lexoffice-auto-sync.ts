@@ -1,18 +1,19 @@
 "use client";
 
-const CLIENT_AUTO_SYNC_COOLDOWN_MS = 15 * 60 * 1000;
+/** Ein Auto-Sync je Session für alle Buchführungs-Bereiche — vermeidet 3 parallele Lexware-Läufe. */
+const CLIENT_AUTO_SYNC_COOLDOWN_MS = 30 * 60 * 1000;
 
-function storageKey(restaurantId: string, scope: string) {
-  return `gwada:lexoffice-auto-sync:${restaurantId}:${scope}`;
+function storageKey(restaurantId: string) {
+  return `gwada:lexoffice-auto-sync:${restaurantId}`;
 }
 
-/** Pro Tab/Session: Auto-Sync je Bereich höchstens alle 15 Minuten anstoßen. */
+/** Pro Tab/Session: Lexware-Hintergrundsync höchstens alle 30 Minuten anstoßen. */
 export function shouldRunAccountingLexofficeAutoSync(
   restaurantId: string,
-  scope: "invoices" | "quotations" | "vouchers",
+  _scope: "invoices" | "quotations" | "vouchers",
 ): boolean {
   if (typeof sessionStorage === "undefined") return true;
-  const raw = sessionStorage.getItem(storageKey(restaurantId, scope));
+  const raw = sessionStorage.getItem(storageKey(restaurantId));
   if (!raw) return true;
   const last = Number(raw);
   if (!Number.isFinite(last)) return true;
@@ -21,8 +22,8 @@ export function shouldRunAccountingLexofficeAutoSync(
 
 export function markAccountingLexofficeAutoSync(
   restaurantId: string,
-  scope: "invoices" | "quotations" | "vouchers",
+  _scope: "invoices" | "quotations" | "vouchers",
 ): void {
   if (typeof sessionStorage === "undefined") return;
-  sessionStorage.setItem(storageKey(restaurantId, scope), String(Date.now()));
+  sessionStorage.setItem(storageKey(restaurantId), String(Date.now()));
 }

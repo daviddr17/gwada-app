@@ -4,24 +4,26 @@ import { useMemo } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { PublicOpeningHoursDisplay } from "@/components/opening-hours/public-opening-hours-display";
+import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import type { PublicEmbedOpeningHoursData } from "@/lib/opening-hours/public-opening-hours-server";
 
-export type EmbedOpeningHoursWidgetProps = PublicEmbedOpeningHoursData;
+export type EmbedOpeningHoursWidgetProps = PublicEmbedOpeningHoursData & {
+  textTheme?: EmbedTextTheme;
+};
 
 export function EmbedOpeningHoursWidget({
-  restaurantName,
   accentHex,
   weeklyHours,
   kitchenHoursEnabled,
   kitchenWeeklyHours,
   dateExceptions,
   settings,
+  textTheme = "dark",
 }: EmbedOpeningHoursWidgetProps) {
   const footerText = settings.embedFooterText?.trim() ?? "";
 
   const resizeDeps = useMemo(
     () => [
-      restaurantName,
       weeklyHours,
       kitchenWeeklyHours,
       dateExceptions,
@@ -29,9 +31,9 @@ export function EmbedOpeningHoursWidget({
       settings.embedShowKitchenHours,
       kitchenHoursEnabled,
       footerText,
+      textTheme,
     ],
     [
-      restaurantName,
       weeklyHours,
       kitchenWeeklyHours,
       dateExceptions,
@@ -39,19 +41,13 @@ export function EmbedOpeningHoursWidget({
       settings.embedShowKitchenHours,
       kitchenHoursEnabled,
       footerText,
+      textTheme,
     ],
   );
 
   return (
-    <EmbedAccentRoot accentHex={accentHex}>
-      <div className="bg-background px-4 py-5 text-foreground sm:px-6">
-        <header className="mb-4 space-y-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Öffnungszeiten
-          </p>
-          <h1 className="text-lg font-semibold tracking-tight">{restaurantName}</h1>
-        </header>
-
+    <EmbedAccentRoot accentHex={accentHex} textTheme={textTheme}>
+      <div className="px-4 py-5 sm:px-6">
         <PublicOpeningHoursDisplay
           weeklyHours={weeklyHours}
           kitchenHoursEnabled={kitchenHoursEnabled}

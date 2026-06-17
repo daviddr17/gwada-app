@@ -5,6 +5,9 @@ import {
   mapRawToReservationListRow,
   RESERVATION_LIST_ROW_SELECT,
 } from "@/lib/supabase/reservations-db";
+import {
+  isSelfOriginatedNotification,
+} from "@/lib/notifications/notification-self-origin";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 
 const RESERVATION_CANCELLATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -109,7 +112,19 @@ export async function loadReservationNotificationItems(
 
   const filtered = (data ?? [])
     .map((row) => mapRawToReservationListRow(row as Record<string, unknown>))
-    .filter((r) => !dismissed.has(r.id));
+    .filter((r) => !dismissed.has(r.id))
+    .filter((r) => {
+      if (params.module === "reservations_pending") {
+        return !isSelfOriginatedNotification(
+          params.userId,
+          r.created_by_profile_id,
+        );
+      }
+      return !isSelfOriginatedNotification(
+        params.userId,
+        r.last_status_changed_by_profile_id,
+      );
+    });
 
   const items = filtered.slice(0, limit).map((r) => {
       const guestLabel =

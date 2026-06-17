@@ -45,6 +45,7 @@ import type {
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
 import { fuzzyTextMatchesQuery } from "@/lib/utils/fuzzy-search";
 import { formatMenuPrice } from "@/lib/menu/format-menu-price";
+import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import { cn } from "@/lib/utils";
 
 export type EmbedMenuWidgetProps = {
@@ -56,6 +57,7 @@ export type EmbedMenuWidgetProps = {
   tagDefinitions: readonly MenuTaxonomyDefinition[];
   /** Profil-Sheet: kein Embed-Header, Sticky/Scroll am Sheet-Viewport. */
   variant?: "embed" | "profileSheet";
+  textTheme?: EmbedTextTheme;
 };
 
 function EmbedMenuItemRow({
@@ -276,6 +278,7 @@ export function EmbedMenuWidget({
   items,
   tagDefinitions,
   variant = "embed",
+  textTheme = "dark",
 }: EmbedMenuWidgetProps) {
   const [hostMode, setHostMode] = useState(false);
   const [embedId, setEmbedId] = useState<string | null>(null);
@@ -553,7 +556,11 @@ export function EmbedMenuWidget({
   };
 
   return (
-    <EmbedAccentRoot accentHex={accentHex} brandFooter={variant !== "profileSheet"}>
+    <EmbedAccentRoot
+      accentHex={accentHex}
+      textTheme={textTheme}
+      brandFooter={variant !== "profileSheet"}
+    >
       <EmbedResizeReporter deps={resizeDeps} widget="menu" />
       <div
         ref={widgetRootRef}
@@ -561,17 +568,6 @@ export function EmbedMenuWidget({
           profileSheet ? "w-full min-w-0 pb-6" : "w-full min-w-0 py-6",
         )}
       >
-        {profileSheet ? null : (
-          <header className="mb-4 border-b border-border/50 px-4 pb-4 sm:px-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Speisekarte
-            </p>
-            <h1 className="mt-1 text-xl font-semibold tracking-tight">
-              {restaurantName}
-            </h1>
-          </header>
-        )}
-
         {visibleCategories.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Aktuell sind keine Gerichte veröffentlicht.

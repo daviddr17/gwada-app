@@ -15,6 +15,7 @@ import {
 import { EmbedReservationTermsSheet } from "@/components/embed/embed-reservation-terms-sheet";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { isGwadaEmbedHostMode } from "@/lib/embed/embed-menu-scroll";
+import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import {
   EmbedSubmitButton,
   type EmbedSubmitPhase,
@@ -132,12 +133,14 @@ export function EmbedReservationWidget({
   countries,
   variant = "embed",
   profileTermsSheet,
+  textTheme = "dark",
 }: {
   config: PublicEmbedRestaurant;
   countries: CountryReference[];
   variant?: "embed" | "profileSheet";
   /** Profil-App-Sheet: Terms-Drawer auf Overlay-Ebene (nicht im Scroll-Inhalt). */
   profileTermsSheet?: EmbedReservationProfileTermsSheet;
+  textTheme?: EmbedTextTheme;
 }) {
   const profileSheet = variant === "profileSheet";
   const [hostMode, setHostMode] = useState(false);
@@ -786,7 +789,11 @@ export function EmbedReservationWidget({
   ];
 
   return (
-    <EmbedAccentRoot accentHex={config.accentHex} brandFooter={!profileSheet}>
+    <EmbedAccentRoot
+      accentHex={config.accentHex}
+      textTheme={textTheme}
+      brandFooter={!profileSheet}
+    >
       {renderTermsSheetInsideWidget ? (
         <EmbedReservationTermsSheet
           open={termsSheetOpen}
@@ -801,15 +808,6 @@ export function EmbedReservationWidget({
           profileSheet && "pt-3",
         )}
       >
-        {!profileSheet ? (
-          <header className="mb-4 space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Reservierung
-            </p>
-            <h1 className="text-xl font-semibold tracking-tight">{config.name}</h1>
-          </header>
-        ) : null}
-
         <EmbedSlidingSegmentTabs
           tabs={RESERVATION_SEGMENT_TABS}
           value={tab}

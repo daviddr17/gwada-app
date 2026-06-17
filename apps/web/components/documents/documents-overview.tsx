@@ -36,6 +36,7 @@ import {
   uploadRestaurantDocumentClient,
 } from "@/lib/documents/documents-api";
 import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
+import { validateRestaurantDocumentFile } from "@/lib/documents/validate-restaurant-document-file";
 import { formatStorageBytes } from "@/lib/documents/format-storage";
 import { WORKSPACE_STORAGE_MODULE_LABELS } from "@/lib/constants/workspace-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
@@ -193,6 +194,7 @@ export function DocumentsOverview() {
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"upload" | "edit">("upload");
   const [editDoc, setEditDoc] = useState<RestaurantDocumentRow | null>(null);
+  const [uploadInitialFile, setUploadInitialFile] = useState<File | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RestaurantDocumentRow | null>(
     null,
   );
@@ -203,16 +205,21 @@ export function DocumentsOverview() {
     null,
   );
 
-  useEffect(() => {
-    if (searchParams.get("new") !== "1") return;
+  const openUploadDrawer = useCallback((file?: File | null) => {
     setFormMode("upload");
     setEditDoc(null);
+    setUploadInitialFile(file ?? null);
     setFormOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    openUploadDrawer();
     const p = new URLSearchParams(searchParams.toString());
     p.delete("new");
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
-  }, [searchParams, router, pathname]);
+  }, [searchParams, router, pathname, openUploadDrawer]);
 
   const activeTags = useMemo(
     () => documentTags.items.filter((t) => t.active !== false),
@@ -339,6 +346,36 @@ export function DocumentsOverview() {
     setPage(1);
   }, [search, tagFilter]);
 
+  const handlePageFileDrop = useCallback(
+    (file: File) => {
+      if (formOpen && formMode === "edit") return;
+      const err = validateRestaurantDocumentFile(file);
+      if (err) {
+        toast.error(err);
+        return;
+      }
+      openUploadDrawer(file);
+    },
+    [formOpen, formMode, openUploadDrawer],
+  );
+
+  const handlePageDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
+  const handlePageDrop = useCallback(
+    (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes("Files")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dropped = e.dataTransfer.files?.[0];
+      if (dropped) handlePageFileDrop(dropped);
+    },
+    [handlePageFileDrop],
+  );
+
   const usagePercent = Math.min(
     100,
     usage.quotaBytes > 0 ? (usage.usedBytes / usage.quotaBytes) * 100 : 0,
@@ -372,7 +409,11 @@ export function DocumentsOverview() {
   }
 
   return (
-    <div className="w-full pb-16">
+    <div
+      className="w-full pb-16"
+      onDragOver={handlePageDragOver}
+      onDrop={handlePageDrop}
+    >
       <div className="-mx-4 mb-4 flex flex-wrap gap-2 px-4 sm:-mx-6 sm:px-6">
         <Button
           type="button"
@@ -471,11 +512,7 @@ export function DocumentsOverview() {
           type="button"
           size="lg"
           className={modulePrimaryAddButtonFullWidthClassName}
-          onClick={() => {
-            setFormMode("upload");
-            setEditDoc(null);
-            setFormOpen(true);
-          }}
+          onClick={() => openUploadDrawer()}
         >
           <Plus className="size-4" />
           Neues Dokument
@@ -724,9 +761,13 @@ export function DocumentsOverview() {
 
       <DocumentFormDrawer
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setUploadInitialFile(null);
+        }}
         mode={formMode}
         document={editDoc}
+        initialFile={uploadInitialFile}
         activeTags={activeTags}
         canEditNotes={canEditDocumentNotes}
         onNotesChanged={() => void reload()}

@@ -185,7 +185,10 @@ export async function dispatchGithubLiveAppDeploy(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ref: branch }),
+        body: JSON.stringify({
+          ref: branch,
+          inputs: { ref: branch, force_unlock: "true" },
+        }),
       },
     );
 

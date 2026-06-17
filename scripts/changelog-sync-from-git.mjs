@@ -75,6 +75,10 @@ function readDraft() {
     return {
       title: data.title.trim(),
       body: data.body.trim(),
+      superadminBody:
+        typeof data.superadminBody === "string"
+          ? data.superadminBody.trim() || undefined
+          : undefined,
       audience: data.audience === "superadmin" ? "superadmin" : "customers",
       version: data.version?.trim() || null,
     };
@@ -84,8 +88,9 @@ function readDraft() {
 }
 
 async function main() {
-  const gitRecords = extractGitRecords();
   const draft = readDraft();
+  const gitRecords = draft ? [] : extractGitRecords();
+  const commitSha = process.env.GITHUB_SHA?.trim() || "";
 
   const headers = { "Content-Type": "application/json" };
   if (SYNC_SECRET) {
@@ -99,6 +104,7 @@ async function main() {
       gitRecords,
       draft: draft ?? undefined,
       archiveDraft: Boolean(draft),
+      commitSha: commitSha || undefined,
     }),
   });
 

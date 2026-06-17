@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { dispatchSuperadminChangelogRefresh } from "@/lib/changelog/changelog-events";
 import { ChangelogEntryCard } from "@/components/changelog/changelog-entry-card";
 import { ChangelogOverviewSkeleton } from "@/components/changelog/changelog-overview-skeleton";
 import { Button } from "@/components/ui/button";
@@ -14,12 +15,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -34,8 +35,10 @@ import {
   datetimeLocalToIso,
   isoToDatetimeLocal,
 } from "@/lib/changelog/changelog-format";
+import { joinChangelogBody, parseChangelogBody } from "@/lib/changelog/changelog-body-sections";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
+  approveSuperadminChangelogEntry,
   createSuperadminChangelogEntry,
   deleteSuperadminChangelogEntry,
   fetchSuperadminChangelogEntries,
@@ -53,7 +56,8 @@ import { cn } from "@/lib/utils";
 
 type FormState = {
   title: string;
-  body: string;
+  customerBody: string;
+  superadminBody: string;
   publishedAtLocal: string;
   version: string;
   audience: PlatformChangelogAudience;
@@ -62,7 +66,8 @@ type FormState = {
 function emptyForm(): FormState {
   return {
     title: "",
-    body: "",
+    customerBody: "",
+    superadminBody: "",
     publishedAtLocal: isoToDatetimeLocal(new Date().toISOString()),
     version: "",
     audience: "customers",
@@ -70,9 +75,13 @@ function emptyForm(): FormState {
 }
 
 function entryToForm(entry: PlatformChangelogEntry): FormState {
+  const { customerBody, superadminBody } = parseChangelogBody(entry.body);
   return {
     title: entry.title,
-    body: entry.body,
+    customerBody:
+      entry.audience === "superadmin" ? "" : customerBody,
+    superadminBody:
+      entry.audience === "superadmin" ? entry.body : superadminBody,
     publishedAtLocal: isoToDatetimeLocal(entry.publishedAt),
     version: entry.version ?? "",
     audience: entry.audience,
@@ -87,7 +96,9 @@ export function SuperadminChangelogPanel() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
+  const pendingCount = entries.filter((entry) => !entry.approvedAt).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,11 +134,23 @@ export function SuperadminChangelogPanel() {
       toast.error("Bitte Datum und Uhrzeit setzen.");
       return;
     }
+    if (form.audience === "customers" && !form.customerBody.trim()) {
+      toast.error("Bitte mindestens einen Kunden-Punkt eintragen.");
+      return;
+    }
+    if (form.audience === "superadmin" && !form.superadminBody.trim()) {
+      toast.error("Bitte internen Text eintragen.");
+      return;
+    }
 
     setSaving(true);
+    const body =
+      form.audience === "superadmin"
+        ? form.superadminBody
+        : joinChangelogBody(form.customerBody, form.superadminBody);
     const payload = {
       title: form.title,
-      body: form.body,
+      body,
       publishedAt,
       version: form.version.trim() || null,
       audience: form.audience,
@@ -144,9 +167,27 @@ export function SuperadminChangelogPanel() {
       return;
     }
 
-    toast.success(editingId ? "Eintrag aktualisiert." : "Eintrag veröffentlicht.");
+    toast.success(
+      editingId
+        ? "Eintrag aktualisiert."
+        : "Eintrag gespeichert — Freigabe ausstehend.",
+    );
     setDialogOpen(false);
     void load();
+    dispatchSuperadminChangelogRefresh();
+  };
+
+  const handleApprove = async (id: string) => {
+    setApprovingId(id);
+    const { entry, error } = await approveSuperadminChangelogEntry(id);
+    setApprovingId(null);
+    if (error || !entry) {
+      toast.error(error ?? "Freigabe fehlgeschlagen.");
+      return;
+    }
+    toast.success("Changelog für Kunden freigegeben.");
+    void load();
+    dispatchSuperadminChangelogRefresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -157,6 +198,7 @@ export function SuperadminChangelogPanel() {
     }
     toast.success("Eintrag gelöscht.");
     void load();
+    dispatchSuperadminChangelogRefresh();
   };
 
   const handleGitSync = async () => {
@@ -174,9 +216,10 @@ export function SuperadminChangelogPanel() {
     }
     if (created > 0) {
       toast.success(
-        `${created} Eintrag${created === 1 ? "" : "e"} aus Git übernommen.`,
+        `${created} Eintrag${created === 1 ? "" : "e"} aus Git übernommen — Freigabe ausstehend.`,
       );
       void load();
+      dispatchSuperadminChangelogRefresh();
     } else if (skipped > 0) {
       toast.message("Keine neuen Commits — bereits synchronisiert.");
     } else {
@@ -193,7 +236,7 @@ export function SuperadminChangelogPanel() {
           type="button"
           variant="outline"
           size="lg"
-          className="rounded-xl"
+          className="h-12 rounded-full px-6"
           disabled={syncing}
           onClick={() => void handleGitSync()}
         >
@@ -224,13 +267,33 @@ export function SuperadminChangelogPanel() {
         </Card>
       ) : (
         <div className="space-y-4">
+          {pendingCount > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {pendingCount} Eintrag{pendingCount === 1 ? "" : "e"} warten auf
+              Freigabe für Endkunden.
+            </p>
+          ) : null}
           {entries.map((entry) => (
             <ChangelogEntryCard
               key={entry.id}
               entry={entry}
               showAudienceBadge
+              showApprovalBadge
+              showSuperadminSections
               actions={
                 <>
+                  {!entry.approvedAt ? (
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      className="rounded-xl"
+                      aria-label="Für Kunden freigeben"
+                      disabled={approvingId === entry.id}
+                      onClick={() => void handleApprove(entry.id)}
+                    >
+                      <Check className="size-3.5" />
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"
@@ -261,30 +324,43 @@ export function SuperadminChangelogPanel() {
       <Card className="border-border/50 shadow-card">
         <CardHeader>
           <CardTitle className="text-base">Hinweis</CardTitle>
-          <CardDescription>
-            Automatisch bei <strong>Push auf</strong>{" "}
-            <code className="text-xs">main</code> (GitHub Action), wenn{" "}
-            <code className="text-xs">CHANGELOG_SYNC_URL</code> und Secret
-            gesetzt sind. Commits brauchen einen{" "}
-            <code className="text-xs">Changelog:</code>-Block im Body — oder
-            lege{" "}
-            <code className="text-xs">content/changelog.draft.json</code> an.
-            Zielgruppe optional:{" "}
-            <code className="text-xs">Changelog-Audience: superadmin</code>.
-            Duplikate werden anhand der Git-SHA übersprungen. Einträge kannst
-            du danach hier noch bearbeiten.
+          <CardDescription className="space-y-2">
+            <p>
+              <strong>Kunden-Teil:</strong> Was sich für Restaurant-Teams merkbar
+              ändert — in Alltagssprache, mit Nutzen („Du kannst jetzt …“). Keine
+              Commits, APIs, Migrationen oder interne Begriffe.
+            </p>
+            <p>
+              <strong>Superadmin-Teil (optional):</strong> Deploy, Schema, Sync —
+              wird violett hervorgehoben und ist für Endkunden unsichtbar.
+            </p>
+            <p>
+              Automatisch bei Push auf <code className="text-xs">main</code>, wenn{" "}
+              <code className="text-xs">CHANGELOG_SYNC_URL</code> gesetzt ist. Quelle:{" "}
+              <code className="text-xs">content/changelog.draft.json</code> mit{" "}
+              <code className="text-xs">title</code>,{" "}
+              <code className="text-xs">body</code>, optional{" "}
+              <code className="text-xs">superadminBody</code>,{" "}
+              <code className="text-xs">version</code>. Kein{" "}
+              <code className="text-xs">Changelog:</code>-Block im Commit.
+            </p>
           </CardDescription>
         </CardHeader>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>
+      <Drawer
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        direction="bottom"
+        repositionInputs={false}
+      >
+        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+            <DrawerTitle className="text-xl font-semibold tracking-tight">
               {editingId ? "Eintrag bearbeiten" : "Neuer Changelog-Eintrag"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
             <div className="space-y-2">
               <Label htmlFor="changelog-title">Titel</Label>
               <Input
@@ -293,7 +369,7 @@ export function SuperadminChangelogPanel() {
                 onChange={(e) =>
                   setForm((f) => ({ ...f, title: e.target.value }))
                 }
-                placeholder="z. B. Reservierungen: WhatsApp-Erinnerungen"
+                placeholder="z. B. Reservierungen: Erinnerungen per WhatsApp"
                 className="rounded-xl"
               />
             </div>
@@ -341,7 +417,9 @@ export function SuperadminChangelogPanel() {
                   id="changelog-audience"
                   className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}
                 >
-                  <SelectValue />
+                  <SelectValue>
+                    {CHANGELOG_AUDIENCE_LABELS[form.audience]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="customers">
@@ -354,39 +432,54 @@ export function SuperadminChangelogPanel() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="changelog-body">Neuigkeiten</Label>
+              <Label htmlFor="changelog-customer-body">Für alle Kunden</Label>
               <Textarea
-                id="changelog-body"
-                value={form.body}
+                id="changelog-customer-body"
+                value={form.customerBody}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, body: e.target.value }))
+                  setForm((f) => ({ ...f, customerBody: e.target.value }))
                 }
-                rows={8}
-                placeholder={"- Speisekarte lädt schneller\n- Changelog in der Sidebar\n- …"}
-                className="rounded-xl font-mono text-sm"
+                rows={6}
+                disabled={form.audience === "superadmin"}
+                placeholder={
+                  "- Gäste können Reservierungen per WhatsApp bestätigen lassen\n- In der Speisekarte findest du Gerichte schneller über die Suche"
+                }
+                className="rounded-xl text-sm"
               />
+              <p className="text-xs text-muted-foreground">
+                Bullet-Zeilen mit „-“. Was ändert sich im Alltag — nicht wie es
+                technisch umgesetzt ist.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="changelog-superadmin-body">
+                Intern (optional)
+              </Label>
+              <Textarea
+                id="changelog-superadmin-body"
+                value={form.superadminBody}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, superadminBody: e.target.value }))
+                }
+                rows={4}
+                placeholder={
+                  "- Deploy-Workflow angepasst\n- Migration platform_changelog …"
+                }
+                className="rounded-xl border-violet-500/25 bg-violet-500/[0.04] font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                Nur für Superadmins sichtbar — violett markiert im Changelog.
+              </p>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => setDialogOpen(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              className="rounded-xl"
-              disabled={saving}
-              onClick={() => void handleSave()}
-            >
-              {saving ? "Speichern…" : "Speichern"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <DrawerFormFooter
+            onCancel={() => setDialogOpen(false)}
+            submitType="button"
+            onSubmit={() => void handleSave()}
+            submitPending={saving}
+          />
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }

@@ -19,6 +19,48 @@ export type ClaimedNotificationEvent = {
   payload: Record<string, unknown>;
 };
 
+export async function claimNotificationEventById(
+  admin: SupabaseClient,
+  eventId: string,
+): Promise<ClaimedNotificationEvent | null> {
+  const { data, error } = await admin.rpc("claim_notification_event_by_id", {
+    p_event_id: eventId,
+  });
+  if (error) {
+    console.warn("[notification-deliver] claim event by id", eventId, error.message);
+    return null;
+  }
+  const row = (data ?? [])[0] as ClaimedNotificationEvent & { payload?: unknown } | undefined;
+  if (!row) return null;
+  return {
+    ...row,
+    payload:
+      row.payload && typeof row.payload === "object"
+        ? (row.payload as Record<string, unknown>)
+        : {},
+  };
+}
+
+export async function claimNotificationDeliveriesForEvent(
+  admin: SupabaseClient,
+  eventId: string,
+  limit: number,
+): Promise<ClaimedNotificationDelivery[]> {
+  const { data, error } = await admin.rpc(
+    "claim_notification_deliveries_for_event",
+    { p_event_id: eventId, p_limit: limit },
+  );
+  if (error) {
+    console.warn(
+      "[notification-deliver] claim deliveries for event",
+      eventId,
+      error.message,
+    );
+    return [];
+  }
+  return (data ?? []) as ClaimedNotificationDelivery[];
+}
+
 export async function releaseStaleNotificationDeliveries(
   admin: SupabaseClient,
   staleMinutes = 15,

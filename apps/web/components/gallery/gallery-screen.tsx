@@ -75,10 +75,10 @@ export function GalleryScreen() {
   }, []);
 
   useLayoutEffect(() => {
-    if (!restaurantId || permissionsLoading || !canRead) return;
+    if (!restaurantId) return;
     const cached = peekGalleryFeedCache(restaurantId);
     if (cached) applyCachedFeed(cached);
-  }, [restaurantId, permissionsLoading, canRead, applyCachedFeed]);
+  }, [restaurantId, applyCachedFeed]);
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<UnifiedGalleryItem | null>(null);
@@ -91,7 +91,12 @@ export function GalleryScreen() {
 
   const load = useCallback(
     async (options?: { silent?: boolean }) => {
-      if (!restaurantId || permissionsLoading || !canRead) return;
+      if (!restaurantId) return;
+      if (permissionsLoading) return;
+      if (!canRead) {
+        setLoading(false);
+        return;
+      }
       const generation = ++loadGeneration.current;
       const cached = peekGalleryFeedCache(restaurantId);
       const silent = options?.silent ?? false;
@@ -146,8 +151,9 @@ export function GalleryScreen() {
   );
 
   useEffect(() => {
+    if (!restaurantId || permissionsLoading) return;
     void load();
-  }, [load]);
+  }, [restaurantId, permissionsLoading, canRead, load]);
 
   useEffect(() => {
     setPage(1);
@@ -206,10 +212,10 @@ export function GalleryScreen() {
     void load();
   }, [restaurantId, selectedItem, load]);
 
-  if (!ready) {
-    return <WorkspaceRestaurantResolvePlaceholder />;
+  if (!restaurantId) {
+    if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
+    return <WorkspaceRestaurantMissingMessage />;
   }
-  if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
   if (!permissionsLoading && !canRead) {
     return (
       <p className="px-4 py-8 text-sm text-muted-foreground">

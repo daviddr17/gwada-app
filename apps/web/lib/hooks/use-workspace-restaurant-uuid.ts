@@ -11,7 +11,11 @@ import {
 
 export function useWorkspaceRestaurantUuid() {
   const supabaseEnvOk = supabasePublicEnvConfigured();
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [restaurantId, setRestaurantId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const cached = peekCachedWorkspaceRestaurantId();
+    return cached && isUuidRestaurantId(cached) ? cached : null;
+  });
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {

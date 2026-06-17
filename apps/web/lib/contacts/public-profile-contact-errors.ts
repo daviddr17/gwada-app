@@ -10,6 +10,12 @@ export const PUBLIC_PROFILE_CONTACT_ERROR_DE: Record<string, string> = {
   message_too_long: "Die Nachricht ist zu lang (max. 8000 Zeichen).",
   contact_create_failed: "Nachricht konnte nicht zugeordnet werden.",
   message_send_failed: "Nachricht konnte nicht gesendet werden.",
+  confirmation_channel_required:
+    "Bitte wählen Sie, wie Sie die Bestätigung erhalten möchten.",
+  confirmation_email_unavailable:
+    "E-Mail-Bestätigung ist für diese Angaben nicht möglich.",
+  confirmation_whatsapp_unavailable:
+    "WhatsApp-Bestätigung ist für diese Angaben nicht möglich.",
   db_error: "Ein Fehler ist aufgetreten. Bitte später erneut versuchen.",
 };
 

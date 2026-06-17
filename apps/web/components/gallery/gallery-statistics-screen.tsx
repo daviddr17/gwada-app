@@ -114,7 +114,7 @@ export function GalleryStatisticsScreen() {
     ReturnType<typeof fetchGalleryStatisticsBundle>
   >["data"]>(null);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && !bundle);
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -174,11 +174,8 @@ export function GalleryStatisticsScreen() {
     );
   }
 
-  if (!workspaceReady) {
-    return <WorkspaceRestaurantResolvePlaceholder />;
-  }
-
   if (!restaurantId) {
+    if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
     return <WorkspaceRestaurantMissingMessage />;
   }
 

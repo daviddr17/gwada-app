@@ -11,6 +11,13 @@ import {
   normalizeContactEmail,
   normalizeContactPhone,
 } from "@/lib/contacts/normalize-contact-identity";
+import {
+  loadPublicProfileContactChannelsForRestaurant,
+} from "@/lib/contacts/public-profile-contact-channels-server";
+import {
+  sendPublicProfileContactConfirmation,
+  type ProfileContactConfirmationChannel,
+} from "@/lib/contacts/public-profile-contact-confirmation-server";
 import { resolveContactIdByGuestIdentity } from "@/lib/reviews/contact-gwada-review-server";
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -24,8 +31,9 @@ export type PublicProfileContactBody = {
   message: string;
   /** Honeypot — muss leer bleiben. */
   website?: string | null;
-  /** Client-Zeitstempel (ms) beim Anzeigen des Formulars. */
+  /** Client-Zeitstempf (ms) beim Anzeigen des Formulars. */
   opened_at?: number | null;
+  confirmation_channel?: ProfileContactConfirmationChannel | null;
 };
 
 export type PublicProfileContactResult = {
@@ -217,6 +225,51 @@ async function resolveOrCreateProfileContact(
   return contactId;
 }
 
+function parseConfirmationChannel(
+  raw: unknown,
+): ProfileContactConfirmationChannel | null {
+  if (raw === "email" || raw === "whatsapp") return raw;
+  return null;
+}
+
+async function validateConfirmationChannel(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  params: {
+    restaurantId: string;
+    channel: ProfileContactConfirmationChannel | null;
+    emailNormalized: string | null;
+    phoneRaw: string | null;
+  },
+): Promise<
+  | { ok: true; channel: ProfileContactConfirmationChannel | null }
+  | { ok: false; error: string }
+> {
+  const channels = await loadPublicProfileContactChannelsForRestaurant(
+    admin,
+    params.restaurantId,
+  );
+  const canEmail = channels.emailAvailable && Boolean(params.emailNormalized);
+  const canWhatsapp =
+    channels.whatsappAvailable && Boolean(params.phoneRaw?.trim());
+
+  if (!canEmail && !canWhatsapp) {
+    return { ok: true, channel: null };
+  }
+
+  const channel = params.channel;
+  if (!channel) {
+    return { ok: false, error: "confirmation_channel_required" };
+  }
+  if (channel === "email" && !canEmail) {
+    return { ok: false, error: "confirmation_email_unavailable" };
+  }
+  if (channel === "whatsapp" && !canWhatsapp) {
+    return { ok: false, error: "confirmation_whatsapp_unavailable" };
+  }
+
+  return { ok: true, channel };
+}
+
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -283,6 +336,20 @@ export async function submitPublicProfileContact(
     return { data: null, error: "server_misconfigured", status: 503 };
   }
 
+  const confirmationChannelInput = parseConfirmationChannel(
+    body.confirmation_channel,
+  );
+  const confirmationCheck = await validateConfirmationChannel(admin, {
+    restaurantId: restaurantRes.data.id,
+    channel: confirmationChannelInput,
+    emailNormalized,
+    phoneRaw,
+  });
+  if (!confirmationCheck.ok) {
+    return { data: null, error: confirmationCheck.error, status: 400 };
+  }
+  const confirmationChannel = confirmationCheck.channel;
+
   const contactId = await resolveOrCreateProfileContact(admin, {
     restaurantId: restaurantRes.data.id,
     firstName,
@@ -319,6 +386,24 @@ export async function submitPublicProfileContact(
 
   if (!imported || !messageId) {
     return { data: null, error: "message_send_failed", status: 500 };
+  }
+
+  if (confirmationChannel) {
+    const confirmResult = await sendPublicProfileContactConfirmation(admin, {
+      restaurantId: restaurantRes.data.id,
+      restaurantName: restaurantRes.data.name,
+      contactId,
+      firstName,
+      guestEmail: emailRaw || null,
+      guestPhone: phoneRaw || null,
+      channel: confirmationChannel,
+    });
+    if (!confirmResult.ok) {
+      console.warn(
+        "[profile-contact] confirmation not delivered",
+        confirmResult.errors.join(", "),
+      );
+    }
   }
 
   return {

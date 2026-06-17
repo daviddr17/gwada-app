@@ -23,8 +23,9 @@ export function ChangelogOverview() {
   const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
 
   const visibleEntries = useMemo(() => {
-    if (isSuperadmin) return entries;
     return entries.filter((entry) => {
+      if (!entry.approvedAt) return false;
+      if (isSuperadmin) return true;
       if (entry.audience === "superadmin") return false;
       return parseChangelogBody(entry.body).customerBody.trim().length > 0;
     });

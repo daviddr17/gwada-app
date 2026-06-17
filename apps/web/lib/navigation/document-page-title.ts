@@ -66,6 +66,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/reservierungen/statistiken": "Statistiken",
   "/dashboard/reservierungen/einstellungen": "Einstellungen",
   "/dashboard/reservierungen/einbinden": "Einbinden",
+  "/dashboard/events": "Events",
   "/settings": "Einstellungen",
   "/settings/restaurant": "Übersicht",
   "/settings/team": "Team",

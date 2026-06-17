@@ -6,7 +6,7 @@ import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 const CHANGELOG_NAV: readonly ModuleSubnavItem[] = [
   {
     href: "/superadmin/changelog",
-    label: "Changelog",
+    label: "Übersicht",
     matchMode: "exact",
   },
 ];

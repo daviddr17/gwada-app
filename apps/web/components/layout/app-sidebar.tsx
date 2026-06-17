@@ -44,6 +44,10 @@ import {
   type SidebarModuleId,
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
+import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
+import { sidebarModuleNotificationCount } from "@/lib/navigation/sidebar-module-notification-counts";
+import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
+import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -71,6 +75,10 @@ export function AppSidebar() {
   const { isSuperadmin } = useIsSuperadmin();
   const { order: sidebarModuleOrder } = useSidebarModuleOrder();
   const inSuperadmin = pathname.startsWith("/superadmin");
+  const { summary: notificationSummary } = useNotificationSummary();
+  const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
+    isSuperadmin && inSuperadmin,
+  );
 
   const orderedSidebarModules = useMemo(
     () =>
@@ -226,7 +234,12 @@ export function AppSidebar() {
                       }
                     >
                       <ScrollText />
-                      <span>Changelog</span>
+                      <span>
+                        {formatSidebarMenuLabel(
+                          "Changelog",
+                          pendingChangelogCount,
+                        )}
+                      </span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -258,6 +271,10 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   {orderedSidebarModules.map((mod) => {
                     const Icon = mod.icon;
+                    const badgeCount = sidebarModuleNotificationCount(
+                      notificationSummary,
+                      mod.id,
+                    );
                     return (
                       <SidebarMenuItem key={mod.id}>
                         <SidebarMenuButton
@@ -266,7 +283,9 @@ export function AppSidebar() {
                           render={<AppNavLink href={mod.href} />}
                         >
                           <Icon />
-                          <span>{mod.label}</span>
+                          <span>
+                            {formatSidebarMenuLabel(mod.label, badgeCount)}
+                          </span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );

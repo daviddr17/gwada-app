@@ -56,6 +56,7 @@ import {
   isAccountingCorrectionVariant,
 } from "@/lib/accounting/accounting-corrections";
 import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
+import { ACCOUNTING_VOUCHER_ALLOWED_LABEL } from "@/lib/accounting/validate-voucher-file";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
 import {
@@ -292,7 +293,26 @@ export function AccountingVouchersScreen() {
   const showInitialSkeleton = loading && showSkeleton && rows.length === 0;
 
   return (
-    <div className="space-y-4" {...voucherPageDrop}>
+    <div
+      className="relative space-y-4"
+      onDragEnter={voucherPageDrop.onDragEnter}
+      onDragLeave={voucherPageDrop.onDragLeave}
+      onDragOver={voucherPageDrop.onDragOver}
+      onDrop={voucherPageDrop.onDrop}
+    >
+      {voucherPageDrop.isDragOver ? (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-accent bg-accent/10 px-4 text-center"
+          aria-hidden
+        >
+          <span className="text-sm font-medium text-accent">
+            Datei loslassen …
+          </span>
+          <span className="text-xs text-accent/80">
+            {ACCOUNTING_VOUCHER_ALLOWED_LABEL} (max. 50 MB)
+          </span>
+        </div>
+      ) : null}
       {showInitialSkeleton ? (
         <AccountingListScreenSkeleton
           columnCount={10}

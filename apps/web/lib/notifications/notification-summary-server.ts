@@ -37,6 +37,7 @@ async function fetchUnreadChangelogItems(
     .from("platform_changelog_entries")
     .select("id, title, published_at, version")
     .eq("audience", "customers")
+    .not("approved_at", "is", null)
     .order("published_at", { ascending: false })
     .limit(20);
 

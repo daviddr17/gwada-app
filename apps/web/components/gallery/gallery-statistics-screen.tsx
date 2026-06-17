@@ -175,7 +175,7 @@ export function GalleryStatisticsScreen() {
   }
 
   if (!workspaceReady) {
-    return <WorkspaceRestaurantResolvePlaceholder className="min-h-[20rem]" />;
+    return <WorkspaceRestaurantResolvePlaceholder />;
   }
 
   if (!restaurantId) {

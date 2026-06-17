@@ -47,7 +47,7 @@ export type AccountingStatisticsBundle = {
 
 const INVOICE_SELECT =
   "id, status, source, created_at, totals, document_variant";
-const QUOTATION_SELECT = INVOICE_SELECT;
+const QUOTATION_SELECT = "id, status, source, created_at, totals";
 const VOUCHER_SELECT =
   "id, status, source, voucher_kind, created_at, total_gross_amount, document_variant";
 const CASH_SELECT = "id, direction, amount, entry_date, created_at";
@@ -123,7 +123,6 @@ export async function fetchAccountingStatisticsBundle(params: {
       .from("accounting_quotations")
       .select(QUOTATION_SELECT)
       .eq("restaurant_id", params.restaurantId)
-      .neq("document_variant", "correction")
       .order("created_at", { ascending: true }),
     sb
       .from("accounting_vouchers")

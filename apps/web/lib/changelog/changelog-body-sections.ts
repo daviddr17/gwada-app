@@ -1,6 +1,13 @@
 /** Trenner zwischen Kunden- und Superadmin-Teil in `body` (eine DB-Zeile). */
 export const CHANGELOG_SUPERADMIN_SECTION_MARKER = "---superadmin---";
 
+function stripNestedSuperadminMarker(superadminBody: string): string {
+  const nestedIdx = superadminBody.indexOf(CHANGELOG_SUPERADMIN_SECTION_MARKER);
+  if (nestedIdx === -1) return superadminBody;
+  // Legacy: body wurde doppelt per joinChangelogBody zusammengefügt.
+  return superadminBody.slice(0, nestedIdx).trim();
+}
+
 export function parseChangelogBody(body: string): {
   customerBody: string;
   superadminBody: string;
@@ -12,9 +19,9 @@ export function parseChangelogBody(body: string): {
   }
   return {
     customerBody: normalized.slice(0, idx).trim(),
-    superadminBody: normalized
-      .slice(idx + CHANGELOG_SUPERADMIN_SECTION_MARKER.length)
-      .trim(),
+    superadminBody: stripNestedSuperadminMarker(
+      normalized.slice(idx + CHANGELOG_SUPERADMIN_SECTION_MARKER.length).trim(),
+    ),
   };
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,10 @@ import {
   type GalleryPlatformFilter,
 } from "@/lib/constants/gallery-platforms";
 import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
+import {
+  peekGalleryFeedCache,
+  writeGalleryFeedCache,
+} from "@/lib/gallery/gallery-feed-client-cache";
 import type { GalleryFeedSyncMeta } from "@/lib/gallery/gallery-feed-sync-meta";
 import type {
   GalleryCategoryOption,
@@ -59,6 +63,7 @@ export function GalleryScreen() {
   const [syncMeta, setSyncMeta] = useState<GalleryFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && items.length === 0);
+  const loadGeneration = useRef(0);
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<UnifiedGalleryItem | null>(null);
@@ -69,32 +74,65 @@ export function GalleryScreen() {
 
   const { availablePlatforms } = useGalleryPlatformConnections(restaurantId);
 
-  const load = useCallback(async () => {
-    if (!restaurantId || !canRead) return;
-    setLoading(true);
-    try {
-      const res = await fetch(
-        `/api/gallery?${new URLSearchParams({ restaurantId })}`,
-      );
-      const data = (await res.json()) as {
-        items?: UnifiedGalleryItem[];
-        highlights?: UnifiedGalleryHighlight[];
-        categories?: GalleryCategoryOption[];
-        sync?: GalleryFeedSyncMeta;
-        error?: string;
-      };
-      if (!res.ok) {
-        toast.error("Galerie konnte nicht geladen werden");
-        return;
+  const load = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!restaurantId || !canRead) return;
+      const generation = ++loadGeneration.current;
+      const cached = peekGalleryFeedCache(restaurantId);
+      const silent = options?.silent ?? false;
+
+      if (!silent) {
+        if (cached) {
+          setItems(cached.items);
+          setHighlights(cached.highlights);
+          setCategories(cached.categories);
+          setSyncMeta(cached.sync);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
       }
-      setItems(data.items ?? []);
-      setHighlights(data.highlights ?? []);
-      setCategories(data.categories ?? []);
-      setSyncMeta(data.sync ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }, [restaurantId, canRead]);
+
+      try {
+        const res = await fetch(
+          `/api/gallery?${new URLSearchParams({ restaurantId })}`,
+        );
+        const data = (await res.json()) as {
+          items?: UnifiedGalleryItem[];
+          highlights?: UnifiedGalleryHighlight[];
+          categories?: GalleryCategoryOption[];
+          sync?: GalleryFeedSyncMeta;
+          error?: string;
+        };
+        if (generation !== loadGeneration.current) return;
+        if (!res.ok) {
+          if (!silent && !cached) {
+            toast.error("Galerie konnte nicht geladen werden");
+          }
+          return;
+        }
+        const nextItems = data.items ?? [];
+        const nextHighlights = data.highlights ?? [];
+        const nextCategories = data.categories ?? [];
+        const nextSync = data.sync ?? null;
+        setItems(nextItems);
+        setHighlights(nextHighlights);
+        setCategories(nextCategories);
+        setSyncMeta(nextSync);
+        writeGalleryFeedCache(restaurantId, {
+          items: nextItems,
+          highlights: nextHighlights,
+          categories: nextCategories,
+          sync: nextSync,
+        });
+      } finally {
+        if (!silent && generation === loadGeneration.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [restaurantId, canRead],
+  );
 
   useEffect(() => {
     void load();
@@ -133,7 +171,7 @@ export function GalleryScreen() {
 
   useEffect(() => {
     if (!syncMeta?.stale || loading) return;
-    void load();
+    void load({ silent: true });
   }, [syncMeta?.stale, loading, load]);
 
   const handleDelete = useCallback(async () => {
@@ -157,7 +195,9 @@ export function GalleryScreen() {
     void load();
   }, [restaurantId, selectedItem, load]);
 
-  if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
+  if (!ready) {
+    return <WorkspaceRestaurantResolvePlaceholder className="min-h-[20rem]" />;
+  }
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
   if (!canRead) {
     return (
@@ -223,8 +263,14 @@ export function GalleryScreen() {
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
       >
-        {showSkeleton ? (
-          <GalleryMasonryGridSkeleton />
+        {loading && items.length === 0 && !showSkeleton ? (
+          <div
+            className="min-h-[280px] rounded-2xl border border-border/50"
+            aria-busy
+            aria-label="Galerie wird geladen"
+          />
+        ) : showSkeleton ? (
+          <GalleryMasonryGridSkeleton count={8} />
         ) : paginatedItems.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">
             {syncMeta?.stale ? "Synchronisiere Galerie …" : "Noch keine Bilder in dieser Ansicht."}

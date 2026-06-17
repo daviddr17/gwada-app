@@ -12,6 +12,11 @@ const BEWERTUNGEN_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/bewertungen"],
   },
   {
+    href: "/dashboard/bewertungen/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/bewertungen/einbinden",
     label: "Einbinden",
     matchMode: "prefix",

@@ -32,6 +32,11 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/dashboard/mitarbeiter/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/mitarbeiter/export",
     label: "Export",
     matchMode: "exact",

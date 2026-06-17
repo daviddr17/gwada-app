@@ -18,6 +18,11 @@ const MESSAGES_MODULE_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "prefix",
   },
   {
+    href: "/dashboard/kontakte/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/kontakte/export",
     label: "Export",
     matchMode: "exact",

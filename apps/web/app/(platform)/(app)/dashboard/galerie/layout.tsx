@@ -12,6 +12,11 @@ const GALLERY_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/galerie"],
   },
   {
+    href: "/dashboard/galerie/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/galerie/einbinden",
     label: "Einbinden",
     matchMode: "prefix",

@@ -27,6 +27,11 @@ const BUCHFUEHRUNG_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/dashboard/buchfuehrung/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/buchfuehrung/einstellungen",
     label: "Einstellungen",
     matchMode: "exact",

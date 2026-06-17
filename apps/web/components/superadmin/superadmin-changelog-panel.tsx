@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { dispatchSuperadminChangelogRefresh } from "@/lib/changelog/changelog-events";
 import { ChangelogEntryCard } from "@/components/changelog/changelog-entry-card";
 import { ChangelogOverviewSkeleton } from "@/components/changelog/changelog-overview-skeleton";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
 import { joinChangelogBody, parseChangelogBody } from "@/lib/changelog/changelog-body-sections";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
+  approveSuperadminChangelogEntry,
   createSuperadminChangelogEntry,
   deleteSuperadminChangelogEntry,
   fetchSuperadminChangelogEntries,
@@ -94,7 +96,9 @@ export function SuperadminChangelogPanel() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const showSkeleton = useDeferredSkeleton(loading && entries.length === 0);
+  const pendingCount = entries.filter((entry) => !entry.approvedAt).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -163,9 +167,27 @@ export function SuperadminChangelogPanel() {
       return;
     }
 
-    toast.success(editingId ? "Eintrag aktualisiert." : "Eintrag veröffentlicht.");
+    toast.success(
+      editingId
+        ? "Eintrag aktualisiert."
+        : "Eintrag gespeichert — Freigabe ausstehend.",
+    );
     setDialogOpen(false);
     void load();
+    dispatchSuperadminChangelogRefresh();
+  };
+
+  const handleApprove = async (id: string) => {
+    setApprovingId(id);
+    const { entry, error } = await approveSuperadminChangelogEntry(id);
+    setApprovingId(null);
+    if (error || !entry) {
+      toast.error(error ?? "Freigabe fehlgeschlagen.");
+      return;
+    }
+    toast.success("Changelog für Kunden freigegeben.");
+    void load();
+    dispatchSuperadminChangelogRefresh();
   };
 
   const handleDelete = async (id: string) => {
@@ -176,6 +198,7 @@ export function SuperadminChangelogPanel() {
     }
     toast.success("Eintrag gelöscht.");
     void load();
+    dispatchSuperadminChangelogRefresh();
   };
 
   const handleGitSync = async () => {
@@ -193,9 +216,10 @@ export function SuperadminChangelogPanel() {
     }
     if (created > 0) {
       toast.success(
-        `${created} Eintrag${created === 1 ? "" : "e"} aus Git übernommen.`,
+        `${created} Eintrag${created === 1 ? "" : "e"} aus Git übernommen — Freigabe ausstehend.`,
       );
       void load();
+      dispatchSuperadminChangelogRefresh();
     } else if (skipped > 0) {
       toast.message("Keine neuen Commits — bereits synchronisiert.");
     } else {
@@ -243,14 +267,33 @@ export function SuperadminChangelogPanel() {
         </Card>
       ) : (
         <div className="space-y-4">
+          {pendingCount > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {pendingCount} Eintrag{pendingCount === 1 ? "" : "e"} warten auf
+              Freigabe für Endkunden.
+            </p>
+          ) : null}
           {entries.map((entry) => (
             <ChangelogEntryCard
               key={entry.id}
               entry={entry}
               showAudienceBadge
+              showApprovalBadge
               showSuperadminSections
               actions={
                 <>
+                  {!entry.approvedAt ? (
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      className="rounded-xl"
+                      aria-label="Für Kunden freigeben"
+                      disabled={approvingId === entry.id}
+                      onClick={() => void handleApprove(entry.id)}
+                    >
+                      <Check className="size-3.5" />
+                    </Button>
+                  ) : null}
                   <Button
                     type="button"
                     variant="outline"

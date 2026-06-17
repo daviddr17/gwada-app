@@ -15,7 +15,7 @@ import type {
 } from "@/lib/types/platform-changelog";
 
 const CHANGELOG_SELECT =
-  "id, published_at, title, body, version, audience, created_at, updated_at, source_git_sha";
+  "id, published_at, title, body, version, audience, approved_at, created_at, updated_at, source_git_sha";
 
 type ChangelogRow = {
   id: string;
@@ -24,6 +24,7 @@ type ChangelogRow = {
   body: string;
   version: string | null;
   audience: PlatformChangelogEntry["audience"];
+  approved_at: string | null;
   created_at: string;
   updated_at: string;
   source_git_sha: string | null;
@@ -39,6 +40,7 @@ function rowToEntry(row: ChangelogRow): PlatformChangelogEntry & {
     body: row.body,
     version: row.version,
     audience: row.audience,
+    approvedAt: row.approved_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     sourceGitSha: row.source_git_sha,

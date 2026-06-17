@@ -68,6 +68,36 @@ export async function deleteSuperadminChangelogEntry(
   return { error: null };
 }
 
+export async function approveSuperadminChangelogEntry(
+  id: string,
+): Promise<{ entry: PlatformChangelogEntry | null; error: string | null }> {
+  const res = await fetch(`/api/superadmin/changelog/${id}/approve`, {
+    method: "POST",
+  });
+  const data = (await res.json()) as {
+    entry?: PlatformChangelogEntry;
+    error?: string;
+  };
+  if (!res.ok) {
+    return { entry: null, error: data.error ?? "Freigabe fehlgeschlagen." };
+  }
+  return { entry: data.entry ?? null, error: null };
+}
+
+export async function fetchSuperadminChangelogPendingCount(): Promise<{
+  count: number;
+  error: string | null;
+}> {
+  const res = await fetch("/api/superadmin/changelog/pending-count", {
+    cache: "no-store",
+  });
+  const data = (await res.json()) as { count?: number; error?: string };
+  if (!res.ok) {
+    return { count: 0, error: data.error ?? "Zähler konnte nicht geladen werden." };
+  }
+  return { count: data.count ?? 0, error: null };
+}
+
 export type ChangelogGitSyncResult = {
   created: PlatformChangelogEntry[];
   skipped: string[];

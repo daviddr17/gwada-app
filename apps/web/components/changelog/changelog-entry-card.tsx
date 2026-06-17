@@ -69,17 +69,20 @@ export function ChangelogEntryCard({
   entry,
   className,
   showAudienceBadge = false,
+  showApprovalBadge = false,
   showSuperadminSections = false,
   actions,
 }: {
   entry: PlatformChangelogEntry;
   className?: string;
   showAudienceBadge?: boolean;
+  showApprovalBadge?: boolean;
   /** Superadmin sieht internen Zusatzteil farblich abgesetzt. */
   showSuperadminSections?: boolean;
   actions?: React.ReactNode;
 }) {
   const isNew = isChangelogEntryNew(entry.publishedAt);
+  const isPendingApproval = !entry.approvedAt;
   const isSuperadminOnlyEntry = entry.audience === "superadmin";
   const { customerBody, superadminBody } = parseChangelogBody(entry.body);
 
@@ -111,6 +114,11 @@ export function ChangelogEntryCard({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          {showApprovalBadge && isPendingApproval ? (
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-900 dark:text-amber-100">
+              Freigabe ausstehend
+            </span>
+          ) : null}
           {showAudienceBadge && isSuperadminOnlyEntry ? (
             <span className="rounded-full border border-violet-500/35 bg-violet-500/10 px-2.5 py-0.5 text-xs font-medium text-violet-800 dark:text-violet-200">
               {CHANGELOG_AUDIENCE_LABELS.superadmin}

@@ -72,6 +72,9 @@ export const APP_ROUTES = {
     embed: "/dashboard/galerie/einbinden",
     settings: "/dashboard/galerie/einstellungen",
   },
+  events: {
+    root: "/dashboard/events",
+  },
 } as const;
 
 /** Legacy-Pfade → neue Dashboard-Pfade (Permanent Redirect). */

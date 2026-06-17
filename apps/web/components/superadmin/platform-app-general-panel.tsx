@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 const ACCEPT_IMAGES =
   "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon";
 
-function BrandingAssetCard({
+function BrandingAssetField({
   title,
   description,
   previewUrl,
@@ -52,72 +52,72 @@ function BrandingAssetCard({
   const inputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <Card className="border-border/50 shadow-card">
-      <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div
-          className={cn(
-            "flex min-h-[7rem] items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/15 p-4",
-            previewUrl && "border-solid",
-          )}
+    <div className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-border/50 bg-muted/5 p-3">
+      <div className="space-y-0.5">
+        <p className="text-sm font-medium leading-snug">{title}</p>
+        <p className="text-xs leading-snug text-muted-foreground">{description}</p>
+      </div>
+      <div
+        className={cn(
+          "flex min-h-[4.5rem] items-center justify-center rounded-lg border border-dashed border-border/60 bg-background/60 p-2",
+          previewUrl && "border-solid",
+        )}
+      >
+        {previewUrl ? (
+          <div className="relative flex max-h-12 w-full items-center justify-center">
+            <Image
+              src={previewUrl}
+              alt=""
+              width={120}
+              height={48}
+              unoptimized
+              className="max-h-12 w-auto max-w-full object-contain"
+            />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-muted-foreground">
+            <ImageIcon className="size-5 opacity-60" />
+            <span className="text-xs">Noch kein Bild</span>
+          </div>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPT_IMAGES}
+        className="sr-only"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) onUpload(file);
+        }}
+      />
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 rounded-lg px-2.5 text-xs"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
         >
-          {previewUrl ? (
-            <div className="relative flex max-h-24 w-full max-w-xs items-center justify-center">
-              <Image
-                src={previewUrl}
-                alt=""
-                width={160}
-                height={80}
-                unoptimized
-                className="max-h-20 w-auto max-w-full object-contain"
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <ImageIcon className="size-8 opacity-60" />
-              <span className="text-sm">Noch kein Bild hochgeladen</span>
-            </div>
-          )}
-        </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPT_IMAGES}
-          className="sr-only"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) onUpload(file);
-          }}
-        />
-        <div className="flex flex-wrap gap-2">
+          {previewUrl ? "Ersetzen" : "Hochladen"}
+        </Button>
+        {previewUrl ? (
           <Button
             type="button"
-            variant="outline"
-            className="rounded-xl"
+            variant="ghost"
+            size="sm"
+            className="h-8 rounded-lg px-2 text-xs text-destructive hover:text-destructive"
             disabled={uploading}
-            onClick={() => inputRef.current?.click()}
+            onClick={onRemove}
           >
-            {previewUrl ? "Ersetzen" : "Hochladen"}
+            <Trash2 className="size-3.5" />
+            Entfernen
           </Button>
-          {previewUrl ? (
-            <Button
-              type="button"
-              variant="ghost"
-              className="rounded-xl text-destructive hover:text-destructive"
-              disabled={uploading}
-              onClick={onRemove}
-            >
-              <Trash2 className="size-4" />
-              Entfernen
-            </Button>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -250,63 +250,72 @@ export function PlatformAppGeneralPanel() {
   if (loading) {
     return (
       <div
-        className="min-h-[20rem] rounded-2xl border border-border/50 bg-card/50"
+        className="min-h-[12rem] rounded-2xl border border-border/50 bg-card/50"
         aria-busy
       />
     );
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <>
       <Card className="border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle>App-Name</CardTitle>
-          <CardDescription>
-            Erscheint im Browser-Tab und überall, wo der Plattformname angezeigt
-            wird (z. B. Startseite).
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">App-Branding</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">
+            Name, Logos und Favicon für Browser-Tab, Startseite und App-Oberfläche.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 max-w-md">
-            <Label htmlFor="platform-app-name">Name</Label>
-            <Input
-              id="platform-app-name"
-              value={appName}
-              onChange={(e) => setAppName(e.target.value)}
-              maxLength={80}
-              className="h-11 rounded-xl"
-              placeholder={DEFAULT_PLATFORM_APP_NAME}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-border/50 bg-muted/5 p-3">
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium leading-snug">App-Name</p>
+                <p className="text-xs leading-snug text-muted-foreground">
+                  Erscheint im Tab und überall, wo der Plattformname angezeigt wird.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="platform-app-name" className="text-xs">
+                  Name
+                </Label>
+                <Input
+                  id="platform-app-name"
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  maxLength={80}
+                  className="h-9 rounded-lg text-sm"
+                  placeholder={DEFAULT_PLATFORM_APP_NAME}
+                />
+              </div>
+            </div>
+
+            <BrandingAssetField
+              title="Logo (Hellmodus)"
+              description="Helles Theme: Top-Menü, Startseite, App. PNG, JPEG, WebP oder SVG, max. 2 MB."
+              previewUrl={logoUrl}
+              uploading={uploadingLogo}
+              onUpload={(file) => void handleUpload("logo", file)}
+              onRemove={() => void handleRemove("logo")}
+            />
+            <BrandingAssetField
+              title="Logo (Dunkelmodus)"
+              description="Dunkles Theme. Ohne eigenes Logo wird das Hellmodus-Logo genutzt."
+              previewUrl={logoDarkUrl}
+              uploading={uploadingLogoDark}
+              onUpload={(file) => void handleUpload("logo_dark", file)}
+              onRemove={() => void handleRemove("logo_dark")}
+            />
+            <BrandingAssetField
+              title="Favicon"
+              description="Browser-Tab: PNG, ICO oder SVG. In der Topzeile bitte PNG oder SVG."
+              previewUrl={faviconUrl}
+              uploading={uploadingFavicon}
+              onUpload={(file) => void handleUpload("favicon", file)}
+              onRemove={() => void handleRemove("favicon")}
             />
           </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <BrandingAssetCard
-          title="App-Logo (Hellmodus)"
-          description="Für helles Theme: Top-Menü, Startseite und App-Oberfläche. PNG, JPEG, WebP oder SVG, max. 2 MB."
-          previewUrl={logoUrl}
-          uploading={uploadingLogo}
-          onUpload={(file) => void handleUpload("logo", file)}
-          onRemove={() => void handleRemove("logo")}
-        />
-        <BrandingAssetCard
-          title="App-Logo (Dunkelmodus)"
-          description="Für dunkles Theme. Ohne eigenes Logo wird das Hellmodus-Logo verwendet."
-          previewUrl={logoDarkUrl}
-          uploading={uploadingLogoDark}
-          onUpload={(file) => void handleUpload("logo_dark", file)}
-          onRemove={() => void handleRemove("logo_dark")}
-        />
-        <BrandingAssetCard
-          title="Favicon"
-          description="Browser-Tab: PNG, ICO oder SVG. Für die Anzeige in der App-Topzeile bitte PNG oder SVG (ICO nur im Tab, nicht in der Leiste)."
-          previewUrl={faviconUrl}
-          uploading={uploadingFavicon}
-          onUpload={(file) => void handleUpload("favicon", file)}
-          onRemove={() => void handleRemove("favicon")}
-        />
-      </div>
 
       <SettingsStickySaveBar show={nameDirty}>
         <Button
@@ -318,6 +327,6 @@ export function PlatformAppGeneralPanel() {
           App-Name speichern
         </Button>
       </SettingsStickySaveBar>
-    </div>
+    </>
   );
 }

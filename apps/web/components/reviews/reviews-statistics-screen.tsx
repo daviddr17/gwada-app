@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -34,12 +34,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
-  computeReviewStatistics,
   formatReviewRating,
   type ReviewStatsPeriod,
 } from "@/lib/reviews/compute-review-statistics";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { fetchReviewStatisticsBundle } from "@/lib/supabase/reviews-analytics-db";
+import {
+  fetchReviewStatisticsBundle,
+  fetchReviewStatisticsRevision,
+} from "@/lib/reviews/fetch-review-statistics-bundle";
+import {
+  mergeReviewStatisticsSyncMeta,
+  peekReviewStatisticsCache,
+  writeReviewStatisticsCache,
+} from "@/lib/reviews/reviews-statistics-client-cache";
+import type { ReviewStatisticsBundle } from "@/lib/supabase/reviews-analytics-db";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -110,40 +118,144 @@ export function ReviewsStatisticsScreen() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
   const [period, setPeriod] = useState<ReviewStatsPeriod>(12);
-  const [bundle, setBundle] = useState<Awaited<
-    ReturnType<typeof fetchReviewStatisticsBundle>
-  >["data"]>(null);
+  const [bundle, setBundle] = useState<ReviewStatisticsBundle | null>(null);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && !bundle);
+  const followUpSyncKeyRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<number | null>(null);
+  const loadRef = useRef<
+    (options?: { mode?: "initial" | "poll" }) => Promise<void>
+  >(() => Promise.resolve());
 
-  useEffect(() => {
-    if (!restaurantId) return;
-    let cancel = false;
-    setLoading(true);
-    void (async () => {
+  const clearPollTimer = useCallback(() => {
+    if (pollTimerRef.current != null) {
+      window.clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleSyncPoll = useCallback(
+    (delayMs = 5000) => {
+      clearPollTimer();
+      pollTimerRef.current = window.setTimeout(() => {
+        void loadRef.current({ mode: "poll" });
+      }, delayMs);
+    },
+    [clearPollTimer],
+  );
+
+  const load = useCallback(
+    async (options?: { mode?: "initial" | "poll" }) => {
+      if (!restaurantId) return;
+      const mode = options?.mode ?? "initial";
+
+      if (mode === "initial") {
+        const cached = peekReviewStatisticsCache(restaurantId, period);
+        if (cached) {
+          setBundle(cached);
+          setLoading(false);
+        } else {
+          setLoading(true);
+        }
+      }
+
+      const { data: revision, error: revisionError } =
+        await fetchReviewStatisticsRevision({
+          restaurantId,
+          monthsBack: period,
+        });
+
+      if (revisionError) {
+        if (mode === "initial") toast.error(revisionError);
+        if (mode === "initial") setLoading(false);
+        return;
+      }
+
+      if (!revision) {
+        if (mode === "initial") setLoading(false);
+        return;
+      }
+
+      const cached = peekReviewStatisticsCache(restaurantId, period);
+      if (cached?.revision === revision.revision) {
+        const merged = mergeReviewStatisticsSyncMeta(cached, revision.sync);
+        if (merged !== cached) {
+          setBundle(merged);
+          writeReviewStatisticsCache(restaurantId, period, merged);
+        }
+
+        const syncPending =
+          revision.sync.syncTriggered ||
+          revision.sync.google.stale ||
+          revision.sync.facebook.stale;
+        if (syncPending) {
+          scheduleSyncPoll();
+        } else {
+          clearPollTimer();
+        }
+
+        if (mode === "initial") setLoading(false);
+        return;
+      }
+
       const { data, error } = await fetchReviewStatisticsBundle({
         restaurantId,
         monthsBack: period,
       });
-      if (cancel) return;
+
+      if (error) {
+        if (mode === "initial") toast.error(error);
+        if (mode === "initial") setLoading(false);
+        return;
+      }
+
+      if (data) {
+        setBundle(data);
+        writeReviewStatisticsCache(restaurantId, period, data);
+        if (
+          data.sync.syncTriggered ||
+          data.sync.google.stale ||
+          data.sync.facebook.stale
+        ) {
+          const syncKey = `${restaurantId}:${period}`;
+          if (followUpSyncKeyRef.current !== syncKey) {
+            followUpSyncKeyRef.current = syncKey;
+            scheduleSyncPoll(8000);
+          }
+        } else {
+          clearPollTimer();
+        }
+      }
+      if (mode === "initial") setLoading(false);
+    },
+    [restaurantId, period, scheduleSyncPoll, clearPollTimer],
+  );
+
+  loadRef.current = load;
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekReviewStatisticsCache(restaurantId, period);
+    if (cached) {
+      setBundle(cached);
       setLoading(false);
-      if (error) toast.error(error);
-      else setBundle(data);
-    })();
-    return () => {
-      cancel = true;
-    };
+    }
   }, [restaurantId, period]);
 
-  const stats = useMemo(() => {
-    if (!bundle) return null;
-    return computeReviewStatistics({
-      reviews: bundle.reviews,
-      invitations: bundle.invitations,
-      periodStart: bundle.periodStart,
-      periodEnd: bundle.periodEnd,
-    });
-  }, [bundle]);
+  useEffect(() => {
+    followUpSyncKeyRef.current = null;
+    clearPollTimer();
+  }, [restaurantId, period, clearPollTimer]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    void load({ mode: "initial" });
+    return () => {
+      clearPollTimer();
+    };
+  }, [restaurantId, period, load, clearPollTimer]);
+
+  const stats = bundle?.stats ?? null;
 
   const platformChartData = useMemo(
     () =>
@@ -174,7 +286,7 @@ export function ReviewsStatisticsScreen() {
   }
 
   if (!workspaceReady) {
-    return <WorkspaceRestaurantResolvePlaceholder className="min-h-[20rem]" />;
+    return <WorkspaceRestaurantResolvePlaceholder />;
   }
 
   if (!restaurantId) {
@@ -183,6 +295,14 @@ export function ReviewsStatisticsScreen() {
 
   return (
     <div className="space-y-6 pb-4">
+      {bundle?.sync.syncTriggered ||
+      bundle?.sync.google.stale ||
+      bundle?.sync.facebook.stale ? (
+        <p className="text-xs text-muted-foreground">
+          Google-/Facebook-Daten werden im Hintergrund aktualisiert …
+        </p>
+      ) : null}
+
       <div className="flex flex-wrap items-center justify-end gap-2">
         <div
           className="flex flex-wrap gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"

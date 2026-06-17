@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import {
   peekGalleryFeedCache,
   writeGalleryFeedCache,
+  type GalleryFeedCachePayload,
 } from "@/lib/gallery/gallery-feed-client-cache";
 import type { GalleryFeedSyncMeta } from "@/lib/gallery/gallery-feed-sync-meta";
 import type {
@@ -48,7 +49,7 @@ import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primar
 
 export function GalleryScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
-  const { has } = useRestaurantPermissions();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = has("gallery.read");
   const canCreate = has("gallery.create");
   const canUpdate = has("gallery.update");
@@ -62,8 +63,22 @@ export function GalleryScreen() {
   const [categories, setCategories] = useState<GalleryCategoryOption[]>([]);
   const [syncMeta, setSyncMeta] = useState<GalleryFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading && items.length === 0);
+  const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
   const loadGeneration = useRef(0);
+
+  const applyCachedFeed = useCallback((cached: GalleryFeedCachePayload) => {
+    setItems(cached.items);
+    setHighlights(cached.highlights);
+    setCategories(cached.categories);
+    setSyncMeta(cached.sync);
+    setLoading(false);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!restaurantId || permissionsLoading || !canRead) return;
+    const cached = peekGalleryFeedCache(restaurantId);
+    if (cached) applyCachedFeed(cached);
+  }, [restaurantId, permissionsLoading, canRead, applyCachedFeed]);
 
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<UnifiedGalleryItem | null>(null);
@@ -76,18 +91,14 @@ export function GalleryScreen() {
 
   const load = useCallback(
     async (options?: { silent?: boolean }) => {
-      if (!restaurantId || !canRead) return;
+      if (!restaurantId || permissionsLoading || !canRead) return;
       const generation = ++loadGeneration.current;
       const cached = peekGalleryFeedCache(restaurantId);
       const silent = options?.silent ?? false;
 
       if (!silent) {
         if (cached) {
-          setItems(cached.items);
-          setHighlights(cached.highlights);
-          setCategories(cached.categories);
-          setSyncMeta(cached.sync);
-          setLoading(false);
+          applyCachedFeed(cached);
         } else {
           setLoading(true);
         }
@@ -131,7 +142,7 @@ export function GalleryScreen() {
         }
       }
     },
-    [restaurantId, canRead],
+    [restaurantId, permissionsLoading, canRead, applyCachedFeed],
   );
 
   useEffect(() => {
@@ -196,10 +207,10 @@ export function GalleryScreen() {
   }, [restaurantId, selectedItem, load]);
 
   if (!ready) {
-    return <WorkspaceRestaurantResolvePlaceholder className="min-h-[20rem]" />;
+    return <WorkspaceRestaurantResolvePlaceholder />;
   }
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
-  if (!canRead) {
+  if (!permissionsLoading && !canRead) {
     return (
       <p className="px-4 py-8 text-sm text-muted-foreground">
         Keine Berechtigung für die Galerie.
@@ -263,14 +274,14 @@ export function GalleryScreen() {
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
       >
-        {loading && items.length === 0 && !showSkeleton ? (
+        {loading && items.length === 0 && !showFeedSkeleton ? (
           <div
-            className="min-h-[280px] rounded-2xl border border-border/50"
+            className="min-h-[12rem] rounded-2xl border border-border/50"
             aria-busy
             aria-label="Galerie wird geladen"
           />
-        ) : showSkeleton ? (
-          <GalleryMasonryGridSkeleton count={8} />
+        ) : showFeedSkeleton ? (
+          <GalleryMasonryGridSkeleton count={6} />
         ) : paginatedItems.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">
             {syncMeta?.stale ? "Synchronisiere Galerie …" : "Noch keine Bilder in dieser Ansicht."}

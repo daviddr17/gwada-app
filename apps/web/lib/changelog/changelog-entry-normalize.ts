@@ -1,5 +1,8 @@
 import type { ChangelogDraftFile } from "@/lib/changelog/changelog-draft-file";
-import { joinChangelogBody } from "@/lib/changelog/changelog-body-sections";
+import {
+  joinChangelogBody,
+  parseChangelogBody,
+} from "@/lib/changelog/changelog-body-sections";
 import type {
   PlatformChangelogAudience,
   PlatformChangelogEntryInput,
@@ -43,8 +46,13 @@ export function resolveChangelogVersion(
 export function normalizeChangelogDraft(
   draft: ChangelogDraftFile,
 ): ChangelogDraftFile {
-  const customerBody = sanitizeChangelogBody(draft.body);
-  const superadminBody = sanitizeChangelogBody(draft.superadminBody ?? "");
+  const { customerBody: parsedCustomer, superadminBody: parsedSuperadmin } =
+    parseChangelogBody(draft.body);
+  const customerBody = sanitizeChangelogBody(parsedCustomer);
+  const explicitSuperadmin = sanitizeChangelogBody(draft.superadminBody ?? "");
+  const superadminBody = sanitizeChangelogBody(
+    explicitSuperadmin || parsedSuperadmin,
+  );
   return {
     ...draft,
     title: sanitizeChangelogText(draft.title),

@@ -14,12 +14,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -212,7 +212,7 @@ export function SuperadminChangelogPanel() {
           type="button"
           variant="outline"
           size="lg"
-          className="h-12 rounded-xl px-4"
+          className="h-12 rounded-full px-6"
           disabled={syncing}
           onClick={() => void handleGitSync()}
         >
@@ -305,14 +305,19 @@ export function SuperadminChangelogPanel() {
         </CardHeader>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>
+      <Drawer
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        direction="bottom"
+        repositionInputs={false}
+      >
+        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+            <DrawerTitle className="text-xl font-semibold tracking-tight">
               {editingId ? "Eintrag bearbeiten" : "Neuer Changelog-Eintrag"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
             <div className="space-y-2">
               <Label htmlFor="changelog-title">Titel</Label>
               <Input
@@ -369,7 +374,9 @@ export function SuperadminChangelogPanel() {
                   id="changelog-audience"
                   className={appSelectTriggerAccentCn("h-10 w-full rounded-xl")}
                 >
-                  <SelectValue />
+                  <SelectValue>
+                    {CHANGELOG_AUDIENCE_LABELS[form.audience]}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="customers">
@@ -422,26 +429,14 @@ export function SuperadminChangelogPanel() {
               </p>
             </div>
           </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-xl"
-              onClick={() => setDialogOpen(false)}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              className="rounded-xl"
-              disabled={saving}
-              onClick={() => void handleSave()}
-            >
-              {saving ? "Speichern…" : "Speichern"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <DrawerFormFooter
+            onCancel={() => setDialogOpen(false)}
+            submitType="button"
+            onSubmit={() => void handleSave()}
+            submitPending={saving}
+          />
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }

@@ -58,14 +58,14 @@ export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
 }
 
 const SKELETON_ASPECTS = [
-  "aspect-[4/5]",
   "aspect-square",
+  "aspect-[4/5]",
   "aspect-[3/4]",
-  "aspect-[5/4]",
+  "aspect-square",
 ] as const;
 
 export function GalleryMasonryGridSkeleton({
-  count = 12,
+  count = 8,
   className,
 }: {
   count?: number;
@@ -75,6 +75,7 @@ export function GalleryMasonryGridSkeleton({
     <div
       className={cn(galleryMasonryGridFrameClassName, className)}
       aria-busy
+      aria-label="Galerie wird geladen"
     >
       <div className="columns-2 gap-px sm:columns-3 lg:columns-4">
         {Array.from({ length: count }).map((_, i) => (

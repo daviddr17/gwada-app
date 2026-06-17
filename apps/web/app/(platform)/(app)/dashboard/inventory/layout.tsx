@@ -18,6 +18,11 @@ const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/inventory/bestellung"],
   },
   {
+    href: "/dashboard/inventory/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/inventory/export",
     label: "Export",
     matchMode: "exact",

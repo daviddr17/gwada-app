@@ -12,6 +12,11 @@ const MENU_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/menu"],
   },
   {
+    href: "/dashboard/menu/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/menu/export",
     label: "Export",
     matchMode: "exact",

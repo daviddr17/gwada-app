@@ -17,6 +17,7 @@ type NewsSettingsRow = {
   default_embed_view: "grid" | "list";
   embed_max_items: number;
   embed_platforms: NewsEmbedPlatforms;
+  embed_show_all_filter: boolean;
 };
 
 function normalizeChannelIds(values: unknown): string[] {
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
   const { data, error } = await auth.sb
     .from("restaurant_news_settings")
     .select(
-      "whatsapp_channel_ids, whatsapp_channel_id, default_embed_view, embed_max_items, embed_platforms",
+      "whatsapp_channel_ids, whatsapp_channel_id, default_embed_view, embed_max_items, embed_platforms, embed_show_all_filter",
     )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
       data?.default_embed_view === "list" ? "list" : "grid",
     embed_max_items: Number(data?.embed_max_items ?? 24),
     embed_platforms: normalizeEmbedPlatforms(data?.embed_platforms),
+    embed_show_all_filter: data?.embed_show_all_filter !== false,
   };
 
   return NextResponse.json({ settings });
@@ -68,6 +70,7 @@ export async function PUT(req: Request) {
     defaultEmbedView?: "grid" | "list";
     embedMaxItems?: number;
     embedPlatforms?: Partial<Record<NewsPlatform, boolean>>;
+    embedShowAllFilter?: boolean;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
   const auth = await authorizeNewsRestaurant(restaurantId, { requireManage: true });
@@ -91,12 +94,14 @@ export async function PUT(req: Request) {
     default_embed_view: "grid" | "list";
     embed_max_items: number;
     embed_platforms?: NewsEmbedPlatforms;
+    embed_show_all_filter: boolean;
   } = {
     restaurant_id: restaurantId,
     whatsapp_channel_ids: whatsappChannelIds,
     whatsapp_channel_id: primaryChannelId,
     default_embed_view: defaultEmbedView,
     embed_max_items: embedMaxItems,
+    embed_show_all_filter: body.embedShowAllFilter !== false,
   };
 
   if (body.embedPlatforms) {

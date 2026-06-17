@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import {
@@ -15,12 +14,11 @@ import {
   type NewsPlatformFilter,
 } from "@/lib/constants/news-platforms";
 import { paginateListItems } from "@/lib/constants/list-pagination";
-import type {
-  PublicEmbedNews,
-  PublicEmbedNewsPagination,
-} from "@/lib/news/public-news-server";
+import { defaultNewsPlatformFilterWithoutAll } from "@/lib/news/news-embed-platforms";
+import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
+
 export type EmbedNewsWidgetProps = {
   accentHex: string;
   textTheme?: EmbedTextTheme;
@@ -28,23 +26,9 @@ export type EmbedNewsWidgetProps = {
   connectedPlatforms: PublicEmbedNews["connectedPlatforms"];
   items: PublicEmbedNews["items"];
   variant?: "embed" | "profileSheet";
-  /** Server-Pagination (Embed-Route) — x/y + Seiten unten. */
-  pagination?: PublicEmbedNewsPagination;
+  /** Chip „Alle“ in Profil & Einbindung — Standard: an. */
+  showAllPlatformFilter?: boolean;
 };
-
-function patchEmbedNewsQuery(
-  params: URLSearchParams,
-  patch: { page?: number; platform?: NewsPlatformFilter },
-) {
-  if (patch.page != null) {
-    if (patch.page <= 1) params.delete("page");
-    else params.set("page", String(patch.page));
-  }
-  if (patch.platform != null) {
-    if (patch.platform === NEWS_FILTER_ALL) params.delete("platform");
-    else params.set("platform", patch.platform);
-  }
-}
 
 export function EmbedNewsWidget({
   accentHex,
@@ -53,133 +37,104 @@ export function EmbedNewsWidget({
   connectedPlatforms,
   items,
   variant = "embed",
-  pagination,
+  showAllPlatformFilter = true,
 }: EmbedNewsWidgetProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [localPlatformFilter, setLocalPlatformFilter] =
-    useState<NewsPlatformFilter>(NEWS_FILTER_ALL);
-  const [localPage, setLocalPage] = useState(1);
-  const [navigating, startTransition] = useTransition();
-  const paginated = pagination != null && variant === "embed";
-  const profilePaginated = variant === "profileSheet";
-
-  const rawPlatformFilter = paginated
-    ? (pagination.platformFilter ?? NEWS_FILTER_ALL)
-    : localPlatformFilter;
+  const showAllChip = showAllPlatformFilter !== false;
 
   const availablePlatforms = useMemo(
     () => new Set(connectedPlatforms),
     [connectedPlatforms],
   );
 
-  const platformFilter = useMemo(() => {
+  const fallbackPlatformFilter = useMemo(
+    () => defaultNewsPlatformFilterWithoutAll(connectedPlatforms),
+    [connectedPlatforms],
+  );
+
+  const [platformFilter, setPlatformFilterState] = useState<NewsPlatformFilter>(
+    () => (showAllChip ? NEWS_FILTER_ALL : fallbackPlatformFilter),
+  );
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setPlatformFilterState((current) => {
+      if (!showAllChip) {
+        if (current === NEWS_FILTER_ALL || !availablePlatforms.has(current)) {
+          return fallbackPlatformFilter;
+        }
+        return current;
+      }
+      if (current !== NEWS_FILTER_ALL && !availablePlatforms.has(current)) {
+        return NEWS_FILTER_ALL;
+      }
+      return current;
+    });
+  }, [showAllChip, availablePlatforms, fallbackPlatformFilter]);
+
+  const resolvedPlatformFilter = useMemo(() => {
+    if (!showAllChip) {
+      if (platformFilter === NEWS_FILTER_ALL || !availablePlatforms.has(platformFilter)) {
+        return fallbackPlatformFilter;
+      }
+      return platformFilter;
+    }
     if (
-      rawPlatformFilter !== NEWS_FILTER_ALL &&
-      !availablePlatforms.has(rawPlatformFilter)
+      platformFilter !== NEWS_FILTER_ALL &&
+      !availablePlatforms.has(platformFilter)
     ) {
       return NEWS_FILTER_ALL;
     }
-    return rawPlatformFilter;
-  }, [rawPlatformFilter, availablePlatforms]);
+    return platformFilter;
+  }, [platformFilter, availablePlatforms, showAllChip, fallbackPlatformFilter]);
 
   const visibleItems = useMemo(
-    () =>
-      paginated
-        ? items
-        : items.filter((item) => availablePlatforms.has(item.platform)),
-    [items, availablePlatforms, paginated],
+    () => items.filter((item) => availablePlatforms.has(item.platform)),
+    [items, availablePlatforms],
   );
 
   const filtered = useMemo(() => {
-    if (paginated) return visibleItems;
-    if (platformFilter === NEWS_FILTER_ALL) return visibleItems;
-    return visibleItems.filter((item) => item.platform === platformFilter);
-  }, [visibleItems, platformFilter, paginated]);
-
-  const pushQuery = useCallback(
-    (patch: { page?: number; platform?: NewsPlatformFilter }) => {
-      const params = new URLSearchParams(searchParams.toString());
-      patchEmbedNewsQuery(params, patch);
-      const nextQs = params.toString();
-      const currentQs = searchParams.toString();
-      if (nextQs === currentQs) return;
-
-      startTransition(() => {
-        router.push(nextQs ? `${pathname}?${nextQs}` : pathname, {
-          scroll: false,
-        });
-      });
-    },
-    [router, pathname, searchParams],
-  );
+    if (resolvedPlatformFilter === NEWS_FILTER_ALL) return visibleItems;
+    return visibleItems.filter((item) => item.platform === resolvedPlatformFilter);
+  }, [visibleItems, resolvedPlatformFilter]);
 
   const setPlatformFilter = useCallback(
     (next: NewsPlatformFilter) => {
-      if (
-        next !== NEWS_FILTER_ALL &&
-        !availablePlatforms.has(next)
-      ) {
+      if (!showAllChip && next === NEWS_FILTER_ALL) {
         return;
       }
-      if (paginated) {
-        pushQuery({ platform: next, page: 1 });
+      if (next !== NEWS_FILTER_ALL && !availablePlatforms.has(next)) {
         return;
       }
-      setLocalPlatformFilter(next);
-      setLocalPage(1);
+      setPlatformFilterState(next);
+      setPage(1);
     },
-    [paginated, pushQuery, availablePlatforms],
+    [availablePlatforms, showAllChip],
   );
 
-  useEffect(() => {
-    if (!paginated) return;
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [paginated, pagination?.page, pagination?.platformFilter]);
+  const clientPagination = useMemo(
+    () => paginateListItems(filtered, page, NEWS_FEED_PAGE_SIZE),
+    [filtered, page],
+  );
 
-  useEffect(() => {
-    if (!profilePaginated) return;
-    setLocalPage(1);
-  }, [profilePaginated, platformFilter]);
-
-  const clientPagination = useMemo(() => {
-    if (!profilePaginated) return null;
-    return paginateListItems(filtered, localPage, NEWS_FEED_PAGE_SIZE);
-  }, [profilePaginated, filtered, localPage]);
-
-  const displayItems = paginated
-    ? filtered
-    : profilePaginated
-      ? clientPagination!.items
-      : filtered;
+  const displayItems = clientPagination.items;
 
   const resizeDeps = useMemo(
     () => [
       viewMode,
-      platformFilter,
+      resolvedPlatformFilter,
       displayItems.length,
-      pagination?.page ?? clientPagination?.page ?? 1,
-      pagination?.totalCount ??
-        clientPagination?.totalCount ??
-        filtered.length,
+      clientPagination.page,
+      clientPagination.totalCount,
       displayItems.map((i) => `${i.id}:${i.body.length}:${i.media.length}`).join("|"),
     ],
-    [viewMode, platformFilter, displayItems, pagination, clientPagination, filtered.length],
+    [viewMode, resolvedPlatformFilter, displayItems, clientPagination],
   );
 
   const paddingClass =
     variant === "profileSheet" ? "px-0 py-0" : "px-4 py-5 sm:px-6";
 
-  const showServerPagination =
-    paginated &&
-    pagination != null &&
-    (pagination.totalPages > 1 || pagination.totalCount > 0);
-
-  const showClientPagination =
-    profilePaginated &&
-    clientPagination != null &&
-    (clientPagination.totalPages > 1 || clientPagination.totalCount > 0);
+  const showPagination =
+    clientPagination.totalPages > 1 || clientPagination.totalCount > 0;
 
   const newsContent =
     viewMode === "list" ? (
@@ -199,37 +154,21 @@ export function EmbedNewsWidget({
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">
             <NewsPlatformFilterChips
-              value={platformFilter}
+              value={resolvedPlatformFilter}
               onChange={setPlatformFilter}
               availablePlatforms={availablePlatforms}
+              showAllChip={showAllChip}
             />
           </div>
         ) : null}
 
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {platformFilter === NEWS_FILTER_ALL
+            {resolvedPlatformFilter === NEWS_FILTER_ALL
               ? "Noch keine News veröffentlicht."
               : "Keine News für diese Plattform."}
           </p>
-        ) : showServerPagination && pagination ? (
-          <ListPaginationSurround
-            classNameAbove="mb-4 border-b-0 pb-0"
-            classNameBelow="mt-4 border-t-0 pt-0"
-            page={pagination.page}
-            totalPages={pagination.totalPages}
-            shown={displayItems.length}
-            totalCount={pagination.totalCount}
-            itemLabel="Beiträge"
-            canPrevious={pagination.page > 1}
-            canNext={pagination.page < pagination.totalPages}
-            busy={navigating}
-            onPrevious={() => pushQuery({ page: pagination.page - 1 })}
-            onNext={() => pushQuery({ page: pagination.page + 1 })}
-          >
-            {newsContent}
-          </ListPaginationSurround>
-        ) : showClientPagination && clientPagination ? (
+        ) : showPagination ? (
           <ListPaginationSurround
             classNameAbove="mb-4 border-b-0 pb-0"
             classNameBelow="mt-4 border-t-0 pt-0"
@@ -240,9 +179,9 @@ export function EmbedNewsWidget({
             itemLabel="Beiträge"
             canPrevious={clientPagination.page > 1}
             canNext={clientPagination.page < clientPagination.totalPages}
-            onPrevious={() => setLocalPage((p) => Math.max(1, p - 1))}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() =>
-              setLocalPage((p) => Math.min(clientPagination.totalPages, p + 1))
+              setPage((p) => Math.min(clientPagination.totalPages, p + 1))
             }
           >
             {newsContent}

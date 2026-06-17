@@ -4,9 +4,16 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForWhatsappInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { whatsappChatIdFromPayloadAddress } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
-import { displayNameFromWahaChatId } from "@/lib/contact-messages/waha-chat-label";
+import {
+  wahaWebhookPayloadMediaKind,
+} from "@/lib/contact-messages/waha-message-media";
+import {
+  buildMessagePushPreview,
+  whatsappMediaMirrorBody,
+} from "@/lib/notifications/message-push-preview";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
 import { emitMessageNotificationEventIfNew } from "@/lib/notifications/emit-message-notification-event";
+import { resolveMessageNotificationSender } from "@/lib/notifications/message-notification-sender";
 import { scheduleNotificationDeliverForEvent } from "@/lib/notifications/schedule-notification-deliver";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
@@ -123,12 +130,15 @@ export async function handleWahaInboundWebhook(
     chatId,
   });
 
-  const bodyText =
-    payload.body?.trim() ||
-    (payload.hasMedia ? "WhatsApp-Anhang" : "");
-  if (!bodyText) {
+  const mediaKind = payload.hasMedia
+    ? wahaWebhookPayloadMediaKind(payload)
+    : null;
+  const bodyText = payload.body?.trim() ?? "";
+  if (!bodyText && !payload.hasMedia) {
     return { ok: true, imported: false, reason: "empty_body" };
   }
+  const mirrorBody =
+    bodyText || whatsappMediaMirrorBody(mediaKind);
 
   if (!contactId) {
     await insertInboxSignalServer(admin, {
@@ -138,13 +148,25 @@ export async function handleWahaInboundWebhook(
 
     const messageCreatedAt =
       wahaTimestampToIso(payload.timestamp) ?? new Date().toISOString();
+    const pseudoContactId = `waha:${chatId}`;
+    const sender = await resolveMessageNotificationSender(admin, {
+      restaurantId,
+      contactId: pseudoContactId,
+      platform: "whatsapp",
+    });
+    const preview = buildMessagePushPreview({
+      body: mirrorBody,
+      attachmentKind: mediaKind,
+      senderName: sender.contactName,
+    });
     const { eventId } = await emitMessageNotificationEventIfNew(admin, {
       restaurantId,
       referenceId: `waha:${payload.id}`,
       payload: {
-        contactId: `waha:${chatId}`,
-        contactName: displayNameFromWahaChatId(chatId) ?? "WhatsApp",
-        preview: bodyText.slice(0, 120),
+        contactId: pseudoContactId,
+        contactName: sender.contactName,
+        ...(sender.senderPhone ? { senderPhone: sender.senderPhone } : {}),
+        preview,
         platform: "whatsapp",
         messageCreatedAt,
       },
@@ -162,9 +184,10 @@ export async function handleWahaInboundWebhook(
     contactId,
     platform: "whatsapp",
     direction: "inbound",
-    body: bodyText,
+    body: mirrorBody,
     externalSourceId,
     createdAt: wahaTimestampToIso(payload.timestamp),
+    attachmentKind: mediaKind,
   });
 
   return { ok: true, imported };

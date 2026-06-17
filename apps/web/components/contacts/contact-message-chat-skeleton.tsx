@@ -15,7 +15,7 @@ function BubbleSkeleton({
   return (
     <div
       className={cn(
-        "flex max-w-[min(100%,20rem)] flex-col gap-1",
+        "flex max-w-[80%] flex-col gap-1",
         align === "end" ? "ml-auto items-end" : "items-start",
         className,
       )}

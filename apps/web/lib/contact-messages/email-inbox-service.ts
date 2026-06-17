@@ -8,6 +8,7 @@ import {
   imapSetMessagesSeen,
   type ImapCredentials,
   type ImapEnvelopeMessage,
+  type ImapThreadBodyEntry,
 } from "@/lib/email/imap-inbox";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
@@ -208,35 +209,12 @@ function messageMatchesContact(
   return msg.to.some((t) => contactEmails.has(t.toLowerCase()));
 }
 
-export async function fetchEmailInboxThread(
-  admin: SupabaseClient,
-  params: {
-    restaurantId: string;
-    contactId: string;
-  },
-): Promise<{ data: ContactMessageRow[]; error: string | null }> {
-  const creds = await resolveRestaurantImapCredentials(admin, params.restaurantId);
-  if (!creds) return { data: [], error: "imap_not_configured" };
-
-  const contactEmails = new Set(
-    await contactEmailsForThread(admin, params.restaurantId, params.contactId),
-  );
-  if (contactEmails.size === 0) {
-    return { data: [], error: "no_contact_email" };
-  }
-
-  const { data: envelopes, error } = await fetchImapRecentEnvelopes(creds);
-  if (error) return { data: [], error };
-
-  const threadEnvelopes = envelopes
-    .filter((m) => messageMatchesContact(m, contactEmails, creds.email))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  const uids = threadEnvelopes.map((m) => m.uid);
-  const { bodies, error: bodyErr } = await fetchImapThreadBodies(creds, uids);
-  if (bodyErr) return { data: [], error: bodyErr };
-
-  const rows: ContactMessageRow[] = threadEnvelopes.map((env) => {
+function mapEnvelopesToEmailRows(
+  envelopes: ImapEnvelopeMessage[],
+  bodies: Map<number, ImapThreadBodyEntry>,
+  params: { restaurantId: string; contactId: string },
+): ContactMessageRow[] {
+  return envelopes.map((env) => {
     const parsed = bodies.get(env.uid);
     const body = parsed?.body ?? env.subject;
     const outbound = parsed?.outbound ?? env.outbound;
@@ -267,6 +245,82 @@ export async function fetchEmailInboxThread(
       attachments: attachments.length > 0 ? attachments : undefined,
     };
   });
+}
+
+export async function fetchEmailInboxThreadPage(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    contactId: string;
+    limit: number;
+    before?: string | null;
+  },
+): Promise<{ data: ContactMessageRow[]; hasMore: boolean; error: string | null }> {
+  const creds = await resolveRestaurantImapCredentials(admin, params.restaurantId);
+  if (!creds) return { data: [], hasMore: false, error: "imap_not_configured" };
+
+  const { envelopes: threadEnvelopes, error } = await threadEnvelopesForContact(
+    admin,
+    params,
+    creds,
+  );
+  if (error) {
+    return { data: [], hasMore: false, error };
+  }
+  if (threadEnvelopes.length === 0) {
+    return { data: [], hasMore: false, error: "no_contact_email" };
+  }
+
+  const sorted = [...threadEnvelopes].sort(
+    (a, b) => a.date.getTime() - b.date.getTime(),
+  );
+  const pool = params.before
+    ? sorted.filter((e) => e.date.toISOString() < params.before!)
+    : sorted;
+
+  const hasMore = pool.length > params.limit;
+  const pageEnvelopes = pool.slice(-params.limit);
+  if (pageEnvelopes.length === 0) {
+    return { data: [], hasMore: false, error: null };
+  }
+
+  const uids = pageEnvelopes.map((m) => m.uid);
+  const { bodies, error: bodyErr } = await fetchImapThreadBodies(creds, uids);
+  if (bodyErr) return { data: [], hasMore: false, error: bodyErr };
+
+  const rows = mapEnvelopesToEmailRows(pageEnvelopes, bodies, params);
+  return { data: rows, hasMore, error: null };
+}
+
+export async function fetchEmailInboxThread(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    contactId: string;
+  },
+): Promise<{ data: ContactMessageRow[]; error: string | null }> {
+  const creds = await resolveRestaurantImapCredentials(admin, params.restaurantId);
+  if (!creds) return { data: [], error: "imap_not_configured" };
+
+  const contactEmails = new Set(
+    await contactEmailsForThread(admin, params.restaurantId, params.contactId),
+  );
+  if (contactEmails.size === 0) {
+    return { data: [], error: "no_contact_email" };
+  }
+
+  const { data: envelopes, error } = await fetchImapRecentEnvelopes(creds);
+  if (error) return { data: [], error };
+
+  const threadEnvelopes = envelopes
+    .filter((m) => messageMatchesContact(m, contactEmails, creds.email))
+    .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+  const uids = threadEnvelopes.map((m) => m.uid);
+  const { bodies, error: bodyErr } = await fetchImapThreadBodies(creds, uids);
+  if (bodyErr) return { data: [], error: bodyErr };
+
+  const rows = mapEnvelopesToEmailRows(threadEnvelopes, bodies, params);
 
   return { data: rows, error: null };
 }

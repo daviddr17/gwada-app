@@ -1,7 +1,20 @@
 import {
+  NEWS_FILTER_ALL,
   NEWS_PLATFORMS,
+  NEWS_PLATFORM_ORDER,
   type NewsPlatform,
+  type NewsPlatformFilter,
 } from "@/lib/constants/news-platforms";
+
+/** Erste aktive Plattform, wenn Chip „Alle“ deaktiviert ist. */
+export function defaultNewsPlatformFilterWithoutAll(
+  connectedPlatforms: readonly NewsPlatform[],
+): NewsPlatformFilter {
+  const first = NEWS_PLATFORM_ORDER.find((platform) =>
+    connectedPlatforms.includes(platform),
+  );
+  return first ?? NEWS_FILTER_ALL;
+}
 
 export type NewsEmbedPlatforms = Record<NewsPlatform, boolean>;
 

@@ -140,10 +140,15 @@ async function enrichMessageRowsWithAttachments(
   );
 }
 
+/** Max. DB-Nachrichten pro Thread-Ladevorgang (ältere über Pagination später). */
+export const CONTACT_MESSAGES_THREAD_DB_LIMIT = 300;
+
 export async function fetchContactMessages(params: {
   restaurantId: string;
   contactId: string;
   platform?: ContactMessagePlatform;
+  /** Max. Zeilen (neueste zuerst geladen, chronologisch zurückgegeben). */
+  limit?: number;
 }): Promise<{ data: ContactMessageRow[]; error: Error | null }> {
   if (
     !isUuidRestaurantId(params.restaurantId) ||
@@ -151,13 +156,15 @@ export async function fetchContactMessages(params: {
   ) {
     return { data: [], error: null };
   }
+  const limit = params.limit ?? CONTACT_MESSAGES_THREAD_DB_LIMIT;
   const sb = createSupabaseBrowserClient();
   let q = sb
     .from("contact_messages")
     .select(MESSAGE_SELECT)
     .eq("restaurant_id", params.restaurantId)
     .eq("contact_id", params.contactId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
   if (params.platform && params.platform !== "gwada") {
     q = q.eq("platform", params.platform);
@@ -165,10 +172,11 @@ export async function fetchContactMessages(params: {
 
   const { data, error } = await q;
   if (error) return { data: [], error: new Error(error.message) };
+  const rows = [...((data ?? []) as Record<string, unknown>[])].reverse();
   const enriched = await enrichMessageRowsWithAttachments(
     sb,
     params.restaurantId,
-    (data ?? []) as Record<string, unknown>[],
+    rows,
   );
   return { data: enriched, error: null };
 }

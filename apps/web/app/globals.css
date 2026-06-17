@@ -143,6 +143,14 @@
     @apply bg-background text-foreground;
   }
 
+  /* Embed-iframes: Host-Hintergrund durchscheinen lassen (gwada.js / Vorschau). */
+  html:has([data-gwada-embed-route]) {
+    @apply bg-transparent;
+  }
+  html:has([data-gwada-embed-route]) body {
+    @apply bg-transparent;
+  }
+
   @media (prefers-reduced-motion: no-preference) {
     /* Fallback ohne View Transitions API — einheitliche Property-Transitions */
     html.theme-transition-fallback.theme-transition-active *,

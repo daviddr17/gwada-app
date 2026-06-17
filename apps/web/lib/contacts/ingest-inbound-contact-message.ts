@@ -28,6 +28,7 @@ export async function ingestInboundContactMessage(
       platform: row.platform,
       body: row.body,
       createdAt: row.createdAt,
+      attachmentKind: row.attachmentKind,
     });
     scheduleDeliverForMessageNotificationReference(
       admin,

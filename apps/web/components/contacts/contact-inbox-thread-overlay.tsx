@@ -14,6 +14,10 @@ const THREAD_OVERLAY_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
 
 export { THREAD_OVERLAY_MS as CONTACT_INBOX_THREAD_OVERLAY_MS };
 
+/** Vollbild-Chat-Overlay — Sheets darüber brauchen höheren z-index. */
+export const CONTACT_INBOX_THREAD_OVERLAY_Z_INDEX = 200;
+export const CONTACT_INBOX_STACKED_SHEET_Z_INDEX = 210;
+
 type ContactInboxThreadOverlayProps = {
   open: boolean;
   onClose: () => void;

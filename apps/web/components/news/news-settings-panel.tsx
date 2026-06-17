@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { EmbedProfilePlatformToggles } from "@/components/embed/embed-profile-platform-toggles";
 import { EmbedNewsWidget } from "@/components/embed/embed-news-widget";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Button } from "@/components/ui/button";
@@ -42,9 +43,9 @@ import {
 } from "@/components/settings/settings-sticky-save-bar";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import {
+  NEWS_FILTER_LABELS,
   NEWS_PLATFORM_LABELS,
   NEWS_PLATFORM_ORDER,
-  type NewsPlatform,
 } from "@/lib/constants/news-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connections";
@@ -70,6 +71,7 @@ type NewsSettings = {
   default_embed_view: "grid" | "list";
   embed_max_items: number;
   embed_platforms: NewsEmbedPlatforms;
+  embed_show_all_filter: boolean;
 };
 
 function defaultNewsSettings(): NewsSettings {
@@ -78,6 +80,7 @@ function defaultNewsSettings(): NewsSettings {
     default_embed_view: "grid",
     embed_max_items: 24,
     embed_platforms: defaultEmbedPlatforms(),
+    embed_show_all_filter: true,
   };
 }
 
@@ -196,6 +199,7 @@ export function NewsSettingsPanel() {
           defaultEmbedView: settings.default_embed_view,
           embedMaxItems: settings.embed_max_items,
           embedPlatforms: settings.embed_platforms,
+          embedShowAllFilter: settings.embed_show_all_filter,
         }),
       });
       const data = await res.json();
@@ -218,12 +222,24 @@ export function NewsSettingsPanel() {
     });
   };
 
-  const setEmbedPlatformEnabled = (platform: NewsPlatform, enabled: boolean) => {
-    setSettings((prev) => ({
-      ...prev,
-      embed_platforms: { ...prev.embed_platforms, [platform]: enabled },
-    }));
-  };
+  const embedPlatformToggleItems = useMemo(
+    () =>
+      NEWS_PLATFORM_ORDER.map((platform) => {
+        const connector = connectors.find((c) => c.key === platform);
+        const connected = connector?.connected ?? platform === "gwada";
+        return {
+          id: platform,
+          label: NEWS_PLATFORM_LABELS[platform],
+          togglable: connected || platform === "gwada",
+          hint:
+            !connected && platform !== "gwada"
+              ? "(nicht verbunden)"
+              : undefined,
+          icon: <NewsPlatformIcon platform={platform} className="size-4" />,
+        };
+      }),
+    [connectors],
+  );
 
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
@@ -395,35 +411,36 @@ export function NewsSettingsPanel() {
                 Plattformen erscheinen in der Ansicht.
               </p>
             </div>
-            <ul className="space-y-2 rounded-xl border border-border/50 bg-muted/15 p-3">
-              {NEWS_PLATFORM_ORDER.map((platform) => {
-                const connector = connectors.find((c) => c.key === platform);
-                const connected = connector?.connected ?? platform === "gwada";
-                const enabled = settings.embed_platforms[platform] !== false;
-                return (
-                  <li
-                    key={platform}
-                    className="flex items-center justify-between gap-3"
-                  >
-                    <span className="inline-flex min-w-0 items-center gap-2 text-sm">
-                      <NewsPlatformIcon platform={platform} className="size-4" />
-                      <span className="truncate">{NEWS_PLATFORM_LABELS[platform]}</span>
-                      {!connected && platform !== "gwada" ? (
-                        <span className="text-xs text-muted-foreground">(nicht verbunden)</span>
-                      ) : null}
-                    </span>
-                    <Switch
-                      checked={enabled}
-                      disabled={!connected && platform !== "gwada"}
-                      onCheckedChange={(value) =>
-                        setEmbedPlatformEnabled(platform, value === true)
-                      }
-                      aria-label={`${NEWS_PLATFORM_LABELS[platform]} in Profil & Einbindung`}
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
+              <div className="space-y-0.5">
+                <Label htmlFor="embed-show-all-filter" className="text-sm">
+                  {NEWS_FILTER_LABELS.all}
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Gemeinsame Übersicht über alle aktiven Plattformen (Chip „Alle“).{" "}
+                  {publicSurfaceScopeHint("both")} Aus: Gäste sehen nur
+                  Einzelplattformen, kein gemischter Feed.
+                </p>
+              </div>
+              <Switch
+                id="embed-show-all-filter"
+                checked={settings.embed_show_all_filter}
+                onCheckedChange={(value) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    embed_show_all_filter: value === true,
+                  }))
+                }
+                aria-label="Chip Alle in Profil und Einbindung"
+              />
+            </div>
+            <EmbedProfilePlatformToggles
+              platforms={embedPlatformToggleItems}
+              values={settings.embed_platforms}
+              onChange={(embed_platforms) =>
+                setSettings((prev) => ({ ...prev, embed_platforms }))
+              }
+            />
           </div>
 
           <div className="space-y-2">
@@ -479,6 +496,7 @@ export function NewsSettingsPanel() {
                 viewMode={settings.default_embed_view}
                 connectedPlatforms={previewConnectedPlatforms}
                 items={previewItemsFiltered}
+                showAllPlatformFilter={settings.embed_show_all_filter}
               />
             </div>
             <p className="text-xs text-muted-foreground">

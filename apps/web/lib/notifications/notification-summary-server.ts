@@ -1,6 +1,5 @@
 import "server-only";
 
-import { syncRestaurantEmailInbox } from "@/lib/contacts/sync-restaurant-email-inbox";
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
@@ -86,11 +85,6 @@ async function buildMessagesModule(
   },
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES.messages;
-
-  // Bell: E-Mail-Sync (IMAP-Pull). WhatsApp: Webhooks (message + message.ack) + Cron-Fallback.
-  if (params.emailConnected) {
-    await syncRestaurantEmailInbox(admin, params.restaurantId).catch(() => undefined);
-  }
 
   const summary = await fetchMessagesUnreadSummary(admin, {
     restaurantId: params.restaurantId,
@@ -323,15 +317,14 @@ export async function fetchNotificationSummaryServer(
     emailConnected: emailConnected ?? false,
   };
 
-  const modules: NotificationModuleSummary[] = [];
+  const enabledModuleIds = (
+    Object.keys(MODULE_BUILDERS) as NotificationModuleId[]
+  ).filter((moduleId) => isInAppModuleEnabled(preferences, moduleId));
 
-  for (const moduleId of Object.keys(MODULE_BUILDERS) as NotificationModuleId[]) {
-    if (!isInAppModuleEnabled(preferences, moduleId)) continue;
-    const built = await MODULE_BUILDERS[moduleId](ctx);
-    if (built.count > 0) {
-      modules.push(built);
-    }
-  }
+  const built = await Promise.all(
+    enabledModuleIds.map((moduleId) => MODULE_BUILDERS[moduleId](ctx)),
+  );
+  const modules = built.filter((m) => m.count > 0);
 
   const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
 

@@ -95,7 +95,13 @@ function enrichOneConversation(
     );
     /** IMAP/WAHA-Zähler sind maßgeblich — kein Gwada-Fallback mit is_unread bei count 0. */
     const is_unread = unread_count > 0;
-    return { ...c, unread_count, is_unread };
+    return {
+      ...c,
+      unread_count,
+      is_unread,
+      whatsapp_unread_count: unreadWa.unread_count,
+      email_unread_count: unreadEm.unread_count,
+    };
   }
 
   const conversation: ConversationUnreadInput =

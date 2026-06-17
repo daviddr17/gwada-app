@@ -157,17 +157,19 @@ export async function fetchMetaThreadMessages(
   params: {
     restaurantId: string;
     contactId: string;
+    /** Graph-API-Limit (Standard 50 für Vollimport/Link). */
+    limit?: number;
   },
-): Promise<{ data: ContactMessageRow[]; error: string | null }> {
+): Promise<{ data: ContactMessageRow[]; hasMore: boolean; error: string | null }> {
   const parsed = parseMetaPseudoContactId(params.contactId);
-  if (!parsed) return { data: [], error: "invalid_meta_contact" };
+  if (!parsed) return { data: [], hasMore: false, error: "invalid_meta_contact" };
 
   const auth = await resolveMetaInboxAuth(
     admin,
     params.restaurantId,
     parsed.platform,
   );
-  if (!auth) return { data: [], error: "meta_not_connected" };
+  if (!auth) return { data: [], hasMore: false, error: "meta_not_connected" };
 
   const ownIds = new Set(
     [auth.pageId, auth.igUserId].filter((id): id is string => Boolean(id)),
@@ -177,22 +179,23 @@ export async function fetchMetaThreadMessages(
     admin,
     params,
   );
-  if (convErr) return { data: [], error: convErr };
-  if (!conversationId) return { data: [], error: null };
+  if (convErr) return { data: [], hasMore: false, error: convErr };
+  if (!conversationId) return { data: [], hasMore: false, error: null };
 
+  const apiLimit = params.limit ?? 50;
   const msgQ = new URLSearchParams({
     access_token: auth.pageAccessToken,
-    fields:
-      "messages.limit(50){id,message,from,created_time,attachments,sticker,reactions}",
+    fields: `messages.limit(${apiLimit}){id,message,from,created_time,attachments,sticker,reactions}`,
   });
   const msgUrl = `https://graph.facebook.com/${META_GRAPH_VERSION}/${conversationId}?${msgQ}`;
   const msgRes = await metaGraphGet<MetaConversation>(msgUrl, {
     platform: parsed.platform,
     feature: "messages",
   });
-  if (msgRes.error) return { data: [], error: msgRes.error };
+  if (msgRes.error) return { data: [], hasMore: false, error: msgRes.error };
 
-  const rows = (msgRes.data?.messages?.data ?? [])
+  const rawMessages = msgRes.data?.messages?.data ?? [];
+  const rows = rawMessages
     .map((m) =>
       mapMetaGraphMessageToRow({
         msg: m,
@@ -211,5 +214,6 @@ export async function fetchMetaThreadMessages(
     )
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
-  return { data: rows, error: null };
+  const hasMore = rawMessages.length >= apiLimit;
+  return { data: rows, hasMore, error: null };
 }

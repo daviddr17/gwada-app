@@ -146,11 +146,16 @@ export function formatNotificationPayloadSummary(
   if (module === "messages") {
     const name =
       typeof p.contactName === "string" ? p.contactName : "Kontakt";
+    const senderBits = [p.senderEmail, p.senderPhone]
+      .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+      .map((v) => v.trim());
+    const senderSuffix =
+      senderBits.length > 0 ? ` · ${senderBits.join(" · ")}` : "";
     const preview =
       typeof p.preview === "string" && p.preview.trim()
         ? ` — „${p.preview.trim()}“`
         : "";
-    return `${name}${preview}`;
+    return `${name}${senderSuffix}${preview}`;
   }
 
   if (

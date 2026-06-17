@@ -299,11 +299,17 @@ export async function fetchWahaThreadMessages(
     restaurantId: string;
     contactId: string;
     chatIdOverride?: string | null;
+    /** WAHA-API-Limit (Standard 100 für Vollimport/Link). */
+    limit?: number;
   },
-): Promise<{ data: ContactMessageRow[]; error: string | null }> {
+): Promise<{
+  data: ContactMessageRow[];
+  hasMore: boolean;
+  error: string | null;
+}> {
   const config = await getWahaServerConfigAdmin();
   if (!config) {
-    return { data: [], error: "waha_not_configured" };
+    return { data: [], hasMore: false, error: "waha_not_configured" };
   }
 
   let chatId = params.chatIdOverride?.trim() || null;
@@ -319,24 +325,26 @@ export async function fetchWahaThreadMessages(
     chatId = phone ? guestPhoneToWhatsAppChatId(phone) : null;
   }
   if (!chatId) {
-    return { data: [], error: "no_whatsapp_chat" };
+    return { data: [], hasMore: false, error: "no_whatsapp_chat" };
   }
 
+  const apiLimit = params.limit ?? 100;
   const result = await wahaGetChatMessages({
     config,
     restaurantId: params.restaurantId,
     chatId,
-    limit: 100,
+    limit: apiLimit,
     downloadMedia: false,
   });
   if (!result.ok) {
-    return { data: [], error: result.error };
+    return { data: [], hasMore: false, error: result.error };
   }
 
   const { data: dbLinked } = await admin
     .from("contact_messages")
     .select("reservation_id, body, created_at")
     .eq("restaurant_id", params.restaurantId)
+    .eq("contact_id", params.contactId)
     .eq("platform", "whatsapp")
     .not("reservation_id", "is", null);
 
@@ -403,5 +411,6 @@ export async function fetchWahaThreadMessages(
     })
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
-  return { data: rows, error: null };
+  const hasMore = result.data.length >= apiLimit;
+  return { data: rows, hasMore, error: null };
 }

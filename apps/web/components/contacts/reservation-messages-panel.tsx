@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ContactMessageComposer } from "@/components/contacts/contact-message-composer";
@@ -41,7 +41,6 @@ export function ReservationMessagesPanel({
 
   const load = useCallback(async () => {
     if (!restaurantId || !reservationId) return;
-    setLoading(true);
     const { data, error } = await fetchReservationContactMessages({
       restaurantId,
       reservationId,
@@ -49,6 +48,16 @@ export function ReservationMessagesPanel({
     if (error) toast.error(error.message);
     setMessages(data);
     setLoading(false);
+  }, [restaurantId, reservationId]);
+
+  useLayoutEffect(() => {
+    if (!restaurantId || !reservationId) {
+      setLoading(false);
+      setMessages([]);
+      return;
+    }
+    setMessages([]);
+    setLoading(true);
   }, [restaurantId, reservationId]);
 
   useEffect(() => {

@@ -42,7 +42,15 @@ export function buildEmailIframeSrcDoc(html: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html, body { margin: 0; padding: 0; overflow-x: auto; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
   body {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     font-size: 14px;
@@ -53,9 +61,10 @@ export function buildEmailIframeSrcDoc(html: string): string {
     overflow-wrap: anywhere;
   }
   img { max-width: 100%; height: auto; }
-  table { max-width: 100%; }
-  pre { white-space: pre-wrap; overflow-x: auto; }
-  a { color: #2563eb; }
+  table { max-width: 100%; width: 100%; table-layout: fixed; }
+  td, th { word-break: break-word; overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-x: auto; max-width: 100%; }
+  a { color: #2563eb; word-break: break-word; }
 </style>
 </head>
 <body>${safe}</body>

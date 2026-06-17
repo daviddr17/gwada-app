@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Bell } from "lucide-react";
 import { NotificationBellPanel } from "@/components/notifications/notification-bell-panel";
 import { NotificationBellPanelSkeleton } from "@/components/notifications/notification-bell-panel-skeleton";
@@ -14,19 +15,32 @@ import {
 } from "@/components/ui/popover";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
+import { NOTIFICATION_SUMMARY_STALE_MS } from "@/lib/query/dashboard-query-policy";
+import { queryKeys } from "@/lib/query/query-keys";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 
 export function AppChromeNotificationBell() {
   const [open, setOpen] = React.useState(false);
-  const { summary, totalCount, isLoading, ready, markRead, markModuleRead, refresh } =
+  const queryClient = useQueryClient();
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const { summary, totalCount, isLoading, isFetching, ready, markRead, markModuleRead, refresh } =
     useNotificationSummary();
-  const showSkeleton = useDeferredSkeleton(isLoading && !summary);
+  const showSkeleton = useDeferredSkeleton(
+    (isLoading || isFetching) && !summary,
+  );
 
   React.useEffect(() => {
-    if (open && ready) {
-      void refresh({ silent: true });
+    if (!open || !ready || !restaurantId) return;
+    const state = queryClient.getQueryState(
+      queryKeys.notifications.summary(restaurantId),
+    );
+    const updatedAt = state?.dataUpdatedAt ?? 0;
+    if (summary && Date.now() - updatedAt < NOTIFICATION_SUMMARY_STALE_MS) {
+      return;
     }
-  }, [open, ready, refresh]);
+    void refresh({ silent: true });
+  }, [open, ready, refresh, restaurantId, queryClient, summary]);
 
   if (!ready) return null;
 
@@ -69,7 +83,7 @@ export function AppChromeNotificationBell() {
             ) : (
               <NotificationBellPanel
                 summary={summary}
-                loading={isLoading}
+                loading={isFetching && !summary}
                 onMarkRead={markRead}
                 onMarkModuleRead={markModuleRead}
                 onNavigate={() => setOpen(false)}

@@ -243,3 +243,18 @@ export function wahaMediaPreviewLabel(m: WahaChatMessage): string {
   if (media.kind === "video") return "Video";
   return media.filename;
 }
+
+/** Medientyp aus WAHA-Webhook-Payload (Push / Mirror-Body). */
+export function wahaWebhookPayloadMediaKind(
+  payload: {
+    hasMedia?: boolean;
+    body?: string;
+    type?: string;
+    media?: { mimetype?: string | null } | null;
+    _data?: unknown;
+  } | null
+  | undefined,
+): ContactMessageAttachmentKind | null {
+  if (!payload?.hasMedia) return null;
+  return parseWahaMessageMedia(payload as WahaChatMessage)?.kind ?? "file";
+}

@@ -8,6 +8,8 @@ export function conversationNotificationPlatform(
   if ((c.email_unread_count ?? 0) > 0) return "email";
   if ((c.whatsapp_unread_count ?? 0) > 0) return "whatsapp";
 
+  if (c.platform !== "gwada") return c.platform;
+
   const inbound = c.last_inbound_platform;
   if (inbound && inbound !== "gwada") return inbound;
 

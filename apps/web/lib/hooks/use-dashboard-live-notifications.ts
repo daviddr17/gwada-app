@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { dispatchDashboardMessagesRefresh } from "@/lib/dashboard/dashboard-live-events";
+import { dispatchDashboardMessagesRefresh, dispatchDashboardWahaMetadataRefresh } from "@/lib/dashboard/dashboard-live-events";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
 import { UNIFIED_INBOX_BACKGROUND_POLL_MS } from "@/lib/contact-messages/unified-inbox-background-sync";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
@@ -117,7 +117,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
         if (source === "waha") {
           scheduleRefresh(true);
         } else if (source === "waha_ack") {
-          scheduleRefresh(false);
+          dispatchDashboardWahaMetadataRefresh();
         }
       },
     });

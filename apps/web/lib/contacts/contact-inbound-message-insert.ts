@@ -2,6 +2,7 @@ import "server-only";
 
 import type { ContactMessageDirection } from "@/lib/constants/contact-message-platforms";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ContactInboundInsertRow = {
@@ -14,6 +15,7 @@ export type ContactInboundInsertRow = {
   createdAt?: string;
   reservationId?: string | null;
   deliveryStatus?: string;
+  attachmentKind?: ContactMessageAttachmentKind | null;
 };
 
 export type ContactInboundInsertResult = {

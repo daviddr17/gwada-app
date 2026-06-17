@@ -154,6 +154,7 @@
     frame.style.width = "100%";
     frame.style.border = "0";
     frame.style.display = "block";
+    frame.style.background = "transparent";
     frame.style.minHeight = minHeight + "px";
 
     iframesById[embedId] = frame;

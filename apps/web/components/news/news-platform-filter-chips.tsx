@@ -16,31 +16,36 @@ export function NewsPlatformFilterChips({
   value,
   onChange,
   availablePlatforms,
+  showAllChip = true,
   disabled,
 }: {
   value: NewsPlatformFilter;
   onChange: (next: NewsPlatformFilter) => void;
   availablePlatforms: Set<string>;
+  /** Chip „Alle“ (gemeinsame Übersicht) — Standard: an. */
+  showAllChip?: boolean;
   disabled?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onChange(NEWS_FILTER_ALL)}
-        className={cn(
-          "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-          value === NEWS_FILTER_ALL
-            ? "border-accent/50 bg-accent/15 text-foreground"
-            : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
-          disabled && "pointer-events-none opacity-50",
-        )}
-        aria-pressed={value === NEWS_FILTER_ALL}
-      >
-        <LayoutGrid className="size-4 shrink-0" aria-hidden />
-        <span>{NEWS_FILTER_LABELS.all}</span>
-      </button>
+      {showAllChip ? (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(NEWS_FILTER_ALL)}
+          className={cn(
+            "inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+            value === NEWS_FILTER_ALL
+              ? "border-accent/50 bg-accent/15 text-foreground"
+              : "border-border/60 bg-card text-muted-foreground hover:border-border hover:text-foreground",
+            disabled && "pointer-events-none opacity-50",
+          )}
+          aria-pressed={value === NEWS_FILTER_ALL}
+        >
+          <LayoutGrid className="size-4 shrink-0" aria-hidden />
+          <span>{NEWS_FILTER_LABELS.all}</span>
+        </button>
+      ) : null}
       {NEWS_PLATFORM_ORDER.filter((platform) => availablePlatforms.has(platform)).map(
         (platform) => (
         <NewsPlatformChip

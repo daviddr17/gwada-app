@@ -66,6 +66,7 @@ export function ContactMessageReactions({
   onUpdated,
   pickerOpen,
   onPickerOpenChange,
+  toolbarVisible = false,
   onDelete,
   onEdit,
   deleting,
@@ -81,6 +82,8 @@ export function ContactMessageReactions({
   onUpdated?: () => void;
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
+  /** Hover/Long-Press — ersetzt rein CSS-basiertes group-hover (stabiler beim Scrollen). */
+  toolbarVisible?: boolean;
   onDelete?: () => void | Promise<void>;
   onEdit?: () => void;
   deleting?: boolean;
@@ -94,6 +97,7 @@ export function ContactMessageReactions({
   const list = reactions ?? [];
   const grouped = groupReactionsForDisplay(list);
   const myReaction = list.find((r) => r.fromMe);
+  const showToolbar = toolbarVisible || pickerOpen;
 
   const closePicker = useCallback(
     () => onPickerOpenChange(false),
@@ -144,15 +148,21 @@ export function ContactMessageReactions({
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
-      {/* WhatsApp: Schnell-Reactions nur bei Hover / Long-Press */}
+      {showToolbar ? (
+        <div
+          className="absolute bottom-full left-0 right-0 h-10"
+          aria-hidden
+        />
+      ) : null}
+      {/* WhatsApp: Schnell-Reactions bei Hover / Long-Press */}
       <div
         className={cn(
           "absolute z-20 flex items-center gap-0.5 rounded-full border border-border/60 bg-popover px-0.5 py-0.5 text-popover-foreground shadow-md transition-opacity duration-150",
           outbound ? "right-0" : "left-0",
           "bottom-full mb-1.5",
-          pickerOpen
+          showToolbar
             ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0 group-hover/bubble:pointer-events-auto group-hover/bubble:opacity-100",
+            : "pointer-events-none opacity-0",
           pending && "pointer-events-none opacity-60",
           deleting && "pointer-events-none opacity-60",
           editing && "pointer-events-none opacity-60",

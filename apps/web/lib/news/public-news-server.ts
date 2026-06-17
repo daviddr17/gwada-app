@@ -45,6 +45,8 @@ export type PublicEmbedNews = {
   viewMode: "grid" | "list";
   connectedPlatforms: NewsPlatform[];
   items: UnifiedNewsItem[];
+  /** Chip „Alle“ in Profil & Einbindung — Standard: an. */
+  showAllPlatformFilter: boolean;
   /** Gesetzt bei paginiertem Embed (`paginate: true`). */
   pagination?: PublicEmbedNewsPagination;
 };
@@ -133,6 +135,7 @@ type NewsEmbedSettings = {
   viewMode: "grid" | "list";
   maxItems: number;
   embedPlatforms: ReturnType<typeof normalizeEmbedPlatforms>;
+  showAllPlatformFilter: boolean;
 };
 
 async function loadNewsEmbedSettings(
@@ -141,7 +144,9 @@ async function loadNewsEmbedSettings(
 ): Promise<NewsEmbedSettings> {
   const { data: settingsRow } = await admin
     .from("restaurant_news_settings")
-    .select("default_embed_view, embed_max_items, embed_platforms")
+    .select(
+      "default_embed_view, embed_max_items, embed_platforms, embed_show_all_filter",
+    )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
 
@@ -153,6 +158,7 @@ async function loadNewsEmbedSettings(
       Math.max(1, Number(settingsRow?.embed_max_items ?? 24)),
     ),
     embedPlatforms: normalizeEmbedPlatforms(settingsRow?.embed_platforms),
+    showAllPlatformFilter: settingsRow?.embed_show_all_filter !== false,
   };
 }
 
@@ -197,6 +203,7 @@ function applyEmbedSettingsToFeed(
   allItems: UnifiedNewsItem[];
   connectedPlatforms: NewsPlatform[];
   viewMode: "grid" | "list";
+  showAllPlatformFilter: boolean;
 } {
   const connectedPlatforms = filterPlatformsForEmbed(
     base.connectedPlatforms,
@@ -210,6 +217,7 @@ function applyEmbedSettingsToFeed(
     allItems,
     connectedPlatforms,
     viewMode: embedSettings.viewMode,
+    showAllPlatformFilter: embedSettings.showAllPlatformFilter,
   };
 }
 
@@ -220,6 +228,7 @@ async function loadPublicEmbedNewsPayload(
   allItems: UnifiedNewsItem[];
   connectedPlatforms: NewsPlatform[];
   viewMode: "grid" | "list";
+  showAllPlatformFilter: boolean;
 }> {
   const [base, embedSettings] = await Promise.all([
     loadNewsFeedBase(restaurantId),
@@ -259,7 +268,7 @@ export async function fetchPublicEmbedNews(
   }
 
   const restaurantId = row.id as string;
-  const { allItems, connectedPlatforms, viewMode } =
+  const { allItems, connectedPlatforms, viewMode, showAllPlatformFilter } =
     await loadPublicEmbedNewsPayload(admin, restaurantId);
   const { items, pagination } = paginateEmbedNewsItems(
     allItems,
@@ -278,6 +287,7 @@ export async function fetchPublicEmbedNews(
       viewMode,
       connectedPlatforms,
       items,
+      showAllPlatformFilter,
       ...(options.paginate ? { pagination } : {}),
     },
     error: null,

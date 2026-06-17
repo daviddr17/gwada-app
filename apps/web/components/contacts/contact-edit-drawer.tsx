@@ -112,6 +112,7 @@ export function ContactEditDrawer({
   initialDraft,
   lexofficeConnected = false,
   onSaved,
+  stackAboveInboxOverlay = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -122,6 +123,8 @@ export function ContactEditDrawer({
   initialDraft?: ContactCreateDraft | null;
   lexofficeConnected?: boolean;
   onSaved?: (detail?: { contactId: string; created: boolean }) => void;
+  /** Über Vollbild-Chat-Overlay (Nachrichten-Popup) legen. */
+  stackAboveInboxOverlay?: boolean;
 }) {
   const isEdit = contactId != null;
   const [loading, setLoading] = useState(false);
@@ -561,6 +564,7 @@ export function ContactEditDrawer({
   };
 
   const linkedReservations = detail?.reservations ?? [];
+  const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
 
   return (
     <>
@@ -570,7 +574,13 @@ export function ContactEditDrawer({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+        <DrawerContent
+          overlayClassName={stackedSheetZClass}
+          className={cn(
+            "mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+            stackedSheetZClass,
+          )}
+        >
           <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">

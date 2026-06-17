@@ -4,6 +4,9 @@ import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
+import {
+  senderPhoneDistinctFromName,
+} from "@/lib/notifications/message-notification-sender";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
 function absoluteAppUrl(path: string): string {
@@ -90,6 +93,32 @@ function detailLines(lines: Array<string | null | undefined | false>): string {
   return lines.filter((line): line is string => Boolean(line)).join("\n");
 }
 
+function messageSenderDetailLines(payload: Record<string, unknown>): string[] {
+  const name = pickString(payload.contactName) ?? "Kontakt";
+  const email = pickString(payload.senderEmail);
+  const phone = pickString(payload.senderPhone);
+  const lines: string[] = [`Von: ${name}`];
+  if (email && email.toLowerCase() !== name.toLowerCase()) {
+    lines.push(`E-Mail: ${email}`);
+  }
+  if (phone && senderPhoneDistinctFromName(name, phone)) {
+    lines.push(`Telefon: ${phone}`);
+  }
+  return lines;
+}
+
+function messagePushSubjectName(payload: Record<string, unknown>): string {
+  const name = pickString(payload.contactName) ?? "Kontakt";
+  const email = pickString(payload.senderEmail);
+  const phone = pickString(payload.senderPhone);
+  if (name !== "Kontakt" && name !== "WhatsApp" && name !== "E-Mail") {
+    return name;
+  }
+  if (email) return email;
+  if (phone) return phone;
+  return name;
+}
+
 function buildPushMessage(params: {
   prefix: string;
   headline: string;
@@ -140,17 +169,17 @@ export function buildNotificationPushText(
 
   switch (event.module) {
     case "messages": {
-      const name = pickString(p.contactName) ?? "Kontakt";
+      const subjectName = messagePushSubjectName(p);
       const platform = platformLabel(p.platform);
       const when = formatPushDateTime(p.messageCreatedAt);
       const preview = quotePreview(p.preview);
       return buildPushMessage({
         prefix,
         headline: "Neue Nachricht",
-        subject: `${prefix}Neue Nachricht — ${name}`,
+        subject: `${prefix}Neue Nachricht — ${subjectName}`,
         href,
         details: detailLines([
-          `Von: ${name}`,
+          ...messageSenderDetailLines(p),
           platform ? `Kanal: ${platform}` : null,
           when ? `Empfangen: ${when}` : null,
           preview,

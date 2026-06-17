@@ -220,6 +220,7 @@ export function useNotificationSummary() {
     totalCount: query.data?.totalCount ?? 0,
     error: query.error ? String(query.error) : null,
     isLoading: !ready || query.isLoading,
+    isFetching: query.isFetching,
     ready,
     refresh,
     markRead,

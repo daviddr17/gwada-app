@@ -408,3 +408,52 @@ export function mergeWahaLiveMetadataIntoThread(
     });
   });
 }
+
+function reactionsSignature(reactions: ContactMessageRow["reactions"]): string {
+  if (!reactions?.length) return "";
+  return reactions
+    .map((r) => `${r.emoji}:${r.fromMe ? 1 : 0}`)
+    .sort()
+    .join("|");
+}
+
+/** Prüft, ob WAHA-Metadaten (ACK/Reactions) zwischen zwei Thread-Snapshots gleich sind. */
+export function wahaMetadataThreadsEqual(
+  before: ContactMessageRow[],
+  after: ContactMessageRow[],
+): boolean {
+  if (before.length !== after.length) return false;
+  for (let i = 0; i < before.length; i++) {
+    const a = before[i]!;
+    const b = after[i]!;
+    if (a.id !== b.id) return false;
+    if (a.waha_ack !== b.waha_ack) return false;
+    if (a.waha_message_id !== b.waha_message_id) return false;
+    if (a.delivery_status !== b.delivery_status) return false;
+    if (reactionsSignature(a.reactions) !== reactionsSignature(b.reactions)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** Wie {@link mergeWahaLiveMetadataIntoThread}, aber ohne neue Array-Referenz wenn nichts ändert. */
+export function mergeWahaLiveMetadataIntoThreadIfChanged(
+  messages: ContactMessageRow[],
+  wahaLive: ContactMessageRow[],
+): ContactMessageRow[] {
+  const next = mergeWahaLiveMetadataIntoThread(messages, wahaLive);
+  return wahaMetadataThreadsEqual(messages, next) ? messages : next;
+}
+
+/** Outbound-WhatsApp mit ausstehendem ACK — dann lohnt sich häufigeres Polling. */
+export function contactThreadNeedsWahaAckPoll(
+  messages: ContactMessageRow[],
+): boolean {
+  return messages.some(
+    (m) =>
+      m.direction === "outbound" &&
+      (m.waha_message_id != null || messageDisplayPlatform(m) === "whatsapp") &&
+      (m.waha_ack ?? 0) < 3,
+  );
+}

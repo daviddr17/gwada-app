@@ -13,7 +13,7 @@ import { buildEmailIframeSrcDoc } from "@/lib/email/email-body-html";
 import { cn } from "@/lib/utils";
 
 const MAX_IFRAME_HEIGHT = 480;
-const HEIGHT_REMEASURE_MS = [0, 80, 250, 600, 1200];
+const HEIGHT_REMEASURE_MS = [0, 120, 400];
 
 type EmailBodyProps = {
   body: string;
@@ -66,19 +66,31 @@ function EmailHtmlIframe({
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
+  const layoutNotifyRef = useRef<number | null>(null);
   const [height, setHeight] = useState<number | null>(null);
   const [renderFailed, setRenderFailed] = useState(false);
 
   const srcDoc = useMemo(() => buildEmailIframeSrcDoc(html), [html]);
 
+  const notifyChatLayout = useCallback(() => {
+    if (layoutNotifyRef.current) return;
+    layoutNotifyRef.current = window.setTimeout(() => {
+      layoutNotifyRef.current = null;
+      window.dispatchEvent(new CustomEvent("gwada:contact-chat-content-layout"));
+    }, 80);
+  }, []);
+
   const applyMeasuredHeight = useCallback((doc: Document) => {
     const measured = measureIframeContentHeight(doc);
     if (measured <= 0) return false;
     const next = Math.min(Math.max(measured + 4, 32), MAX_IFRAME_HEIGHT);
-    setHeight((prev) => (prev === next ? prev : next));
-    window.dispatchEvent(new CustomEvent("gwada:contact-chat-content-layout"));
+    setHeight((prev) => {
+      if (prev === next) return prev;
+      notifyChatLayout();
+      return next;
+    });
     return true;
-  }, []);
+  }, [notifyChatLayout]);
 
   useEffect(() => {
     setRenderFailed(false);
@@ -129,6 +141,7 @@ function EmailHtmlIframe({
     return () => {
       frame.removeEventListener("load", measure);
       for (const id of timers) window.clearTimeout(id);
+      if (layoutNotifyRef.current) window.clearTimeout(layoutNotifyRef.current);
       disconnectObserver();
     };
   }, [srcDoc, applyMeasuredHeight]);

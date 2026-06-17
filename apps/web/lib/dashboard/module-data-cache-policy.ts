@@ -158,10 +158,10 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     pollIntervalMs: 60_000,
     gcTimeMs: 5 * 60_000,
     description:
-      "Unread-Items aller Module in der Glocke — React Query, kein Doppel-Poll mit Widget-Coordinator. Nachrichten: vor dem Count ggf. E-Mail-Inbox sync (IMAP), damit Glocke und Push übereinstimmen.",
+      "Unread-Items aller Module in der Glocke — React Query, kein Doppel-Poll mit Widget-Coordinator. Nachrichten: leichter Unread-Count aus Inbox-DB/WAHA (kein IMAP-Sync beim Öffnen).",
     loadTriggers: [
       "App-Chrome Mount (Workspace ready)",
-      "Popover öffnen",
+      "Popover öffnen (nur wenn Cache stale)",
       "Poll 60s (nur sichtbarer Tab)",
     ],
     invalidateTriggers: [
@@ -169,7 +169,6 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "GWADA_DASHBOARD_MESSAGES_REFRESH (debounced 3s)",
       "Workspace-Wechsel",
       "Mark as read",
-      "Server: syncRestaurantEmailInbox vor Messages-Count (wenn E-Mail verbunden)",
     ],
     apiEndpoints: ["/api/notifications/summary"],
     implementationFiles: [

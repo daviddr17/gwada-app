@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
 import { CalendarDays } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -31,8 +31,20 @@ import {
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
-/** E-Mail-Bubbles: schmal bei kurzem Inhalt, maximal 60 % des Chatfensters. */
-export const contactMessageEmailBubbleClassName = "w-fit max-w-[60%]";
+/** Chat-Bubbles: maximal 80 % des Chatfensters. */
+export const contactMessageBubbleMaxWidthClassName = "max-w-[80%]";
+
+/** E-Mail (nur Text): schmal bei kurzem Inhalt. */
+export const contactMessageEmailBubbleClassName = cn(
+  contactMessageBubbleMaxWidthClassName,
+  "w-fit",
+);
+
+/** E-Mail (HTML): volle erlaubte Breite nutzen — verhindert schmale Bubble + horizontales Scrollen im iframe. */
+export const contactMessageEmailHtmlBubbleClassName = cn(
+  contactMessageBubbleMaxWidthClassName,
+  "w-full",
+);
 
 export type ContactMessageWahaReactionsConfig = {
   restaurantId: string;
@@ -58,7 +70,7 @@ function formatWhen(iso: string): string {
   });
 }
 
-export function ContactMessageBubbleList({
+export const ContactMessageBubbleList = memo(function ContactMessageBubbleList({
   messages,
   className,
   onReservationOpen,
@@ -74,14 +86,18 @@ export function ContactMessageBubbleList({
   /** Messenger / Instagram: Reactions anzeigen und setzen. */
   metaReactions?: ContactMessageMetaReactionsConfig;
 }) {
-  if (messages.length === 0) {
-    return null;
-  }
-
-  const groups = groupContactMessageBubbles(messages);
   const [openReactionMessageId, setOpenReactionMessageId] = useState<
     string | null
   >(null);
+
+  const groups = useMemo(
+    () => groupContactMessageBubbles(messages),
+    [messages],
+  );
+
+  if (messages.length === 0) {
+    return null;
+  }
 
   return (
     <ul className={cn("flex flex-col gap-3", className)}>
@@ -155,9 +171,9 @@ export function ContactMessageBubbleList({
       })}
     </ul>
   );
-}
+});
 
-function MessageBubbleRow({
+const MessageBubbleRow = memo(function MessageBubbleRow({
   primary,
   platforms,
   outbound,
@@ -196,6 +212,36 @@ function MessageBubbleRow({
     !isRedundantWhatsappMediaBody(primary.body, primary.attachments);
   const hasBody = showTextBody || hasHtmlBody;
   const [deleting, setDeleting] = useState(false);
+  const [toolbarHover, setToolbarHover] = useState(false);
+  const toolbarHoverLeaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const handleBubbleMouseEnter = useCallback(() => {
+    if (toolbarHoverLeaveTimerRef.current) {
+      clearTimeout(toolbarHoverLeaveTimerRef.current);
+      toolbarHoverLeaveTimerRef.current = null;
+    }
+    setToolbarHover(true);
+  }, []);
+
+  const handleBubbleMouseLeave = useCallback(() => {
+    toolbarHoverLeaveTimerRef.current = setTimeout(() => {
+      setToolbarHover(false);
+      toolbarHoverLeaveTimerRef.current = null;
+    }, 200);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (toolbarHoverLeaveTimerRef.current) {
+        clearTimeout(toolbarHoverLeaveTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const toolbarVisible = toolbarHover || pickerOpen;
 
   const handleDelete = async () => {
     if (!wahaReactions || !primary.waha_message_id || deleting) return;
@@ -227,9 +273,13 @@ function MessageBubbleRow({
         className={cn(
           "group/bubble relative min-w-0",
           isEmail
-            ? contactMessageEmailBubbleClassName
-            : "max-w-[min(100%,20rem)]",
+            ? hasHtmlBody
+              ? contactMessageEmailHtmlBubbleClassName
+              : contactMessageEmailBubbleClassName
+            : cn(contactMessageBubbleMaxWidthClassName, "w-fit"),
         )}
+        onMouseEnter={showReactions ? handleBubbleMouseEnter : undefined}
+        onMouseLeave={showReactions ? handleBubbleMouseLeave : undefined}
       >
         <div
           className={cn(
@@ -238,7 +288,7 @@ function MessageBubbleRow({
               ? "rounded-br-md bg-accent text-accent-foreground"
               : "rounded-bl-md border border-border/50 bg-muted/40 text-foreground",
             isEmail && hasHtmlBody && "bg-background text-foreground",
-            isEmail && hasHtmlBody && "overflow-visible",
+            isEmail && hasHtmlBody && "min-w-0 overflow-x-auto",
           )}
           {...(showReactions ? longPress : {})}
         >
@@ -275,6 +325,7 @@ function MessageBubbleRow({
             }
             pickerOpen={pickerOpen}
             onPickerOpenChange={onPickerOpenChange}
+            toolbarVisible={toolbarVisible}
             onDelete={showDelete ? () => handleDelete() : undefined}
             onEdit={
               showEdit && wahaReactions?.onEditMessage
@@ -343,4 +394,4 @@ function MessageBubbleRow({
       </div>
     </li>
   );
-}
+});

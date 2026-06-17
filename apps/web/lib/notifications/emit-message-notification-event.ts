@@ -1,28 +1,10 @@
 import "server-only";
 
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import { buildMessagePushPreview } from "@/lib/notifications/message-push-preview";
+import { resolveMessageNotificationSender } from "@/lib/notifications/message-notification-sender";
+import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-async function contactNameForNotification(
-  admin: SupabaseClient,
-  contactId: string,
-): Promise<string> {
-  const { data } = await admin
-    .from("contacts")
-    .select("first_name, last_name")
-    .eq("id", contactId)
-    .maybeSingle();
-
-  if (!data) return "Kontakt";
-
-  const row = data as { first_name?: string | null; last_name?: string | null };
-  const name = [row.first_name, row.last_name]
-    .map((s) => (typeof s === "string" ? s.trim() : ""))
-    .filter(Boolean)
-    .join(" ");
-
-  return name || "Kontakt";
-}
 
 /** Push-Event für Nachrichten (wenn kein contact_messages-Trigger greift, z. B. unverknüpfter WAHA-Chat). */
 export async function emitMessageNotificationEventIfNew(
@@ -76,20 +58,33 @@ export async function emitMessageNotificationEventForInboundContactMessage(
     platform: ContactMessagePlatform;
     body: string;
     createdAt?: string;
+    attachmentKind?: ContactMessageAttachmentKind | null;
   },
 ): Promise<{ emitted: boolean; eventId: string | null }> {
-  const contactName = await contactNameForNotification(admin, params.contactId);
-  const preview = params.body.trim().slice(0, 120);
+  const sender = await resolveMessageNotificationSender(admin, {
+    restaurantId: params.restaurantId,
+    contactId: params.contactId,
+    platform: params.platform,
+  });
+  const preview = buildMessagePushPreview({
+    body: params.body,
+    attachmentKind: params.attachmentKind,
+    senderName: sender.contactName,
+  });
+
+  const payload: Record<string, unknown> = {
+    contactId: params.contactId,
+    contactName: sender.contactName,
+    preview,
+    platform: params.platform,
+    messageCreatedAt: params.createdAt ?? new Date().toISOString(),
+  };
+  if (sender.senderEmail) payload.senderEmail = sender.senderEmail;
+  if (sender.senderPhone) payload.senderPhone = sender.senderPhone;
 
   return emitMessageNotificationEventIfNew(admin, {
     restaurantId: params.restaurantId,
     referenceId: params.messageId,
-    payload: {
-      contactId: params.contactId,
-      contactName,
-      preview,
-      platform: params.platform,
-      messageCreatedAt: params.createdAt ?? new Date().toISOString(),
-    },
+    payload,
   });
 }

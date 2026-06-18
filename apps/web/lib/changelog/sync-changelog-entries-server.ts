@@ -154,6 +154,13 @@ export async function syncChangelogItems(
     const sha =
       item.kind === "git" ? item.payload.sha : item.payload.sourceGitSha;
 
+    const version = resolveChangelogVersion(
+      item.kind === "git" ? null : item.payload.version,
+      item.kind === "git"
+        ? item.payload.committedAt
+        : new Date().toISOString(),
+    );
+
     const input: PlatformChangelogEntryInput & {
       sourceGitSha: string;
       publishedAt: string;
@@ -164,7 +171,7 @@ export async function syncChangelogItems(
             body: sanitizeChangelogBody(item.payload.body),
             publishedAt: item.payload.committedAt,
             audience: item.payload.audience,
-            version: resolveChangelogVersion(null, item.payload.committedAt),
+            version,
             sourceGitSha: item.payload.sha,
           }
         : (() => {
@@ -175,7 +182,7 @@ export async function syncChangelogItems(
               body: draft.body,
               publishedAt,
               audience: draft.audience ?? "customers",
-              version: resolveChangelogVersion(draft.version, publishedAt),
+              version,
               sourceGitSha: item.payload.sourceGitSha,
             };
           })();
@@ -185,11 +192,7 @@ export async function syncChangelogItems(
       continue;
     }
 
-    if (
-      item.kind === "draft" &&
-      input.version &&
-      (await findByTitleAndVersion(admin, input.title, input.version))
-    ) {
+    if (await findByTitleAndVersion(admin, input.title, version)) {
       result.skipped.push(sha);
       continue;
     }

@@ -27,4 +27,19 @@ jobs:
             echo "CHANGELOG_SYNC_URL / CHANGELOG_SYNC_SECRET nicht gesetzt — übersprungen."
             exit 0
           fi
+          SITE="${CHANGELOG_SYNC_URL%/api/*}"
+          WANT="${GITHUB_SHA::7}"
+          for i in $(seq 1 40); do
+            LIVE=$(curl -fsSL "${SITE}/api/build-info" 2>/dev/null | node -pe "JSON.parse(require('fs').readFileSync(0,'utf8')).sha" 2>/dev/null || true)
+            if [ "$LIVE" = "$WANT" ] || [ "$LIVE" = "${GITHUB_SHA}" ]; then
+              echo "Live API auf ${LIVE} — Changelog-Sync startet."
+              break
+            fi
+            if [ "$i" -eq 40 ]; then
+              echo "Live noch nicht auf ${WANT} — Sync trotzdem (DB-Dedup)."
+            else
+              echo "Warte auf Live (${i}/40): ${LIVE:-?} ≠ ${WANT}"
+              sleep 15
+            fi
+          done
           node scripts/changelog-sync-from-git.mjs

@@ -11,7 +11,7 @@ with ranked as (
     id,
     row_number() over (
       partition by title, version
-      order by (approved_at is not null) desc, created_at asc
+      order by created_at asc
     ) as rn
   from public.platform_changelog_entries
 )

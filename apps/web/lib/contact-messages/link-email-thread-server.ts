@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
+import { assignConversationThreadToContact } from "@/lib/contact-messages/assign-conversation-thread-to-contact";
 import {
   emailAddressFromPseudoContactId,
   isEmailPseudoContactId,
@@ -86,6 +87,12 @@ export async function linkEmailThreadToContact(
   if (!ensured.ok) {
     return { ok: false, imported: 0, error: ensured.error };
   }
+
+  await assignConversationThreadToContact(admin, {
+    restaurantId: params.restaurantId,
+    contactId: params.contactId,
+    conversationKey: params.emailPseudoContactId,
+  });
 
   const { data: messages, error: fetchErr } = await fetchEmailInboxThread(
     admin,

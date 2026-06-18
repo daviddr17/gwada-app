@@ -6,6 +6,7 @@ import {
   type ReviewsCacheablePlatform,
 } from "@/lib/reviews/reviews-cache-constants";
 import { tryAutoReplyToNewReviews } from "@/lib/reviews/review-auto-reply-server";
+import { scheduleDeliverForNotificationReferences } from "@/lib/notifications/schedule-notification-deliver";
 import { reviewExternalId } from "@/lib/reviews/review-settings-types";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -155,6 +156,17 @@ export async function upsertReviewsPlatformCache(
         previousExternalIds,
         platform,
       );
+
+      const newReferenceIds = [...seenExternalIds]
+        .filter((id) => !previousExternalIds.has(id))
+        .map((id) => `${platform}:${id}`);
+      if (newReferenceIds.length > 0) {
+        void scheduleDeliverForNotificationReferences(admin, {
+          restaurantId,
+          module: "reviews",
+          referenceIds: newReferenceIds,
+        });
+      }
     }
   }
 

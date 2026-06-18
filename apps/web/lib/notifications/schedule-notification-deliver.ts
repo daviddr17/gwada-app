@@ -14,6 +14,38 @@ function runImmediateDeliver(admin: SupabaseClient, eventId: string): void {
   });
 }
 
+/** Push-Zustellung für frisch angelegte DB-Events (z. B. neue Google-Bewertung). */
+export async function scheduleDeliverForNotificationReferences(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    module: string;
+    referenceIds: string[];
+  },
+): Promise<void> {
+  if (params.referenceIds.length === 0) return;
+
+  const { data, error } = await admin
+    .from("notification_events")
+    .select("id")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("module", params.module)
+    .in("reference_id", params.referenceIds)
+    .is("processed_at", null);
+
+  if (error) {
+    console.warn(
+      "[notification-deliver] schedule by reference",
+      error.message,
+    );
+    return;
+  }
+
+  for (const row of data ?? []) {
+    scheduleNotificationDeliverForEvent(admin, (row as { id: string }).id);
+  }
+}
+
 /** Fan-out + Versand nach Webhook/Ingest — Cron bleibt Fallback. */
 export function scheduleNotificationDeliverForEvent(
   admin: SupabaseClient,

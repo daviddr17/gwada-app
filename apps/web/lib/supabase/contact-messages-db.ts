@@ -15,6 +15,10 @@ import {
 } from "@/lib/contact-messages/fetch-message-attachments";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
+import {
+  conversationThreadKeyFromRow,
+  defaultConversationLabel,
+} from "@/lib/contact-messages/conversation-thread-key";
 import type {
   ContactMessageAttachment,
   ContactMessageAttachmentKind,
@@ -84,6 +88,8 @@ const MESSAGE_SELECT = `
   id,
   restaurant_id,
   contact_id,
+  conversation_key,
+  conversation_label,
   platform,
   direction,
   body,
@@ -95,7 +101,7 @@ const MESSAGE_SELECT = `
   external_source_id
 `;
 
-function mapMessageRow(
+export function mapContactMessageRowFromRecord(
   raw: Record<string, unknown>,
   attachmentRows: RawMessageAttachmentRow[] = [],
 ): ContactMessageRow {
@@ -116,6 +122,10 @@ function mapMessageRow(
 
   return {
     ...(raw as ContactMessageRow),
+    contact_id: conversationThreadKeyFromRow({
+      contact_id: raw.contact_id as string | null,
+      conversation_key: raw.conversation_key as string | null,
+    }),
     attachments: attachments.length > 0 ? attachments : undefined,
   };
 }
@@ -136,7 +146,7 @@ async function enrichMessageRowsWithAttachments(
     ? new Map<string, RawMessageAttachmentRow[]>()
     : groupAttachmentsByMessageId(attachmentRows);
   return rows.map((row) =>
-    mapMessageRow(row, byMessage.get(row.id as string) ?? []),
+    mapContactMessageRowFromRecord(row, byMessage.get(row.id as string) ?? []),
   );
 }
 
@@ -150,21 +160,26 @@ export async function fetchContactMessages(params: {
   /** Max. Zeilen (neueste zuerst geladen, chronologisch zurückgegeben). */
   limit?: number;
 }): Promise<{ data: ContactMessageRow[]; error: Error | null }> {
-  if (
-    !isUuidRestaurantId(params.restaurantId) ||
-    !isUuidRestaurantId(params.contactId)
-  ) {
+  if (!isUuidRestaurantId(params.restaurantId)) {
     return { data: [], error: null };
   }
   const limit = params.limit ?? CONTACT_MESSAGES_THREAD_DB_LIMIT;
   const sb = createSupabaseBrowserClient();
+
   let q = sb
     .from("contact_messages")
     .select(MESSAGE_SELECT)
     .eq("restaurant_id", params.restaurantId)
-    .eq("contact_id", params.contactId)
     .order("created_at", { ascending: false })
     .limit(limit);
+
+  if (params.contactId.includes(":")) {
+    q = q.eq("conversation_key", params.contactId);
+  } else if (isUuidRestaurantId(params.contactId)) {
+    q = q.eq("contact_id", params.contactId);
+  } else {
+    return { data: [], error: null };
+  }
 
   if (params.platform && params.platform !== "gwada") {
     q = q.eq("platform", params.platform);
@@ -249,11 +264,8 @@ export async function fetchContactConversations(params: {
     `,
     )
     .eq("restaurant_id", params.restaurantId)
+    .eq("platform", params.platform)
     .order("created_at", { ascending: false });
-
-  if (params.platform !== "gwada") {
-    q = q.eq("platform", params.platform);
-  }
 
   const { data: messages, error: msgErr } = await q;
 
@@ -277,13 +289,18 @@ export async function fetchContactConversations(params: {
 
   for (const raw of rawRows) {
     const row = raw as Record<string, unknown>;
-    const contactId = row.contact_id as string;
-    countByContact.set(contactId, (countByContact.get(contactId) ?? 0) + 1);
+    const threadKey = conversationThreadKeyFromRow({
+      contact_id: row.contact_id as string | null,
+      conversation_key: row.conversation_key as string | null,
+    });
+    if (!threadKey) continue;
+
+    countByContact.set(threadKey, (countByContact.get(threadKey) ?? 0) + 1);
     if (row.reservation_id) {
-      hasReservationByContact.set(contactId, true);
+      hasReservationByContact.set(threadKey, true);
     }
 
-    const mapped = mapMessageRow(
+    const mapped = mapContactMessageRowFromRecord(
       row,
       attachmentsByMessage.get(row.id as string) ?? [],
     );
@@ -295,31 +312,36 @@ export async function fetchContactConversations(params: {
         externalSourceId: ext || null,
       })
     ) {
-      inboundAfter.set(contactId, (inboundAfter.get(contactId) ?? 0) + 1);
+      inboundAfter.set(threadKey, (inboundAfter.get(threadKey) ?? 0) + 1);
     }
     if (
       mapped.direction === "inbound" &&
-      !lastInboundByContact.has(contactId)
+      !lastInboundByContact.has(threadKey)
     ) {
-      lastInboundByContact.set(contactId, msgPlatform);
+      lastInboundByContact.set(threadKey, msgPlatform);
     }
 
-    if (previews.has(contactId)) continue;
+    if (previews.has(threadKey)) continue;
 
     const contactRaw = row.contacts;
     const contact = Array.isArray(contactRaw)
       ? (contactRaw[0] as { first_name: string; last_name: string })
       : (contactRaw as { first_name: string; last_name: string } | null);
-    if (!contact) continue;
+
+    const conversationKey = row.conversation_key as string | null;
+    const contactName = contact
+      ? contactDisplayName(contact)
+      : (row.conversation_label as string | null)?.trim() ||
+        (conversationKey ? defaultConversationLabel(conversationKey) : "Chat");
 
     const mirrored =
       ext.startsWith("waha:") || msgPlatform === "whatsapp"
         ? previewBodyAndKindFromWhatsappMirror(mapped.body.trim())
         : { body: mapped.body.trim(), attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
 
-    previews.set(contactId, {
-      contact_id: contactId,
-      contact_name: contactDisplayName(contact),
+    previews.set(threadKey, {
+      contact_id: threadKey,
+      contact_name: contactName,
       platform: params.platform,
       last_body: mirrored.body,
       last_at: mapped.created_at,
@@ -328,7 +350,7 @@ export async function fetchContactConversations(params: {
       unread_count: 0,
       is_unread: false,
       has_reservation_link: false,
-      inbound_since_preview: inboundAfter.get(contactId) ?? 0,
+      inbound_since_preview: inboundAfter.get(threadKey) ?? 0,
       last_attachment_kind:
         primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??
         mirrored.attachmentKind,
@@ -336,12 +358,12 @@ export async function fetchContactConversations(params: {
     });
   }
 
-  for (const [contactId, preview] of previews) {
-    preview.message_count = countByContact.get(contactId) ?? 0;
-    preview.inbound_since_preview = inboundAfter.get(contactId) ?? 0;
+  for (const [threadKey, preview] of previews) {
+    preview.message_count = countByContact.get(threadKey) ?? 0;
+    preview.inbound_since_preview = inboundAfter.get(threadKey) ?? 0;
     preview.has_reservation_link =
-      hasReservationByContact.get(contactId) ?? false;
-    preview.last_inbound_platform = lastInboundByContact.get(contactId);
+      hasReservationByContact.get(threadKey) ?? false;
+    preview.last_inbound_platform = lastInboundByContact.get(threadKey);
   }
 
   const list = [...previews.values()].sort((a, b) =>

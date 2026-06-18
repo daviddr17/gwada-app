@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AppNotificationBellLive } from "@/components/providers/app-notification-bell-live";
 import { AppReservationsLive } from "@/components/providers/app-reservations-live";
 import { AppStaffLive } from "@/components/providers/app-staff-live";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -30,6 +31,7 @@ export function AppModuleLiveProviders() {
 
   return (
     <>
+      <AppNotificationBellLive />
       <AppReservationsLive />
       <AppStaffLive />
     </>

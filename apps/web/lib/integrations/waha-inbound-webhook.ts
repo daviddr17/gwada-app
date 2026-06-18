@@ -8,13 +8,10 @@ import {
   wahaWebhookPayloadMediaKind,
 } from "@/lib/contact-messages/waha-message-media";
 import {
-  buildMessagePushPreview,
   whatsappMediaMirrorBody,
 } from "@/lib/notifications/message-push-preview";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
-import { emitMessageNotificationEventIfNew } from "@/lib/notifications/emit-message-notification-event";
 import { resolveMessageNotificationSender } from "@/lib/notifications/message-notification-sender";
-import { scheduleNotificationDeliverForEvent } from "@/lib/notifications/schedule-notification-deliver";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
@@ -141,41 +138,31 @@ export async function handleWahaInboundWebhook(
     bodyText || whatsappMediaMirrorBody(mediaKind);
 
   if (!contactId) {
-    await insertInboxSignalServer(admin, {
-      restaurantId,
-      source: "waha",
-    });
-
-    const messageCreatedAt =
-      wahaTimestampToIso(payload.timestamp) ?? new Date().toISOString();
     const pseudoContactId = `waha:${chatId}`;
     const sender = await resolveMessageNotificationSender(admin, {
       restaurantId,
       contactId: pseudoContactId,
       platform: "whatsapp",
     });
-    const preview = buildMessagePushPreview({
-      body: mirrorBody,
-      attachmentKind: mediaKind,
-      senderName: sender.contactName,
-    });
-    const { eventId } = await emitMessageNotificationEventIfNew(admin, {
-      restaurantId,
-      referenceId: `waha:${payload.id}`,
-      payload: {
-        contactId: pseudoContactId,
-        contactName: sender.contactName,
-        ...(sender.senderPhone ? { senderPhone: sender.senderPhone } : {}),
-        preview,
-        platform: "whatsapp",
-        messageCreatedAt,
-      },
-    });
-    if (eventId) {
-      scheduleNotificationDeliverForEvent(admin, eventId);
-    }
 
-    return { ok: true, imported: false, reason: "contact_not_linked" };
+    const { imported } = await ingestInboundContactMessage(admin, {
+      restaurantId,
+      contactId: pseudoContactId,
+      platform: "whatsapp",
+      direction: "inbound",
+      body: mirrorBody,
+      externalSourceId: `waha:${payload.id}`,
+      createdAt: wahaTimestampToIso(payload.timestamp),
+      attachmentKind: mediaKind,
+      conversationLabel: sender.contactName,
+    });
+
+    await insertInboxSignalServer(admin, {
+      restaurantId,
+      source: "waha",
+    });
+
+    return { ok: true, imported };
   }
 
   const externalSourceId = `waha:${payload.id}`;

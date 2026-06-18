@@ -24,6 +24,7 @@ import {
   NOTIFICATION_SUMMARY_REFETCH_MS,
   NOTIFICATION_SUMMARY_STALE_MS,
 } from "@/lib/query/dashboard-query-policy";
+import { isNotificationBellRealtimeActive } from "@/lib/hooks/use-notification-bell-realtime";
 import { queryKeys } from "@/lib/query/query-keys";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -59,7 +60,8 @@ export function useNotificationSummary() {
     gcTime: NOTIFICATION_SUMMARY_GC_MS,
     refetchInterval: () =>
       typeof document !== "undefined" &&
-      document.visibilityState === "visible"
+      document.visibilityState === "visible" &&
+      !isNotificationBellRealtimeActive()
         ? NOTIFICATION_SUMMARY_REFETCH_MS
         : false,
     refetchIntervalInBackground: false,

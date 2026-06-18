@@ -1,4 +1,4 @@
--- Changelog-Push erst bei Freigabe, nicht beim Sync-Insert (vermeidet Doppel-Pushes bei Pending-Einträgen).
+-- Changelog-Push: Funktion vorbereiten (Trigger erst nach approved_at-Spalte, siehe 20260624120000).
 
 drop trigger if exists platform_changelog_entries_notification_event
   on public.platform_changelog_entries;
@@ -43,15 +43,3 @@ begin
   return new;
 end;
 $$;
-
-create trigger platform_changelog_entries_notification_on_approve
-  after update of approved_at on public.platform_changelog_entries
-  for each row
-  when (old.approved_at is null and new.approved_at is not null)
-  execute function public.trg_emit_notification_event_changelog();
-
-create trigger platform_changelog_entries_notification_on_insert_approved
-  after insert on public.platform_changelog_entries
-  for each row
-  when (new.approved_at is not null)
-  execute function public.trg_emit_notification_event_changelog();

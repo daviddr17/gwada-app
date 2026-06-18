@@ -73,11 +73,10 @@ import {
   patchUnifiedInboxCacheConversation,
   peekUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
-import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
+import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import {
   getUnifiedInboxRefreshInflight,
   refreshUnifiedInboxCache,
-  UNIFIED_INBOX_BACKGROUND_POLL_MS,
 } from "@/lib/contact-messages/unified-inbox-background-sync";
 import { filterInboxConversationsByPlatform } from "@/lib/contact-messages/unified-inbox-merge";
 import {
@@ -86,12 +85,6 @@ import {
   markUnifiedInboxConversationReadClient,
 } from "@/lib/contact-messages/unified-inbox-client";
 import {
-  fetchEmailConversationsClient,
-  fetchEmailMessagesClient,
-  fetchMetaConversationsClient,
-  fetchMetaMessagesClient,
-  fetchWahaConversationsClient,
-  fetchWahaMessagesClient,
   fetchWahaDisplayNameClient,
   fetchWahaResolvedPhoneClient,
   markConversationReadClient,
@@ -108,7 +101,6 @@ import {
   setContactThreadCache,
 } from "@/lib/contact-messages/contact-thread-cache";
 import { fetchContactThreadPageClient } from "@/lib/contact-messages/fetch-contact-thread-client";
-import { mergeLinkedContactThreadMessages } from "@/lib/contact-messages/merge-linked-contact-thread-messages";
 import {
   appendOptimisticMessage,
   createOptimisticOutboundMetaMessage,
@@ -120,7 +112,7 @@ import {
   removeOptimisticMessage,
   removeWhatsappMessageByWahaId,
 } from "@/lib/contact-messages/optimistic-thread-messages";
-import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadNeedsWahaAckPoll, contactThreadRowsEqual, mergeWahaLiveMetadataIntoThread, mergeWahaLiveMetadataIntoThreadIfChanged } from "@/lib/contact-messages/whatsapp-mirror-preview";
+import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadRowsEqual } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import { editWahaMessageClient } from "@/lib/contact-messages/waha-typing-client";
 import {
   applyConversationReadFilterToSearchParams,
@@ -189,6 +181,7 @@ import {
 import { formatGuestPhone } from "@/lib/phone/guest-phone";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useContactThreadRealtime } from "@/lib/hooks/use-contact-thread-realtime";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -204,6 +197,7 @@ import {
 } from "@/lib/supabase/contacts-db";
 import {
   fetchContactMessages,
+  fetchContactConversations,
   type ContactConversationPreview,
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
@@ -217,10 +211,6 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { cn } from "@/lib/utils";
-
-const WAHA_ACK_POLL_MS_ACTIVE = 15_000;
-const WAHA_ACK_POLL_MS_IDLE = 45_000;
-const THREAD_SILENT_REFRESH_DEBOUNCE_MS = 4_000;
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", {
@@ -711,50 +701,21 @@ export function ContactsMessagesScreen() {
       });
       if (error) toast.error(error.message);
       setConversations(data);
-    } else if (inboxFilter === "whatsapp" && whatsappConnected) {
-      const { data, error } = await fetchWahaConversationsClient(restaurantId);
-      if (error) {
-        toast.error(
-          error === "waha_not_configured"
-            ? "WAHA ist nicht konfiguriert."
-            : `WhatsApp-Chats konnten nicht geladen werden: ${error}`,
-        );
-        setConversations([]);
-      } else {
-        setConversations(data);
-      }
-    } else if (inboxFilter === "email" && emailConnected) {
-      const { data, error } = await fetchEmailConversationsClient(restaurantId);
-      if (error) {
-        toast.error(
-          error === "imap_not_configured"
-            ? "E-Mail-Konto nicht verbunden."
-            : `E-Mail-Postfach konnte nicht geladen werden: ${error}`,
-        );
-        setConversations([]);
-      } else {
-        const enriched = await enrichConversationsWithReadState({
-          restaurantId,
-          platform: "email",
-          conversations: data,
-        });
-        setConversations(enriched);
-      }
     } else if (
-      (inboxFilter === "facebook" && facebookConnected) ||
-      (inboxFilter === "instagram" && instagramConnected)
+      (inboxFilter === "whatsapp" && !whatsappConnected) ||
+      (inboxFilter === "email" && !emailConnected) ||
+      (inboxFilter === "facebook" && !facebookConnected) ||
+      (inboxFilter === "instagram" && !instagramConnected)
     ) {
-      const platform = inboxFilter;
-      const { data, error } = await fetchMetaConversationsClient(
+      setConversations([]);
+    } else {
+      const platform = inboxFilter as ContactMessagePlatform;
+      const { data, error } = await fetchContactConversations({
         restaurantId,
         platform,
-      );
+      });
       if (error) {
-        toast.error(
-          error === "meta_not_connected"
-            ? `${CONTACT_MESSAGE_PLATFORM_LABELS[platform]} ist nicht verbunden.`
-            : `${CONTACT_MESSAGE_PLATFORM_LABELS[platform]}-Chats: ${error}`,
-        );
+        toast.error(error.message);
         setConversations([]);
       } else {
         const enriched = await enrichConversationsWithReadState({
@@ -1105,105 +1066,72 @@ export function ContactsMessagesScreen() {
   ]);
 
   const reconcileWhatsappThreadAfterSend = useCallback(async () => {
-    if (!restaurantId || !contactParam || !whatsappConnected) return;
+    if (!restaurantId || !contactParam) return;
+    void loadThread({ silent: true });
+  }, [restaurantId, contactParam, loadThread]);
 
-    const wahaThread = await fetchWahaMessagesClient({
-      restaurantId,
-      contactId: contactParam,
-    });
-    if (wahaThread.error) {
-      void loadThread({ silent: true });
-      return;
-    }
-
-    setMessages((prev) => {
-      let next: ContactMessageRow[];
-      if (linkedThread) {
-        const dbMessages = prev.filter(
-          (m) => !m.id.startsWith("waha:") && !isOptimisticContactMessage(m),
-        );
-        next = mergeLinkedContactThreadMessages({
-          dbMessages,
-          imapEmailMessages: null,
-          wahaMessages: wahaThread.data,
-          contactId: contactParam,
-        });
-      } else {
-        next = wahaThread.data;
-      }
-      next = dedupeWhatsappOutboundThreadRows(next);
-      next = mergeWahaLiveMetadataIntoThread(next, wahaThread.data);
-      next = mergeLoadedThreadWithOptimistic(next, prev);
-      return dropOptimisticMatchingAnchors(next);
-    });
-  }, [restaurantId, contactParam, whatsappConnected, linkedThread, loadThread]);
-
-  const refreshWahaMetadataLight = useCallback(async () => {
-    if (!restaurantId || !contactParam || !whatsappConnected) return;
-
-    const isWhatsappChat =
-      isWahaPseudoContactId(contactParam) ||
-      linkedThread ||
-      Boolean(whatsappThreadChatId);
-    if (!isWhatsappChat) return;
-
-    const { data, error } = await fetchWahaMessagesClient({
-      restaurantId,
-      contactId: contactParam,
-    });
-    if (error || !data.length) return;
-    setMessages((prev) => mergeWahaLiveMetadataIntoThreadIfChanged(prev, data));
-  }, [
-    restaurantId,
-    contactParam,
-    whatsappConnected,
-    linkedThread,
-    whatsappThreadChatId,
-  ]);
-
-  useEffect(() => {
-    if (!restaurantId || !contactParam || !whatsappConnected) return;
-
-    const isWhatsappChat =
-      isWahaPseudoContactId(contactParam) ||
-      linkedThread ||
-      Boolean(whatsappThreadChatId);
-    if (!isWhatsappChat) return;
-
-    let cancelled = false;
-    let intervalId: number | null = null;
-
-    const refreshWahaMetadata = async () => {
-      if (cancelled || document.visibilityState !== "visible") return;
-      const { data, error } = await fetchWahaMessagesClient({
-        restaurantId,
-        contactId: contactParam,
+  const patchThreadCache = useCallback(
+    (next: ContactMessageRow[]) => {
+      if (!restaurantId || !contactParam) return;
+      setContactThreadCache(restaurantId, contactParam, {
+        messages: next,
+        contactName,
+        hasPhone,
+        hasEmail,
+        hasFacebookId,
+        hasInstagramId,
+        whatsappThreadChatId,
       });
-      if (cancelled || error || !data.length) return;
-      setMessages((prev) => mergeWahaLiveMetadataIntoThreadIfChanged(prev, data));
-    };
+    },
+    [
+      restaurantId,
+      contactParam,
+      contactName,
+      hasPhone,
+      hasEmail,
+      hasFacebookId,
+      hasInstagramId,
+      whatsappThreadChatId,
+    ],
+  );
 
-    const schedulePoll = () => {
-      if (intervalId) window.clearInterval(intervalId);
-      const ms = contactThreadNeedsWahaAckPoll(messagesRef.current)
-        ? WAHA_ACK_POLL_MS_ACTIVE
-        : WAHA_ACK_POLL_MS_IDLE;
-      intervalId = window.setInterval(refreshWahaMetadata, ms);
-    };
+  const applyRealtimeThreadInsert = useCallback(
+    (row: ContactMessageRow) => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === row.id)) return prev;
+        let next = dedupeContactMessagesById([...prev, row]);
+        next = dropOptimisticMatchingAnchors(next);
+        if (contactThreadRowsEqual(prev, next)) return prev;
+        patchThreadCache(next);
+        return next;
+      });
+    },
+    [patchThreadCache],
+  );
 
-    void refreshWahaMetadata();
-    schedulePoll();
-    return () => {
-      cancelled = true;
-      if (intervalId) window.clearInterval(intervalId);
-    };
-  }, [
-    restaurantId,
-    contactParam,
-    whatsappConnected,
-    linkedThread,
-    whatsappThreadChatId,
-  ]);
+  const applyRealtimeThreadUpdate = useCallback(
+    (row: ContactMessageRow) => {
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === row.id);
+        if (idx === -1) return prev;
+        const next = [...prev];
+        next[idx] = {
+          ...next[idx]!,
+          ...row,
+          attachments: next[idx]!.attachments ?? row.attachments,
+        };
+        if (contactThreadRowsEqual(prev, next)) return prev;
+        patchThreadCache(next);
+        return next;
+      });
+    },
+    [patchThreadCache],
+  );
+
+  useContactThreadRealtime(contactParam, {
+    onInsert: applyRealtimeThreadInsert,
+    onUpdate: applyRealtimeThreadUpdate,
+  });
 
   useEffect(() => {
     if (!restaurantId || contactParam) return;
@@ -1232,38 +1160,14 @@ export function ContactsMessagesScreen() {
     if (!restaurantId) return;
 
     const onMessagesRefresh = () => {
-      if (contactParam) {
-        if (threadRefreshDebounceRef.current) {
-          clearTimeout(threadRefreshDebounceRef.current);
-        }
-        threadRefreshDebounceRef.current = setTimeout(() => {
-          threadRefreshDebounceRef.current = null;
-          void loadThread({ silent: true });
-        }, THREAD_SILENT_REFRESH_DEBOUNCE_MS);
-      } else {
-        void loadConversations({ silent: true, force: true });
-      }
-    };
-
-    const onWahaMetadataRefresh = () => {
-      if (contactParam) {
-        void refreshWahaMetadataLight();
-      }
+      void loadConversations({ silent: true, force: true });
     };
 
     window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onMessagesRefresh);
-    window.addEventListener(
-      GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT,
-      onWahaMetadataRefresh,
-    );
     return () => {
       window.removeEventListener(
         GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
         onMessagesRefresh,
-      );
-      window.removeEventListener(
-        GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT,
-        onWahaMetadataRefresh,
       );
       if (threadRefreshDebounceRef.current) {
         clearTimeout(threadRefreshDebounceRef.current);
@@ -1273,9 +1177,7 @@ export function ContactsMessagesScreen() {
   }, [
     restaurantId,
     contactParam,
-    loadThread,
     loadConversations,
-    refreshWahaMetadataLight,
   ]);
 
   useLayoutEffect(() => {
@@ -1322,29 +1224,6 @@ export function ContactsMessagesScreen() {
     loadThread,
     loadConversations,
   ]);
-
-  useEffect(() => {
-    if (!restaurantId || !contactParam || !linkedThread) return;
-
-    const pollInbox = () => {
-      void fetch("/api/contact-messages/inbox-sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          restaurantId,
-          contactId: contactParam,
-        }),
-      })
-        .then((res) => res.json())
-        .then((data: { imported?: number }) => {
-          if ((data.imported ?? 0) > 0) void loadThread();
-        })
-        .catch(() => undefined);
-    };
-
-    const intervalId = window.setInterval(pollInbox, UNIFIED_INBOX_BACKGROUND_POLL_MS);
-    return () => window.clearInterval(intervalId);
-  }, [restaurantId, contactParam, linkedThread, loadThread]);
 
   const selectInboxFilter = (filter: InboxPlatformFilter) => {
     if (!isInboxFilterAvailable(filter)) return;

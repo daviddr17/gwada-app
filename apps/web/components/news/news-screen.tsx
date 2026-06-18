@@ -35,6 +35,7 @@ import {
   type NewsViewMode,
 } from "@/lib/constants/news-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-realtime";
 import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -61,7 +62,7 @@ import {
 } from "@/lib/constants/list-pagination";
 
 const NEWS_SYNC_POLL_MS = 5_000;
-const NEWS_SYNC_POLL_MAX = 12;
+const NEWS_SYNC_POLL_MAX = 3;
 
 export function NewsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -152,6 +153,10 @@ export function NewsScreen() {
   const refreshFeed = useCallback(() => {
     void load({ silent: true });
   }, [load]);
+
+  usePlatformFeedSyncRealtime("restaurant_news_platform_sync", refreshFeed, {
+    enabled: Boolean(restaurantId && ready),
+  });
 
   const syncNow = useCallback(async () => {
     if (!restaurantId || syncing) return;

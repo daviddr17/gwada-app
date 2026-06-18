@@ -1,6 +1,7 @@
 import "server-only";
 
 import { fetchMetaThreadMessages } from "@/lib/contact-messages/meta-inbox-service";
+import { assignConversationThreadToContact } from "@/lib/contact-messages/assign-conversation-thread-to-contact";
 import { parseMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -88,6 +89,12 @@ export async function linkMetaThreadToContact(
   if (!linked.ok) {
     return { ok: false, imported: 0, error: linked.error };
   }
+
+  await assignConversationThreadToContact(admin, {
+    restaurantId: params.restaurantId,
+    contactId: params.contactId,
+    conversationKey: params.metaContactId,
+  });
 
   const { data: messages, error: fetchErr } = await fetchMetaThreadMessages(
     admin,

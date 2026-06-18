@@ -1,13 +1,17 @@
 import "server-only";
 
 import { fetchWahaInboxConversations } from "@/lib/contact-messages/waha-inbox-service";
-import { syncContactWhatsappInbound } from "@/lib/contacts/sync-contact-whatsapp-inbound";
+import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import {
+  syncContactWhatsappInbound,
+  syncPseudoWhatsappThread,
+} from "@/lib/contacts/sync-contact-whatsapp-inbound";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** WAHA-Verlauf für verknüpfte Kontakte spiegeln (Cron + Glocke-Vor-Sync). */
+/** WAHA-Verlauf für verknüpfte und unverknüpfte Chats in die DB spiegeln. */
 export async function syncRestaurantWhatsappInbox(
   admin: SupabaseClient,
   restaurantId: string,
@@ -27,24 +31,24 @@ export async function syncRestaurantWhatsappInbox(
   }
 
   let imported = 0;
-  const syncedContacts = new Set<string>();
+  const syncedThreads = new Set<string>();
 
   for (const c of conv.data) {
-    const contactId = c.contact_id;
-    if (
-      !contactId ||
-      contactId.startsWith("waha:") ||
-      contactId.startsWith("email:")
-    ) {
-      continue;
-    }
-    if (syncedContacts.has(contactId)) continue;
-    syncedContacts.add(contactId);
+    const threadKey = c.contact_id;
+    if (!threadKey || threadKey.startsWith("email:")) continue;
+    if (syncedThreads.has(threadKey)) continue;
+    syncedThreads.add(threadKey);
 
-    const wa = await syncContactWhatsappInbound(admin, {
-      restaurantId,
-      contactId,
-    });
+    const wa = isWahaPseudoContactId(threadKey)
+      ? await syncPseudoWhatsappThread(admin, {
+          restaurantId,
+          conversationKey: threadKey,
+        })
+      : await syncContactWhatsappInbound(admin, {
+          restaurantId,
+          contactId: threadKey,
+        });
+
     if (wa.error && wa.error !== "no_whatsapp_chat") {
       return { imported, error: wa.error };
     }

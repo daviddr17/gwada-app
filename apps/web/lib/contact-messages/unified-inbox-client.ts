@@ -2,25 +2,17 @@
 
 import type { InboxPlatformFilter } from "@/lib/constants/contact-message-platforms";
 import { INBOX_FILTER_ALL } from "@/lib/constants/contact-message-platforms";
-import {
-  fetchEmailConversationsClient,
-  fetchMetaConversationsClient,
-  fetchWahaConversationsClient,
-  markConversationReadClient,
-} from "@/lib/contact-messages/fetch-inbox-client";
+import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
+import { markConversationReadClient } from "@/lib/contact-messages/fetch-inbox-client";
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import { enrichOneConversationWithReads } from "@/lib/contact-messages/unified-inbox-read-state";
-import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
-import { parseMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
-import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { fetchConversationReadsBrowser } from "@/lib/supabase/contact-conversation-reads-db";
 import {
   fetchContactConversations,
   type ContactConversationPreview,
 } from "@/lib/supabase/contact-messages-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 
 async function readsMapForPlatform(
   restaurantId: string,
@@ -59,6 +51,7 @@ export async function enrichUnifiedInboxReadState(params: {
   );
 }
 
+/** Posteingang aus Supabase — keine Live-WAHA/IMAP/Meta-Calls beim Listen-Laden. */
 export async function fetchUnifiedInboxConversations(params: {
   restaurantId: string;
   whatsappConnected: boolean;
@@ -66,42 +59,26 @@ export async function fetchUnifiedInboxConversations(params: {
   facebookConnected?: boolean;
   instagramConnected?: boolean;
 }): Promise<{ data: ContactConversationPreview[]; error: Error | null }> {
-  const sources: ContactConversationPreview[][] = [];
+  const platforms: ContactMessagePlatform[] = ["gwada"];
+  if (params.whatsappConnected) platforms.push("whatsapp");
+  if (params.emailConnected) platforms.push("email");
+  if (params.facebookConnected) platforms.push("facebook");
+  if (params.instagramConnected) platforms.push("instagram");
 
-  const db = await fetchContactConversations({
-    restaurantId: params.restaurantId,
-    platform: "gwada",
-  });
-  if (db.error) return { data: [], error: db.error };
-  sources.push(db.data);
+  const results = await Promise.all(
+    platforms.map((platform) =>
+      fetchContactConversations({
+        restaurantId: params.restaurantId,
+        platform,
+      }),
+    ),
+  );
 
-  if (params.whatsappConnected) {
-    const wa = await fetchWahaConversationsClient(params.restaurantId);
-    if (!wa.error) sources.push(wa.data);
+  for (const result of results) {
+    if (result.error) return { data: [], error: result.error };
   }
 
-  if (params.emailConnected) {
-    const em = await fetchEmailConversationsClient(params.restaurantId);
-    if (!em.error) sources.push(em.data);
-  }
-
-  if (params.facebookConnected) {
-    const fb = await fetchMetaConversationsClient(
-      params.restaurantId,
-      "facebook",
-    );
-    if (!fb.error) sources.push(fb.data);
-  }
-
-  if (params.instagramConnected) {
-    const ig = await fetchMetaConversationsClient(
-      params.restaurantId,
-      "instagram",
-    );
-    if (!ig.error) sources.push(ig.data);
-  }
-
-  const merged = mergeInboxConversationPreviews(sources);
+  const merged = mergeInboxConversationPreviews(results.map((r) => r.data));
   const enriched = await enrichUnifiedInboxReadState({
     restaurantId: params.restaurantId,
     conversations: merged,

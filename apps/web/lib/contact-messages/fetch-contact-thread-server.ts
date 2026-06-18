@@ -3,28 +3,14 @@ import "server-only";
 import { fetchContactMessagesAdmin } from "@/lib/contact-messages/contact-messages-admin";
 import {
   CONTACT_THREAD_PAGE_SIZE,
-  mergeThreadHasMore,
-  metaApiFetchLimit,
-  paginateContactThreadMessages,
-  perSourceFetchLimit,
-  wahaApiFetchLimit,
 } from "@/lib/contact-messages/contact-thread-pagination";
 import { isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
-import {
-  fetchEmailInboxThreadPage,
-} from "@/lib/contact-messages/email-inbox-service";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
-import { mergeLinkedContactThreadMessages } from "@/lib/contact-messages/merge-linked-contact-thread-messages";
 import { isMetaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
-import { metaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
-import { fetchMetaThreadMessages } from "@/lib/contact-messages/meta-inbox-service";
-import { resolveInboxChannelConnections } from "@/lib/contact-messages/mark-unified-conversation-read-server";
-import { mergeWahaLiveMetadataIntoThread } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import {
   isWahaPseudoContactId,
   wahaChatIdFromPseudoContactId,
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
-import { fetchWahaThreadMessages } from "@/lib/contact-messages/waha-inbox-service";
 import { contactThreadDisplayName } from "@/lib/supabase/contacts-db";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import {
@@ -141,24 +127,6 @@ function contactMetaFromRow(
   };
 }
 
-function paginateMergedSlice(
-  messages: ContactMessageRow[],
-  pageLimit: number,
-  before: string | null | undefined,
-  sourceHasMore: boolean[],
-): Pick<ContactThreadPageResult, "messages" | "hasMore" | "oldestCursor"> {
-  const { page, hasMore, oldestCursor } = paginateContactThreadMessages(
-    messages,
-    pageLimit,
-    before,
-  );
-  return {
-    messages: page,
-    hasMore: mergeThreadHasMore(hasMore, ...sourceHasMore),
-    oldestCursor,
-  };
-}
-
 async function loadLinkedThreadSlice(
   admin: SupabaseClient,
   params: {
@@ -180,24 +148,18 @@ async function loadLinkedThreadSlice(
   error: string | null;
 }> {
   const { restaurantId, contactId, pageLimit, before } = params;
-  const sourceLimit = perSourceFetchLimit(pageLimit, before);
-  const wahaLimit = wahaApiFetchLimit(pageLimit, before);
-  const metaLimit = metaApiFetchLimit(pageLimit, before);
-
-  const tChannels = performance.now();
-  const channels = await resolveInboxChannelConnections(admin, restaurantId);
-  mark("channels", Math.round(performance.now() - tChannels));
 
   const tDb = performance.now();
   const dbPromise = fetchContactMessagesAdmin(admin, {
     restaurantId,
-    contactId,
-    limit: sourceLimit,
+    threadKey: contactId,
+    limit: pageLimit,
     before,
   }).then((dbResult) => {
     mark("db", Math.round(performance.now() - tDb), {
       fetched: dbResult.data.length,
-      apiLimit: sourceLimit,
+      apiLimit: pageLimit,
+      returned: dbResult.data.length,
     });
     return dbResult;
   });
@@ -222,141 +184,21 @@ async function loadLinkedThreadSlice(
     };
   }
 
-  const messagingIds = Array.isArray(contact?.contact_messaging_ids)
-    ? contact.contact_messaging_ids
-    : [];
-  const fbSenderId = messagingIds.find(
-    (r) => r.platform === "facebook",
-  )?.external_sender_id;
-  const igSenderId = messagingIds.find(
-    (r) => r.platform === "instagram",
-  )?.external_sender_id;
-
-  const [emailThread, wahaThread, fbMetaThread, igMetaThread] =
-    await Promise.all([
-      channels.emailConnected
-        ? (async () => {
-            const t0 = performance.now();
-            const result = await fetchEmailInboxThreadPage(admin, {
-              restaurantId,
-              contactId,
-              limit: sourceLimit,
-              before,
-            });
-            mark("imap", Math.round(performance.now() - t0), {
-              fetched: result.data.length,
-              apiLimit: sourceLimit,
-            });
-            return result;
-          })()
-        : Promise.resolve({
-            data: [] as ContactMessageRow[],
-            hasMore: false,
-            error: null,
-          }),
-      channels.whatsappConnected
-        ? (async () => {
-            const t0 = performance.now();
-            const result = await fetchWahaThreadMessages(admin, {
-              restaurantId,
-              contactId,
-              limit: wahaLimit,
-            });
-            mark("waha", Math.round(performance.now() - t0), {
-              fetched: result.data.length,
-              apiLimit: wahaLimit,
-            });
-            return result;
-          })()
-        : Promise.resolve({
-            data: [] as ContactMessageRow[],
-            hasMore: false,
-            error: null,
-          }),
-      channels.facebookConnected && fbSenderId
-        ? (async () => {
-            const t0 = performance.now();
-            const result = await fetchMetaThreadMessages(admin, {
-              restaurantId,
-              contactId: metaPseudoContactId("facebook", fbSenderId),
-              limit: metaLimit,
-            });
-            mark("meta_fb", Math.round(performance.now() - t0), {
-              fetched: result.data.length,
-              apiLimit: metaLimit,
-            });
-            return result;
-          })()
-        : Promise.resolve({
-            data: [] as ContactMessageRow[],
-            hasMore: false,
-            error: null,
-          }),
-      channels.instagramConnected && igSenderId
-        ? (async () => {
-            const t0 = performance.now();
-            const result = await fetchMetaThreadMessages(admin, {
-              restaurantId,
-              contactId: metaPseudoContactId("instagram", igSenderId),
-              limit: metaLimit,
-            });
-            mark("meta_ig", Math.round(performance.now() - t0), {
-              fetched: result.data.length,
-              apiLimit: metaLimit,
-            });
-            return result;
-          })()
-        : Promise.resolve({
-            data: [] as ContactMessageRow[],
-            hasMore: false,
-            error: null,
-          }),
-    ]);
-
-  const metaLive = [
-    ...(fbMetaThread.error ? [] : fbMetaThread.data),
-    ...(igMetaThread.error ? [] : igMetaThread.data),
-  ];
-
-  const wahaLive =
-    wahaThread.error || wahaThread.data.length === 0 ? [] : wahaThread.data;
-
-  const merged = mergeWahaLiveMetadataIntoThread(
-    mergeLinkedContactThreadMessages({
-      dbMessages: dbResult.data,
-      imapEmailMessages:
-        emailThread.error || emailThread.data.length === 0
-          ? null
-          : emailThread.data,
-      wahaMessages: wahaLive.length ? wahaLive : null,
-      metaMessages: metaLive.length ? metaLive : null,
-      contactId,
-    }),
-    wahaLive,
-  );
-
-  const slice = paginateMergedSlice(merged, pageLimit, before, [
-    dbResult.hasMore,
-    emailThread.hasMore,
-    wahaThread.hasMore,
-    fbMetaThread.hasMore,
-    igMetaThread.hasMore,
-  ]);
-
-  mark("merge", 0, { returned: slice.messages.length });
-
   return {
-    ...slice,
+    messages: dbResult.data,
+    hasMore: dbResult.hasMore,
+    oldestCursor:
+      dbResult.data.length > 0 ? dbResult.data[0]!.created_at : null,
     contact: contactMetaFromRow(contact, "Kontakt"),
     error: null,
   };
 }
 
-async function loadSingleSourceThreadSlice(
+async function loadConversationThreadSlice(
   admin: SupabaseClient,
   params: {
     restaurantId: string;
-    contactId: string;
+    threadKey: string;
     pageLimit: number;
     before?: string | null;
   },
@@ -371,87 +213,11 @@ async function loadSingleSourceThreadSlice(
   oldestCursor: string | null;
   error: string | null;
 }> {
-  const { restaurantId, contactId, pageLimit, before } = params;
-  const tChannels = performance.now();
-  const channels = await resolveInboxChannelConnections(admin, restaurantId);
-  mark("channels", Math.round(performance.now() - tChannels));
-
-  if (isWahaPseudoContactId(contactId)) {
-    if (!channels.whatsappConnected) {
-      return { messages: [], hasMore: false, oldestCursor: null, error: "waha_not_configured" };
-    }
-    const wahaLimit = wahaApiFetchLimit(pageLimit, before);
-    const t0 = performance.now();
-    const waha = await fetchWahaThreadMessages(admin, {
-      restaurantId,
-      contactId,
-      limit: wahaLimit,
-    });
-    mark("waha", Math.round(performance.now() - t0), {
-      fetched: waha.data.length,
-      apiLimit: wahaLimit,
-    });
-    if (waha.error) {
-      return { messages: [], hasMore: false, oldestCursor: null, error: waha.error };
-    }
-    const merged = mergeWahaLiveMetadataIntoThread(waha.data, waha.data);
-    const slice = paginateMergedSlice(merged, pageLimit, before, [waha.hasMore]);
-    mark("page", 0, { returned: slice.messages.length });
-    return { ...slice, error: null };
-  }
-
-  if (isEmailPseudoContactId(contactId)) {
-    if (!channels.emailConnected) {
-      return { messages: [], hasMore: false, oldestCursor: null, error: "imap_not_configured" };
-    }
-    const t0 = performance.now();
-    const email = await fetchEmailInboxThreadPage(admin, {
-      restaurantId,
-      contactId,
-      limit: pageLimit,
-      before,
-    });
-    mark("imap", Math.round(performance.now() - t0), {
-      fetched: email.data.length,
-      apiLimit: pageLimit,
-      returned: email.data.length,
-    });
-    if (email.error) {
-      return { messages: [], hasMore: false, oldestCursor: null, error: email.error };
-    }
-    return {
-      messages: email.data,
-      hasMore: email.hasMore,
-      oldestCursor:
-        email.data.length > 0 ? email.data[0]!.created_at : null,
-      error: null,
-    };
-  }
-
-  if (isMetaPseudoContactId(contactId)) {
-    const metaLimit = metaApiFetchLimit(pageLimit, before);
-    const t0 = performance.now();
-    const meta = await fetchMetaThreadMessages(admin, {
-      restaurantId,
-      contactId,
-      limit: metaLimit,
-    });
-    mark("meta", Math.round(performance.now() - t0), {
-      fetched: meta.data.length,
-      apiLimit: metaLimit,
-    });
-    if (meta.error) {
-      return { messages: [], hasMore: false, oldestCursor: null, error: meta.error };
-    }
-    const slice = paginateMergedSlice(meta.data, pageLimit, before, [meta.hasMore]);
-    mark("page", 0, { returned: slice.messages.length });
-    return { ...slice, error: null };
-  }
-
+  const { restaurantId, threadKey, pageLimit, before } = params;
   const t0 = performance.now();
   const db = await fetchContactMessagesAdmin(admin, {
     restaurantId,
-    contactId,
+    threadKey,
     limit: pageLimit,
     before,
   });
@@ -539,11 +305,11 @@ export async function fetchContactThreadPageServer(
     };
   }
 
-  const slice = await loadSingleSourceThreadSlice(
+  const slice = await loadConversationThreadSlice(
     admin,
     {
       restaurantId,
-      contactId,
+      threadKey: contactId,
       pageLimit,
       before,
     },

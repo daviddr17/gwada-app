@@ -8,7 +8,10 @@ export type RestaurantRealtimeTable =
   | "contact_messages"
   | "restaurant_inbox_signals"
   | "restaurant_staff_work_entries"
-  | "restaurant_staff";
+  | "restaurant_staff"
+  | "notification_events"
+  | "restaurant_news_platform_sync"
+  | "restaurant_reviews_platform_sync";
 
 type RealtimeChangeEvent = "INSERT" | "UPDATE" | "DELETE";
 
@@ -181,7 +184,7 @@ export function subscribeRestaurantTableInserts(
   sb: SupabaseClient,
   options: {
     channelName: string;
-    table: "reservations" | "contact_messages" | "restaurant_inbox_signals";
+    table: RestaurantRealtimeTable;
     restaurantId: string;
     onInsert: (payload: { new: Record<string, unknown> }) => void;
     onStatus?: (status: RestaurantRealtimeSubscribeStatus) => void;

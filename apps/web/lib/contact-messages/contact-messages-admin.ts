@@ -6,6 +6,10 @@ import {
   type RawMessageAttachmentRow,
 } from "@/lib/contact-messages/fetch-message-attachments";
 import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
+import {
+  conversationThreadKeyFromRow,
+  resolveConversationThreadRef,
+} from "@/lib/contact-messages/conversation-thread-key";
 import type { ContactMessageAttachment } from "@/lib/types/contact-message-attachment";
 import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -15,6 +19,8 @@ const MESSAGE_SELECT = `
   id,
   restaurant_id,
   contact_id,
+  conversation_key,
+  conversation_label,
   platform,
   direction,
   body,
@@ -47,6 +53,10 @@ function mapMessageRow(
 
   return {
     ...(raw as ContactMessageRow),
+    contact_id: conversationThreadKeyFromRow({
+      contact_id: raw.contact_id as string | null,
+      conversation_key: raw.conversation_key as string | null,
+    }),
     attachments: attachments.length > 0 ? attachments : undefined,
   };
 }
@@ -56,15 +66,18 @@ export async function fetchContactMessagesAdmin(
   admin: SupabaseClient,
   params: {
     restaurantId: string;
-    contactId: string;
+    /** UUID oder Pseudo-Thread (waha:/email:/meta:). */
+    threadKey: string;
     limit: number;
     before?: string | null;
   },
 ): Promise<{ data: ContactMessageRow[]; hasMore: boolean; error: Error | null }> {
-  if (
-    !isUuidRestaurantId(params.restaurantId) ||
-    !isUuidRestaurantId(params.contactId)
-  ) {
+  if (!isUuidRestaurantId(params.restaurantId)) {
+    return { data: [], hasMore: false, error: null };
+  }
+
+  const thread = resolveConversationThreadRef(params.threadKey);
+  if (!thread.contactId && !thread.conversationKey) {
     return { data: [], hasMore: false, error: null };
   }
 
@@ -72,9 +85,14 @@ export async function fetchContactMessagesAdmin(
     .from("contact_messages")
     .select(MESSAGE_SELECT)
     .eq("restaurant_id", params.restaurantId)
-    .eq("contact_id", params.contactId)
     .order("created_at", { ascending: false })
     .limit(params.limit);
+
+  if (thread.contactId) {
+    q = q.eq("contact_id", thread.contactId);
+  } else {
+    q = q.eq("conversation_key", thread.conversationKey!);
+  }
 
   if (params.before) {
     q = q.lt("created_at", params.before);

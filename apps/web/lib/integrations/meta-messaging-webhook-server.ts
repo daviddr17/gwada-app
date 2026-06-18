@@ -3,6 +3,8 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "crypto";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForMetaInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
+import { CONTACT_MESSAGE_PLATFORM_LABELS } from "@/lib/constants/contact-message-platforms";
+import { metaPseudoContactId } from "@/lib/contact-messages/meta-pseudo-contact";
 import {
   oauthConfigFromJson,
   type MetaOAuthIntegrationConfig,
@@ -125,7 +127,9 @@ export async function handleMetaMessagingWebhook(
         platform,
         senderId,
       });
-      if (!contactId) continue;
+
+      const threadKey =
+        contactId ?? metaPseudoContactId(platform, senderId);
 
       const externalSourceId = `meta:${platform}:${message.mid}`;
       const createdAt = message.mid && event.timestamp
@@ -134,12 +138,15 @@ export async function handleMetaMessagingWebhook(
 
       const result = await ingestInboundContactMessage(admin, {
         restaurantId: resolved.restaurantId,
-        contactId,
+        contactId: threadKey,
         platform,
         direction: "inbound",
         body: text,
         externalSourceId,
         createdAt,
+        conversationLabel: contactId
+          ? undefined
+          : CONTACT_MESSAGE_PLATFORM_LABELS[platform],
       });
       if (result.imported) processed += 1;
     }

@@ -3,6 +3,7 @@ import "server-only";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { resolveOrCreateContactForEmailInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
+import { emailAddressFromPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
 import {
   fetchImapRecentEnvelopes,
@@ -80,10 +81,10 @@ export async function syncRestaurantEmailInbox(
       });
       if (contactId) contactByEmail.set(party, contactId);
     }
-    if (!contactId) continue;
-    const list = inboundByContact.get(contactId) ?? [];
+    const threadKey = contactId ?? `email:${party}`;
+    const list = inboundByContact.get(threadKey) ?? [];
     list.push(env.uid);
-    inboundByContact.set(contactId, list);
+    inboundByContact.set(threadKey, list);
   }
 
   if (inboundByContact.size === 0) return { imported: 0, error: null };
@@ -111,7 +112,7 @@ export async function syncRestaurantEmailInbox(
   if (bodyErr) return { imported: 0, error: bodyErr };
 
   let imported = 0;
-  for (const [contactId, uids] of inboundByContact) {
+  for (const [threadKey, uids] of inboundByContact) {
     for (const uid of uids) {
       if (known.has(externalIdForUid(uid))) continue;
       const parsed = bodies.get(uid);
@@ -121,11 +122,13 @@ export async function syncRestaurantEmailInbox(
 
       const result = await ingestInboundContactMessage(admin, {
         restaurantId,
-        contactId,
+        contactId: threadKey,
         platform: "email",
         direction: "inbound",
         body,
         externalSourceId: externalIdForUid(uid),
+        conversationLabel:
+          emailAddressFromPseudoContactId(threadKey) ?? undefined,
       });
       if (result.imported) {
         imported += 1;

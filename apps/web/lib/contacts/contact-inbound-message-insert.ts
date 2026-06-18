@@ -3,10 +3,13 @@ import "server-only";
 import type { ContactMessageDirection } from "@/lib/constants/contact-message-platforms";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
+import { resolveConversationThreadRef } from "@/lib/contact-messages/conversation-thread-key";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ContactInboundInsertRow = {
   restaurantId: string;
+  /** Verknüpfter Kontakt oder Pseudo-Thread-Schlüssel (waha:/email:/meta:). */
   contactId: string;
   platform: ContactMessagePlatform;
   direction: ContactMessageDirection;
@@ -16,6 +19,7 @@ export type ContactInboundInsertRow = {
   reservationId?: string | null;
   deliveryStatus?: string;
   attachmentKind?: ContactMessageAttachmentKind | null;
+  conversationLabel?: string | null;
 };
 
 export type ContactInboundInsertResult = {
@@ -27,6 +31,15 @@ export async function insertContactMessageIfNew(
   admin: SupabaseClient,
   row: ContactInboundInsertRow,
 ): Promise<ContactInboundInsertResult> {
+  if (!isUuidRestaurantId(row.restaurantId)) {
+    return { inserted: false };
+  }
+
+  const thread = resolveConversationThreadRef(row.contactId);
+  if (!thread.contactId && !thread.conversationKey) {
+    return { inserted: false };
+  }
+
   const { data: existing } = await admin
     .from("contact_messages")
     .select("id")
@@ -45,7 +58,11 @@ export async function insertContactMessageIfNew(
     .from("contact_messages")
     .insert({
       restaurant_id: row.restaurantId,
-      contact_id: row.contactId,
+      contact_id: thread.contactId,
+      conversation_key: thread.conversationKey,
+      conversation_label: thread.conversationKey
+        ? (row.conversationLabel?.trim() || null)
+        : null,
       platform: row.platform,
       direction: row.direction,
       body: row.body,

@@ -56,6 +56,7 @@ import {
   type ReviewPlatformFilter,
 } from "@/lib/constants/review-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-realtime";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
@@ -564,6 +565,14 @@ export function ReviewsScreen() {
     fetchReviewsJson,
     markLoadedReviewsRead,
   ]);
+
+  usePlatformFeedSyncRealtime(
+    "restaurant_reviews_platform_sync",
+    () => {
+      void prefetchFeed();
+    },
+    { enabled: Boolean(restaurantId && ready) },
+  );
 
   const loadAllPage = useCallback(
     async (page: number, opts?: { force?: boolean }) => {

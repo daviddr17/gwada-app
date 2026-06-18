@@ -6,6 +6,7 @@ import {
 import {
   fetchWahaThreadMessages,
 } from "@/lib/contact-messages/waha-inbox-service";
+import { assignConversationThreadToContact } from "@/lib/contact-messages/assign-conversation-thread-to-contact";
 import { whatsappMirrorBodyFromContactRow } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -32,6 +33,12 @@ export async function linkWahaThreadToContact(
   if (!contact) {
     return { ok: false, imported: 0, error: "contact_not_found" };
   }
+
+  await assignConversationThreadToContact(admin, {
+    restaurantId: params.restaurantId,
+    contactId: params.contactId,
+    conversationKey: params.wahaContactId,
+  });
 
   const { data: messages, error: fetchErr } = await fetchWahaThreadMessages(
     admin,

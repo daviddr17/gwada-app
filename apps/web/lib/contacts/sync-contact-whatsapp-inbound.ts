@@ -1,31 +1,37 @@
 import "server-only";
 
-import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
+import { resolveConversationThreadRef } from "@/lib/contact-messages/conversation-thread-key";
 import { fetchWahaThreadMessages } from "@/lib/contact-messages/waha-inbox-service";
 import {
   whatsappMirrorBodyFromContactRow,
 } from "@/lib/contact-messages/whatsapp-mirror-preview";
+import {
+  isWahaPseudoContactId,
+  wahaChatIdFromPseudoContactId,
+} from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-/** WAHA-Verlauf in DB spiegeln (Gwada-Thread + E-Mail-Icon über `platform: whatsapp`). */
-export async function syncContactWhatsappInbound(
+async function mirrorWahaThreadToDb(
   admin: SupabaseClient,
-  params: { restaurantId: string; contactId: string },
+  params: {
+    restaurantId: string;
+    threadKey: string;
+    chatIdOverride?: string | null;
+    conversationLabel?: string | null;
+  },
 ): Promise<{ imported: number; error: string | null }> {
-  const phone = await resolveWhatsappPhoneForContact(admin, {
-    restaurantId: params.restaurantId,
-    contactId: params.contactId,
-    reservationId: null,
-  });
-  const chatId = phone ? guestPhoneToWhatsAppChatId(phone) : null;
-  if (!chatId) return { imported: 0, error: "no_whatsapp_chat" };
+  const thread = resolveConversationThreadRef(params.threadKey);
+  if (!thread.contactId && !thread.conversationKey) {
+    return { imported: 0, error: "invalid_thread" };
+  }
 
   const { data: messages, error } = await fetchWahaThreadMessages(admin, {
     restaurantId: params.restaurantId,
-    contactId: params.contactId,
-    chatIdOverride: chatId,
+    contactId: params.threadKey,
+    chatIdOverride: params.chatIdOverride ?? undefined,
   });
 
   if (error) return { imported: 0, error };
@@ -36,12 +42,19 @@ export async function syncContactWhatsappInbound(
 
   if (externalIds.length === 0) return { imported: 0, error: null };
 
-  const { data: existing } = await admin
+  let existingQuery = admin
     .from("contact_messages")
     .select("external_source_id, body")
     .eq("restaurant_id", params.restaurantId)
-    .eq("contact_id", params.contactId)
     .in("external_source_id", externalIds);
+
+  if (thread.contactId) {
+    existingQuery = existingQuery.eq("contact_id", thread.contactId);
+  } else {
+    existingQuery = existingQuery.eq("conversation_key", thread.conversationKey!);
+  }
+
+  const { data: existing } = await existingQuery;
 
   const known = new Map<string, string>();
   for (const row of existing ?? []) {
@@ -59,19 +72,24 @@ export async function syncContactWhatsappInbound(
     if (known.has(m.id)) {
       const currentBody = known.get(m.id) ?? "";
       if (mirrorBody && mirrorBody !== currentBody) {
-        await admin
+        let updateQuery = admin
           .from("contact_messages")
           .update({ body: mirrorBody })
           .eq("restaurant_id", params.restaurantId)
-          .eq("contact_id", params.contactId)
           .eq("external_source_id", m.id);
+        if (thread.contactId) {
+          updateQuery = updateQuery.eq("contact_id", thread.contactId);
+        } else {
+          updateQuery = updateQuery.eq("conversation_key", thread.conversationKey!);
+        }
+        await updateQuery;
       }
       continue;
     }
 
     const result = await ingestInboundContactMessage(admin, {
       restaurantId: params.restaurantId,
-      contactId: params.contactId,
+      contactId: params.threadKey,
       platform: "whatsapp",
       direction: m.direction,
       body: mirrorBody,
@@ -79,9 +97,48 @@ export async function syncContactWhatsappInbound(
       createdAt: m.created_at,
       deliveryStatus: m.delivery_status,
       reservationId: m.reservation_id,
+      conversationLabel: params.conversationLabel,
     });
     if (result.imported) imported += 1;
   }
 
   return { imported, error: null };
+}
+
+/** WAHA-Verlauf in DB spiegeln (verknüpfter Kontakt). */
+export async function syncContactWhatsappInbound(
+  admin: SupabaseClient,
+  params: { restaurantId: string; contactId: string },
+): Promise<{ imported: number; error: string | null }> {
+  const phone = await resolveWhatsappPhoneForContact(admin, {
+    restaurantId: params.restaurantId,
+    contactId: params.contactId,
+    reservationId: null,
+  });
+  const chatId = phone ? guestPhoneToWhatsAppChatId(phone) : null;
+  if (!chatId) return { imported: 0, error: "no_whatsapp_chat" };
+
+  return mirrorWahaThreadToDb(admin, {
+    restaurantId: params.restaurantId,
+    threadKey: params.contactId,
+    chatIdOverride: chatId,
+  });
+}
+
+/** WAHA-Verlauf für unverknüpften Pseudo-Chat in DB spiegeln. */
+export async function syncPseudoWhatsappThread(
+  admin: SupabaseClient,
+  params: { restaurantId: string; conversationKey: string },
+): Promise<{ imported: number; error: string | null }> {
+  if (!isWahaPseudoContactId(params.conversationKey)) {
+    return { imported: 0, error: "invalid_waha_contact" };
+  }
+  const chatId = wahaChatIdFromPseudoContactId(params.conversationKey);
+  if (!chatId) return { imported: 0, error: "invalid_waha_contact" };
+
+  return mirrorWahaThreadToDb(admin, {
+    restaurantId: params.restaurantId,
+    threadKey: params.conversationKey,
+    chatIdOverride: chatId,
+  });
 }

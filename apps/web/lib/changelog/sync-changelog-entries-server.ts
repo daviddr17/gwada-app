@@ -187,6 +187,7 @@ export async function syncChangelogItems(
 
     if (
       item.kind === "draft" &&
+      input.version &&
       (await findByTitleAndVersion(admin, input.title, input.version))
     ) {
       result.skipped.push(sha);

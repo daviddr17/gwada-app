@@ -437,6 +437,28 @@ export function wahaMetadataThreadsEqual(
   return true;
 }
 
+/** Vollständiger Thread-Vergleich für stilles Nachladen ohne UI-Flackern. */
+export function contactThreadRowsEqual(
+  before: ContactMessageRow[],
+  after: ContactMessageRow[],
+): boolean {
+  if (before.length !== after.length) return false;
+  for (let i = 0; i < before.length; i++) {
+    const a = before[i]!;
+    const b = after[i]!;
+    if (a.id !== b.id) return false;
+    if (a.body !== b.body) return false;
+    if (a.created_at !== b.created_at) return false;
+    if (a.direction !== b.direction) return false;
+    if (a.delivery_status !== b.delivery_status) return false;
+    if (a.waha_ack !== b.waha_ack) return false;
+    if (reactionsSignature(a.reactions) !== reactionsSignature(b.reactions)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Wie {@link mergeWahaLiveMetadataIntoThread}, aber ohne neue Array-Referenz wenn nichts ändert. */
 export function mergeWahaLiveMetadataIntoThreadIfChanged(
   messages: ContactMessageRow[],

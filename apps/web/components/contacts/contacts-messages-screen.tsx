@@ -120,7 +120,7 @@ import {
   removeOptimisticMessage,
   removeWhatsappMessageByWahaId,
 } from "@/lib/contact-messages/optimistic-thread-messages";
-import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadNeedsWahaAckPoll, mergeWahaLiveMetadataIntoThread, mergeWahaLiveMetadataIntoThreadIfChanged } from "@/lib/contact-messages/whatsapp-mirror-preview";
+import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadNeedsWahaAckPoll, contactThreadRowsEqual, mergeWahaLiveMetadataIntoThread, mergeWahaLiveMetadataIntoThreadIfChanged } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import { editWahaMessageClient } from "@/lib/contact-messages/waha-typing-client";
 import {
   applyConversationReadFilterToSearchParams,
@@ -218,8 +218,9 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { cn } from "@/lib/utils";
 
-const WAHA_ACK_POLL_MS_ACTIVE = 8_000;
-const WAHA_ACK_POLL_MS_IDLE = 30_000;
+const WAHA_ACK_POLL_MS_ACTIVE = 15_000;
+const WAHA_ACK_POLL_MS_IDLE = 45_000;
+const THREAD_SILENT_REFRESH_DEBOUNCE_MS = 4_000;
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", {
@@ -328,6 +329,9 @@ export function ContactsMessagesScreen() {
   const [messages, setMessages] = useState<ContactMessageRow[]>([]);
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const threadRefreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [contactName, setContactName] = useState("");
   const [hasPhone, setHasPhone] = useState(false);
   const [hasEmail, setHasEmail] = useState(false);
@@ -459,11 +463,6 @@ export function ContactsMessagesScreen() {
     if (!contactParam) return rows;
     return rows.filter((m) => m.contact_id === contactParam);
   }, [messages, contactParam]);
-
-  const needsWahaAckPoll = useMemo(
-    () => contactThreadNeedsWahaAckPoll(displayMessages),
-    [displayMessages],
-  );
 
   const inferredReachability = useMemo(
     () => inferContactReachabilityFromMessages(displayMessages),
@@ -1023,6 +1022,7 @@ export function ContactsMessagesScreen() {
     setMessages((prev) => {
       let next = mergeLoadedThreadWithOptimistic(data, prev);
       next = dropOptimisticMatchingAnchors(next);
+      if (contactThreadRowsEqual(prev, next)) return prev;
       setContactThreadCache(restaurantId, contactParam, {
         messages: next,
         contactName: resolvedName,
@@ -1203,7 +1203,6 @@ export function ContactsMessagesScreen() {
     whatsappConnected,
     linkedThread,
     whatsappThreadChatId,
-    needsWahaAckPoll,
   ]);
 
   useEffect(() => {
@@ -1234,7 +1233,13 @@ export function ContactsMessagesScreen() {
 
     const onMessagesRefresh = () => {
       if (contactParam) {
-        void loadThread({ silent: true });
+        if (threadRefreshDebounceRef.current) {
+          clearTimeout(threadRefreshDebounceRef.current);
+        }
+        threadRefreshDebounceRef.current = setTimeout(() => {
+          threadRefreshDebounceRef.current = null;
+          void loadThread({ silent: true });
+        }, THREAD_SILENT_REFRESH_DEBOUNCE_MS);
       } else {
         void loadConversations({ silent: true, force: true });
       }
@@ -1260,6 +1265,10 @@ export function ContactsMessagesScreen() {
         GWADA_DASHBOARD_WAHA_METADATA_REFRESH_EVENT,
         onWahaMetadataRefresh,
       );
+      if (threadRefreshDebounceRef.current) {
+        clearTimeout(threadRefreshDebounceRef.current);
+        threadRefreshDebounceRef.current = null;
+      }
     };
   }, [
     restaurantId,

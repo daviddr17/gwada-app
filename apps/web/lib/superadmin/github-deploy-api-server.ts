@@ -16,6 +16,7 @@ export const DB_DEPLOY_WORKFLOW_FILE = "deploy-live-db.yml";
 export function githubDeployToken(): string | null {
   return (
     process.env.GITHUB_DEPLOY_TOKEN?.trim() ||
+    process.env.CHANGELOG_GIT_TOKEN?.trim() ||
     process.env.GITHUB_TOKEN?.trim() ||
     null
   );
@@ -261,39 +262,24 @@ export async function fetchGithubHeadCommit(
   branch = githubDeployBranch(),
 ): Promise<SuperadminGithubHeadCommit & { reachable: boolean }> {
   const repo = githubRepoSlug();
+  const token = githubDeployToken();
+
+  if (!token) {
+    return {
+      sha: null,
+      shortSha: null,
+      message: "GITHUB_DEPLOY_TOKEN fehlt für Commit-Abfrage.",
+      author: null,
+      committedAt: null,
+      htmlUrl: null,
+      reachable: false,
+    };
+  }
 
   try {
-    const res = await raceWithTimeout(
-      fetch(
-        `https://api.github.com/repos/${repo}/commits/${encodeURIComponent(branch)}`,
-        {
-          headers: {
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            ...(githubDeployToken()
-              ? { Authorization: `Bearer ${githubDeployToken()}` }
-              : {}),
-          },
-          cache: "no-store",
-        },
-      ),
-      GITHUB_API_TIMEOUT_MS,
-      "GitHub-Commit",
-    );
-
-    if (!res.ok) {
-      return {
-        sha: null,
-        shortSha: null,
-        message: `GitHub-Commit nicht abrufbar (${res.status}).`,
-        author: null,
-        committedAt: null,
-        htmlUrl: null,
-        reachable: false,
-      };
-    }
-
-    const body = (await res.json()) as {
+    const body = (await githubFetchJson(
+      `/repos/${repo}/commits/${encodeURIComponent(branch)}`,
+    )) as {
       sha?: string;
       html_url?: string;
       commit?: {
@@ -311,11 +297,12 @@ export async function fetchGithubHeadCommit(
       htmlUrl: body.html_url ?? null,
       reachable: true,
     };
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "github_failed";
     return {
       sha: null,
       shortSha: null,
-      message: "GitHub-Commit nicht erreichbar.",
+      message: githubApiErrorHint(msg),
       author: null,
       committedAt: null,
       htmlUrl: null,

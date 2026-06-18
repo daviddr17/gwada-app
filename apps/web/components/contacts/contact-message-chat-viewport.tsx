@@ -222,7 +222,7 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
         const prevHeight = contentScrollHeightRef.current;
         contentScrollHeightRef.current = nextHeight;
 
-        if (!anchorInitialRef.current && nextHeight <= prevHeight) return;
+        if (!anchorInitialRef.current && nextHeight - prevHeight < 40) return;
 
         if (stickToBottomRef.current || anchorInitialRef.current) {
           scrollToBottom();

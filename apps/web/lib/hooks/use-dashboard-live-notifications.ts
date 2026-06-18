@@ -12,6 +12,7 @@ import { subscribeRestaurantTableInserts } from "@/lib/supabase/restaurant-table
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 const LIVE_REFRESH_DEBOUNCE_MS = 3_000;
+const WAHA_METADATA_REFRESH_DEBOUNCE_MS = 2_000;
 const REALTIME_READY_TIMEOUT_MS = 12_000;
 
 /**
@@ -22,6 +23,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wahaDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toastRef = useRef(false);
   const messagesLiveRef = useRef(false);
   const signalsLiveRef = useRef(false);
@@ -34,6 +36,14 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
 
     messagesLiveRef.current = false;
     signalsLiveRef.current = false;
+
+    const scheduleWahaMetadataRefresh = () => {
+      if (wahaDebounceRef.current) clearTimeout(wahaDebounceRef.current);
+      wahaDebounceRef.current = setTimeout(() => {
+        wahaDebounceRef.current = null;
+        dispatchDashboardWahaMetadataRefresh();
+      }, WAHA_METADATA_REFRESH_DEBOUNCE_MS);
+    };
 
     const scheduleRefresh = (showToast: boolean) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -117,7 +127,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
         if (source === "waha") {
           scheduleRefresh(true);
         } else if (source === "waha_ack") {
-          dispatchDashboardWahaMetadataRefresh();
+          scheduleWahaMetadataRefresh();
         }
       },
     });
@@ -127,6 +137,10 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
+      }
+      if (wahaDebounceRef.current) {
+        clearTimeout(wahaDebounceRef.current);
+        wahaDebounceRef.current = null;
       }
       polling.stop();
       teardownMessages();

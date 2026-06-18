@@ -1,3 +1,31 @@
+import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
+
+/** Kanäle aus Thread-Verlauf ableiten (Fallback, wenn Kontakt-Stammdaten noch laden). */
+export function inferContactReachabilityFromMessages(
+  messages: ContactMessageRow[],
+): {
+  hasPhone: boolean;
+  hasEmail: boolean;
+  hasFacebookId: boolean;
+  hasInstagramId: boolean;
+} {
+  let hasPhone = false;
+  let hasEmail = false;
+  let hasFacebookId = false;
+  let hasInstagramId = false;
+
+  for (const message of messages) {
+    const platform = messageDisplayPlatform(message);
+    if (platform === "whatsapp") hasPhone = true;
+    else if (platform === "email") hasEmail = true;
+    else if (platform === "facebook") hasFacebookId = true;
+    else if (platform === "instagram") hasInstagramId = true;
+  }
+
+  return { hasPhone, hasEmail, hasFacebookId, hasInstagramId };
+}
+
 /** Welche Zustellwege für Posteingang-Antworten (verknüpfter Kontakt) verfügbar sind. */
 export function contactReplyChannels(params: {
   whatsappEnabled: boolean;

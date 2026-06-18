@@ -75,6 +75,21 @@ async function findByGitSha(
   return Boolean(data);
 }
 
+async function findByTitleAndVersion(
+  admin: SupabaseClient,
+  title: string,
+  version: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("platform_changelog_entries")
+    .select("id")
+    .eq("title", title)
+    .eq("version", version)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data);
+}
+
 async function insertEntry(
   admin: SupabaseClient,
   input: PlatformChangelogEntryInput & {
@@ -138,10 +153,6 @@ export async function syncChangelogItems(
   for (const item of queue) {
     const sha =
       item.kind === "git" ? item.payload.sha : item.payload.sourceGitSha;
-    if (await findByGitSha(admin, sha)) {
-      result.skipped.push(sha);
-      continue;
-    }
 
     const input: PlatformChangelogEntryInput & {
       sourceGitSha: string;
@@ -168,6 +179,19 @@ export async function syncChangelogItems(
               sourceGitSha: item.payload.sourceGitSha,
             };
           })();
+
+    if (await findByGitSha(admin, sha)) {
+      result.skipped.push(sha);
+      continue;
+    }
+
+    if (
+      item.kind === "draft" &&
+      (await findByTitleAndVersion(admin, input.title, input.version))
+    ) {
+      result.skipped.push(sha);
+      continue;
+    }
 
     const { entry, error, duplicate } = await insertEntry(admin, input, createdBy);
     if (duplicate) {

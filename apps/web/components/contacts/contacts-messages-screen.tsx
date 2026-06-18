@@ -67,7 +67,7 @@ import {
   lastInboundPlatform,
   inboxReplySendDefaults,
 } from "@/lib/contact-messages/last-inbound-channel";
-import { contactReplyChannels } from "@/lib/contact-messages/reply-channel-availability";
+import { contactReplyChannels, inferContactReachabilityFromMessages } from "@/lib/contact-messages/reply-channel-availability";
 import {
   GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
   patchUnifiedInboxCacheConversation,
@@ -406,6 +406,8 @@ export function ContactsMessagesScreen() {
       setContactName(cached.contactName);
       setHasPhone(cached.hasPhone);
       setHasEmail(cached.hasEmail);
+      setHasFacebookId(cached.hasFacebookId ?? false);
+      setHasInstagramId(cached.hasInstagramId ?? false);
       setWhatsappThreadChatId(cached.whatsappThreadChatId);
       setLoadingThread(false);
       return true;
@@ -417,6 +419,10 @@ export function ContactsMessagesScreen() {
     setMessages([]);
     setWhatsappThreadPhone(null);
     setWhatsappThreadChatId(null);
+    setHasPhone(false);
+    setHasEmail(false);
+    setHasFacebookId(false);
+    setHasInstagramId(false);
     setThreadHasMore(false);
     setThreadOldestCursor(null);
     setLoadingOlderMessages(false);
@@ -459,6 +465,18 @@ export function ContactsMessagesScreen() {
     [displayMessages],
   );
 
+  const inferredReachability = useMemo(
+    () => inferContactReachabilityFromMessages(displayMessages),
+    [displayMessages],
+  );
+
+  const effectiveHasPhone = hasPhone || inferredReachability.hasPhone;
+  const effectiveHasEmail = hasEmail || inferredReachability.hasEmail;
+  const effectiveHasFacebookId =
+    hasFacebookId || inferredReachability.hasFacebookId;
+  const effectiveHasInstagramId =
+    hasInstagramId || inferredReachability.hasInstagramId;
+
   const linkedReplyChannels = useMemo(() => {
     if (!linkedThread || !contactParam) {
       return {
@@ -479,10 +497,12 @@ export function ContactsMessagesScreen() {
       facebookConnected,
       instagramEnabled,
       instagramConnected,
-      hasPhone: isWahaPseudoContactId(contactParam) ? true : hasPhone,
-      hasEmail: isEmailPseudoContactId(contactParam) ? true : hasEmail,
-      hasFacebookId,
-      hasInstagramId,
+      hasPhone: isWahaPseudoContactId(contactParam)
+        ? true
+        : effectiveHasPhone,
+      hasEmail: isEmailPseudoContactId(contactParam) ? true : effectiveHasEmail,
+      hasFacebookId: effectiveHasFacebookId,
+      hasInstagramId: effectiveHasInstagramId,
     });
   }, [
     linkedThread,
@@ -496,10 +516,10 @@ export function ContactsMessagesScreen() {
     facebookConnected,
     instagramEnabled,
     instagramConnected,
-    hasPhone,
-    hasEmail,
-    hasFacebookId,
-    hasInstagramId,
+    effectiveHasPhone,
+    effectiveHasEmail,
+    effectiveHasFacebookId,
+    effectiveHasInstagramId,
   ]);
 
   const defaultReplySend = useMemo(
@@ -800,18 +820,19 @@ export function ContactsMessagesScreen() {
 
   const patchConversationReadState = useCallback(
     (contactId: string, isUnread: boolean, unreadCount = 0) => {
+      const readPatch = {
+        is_unread: isUnread,
+        unread_count: unreadCount,
+        whatsapp_unread_count: isUnread ? unreadCount : 0,
+        email_unread_count: isUnread ? unreadCount : 0,
+      };
       setConversations((prev) =>
         prev.map((c) =>
-          c.contact_id === contactId
-            ? { ...c, is_unread: isUnread, unread_count: unreadCount }
-            : c,
+          c.contact_id === contactId ? { ...c, ...readPatch } : c,
         ),
       );
       if (restaurantId) {
-        patchUnifiedInboxCacheConversation(restaurantId, contactId, {
-          is_unread: isUnread,
-          unread_count: unreadCount,
-        });
+        patchUnifiedInboxCacheConversation(restaurantId, contactId, readPatch);
       }
     },
     [restaurantId],
@@ -944,7 +965,19 @@ export function ContactsMessagesScreen() {
         limit: pageLimit,
       });
 
+    const applyContactMeta = (meta: NonNullable<typeof contact>) => {
+      setContactName(meta.name || listTitle || contactName);
+      setHasPhone(meta.hasPhone);
+      setHasEmail(meta.hasEmail);
+      setHasFacebookId(meta.hasFacebookId);
+      setHasInstagramId(meta.hasInstagramId);
+      if (meta.whatsappThreadChatId) {
+        setWhatsappThreadChatId(meta.whatsappThreadChatId);
+      }
+    };
+
     if (error) {
+      if (contact) applyContactMeta(contact);
       const toastMsg = threadErrorToast(error);
       if (!opts?.silent) {
         toast.error(toastMsg);
@@ -955,14 +988,7 @@ export function ContactsMessagesScreen() {
     }
 
     if (contact) {
-      setContactName(contact.name || listTitle || contactName);
-      setHasPhone(contact.hasPhone);
-      setHasEmail(contact.hasEmail);
-      setHasFacebookId(contact.hasFacebookId);
-      setHasInstagramId(contact.hasInstagramId);
-      if (contact.whatsappThreadChatId) {
-        setWhatsappThreadChatId(contact.whatsappThreadChatId);
-      }
+      applyContactMeta(contact);
     } else if (isMetaPseudoContactId(contactParam)) {
       const metaPlatform = metaPlatformFromPseudoContactId(contactParam);
       setContactName(
@@ -1000,8 +1026,10 @@ export function ContactsMessagesScreen() {
       setContactThreadCache(restaurantId, contactParam, {
         messages: next,
         contactName: resolvedName,
-        hasPhone: contact?.hasPhone ?? hasPhone,
-        hasEmail: contact?.hasEmail ?? hasEmail,
+        hasPhone: contact?.hasPhone ?? false,
+        hasEmail: contact?.hasEmail ?? false,
+        hasFacebookId: contact?.hasFacebookId ?? false,
+        hasInstagramId: contact?.hasInstagramId ?? false,
         whatsappThreadChatId:
           contact?.whatsappThreadChatId ?? whatsappThreadChatId,
       });
@@ -1033,8 +1061,6 @@ export function ContactsMessagesScreen() {
     linkedThread,
     whatsappConnected,
     contactName,
-    hasPhone,
-    hasEmail,
     whatsappThreadChatId,
     markConversationRead,
     defaultCountryIso2,
@@ -1100,6 +1126,7 @@ export function ContactsMessagesScreen() {
           dbMessages,
           imapEmailMessages: null,
           wahaMessages: wahaThread.data,
+          contactId: contactParam,
         });
       } else {
         next = wahaThread.data;
@@ -1645,9 +1672,15 @@ export function ContactsMessagesScreen() {
       setContactName(cached.contactName);
       setHasPhone(cached.hasPhone);
       setHasEmail(cached.hasEmail);
+      setHasFacebookId(cached.hasFacebookId ?? false);
+      setHasInstagramId(cached.hasInstagramId ?? false);
       setWhatsappThreadChatId(cached.whatsappThreadChatId);
       setLoadingThread(false);
     } else {
+      setHasPhone(false);
+      setHasEmail(false);
+      setHasFacebookId(false);
+      setHasInstagramId(false);
       const previewTitle =
         preview?.contact_name?.trim() ||
         wahaThreadTitleFromPreview(preview) ||
@@ -1672,13 +1705,13 @@ export function ContactsMessagesScreen() {
     setThreadOverlayOpen(false);
     if (contactParam) {
       setClosingThreadId(contactParam);
-    }
-    window.setTimeout(() => {
-      setClosingThreadId(null);
       const params = new URLSearchParams();
       params.set("platform", inboxFilter);
       applyConversationReadFilterToSearchParams(params, readFilter);
-      router.push(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+      router.replace(`/dashboard/kontakte/nachrichten?${params.toString()}`);
+    }
+    window.setTimeout(() => {
+      setClosingThreadId(null);
     }, CONTACT_INBOX_THREAD_OVERLAY_MS);
   }, [contactParam, inboxFilter, readFilter, router]);
 
@@ -1712,6 +1745,10 @@ export function ContactsMessagesScreen() {
                 ? instagramConnected
                 : false
             : false);
+
+  const showReplyComposer = canReply || (linkedThread && loadingThread);
+  const showReplyBlockedHint =
+    linkedThread && !canReply && !loadingThread;
 
   const handleStartEditWahaMessage = useCallback((message: ContactMessageRow) => {
     if (!message.waha_message_id || !isWahaEditableMessage(message)) return;
@@ -2225,19 +2262,23 @@ export function ContactsMessagesScreen() {
             </div>
           }
           footer={
-            canReply ? (
+            showReplyComposer ? (
               <div className="min-w-0 overflow-visible px-4 py-2 sm:px-5 sm:py-3">
                 <ContactMessageComposer
-                  disabled={loadingThread}
+                  disabled={loadingThread || (linkedThread && !canReply)}
                   sending={sending}
                   hasPhone={
-                    isWahaPseudoContactId(overlayThreadId) ? true : hasPhone
+                    isWahaPseudoContactId(overlayThreadId)
+                      ? true
+                      : effectiveHasPhone
                   }
                   hasEmail={
-                    isEmailPseudoContactId(overlayThreadId) ? true : hasEmail
+                    isEmailPseudoContactId(overlayThreadId)
+                      ? true
+                      : effectiveHasEmail
                   }
-                  hasFacebook={hasFacebookId}
-                  hasInstagram={hasInstagramId}
+                  hasFacebook={effectiveHasFacebookId}
+                  hasInstagram={effectiveHasInstagramId}
                   whatsappEnabled={whatsappEnabled && whatsappConnected}
                   emailEnabled={
                     emailEnabled &&
@@ -2292,7 +2333,7 @@ export function ContactsMessagesScreen() {
                   onSend={handleSend}
                 />
               </div>
-            ) : linkedThread ? (
+            ) : showReplyBlockedHint ? (
               <div className="px-4 py-4 sm:px-5">
                 <p className="text-sm text-muted-foreground">
                   {!emailEnabled &&
@@ -2306,20 +2347,20 @@ export function ContactsMessagesScreen() {
                         !facebookConnected &&
                         !instagramConnected
                       ? "Antworten erst möglich, wenn WhatsApp, E-Mail, Messenger oder Instagram unter Einstellungen → Integrationen verbunden ist — oder die Plattform-E-Mail (Gwada-Fallback) aktiv ist."
-                      : !hasEmail &&
-                          !hasPhone &&
-                          !hasFacebookId &&
-                          !hasInstagramId
+                      : !effectiveHasEmail &&
+                          !effectiveHasPhone &&
+                          !effectiveHasFacebookId &&
+                          !effectiveHasInstagramId
                         ? "Kontakt braucht Telefon (WhatsApp), E-Mail oder eine verknüpfte Messenger-/Instagram-ID."
-                        : !hasEmail &&
-                            !hasFacebookId &&
-                            !hasInstagramId &&
-                            !hasPhone
+                        : !effectiveHasEmail &&
+                            !effectiveHasFacebookId &&
+                            !effectiveHasInstagramId &&
+                            !effectiveHasPhone
                           ? "Für E-Mail-Antworten (auch über Gwada-Fallback) eine E-Mail am Kontakt hinterlegen."
-                          : !hasPhone &&
+                          : !effectiveHasPhone &&
                               !whatsappConnected &&
-                              !hasFacebookId &&
-                              !hasInstagramId
+                              !effectiveHasFacebookId &&
+                              !effectiveHasInstagramId
                             ? "Für WhatsApp eine Telefonnummer hinterlegen und WhatsApp verbinden — oder Messenger/Instagram über einen Meta-Chat verknüpfen."
                             : "Kein Versandweg verfügbar — Kanäle und Kontaktdaten prüfen."}
                 </p>

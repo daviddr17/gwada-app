@@ -24,6 +24,7 @@ import type {
 import { loadNotificationPreferences } from "@/lib/supabase/user-restaurant-notification-preferences-db";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
+import { isMetaInboxConnected } from "@/lib/contact-messages/meta-inbox-auth-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const BELL_ITEMS_PER_MODULE = 5;
@@ -82,6 +83,8 @@ async function buildMessagesModule(
     userId: string;
     whatsappConnected: boolean;
     emailConnected: boolean;
+    facebookConnected?: boolean;
+    instagramConnected?: boolean;
   },
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES.messages;
@@ -91,6 +94,8 @@ async function buildMessagesModule(
     userId: params.userId,
     whatsappConnected: params.whatsappConnected,
     emailConnected: params.emailConnected,
+    facebookConnected: params.facebookConnected,
+    instagramConnected: params.instagramConnected,
     includeInboxConversations: false,
   });
 
@@ -280,6 +285,8 @@ type ModuleBuildContext = {
   userId: string;
   whatsappConnected: boolean;
   emailConnected: boolean;
+  facebookConnected: boolean;
+  instagramConnected: boolean;
 };
 
 export async function fetchNotificationSummaryServer(
@@ -290,6 +297,8 @@ export async function fetchNotificationSummaryServer(
     userId: string;
     whatsappConnected?: boolean;
     emailConnected?: boolean;
+    facebookConnected?: boolean;
+    instagramConnected?: boolean;
   },
 ): Promise<NotificationSummary> {
   const preferences = await loadNotificationPreferences(sb, {
@@ -299,13 +308,28 @@ export async function fetchNotificationSummaryServer(
 
   let whatsappConnected = params.whatsappConnected;
   let emailConnected = params.emailConnected;
-  if (whatsappConnected === undefined || emailConnected === undefined) {
-    const [wahaConfig, imapCreds] = await Promise.all([
+  let facebookConnected = params.facebookConnected;
+  let instagramConnected = params.instagramConnected;
+  if (
+    whatsappConnected === undefined ||
+    emailConnected === undefined ||
+    facebookConnected === undefined ||
+    instagramConnected === undefined
+  ) {
+    const [wahaConfig, imapCreds, fbConnected, igConnected] = await Promise.all([
       getWahaServerConfigAdmin(),
       resolveRestaurantImapCredentials(admin, params.restaurantId),
+      facebookConnected === undefined
+        ? isMetaInboxConnected(admin, params.restaurantId, "facebook")
+        : Promise.resolve(facebookConnected),
+      instagramConnected === undefined
+        ? isMetaInboxConnected(admin, params.restaurantId, "instagram")
+        : Promise.resolve(instagramConnected),
     ]);
     whatsappConnected = Boolean(wahaConfig);
     emailConnected = Boolean(imapCreds);
+    facebookConnected = fbConnected;
+    instagramConnected = igConnected;
   }
 
   const ctx: ModuleBuildContext = {
@@ -315,6 +339,8 @@ export async function fetchNotificationSummaryServer(
     userId: params.userId,
     whatsappConnected: whatsappConnected ?? false,
     emailConnected: emailConnected ?? false,
+    facebookConnected: facebookConnected ?? false,
+    instagramConnected: instagramConnected ?? false,
   };
 
   const enabledModuleIds = (

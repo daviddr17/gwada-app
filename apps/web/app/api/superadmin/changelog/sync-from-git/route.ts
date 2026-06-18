@@ -5,10 +5,7 @@ import {
   readChangelogDraftFromRepo,
   type ChangelogDraftFile,
 } from "@/lib/changelog/changelog-draft-file";
-import {
-  normalizeChangelogDraft,
-  resolveDraftSourceGitSha,
-} from "@/lib/changelog/changelog-entry-normalize";
+import { normalizeChangelogDraft } from "@/lib/changelog/changelog-entry-normalize";
 import {
   draftSourceGitSha,
   extractChangelogPayloadsFromGit,
@@ -65,11 +62,8 @@ function parseDraft(value: unknown): ChangelogDraftFile | null {
   });
 }
 
-function draftShaForSync(
-  draft: ChangelogDraftFile,
-  commitSha: string | null | undefined,
-): string {
-  return resolveDraftSourceGitSha(commitSha) ?? draftSourceGitSha(draft);
+function draftShaForSync(draft: ChangelogDraftFile): string {
+  return draftSourceGitSha(draft);
 }
 
 export async function POST(req: Request) {
@@ -89,13 +83,7 @@ export async function POST(req: Request) {
     runGit?: boolean;
     gitRange?: string;
     archiveDraft?: boolean;
-    commitSha?: string;
   };
-
-  const commitSha =
-    (typeof body.commitSha === "string" ? body.commitSha.trim() : "") ||
-    process.env.GITHUB_SHA?.trim() ||
-    null;
 
   const items: ChangelogSyncItem[] = [];
 
@@ -111,7 +99,7 @@ export async function POST(req: Request) {
       kind: "draft",
       payload: {
         ...draft,
-        sourceGitSha: draftShaForSync(draft, commitSha),
+        sourceGitSha: draftShaForSync(draft),
       },
     });
   } else {

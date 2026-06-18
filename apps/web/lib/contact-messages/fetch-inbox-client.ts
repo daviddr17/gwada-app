@@ -204,6 +204,8 @@ export async function markConversationUnreadClient(params: {
     });
     const body = (await res.json()) as { error?: string };
     if (!res.ok) return { ok: false, error: body.error ?? `http_${res.status}` };
+    dispatchDashboardMessagesRefresh();
+    dispatchNotificationsRefresh();
     return { ok: true, error: null };
   } catch {
     return { ok: false, error: "network_error" };

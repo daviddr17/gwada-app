@@ -90,7 +90,6 @@ function readDraft() {
 async function main() {
   const draft = readDraft();
   const gitRecords = draft ? [] : extractGitRecords();
-  const commitSha = process.env.GITHUB_SHA?.trim() || "";
 
   const headers = { "Content-Type": "application/json" };
   if (SYNC_SECRET) {
@@ -104,7 +103,6 @@ async function main() {
       gitRecords,
       draft: draft ?? undefined,
       archiveDraft: Boolean(draft),
-      commitSha: commitSha || undefined,
     }),
   });
 

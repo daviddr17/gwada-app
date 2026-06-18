@@ -7,6 +7,8 @@ export type ContactThreadCacheEntry = {
   contactName: string;
   hasPhone: boolean;
   hasEmail: boolean;
+  hasFacebookId: boolean;
+  hasInstagramId: boolean;
   whatsappThreadChatId: string | null;
   cachedAt: number;
 };

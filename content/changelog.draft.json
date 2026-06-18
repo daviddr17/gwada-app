@@ -1,7 +1,0 @@
-{
-  "title": "Nachrichten schneller, Push mit Absender",
-  "body": "- Im Nachrichten-Modul lädt der Chat-Verlauf deutlich schneller — zuerst die letzten 10 Nachrichten, ältere über „Ältere Nachrichten anzeigen“\n- Push-Benachrichtigungen bei neuen Nachrichten zeigen Absender mit Name sowie E-Mail oder Telefonnummer (wenn vorhanden)\n- Bei Bildern, Sprachnachrichten und Dateien steht in der Push-Vorschau z. B. „📷 Bild von …“ statt eines leeren Textes\n- Die Benachrichtigungs-Glocke öffnet schneller und zeigt die richtigen Symbole für WhatsApp, E-Mail und andere Kanäle\n- Chat: einheitliche Breite der Nachrichtenblasen, Reactions lassen sich leichter antippen\n- News-Embed: optionaler „Alle“-Filter für Plattformen in den Einstellungen",
-  "superadminBody": "- Neuer Thread-Endpoint `GET /api/contact-messages/thread` (paginiert, Timing-Header `X-Contact-Thread-Timing`)\n- Pro Quelle max. 30 Nachrichten pro Request (WAHA/IMAP/DB/Meta), kein Vollimport beim Thread-Öffnen\n- DB-Migrationen: Push-Payload mit `senderEmail`/`senderPhone`, Medien-Vorschau im Trigger, Kontaktname aus `first_name`/`last_name`\n- Glocke: kein IMAP-Vollsync im Summary-Build; parallele Modul-Builder\n- WAHA-Webhook: Medien ohne Text werden importiert; Reservierungs-Lookup nur noch pro Kontakt",
-  "audience": "customers",
-  "version": "2026.06.17"
-}

@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 const switchTrackClassName = {
   default:
     "h-[18px] w-[32px] [--switch-padding:2px] [--switch-thumb-size:14px]",
-  sm: "h-3.5 w-[24px] [--switch-padding:2px] [--switch-thumb-size:10px]",
+  sm: "h-[14px] w-[24px] [--switch-padding:2px] [--switch-thumb-size:10px]",
 } as const
 
 function Switch({
@@ -31,9 +31,9 @@ function Switch({
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
         className={cn(
-          "pointer-events-none absolute top-[var(--switch-padding)] block size-[var(--switch-thumb-size)] rounded-full bg-background ring-0 transition-[left,right] duration-200 ease-in-out",
-          "data-unchecked:left-[var(--switch-padding)] data-unchecked:right-auto",
-          "data-checked:left-auto data-checked:right-[var(--switch-padding)]",
+          "pointer-events-none absolute top-1/2 block size-[var(--switch-thumb-size)] -translate-y-1/2 rounded-full bg-background ring-0 transition-[left] duration-200 ease-in-out",
+          "data-unchecked:left-[var(--switch-padding)]",
+          "data-checked:left-[calc(100%-var(--switch-thumb-size)-var(--switch-padding))]",
           "dark:data-checked:bg-primary-foreground dark:data-unchecked:bg-foreground",
         )}
       />

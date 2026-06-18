@@ -122,13 +122,21 @@ export async function extractChangelogPayloadsFromGit(
   }
 }
 
+/** Stabiler Dedup-Schlüssel für Draft-Inhalt — unabhängig vom Deploy-Commit. */
 export function draftSourceGitSha(draft: {
   title: string;
   body: string;
   audience?: string;
+  version?: string | null;
 }): string {
+  const stable = {
+    title: draft.title,
+    body: draft.body,
+    audience: draft.audience ?? "customers",
+    version: draft.version?.trim() || null,
+  };
   const hash = createHash("sha256")
-    .update(JSON.stringify(draft))
+    .update(JSON.stringify(stable))
     .digest("hex")
     .slice(0, 24);
   return `draft:${hash}`;

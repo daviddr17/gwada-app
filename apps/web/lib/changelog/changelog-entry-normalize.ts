@@ -77,13 +77,3 @@ export function normalizeChangelogEntryInput(
   };
 }
 
-const COMMIT_SHA_RE = /^[a-f0-9]{7,40}$/i;
-
-/** Draft an Deploy-Commit koppeln (Dedup). */
-export function resolveDraftSourceGitSha(
-  commitSha: string | null | undefined,
-): string | null {
-  const trimmed = commitSha?.trim();
-  if (trimmed && COMMIT_SHA_RE.test(trimmed)) return trimmed.toLowerCase();
-  return null;
-}

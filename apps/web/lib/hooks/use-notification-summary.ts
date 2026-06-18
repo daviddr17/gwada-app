@@ -3,11 +3,16 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 import { invalidateMessagesInboxAfterMarkRead } from "@/lib/contact-messages/invalidate-messages-inbox-cache-client";
+import {
+  GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+  peekUnifiedInboxCache,
+} from "@/lib/contact-messages/unified-inbox-cache";
 import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
 import {
   fetchNotificationSummaryClient,
   markNotificationReadClient,
 } from "@/lib/notifications/fetch-notifications-client";
+import { notificationSummaryWithMessagesFromConversations } from "@/lib/notifications/patch-notification-messages-from-inbox-cache";
 import {
   GWADA_NOTIFICATIONS_REFRESH_EVENT,
   dispatchNotificationsRefresh,
@@ -42,7 +47,12 @@ export function useNotificationSummary() {
         restaurantId!,
       );
       if (!data) throw new Error(error ?? "notification_summary_failed");
-      return data;
+      const conversations = peekUnifiedInboxCache(restaurantId!);
+      if (!conversations) return data;
+      return notificationSummaryWithMessagesFromConversations(
+        data,
+        conversations,
+      );
     },
     enabled: ready,
     staleTime: NOTIFICATION_SUMMARY_STALE_MS,
@@ -91,10 +101,33 @@ export function useNotificationSummary() {
       }, MESSAGES_REFRESH_DEBOUNCE_MS);
     };
 
+    const patchMessagesFromInboxCache = () => {
+      const conversations = peekUnifiedInboxCache(restaurantId);
+      if (!conversations) return;
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        return notificationSummaryWithMessagesFromConversations(
+          prev,
+          conversations,
+        );
+      });
+    };
+
+    const onInboxCacheUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;
+      if (detail?.restaurantId !== restaurantId) return;
+      patchMessagesFromInboxCache();
+    };
+
     window.addEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
     window.addEventListener(
       GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
       onMessagesRefresh,
+    );
+    window.addEventListener(
+      GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+      onInboxCacheUpdated,
     );
     window.addEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, invalidate);
 
@@ -106,6 +139,10 @@ export function useNotificationSummary() {
       window.removeEventListener(
         GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
         onMessagesRefresh,
+      );
+      window.removeEventListener(
+        GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT,
+        onInboxCacheUpdated,
       );
       window.removeEventListener(
         GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,

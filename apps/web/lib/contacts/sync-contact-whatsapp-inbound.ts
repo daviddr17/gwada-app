@@ -10,6 +10,7 @@ import {
   wahaChatIdFromPseudoContactId,
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
+import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -21,6 +22,10 @@ async function mirrorWahaThreadToDb(
     threadKey: string;
     chatIdOverride?: string | null;
     conversationLabel?: string | null;
+    /** Nur neueste N Nachrichten (Session-Warmup). */
+    maxMessages?: number;
+    /** Kein notification_events / Push (Session-Warmup). */
+    silent?: boolean;
   },
 ): Promise<{ imported: number; error: string | null }> {
   const thread = resolveConversationThreadRef(params.threadKey);
@@ -32,11 +37,17 @@ async function mirrorWahaThreadToDb(
     restaurantId: params.restaurantId,
     contactId: params.threadKey,
     chatIdOverride: params.chatIdOverride ?? undefined,
+    limit: params.maxMessages ? Math.max(params.maxMessages, 5) : undefined,
   });
 
   if (error) return { imported: 0, error };
 
-  const externalIds = messages
+  const toMirror =
+    params.maxMessages != null && params.maxMessages > 0
+      ? messages.slice(-params.maxMessages)
+      : messages;
+
+  const externalIds = toMirror
     .map((m) => m.id)
     .filter((id) => id.startsWith("waha:"));
 
@@ -63,7 +74,7 @@ async function mirrorWahaThreadToDb(
   }
 
   let imported = 0;
-  for (const m of messages) {
+  for (const m of toMirror) {
     if (!m.id.startsWith("waha:")) continue;
 
     const mirrorBody = whatsappMirrorBodyFromContactRow(m);
@@ -84,6 +95,23 @@ async function mirrorWahaThreadToDb(
         }
         await updateQuery;
       }
+      continue;
+    }
+
+    if (params.silent) {
+      const inserted = await insertContactMessageIfNew(admin, {
+        restaurantId: params.restaurantId,
+        contactId: params.threadKey,
+        platform: "whatsapp",
+        direction: m.direction,
+        body: mirrorBody,
+        externalSourceId: m.id,
+        createdAt: m.created_at,
+        deliveryStatus: m.delivery_status,
+        reservationId: m.reservation_id,
+        conversationLabel: params.conversationLabel,
+      });
+      if (inserted.inserted) imported += 1;
       continue;
     }
 
@@ -108,7 +136,12 @@ async function mirrorWahaThreadToDb(
 /** WAHA-Verlauf in DB spiegeln (verknüpfter Kontakt). */
 export async function syncContactWhatsappInbound(
   admin: SupabaseClient,
-  params: { restaurantId: string; contactId: string },
+  params: {
+    restaurantId: string;
+    contactId: string;
+    maxMessages?: number;
+    silent?: boolean;
+  },
 ): Promise<{ imported: number; error: string | null }> {
   const phone = await resolveWhatsappPhoneForContact(admin, {
     restaurantId: params.restaurantId,
@@ -122,13 +155,21 @@ export async function syncContactWhatsappInbound(
     restaurantId: params.restaurantId,
     threadKey: params.contactId,
     chatIdOverride: chatId,
+    maxMessages: params.maxMessages,
+    silent: params.silent,
   });
 }
 
 /** WAHA-Verlauf für unverknüpften Pseudo-Chat in DB spiegeln. */
 export async function syncPseudoWhatsappThread(
   admin: SupabaseClient,
-  params: { restaurantId: string; conversationKey: string },
+  params: {
+    restaurantId: string;
+    conversationKey: string;
+    maxMessages?: number;
+    conversationLabel?: string | null;
+    silent?: boolean;
+  },
 ): Promise<{ imported: number; error: string | null }> {
   if (!isWahaPseudoContactId(params.conversationKey)) {
     return { imported: 0, error: "invalid_waha_contact" };
@@ -140,5 +181,8 @@ export async function syncPseudoWhatsappThread(
     restaurantId: params.restaurantId,
     threadKey: params.conversationKey,
     chatIdOverride: chatId,
+    maxMessages: params.maxMessages,
+    conversationLabel: params.conversationLabel,
+    silent: params.silent,
   });
 }

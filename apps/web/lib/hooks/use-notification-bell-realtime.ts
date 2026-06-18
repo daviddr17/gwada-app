@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
+import {
+  GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
+  dispatchNotificationsRefresh,
+} from "@/lib/notifications/notification-events";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -11,6 +14,7 @@ import { NOTIFICATION_SUMMARY_REFETCH_MS } from "@/lib/query/dashboard-query-pol
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 const REALTIME_READY_TIMEOUT_MS = 12_000;
+const BELL_FULL_REFRESH_DEBOUNCE_MS = 2_000;
 
 let bellRealtimeActive = false;
 
@@ -20,13 +24,14 @@ export function isNotificationBellRealtimeActive(): boolean {
 }
 
 /**
- * Glocke + Push-Auslöser: INSERT auf `notification_events` (DB-Trigger bei Nachricht,
- * Bewertung, Reservierung, …) → Badge sofort aktualisieren.
+ * Glocke: INSERT auf `notification_events`.
+ * Nachrichten: Badge über Inbox-Cache (contact_messages Realtime) — kein doppelter Refetch.
  */
 export function useNotificationBellRealtime() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const sbRef = useRef(createSupabaseBrowserClient());
   const polling = useVisibleIntervalPolling(NOTIFICATION_SUMMARY_REFETCH_MS);
+  const fullRefreshDebounceRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!ready || !restaurantId || !isUuidRestaurantId(restaurantId)) {
@@ -37,7 +42,13 @@ export function useNotificationBellRealtime() {
     bellRealtimeActive = false;
 
     const refreshBell = () => {
-      dispatchNotificationsRefresh();
+      if (fullRefreshDebounceRef.current) {
+        window.clearTimeout(fullRefreshDebounceRef.current);
+      }
+      fullRefreshDebounceRef.current = window.setTimeout(() => {
+        fullRefreshDebounceRef.current = null;
+        dispatchNotificationsRefresh();
+      }, BELL_FULL_REFRESH_DEBOUNCE_MS);
     };
 
     const enablePolling = () => {
@@ -78,13 +89,32 @@ export function useNotificationBellRealtime() {
           enablePolling();
         }
       },
-      onInsert: () => {
+      onInsert: (payload) => {
+        const row = payload.new as {
+          module?: string;
+          payload?: Record<string, unknown>;
+        };
+        if (row.module === "messages" && row.payload) {
+          window.dispatchEvent(
+            new CustomEvent(GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT, {
+              detail: {
+                restaurantId,
+                notificationPayload: row.payload,
+              },
+            }),
+          );
+          return;
+        }
         refreshBell();
       },
     });
 
     return () => {
       window.clearTimeout(readyTimeout);
+      if (fullRefreshDebounceRef.current) {
+        window.clearTimeout(fullRefreshDebounceRef.current);
+        fullRefreshDebounceRef.current = null;
+      }
       bellRealtimeActive = false;
       polling.stop();
       teardown();

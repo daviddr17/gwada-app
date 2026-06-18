@@ -5,6 +5,7 @@ import type {
 } from "@/lib/constants/contact-message-platforms";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
+import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
@@ -265,7 +266,8 @@ export async function fetchContactConversations(params: {
     )
     .eq("restaurant_id", params.restaurantId)
     .eq("platform", params.platform)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(CONVERSATION_LIST_MESSAGE_ROW_LIMIT);
 
   const { data: messages, error: msgErr } = await q;
 

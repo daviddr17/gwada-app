@@ -79,7 +79,7 @@ async function mapPool<T, R>(
 export async function fetchWahaInboxConversations(
   admin: SupabaseClient,
   restaurantId: string,
-  options?: { skipDisplayNameResolve?: boolean },
+  options?: { skipDisplayNameResolve?: boolean; overviewLimit?: number },
 ): Promise<{ data: ContactConversationPreview[]; error: string | null }> {
   const config = await getWahaServerConfigAdmin();
   if (!config) {
@@ -90,7 +90,7 @@ export async function fetchWahaInboxConversations(
     wahaGetChatsOverview({
       config,
       restaurantId,
-      limit: 100,
+      limit: options?.overviewLimit ?? 100,
     }),
     wahaGetAllContacts({ config, restaurantId }),
     wahaGetAllLidMappings({ config, restaurantId }),

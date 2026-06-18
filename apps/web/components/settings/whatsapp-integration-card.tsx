@@ -13,6 +13,7 @@ import {
   integrationStatusBadgeMuted,
 } from "@/components/settings/settings-integration-panel";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
+import { invalidateInboxAfterChannelConnect } from "@/lib/contact-messages/invalidate-inbox-after-channel-connect-client";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { WahaConnectResponse } from "@/lib/types/restaurant-integration";
@@ -46,6 +47,7 @@ export function WhatsappIntegrationCard() {
   const [wasEverWorking, setWasEverWorking] = useState(false);
   const [liveCheckFailed, setLiveCheckFailed] = useState(false);
   const wasEverWorkingRef = useRef(false);
+  const prevStatusRef = useRef<string | null>(null);
 
   const loadStatus = useCallback(
     async (refresh = false) => {
@@ -96,6 +98,17 @@ export function WhatsappIntegrationCard() {
       setQrSrc(`data:${mime};base64,${data.data}`);
     }
   }, [restaurantId]);
+
+  useEffect(() => {
+    if (!restaurantId || !state?.status) return;
+    if (
+      state.status === "working" &&
+      prevStatusRef.current !== "working"
+    ) {
+      invalidateInboxAfterChannelConnect(restaurantId);
+    }
+    prevStatusRef.current = state.status;
+  }, [restaurantId, state?.status]);
 
   useEffect(() => {
     void loadStatus(true);

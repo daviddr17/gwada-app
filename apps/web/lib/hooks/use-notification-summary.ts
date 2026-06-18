@@ -14,11 +14,13 @@ import {
 } from "@/lib/notifications/fetch-notifications-client";
 import { notificationSummaryWithMessagesFromConversations } from "@/lib/notifications/patch-notification-messages-from-inbox-cache";
 import {
+  GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
   GWADA_NOTIFICATIONS_REFRESH_EVENT,
   dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
+import { patchNotificationSummaryFromNotificationPayload } from "@/lib/contact-messages/patch-inbox-from-message-row";
 import {
   NOTIFICATION_SUMMARY_GC_MS,
   NOTIFICATION_SUMMARY_REFETCH_MS,
@@ -30,12 +32,15 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
-const MESSAGES_REFRESH_DEBOUNCE_MS = 3_000;
+const MESSAGES_REFRESH_DEBOUNCE_MS = 15_000;
+const NOTIFICATIONS_FULL_REFRESH_DEBOUNCE_MS = 2_000;
 
 export function useNotificationSummary() {
   const queryClient = useQueryClient();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const messagesDebounceRef = useRef<number | null>(null);
+  const fullRefreshDebounceRef = useRef<number | null>(null);
+  const livePatchAtRef = useRef(0);
 
   const ready =
     workspaceReady &&
@@ -65,7 +70,16 @@ export function useNotificationSummary() {
         ? NOTIFICATION_SUMMARY_REFETCH_MS
         : false,
     refetchIntervalInBackground: false,
-    placeholderData: (previous) => previous,
+    placeholderData: (previous, previousQuery) => {
+      const prevRestaurantId = previousQuery?.queryKey[2];
+      if (
+        typeof prevRestaurantId === "string" &&
+        prevRestaurantId !== restaurantId
+      ) {
+        return undefined;
+      }
+      return previous;
+    },
   });
 
   const refresh = useCallback(
@@ -87,9 +101,57 @@ export function useNotificationSummary() {
     if (!ready || !restaurantId) return;
 
     const invalidate = () => {
-      void queryClient.refetchQueries({
-        queryKey: queryKeys.notifications.summaryRoot(restaurantId),
-        type: "active",
+      if (fullRefreshDebounceRef.current) {
+        window.clearTimeout(fullRefreshDebounceRef.current);
+      }
+      fullRefreshDebounceRef.current = window.setTimeout(() => {
+        fullRefreshDebounceRef.current = null;
+        if (Date.now() - livePatchAtRef.current < 5_000) return;
+        void queryClient.refetchQueries({
+          queryKey: queryKeys.notifications.summaryRoot(restaurantId),
+          type: "active",
+        });
+      }, NOTIFICATIONS_FULL_REFRESH_DEBOUNCE_MS);
+    };
+
+    const patchMessagesFromInboxCache = () => {
+      const conversations = peekUnifiedInboxCache(restaurantId);
+      if (!conversations) return;
+      livePatchAtRef.current = Date.now();
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        return notificationSummaryWithMessagesFromConversations(
+          prev,
+          conversations,
+        );
+      });
+    };
+
+    /** Fallback wenn Inbox-Mount inaktiv (andere Route): Payload von notification_events. */
+    const onMessageLive = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          restaurantId?: string;
+          notificationPayload?: Record<string, unknown>;
+        }>
+      ).detail;
+      if (detail?.restaurantId !== restaurantId || !detail.notificationPayload) {
+        return;
+      }
+      if (Date.now() - livePatchAtRef.current < 3_000) return;
+
+      livePatchAtRef.current = Date.now();
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) {
+          void queryClient.prefetchQuery({ queryKey: summaryKey });
+          return prev;
+        }
+        return patchNotificationSummaryFromNotificationPayload(
+          prev,
+          detail.notificationPayload!,
+        );
       });
     };
 
@@ -103,19 +165,6 @@ export function useNotificationSummary() {
       }, MESSAGES_REFRESH_DEBOUNCE_MS);
     };
 
-    const patchMessagesFromInboxCache = () => {
-      const conversations = peekUnifiedInboxCache(restaurantId);
-      if (!conversations) return;
-      const summaryKey = queryKeys.notifications.summary(restaurantId);
-      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
-        if (!prev) return prev;
-        return notificationSummaryWithMessagesFromConversations(
-          prev,
-          conversations,
-        );
-      });
-    };
-
     const onInboxCacheUpdated = (event: Event) => {
       const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;
       if (detail?.restaurantId !== restaurantId) return;
@@ -123,6 +172,10 @@ export function useNotificationSummary() {
     };
 
     window.addEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
+    window.addEventListener(
+      GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
+      onMessageLive,
+    );
     window.addEventListener(
       GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
       onMessagesRefresh,
@@ -137,7 +190,14 @@ export function useNotificationSummary() {
       if (messagesDebounceRef.current) {
         window.clearTimeout(messagesDebounceRef.current);
       }
+      if (fullRefreshDebounceRef.current) {
+        window.clearTimeout(fullRefreshDebounceRef.current);
+      }
       window.removeEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
+      window.removeEventListener(
+        GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
+        onMessageLive,
+      );
       window.removeEventListener(
         GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
         onMessagesRefresh,

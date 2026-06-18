@@ -3,6 +3,8 @@ import {
   integrationStateFromWahaSession,
   upsertRestaurantWhatsappIntegration,
 } from "@/lib/supabase/restaurant-integrations-db";
+import { syncInboxHistoryOnConnect } from "@/lib/contacts/sync-inbox-history-on-connect-server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { WahaConnectResponse } from "@/lib/types/restaurant-integration";
 import {
   wahaCreateSession,
@@ -23,6 +25,7 @@ export async function syncWhatsappFromWaha(
 ): Promise<WahaConnectResponse> {
   const sessionName = wahaSessionNameForRestaurant(restaurantId);
   const existing = await fetchRestaurantWhatsappIntegration(sb, restaurantId);
+  const wasWorking = existing?.status === "working";
 
   const sessionRes = await wahaGetSession(config, sessionName);
   let session = sessionRes.ok ? sessionRes.data : null;
@@ -81,6 +84,18 @@ export async function syncWhatsappFromWaha(
     connected_at: mapped.connected_at,
     last_error: null,
   });
+
+  if (mapped.status === "working" && !wasWorking) {
+    const admin = createSupabaseAdminClient();
+    if (admin) {
+      void syncInboxHistoryOnConnect(admin, {
+        restaurantId,
+        whatsapp: true,
+      }).catch((e) => {
+        console.warn("[contact-inbox] history-on-connect whatsapp", e);
+      });
+    }
+  }
 
   if (session) {
     void wahaUpdateSessionWebhooks(config, sessionName, restaurantId).catch(

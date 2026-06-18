@@ -1,5 +1,6 @@
 "use client";
 
+import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import { useUnifiedInboxBackgroundSync } from "@/lib/contact-messages/unified-inbox-background-sync";
 import { useInboxLiveNotifications } from "@/lib/hooks/use-dashboard-live-notifications";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";

@@ -14,6 +14,8 @@ import {
   fetchRestaurantEmailSmtpConfig,
   upsertRestaurantEmailIntegration,
 } from "@/lib/supabase/restaurant-email-integration-db";
+import { syncInboxHistoryOnConnect } from "@/lib/contacts/sync-inbox-history-on-connect-server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { EmailIntegrationResponse } from "@/lib/types/restaurant-integration";
@@ -112,6 +114,7 @@ export async function POST(req: Request) {
   }
 
   const existing = await fetchRestaurantEmailSmtpConfig(auth.sb, restaurantId);
+  const wasCustom = existing?.status === "custom";
   const merged = {
     email: body.email?.trim(),
     password: mergeSmtpPassword(body.password, existing?.config ?? {}),
@@ -137,6 +140,18 @@ export async function POST(req: Request) {
 
   if (error) {
     return Response.json({ error }, { status: 500 });
+  }
+
+  if (!wasCustom) {
+    const admin = createSupabaseAdminClient();
+    if (admin) {
+      void syncInboxHistoryOnConnect(admin, {
+        restaurantId,
+        email: true,
+      }).catch((e) => {
+        console.warn("[contact-inbox] history-on-connect email", e);
+      });
+    }
   }
 
   return Response.json({

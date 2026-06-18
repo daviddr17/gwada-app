@@ -5,7 +5,10 @@ import type { ContactConversationPreview } from "@/lib/supabase/contact-messages
 export const GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT =
   "gwada:unified-inbox-cache-updated";
 
-const SESSION_KEY_PREFIX = "gwada:unified-inbox:";
+/** Erhöhen, wenn Listen-Format wechselt (z. B. DB-only statt Live-Merge). */
+export const UNIFIED_INBOX_CACHE_VERSION = 2;
+
+const SESSION_KEY_PREFIX = `gwada:unified-inbox:v${UNIFIED_INBOX_CACHE_VERSION}:`;
 /** Überlebt Soft-Nav und Seiten-Reload in derselben Browser-Session. */
 const SESSION_MAX_AGE_MS = 30 * 60 * 1000;
 

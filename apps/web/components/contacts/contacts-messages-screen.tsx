@@ -212,6 +212,8 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { cn } from "@/lib/utils";
 
+const LIST_SILENT_REFRESH_DEBOUNCE_MS = 3_000;
+
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleString("de-DE", {
     day: "2-digit",
@@ -320,6 +322,9 @@ export function ContactsMessagesScreen() {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const threadRefreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const listRefreshDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
   const [contactName, setContactName] = useState("");
@@ -1160,7 +1165,14 @@ export function ContactsMessagesScreen() {
     if (!restaurantId) return;
 
     const onMessagesRefresh = () => {
-      void loadConversations({ silent: true, force: true });
+      if (contactParam) return;
+      if (listRefreshDebounceRef.current) {
+        clearTimeout(listRefreshDebounceRef.current);
+      }
+      listRefreshDebounceRef.current = setTimeout(() => {
+        listRefreshDebounceRef.current = null;
+        void loadConversations({ silent: true, force: true });
+      }, LIST_SILENT_REFRESH_DEBOUNCE_MS);
     };
 
     window.addEventListener(GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, onMessagesRefresh);
@@ -1172,6 +1184,10 @@ export function ContactsMessagesScreen() {
       if (threadRefreshDebounceRef.current) {
         clearTimeout(threadRefreshDebounceRef.current);
         threadRefreshDebounceRef.current = null;
+      }
+      if (listRefreshDebounceRef.current) {
+        clearTimeout(listRefreshDebounceRef.current);
+        listRefreshDebounceRef.current = null;
       }
     };
   }, [

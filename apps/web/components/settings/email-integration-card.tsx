@@ -17,6 +17,7 @@ import {
 } from "@/components/settings/settings-integration-panel";
 import { GWADA_DEFAULT_FROM_EMAIL } from "@/lib/constants/gwada-email-defaults";
 import { useRegisterSettingsIntegrationSave } from "@/components/settings/settings-integration-save-registry";
+import { invalidateInboxAfterChannelConnect } from "@/lib/contact-messages/invalidate-inbox-after-channel-connect-client";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
@@ -112,6 +113,7 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
 
   const save = useCallback(async () => {
     if (!restaurantId) return;
+    const wasCustom = state?.status === "custom";
     const res = await fetch("/api/integrations/email", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -134,8 +136,11 @@ export function EmailIntegrationCard({ onSaved }: { onSaved?: () => void }) {
     }
     toast.success("E-Mail-Verbindung gespeichert.");
     await load();
+    if (useCustom && !wasCustom) {
+      invalidateInboxAfterChannelConnect(restaurantId);
+    }
     onSaved?.();
-  }, [restaurantId, useCustom, fields, load, onSaved]);
+  }, [restaurantId, useCustom, fields, load, onSaved, state?.status]);
 
   useRegisterSettingsIntegrationSave("email", dirty && canManage, save);
 

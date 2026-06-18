@@ -150,6 +150,14 @@ if [[ -n "${CRON_SECRET:-}" ]]; then
   patch_compose_env_key CRON_SECRET "${CRON_SECRET}"
 fi
 
+ENSURE_RUNTIME_ENV="${BUILD_DIR}/scripts/ensure-coolify-compose-runtime-env.sh"
+if [[ -f "${ENSURE_RUNTIME_ENV}" ]]; then
+  # shellcheck source=scripts/ensure-coolify-compose-runtime-env.sh
+  source "${ENSURE_RUNTIME_ENV}"
+  ensure_coolify_compose_runtime_env "${COMPOSE_DIR}" \
+    GITHUB_DEPLOY_TOKEN CHANGELOG_SYNC_SECRET CRON_SECRET SUPABASE_SERVICE_ROLE_KEY || true
+fi
+
 ENSURE_TRAEFIK="${BUILD_DIR}/scripts/vps-ensure-coolify-traefik-fqdn.sh"
 if [[ -f "${ENSURE_TRAEFIK}" ]]; then
   bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"
@@ -163,6 +171,10 @@ for i in $(seq 1 45); do
   if curl -fsSL "${APP_ORIGIN}/api/build-info" 2>/dev/null | grep -q "\"sha\":\"${SHA}\""; then
     echo "✓ Live bestätigt: ${APP_ORIGIN}/api/build-info → sha=${SHA}"
     docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' | grep 3000 || true
+    fresh_running="$(docker ps --format '{{.Names}}' | grep "${COOLIFY_APP_ID}-" | head -1 || true)"
+    if [[ -n "${fresh_running}" ]] && declare -F verify_container_env >/dev/null; then
+      verify_container_env "${fresh_running}" GITHUB_DEPLOY_TOKEN || true
+    fi
     echo "=== DEPLOY_OK $(date -Is) ==="
     exit 0
   fi

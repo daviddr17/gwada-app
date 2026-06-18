@@ -29,7 +29,6 @@ export function githubRepoSlug(): string {
 export function githubDeployBranch(): string {
   return (
     process.env.GWADA_DEPLOY_BRANCH?.trim() ||
-    process.env.COOLIFY_BRANCH?.trim() ||
     process.env.CHANGELOG_GIT_BRANCH?.trim() ||
     "main"
   );

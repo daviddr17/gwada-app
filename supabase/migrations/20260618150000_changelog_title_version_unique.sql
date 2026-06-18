@@ -20,5 +20,5 @@ using ranked r
 where e.id = r.id
   and r.rn > 1;
 
-create unique index platform_changelog_entries_title_version_uniq
+create unique index if not exists platform_changelog_entries_title_version_uniq
   on public.platform_changelog_entries (title, version);

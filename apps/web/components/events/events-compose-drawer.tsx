@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Drawer,
@@ -21,11 +21,23 @@ import {
   formScheduleTimeInputClassName,
 } from "@/components/ui/date-picker";
 import { EventsPlatformChip } from "@/components/events/events-platform-filter-chips";
+import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import type { EventsPlatform } from "@/lib/constants/events-platforms";
+import { EVENTS_ANNOUNCEMENT_PLATFORMS } from "@/lib/constants/events-platforms";
 import { uploadEventsMedia } from "@/lib/events/events-media-api";
 import { validateEventsMediaFile } from "@/lib/events/validate-events-media-file";
 import type { EventsConnectorPublicInfo } from "@/lib/types/events-connectors";
-import { cn } from "@/lib/utils";
+
+const ANNOUNCEMENT_POST_OPTIONS: {
+  platform: EventsPlatform;
+  label: string;
+  requiresCover?: boolean;
+}[] = [
+  { platform: "facebook", label: "Beitrag auf Facebook" },
+  { platform: "google_business", label: "Beitrag auf Google" },
+  { platform: "instagram", label: "Beitrag auf Instagram", requiresCover: true },
+  { platform: "whatsapp_channel", label: "Beitrag auf WhatsApp Kanal" },
+];
 
 function combineDateTime(dateYmd: string, time: string): string | null {
   if (!dateYmd || !time) return null;
@@ -58,8 +70,9 @@ export function EventsComposeDrawer({
   const [ticketUrl, setTicketUrl] = useState("");
   const [location, setLocation] = useState("");
   const [platforms, setPlatforms] = useState<EventsPlatform[]>(["gwada"]);
-  const [postToInstagram, setPostToInstagram] = useState(false);
-  const [postToWhatsapp, setPostToWhatsapp] = useState(false);
+  const [announcementPosts, setAnnouncementPosts] = useState<
+    Partial<Record<EventsPlatform, boolean>>
+  >({});
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverStoragePath, setCoverStoragePath] = useState<string | null>(null);
   const [coverMimeType, setCoverMimeType] = useState<string | null>(null);
@@ -77,8 +90,7 @@ export function EventsComposeDrawer({
     setTicketUrl("");
     setLocation("");
     setPlatforms(["gwada"]);
-    setPostToInstagram(false);
-    setPostToWhatsapp(false);
+    setAnnouncementPosts({});
     setCoverPreview((prev) => {
       if (prev) URL.revokeObjectURL(prev);
       return null;
@@ -88,21 +100,28 @@ export function EventsComposeDrawer({
     eventIdRef.current = crypto.randomUUID();
   }, [open]);
 
-  const nativeConnectors = connectors.filter(
-    (c) =>
-      c.connected &&
-      c.capabilities.canCreateEvent &&
-      !c.capabilities.isAnnouncementOnly,
-  );
-  const igConnected = connectors.some(
-    (c) => c.key === "instagram" && c.connected && c.capabilities.canCreateEvent,
-  );
-  const waConnected = connectors.some(
-    (c) =>
-      c.key === "whatsapp_channel" && c.connected && c.capabilities.canCreateEvent,
-  );
+  const eventPlatformChips = [...connectors]
+    .filter(
+      (c) =>
+        c.connected &&
+        c.capabilities.canCreateEvent &&
+        !c.capabilities.isAnnouncementOnly,
+    )
+    .sort((a, b) => {
+      if (a.key === "gwada") return -1;
+      if (b.key === "gwada") return 1;
+      return 0;
+    });
+
+  const announcementPostOptions = ANNOUNCEMENT_POST_OPTIONS.filter((opt) => {
+    if (!(EVENTS_ANNOUNCEMENT_PLATFORMS as readonly string[]).includes(opt.platform)) {
+      return false;
+    }
+    return connectors.some((c) => c.key === opt.platform && c.connected);
+  });
 
   const togglePlatform = (key: EventsPlatform) => {
+    if (key === "gwada") return;
     setPlatforms((prev) =>
       prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
     );
@@ -160,10 +179,19 @@ export function EventsComposeDrawer({
       toast.error("Endzeit muss nach Startzeit liegen.");
       return;
     }
-    if (postToInstagram && !coverStoragePath) {
-      toast.error("Instagram-Post benötigt ein Titelbild.");
+    const announcementPlatforms = ANNOUNCEMENT_POST_OPTIONS.filter(
+      (opt) => announcementPosts[opt.platform],
+    ).map((opt) => opt.platform);
+    if (
+      announcementPlatforms.includes("instagram") &&
+      !coverStoragePath
+    ) {
+      toast.error("Instagram-Beitrag benötigt ein Titelbild.");
       return;
     }
+    const publishPlatforms = platforms.includes("gwada")
+      ? platforms
+      : (["gwada", ...platforms] as EventsPlatform[]);
     if (!eventIdRef.current) eventIdRef.current = crypto.randomUUID();
     setSaving(true);
     try {
@@ -181,9 +209,8 @@ export function EventsComposeDrawer({
           location: location.trim() || null,
           coverStoragePath,
           coverMimeType,
-          platforms,
-          postToInstagram,
-          postToWhatsapp,
+          platforms: publishPlatforms,
+          announcementPlatforms,
         }),
       });
       const data = await res.json();
@@ -208,8 +235,7 @@ export function EventsComposeDrawer({
     coverStoragePath,
     coverMimeType,
     platforms,
-    postToInstagram,
-    postToWhatsapp,
+    announcementPosts,
     restaurantId,
     onOpenChange,
     onSaved,
@@ -339,45 +365,62 @@ export function EventsComposeDrawer({
           </div>
           <div className="space-y-2">
             <Label>Plattformen</Label>
+            <p className="text-xs text-muted-foreground">
+              Event als strukturierten Eintrag auf der Plattform veröffentlichen.
+            </p>
             <div className="flex flex-wrap gap-2">
-              <EventsPlatformChip
-                platform="gwada"
-                selected={platforms.includes("gwada")}
-                onSelect={() => togglePlatform("gwada")}
-              />
-              {nativeConnectors.map((c) => (
+              {eventPlatformChips.map((c) => (
                 <EventsPlatformChip
                   key={c.key}
                   platform={c.key}
                   selected={platforms.includes(c.key)}
+                  disabled={c.key === "gwada"}
                   onSelect={() => togglePlatform(c.key)}
                 />
               ))}
             </div>
           </div>
-          {(igConnected || waConnected) && (
+          {announcementPostOptions.length > 0 ? (
             <div className="space-y-3 rounded-xl border border-border/50 p-3">
-              <p className="text-sm font-medium">Zusätzlich ankündigen</p>
-              {igConnected ? (
-                <label className="flex cursor-pointer items-center gap-2">
-                  <Checkbox
-                    checked={postToInstagram}
-                    onCheckedChange={(v) => setPostToInstagram(v === true)}
-                  />
-                  <span className="text-sm">Instagram-Post erstellen</span>
-                </label>
-              ) : null}
-              {waConnected ? (
-                <label className="flex cursor-pointer items-center gap-2">
-                  <Checkbox
-                    checked={postToWhatsapp}
-                    onCheckedChange={(v) => setPostToWhatsapp(v === true)}
-                  />
-                  <span className="text-sm">WhatsApp-Kanal-Nachricht erstellen</span>
-                </label>
-              ) : null}
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium">Zusätzlich Beitrag posten</p>
+                <p className="text-xs text-muted-foreground">
+                  Optionaler Feed-Beitrag — unabhängig vom Event auf Facebook oder
+                  Google.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {announcementPostOptions.map((opt) => {
+                  const switchId = `event-post-${opt.platform}`;
+                  return (
+                    <div
+                      key={opt.platform}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <Label
+                        htmlFor={switchId}
+                        className="flex min-w-0 cursor-pointer items-center gap-2 text-sm font-normal"
+                      >
+                        <EventsPlatformIcon platform={opt.platform} />
+                        {opt.label}
+                      </Label>
+                      <Switch
+                        id={switchId}
+                        size="sm"
+                        checked={Boolean(announcementPosts[opt.platform])}
+                        onCheckedChange={(v) =>
+                          setAnnouncementPosts((prev) => ({
+                            ...prev,
+                            [opt.platform]: v === true,
+                          }))
+                        }
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          ) : null}
         </div>
         <DrawerFooter>
           <DrawerFormFooter

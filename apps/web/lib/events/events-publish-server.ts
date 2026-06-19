@@ -1,6 +1,11 @@
 import "server-only";
 
 import type { EventsPlatform } from "@/lib/constants/events-platforms";
+import {
+  applyEventsAnnouncementPublication,
+  isEventsAnnouncementPlatform,
+  publishEventsAnnouncement,
+} from "@/lib/events/events-announcement-publish-server";
 import { getEventsConnector } from "@/lib/events/connectors/registry";
 import type { EventsPublishInput } from "@/lib/events/connectors/types";
 import { syncRestaurantEventsPlatformAfterPublish } from "@/lib/events/events-feed-sync-server";
@@ -23,8 +28,7 @@ export async function createAndPublishEvent(
     coverMimeType: string | null;
     scheduledAt: string | null;
     platforms: EventsPlatform[];
-    postToInstagram: boolean;
-    postToWhatsapp: boolean;
+    announcementPlatforms?: EventsPlatform[];
   },
 ): Promise<{ ok: true; eventId: string } | { ok: false; error: string }> {
   const isScheduled =
@@ -64,12 +68,9 @@ export async function createAndPublishEvent(
     : await resolveEventsCoverSignedUrl(params.coverStoragePath);
 
   const publishPlatforms = [...params.platforms];
-  if (params.postToInstagram && !publishPlatforms.includes("instagram")) {
-    publishPlatforms.push("instagram");
-  }
-  if (params.postToWhatsapp && !publishPlatforms.includes("whatsapp_channel")) {
-    publishPlatforms.push("whatsapp_channel");
-  }
+  const announcementPlatforms = (params.announcementPlatforms ?? []).filter(
+    isEventsAnnouncementPlatform,
+  );
 
   const pubInput: EventsPublishInput = {
     title: params.title,
@@ -144,6 +145,37 @@ export async function createAndPublishEvent(
       .eq("platform", platform);
 
     void syncRestaurantEventsPlatformAfterPublish(params.restaurantId, platform);
+  }
+
+  if (!isScheduled) {
+    for (const platform of announcementPlatforms) {
+      const eventPlatformSelected = publishPlatforms.includes(platform);
+      if (!eventPlatformSelected) {
+        await sb.from("gwada_event_publications").upsert(
+          {
+            event_id: eventId,
+            restaurant_id: params.restaurantId,
+            platform,
+            status: "pending",
+          },
+          { onConflict: "event_id,platform" },
+        );
+      }
+
+      const result = await publishEventsAnnouncement(
+        params.restaurantId,
+        sb,
+        platform,
+        pubInput,
+      );
+      await applyEventsAnnouncementPublication(sb, {
+        eventId,
+        restaurantId: params.restaurantId,
+        platform,
+        eventPlatformSelected,
+        result,
+      });
+    }
   }
 
   if (!isScheduled) {

@@ -22,7 +22,10 @@ export async function POST(req: Request) {
     coverMimeType?: string | null;
     scheduledAt?: string | null;
     platforms?: string[];
+    announcementPlatforms?: string[];
+    /** @deprecated Nutze announcementPlatforms */
     postToInstagram?: boolean;
+    /** @deprecated Nutze announcementPlatforms */
     postToWhatsapp?: boolean;
   };
 
@@ -50,10 +53,21 @@ export async function POST(req: Request) {
     isEventsPlatform(p),
   );
 
-  const postToInstagram = Boolean(body.postToInstagram);
-  const postToWhatsapp = Boolean(body.postToWhatsapp);
+  const announcementFromBody = (body.announcementPlatforms ?? []).filter(
+    (p): p is EventsPlatform => isEventsPlatform(p),
+  );
+  const announcementPlatforms = [
+    ...new Set([
+      ...announcementFromBody,
+      ...(body.postToInstagram ? (["instagram"] as const) : []),
+      ...(body.postToWhatsapp ? (["whatsapp_channel"] as const) : []),
+    ]),
+  ].filter((p): p is EventsPlatform => isEventsPlatform(p));
 
-  if (postToInstagram && !body.coverStoragePath?.trim()) {
+  if (
+    announcementPlatforms.includes("instagram") &&
+    !body.coverStoragePath?.trim()
+  ) {
     return NextResponse.json({ error: "instagram_requires_cover" }, { status: 400 });
   }
 
@@ -71,8 +85,7 @@ export async function POST(req: Request) {
     coverMimeType: body.coverMimeType?.trim() || null,
     scheduledAt: body.scheduledAt ?? null,
     platforms: platforms.length ? platforms : ["gwada"],
-    postToInstagram,
-    postToWhatsapp,
+    announcementPlatforms,
   });
 
   if (!result.ok) {

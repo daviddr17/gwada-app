@@ -119,22 +119,38 @@ function messagePushSubjectName(payload: Record<string, unknown>): string {
   return name;
 }
 
+export type NotificationPushMessageResult = {
+  /** WhatsApp / Plain-Text mit Intro-Zeile */
+  text: string;
+  subject: string;
+  /** Nur Detailblock für E-Mail-Body (ohne Intro-Doppelung zur Karten-Überschrift) */
+  emailDetails: string | null;
+  href: string;
+  /** Roh-Code für Plattform-Icon in E-Mails (z. B. whatsapp) */
+  platformCode?: string | null;
+};
+
 function buildPushMessage(params: {
   prefix: string;
   headline: string;
   subject: string;
   href: string;
   details?: string | null;
-}): { text: string; subject: string } {
+  platformCode?: string | null;
+}): NotificationPushMessageResult {
   const intro = params.prefix
     ? `${params.prefix}${params.headline}`
     : params.headline;
-  const detailBlock = params.details?.trim()
-    ? `\n\n${params.details.trim()}`
-    : "";
+  const detailBlock = params.details?.trim() ?? "";
+  const textParts = [intro];
+  if (detailBlock) textParts.push(detailBlock);
+  textParts.push(params.href);
   return {
     subject: params.subject,
-    text: `${intro}${detailBlock}\n\n${params.href}`,
+    text: textParts.join("\n\n"),
+    emailDetails: detailBlock || null,
+    href: params.href,
+    platformCode: params.platformCode ?? null,
   };
 }
 
@@ -161,7 +177,7 @@ function reservationDetails(payload: Record<string, unknown>): string {
 export function buildNotificationPushText(
   event: NotificationEventRow,
   restaurantName: string | null,
-): { text: string; subject: string } {
+): NotificationPushMessageResult {
   const prefix = restaurantName ? `${restaurantName}: ` : "";
   const moduleDef = NOTIFICATION_MODULES[event.module];
   const href = absoluteAppUrl(moduleDef.href);
@@ -170,6 +186,7 @@ export function buildNotificationPushText(
   switch (event.module) {
     case "messages": {
       const subjectName = messagePushSubjectName(p);
+      const platformCode = pickString(p.platform)?.toLowerCase() ?? null;
       const platform = platformLabel(p.platform);
       const when = formatPushDateTime(p.messageCreatedAt);
       const preview = quotePreview(p.preview);
@@ -178,6 +195,7 @@ export function buildNotificationPushText(
         headline: "Neue Nachricht",
         subject: `${prefix}Neue Nachricht — ${subjectName}`,
         href,
+        platformCode,
         details: detailLines([
           ...messageSenderDetailLines(p),
           platform ? `Kanal: ${platform}` : null,

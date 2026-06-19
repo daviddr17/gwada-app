@@ -392,7 +392,8 @@ async function deliverOne(
 
   const restaurantName =
     restaurantNames.get(delivery.context_restaurant_id) ?? null;
-  const { text, subject } = buildNotificationPushText(
+  const { text, subject, emailDetails, href, platformCode } =
+    buildNotificationPushText(
     {
       module: event.module,
       payload: event.payload ?? {},
@@ -441,6 +442,9 @@ async function deliverOne(
     to: contact.email,
     subject,
     text,
+    emailDetails,
+    href,
+    platformCode,
     admin,
   });
 

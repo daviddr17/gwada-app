@@ -22,6 +22,8 @@ export type ReservationEmailPayload = Omit<
   headline?: string | null;
   /** Graue Intro-Zeile unter der Überschrift */
   intro?: string | null;
+  /** Fertiges HTML-Fragment für den Karten-Inhalt (statt Plain-Text-Parsing) */
+  bodyHtml?: string | null;
   footerNote?: string | null;
   replyTo?: string;
   attachments?: SmtpSendPayload["attachments"];
@@ -45,6 +47,7 @@ export async function sendReservationEmail(
     headline,
     intro: payload.intro,
     text: payload.text,
+    bodyHtml: payload.bodyHtml,
     footerNote,
     preheader: payload.subject,
   });

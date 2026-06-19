@@ -1,5 +1,6 @@
 import "server-only";
 
+import { buildPushNotificationEmailBodyHtml } from "@/lib/email/push-notification-email-body";
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
 import { resolveEffectiveNotificationEmail } from "@/lib/notifications/notification-contact-server";
 import { resolveEmailDeliveryForRestaurant } from "@/lib/reservations/reservation-email-dispatch";
@@ -61,6 +62,9 @@ export async function sendNotificationPushEmail(params: {
   to: string;
   subject: string;
   text: string;
+  emailDetails?: string | null;
+  href?: string;
+  platformCode?: string | null;
   admin: SupabaseClient;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const delivery = await resolveEmailDeliveryForRestaurant(
@@ -72,11 +76,26 @@ export async function sendNotificationPushEmail(params: {
   }
 
   const headline = params.subject.trim();
+  const href = params.href?.trim() || null;
+  const emailDetails = params.emailDetails?.trim() || null;
+  const emailTextParts = emailDetails ? [emailDetails] : [];
+  if (href) emailTextParts.push(href);
+  const emailText = emailTextParts.join("\n\n") || params.text;
+
+  const bodyHtml =
+    emailDetails != null
+      ? buildPushNotificationEmailBodyHtml(
+          emailDetails,
+          params.platformCode,
+        )
+      : null;
+
   return sendReservationEmail(delivery, {
     to: params.to,
     subject: headline,
-    text: params.text,
+    text: emailText,
     headline,
     intro: "Du hast eine neue Benachrichtigung in gwada.",
+    bodyHtml,
   });
 }

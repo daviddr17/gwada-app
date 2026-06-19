@@ -83,6 +83,8 @@ export type TransactionalEmailFromTextParams = {
   headline: string;
   intro?: string | null;
   text: string;
+  /** Optional: HTML statt aus Plain-Text generieren (CTA-URL weiter aus text) */
+  bodyHtml?: string | null;
   cta?: { label: string; href: string } | null;
   footerNote?: string | null;
   preheader?: string | null;
@@ -99,7 +101,9 @@ export function buildTransactionalEmailHtmlFromText(
     brandName: params.brandName,
     headline: params.headline,
     intro: params.intro,
-    bodyHtml: buildBodyHtmlFromParagraphs(parsed.paragraphs),
+    bodyHtml:
+      params.bodyHtml?.trim() ??
+      buildBodyHtmlFromParagraphs(parsed.paragraphs),
     logoUrl: params.logoUrl,
     preheader: params.preheader,
     footerNote: params.footerNote,

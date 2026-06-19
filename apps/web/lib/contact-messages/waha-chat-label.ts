@@ -1,3 +1,8 @@
+import { CONTACT_MESSAGE_PLATFORM_LABELS } from "@/lib/constants/contact-message-platforms";
+import { emailAddressFromPseudoContactId, isEmailPseudoContactId } from "@/lib/contact-messages/email-pseudo-contact";
+import {
+  metaPlatformFromPseudoContactId,
+} from "@/lib/contact-messages/meta-pseudo-contact";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import {
@@ -7,6 +12,7 @@ import {
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import type { WahaChatOverviewItem } from "@/lib/waha/waha-inbox";
 import {
+  isWahaLidChatId,
   isWahaPhoneChatId,
   type WahaContactInfo,
 } from "@/lib/waha/waha-lids";
@@ -413,6 +419,45 @@ export function wahaChatListDisplayName(params: {
   return { label: "WhatsApp", needsApiResolve: true };
 }
 
+/** Nie LID/JID/Telefon-Rohwert als gespeichertes conversation_label. */
+export function sanitizeConversationLabelForStorage(
+  label: string | null | undefined,
+): string | null {
+  return pickReadableName(label);
+}
+
+/** Anzeigename für unverknüpfte Pseudo-Threads aus DB (Inbox/Glocke). */
+export function displayNameForPseudoConversation(params: {
+  conversationKey: string;
+  storedLabel?: string | null;
+  defaultIso2?: string;
+}): string {
+  const readable = pickReadableName(params.storedLabel);
+  if (readable) return readable;
+  return defaultConversationLabel(params.conversationKey, params.defaultIso2);
+}
+
+function defaultConversationLabel(
+  conversationKey: string,
+  defaultIso2 = "DE",
+): string {
+  if (isWahaPseudoContactId(conversationKey)) {
+    const chatId = wahaChatIdFromPseudoContactId(conversationKey);
+    if (chatId && !isWahaLidChatId(chatId)) {
+      return displayNameFromWahaChatId(chatId, defaultIso2) ?? "WhatsApp";
+    }
+    return "WhatsApp";
+  }
+  if (isEmailPseudoContactId(conversationKey)) {
+    return emailAddressFromPseudoContactId(conversationKey) ?? "E-Mail";
+  }
+  const metaPlatform = metaPlatformFromPseudoContactId(conversationKey);
+  if (metaPlatform) {
+    return CONTACT_MESSAGE_PLATFORM_LABELS[metaPlatform];
+  }
+  return "Chat";
+}
+
 /** Listen-/Header-Titel: Firma/Pushname bevorzugen, sonst Nummer aus Chat-ID. */
 export function wahaConversationDisplayName(
   preview: { contact_id: string; contact_name: string },
@@ -429,7 +474,9 @@ export function wahaConversationDisplayName(
   if (!isWahaPseudoContactId(preview.contact_id)) {
     return preview.contact_name;
   }
-  const chatId = wahaChatIdFromPseudoContactId(preview.contact_id);
-  if (!chatId) return preview.contact_name;
-  return displayNameFromWahaChatId(chatId, defaultIso2) ?? preview.contact_name;
+  return displayNameForPseudoConversation({
+    conversationKey: preview.contact_id,
+    storedLabel: preview.contact_name,
+    defaultIso2,
+  });
 }

@@ -100,6 +100,7 @@ import {
   peekContactThreadCache,
   setContactThreadCache,
 } from "@/lib/contact-messages/contact-thread-cache";
+import { setInboxLiveToastSuppressedByOpenThread } from "@/lib/contact-messages/inbox-live-toast-gate";
 import { fetchContactThreadPageClient } from "@/lib/contact-messages/fetch-contact-thread-client";
 import {
   appendOptimisticMessage,
@@ -375,6 +376,10 @@ export function ContactsMessagesScreen() {
   const [refreshingInbox, setRefreshingInbox] = useState(false);
   const conversationsRef = useRef(conversations);
   conversationsRef.current = conversations;
+  const contactNameRef = useRef(contactName);
+  contactNameRef.current = contactName;
+  const whatsappThreadChatIdRef = useRef(whatsappThreadChatId);
+  whatsappThreadChatIdRef.current = whatsappThreadChatId;
 
   useEffect(() => {
     setChatSearch("");
@@ -391,6 +396,11 @@ export function ContactsMessagesScreen() {
       setThreadOverlayOpen(true);
       setClosingThreadId(null);
     }
+  }, [contactParam]);
+
+  useEffect(() => {
+    setInboxLiveToastSuppressedByOpenThread(Boolean(contactParam));
+    return () => setInboxLiveToastSuppressedByOpenThread(false);
   }, [contactParam]);
 
   useEffect(() => {
@@ -931,7 +941,7 @@ export function ContactsMessagesScreen() {
       });
 
     const applyContactMeta = (meta: NonNullable<typeof contact>) => {
-      setContactName(meta.name || listTitle || contactName);
+      setContactName((prev) => meta.name || listTitle || prev);
       setHasPhone(meta.hasPhone);
       setHasEmail(meta.hasEmail);
       setHasFacebookId(meta.hasFacebookId);
@@ -983,7 +993,7 @@ export function ContactsMessagesScreen() {
       contact?.name ??
       listTitle ??
       convPreview?.contact_name ??
-      contactName;
+      contactNameRef.current;
 
     setMessages((prev) => {
       let next = mergeLoadedThreadWithOptimistic(data, prev);
@@ -997,7 +1007,7 @@ export function ContactsMessagesScreen() {
         hasFacebookId: contact?.hasFacebookId ?? false,
         hasInstagramId: contact?.hasInstagramId ?? false,
         whatsappThreadChatId:
-          contact?.whatsappThreadChatId ?? whatsappThreadChatId,
+          contact?.whatsappThreadChatId ?? whatsappThreadChatIdRef.current,
       });
       return next;
     });
@@ -1026,8 +1036,6 @@ export function ContactsMessagesScreen() {
     contactParam,
     linkedThread,
     whatsappConnected,
-    contactName,
-    whatsappThreadChatId,
     markConversationRead,
     defaultCountryIso2,
     threadErrorToast,
@@ -1070,33 +1078,26 @@ export function ContactsMessagesScreen() {
     threadErrorToast,
   ]);
 
-  const reconcileWhatsappThreadAfterSend = useCallback(async () => {
-    if (!restaurantId || !contactParam) return;
-    void loadThread({ silent: true });
-  }, [restaurantId, contactParam, loadThread]);
-
   const patchThreadCache = useCallback(
     (next: ContactMessageRow[]) => {
       if (!restaurantId || !contactParam) return;
       setContactThreadCache(restaurantId, contactParam, {
         messages: next,
-        contactName,
+        contactName: contactNameRef.current,
         hasPhone,
         hasEmail,
         hasFacebookId,
         hasInstagramId,
-        whatsappThreadChatId,
+        whatsappThreadChatId: whatsappThreadChatIdRef.current,
       });
     },
     [
       restaurantId,
       contactParam,
-      contactName,
       hasPhone,
       hasEmail,
       hasFacebookId,
       hasInstagramId,
-      whatsappThreadChatId,
     ],
   );
 
@@ -1105,6 +1106,15 @@ export function ContactsMessagesScreen() {
       setMessages((prev) => {
         if (prev.some((m) => m.id === row.id)) return prev;
         let next = dedupeContactMessagesById([...prev, row]);
+        if (row.external_source_id?.startsWith("client:")) {
+          next = next.filter(
+            (m) =>
+              !(
+                isOptimisticContactMessage(m) &&
+                m.external_source_id === row.external_source_id
+              ),
+          );
+        }
         next = dropOptimisticMatchingAnchors(next);
         if (contactThreadRowsEqual(prev, next)) return prev;
         patchThreadCache(next);
@@ -1841,7 +1851,9 @@ export function ContactsMessagesScreen() {
       }
 
       let optimisticWhatsapp: ContactMessageRow | null = null;
+      let whatsappClientSendId: string | undefined;
       if ((sendWhatsapp || voiceNote) && contactParam) {
+        whatsappClientSendId = crypto.randomUUID();
         optimisticWhatsapp = createOptimisticOutboundWhatsappMessage({
           restaurantId,
           contactId: contactParam,
@@ -1851,6 +1863,7 @@ export function ContactsMessagesScreen() {
           voicePreviewUrl: voiceNote
             ? URL.createObjectURL(voiceNote)
             : undefined,
+          clientId: whatsappClientSendId,
         });
         setMessages((prev) =>
           appendOptimisticMessage(prev, optimisticWhatsapp!),
@@ -1864,6 +1877,7 @@ export function ContactsMessagesScreen() {
         direction: "outbound",
         channels,
         restaurantName,
+        clientSendId: whatsappClientSendId,
         files,
         voiceNote,
       });
@@ -1878,9 +1892,7 @@ export function ContactsMessagesScreen() {
       else if (result?.ok) toast.success("Nachricht gesendet.");
       else toast.error("Senden fehlgeschlagen.");
       if (result?.ok) {
-        if (sendWhatsapp || (voiceNote && sendWhatsapp)) {
-          void reconcileWhatsappThreadAfterSend();
-        } else {
+        if (!sendWhatsapp && !(voiceNote && sendWhatsapp)) {
           void loadThread({ silent: true });
         }
         void loadConversations({ silent: true });
@@ -1889,28 +1901,30 @@ export function ContactsMessagesScreen() {
     }
 
     if (isWahaPseudoContactId(contactParam)) {
-      let optimisticWhatsapp: ContactMessageRow | null = null;
-      optimisticWhatsapp = createOptimisticOutboundWhatsappMessage({
+      const whatsappClientSendId = crypto.randomUUID();
+      const optimisticWhatsapp = createOptimisticOutboundWhatsappMessage({
         restaurantId,
         contactId: contactParam,
         body,
         files,
         voiceNote,
         voicePreviewUrl: voiceNote ? URL.createObjectURL(voiceNote) : undefined,
+        clientId: whatsappClientSendId,
       });
-      setMessages((prev) => appendOptimisticMessage(prev, optimisticWhatsapp!));
+      setMessages((prev) => appendOptimisticMessage(prev, optimisticWhatsapp));
 
       const result = await triggerWahaSendMessage({
         restaurantId,
         wahaContactId: contactParam,
         messageBody: body,
+        clientSendId: whatsappClientSendId,
         files,
         voiceNote,
       });
       setSending(false);
       if (!result?.ok) {
         setMessages((prev) =>
-          removeOptimisticMessage(prev, optimisticWhatsapp!.id),
+          removeOptimisticMessage(prev, optimisticWhatsapp.id),
         );
       }
       const warn = sendContactMessageUserMessage(result);
@@ -1918,7 +1932,6 @@ export function ContactsMessagesScreen() {
       else if (result?.ok) toast.success("WhatsApp-Nachricht gesendet.");
       else toast.error("Senden fehlgeschlagen.");
       if (result?.ok) {
-        void reconcileWhatsappThreadAfterSend();
         void loadConversations({ silent: true });
       }
       return;

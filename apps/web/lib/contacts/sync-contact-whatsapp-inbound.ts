@@ -11,6 +11,7 @@ import {
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
 import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-message-insert";
+import { sanitizeConversationLabelForStorage } from "@/lib/contact-messages/waha-chat-label";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -109,7 +110,9 @@ async function mirrorWahaThreadToDb(
         createdAt: m.created_at,
         deliveryStatus: m.delivery_status,
         reservationId: m.reservation_id,
-        conversationLabel: params.conversationLabel,
+        conversationLabel: sanitizeConversationLabelForStorage(
+          params.conversationLabel,
+        ),
         suppressNotifications: true,
       });
       if (inserted.inserted) imported += 1;
@@ -126,7 +129,9 @@ async function mirrorWahaThreadToDb(
       createdAt: m.created_at,
       deliveryStatus: m.delivery_status,
       reservationId: m.reservation_id,
-      conversationLabel: params.conversationLabel,
+      conversationLabel: sanitizeConversationLabelForStorage(
+        params.conversationLabel,
+      ),
     });
     if (result.imported) imported += 1;
   }
@@ -183,7 +188,9 @@ export async function syncPseudoWhatsappThread(
     threadKey: params.conversationKey,
     chatIdOverride: chatId,
     maxMessages: params.maxMessages,
-    conversationLabel: params.conversationLabel,
+    conversationLabel: sanitizeConversationLabelForStorage(
+      params.conversationLabel,
+    ),
     silent: params.silent,
   });
 }

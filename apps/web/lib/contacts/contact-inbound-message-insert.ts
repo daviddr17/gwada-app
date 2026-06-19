@@ -4,6 +4,7 @@ import type { ContactMessageDirection } from "@/lib/constants/contact-message-pl
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 import { resolveConversationThreadRef } from "@/lib/contact-messages/conversation-thread-key";
+import { sanitizeConversationLabelForStorage } from "@/lib/contact-messages/waha-chat-label";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -65,7 +66,7 @@ export async function insertContactMessageIfNew(
       contact_id: thread.contactId,
       conversation_key: thread.conversationKey,
       conversation_label: thread.conversationKey
-        ? (row.conversationLabel?.trim() || null)
+        ? sanitizeConversationLabelForStorage(row.conversationLabel)
         : null,
       platform: row.platform,
       direction: row.direction,

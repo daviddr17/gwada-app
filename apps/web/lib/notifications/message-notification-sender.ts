@@ -5,9 +5,11 @@ import {
   emailAddressFromPseudoContactId,
   isEmailPseudoContactId,
 } from "@/lib/contact-messages/email-pseudo-contact";
-import { displayNameFromWahaChatId } from "@/lib/contact-messages/waha-chat-label";
 import {
-  digitsFromWhatsAppChatId,
+  conversationLabelForWahaInboundIdentity,
+  resolveWahaInboundIdentity,
+} from "@/lib/contact-messages/waha-inbound-identity-server";
+import {
   isWahaPseudoContactId,
   wahaChatIdFromPseudoContactId,
 } from "@/lib/contact-messages/whatsapp-pseudo-contact";
@@ -19,16 +21,6 @@ export type MessageNotificationSenderPayload = {
   senderEmail?: string;
   senderPhone?: string;
 };
-
-function phoneDisplayFromChatId(chatId: string): string | null {
-  const fromLabel = displayNameFromWahaChatId(chatId);
-  if (fromLabel && !/^whatsapp$/i.test(fromLabel.trim())) {
-    return fromLabel.trim();
-  }
-  const digits = digitsFromWhatsAppChatId(chatId);
-  if (!digits) return null;
-  return `+${digits}`;
-}
 
 function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
@@ -68,10 +60,25 @@ export async function resolveMessageNotificationSender(
 
   if (isWahaPseudoContactId(contactId)) {
     const chatId = wahaChatIdFromPseudoContactId(contactId);
-    const phone = chatId ? phoneDisplayFromChatId(chatId) : null;
+    if (!chatId) {
+      return { contactName: "WhatsApp" };
+    }
+
+    const identity = await resolveWahaInboundIdentity(admin, {
+      restaurantId,
+      chatId,
+    });
+    const contactName =
+      conversationLabelForWahaInboundIdentity(identity) ?? identity.displayLabel;
+    const senderPhone =
+      identity.phoneDisplay &&
+      senderPhoneDistinctFromName(contactName, identity.phoneDisplay)
+        ? identity.phoneDisplay
+        : identity.phoneDisplay ?? undefined;
+
     return {
-      contactName: phone ?? "WhatsApp",
-      senderPhone: phone ?? undefined,
+      contactName,
+      senderPhone,
     };
   }
 

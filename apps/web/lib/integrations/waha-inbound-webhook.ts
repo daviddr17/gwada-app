@@ -5,16 +5,22 @@ import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-conta
 import { resolveOrCreateContactForWhatsappInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { whatsappChatIdFromPayloadAddress } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import {
+  conversationLabelForWahaInboundIdentity,
+  resolveWahaInboundIdentity,
+} from "@/lib/contact-messages/waha-inbound-identity-server";
+import {
   wahaWebhookPayloadMediaKind,
 } from "@/lib/contact-messages/waha-message-media";
 import {
   whatsappMediaMirrorBody,
 } from "@/lib/notifications/message-push-preview";
 import { insertInboxSignalServer } from "@/lib/inbox/insert-inbox-signal-server";
-import { resolveMessageNotificationSender } from "@/lib/notifications/message-notification-sender";
 import { wahaAckToDeliveryStatus } from "@/lib/waha/waha-message-ack";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
+import {
+  linkOutboundWhatsappFromWahaWebhook,
+} from "@/lib/contact-messages/outbound-whatsapp-db-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WahaWebhookBody = {
@@ -31,6 +37,9 @@ export type WahaWebhookBody = {
     hasMedia?: boolean;
     ack?: number;
     ackName?: string;
+    pushName?: string;
+    notifyName?: string;
+    _data?: { notifyName?: string; pushName?: string };
   };
 };
 
@@ -97,13 +106,27 @@ export async function handleWahaWebhook(
   return { ok: true, imported: false, reason: "ignored_event" };
 }
 
+function chatIdFromWahaMessagePayload(payload: NonNullable<WahaWebhookBody["payload"]>): string | null {
+  if (payload.fromMe === true) {
+    return (
+      whatsappChatIdFromPayloadAddress(payload.to) ??
+      whatsappChatIdFromPayloadAddress(payload.from)
+    );
+  }
+  return whatsappChatIdFromPayloadAddress(payload.from);
+}
+
 export async function handleWahaInboundWebhook(
   admin: SupabaseClient,
   body: WahaWebhookBody,
 ): Promise<WahaWebhookResult> {
   const payload = body.payload;
-  if (!payload?.id || payload.fromMe === true) {
-    return { ok: true, imported: false, reason: "skipped_outbound" };
+  if (!payload?.id) {
+    return { ok: true, imported: false, reason: "no_message_id" };
+  }
+
+  if (payload.fromMe === true) {
+    return handleWahaOutboundMirrorWebhook(admin, body);
   }
 
   let restaurantId = restaurantIdFromWebhook(body);
@@ -114,7 +137,7 @@ export async function handleWahaInboundWebhook(
     return { ok: false, imported: false, reason: "unknown_restaurant" };
   }
 
-  const chatId = whatsappChatIdFromPayloadAddress(payload.from);
+  const chatId = chatIdFromWahaMessagePayload(payload);
   if (!chatId) {
     return { ok: true, imported: false, reason: "no_chat_id" };
   }
@@ -122,9 +145,24 @@ export async function handleWahaInboundWebhook(
     return { ok: true, imported: false, reason: "non_direct_chat" };
   }
 
+  const pushName =
+    payload.pushName ??
+    payload.notifyName ??
+    payload._data?.notifyName ??
+    payload._data?.pushName ??
+    null;
+
+  const identity = await resolveWahaInboundIdentity(admin, {
+    restaurantId,
+    chatId,
+    pushName,
+  });
+  const conversationLabel = conversationLabelForWahaInboundIdentity(identity);
+
   const contactId = await resolveOrCreateContactForWhatsappInbound(admin, {
     restaurantId,
     chatId,
+    pushName,
   });
 
   const mediaKind = payload.hasMedia
@@ -138,23 +176,16 @@ export async function handleWahaInboundWebhook(
     bodyText || whatsappMediaMirrorBody(mediaKind);
 
   if (!contactId) {
-    const pseudoContactId = `waha:${chatId}`;
-    const sender = await resolveMessageNotificationSender(admin, {
-      restaurantId,
-      contactId: pseudoContactId,
-      platform: "whatsapp",
-    });
-
     const { imported } = await ingestInboundContactMessage(admin, {
       restaurantId,
-      contactId: pseudoContactId,
+      contactId: identity.pseudoContactId,
       platform: "whatsapp",
       direction: "inbound",
       body: mirrorBody,
       externalSourceId: `waha:${payload.id}`,
       createdAt: wahaTimestampToIso(payload.timestamp),
       attachmentKind: mediaKind,
-      conversationLabel: sender.contactName,
+      conversationLabel,
     });
 
     await insertInboxSignalServer(admin, {
@@ -178,6 +209,63 @@ export async function handleWahaInboundWebhook(
   });
 
   return { ok: true, imported };
+}
+
+async function handleWahaOutboundMirrorWebhook(
+  admin: SupabaseClient,
+  body: WahaWebhookBody,
+): Promise<WahaWebhookResult> {
+  const payload = body.payload;
+  if (!payload?.id) {
+    return { ok: true, imported: false, reason: "no_message_id" };
+  }
+
+  let restaurantId = restaurantIdFromWebhook(body);
+  if (!restaurantId && body.session) {
+    restaurantId = await restaurantIdFromSessionName(admin, body.session);
+  }
+  if (!restaurantId) {
+    return { ok: false, imported: false, reason: "unknown_restaurant" };
+  }
+
+  const chatId = chatIdFromWahaMessagePayload(payload);
+  if (!chatId || !isWahaDirectMessageChatId(chatId)) {
+    return { ok: true, imported: false, reason: "non_direct_chat" };
+  }
+
+  const mediaKind = payload.hasMedia
+    ? wahaWebhookPayloadMediaKind(payload)
+    : null;
+  const bodyText = payload.body?.trim() ?? "";
+  const mirrorBody =
+    bodyText || whatsappMediaMirrorBody(mediaKind);
+
+  const ack =
+    typeof payload.ack === "number" && Number.isFinite(payload.ack)
+      ? payload.ack
+      : null;
+  const deliveryStatus =
+    ack != null ? wahaAckToDeliveryStatus(ack, true) : "sent";
+
+  const linked = await linkOutboundWhatsappFromWahaWebhook(admin, {
+    restaurantId,
+    chatId,
+    wahaMessageId: payload.id,
+    body: mirrorBody,
+    createdAt: wahaTimestampToIso(payload.timestamp),
+    deliveryStatus,
+  });
+
+  await insertInboxSignalServer(admin, {
+    restaurantId,
+    source: "waha_ack",
+  });
+
+  return {
+    ok: true,
+    imported: linked.imported,
+    reason: linked.linked ? "outbound_linked" : "outbound_unlinked",
+  };
 }
 
 export async function handleWahaMessageAck(

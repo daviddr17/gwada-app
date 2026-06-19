@@ -10,7 +10,7 @@ export async function upsertContactMessagingId(
   params: {
     restaurantId: string;
     contactId: string;
-    platform: "facebook" | "instagram";
+    platform: "facebook" | "instagram" | "whatsapp";
     externalSenderId: string;
     label?: string | null;
   },

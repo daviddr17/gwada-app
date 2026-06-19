@@ -221,27 +221,30 @@ export function useNotificationSummary() {
     }) => {
       if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
 
-      const isMessages = params.module === "messages";
       const summaryKey = queryKeys.notifications.summary(restaurantId);
 
-      /** Nachrichten: WAHA/IMAP erst serverseitig — kein optimistisches Badge-0. */
-      if (!isMessages) {
-        queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
-          if (!prev) return prev;
-          const modules = prev.modules
-            .map((mod) => {
-              if (mod.id !== params.module) return mod;
-              const items = mod.items.filter((i) => i.id !== params.itemId);
-              const removed = mod.items.length - items.length;
-              return {
-                ...mod,
-                items,
-                count: Math.max(0, mod.count - removed),
-              };
-            })
-            .filter((mod) => mod.count > 0);
-          const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
-          return { ...prev, modules, totalCount };
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        const modules = prev.modules
+          .map((mod) => {
+            if (mod.id !== params.module) return mod;
+            const items = mod.items.filter((i) => i.id !== params.itemId);
+            const removed = mod.items.length - items.length;
+            return {
+              ...mod,
+              items,
+              count: Math.max(0, mod.count - removed),
+            };
+          })
+          .filter((mod) => mod.count > 0);
+        const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
+        return { ...prev, modules, totalCount };
+      });
+
+      if (params.module === "messages") {
+        invalidateMessagesInboxAfterMarkRead({
+          restaurantId,
+          contactId: params.itemId ?? params.meta?.contactId,
         });
       }
 
@@ -255,17 +258,10 @@ export function useNotificationSummary() {
         { notify: false },
       );
 
-      if (result.ok && isMessages) {
-        invalidateMessagesInboxAfterMarkRead({
-          restaurantId,
-          contactId: params.itemId ?? params.meta?.contactId,
-        });
+      if (result.ok) {
         dispatchNotificationsRefresh();
-        await refresh({ silent: true });
-      } else if (!result.ok && !isMessages) {
+      } else {
         void refresh({ silent: true });
-      } else if (result.ok && !isMessages) {
-        dispatchNotificationsRefresh();
       }
 
       return result;
@@ -277,16 +273,17 @@ export function useNotificationSummary() {
     async (params: { module: NotificationModuleId }) => {
       if (!restaurantId) return { ok: false as const, error: "no_restaurant" };
 
-      const isMessages = params.module === "messages";
       const summaryKey = queryKeys.notifications.summary(restaurantId);
 
-      if (!isMessages) {
-        queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
-          if (!prev) return prev;
-          const modules = prev.modules.filter((mod) => mod.id !== params.module);
-          const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
-          return { ...prev, modules, totalCount };
-        });
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        const modules = prev.modules.filter((mod) => mod.id !== params.module);
+        const totalCount = modules.reduce((sum, m) => sum + m.count, 0);
+        return { ...prev, modules, totalCount };
+      });
+
+      if (params.module === "messages") {
+        invalidateMessagesInboxAfterMarkRead({ restaurantId, all: true });
       }
 
       const result = await markNotificationReadClient(
@@ -299,16 +296,11 @@ export function useNotificationSummary() {
       );
 
       if (!result.ok) {
-        if (!isMessages) void refresh({ silent: true });
+        void refresh({ silent: true });
         return { ok: false as const, error: "mark_module_read_failed" };
       }
 
-      if (isMessages) {
-        invalidateMessagesInboxAfterMarkRead({ restaurantId, all: true });
-        dispatchNotificationsRefresh();
-        await refresh({ silent: true });
-      }
-
+      dispatchNotificationsRefresh();
       return { ok: true as const, error: null };
     },
     [queryClient, restaurantId, refresh],

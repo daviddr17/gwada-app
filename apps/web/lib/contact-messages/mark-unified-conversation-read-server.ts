@@ -1,6 +1,10 @@
 import "server-only";
 
-import { markConversationReadServer } from "@/lib/contact-messages/mark-conversation-read-server";
+import {
+  markConversationReadDbServer,
+  syncConversationReadExternalServer,
+  type ConversationReadMarkParams,
+} from "@/lib/contact-messages/mark-conversation-read-server";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
 import { resolveRestaurantImapCredentials } from "@/lib/contact-messages/email-inbox-service";
@@ -67,7 +71,59 @@ export function platformsToMarkForConversation(
   return platforms;
 }
 
-/** Verknüpfte Kontakte: alle relevanten Kanäle (inkl. IMAP \\Seen) als gelesen markieren. */
+function readMarkParamsForConversation(
+  params: {
+    restaurantId: string;
+    userId: string;
+    conversationKey: string;
+    channelConnections?: InboxChannelConnectionFlags;
+  },
+  channelConnections: InboxChannelConnectionFlags,
+): ConversationReadMarkParams[] {
+  const platforms = isLinkedContactId(params.conversationKey)
+    ? platformsToMarkForConversation(params.conversationKey, channelConnections)
+    : [conversationChannelForRead(params.conversationKey)];
+
+  return platforms.map((platform) => ({
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    conversationKey: params.conversationKey,
+    platform,
+  }));
+}
+
+/** Verknüpfte Kontakte: alle relevanten Kanäle in DB als gelesen (parallel). */
+export async function markUnifiedInboxConversationReadDbServer(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    conversationKey: string;
+    channelConnections?: InboxChannelConnectionFlags;
+  },
+): Promise<{ error: string | null; marks: ConversationReadMarkParams[] }> {
+  const channelConnections =
+    params.channelConnections ??
+    (await resolveInboxChannelConnections(admin, params.restaurantId));
+
+  const marks = readMarkParamsForConversation(params, channelConnections);
+  const results = await Promise.all(
+    marks.map((mark) => markConversationReadDbServer(admin, mark)),
+  );
+  const firstError = results.find((r) => r.error)?.error ?? null;
+  return { error: firstError, marks };
+}
+
+export async function syncUnifiedInboxConversationReadExternalServer(
+  admin: SupabaseClient,
+  marks: ConversationReadMarkParams[],
+): Promise<void> {
+  await Promise.all(
+    marks.map((mark) => syncConversationReadExternalServer(admin, mark)),
+  );
+}
+
+/** @deprecated Prefer db + after(external) for API routes. */
 export async function markUnifiedInboxConversationReadServer(
   admin: SupabaseClient,
   params: {
@@ -77,23 +133,11 @@ export async function markUnifiedInboxConversationReadServer(
     channelConnections?: InboxChannelConnectionFlags;
   },
 ): Promise<{ error: string | null }> {
-  const channelConnections =
-    params.channelConnections ??
-    (await resolveInboxChannelConnections(admin, params.restaurantId));
-
-  const platforms = isLinkedContactId(params.conversationKey)
-    ? platformsToMarkForConversation(params.conversationKey, channelConnections)
-    : [conversationChannelForRead(params.conversationKey)];
-
-  for (const platform of platforms) {
-    const result = await markConversationReadServer(admin, {
-      restaurantId: params.restaurantId,
-      userId: params.userId,
-      conversationKey: params.conversationKey,
-      platform,
-    });
-    if (result.error) return result;
-  }
-
+  const { error, marks } = await markUnifiedInboxConversationReadDbServer(
+    admin,
+    params,
+  );
+  if (error) return { error };
+  await syncUnifiedInboxConversationReadExternalServer(admin, marks);
   return { error: null };
 }

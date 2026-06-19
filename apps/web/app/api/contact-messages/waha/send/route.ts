@@ -22,6 +22,8 @@ export async function POST(req: Request) {
   let attachmentFiles: OutboundAttachmentFile[] = [];
   let voiceFile: OutboundAttachmentFile | undefined;
 
+  let clientSendId = "";
+
   const multipart = await parseMultipartSend(req);
   if (multipart) {
     const parsedFiles = await parseOutboundAttachmentFiles(multipart.files);
@@ -41,6 +43,7 @@ export async function POST(req: Request) {
     wahaContactId = multipart.fields.wahaContactId?.trim() ?? "";
     contactId = multipart.fields.contactId?.trim() ?? "";
     storeUnderContact = multipart.fields.storeUnderContact !== "false";
+    clientSendId = multipart.fields.clientSendId?.trim() ?? "";
   } else {
     const body = (await req.json().catch(() => ({}))) as {
       restaurantId?: string;
@@ -48,12 +51,14 @@ export async function POST(req: Request) {
       contactId?: string;
       messageBody?: string;
       storeUnderContact?: boolean;
+      clientSendId?: string;
     };
     restaurantId = body.restaurantId?.trim() ?? "";
     messageBody = body.messageBody?.trim() ?? "";
     wahaContactId = body.wahaContactId?.trim() ?? "";
     contactId = body.contactId?.trim() ?? "";
     storeUnderContact = body.storeUnderContact !== false;
+    clientSendId = body.clientSendId?.trim() ?? "";
   }
 
   if (
@@ -102,10 +107,12 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const result = await sendWahaMessageServer({
+  const result = await sendWahaMessageServer(admin, {
     restaurantId,
     wahaContactId,
     body: messageBody,
+    sentBy: auth.userId,
+    clientSendId: clientSendId || undefined,
     attachmentFiles,
     voiceFile,
   });

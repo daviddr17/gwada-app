@@ -14,6 +14,10 @@ import {
 } from "@/lib/reservations/reservation-email-dispatch";
 import { fetchReservationForWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
+import {
+  finalizeOutboundWhatsappMessage,
+  insertPendingOutboundWhatsappMessage,
+} from "@/lib/contact-messages/outbound-whatsapp-db-server";
 import { storeGwadaMessageAttachments } from "@/lib/contact-messages/gwada-message-attachments-server";
 import {
   sendWhatsappAttachmentFiles,
@@ -50,6 +54,7 @@ export type SendContactMessageServerInput = {
   restaurantName?: string | null;
   attachmentFiles?: OutboundAttachmentFile[];
   voiceFile?: OutboundAttachmentFile;
+  clientSendId?: string;
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
@@ -232,79 +237,7 @@ export async function sendContactMessageServer(
     }
 
     if (channel === "whatsapp") {
-      let deliveryStatus = "pending";
-      let sendError: string | null = null;
-
-      if (input.direction === "outbound") {
-        const sessionOk = await isWhatsappSessionWorking(input.restaurantId);
-        const chatId = await resolveWhatsappChatId(admin, {
-          restaurantId: input.restaurantId,
-          contactId: input.contactId,
-          reservationId: input.reservationId,
-        });
-
-        if (!sessionOk) {
-          deliveryStatus = "failed";
-          sendError = "session_not_working";
-          errors.push("whatsapp:session_not_working");
-        } else if (!chatId) {
-          deliveryStatus = "failed";
-          sendError = "no_phone";
-          errors.push("whatsapp:no_phone");
-        } else if (voiceFile) {
-          const sent = await sendWhatsappVoiceNote({
-            restaurantId: input.restaurantId,
-            chatId,
-            file: voiceFile,
-          });
-          if (sent.ok) {
-            deliveryStatus = "sent";
-          } else {
-            deliveryStatus = "failed";
-            sendError = sent.error;
-            errors.push(`whatsapp:${sent.error}`);
-          }
-        } else if (attachmentFiles.length > 0) {
-          const sent = await sendWhatsappAttachmentFiles({
-            restaurantId: input.restaurantId,
-            chatId,
-            files: attachmentFiles,
-            caption: externalText || undefined,
-          });
-          if (sent.ok) {
-            deliveryStatus = "sent";
-          } else {
-            deliveryStatus = "failed";
-            sendError = sent.errors[0] ?? "send_failed";
-            errors.push(...sent.errors);
-          }
-        } else {
-          const sent = await wahaSendText({
-            restaurantId: input.restaurantId,
-            chatId,
-            text: externalText,
-          });
-          if (sent.ok) {
-            deliveryStatus = "sent";
-          } else {
-            deliveryStatus = "failed";
-            sendError = sent.error;
-            errors.push(`whatsapp:${sent.error}`);
-          }
-        }
-      } else {
-        deliveryStatus = "delivered";
-      }
-
-      const voiceOnlyOutbound =
-        input.direction === "outbound" &&
-        voiceFile &&
-        !body &&
-        attachmentFiles.length === 0;
-      const skipWhatsappDbMirror =
-        voiceOnlyOutbound && deliveryStatus === "sent";
-
-      if (!skipWhatsappDbMirror) {
+      if (input.direction !== "outbound") {
         const { id, error } = await insertMessage(admin, {
           restaurant_id: input.restaurantId,
           contact_id: input.contactId,
@@ -313,22 +246,110 @@ export async function sendContactMessageServer(
           body: body || " ",
           reservation_id: input.reservationId ?? null,
           sent_by: input.sentBy ?? null,
-          delivery_status: deliveryStatus,
+          delivery_status: "delivered",
           send_batch_id: sendBatchId,
         });
         if (error) errors.push(`whatsapp_db:${error}`);
-        else if (id && attachmentFiles.length > 0 && input.direction === "outbound") {
-          const stored = await storeGwadaMessageAttachments(admin, {
+        continue;
+      }
+
+      const sessionOk = await isWhatsappSessionWorking(input.restaurantId);
+      const chatId = await resolveWhatsappChatId(admin, {
+        restaurantId: input.restaurantId,
+        contactId: input.contactId,
+        reservationId: input.reservationId,
+      });
+
+      const mirrorBody =
+        externalText ||
+        (voiceFile ? "Sprachnachricht" : attachmentFiles.length > 0 ? " " : " ");
+
+      const pending = await insertPendingOutboundWhatsappMessage(admin, {
+        restaurantId: input.restaurantId,
+        threadContactId: input.contactId,
+        body: mirrorBody,
+        sentBy: input.sentBy ?? null,
+        clientSendId: input.clientSendId,
+        sendBatchId,
+        deliveryStatus:
+          !sessionOk ? "failed" : !chatId ? "failed" : "pending",
+      });
+
+      if (!pending.ok) {
+        errors.push(`whatsapp_db:${pending.error}`);
+        continue;
+      }
+
+      if (!sessionOk) {
+        errors.push("whatsapp:session_not_working");
+        continue;
+      }
+      if (!chatId) {
+        errors.push("whatsapp:no_phone");
+        continue;
+      }
+
+      if (attachmentFiles.length > 0) {
+        const stored = await storeGwadaMessageAttachments(admin, {
+          restaurantId: input.restaurantId,
+          messageId: pending.messageId,
+          files: attachmentFiles,
+        });
+        if (stored.error) {
+          await finalizeOutboundWhatsappMessage(admin, {
             restaurantId: input.restaurantId,
-            messageId: id,
-            files: attachmentFiles,
+            messageId: pending.messageId,
+            deliveryStatus: "failed",
           });
-          if (stored.error) errors.push(`whatsapp_attachments:${stored.error}`);
+          errors.push(`whatsapp_attachments:${stored.error}`);
+          continue;
         }
       }
-      if (sendError && deliveryStatus === "failed") {
-        /* already in errors */
+
+      let wahaMessageId: string | null = null;
+      let deliveryStatus: "sent" | "failed" = "sent";
+
+      if (voiceFile) {
+        const sent = await sendWhatsappVoiceNote({
+          restaurantId: input.restaurantId,
+          chatId,
+          file: voiceFile,
+        });
+        if (!sent.ok) {
+          deliveryStatus = "failed";
+          errors.push(`whatsapp:${sent.error}`);
+        }
+      } else if (attachmentFiles.length > 0) {
+        const sent = await sendWhatsappAttachmentFiles({
+          restaurantId: input.restaurantId,
+          chatId,
+          files: attachmentFiles,
+          caption: externalText || undefined,
+        });
+        if (!sent.ok) {
+          deliveryStatus = "failed";
+          errors.push(...sent.errors);
+        }
+      } else {
+        const sent = await wahaSendText({
+          restaurantId: input.restaurantId,
+          chatId,
+          text: externalText,
+        });
+        if (!sent.ok) {
+          deliveryStatus = "failed";
+          errors.push(`whatsapp:${sent.error}`);
+        } else {
+          wahaMessageId = sent.wahaMessageId ?? null;
+        }
       }
+
+      await finalizeOutboundWhatsappMessage(admin, {
+        restaurantId: input.restaurantId,
+        messageId: pending.messageId,
+        deliveryStatus,
+        wahaMessageId,
+      });
       continue;
     }
 

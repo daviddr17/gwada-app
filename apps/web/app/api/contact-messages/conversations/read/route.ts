@@ -1,8 +1,12 @@
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
 import {
-  markConversationReadServer,
+  markConversationReadDbServer,
+  syncConversationReadExternalServer,
 } from "@/lib/contact-messages/mark-conversation-read-server";
-import { markUnifiedInboxConversationReadServer } from "@/lib/contact-messages/mark-unified-conversation-read-server";
+import {
+  markUnifiedInboxConversationReadDbServer,
+  syncUnifiedInboxConversationReadExternalServer,
+} from "@/lib/contact-messages/mark-unified-conversation-read-server";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -10,6 +14,7 @@ import {
   isContactMessagePlatform,
   type ContactMessagePlatform,
 } from "@/lib/constants/contact-message-platforms";
+import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   if (isLinkedContactId(conversationKey)) {
-    const result = await markUnifiedInboxConversationReadServer(admin, {
+    const result = await markUnifiedInboxConversationReadDbServer(admin, {
       restaurantId: auth.restaurantId,
       userId: auth.userId,
       conversationKey,
@@ -52,6 +57,9 @@ export async function POST(req: Request) {
     if (result.error) {
       return Response.json({ error: result.error }, { status: 502 });
     }
+    after(() =>
+      syncUnifiedInboxConversationReadExternalServer(admin, result.marks),
+    );
     return Response.json({ ok: true });
   }
 
@@ -63,15 +71,17 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const result = await markConversationReadServer(admin, {
+  const markParams = {
     restaurantId: auth.restaurantId,
     userId: auth.userId,
     conversationKey,
     platform: readPlatform as ContactMessagePlatform,
-  });
+  };
+  const result = await markConversationReadDbServer(admin, markParams);
 
   if (result.error) {
     return Response.json({ error: result.error }, { status: 502 });
   }
+  after(() => syncConversationReadExternalServer(admin, markParams));
   return Response.json({ ok: true });
 }

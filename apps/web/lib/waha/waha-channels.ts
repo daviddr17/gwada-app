@@ -13,6 +13,16 @@ export type WahaChannel = {
   role?: string | null;
 };
 
+export type WahaCreateChannelInput = {
+  name: string;
+  description?: string | null;
+  picture?: {
+    mimetype: string;
+    filename: string;
+    url: string;
+  } | null;
+};
+
 type WahaMessage = {
   id?: string;
   timestamp?: number;
@@ -26,19 +36,36 @@ type WahaMessage = {
 async function wahaJson<T>(
   config: WahaServerConfig,
   path: string,
+  init?: RequestInit,
 ): Promise<{ ok: true; data: T } | { ok: false; error: string }> {
   const url = `${config.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
   let res: Response;
   try {
     res = await fetch(url, {
-      headers: { Accept: "application/json", "X-Api-Key": config.apiKey },
+      ...init,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Api-Key": config.apiKey,
+        ...(init?.headers ?? {}),
+      },
       cache: "no-store",
     });
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "fetch_failed" };
   }
   if (!res.ok) {
-    return { ok: false, error: `waha_${res.status}` };
+    let error = `waha_${res.status}`;
+    try {
+      const body = (await res.json()) as { message?: string; error?: string };
+      error = body.message ?? body.error ?? error;
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, error };
+  }
+  if (res.status === 204) {
+    return { ok: true, data: {} as T };
   }
   return { ok: true, data: (await res.json()) as T };
 }
@@ -57,6 +84,42 @@ export async function listWahaChannelsForRestaurant(
   );
   if (!result.ok) return { error: result.error };
   return { channels: result.data ?? [] };
+}
+
+/** WhatsApp-Newsletter-Kanal anlegen (WAHA Plus, @newsletter). */
+export async function createWahaChannelForRestaurant(
+  restaurantId: string,
+  input: WahaCreateChannelInput,
+): Promise<{ channel: WahaChannel } | { error: string }> {
+  const name = input.name.trim();
+  if (!name) return { error: "invalid_channel_name" };
+
+  const config = await getWahaServerConfigAdmin();
+  if (!config) return { error: "waha_not_configured" };
+
+  const session = wahaSessionNameForRestaurant(restaurantId);
+  const body: Record<string, unknown> = { name };
+  const description = input.description?.trim();
+  if (description) body.description = description;
+  if (input.picture?.url?.trim()) {
+    body.picture = {
+      mimetype: input.picture.mimetype,
+      filename: input.picture.filename,
+      url: input.picture.url.trim(),
+    };
+  }
+
+  const result = await wahaJson<WahaChannel>(
+    config,
+    `/api/${encodeURIComponent(session)}/channels`,
+    {
+      method: "POST",
+      body: JSON.stringify(body),
+    },
+  );
+  if (!result.ok) return { error: result.error };
+  if (!result.data?.id?.trim()) return { error: "waha_channel_create_failed" };
+  return { channel: result.data };
 }
 
 export async function fetchWahaChannelMessages(

@@ -1,4 +1,5 @@
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import { clientOutboundExternalSourceId } from "@/lib/contact-messages/outbound-whatsapp-client-id";
 import {
   bodiesIndicateSameWhatsappSend,
   dedupeWhatsappOutboundThreadRows,
@@ -111,7 +112,7 @@ export function createOptimisticOutboundWhatsappMessage(params: {
     sent_by: null,
     delivery_status: "pending",
     created_at: new Date().toISOString(),
-    external_source_id: `${OPTIMISTIC_MESSAGE_ID_PREFIX}${clientId}`,
+    external_source_id: clientOutboundExternalSourceId(clientId),
     waha_ack: null,
     attachments,
   };
@@ -195,6 +196,12 @@ function findBestLoadedMatchForOptimistic(
 
   for (const message of loaded) {
     if (usedLoadedIds.has(message.id)) continue;
+    if (
+      optimistic.external_source_id &&
+      message.external_source_id === optimistic.external_source_id
+    ) {
+      return message;
+    }
     if (!messagesMatchForOptimisticReplace(optimistic, message)) continue;
 
     const loadedTime = Date.parse(message.created_at);

@@ -18,8 +18,8 @@ import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-ki
 import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import {
   conversationThreadKeyFromRow,
-  defaultConversationLabel,
 } from "@/lib/contact-messages/conversation-thread-key";
+import { displayNameForPseudoConversation } from "@/lib/contact-messages/waha-chat-label";
 import type {
   ContactMessageAttachment,
   ContactMessageAttachmentKind,
@@ -331,10 +331,15 @@ export async function fetchContactConversations(params: {
       : (contactRaw as { first_name: string; last_name: string } | null);
 
     const conversationKey = row.conversation_key as string | null;
+    const storedLabel = (row.conversation_label as string | null)?.trim() || null;
     const contactName = contact
       ? contactDisplayName(contact)
-      : (row.conversation_label as string | null)?.trim() ||
-        (conversationKey ? defaultConversationLabel(conversationKey) : "Chat");
+      : conversationKey
+        ? displayNameForPseudoConversation({
+            conversationKey,
+            storedLabel,
+          })
+        : storedLabel || "Chat";
 
     const mirrored =
       ext.startsWith("waha:") || msgPlatform === "whatsapp"

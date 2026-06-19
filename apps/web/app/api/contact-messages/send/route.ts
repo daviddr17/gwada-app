@@ -27,6 +27,7 @@ export async function POST(req: Request) {
   let restaurantName: string | null = null;
   let attachmentFiles: OutboundAttachmentFile[] = [];
   let voiceFile: OutboundAttachmentFile | undefined;
+  let clientSendId = "";
 
   const multipart = await parseMultipartSend(req);
   if (multipart) {
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
       );
     reservationId = multipart.fields.reservationId?.trim() || null;
     restaurantName = multipart.fields.restaurantName?.trim() || null;
+    clientSendId = multipart.fields.clientSendId?.trim() ?? "";
   } else {
     const body = (await req.json().catch(() => ({}))) as {
       restaurantId?: string;
@@ -78,6 +80,7 @@ export async function POST(req: Request) {
       )[];
       reservationId?: string | null;
       restaurantName?: string | null;
+      clientSendId?: string;
     };
     restaurantId = body.restaurantId?.trim() ?? "";
     contactId = body.contactId?.trim() ?? "";
@@ -86,6 +89,7 @@ export async function POST(req: Request) {
     channels = body.channels ?? [];
     reservationId = body.reservationId?.trim() || null;
     restaurantName = body.restaurantName?.trim() || null;
+    clientSendId = body.clientSendId?.trim() ?? "";
   }
 
   if (
@@ -144,6 +148,7 @@ export async function POST(req: Request) {
     restaurantName,
     attachmentFiles,
     voiceFile,
+    clientSendId: clientSendId || undefined,
   });
 
   return Response.json(result);

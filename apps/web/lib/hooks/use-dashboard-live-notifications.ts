@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { applyInboundMessageToInboxCache } from "@/lib/contact-messages/apply-inbound-to-inbox-cache";
+import { isInboxLiveToastSuppressedByOpenThread } from "@/lib/contact-messages/inbox-live-toast-gate";
 import {
   dispatchDashboardMessagesRefresh,
   dispatchDashboardWahaMetadataRefresh,
@@ -64,6 +65,7 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
     };
 
     const maybeShowToast = () => {
+      if (isInboxLiveToastSuppressedByOpenThread()) return;
       if (toastRef.current) return;
       toastRef.current = true;
       toast.info("Neue Nachricht", {

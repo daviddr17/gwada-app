@@ -2,8 +2,8 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
 import {
   conversationThreadKeyFromRow,
-  defaultConversationLabel,
 } from "@/lib/contact-messages/conversation-thread-key";
+import { displayNameForPseudoConversation } from "@/lib/contact-messages/waha-chat-label";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
 import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
@@ -95,10 +95,15 @@ export function buildContactConversationsFromRows(params: {
       : (contactRaw as { first_name: string; last_name: string } | null);
 
     const conversationKey = raw.conversation_key as string | null;
+    const storedLabel = (raw.conversation_label as string | null)?.trim() || null;
     const contactName = contact
       ? contactDisplayName(contact)
-      : (raw.conversation_label as string | null)?.trim() ||
-        (conversationKey ? defaultConversationLabel(conversationKey) : "Chat");
+      : conversationKey
+        ? displayNameForPseudoConversation({
+            conversationKey,
+            storedLabel,
+          })
+        : storedLabel || "Chat";
 
     const mirrored =
       ext.startsWith("waha:") || msgPlatform === "whatsapp"

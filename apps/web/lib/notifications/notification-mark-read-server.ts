@@ -1,10 +1,19 @@
 import "server-only";
 
+import { after } from "next/server";
 import { markAllChangelogReadForUserServer } from "@/lib/changelog/mark-all-changelog-read-server";
-import { markAllConversationsReadForUserServer } from "@/lib/contact-messages/mark-all-conversations-read-server";
 import {
-  markUnifiedInboxConversationReadServer,
+  markAllConversationsReadDbForUserServer,
+  syncAllConversationsReadExternalServer,
+} from "@/lib/contact-messages/mark-all-conversations-read-server";
+import {
+  markConversationReadDbServer,
+  syncConversationReadExternalServer,
+} from "@/lib/contact-messages/mark-conversation-read-server";
+import {
+  markUnifiedInboxConversationReadDbServer,
   resolveInboxChannelConnections,
+  syncUnifiedInboxConversationReadExternalServer,
 } from "@/lib/contact-messages/mark-unified-conversation-read-server";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
@@ -28,10 +37,7 @@ import {
 } from "@/lib/notifications/notification-staff-shift-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
-import { markConversationReadServer } from "@/lib/contact-messages/mark-conversation-read-server";
-import {
-  isContactMessagePlatform,
-} from "@/lib/constants/contact-message-platforms";
+import { isContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -60,11 +66,15 @@ export async function markNotificationReadServer(
   switch (module) {
     case "messages": {
       if (!itemId) {
-        const all = await markAllConversationsReadForUserServer(admin, {
+        const all = await markAllConversationsReadDbForUserServer(admin, {
           restaurantId,
           userId,
         });
-        return all.error ? { ok: false, error: all.error } : { ok: true };
+        if (all.error) return { ok: false, error: all.error };
+        after(() =>
+          syncAllConversationsReadExternalServer(admin, all.marks),
+        );
+        return { ok: true };
       }
       const contactId = itemId ?? meta?.contactId;
       if (!contactId) {
@@ -76,13 +86,17 @@ export async function markNotificationReadServer(
           admin,
           restaurantId,
         );
-        const result = await markUnifiedInboxConversationReadServer(admin, {
+        const result = await markUnifiedInboxConversationReadDbServer(admin, {
           restaurantId,
           userId,
           conversationKey: contactId,
           channelConnections,
         });
-        return result.error ? { ok: false, error: result.error } : { ok: true };
+        if (result.error) return { ok: false, error: result.error };
+        after(() =>
+          syncUnifiedInboxConversationReadExternalServer(admin, result.marks),
+        );
+        return { ok: true };
       }
 
       const platformRaw =
@@ -90,13 +104,16 @@ export async function markNotificationReadServer(
       if (!isContactMessagePlatform(platformRaw)) {
         return { ok: false, error: "invalid_request" };
       }
-      const result = await markConversationReadServer(admin, {
+      const markParams = {
         restaurantId,
         userId,
         conversationKey: contactId,
         platform: platformRaw,
-      });
-      return result.error ? { ok: false, error: result.error } : { ok: true };
+      };
+      const result = await markConversationReadDbServer(admin, markParams);
+      if (result.error) return { ok: false, error: result.error };
+      after(() => syncConversationReadExternalServer(admin, markParams));
+      return { ok: true };
     }
 
     case "reviews": {

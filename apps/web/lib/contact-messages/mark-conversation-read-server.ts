@@ -11,6 +11,13 @@ import { wahaChatIdFromPseudoContactId } from "@/lib/contact-messages/whatsapp-p
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type ConversationReadMarkParams = {
+  restaurantId: string;
+  userId: string;
+  conversationKey: string;
+  platform: ContactMessagePlatform;
+};
+
 async function whatsappChatIdForConversation(
   admin: SupabaseClient,
   params: { restaurantId: string; conversationKey: string },
@@ -25,14 +32,10 @@ async function whatsappChatIdForConversation(
   return phone ? guestPhoneToWhatsAppChatId(phone) : null;
 }
 
-export async function markConversationReadServer(
+/** Nur DB (contact_conversation_reads + external_seen) — schnell für UI/API-Response. */
+export async function markConversationReadDbServer(
   admin: SupabaseClient,
-  params: {
-    restaurantId: string;
-    userId: string;
-    conversationKey: string;
-    platform: ContactMessagePlatform;
-  },
+  params: ConversationReadMarkParams,
 ): Promise<{ error: string | null }> {
   const now = new Date().toISOString();
   const { error } = await upsertConversationRead(admin, {
@@ -45,51 +48,77 @@ export async function markConversationReadServer(
   });
   if (error) return { error };
 
-  if (params.platform === "whatsapp") {
-    const chatId = await whatsappChatIdForConversation(admin, {
-      restaurantId: params.restaurantId,
-      conversationKey: params.conversationKey,
-    });
-    if (chatId) {
-      const config = await getWahaServerConfigAdmin();
-      if (config) {
-        const waha = await wahaMarkChatAsRead({
-          config,
-          restaurantId: params.restaurantId,
-          chatId,
-        });
-        if (!waha.ok) return { error: waha.error };
-      }
-    }
-  }
-
   if (params.platform === "email") {
     await setEmailThreadExternalSeenInDb(admin, {
       restaurantId: params.restaurantId,
       conversationKey: params.conversationKey,
       seen: true,
     });
+  }
+
+  return { error: null };
+}
+
+/** WAHA / IMAP nachträglich — Fehler nur loggen, nicht an Client zurückgeben. */
+export async function syncConversationReadExternalServer(
+  admin: SupabaseClient,
+  params: ConversationReadMarkParams,
+): Promise<void> {
+  if (params.platform === "whatsapp") {
+    const chatId = await whatsappChatIdForConversation(admin, {
+      restaurantId: params.restaurantId,
+      conversationKey: params.conversationKey,
+    });
+    if (!chatId) return;
+
+    const config = await getWahaServerConfigAdmin();
+    if (!config) return;
+
+    const waha = await wahaMarkChatAsRead({
+      config,
+      restaurantId: params.restaurantId,
+      chatId,
+    });
+    if (!waha.ok) {
+      console.warn(
+        "[gwada] mark-read whatsapp",
+        params.conversationKey,
+        waha.error,
+      );
+    }
+    return;
+  }
+
+  if (params.platform === "email") {
     const imap = await syncEmailThreadSeenOnImap(admin, {
       restaurantId: params.restaurantId,
       contactId: params.conversationKey,
       seen: true,
     });
     if (imap.error && imap.error !== "no_contact_email") {
-      return { error: imap.error };
+      console.warn(
+        "[gwada] mark-read imap",
+        params.conversationKey,
+        imap.error,
+      );
     }
   }
+}
 
+/** Vollständig synchron (DB + extern) — nur wenn Response auf extern warten soll. */
+export async function markConversationReadServer(
+  admin: SupabaseClient,
+  params: ConversationReadMarkParams,
+): Promise<{ error: string | null }> {
+  const db = await markConversationReadDbServer(admin, params);
+  if (db.error) return db;
+  await syncConversationReadExternalServer(admin, params);
   return { error: null };
 }
 
 export async function markConversationUnreadServer(
   admin: SupabaseClient,
-  params: {
-    restaurantId: string;
-    userId: string;
-    conversationKey: string;
-    platform: ContactMessagePlatform;
-  },
+  params: ConversationReadMarkParams,
 ): Promise<{ error: string | null }> {
   const now = new Date().toISOString();
   const { error } = await upsertConversationRead(admin, {

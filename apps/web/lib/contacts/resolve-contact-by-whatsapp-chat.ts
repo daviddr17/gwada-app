@@ -2,7 +2,7 @@ import "server-only";
 
 import { normalizeContactPhone } from "@/lib/contacts/normalize-contact-identity";
 import { digitsFromWhatsAppChatId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
-import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
+import { isWahaDirectMessageChatId, isWahaLidChatId } from "@/lib/waha/waha-lids";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export function whatsappChatIdFromPayloadAddress(
@@ -23,6 +23,19 @@ export async function resolveContactIdByWhatsappChat(
 ): Promise<string | null> {
   const chatId = params.chatId.trim();
   if (!chatId || !isWahaDirectMessageChatId(chatId)) return null;
+
+  if (isWahaLidChatId(chatId)) {
+    const { data: lidRow } = await admin
+      .from("contact_messaging_ids")
+      .select("contact_id")
+      .eq("restaurant_id", params.restaurantId)
+      .eq("platform", "whatsapp")
+      .eq("external_sender_id", chatId)
+      .maybeSingle();
+    if (lidRow) {
+      return (lidRow as { contact_id: string }).contact_id;
+    }
+  }
 
   const digits =
     digitsFromWhatsAppChatId(chatId) ?? chatId.replace(/\D/g, "");

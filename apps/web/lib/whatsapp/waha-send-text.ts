@@ -1,3 +1,4 @@
+import { parseWahaSendResponseMessageId } from "@/lib/contact-messages/outbound-whatsapp-db-server";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
 
@@ -5,7 +6,10 @@ export async function wahaSendText(params: {
   restaurantId: string;
   chatId: string;
   text: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<
+  | { ok: true; wahaMessageId?: string | null }
+  | { ok: false; error: string }
+> {
   const config = await getWahaServerConfigAdmin();
   if (!config) {
     return { ok: false, error: "waha_not_configured" };
@@ -46,5 +50,13 @@ export async function wahaSendText(params: {
     return { ok: false, error };
   }
 
-  return { ok: true };
+  let wahaMessageId: string | null = null;
+  try {
+    const body = await res.json();
+    wahaMessageId = parseWahaSendResponseMessageId(body);
+  } catch {
+    /* leerer Body — Webhook verknüpft später */
+  }
+
+  return { ok: true, wahaMessageId };
 }

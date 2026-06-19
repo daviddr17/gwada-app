@@ -27,6 +27,7 @@ export async function triggerSendContactMessage(body: {
   )[];
   reservationId?: string | null;
   restaurantName?: string | null;
+  clientSendId?: string;
   files?: File[];
   voiceNote?: File;
 }): Promise<SendContactMessageApiResult | null> {
@@ -45,6 +46,7 @@ export async function triggerSendContactMessage(body: {
         channels: body.channels.join(","),
         reservationId: body.reservationId ?? undefined,
         restaurantName: body.restaurantName ?? undefined,
+        clientSendId: body.clientSendId,
       });
       for (const file of body.files ?? []) fd.append("files", file);
       if (body.voiceNote) fd.append("voiceNote", body.voiceNote);
@@ -218,6 +220,7 @@ export async function triggerWahaSendMessage(body: {
   wahaContactId?: string;
   contactId?: string;
   messageBody: string;
+  clientSendId?: string;
   storeUnderContact?: boolean;
   files?: File[];
   voiceNote?: File;
@@ -234,6 +237,7 @@ export async function triggerWahaSendMessage(body: {
         wahaContactId: body.wahaContactId,
         contactId: body.contactId,
         messageBody: body.messageBody,
+        clientSendId: body.clientSendId,
         storeUnderContact:
           body.storeUnderContact === false ? "false" : undefined,
       });

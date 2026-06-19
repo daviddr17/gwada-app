@@ -5,6 +5,10 @@ import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { EmbedProfilePlatformToggles } from "@/components/embed/embed-profile-platform-toggles";
 import { EmbedNewsWidget } from "@/components/embed/embed-news-widget";
+import {
+  CreateWhatsappNewsChannelDialog,
+  CreateWhatsappNewsChannelTrigger,
+} from "@/components/news/create-whatsapp-news-channel-dialog";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Button } from "@/components/ui/button";
 import {
@@ -105,6 +109,17 @@ export function NewsSettingsPanel() {
   const [settings, setSettings] = useState<NewsSettings>(defaultNewsSettings);
   const [savedSettings, setSavedSettings] = useState<NewsSettings>(defaultNewsSettings);
   const [channelsOpen, setChannelsOpen] = useState(false);
+  const [createChannelOpen, setCreateChannelOpen] = useState(false);
+
+  const whatsappConnected = useMemo(
+    () =>
+      connectors.some(
+        (connector) => connector.key === "whatsapp_channel" && connector.connected,
+      ),
+    [connectors],
+  );
+
+  const canCreateWhatsappChannel = whatsappConnected && channels.length === 0;
 
   const dirty = useMemo(
     () => JSON.stringify(settings) !== JSON.stringify(savedSettings),
@@ -333,9 +348,21 @@ export function NewsSettingsPanel() {
                   <PopoverContent className="w-80 p-2">
                     <div className="max-h-56 space-y-1 overflow-y-auto">
                       {channels.length === 0 ? (
-                        <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                          Keine OWNER-Kanäle gefunden. WhatsApp-Integration prüfen.
-                        </p>
+                        <div className="space-y-2 px-2 py-1.5">
+                          <p className="text-sm text-muted-foreground">
+                            {whatsappConnected
+                              ? "Noch kein WhatsApp-Newsletter-Kanal — hier anlegen."
+                              : "Keine OWNER-Kanäle gefunden. WhatsApp zuerst unter Integrationen verbinden."}
+                          </p>
+                          {canCreateWhatsappChannel ? (
+                            <CreateWhatsappNewsChannelTrigger
+                              onClick={() => {
+                                setChannelsOpen(false);
+                                setCreateChannelOpen(true);
+                              }}
+                            />
+                          ) : null}
+                        </div>
                       ) : (
                         channels.map((channel) => {
                           const checked = settings.whatsapp_channel_ids.includes(
@@ -384,9 +411,30 @@ export function NewsSettingsPanel() {
               OWNER-Kanäle für Lesen und Posten. Leer = alle OWNER-Kanäle automatisch.
               Posten nutzt den ersten ausgewählten Kanal.
             </p>
+            {canCreateWhatsappChannel ? (
+              <CreateWhatsappNewsChannelTrigger
+                onClick={() => setCreateChannelOpen(true)}
+              />
+            ) : null}
           </div>
         </CardContent>
       </Card>
+
+      <CreateWhatsappNewsChannelDialog
+        restaurantId={restaurantId}
+        open={createChannelOpen}
+        onOpenChange={setCreateChannelOpen}
+        onCreated={({ channel, whatsappChannelIds }) => {
+          setChannels([{ id: channel.id, name: channel.name }]);
+          const next = cloneNewsSettings({
+            ...settings,
+            whatsapp_channel_ids: whatsappChannelIds,
+          });
+          setSettings(next);
+          setSavedSettings(next);
+          void load();
+        }}
+      />
 
       <Card className="border-border/50 shadow-card">
         <CardHeader className="gap-2">

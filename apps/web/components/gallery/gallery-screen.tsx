@@ -63,7 +63,9 @@ export function GalleryScreen() {
   const [categories, setCategories] = useState<GalleryCategoryOption[]>([]);
   const [syncMeta, setSyncMeta] = useState<GalleryFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
-  const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
+  const showFeedSkeleton = useDeferredSkeleton(
+    loading && items.length === 0 && !permissionsLoading,
+  );
   const loadGeneration = useRef(0);
 
   const applyCachedFeed = useCallback((cached: GalleryFeedCachePayload) => {
@@ -92,11 +94,6 @@ export function GalleryScreen() {
   const load = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!restaurantId) return;
-      if (permissionsLoading) return;
-      if (!canRead) {
-        setLoading(false);
-        return;
-      }
       const generation = ++loadGeneration.current;
       const cached = peekGalleryFeedCache(restaurantId);
       const silent = options?.silent ?? false;
@@ -122,7 +119,7 @@ export function GalleryScreen() {
         };
         if (generation !== loadGeneration.current) return;
         if (!res.ok) {
-          if (!silent && !cached) {
+          if (!silent && !cached && res.status !== 403) {
             toast.error("Galerie konnte nicht geladen werden");
           }
           return;
@@ -147,13 +144,13 @@ export function GalleryScreen() {
         }
       }
     },
-    [restaurantId, permissionsLoading, canRead, applyCachedFeed],
+    [restaurantId, applyCachedFeed],
   );
 
   useEffect(() => {
-    if (!restaurantId || permissionsLoading) return;
+    if (!restaurantId || !ready) return;
     void load();
-  }, [restaurantId, permissionsLoading, canRead, load]);
+  }, [restaurantId, ready, load]);
 
   useEffect(() => {
     setPage(1);
@@ -212,8 +209,10 @@ export function GalleryScreen() {
     void load();
   }, [restaurantId, selectedItem, load]);
 
+  if (!ready) {
+    return <WorkspaceRestaurantResolvePlaceholder />;
+  }
   if (!restaurantId) {
-    if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
     return <WorkspaceRestaurantMissingMessage />;
   }
   if (!permissionsLoading && !canRead) {
@@ -267,41 +266,43 @@ export function GalleryScreen() {
         </Button>
       ) : null}
 
-      <ListPaginationSurround
-        classNameAbove="pt-2"
-        classNameBelow="pb-2"
-        page={currentPage}
-        totalPages={totalPages}
-        shown={paginatedItems.length}
-        totalCount={filtered.length}
-        itemLabel="Bilder"
-        canPrevious={currentPage > 1}
-        canNext={currentPage < totalPages}
-        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-      >
-        {loading && items.length === 0 && !showFeedSkeleton ? (
-          <div
-            className="min-h-[12rem] rounded-2xl border border-border/50"
-            aria-busy
-            aria-label="Galerie wird geladen"
-          />
-        ) : showFeedSkeleton ? (
-          <GalleryMasonryGridSkeleton count={6} />
-        ) : paginatedItems.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            {syncMeta?.stale ? "Synchronisiere Galerie …" : "Noch keine Bilder in dieser Ansicht."}
-          </p>
-        ) : (
-          <GalleryMasonryGrid
-            items={paginatedItems}
-            onItemClick={(item) => {
-              setSelectedItem(item);
-              setSheetOpen(true);
-            }}
-          />
-        )}
-      </ListPaginationSurround>
+      {showFeedSkeleton ? (
+        <GalleryMasonryGridSkeleton count={4} />
+      ) : (
+        <ListPaginationSurround
+          classNameAbove="pt-2"
+          classNameBelow="pb-2"
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginatedItems.length}
+          totalCount={filtered.length}
+          itemLabel="Bilder"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          {loading && items.length === 0 ? (
+            <div
+              className="min-h-[8rem] rounded-2xl border border-border/50"
+              aria-busy
+              aria-label="Galerie wird geladen"
+            />
+          ) : paginatedItems.length === 0 ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">
+              {syncMeta?.stale ? "Synchronisiere Galerie …" : "Noch keine Bilder in dieser Ansicht."}
+            </p>
+          ) : (
+            <GalleryMasonryGrid
+              items={paginatedItems}
+              onItemClick={(item) => {
+                setSelectedItem(item);
+                setSheetOpen(true);
+              }}
+            />
+          )}
+        </ListPaginationSurround>
+      )}
 
       <GalleryComposeDrawer
         open={composeOpen}
@@ -325,6 +326,7 @@ export function GalleryScreen() {
           }
           void load();
         }}
+        onHighlightsChanged={() => void load({ silent: true })}
       />
 
       <GalleryHighlightComposeDrawer

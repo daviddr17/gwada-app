@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
+import { GalleryHighlightAssignSection } from "@/components/gallery/gallery-highlight-assign-section";
 import { GALLERY_PLATFORM_LABELS } from "@/lib/constants/gallery-platforms";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
 import { GalleryPlatformIcon } from "@/components/gallery/gallery-platform-icon";
@@ -24,6 +25,7 @@ type Props = {
   onEdit: () => void;
   onDelete: () => void;
   onChanged?: (nextPinned?: boolean) => void;
+  onHighlightsChanged?: () => void;
 };
 
 export function GalleryItemActionSheet({
@@ -36,6 +38,7 @@ export function GalleryItemActionSheet({
   onEdit,
   onDelete,
   onChanged,
+  onHighlightsChanged,
 }: Props) {
   if (!item) return null;
 
@@ -68,6 +71,19 @@ export function GalleryItemActionSheet({
             )}
           </div>
           <div className="grid gap-2">
+            {canUpdate && item.source === "gwada" && item.itemId ? (
+              <GalleryHighlightAssignSection
+                restaurantId={restaurantId}
+                itemId={item.itemId}
+                storagePath={item.storagePath}
+                open={open}
+                onChanged={() => onHighlightsChanged?.()}
+              />
+            ) : canUpdate && item.source !== "gwada" ? (
+              <p className="rounded-xl border border-border/50 bg-muted/10 px-3 py-2 text-xs text-muted-foreground">
+                Highlight-Ringe sind nur für eigene Gwada-Bilder verfügbar.
+              </p>
+            ) : null}
             {(canUpdate || canDelete) && restaurantId ? (
               <FeedPinButton
                 restaurantId={restaurantId}

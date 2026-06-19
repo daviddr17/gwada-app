@@ -67,7 +67,7 @@ const SKELETON_ASPECTS = [
 ] as const;
 
 export function GalleryMasonryGridSkeleton({
-  count = 8,
+  count = 4,
   className,
 }: {
   count?: number;
@@ -77,7 +77,7 @@ export function GalleryMasonryGridSkeleton({
     <div
       className={cn(
         galleryMasonryGridColumnsClassName,
-        "max-h-[min(28rem,52vh)] overflow-hidden",
+        "max-h-[min(14rem,32vh)] overflow-hidden",
         className,
       )}
       aria-busy

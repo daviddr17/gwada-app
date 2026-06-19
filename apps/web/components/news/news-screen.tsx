@@ -24,7 +24,6 @@ import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { NewsListView, NewsMasonryGrid } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import { NewsStoriesRow } from "@/components/news/news-stories-row";
-import { NewsStoryRingComposeDrawer } from "@/components/news/news-story-ring-compose-drawer";
 import { NewsStoryViewer } from "@/components/news/news-story-viewer";
 import {
   moduleSearchFieldWrapClassName,
@@ -92,7 +91,6 @@ export function NewsScreen() {
   const [syncing, setSyncing] = useState(false);
   const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [storyRingComposeOpen, setStoryRingComposeOpen] = useState(false);
   const [activeStoryRing, setActiveStoryRing] = useState<UnifiedNewsStoryRing | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<UnifiedNewsItem | null>(null);
@@ -314,18 +312,6 @@ export function NewsScreen() {
     [pathname],
   );
 
-  const gwadaPublishedWithMedia = useMemo(
-    () =>
-      sortedItems.filter(
-        (item) =>
-          item.platform === "gwada" &&
-          item.status === "published" &&
-          item.postId &&
-          item.media.length > 0,
-      ),
-    [sortedItems],
-  );
-
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -384,8 +370,6 @@ export function NewsScreen() {
 
       <NewsStoriesRow
         storyRings={storyRings}
-        canManage={canManage}
-        onAddRing={() => setStoryRingComposeOpen(true)}
         onRingClick={(ring) => {
           setActiveStoryRing(ring);
           setStoryViewerOpen(true);
@@ -486,22 +470,13 @@ export function NewsScreen() {
       />
 
       {canManage && restaurantId ? (
-        <>
-          <NewsComposeDrawer
-            open={composeOpen}
-            onOpenChange={setComposeOpen}
-            restaurantId={restaurantId}
-            connectors={connectors}
-            onSaved={refreshFeed}
-          />
-          <NewsStoryRingComposeDrawer
-            open={storyRingComposeOpen}
-            onOpenChange={setStoryRingComposeOpen}
-            restaurantId={restaurantId}
-            gwadaItems={gwadaPublishedWithMedia}
-            onSaved={refreshFeed}
-          />
-        </>
+        <NewsComposeDrawer
+          open={composeOpen}
+          onOpenChange={setComposeOpen}
+          restaurantId={restaurantId}
+          connectors={connectors}
+          onSaved={refreshFeed}
+        />
       ) : null}
 
       <NewsStoryViewer

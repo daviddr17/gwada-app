@@ -131,6 +131,11 @@ export function ListPaginationSurround({
   classNameAbove?: string;
   classNameBelow?: string;
 }) {
+  const pageNavVisible = showPageNav({
+    totalPages: paginationProps.totalPages,
+    canNext: paginationProps.canNext,
+  });
+
   return (
     <>
       <ListPagination
@@ -143,7 +148,7 @@ export function ListPaginationSurround({
       <ListPagination
         {...paginationProps}
         placement="below"
-        showSummary
+        showSummary={pageNavVisible}
         className={classNameBelow}
       />
     </>

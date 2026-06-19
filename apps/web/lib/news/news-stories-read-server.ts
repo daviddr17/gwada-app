@@ -10,7 +10,6 @@ import {
   readCachedNewsStorySlides,
   readNewsStoriesPlatformSyncState,
 } from "@/lib/news/news-stories-cache-db";
-import { readGwadaNewsStoryRings } from "@/lib/news/news-story-rings-server";
 import type {
   NewsStoriesSyncMeta,
   UnifiedNewsStoryRing,
@@ -67,7 +66,8 @@ function groupMetaSlidesIntoRings(
     if (!platformSlides?.length) continue;
     const sorted = [...platformSlides].sort(
       (a, b) =>
-        new Date(b.publishedAt ?? 0).getTime() - new Date(a.publishedAt ?? 0).getTime(),
+        new Date(a.publishedAt ?? 0).getTime() -
+        new Date(b.publishedAt ?? 0).getTime(),
     );
     const coverUrl = sorted[0]?.url;
     if (!coverUrl) continue;
@@ -91,14 +91,12 @@ export async function readNewsStoriesFromCache(
   storyRings: UnifiedNewsStoryRing[];
   storiesSync: NewsStoriesSyncMeta;
 }> {
-  const [gwadaRings, cachedSlides, syncRows] = await Promise.all([
-    readGwadaNewsStoryRings(restaurantId, sb),
+  const [cachedSlides, syncRows] = await Promise.all([
     readCachedNewsStorySlides(sb, restaurantId),
     readNewsStoriesPlatformSyncState(sb, restaurantId),
   ]);
 
-  const metaRings = groupMetaSlidesIntoRings(cachedSlides);
-  const storyRings = [...gwadaRings, ...metaRings];
+  const storyRings = groupMetaSlidesIntoRings(cachedSlides);
   const storiesSync = buildStoriesSyncMeta(syncRows, [...NEWS_STORIES_PLATFORMS]);
 
   return { storyRings, storiesSync };

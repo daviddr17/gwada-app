@@ -8,8 +8,15 @@ type WahaFetchJson<T> =
 async function wahaJsonGet<T>(
   config: WahaServerConfig,
   path: string,
+  options?: { timeoutMs?: number },
 ): Promise<WahaFetchJson<T>> {
   const url = `${config.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
+  const timeoutMs = options?.timeoutMs;
+  const controller = timeoutMs ? new AbortController() : null;
+  const timer =
+    controller && timeoutMs
+      ? setTimeout(() => controller.abort(), timeoutMs)
+      : null;
   try {
     const res = await fetch(url, {
       headers: {
@@ -17,6 +24,7 @@ async function wahaJsonGet<T>(
         "X-Api-Key": config.apiKey,
       },
       cache: "no-store",
+      signal: controller?.signal,
     });
     if (!res.ok) {
       let error = `waha_${res.status}`;
@@ -33,6 +41,8 @@ async function wahaJsonGet<T>(
   } catch (e) {
     const msg = e instanceof Error ? e.message : "fetch_failed";
     return { ok: false, error: msg };
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }
 
@@ -176,6 +186,7 @@ export async function wahaGetChatPictureUrl(params: {
   const result = await wahaJsonGet<{ url?: string | null }>(
     params.config,
     `/api/${encodeURIComponent(session)}/chats/${chatSeg}/picture${refreshQuery}`,
+    { timeoutMs: 8_000 },
   );
   if (!result.ok) return null;
   const url = result.data?.url?.trim();

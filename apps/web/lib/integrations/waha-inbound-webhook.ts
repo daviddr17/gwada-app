@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { ingestInboundContactMessage } from "@/lib/contacts/ingest-inbound-contact-message";
+import { syncWhatsappChatAvatarFromWaha } from "@/lib/contacts/sync-whatsapp-chat-avatar-server";
 import { resolveOrCreateContactForWhatsappInbound } from "@/lib/contacts/resolve-or-create-inbound-contact-server";
 import { whatsappChatIdFromPayloadAddress } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import {
@@ -175,6 +176,16 @@ export async function handleWahaInboundWebhook(
   const mirrorBody =
     bodyText || whatsappMediaMirrorBody(mediaKind);
 
+  const scheduleAvatarSync = (linkedContactId: string | null) => {
+    void syncWhatsappChatAvatarFromWaha(admin, {
+      restaurantId,
+      chatId,
+      linkedContactId,
+    }).catch(() => {
+      /* Webhook darf nicht warten — Avatar optional */
+    });
+  };
+
   if (!contactId) {
     const { imported } = await ingestInboundContactMessage(admin, {
       restaurantId,
@@ -193,6 +204,8 @@ export async function handleWahaInboundWebhook(
       source: "waha",
     });
 
+    scheduleAvatarSync(null);
+
     return { ok: true, imported };
   }
 
@@ -207,6 +220,8 @@ export async function handleWahaInboundWebhook(
     createdAt: wahaTimestampToIso(payload.timestamp),
     attachmentKind: mediaKind,
   });
+
+  scheduleAvatarSync(contactId);
 
   return { ok: true, imported };
 }

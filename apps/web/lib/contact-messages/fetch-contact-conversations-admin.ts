@@ -25,7 +25,8 @@ const MESSAGE_SELECT = `
   delivery_status,
   created_at,
   send_batch_id,
-  external_source_id
+  external_source_id,
+  external_seen
 `;
 
 /** Server: Konversationsliste einer Plattform aus contact_messages (DB-only). */

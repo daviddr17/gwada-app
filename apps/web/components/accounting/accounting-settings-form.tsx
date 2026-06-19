@@ -268,11 +268,11 @@ export function AccountingSettingsForm() {
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
                   <div>
                     <p className="text-sm font-medium">
-                      {connector.displayName} beim Laden abgleichen
+                      {connector.displayName} im Hintergrund abgleichen
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Bestehende Rechnungen, Angebote und Belege aus{" "}
-                      {connector.displayName} importieren bzw. aktualisieren.
+                      Rechnungen, Angebote und Belege aus {connector.displayName}{" "}
+                      regelmäßig in die Datenbank synchronisieren (ca. alle 30 Min.).
                     </p>
                   </div>
                   <Switch

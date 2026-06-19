@@ -15,6 +15,18 @@ import {
 import type { RawMessageAttachmentRow } from "@/lib/contact-messages/fetch-message-attachments";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 
+function emailImapInboundIsUnread(
+  direction: string,
+  externalSourceId: string | null | undefined,
+  externalSeen: boolean | null | undefined,
+): boolean {
+  if (direction !== "inbound") return false;
+  const ext = externalSourceId?.trim() ?? "";
+  if (!ext.startsWith("email-imap:")) return false;
+  if (externalSeen === false) return true;
+  return false;
+}
+
 /** Gemeinsame Logik: contact_messages-Zeilen → Konversations-Vorschau pro Plattform. */
 export function buildContactConversationsFromRows(params: {
   platform: ContactMessagePlatform;
@@ -24,6 +36,7 @@ export function buildContactConversationsFromRows(params: {
   const countByThread = new Map<string, number>();
   const hasReservationByThread = new Map<string, boolean>();
   const inboundAfter = new Map<string, number>();
+  const emailUnreadByThread = new Map<string, number>();
   const previews = new Map<string, ContactConversationPreview>();
   const lastInboundByThread = new Map<string, ContactMessagePlatform>();
 
@@ -53,6 +66,19 @@ export function buildContactConversationsFromRows(params: {
       })
     ) {
       inboundAfter.set(threadKey, (inboundAfter.get(threadKey) ?? 0) + 1);
+    }
+    if (
+      params.platform === "email" &&
+      emailImapInboundIsUnread(
+        mapped.direction,
+        ext || null,
+        raw.external_seen as boolean | null | undefined,
+      )
+    ) {
+      emailUnreadByThread.set(
+        threadKey,
+        (emailUnreadByThread.get(threadKey) ?? 0) + 1,
+      );
     }
     if (
       mapped.direction === "inbound" &&
@@ -107,6 +133,12 @@ export function buildContactConversationsFromRows(params: {
     preview.has_reservation_link =
       hasReservationByThread.get(threadKey) ?? false;
     preview.last_inbound_platform = lastInboundByThread.get(threadKey);
+    if (params.platform === "email") {
+      const emailUnread = emailUnreadByThread.get(threadKey) ?? 0;
+      preview.email_unread_count = emailUnread;
+      preview.unread_count = emailUnread;
+      preview.is_unread = emailUnread > 0;
+    }
   }
 
   return [...previews.values()].sort((a, b) =>

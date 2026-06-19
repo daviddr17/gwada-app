@@ -13,6 +13,7 @@ Ersetze `https://new.gwada.app` durch die Live-Domain.
 | `/api/cron/reviews-feed-sync` | alle **10 Min.** | `.github/workflows/production-cron.yml` |
 | `/api/cron/staff-shift-notifications` | alle **5 Min.** | `.github/workflows/production-cron.yml` |
 | `/api/cron/contact-inbox-sync` | alle **5 Min.** | `.github/workflows/production-cron.yml` |
+| `/api/cron/accounting-lexoffice-sync` | alle **10 Min.** | `.github/workflows/production-cron.yml` |
 
 **Push-Versand:** Der Worker arbeitet pro Lauf bis zu **110 s** die Event-Queue und Delivery-Queue ab (Batch 50/30). Antwort enthält `pendingEventsRemaining`, `pendingDeliveriesRemaining`, `timedOut` — bei `timedOut: true` und Rest &gt; 0 nächster Lauf in 2 Min.
 
@@ -44,6 +45,10 @@ curl -sS -H "Authorization: Bearer $CRON_SECRET" \
 # Kontakte / Nachrichten (WAHA + IMAP)
 curl -sS -H "Authorization: Bearer $CRON_SECRET" \
   https://new.gwada.app/api/cron/contact-inbox-sync
+
+# Buchführung (Lexoffice: Belege, Rechnungen, Angebote → DB)
+curl -sS -H "Authorization: Bearer $CRON_SECRET" \
+  https://new.gwada.app/api/cron/accounting-lexoffice-sync
 ```
 
 **Stale-Schwellwert (News/Reviews):** `NEWS_CACHE_STALE_MS` / `REVIEWS_CACHE_STALE_MS` = 10 Min.

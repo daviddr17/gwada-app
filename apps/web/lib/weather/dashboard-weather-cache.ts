@@ -3,8 +3,8 @@
 import type { VisualCrossingTimelineResponse } from "@/lib/weather/visual-crossing-types";
 
 const CACHE_PREFIX = "gwada:dashboard-weather:";
-/** Anzeige aus Cache; danach still nachladen (wie Batch-KPIs). */
-export const DASHBOARD_WEATHER_CACHE_MAX_AGE_MS = 15 * 60_000;
+/** Anzeige aus Cache; Server-Cache TTL 3 h — kein Refetch nötig solange frisch. */
+export const DASHBOARD_WEATHER_CACHE_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
 type WeatherCachePayload = {
   at: number;

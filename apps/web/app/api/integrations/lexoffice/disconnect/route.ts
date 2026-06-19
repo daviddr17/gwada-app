@@ -1,5 +1,7 @@
+import { deleteLexofficeContactsCache } from "@/lib/contacts/lexoffice-contacts-cache-db";
 import { assertPlatformLexofficeEnabled } from "@/lib/integrations/platform-messaging-guard";
 import { upsertRestaurantLexofficeIntegration } from "@/lib/supabase/restaurant-lexoffice-integration-db";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -46,6 +48,11 @@ export async function POST(req: Request) {
 
   if (error) {
     return Response.json({ error }, { status: 500 });
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (admin) {
+    await deleteLexofficeContactsCache(admin, restaurantId);
   }
 
   return Response.json({ ok: true });

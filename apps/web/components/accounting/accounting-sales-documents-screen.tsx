@@ -37,10 +37,6 @@ import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import {
-  markAccountingLexofficeAutoSync,
-  shouldRunAccountingLexofficeAutoSync,
-} from "@/lib/hooks/use-accounting-lexoffice-auto-sync";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
 import {
   accountingSourceDisplayLabel,
@@ -256,29 +252,6 @@ export function AccountingSalesDocumentsScreen({
     },
     [restaurantId, connector, documentKind, load],
   );
-
-  useEffect(() => {
-    if (
-      !restaurantId ||
-      !canManage ||
-      !connector.connected ||
-      !connector.capabilities.canSyncSales
-    ) {
-      return;
-    }
-    const scope = documentKind === "invoice" ? "invoices" : "quotations";
-    if (!shouldRunAccountingLexofficeAutoSync(restaurantId, scope)) return;
-
-    void (async () => {
-      try {
-        if (!connector.autoSyncEnabled) return;
-        markAccountingLexofficeAutoSync(restaurantId, scope);
-        await runConnectorSync({ silent: true });
-      } catch {
-        /* runConnectorSync behandelt Fehler selbst */
-      }
-    })();
-  }, [restaurantId, canManage, connector, documentKind, runConnectorSync]);
 
   useEffect(() => {
     if (searchParams.get("new") === "1" && canManage) {

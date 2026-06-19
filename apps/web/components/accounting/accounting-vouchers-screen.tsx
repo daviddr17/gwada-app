@@ -31,10 +31,6 @@ import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultVoucherSort } from "@/lib/accounting/accounting-list-sort";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import {
-  markAccountingLexofficeAutoSync,
-  shouldRunAccountingLexofficeAutoSync,
-} from "@/lib/hooks/use-accounting-lexoffice-auto-sync";
 import { useAccountingVoucherPageFileDrop } from "@/lib/hooks/use-accounting-voucher-page-file-drop";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
 import {
@@ -236,28 +232,6 @@ export function AccountingVouchersScreen() {
     },
     [restaurantId, connector, load],
   );
-
-  useEffect(() => {
-    if (
-      !restaurantId ||
-      !canManage ||
-      !connector.connected ||
-      !connector.capabilities.canSyncVouchers
-    ) {
-      return;
-    }
-    if (!shouldRunAccountingLexofficeAutoSync(restaurantId, "vouchers")) return;
-
-    void (async () => {
-      try {
-        if (!connector.autoSyncEnabled) return;
-        markAccountingLexofficeAutoSync(restaurantId, "vouchers");
-        await runConnectorSync({ silent: true });
-      } catch {
-        /* runConnectorSync behandelt Fehler selbst */
-      }
-    })();
-  }, [restaurantId, canManage, connector, runConnectorSync]);
 
   const openNewVoucher = useCallback((file?: File | null) => {
     setEditRow(null);

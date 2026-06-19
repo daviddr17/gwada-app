@@ -8,10 +8,14 @@ import {
 import { findLexofficeContactByIdentity } from "@/lib/contacts/build-unified-contacts-server";
 import {
   createLexofficeContact,
-  fetchAllLexofficeContacts,
   gwadaPayloadToLexofficeCreateBody,
   type LexofficeContact,
 } from "@/lib/integrations/lexoffice-contacts";
+import { readLexofficeContactsCache } from "@/lib/contacts/lexoffice-contacts-cache-db";
+import {
+  syncLexofficeContactsCache,
+  triggerLexofficeContactsSyncIfStale,
+} from "@/lib/contacts/lexoffice-contacts-sync-server";
 import { fetchLexofficeProfile } from "@/lib/integrations/lexoffice-api";
 import { lexofficeConfigFromJson } from "@/lib/integrations/lexoffice-integration-config";
 import { assertPlatformLexofficeEnabled } from "@/lib/integrations/platform-messaging-guard";
@@ -524,13 +528,17 @@ export async function fetchContactsForRestaurantServer(
 export async function loadLexofficeContactsForRestaurant(
   sb: SupabaseClient,
   restaurantId: string,
-  apiKey?: string,
+  options?: {
+    apiKey?: string;
+    /** Live-Abruf von Lexoffice (Integrations-Refresh). */
+    forceRefresh?: boolean;
+  },
 ): Promise<
   | { ok: true; contacts: LexofficeContact[] }
   | { ok: false; contacts: LexofficeContact[]; error: string }
 > {
-  const resolved = apiKey
-    ? ({ ok: true as const, apiKey })
+  const resolved = options?.apiKey
+    ? ({ ok: true as const, apiKey: options.apiKey })
     : await resolveLexofficeContactsIntegration(sb, restaurantId);
   if (!resolved.ok) {
     return {
@@ -539,11 +547,33 @@ export async function loadLexofficeContactsForRestaurant(
       error: resolved.error ?? "Lexware-Verbindung nicht verfügbar.",
     };
   }
-  const result = await fetchAllLexofficeContacts(resolved.apiKey);
-  if (!result.ok) {
-    return { ok: false, contacts: [], error: result.error };
+
+  if (options?.forceRefresh) {
+    const sync = await syncLexofficeContactsCache(
+      restaurantId,
+      resolved.apiKey,
+    );
+    if (!sync.ok) {
+      return { ok: false, contacts: sync.contacts, error: sync.error };
+    }
+    return { ok: true, contacts: sync.contacts };
   }
-  return { ok: true, contacts: result.contacts };
+
+  const cached = await readLexofficeContactsCache(sb, restaurantId);
+  if (cached && !cached.stale) {
+    return { ok: true, contacts: cached.contacts };
+  }
+
+  if (cached && cached.stale) {
+    triggerLexofficeContactsSyncIfStale(restaurantId);
+    return { ok: true, contacts: cached.contacts };
+  }
+
+  const sync = await syncLexofficeContactsCache(restaurantId, resolved.apiKey);
+  if (!sync.ok) {
+    return { ok: false, contacts: sync.contacts, error: sync.error };
+  }
+  return { ok: true, contacts: sync.contacts };
 }
 
 async function fetchContactUpsertPayloadServer(
@@ -787,6 +817,10 @@ export async function syncExistingContactToLexofficeServer(
   });
   if (linkErr) {
     return { ok: false, error: linkErr };
+  }
+
+  if (created) {
+    void syncLexofficeContactsCache(restaurantId, resolved.apiKey);
   }
 
   return {

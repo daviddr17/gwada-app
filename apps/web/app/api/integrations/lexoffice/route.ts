@@ -1,3 +1,4 @@
+import { syncLexofficeContactsCache } from "@/lib/contacts/lexoffice-contacts-sync-server";
 import { fetchLexofficeProfile } from "@/lib/integrations/lexoffice-api";
 import { mergeLexofficeApiKey } from "@/lib/integrations/lexoffice-integration-config";
 import { assertPlatformLexofficeEnabled } from "@/lib/integrations/platform-messaging-guard";
@@ -137,6 +138,8 @@ export async function POST(req: Request) {
   if (error) {
     return Response.json({ error }, { status: 500 });
   }
+
+  void syncLexofficeContactsCache(restaurantId, mergedKey);
 
   const row = await fetchRestaurantLexofficeIntegration(auth.sb, restaurantId);
   return Response.json(toResponse(row));

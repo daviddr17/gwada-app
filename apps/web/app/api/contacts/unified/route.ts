@@ -43,10 +43,12 @@ export async function GET(req: Request) {
   let lexofficeError: string | null = null;
 
   if (resolved.ok) {
+    const forceRefresh =
+      new URL(req.url).searchParams.get("refresh") === "1";
     const lexofficeContacts = await loadLexofficeContactsForRestaurant(
       sb,
       restaurantId,
-      resolved.apiKey,
+      forceRefresh ? { forceRefresh: true } : undefined,
     );
     lexofficeContactRows = lexofficeContacts.contacts;
     if (!lexofficeContacts.ok) {

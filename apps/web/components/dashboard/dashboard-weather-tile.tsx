@@ -130,11 +130,11 @@ export function DashboardWeatherTile() {
       hasDataRef.current = true;
       setErr(null);
       setLoading(false);
-    } else {
-      hasDataRef.current = false;
+      return;
     }
 
-    void load(location, hadCache);
+    hasDataRef.current = false;
+    void load(location, false);
   }, [locationStable, location, load]);
 
   useEffect(() => {

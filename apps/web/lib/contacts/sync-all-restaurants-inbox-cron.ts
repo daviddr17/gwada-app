@@ -1,5 +1,6 @@
 import "server-only";
 
+import { syncLexofficeContactsIfStale } from "@/lib/contacts/lexoffice-contacts-sync-server";
 import { syncRestaurantEmailInbox } from "@/lib/contacts/sync-restaurant-email-inbox";
 import { syncRestaurantWhatsappInbox } from "@/lib/contacts/sync-restaurant-whatsapp-inbox";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
@@ -12,6 +13,7 @@ export type ContactInboxCronStats = {
   restaurants: number;
   emailImported: number;
   whatsappImported: number;
+  lexofficeContactsSynced: number;
   errors: string[];
 };
 
@@ -41,6 +43,18 @@ async function restaurantIdsWithInbox(
   return [...new Set(ids)];
 }
 
+async function restaurantIdsWithLexoffice(
+  admin: SupabaseClient,
+): Promise<string[]> {
+  const { data } = await admin
+    .from("restaurant_integrations")
+    .select("restaurant_id")
+    .eq("integration_key", "lexoffice")
+    .eq("status", "working");
+
+  return (data ?? []).map((r) => (r as { restaurant_id: string }).restaurant_id);
+}
+
 export async function runContactInboxSyncCron(
   admin: SupabaseClient,
 ): Promise<ContactInboxCronStats> {
@@ -48,6 +62,7 @@ export async function runContactInboxSyncCron(
     restaurants: 0,
     emailImported: 0,
     whatsappImported: 0,
+    lexofficeContactsSynced: 0,
     errors: [],
   };
 
@@ -64,6 +79,16 @@ export async function runContactInboxSyncCron(
       stats.errors.push(`${restaurantId}:waha:${wa.error}`);
     }
     stats.whatsappImported += wa.imported;
+  }
+
+  for (const restaurantId of await restaurantIdsWithLexoffice(admin)) {
+    const lex = await syncLexofficeContactsIfStale(admin, restaurantId);
+    if (lex.error) {
+      stats.errors.push(`${restaurantId}:lexoffice:${lex.error}`);
+    }
+    if (lex.synced) {
+      stats.lexofficeContactsSynced += lex.count;
+    }
   }
 
   return stats;

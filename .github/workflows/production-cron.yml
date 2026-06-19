@@ -20,6 +20,7 @@ on:
           - notification-deliver
           - staff-shift-notifications
           - contact-inbox-sync
+          - accounting-lexoffice-sync
 
 env:
   CRON_BASE_URL: https://new.gwada.app
@@ -110,3 +111,21 @@ jobs:
           fi
           curl -sfS -H "Authorization: Bearer $CRON_SECRET" \
             "$CRON_BASE_URL/api/cron/contact-inbox-sync"
+
+  accounting-lexoffice-sync:
+    runs-on: ubuntu-latest
+    if: |
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'accounting-lexoffice-sync')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/10 * * * *')
+    steps:
+      - name: Call accounting-lexoffice-sync
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET not set — skipped."
+            exit 0
+          fi
+          curl -sfS --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$CRON_BASE_URL/api/cron/accounting-lexoffice-sync"

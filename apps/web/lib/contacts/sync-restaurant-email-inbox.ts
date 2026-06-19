@@ -10,6 +10,7 @@ import {
   fetchImapThreadBodies,
   imapCounterpartyEmail,
 } from "@/lib/email/imap-inbox";
+import { reconcileEmailImapSeenInDb } from "@/lib/contacts/reconcile-email-imap-seen-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const EXTERNAL_PREFIX = "email-imap:";
@@ -64,6 +65,8 @@ export async function syncRestaurantEmailInbox(
   if (!creds) return { imported: 0, error: null };
 
   const contactByEmail = await emailToContactMap(admin, restaurantId);
+
+  await reconcileEmailImapSeenInDb(admin, restaurantId, creds);
 
   const { data: envelopes, error } = await fetchImapRecentEnvelopes(creds);
   if (error) return { imported: 0, error };
@@ -127,6 +130,7 @@ export async function syncRestaurantEmailInbox(
         direction: "inbound",
         body,
         externalSourceId: externalIdForUid(uid),
+        externalSeen: false,
         conversationLabel:
           emailAddressFromPseudoContactId(threadKey) ?? undefined,
       });
@@ -171,11 +175,13 @@ export async function syncContactEmailInbox(
   if (error) return { imported: 0, error };
 
   const inboundUids: number[] = [];
+  const seenByUid = new Map<number, boolean>();
   for (const env of envelopes) {
     if (env.outbound) continue;
     const party = imapCounterpartyEmail(env, creds.email);
     if (!party || !emails.has(party)) continue;
     inboundUids.push(env.uid);
+    seenByUid.set(env.uid, env.seen);
   }
 
   if (inboundUids.length === 0) return { imported: 0, error: null };
@@ -213,6 +219,7 @@ export async function syncContactEmailInbox(
       direction: "inbound",
       body,
       externalSourceId: externalIdForUid(uid),
+      externalSeen: seenByUid.get(uid) ?? false,
     });
     if (result.imported) imported += 1;
   }

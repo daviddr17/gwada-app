@@ -20,6 +20,8 @@ export type ContactInboundInsertRow = {
   deliveryStatus?: string;
   attachmentKind?: ContactMessageAttachmentKind | null;
   conversationLabel?: string | null;
+  /** Kein notification_events / Push (Backfill, Connect-Historie). */
+  suppressNotifications?: boolean;
 };
 
 export type ContactInboundInsertResult = {
@@ -70,6 +72,7 @@ export async function insertContactMessageIfNew(
       sent_by: null,
       delivery_status: row.deliveryStatus ?? "delivered",
       external_source_id: row.externalSourceId,
+      suppress_notifications: row.suppressNotifications === true,
       ...(row.createdAt ? { created_at: row.createdAt } : {}),
     })
     .select("id")

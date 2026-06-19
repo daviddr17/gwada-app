@@ -110,6 +110,7 @@ async function mirrorWahaThreadToDb(
         deliveryStatus: m.delivery_status,
         reservationId: m.reservation_id,
         conversationLabel: params.conversationLabel,
+        suppressNotifications: true,
       });
       if (inserted.inserted) imported += 1;
       continue;

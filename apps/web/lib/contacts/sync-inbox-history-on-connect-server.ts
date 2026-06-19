@@ -193,6 +193,7 @@ async function syncEmailInboxHistoryOnConnect(
       externalSourceId: extId,
       createdAt: env.date.toISOString(),
       conversationLabel: emailAddressFromPseudoContactId(threadKey) ?? undefined,
+      suppressNotifications: env.outbound ? false : true,
     });
     if (result.inserted) {
       imported += 1;

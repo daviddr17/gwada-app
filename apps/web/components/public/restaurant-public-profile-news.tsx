@@ -15,6 +15,7 @@ export function RestaurantPublicProfileNews({
       viewMode={news.viewMode}
       connectedPlatforms={news.connectedPlatforms}
       items={news.items}
+      storyRings={news.storyRings}
       showAllPlatformFilter={news.showAllPlatformFilter}
     />
   );

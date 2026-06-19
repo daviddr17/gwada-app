@@ -11,7 +11,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const CAPABILITIES = {
   canReadFeed: true,
+  canReadStories: false,
   canCreatePost: true,
+  canPublishStory: false,
   canUpdatePost: false,
   canDeletePost: false,
   canReadInsights: false,

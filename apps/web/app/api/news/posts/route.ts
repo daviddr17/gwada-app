@@ -3,6 +3,7 @@ import {
   isNewsPlatform,
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
+import { isNewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
 import { createAndPublishNewsPost } from "@/lib/news/news-publish-server";
 import { parseNewsMedia } from "@/lib/news/news-media";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
     body?: string;
     scheduledAt?: string | null;
     platforms?: string[];
+    storyPlatforms?: string[];
     media?: unknown;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
@@ -33,6 +35,10 @@ export async function POST(req: Request) {
   const platforms = (body.platforms ?? ["gwada"])
     .filter((p): p is NewsPlatform => isNewsPlatform(p));
 
+  const storyPlatforms = (body.storyPlatforms ?? [])
+    .filter((p): p is NewsPlatform => isNewsPlatform(p))
+    .filter(isNewsStoriesPlatform);
+
   const result = await createAndPublishNewsPost(auth.sb, {
     restaurantId,
     userId: auth.userId,
@@ -42,6 +48,7 @@ export async function POST(req: Request) {
     media: parseNewsMedia(body.media),
     scheduledAt: body.scheduledAt ?? null,
     platforms: platforms.length ? platforms : ["gwada"],
+    storyPlatforms,
   });
 
   if (!result.ok) {

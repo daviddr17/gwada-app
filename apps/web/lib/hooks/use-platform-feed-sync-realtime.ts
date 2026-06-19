@@ -21,7 +21,9 @@ const FALLBACK_POLL_MS = 60_000;
 export function usePlatformFeedSyncRealtime(
   table: Extract<
     RestaurantRealtimeTable,
-    "restaurant_news_platform_sync" | "restaurant_reviews_platform_sync"
+    | "restaurant_news_platform_sync"
+    | "restaurant_news_stories_sync"
+    | "restaurant_reviews_platform_sync"
   >,
   onSyncComplete: () => void,
   options?: { enabled?: boolean; fallbackPollMs?: number },

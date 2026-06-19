@@ -8,6 +8,8 @@ import {
   NewsMasonryGrid,
 } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
+import { NewsStoriesRow } from "@/components/news/news-stories-row";
+import { NewsStoryViewer } from "@/components/news/news-story-viewer";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   NEWS_FILTER_ALL,
@@ -17,6 +19,7 @@ import { paginateListItems } from "@/lib/constants/list-pagination";
 import { defaultNewsPlatformFilterWithoutAll } from "@/lib/news/news-embed-platforms";
 import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
+import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 
 export type EmbedNewsWidgetProps = {
@@ -25,6 +28,7 @@ export type EmbedNewsWidgetProps = {
   viewMode: "grid" | "list";
   connectedPlatforms: PublicEmbedNews["connectedPlatforms"];
   items: PublicEmbedNews["items"];
+  storyRings?: UnifiedNewsStoryRing[];
   variant?: "embed" | "profileSheet";
   /** Chip „Alle“ in Profil & Einbindung — Standard: an. */
   showAllPlatformFilter?: boolean;
@@ -36,6 +40,7 @@ export function EmbedNewsWidget({
   viewMode,
   connectedPlatforms,
   items,
+  storyRings = [],
   variant = "embed",
   showAllPlatformFilter = true,
 }: EmbedNewsWidgetProps) {
@@ -55,6 +60,8 @@ export function EmbedNewsWidget({
     () => (showAllChip ? NEWS_FILTER_ALL : fallbackPlatformFilter),
   );
   const [page, setPage] = useState(1);
+  const [activeRing, setActiveRing] = useState<UnifiedNewsStoryRing | null>(null);
+  const [storyOpen, setStoryOpen] = useState(false);
 
   useEffect(() => {
     setPlatformFilterState((current) => {
@@ -123,11 +130,12 @@ export function EmbedNewsWidget({
       viewMode,
       resolvedPlatformFilter,
       displayItems.length,
+      storyRings.length,
       clientPagination.page,
       clientPagination.totalCount,
       displayItems.map((i) => `${i.id}:${i.body.length}:${i.media.length}`).join("|"),
     ],
-    [viewMode, resolvedPlatformFilter, displayItems, clientPagination],
+    [viewMode, resolvedPlatformFilter, displayItems, storyRings.length, clientPagination],
   );
 
   const paddingClass =
@@ -162,6 +170,18 @@ export function EmbedNewsWidget({
           </div>
         ) : null}
 
+        {storyRings.length > 0 ? (
+          <div className="mb-4">
+            <NewsStoriesRow
+              storyRings={storyRings}
+              onRingClick={(ring) => {
+                setActiveRing(ring);
+                setStoryOpen(true);
+              }}
+            />
+          </div>
+        ) : null}
+
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {resolvedPlatformFilter === NEWS_FILTER_ALL
@@ -190,6 +210,11 @@ export function EmbedNewsWidget({
           newsContent
         )}
       </div>
+      <NewsStoryViewer
+        ring={activeRing}
+        open={storyOpen}
+        onOpenChange={setStoryOpen}
+      />
     </EmbedAccentRoot>
   );
 }

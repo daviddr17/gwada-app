@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { EmbedProfilePlatformToggles } from "@/components/embed/embed-profile-platform-toggles";
 import { EmbedNewsWidget } from "@/components/embed/embed-news-widget";
@@ -392,7 +392,7 @@ export function NewsSettingsPanel() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        className="mt-2 h-8 w-full rounded-lg text-muted-foreground"
+                        className="mt-2 h-8 w-full justify-start gap-2 rounded-lg px-2 text-muted-foreground"
                         onClick={() =>
                           setSettings((prev) => ({
                             ...prev,
@@ -400,17 +400,14 @@ export function NewsSettingsPanel() {
                           }))
                         }
                       >
-                        Auswahl zurücksetzen (automatisch)
+                        <RotateCcw className="size-4 shrink-0 opacity-60" aria-hidden />
+                        Alle OWNER-Kanäle (automatisch)
                       </Button>
                     ) : null}
                   </PopoverContent>
                 </PopoverPositioner>
               </PopoverPortal>
             </Popover>
-            <p className="text-xs text-muted-foreground">
-              OWNER-Kanäle für Lesen und Posten. Leer = alle OWNER-Kanäle automatisch.
-              Posten nutzt den ersten ausgewählten Kanal.
-            </p>
             {canCreateWhatsappChannel ? (
               <CreateWhatsappNewsChannelTrigger
                 onClick={() => setCreateChannelOpen(true)}

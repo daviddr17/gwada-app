@@ -8,7 +8,9 @@ import {
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
 import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
+import { readNewsStoriesFromCache } from "@/lib/news/news-stories-read-server";
 import { syncRestaurantNewsPlatforms } from "@/lib/news/news-feed-sync-server";
+import { syncRestaurantNewsStoriesPlatforms } from "@/lib/news/news-stories-sync-server";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -50,16 +52,18 @@ export async function POST(req: Request) {
     restaurantId,
     cacheablePlatforms,
   );
-  const { items, sync } = await readNewsFeedFromCache(
-    restaurantId,
-    auth.sb,
-    requestedPlatforms,
-  );
+  void syncRestaurantNewsStoriesPlatforms(admin, restaurantId);
+  const [{ items, sync }, { storyRings, storiesSync }] = await Promise.all([
+    readNewsFeedFromCache(restaurantId, auth.sb, requestedPlatforms),
+    readNewsStoriesFromCache(restaurantId, auth.sb),
+  ]);
 
   return NextResponse.json({
     items,
     count: items.length,
     sync,
+    storyRings,
+    storiesSync,
     syncedItems: result.synced,
     errors: result.errors,
   });

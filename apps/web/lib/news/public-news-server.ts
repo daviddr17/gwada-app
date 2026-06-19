@@ -21,8 +21,11 @@ import {
 } from "@/lib/news/news-embed-platforms";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
+import { readNewsStoriesFromCache } from "@/lib/news/news-stories-read-server";
 import { triggerNewsFeedSyncIfStale } from "@/lib/news/news-feed-sync-server";
+import { triggerNewsStoriesSyncIfStale } from "@/lib/news/news-stories-sync-server";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
@@ -45,6 +48,7 @@ export type PublicEmbedNews = {
   viewMode: "grid" | "list";
   connectedPlatforms: NewsPlatform[];
   items: UnifiedNewsItem[];
+  storyRings: UnifiedNewsStoryRing[];
   /** Chip „Alle“ in Profil & Einbindung — Standard: an. */
   showAllPlatformFilter: boolean;
   /** Gesetzt bei paginiertem Embed (`paginate: true`). */
@@ -165,17 +169,23 @@ async function loadNewsEmbedSettings(
 async function loadNewsFeedBaseUncached(restaurantId: string): Promise<{
   publishedItems: UnifiedNewsItem[];
   connectedPlatforms: NewsPlatform[];
+  storyRings: UnifiedNewsStoryRing[];
 }> {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return {
       publishedItems: [],
       connectedPlatforms: ["gwada"],
+      storyRings: [],
     };
   }
 
-  const { items: feedItems } = await readNewsFeedFromCache(restaurantId, admin);
+  const [{ items: feedItems }, { storyRings }] = await Promise.all([
+    readNewsFeedFromCache(restaurantId, admin),
+    readNewsStoriesFromCache(restaurantId, admin),
+  ]);
   void triggerNewsFeedSyncIfStale(restaurantId);
+  void triggerNewsStoriesSyncIfStale(restaurantId);
 
   const connectorInfo = await getNewsConnectorPublicInfo(restaurantId);
   const connectedPlatforms = connectorInfo
@@ -186,7 +196,7 @@ async function loadNewsFeedBaseUncached(restaurantId: string): Promise<{
     feedItems.filter((item) => item.status === "published"),
   );
 
-  return { publishedItems, connectedPlatforms };
+  return { publishedItems, connectedPlatforms, storyRings };
 }
 
 const loadNewsFeedBase = (restaurantId: string) =>
@@ -202,6 +212,7 @@ function applyEmbedSettingsToFeed(
 ): {
   allItems: UnifiedNewsItem[];
   connectedPlatforms: NewsPlatform[];
+  storyRings: UnifiedNewsStoryRing[];
   viewMode: "grid" | "list";
   showAllPlatformFilter: boolean;
 } {
@@ -213,9 +224,15 @@ function applyEmbedSettingsToFeed(
     filterItemsForEmbed(base.publishedItems, embedSettings.embedPlatforms),
   ).slice(0, embedSettings.maxItems);
 
+  const storyRings = base.storyRings.filter((ring) => {
+    if (ring.platform === "gwada") return true;
+    return connectedPlatforms.includes(ring.platform);
+  });
+
   return {
     allItems,
     connectedPlatforms,
+    storyRings,
     viewMode: embedSettings.viewMode,
     showAllPlatformFilter: embedSettings.showAllPlatformFilter,
   };
@@ -227,6 +244,7 @@ async function loadPublicEmbedNewsPayload(
 ): Promise<{
   allItems: UnifiedNewsItem[];
   connectedPlatforms: NewsPlatform[];
+  storyRings: UnifiedNewsStoryRing[];
   viewMode: "grid" | "list";
   showAllPlatformFilter: boolean;
 }> {
@@ -268,7 +286,7 @@ export async function fetchPublicEmbedNews(
   }
 
   const restaurantId = row.id as string;
-  const { allItems, connectedPlatforms, viewMode, showAllPlatformFilter } =
+  const { allItems, connectedPlatforms, storyRings, viewMode, showAllPlatformFilter } =
     await loadPublicEmbedNewsPayload(admin, restaurantId);
   const { items, pagination } = paginateEmbedNewsItems(
     allItems,
@@ -287,6 +305,7 @@ export async function fetchPublicEmbedNews(
       viewMode,
       connectedPlatforms,
       items,
+      storyRings,
       showAllPlatformFilter,
       ...(options.paginate ? { pagination } : {}),
     },

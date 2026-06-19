@@ -1,15 +1,78 @@
 import "server-only";
 
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import { publishFacebookStory } from "@/lib/news/connectors/facebook-stories";
+import { publishInstagramStory } from "@/lib/news/connectors/instagram-stories";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
 import { syncRestaurantNewsPlatformAfterPublish } from "@/lib/news/news-feed-sync-server";
+import {
+  isNewsStoriesPlatform,
+  type NewsStoriesPlatform,
+} from "@/lib/news/news-stories-cache-constants";
+import { syncRestaurantNewsStoriesAfterPublish } from "@/lib/news/news-stories-sync-server";
 import type { NewsPublishInput } from "@/lib/news/connectors/types";
+import {
+  oauthConfigFromJson,
+  type MetaOAuthIntegrationConfig,
+} from "@/lib/integrations/oauth-integration-types";
+import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import {
   parseNewsMedia,
   resolveNewsMediaSignedUrls,
   type NewsMediaRow,
 } from "@/lib/news/news-media";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function publishNewsStories(
+  restaurantId: string,
+  storyPlatforms: NewsStoriesPlatform[],
+  mediaUrls: string[],
+  mediaKinds: Array<"image" | "video">,
+): Promise<void> {
+  if (storyPlatforms.length === 0 || mediaUrls.length === 0) return;
+
+  const firstUrl = mediaUrls[0];
+  const firstKind = mediaKinds[0] ?? "image";
+  const storyInput =
+    firstKind === "video"
+      ? { videoUrl: firstUrl }
+      : { imageUrl: firstUrl };
+
+  for (const platform of storyPlatforms) {
+    if (!isNewsStoriesPlatform(platform)) continue;
+    const connector = getNewsConnector(platform);
+    if (!connector.capabilities.canPublishStory) continue;
+
+    if (platform === "instagram") {
+      const row = await fetchRestaurantOAuthIntegrationAdmin(
+        restaurantId,
+        "instagram",
+        (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
+      );
+      const igId = row?.config.instagram_business_account_id?.trim();
+      const token = row?.config.page_access_token?.trim();
+      if (!igId || !token) continue;
+      const result = await publishInstagramStory({ igId, token }, storyInput);
+      if (result.ok) {
+        void syncRestaurantNewsStoriesAfterPublish(restaurantId, platform);
+      }
+      continue;
+    }
+
+    const row = await fetchRestaurantOAuthIntegrationAdmin(
+      restaurantId,
+      "facebook",
+      (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
+    );
+    const pageId = row?.config.page_id?.trim();
+    const token = row?.config.page_access_token?.trim();
+    if (!pageId || !token) continue;
+    const result = await publishFacebookStory({ pageId, token }, storyInput);
+    if (result.ok) {
+      void syncRestaurantNewsStoriesAfterPublish(restaurantId, platform);
+    }
+  }
+}
 
 export async function createAndPublishNewsPost(
   sb: SupabaseClient,
@@ -22,6 +85,7 @@ export async function createAndPublishNewsPost(
     media: NewsMediaRow[];
     scheduledAt: string | null;
     platforms: NewsPlatform[];
+    storyPlatforms?: NewsStoriesPlatform[];
   },
 ): Promise<
   | { ok: true; postId: string }
@@ -136,6 +200,15 @@ export async function createAndPublishNewsPost(
       .eq("platform", platform);
 
     void syncRestaurantNewsPlatformAfterPublish(params.restaurantId, platform);
+  }
+
+  if (!isScheduled && params.storyPlatforms?.length && mediaUrls.length > 0) {
+    await publishNewsStories(
+      params.restaurantId,
+      params.storyPlatforms,
+      mediaUrls,
+      parseNewsMedia(mediaJson).map((m) => m.kind),
+    );
   }
 
   if (!isScheduled) {

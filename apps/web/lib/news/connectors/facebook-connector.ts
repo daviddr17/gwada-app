@@ -12,7 +12,9 @@ import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-
 
 const CAPABILITIES = {
   canReadFeed: true,
+  canReadStories: true,
   canCreatePost: true,
+  canPublishStory: true,
   canUpdatePost: true,
   canDeletePost: true,
   canReadInsights: true,

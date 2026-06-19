@@ -4,7 +4,9 @@ import {
   type NewsPlatform,
 } from "@/lib/constants/news-platforms";
 import { readNewsFeedFromCache } from "@/lib/news/news-feed-read-server";
+import { readNewsStoriesFromCache } from "@/lib/news/news-stories-read-server";
 import { triggerNewsFeedSyncIfStale } from "@/lib/news/news-feed-sync-server";
+import { triggerNewsStoriesSyncIfStale } from "@/lib/news/news-stories-sync-server";
 import { authorizeNewsRestaurant } from "@/lib/news/route-auth";
 
 export const dynamic = "force-dynamic";
@@ -21,15 +23,21 @@ export async function GET(req: Request) {
   const platforms =
     filter === "all" ? undefined : ([filter] as NewsPlatform[]);
 
-  const { items, sync } = await readNewsFeedFromCache(
-    restaurantId,
-    auth.sb,
-    platforms,
-  );
+  const [{ items, sync }, { storyRings, storiesSync }] = await Promise.all([
+    readNewsFeedFromCache(restaurantId, auth.sb, platforms),
+    readNewsStoriesFromCache(restaurantId, auth.sb),
+  ]);
 
   after(() => {
     void triggerNewsFeedSyncIfStale(restaurantId, platforms);
+    void triggerNewsStoriesSyncIfStale(restaurantId);
   });
 
-  return NextResponse.json({ items, count: items.length, sync });
+  return NextResponse.json({
+    items,
+    count: items.length,
+    sync,
+    storyRings,
+    storiesSync,
+  });
 }

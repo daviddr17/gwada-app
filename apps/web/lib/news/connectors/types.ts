@@ -6,7 +6,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type NewsConnectorCapabilities = {
   canReadFeed: boolean;
+  canReadStories: boolean;
   canCreatePost: boolean;
+  canPublishStory: boolean;
   canUpdatePost: boolean;
   canDeletePost: boolean;
   canReadInsights: boolean;

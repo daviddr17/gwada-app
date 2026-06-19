@@ -12,7 +12,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const CAPABILITIES = {
   canReadFeed: true,
+  canReadStories: false,
   canCreatePost: true,
+  canPublishStory: false,
   canUpdatePost: true,
   canDeletePost: true,
   canReadInsights: false,

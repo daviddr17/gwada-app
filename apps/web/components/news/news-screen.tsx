@@ -23,6 +23,9 @@ import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { NewsListView, NewsMasonryGrid } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
+import { NewsStoriesRow } from "@/components/news/news-stories-row";
+import { NewsStoryRingComposeDrawer } from "@/components/news/news-story-ring-compose-drawer";
+import { NewsStoryViewer } from "@/components/news/news-story-viewer";
 import {
   moduleSearchFieldWrapClassName,
   moduleSearchFilterRowClassName,
@@ -51,6 +54,7 @@ import {
   type NewsCacheablePlatform,
 } from "@/lib/news/news-cache-constants";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
 import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
 import {
   patchNewsScreenQueryUrl,
@@ -82,11 +86,15 @@ export function NewsScreen() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<UnifiedNewsItem[]>([]);
+  const [storyRings, setStoryRings] = useState<UnifiedNewsStoryRing[]>([]);
   const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
   const [composeOpen, setComposeOpen] = useState(false);
+  const [storyRingComposeOpen, setStoryRingComposeOpen] = useState(false);
+  const [activeStoryRing, setActiveStoryRing] = useState<UnifiedNewsStoryRing | null>(null);
+  const [storyViewerOpen, setStoryViewerOpen] = useState(false);
   const [detailItem, setDetailItem] = useState<UnifiedNewsItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { connectors, availablePlatforms } = useNewsPlatformConnections(restaurantId);
@@ -94,13 +102,19 @@ export function NewsScreen() {
 
   const applyFeedResponse = useCallback(
     (
-      data: { items?: UnifiedNewsItem[]; sync?: NewsFeedSyncMeta },
+      data: {
+        items?: UnifiedNewsItem[];
+        sync?: NewsFeedSyncMeta;
+        storyRings?: UnifiedNewsStoryRing[];
+      },
       cacheRestaurantId: string,
     ) => {
       const nextItems = data.items ?? [];
       const nextSync = data.sync ?? null;
+      const nextStoryRings = data.storyRings ?? [];
       setItems(nextItems);
       setSyncMeta(nextSync);
+      setStoryRings(nextStoryRings);
       writeNewsFeedCache(cacheRestaurantId, NEWS_FILTER_ALL, nextItems, nextSync);
     },
     [],
@@ -130,6 +144,7 @@ export function NewsScreen() {
         const data = (await res.json()) as {
           items?: UnifiedNewsItem[];
           sync?: NewsFeedSyncMeta;
+          storyRings?: UnifiedNewsStoryRing[];
           error?: string;
         };
         if (generation !== loadGeneration.current) return;
@@ -155,6 +170,9 @@ export function NewsScreen() {
   }, [load]);
 
   usePlatformFeedSyncRealtime("restaurant_news_platform_sync", refreshFeed, {
+    enabled: Boolean(restaurantId && ready),
+  });
+  usePlatformFeedSyncRealtime("restaurant_news_stories_sync", refreshFeed, {
     enabled: Boolean(restaurantId && ready),
   });
 
@@ -286,6 +304,18 @@ export function NewsScreen() {
     [pathname],
   );
 
+  const gwadaPublishedWithMedia = useMemo(
+    () =>
+      sortedItems.filter(
+        (item) =>
+          item.platform === "gwada" &&
+          item.status === "published" &&
+          item.postId &&
+          item.media.length > 0,
+      ),
+    [sortedItems],
+  );
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -341,6 +371,16 @@ export function NewsScreen() {
           ))}
         </div>
       ) : null}
+
+      <NewsStoriesRow
+        storyRings={storyRings}
+        canManage={canManage}
+        onAddRing={() => setStoryRingComposeOpen(true)}
+        onRingClick={(ring) => {
+          setActiveStoryRing(ring);
+          setStoryViewerOpen(true);
+        }}
+      />
 
       <div className={moduleSearchFilterRowClassName}>
         <div className={moduleSearchFieldWrapClassName}>
@@ -438,14 +478,29 @@ export function NewsScreen() {
       />
 
       {canManage && restaurantId ? (
-        <NewsComposeDrawer
-          open={composeOpen}
-          onOpenChange={setComposeOpen}
-          restaurantId={restaurantId}
-          connectors={connectors}
-          onSaved={refreshFeed}
-        />
+        <>
+          <NewsComposeDrawer
+            open={composeOpen}
+            onOpenChange={setComposeOpen}
+            restaurantId={restaurantId}
+            connectors={connectors}
+            onSaved={refreshFeed}
+          />
+          <NewsStoryRingComposeDrawer
+            open={storyRingComposeOpen}
+            onOpenChange={setStoryRingComposeOpen}
+            restaurantId={restaurantId}
+            gwadaItems={gwadaPublishedWithMedia}
+            onSaved={refreshFeed}
+          />
+        </>
       ) : null}
+
+      <NewsStoryViewer
+        ring={activeStoryRing}
+        open={storyViewerOpen}
+        onOpenChange={setStoryViewerOpen}
+      />
     </div>
   );
 }

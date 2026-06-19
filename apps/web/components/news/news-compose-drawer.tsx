@@ -17,6 +17,7 @@ import {
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { NewsPlatformChip } from "@/components/news/news-platform-filter-chips";
 import type { NewsPlatform } from "@/lib/constants/news-platforms";
+import type { NewsStoriesPlatform } from "@/lib/news/news-stories-cache-constants";
 import type { NewsMediaRow } from "@/lib/news/news-media";
 import { uploadNewsMedia } from "@/lib/news/news-media-api";
 import { validateNewsMediaFile } from "@/lib/news/validate-news-media-file";
@@ -46,6 +47,7 @@ export function NewsComposeDrawer({
   const [body, setBody] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [platforms, setPlatforms] = useState<NewsPlatform[]>(["gwada"]);
+  const [storyPlatforms, setStoryPlatforms] = useState<NewsStoriesPlatform[]>([]);
   const [media, setMedia] = useState<PendingMedia[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -57,6 +59,7 @@ export function NewsComposeDrawer({
     setBody("");
     setScheduledAt("");
     setPlatforms(["gwada"]);
+    setStoryPlatforms([]);
     setMedia((prev) => {
       for (const item of prev) URL.revokeObjectURL(item.previewUrl);
       return [];
@@ -65,6 +68,21 @@ export function NewsComposeDrawer({
     dragDepthRef.current = 0;
     setIsDragOver(false);
   }, [open]);
+
+  const toggleStoryPlatform = (key: NewsStoriesPlatform) => {
+    setStoryPlatforms((prev) =>
+      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key],
+    );
+  };
+
+  const storyEligibleConnectors = connectors.filter(
+    (c) =>
+      c.connected &&
+      c.capabilities.canPublishStory &&
+      (c.key === "instagram" || c.key === "facebook"),
+  );
+
+  const canPublishStories = media.length > 0 && !scheduledAt;
 
   const togglePlatform = (key: NewsPlatform) => {
     setPlatforms((prev) =>
@@ -166,6 +184,7 @@ export function NewsComposeDrawer({
           body: body.trim(),
           scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
           platforms,
+          storyPlatforms: canPublishStories ? storyPlatforms : [],
           media: media.map(({ previewUrl: _previewUrl, ...row }) => row),
         }),
       });
@@ -184,6 +203,8 @@ export function NewsComposeDrawer({
     title,
     scheduledAt,
     platforms,
+    storyPlatforms,
+    canPublishStories,
     media,
     restaurantId,
     onOpenChange,
@@ -313,6 +334,32 @@ export function NewsComposeDrawer({
               })}
             </div>
           </div>
+          {storyEligibleConnectors.length > 0 ? (
+            <div>
+              <p className="mb-2 text-sm font-medium">Zusätzlich als Story</p>
+              <div className="flex flex-wrap gap-2">
+                {storyEligibleConnectors.map((c) => {
+                  const selected = storyPlatforms.includes(c.key as NewsStoriesPlatform);
+                  return (
+                    <NewsPlatformChip
+                      key={`story-${c.key}`}
+                      platform={c.key}
+                      selected={selected}
+                      disabled={!canPublishStories}
+                      onSelect={() =>
+                        toggleStoryPlatform(c.key as NewsStoriesPlatform)
+                      }
+                    />
+                  );
+                })}
+              </div>
+              {!canPublishStories ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Story erfordert Medien und ist nicht mit Planung kombinierbar.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <DrawerFooter className="border-t border-border/50 pt-2">
           <DrawerFormFooter

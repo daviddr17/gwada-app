@@ -52,7 +52,7 @@ export default async function EmbedNewsPage({
     );
   }
 
-  const { accentHex, viewMode, connectedPlatforms, items, showAllPlatformFilter } =
+  const { accentHex, viewMode, connectedPlatforms, items, storyRings, showAllPlatformFilter } =
     result.data;
 
   return (
@@ -61,6 +61,7 @@ export default async function EmbedNewsPage({
       viewMode={viewMode}
       connectedPlatforms={connectedPlatforms}
       items={items}
+      storyRings={storyRings}
       showAllPlatformFilter={showAllPlatformFilter}
       textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
     />

@@ -8,15 +8,24 @@ import {
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
-const THREAD_OVERLAY_MS = 380;
-/** iOS-ähnliches Sheet-Easing */
-const THREAD_OVERLAY_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+/** Öffnen: weicher Landeanflug — nicht zu lang. */
+const THREAD_OVERLAY_OPEN_MS = 300;
+/** Schließen: etwas schneller — fühlt sich reaktiver an. */
+const THREAD_OVERLAY_CLOSE_MS = 260;
+/** Für Unmount / URL-Sync nach Zurück (Schließen-Dauer). */
+export const CONTACT_INBOX_THREAD_OVERLAY_MS = THREAD_OVERLAY_CLOSE_MS;
 
-export { THREAD_OVERLAY_MS as CONTACT_INBOX_THREAD_OVERLAY_MS };
+const THREAD_OVERLAY_OPEN_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
+const THREAD_OVERLAY_CLOSE_EASING = "cubic-bezier(0.4, 0, 0.82, 0.38)";
 
 /** Vollbild-Chat-Overlay — Sheets darüber brauchen höheren z-index. */
 export const CONTACT_INBOX_THREAD_OVERLAY_Z_INDEX = 200;
 export const CONTACT_INBOX_STACKED_SHEET_Z_INDEX = 210;
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
 
 type ContactInboxThreadOverlayProps = {
   open: boolean;
@@ -47,13 +56,21 @@ export function ContactInboxThreadOverlay({
   useEffect(() => {
     if (open) {
       setMounted(true);
+      if (prefersReducedMotion()) {
+        setPresented(true);
+        return;
+      }
       const frame = requestAnimationFrame(() => {
         requestAnimationFrame(() => setPresented(true));
       });
       return () => cancelAnimationFrame(frame);
     }
+
     setPresented(false);
-    const timer = window.setTimeout(() => setMounted(false), THREAD_OVERLAY_MS);
+    const unmountMs = prefersReducedMotion()
+      ? 0
+      : THREAD_OVERLAY_CLOSE_MS;
+    const timer = window.setTimeout(() => setMounted(false), unmountMs);
     return () => window.clearTimeout(timer);
   }, [open]);
 
@@ -77,6 +94,14 @@ export function ContactInboxThreadOverlay({
 
   if (!mounted || typeof document === "undefined") return null;
 
+  const motionReduced = prefersReducedMotion();
+  const transitionMs = presented
+    ? THREAD_OVERLAY_OPEN_MS
+    : THREAD_OVERLAY_CLOSE_MS;
+  const transitionEasing = presented
+    ? THREAD_OVERLAY_OPEN_EASING
+    : THREAD_OVERLAY_CLOSE_EASING;
+
   return createPortal(
     <div
       role="dialog"
@@ -87,9 +112,14 @@ export function ContactInboxThreadOverlay({
         className,
       )}
       style={{
-        transform: presented ? "translate3d(0, 0, 0)" : "translate3d(0, 100%, 0)",
-        transition: `transform ${THREAD_OVERLAY_MS}ms ${THREAD_OVERLAY_EASING}`,
-        willChange: "transform",
+        transform: presented
+          ? "translate3d(0, 0, 0)"
+          : "translate3d(0, 100%, 0)",
+        transition: motionReduced
+          ? "none"
+          : `transform ${transitionMs}ms ${transitionEasing}`,
+        willChange: motionReduced ? undefined : "transform",
+        backfaceVisibility: "hidden",
       }}
     >
       <header className="sticky top-0 z-10 shrink-0 border-b border-border/50 bg-background/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">

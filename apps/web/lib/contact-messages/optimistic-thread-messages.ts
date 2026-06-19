@@ -132,6 +132,37 @@ export function removeOptimisticMessage(
   return messages.filter((m) => m.id !== optimisticId);
 }
 
+/** Nach erfolgreichem WAHA-Send: Optimistic-Zeile für Reactions/Hover mit WAHA-ID versehen. */
+export function confirmOptimisticWhatsappMessage(
+  messages: ContactMessageRow[],
+  params: {
+    optimisticId: string;
+    wahaMessageId?: string | null;
+    messageId?: string | null;
+    deliveryStatus?: string;
+  },
+): ContactMessageRow[] {
+  const wahaId = params.wahaMessageId?.trim();
+  const dbId = params.messageId?.trim();
+  if (!wahaId && !dbId) return messages;
+
+  return messages.map((m) => {
+    if (m.id !== params.optimisticId) return m;
+    return {
+      ...m,
+      ...(dbId ? { id: dbId } : {}),
+      ...(wahaId
+        ? {
+            waha_message_id: wahaId,
+            external_source_id: `waha:${wahaId}`,
+          }
+        : {}),
+      delivery_status: params.deliveryStatus ?? "sent",
+      waha_ack: m.waha_ack ?? 1,
+    };
+  });
+}
+
 export function patchWhatsappMessageByWahaId(
   messages: ContactMessageRow[],
   wahaMessageId: string,
@@ -199,6 +230,12 @@ function findBestLoadedMatchForOptimistic(
     if (
       optimistic.external_source_id &&
       message.external_source_id === optimistic.external_source_id
+    ) {
+      return message;
+    }
+    if (
+      optimistic.waha_message_id &&
+      message.waha_message_id === optimistic.waha_message_id
     ) {
       return message;
     }

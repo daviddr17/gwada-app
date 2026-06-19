@@ -2,6 +2,10 @@ export type SendContactMessageApiResult = {
   ok: boolean;
   errors?: string[];
   error?: string;
+  /** WAHA-Nachrichten-ID — für Reactions direkt nach dem Senden. */
+  wahaMessageId?: string | null;
+  messageId?: string;
+  clientSendId?: string;
 };
 
 function appendSendFormFields(

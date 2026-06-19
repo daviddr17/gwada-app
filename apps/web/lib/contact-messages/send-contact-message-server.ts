@@ -179,7 +179,7 @@ async function insertMessage(
 export async function sendContactMessageServer(
   admin: SupabaseClient,
   input: SendContactMessageServerInput,
-): Promise<{ ok: boolean; errors: string[] }> {
+): Promise<{ ok: boolean; errors: string[]; wahaMessageId?: string | null }> {
   const body = input.body.trim();
   const attachmentFiles = input.attachmentFiles ?? [];
   const voiceFile = input.voiceFile;
@@ -194,6 +194,7 @@ export async function sendContactMessageServer(
 
   const sendBatchId = channels.length > 1 ? randomUUID() : null;
   const errors: string[] = [];
+  let whatsappWahaMessageId: string | null = null;
   let reservationMeta: Awaited<
     ReturnType<typeof loadReservationMessageContext>
   > = null;
@@ -344,6 +345,10 @@ export async function sendContactMessageServer(
         }
       }
 
+      if (wahaMessageId) {
+        whatsappWahaMessageId = wahaMessageId;
+      }
+
       await finalizeOutboundWhatsappMessage(admin, {
         restaurantId: input.restaurantId,
         messageId: pending.messageId,
@@ -492,5 +497,5 @@ export async function sendContactMessageServer(
     }
   }
 
-  return { ok: errors.length === 0, errors };
+  return { ok: errors.length === 0, errors, wahaMessageId: whatsappWahaMessageId };
 }

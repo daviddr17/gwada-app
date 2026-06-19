@@ -53,6 +53,7 @@ export async function sendWahaMessageServer(
   errors: string[];
   messageId?: string;
   clientSendId?: string;
+  wahaMessageId?: string | null;
 }> {
   const text = params.body.trim();
   const files = params.attachmentFiles ?? [];
@@ -170,5 +171,5 @@ export async function sendWahaMessageServer(
     wahaMessageId,
   });
 
-  return { ok: true, errors: [], messageId, clientSendId };
+  return { ok: true, errors: [], messageId, clientSendId, wahaMessageId };
 }

@@ -194,10 +194,6 @@ export function EventsScreen() {
 
       {showFeedSkeleton ? (
         <EventsFeedSkeleton />
-      ) : paginatedItems.length === 0 && !loading ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          Noch keine Events — verbinde Facebook oder Google, oder lege ein Event an.
-        </p>
       ) : (
         <ListPaginationSurround
           classNameAbove="px-0 pt-0"
@@ -212,13 +208,19 @@ export function EventsScreen() {
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
         >
-          <EventsListView
-            items={paginatedItems}
-            onItemClick={(item) => {
-              setDetailItem(item);
-              setDetailOpen(true);
-            }}
-          />
+          {paginatedItems.length === 0 && !loading ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Noch keine Events — verbinde Facebook oder Google, oder lege ein Event an.
+            </p>
+          ) : (
+            <EventsListView
+              items={paginatedItems}
+              onItemClick={(item) => {
+                setDetailItem(item);
+                setDetailOpen(true);
+              }}
+            />
+          )}
         </ListPaginationSurround>
       )}
 

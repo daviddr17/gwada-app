@@ -131,25 +131,25 @@ export function EmbedEventsWidget({
           </div>
         ) : null}
 
-        {visibleItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Derzeit keine kommenden Events.</p>
-        ) : (
-          <ListPaginationSurround
-            classNameAbove="mb-4 border-b-0 pb-0"
-            classNameBelow="mt-4 border-t-0 pt-0"
-            page={clientPagination.page}
-            totalPages={clientPagination.totalPages}
-            shown={displayItems.length}
-            totalCount={clientPagination.totalCount}
-            itemLabel="Events"
-            canPrevious={clientPagination.page > 1}
-            canNext={clientPagination.page < clientPagination.totalPages}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => Math.min(clientPagination.totalPages, p + 1))}
-          >
+        <ListPaginationSurround
+          classNameAbove="mb-4 border-b-0 pb-0"
+          classNameBelow="mt-4 border-t-0 pt-0"
+          page={clientPagination.page}
+          totalPages={clientPagination.totalPages}
+          shown={displayItems.length}
+          totalCount={clientPagination.totalCount}
+          itemLabel="Events"
+          canPrevious={clientPagination.page > 1}
+          canNext={clientPagination.page < clientPagination.totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(clientPagination.totalPages, p + 1))}
+        >
+          {visibleItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Derzeit keine kommenden Events.</p>
+          ) : (
             <EventsListView items={displayItems} />
-          </ListPaginationSurround>
-        )}
+          )}
+        </ListPaginationSurround>
       </div>
     </EmbedAccentRoot>
   );

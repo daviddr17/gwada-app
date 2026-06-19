@@ -34,7 +34,6 @@ export function buildContactConversationsFromRows(params: {
   attachmentsByMessage: Map<string, RawMessageAttachmentRow[]>;
 }): ContactConversationPreview[] {
   const countByThread = new Map<string, number>();
-  const hasReservationByThread = new Map<string, boolean>();
   const inboundAfter = new Map<string, number>();
   const emailUnreadByThread = new Map<string, number>();
   const previews = new Map<string, ContactConversationPreview>();
@@ -48,9 +47,6 @@ export function buildContactConversationsFromRows(params: {
     if (!threadKey) continue;
 
     countByThread.set(threadKey, (countByThread.get(threadKey) ?? 0) + 1);
-    if (raw.reservation_id) {
-      hasReservationByThread.set(threadKey, true);
-    }
 
     const mapped = mapContactMessageRowFromRecord(
       raw,
@@ -113,6 +109,8 @@ export function buildContactConversationsFromRows(params: {
             attachmentKind: undefined as ContactMessageAttachmentKind | undefined,
           };
 
+    const lastReservationId = (raw.reservation_id as string | null) ?? null;
+
     previews.set(threadKey, {
       contact_id: threadKey,
       contact_name: contactName,
@@ -123,7 +121,8 @@ export function buildContactConversationsFromRows(params: {
       message_count: 0,
       unread_count: 0,
       is_unread: false,
-      has_reservation_link: false,
+      has_reservation_link: Boolean(lastReservationId),
+      last_reservation_id: lastReservationId,
       inbound_since_preview: inboundAfter.get(threadKey) ?? 0,
       last_attachment_kind:
         primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??
@@ -135,8 +134,6 @@ export function buildContactConversationsFromRows(params: {
   for (const [threadKey, preview] of previews) {
     preview.message_count = countByThread.get(threadKey) ?? 0;
     preview.inbound_since_preview = inboundAfter.get(threadKey) ?? 0;
-    preview.has_reservation_link =
-      hasReservationByThread.get(threadKey) ?? false;
     preview.last_inbound_platform = lastInboundByThread.get(threadKey);
     if (params.platform === "email") {
       const emailUnread = emailUnreadByThread.get(threadKey) ?? 0;

@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { EmbedProfilePlatformToggles } from "@/components/embed/embed-profile-platform-toggles";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,8 +42,9 @@ import {
   publicSurfaceProfileAndEmbedTitle,
 } from "@/lib/ui/public-surface-settings-copy";
 
+type WahaChannelOption = { id: string; name: string };
+
 type EventsSettings = {
-  whatsapp_channel_ids: string[];
   default_embed_view: "grid" | "list";
   embed_max_items: number;
   embed_platforms: EventsEmbedPlatforms;
@@ -50,7 +53,6 @@ type EventsSettings = {
 
 function defaultSettings(): EventsSettings {
   return {
-    whatsapp_channel_ids: [],
     default_embed_view: "list",
     embed_max_items: 24,
     embed_platforms: defaultEventsEmbedPlatforms(),
@@ -67,7 +69,8 @@ export function EventsSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<EventsSettings>(defaultSettings);
   const [savedSettings, setSavedSettings] = useState<EventsSettings>(defaultSettings);
-  const [channelInput, setChannelInput] = useState("");
+  const [newsWhatsappChannelIds, setNewsWhatsappChannelIds] = useState<string[]>([]);
+  const [whatsappChannels, setWhatsappChannels] = useState<WahaChannelOption[]>([]);
 
   useEffect(() => {
     if (!restaurantId) {
@@ -77,16 +80,26 @@ export function EventsSettingsPanel() {
     let cancelled = false;
     void (async () => {
       setLoading(true);
-      const res = await fetch(
-        `/api/events/settings?${new URLSearchParams({ restaurantId })}`,
-      );
-      const data = (await res.json()) as { settings?: EventsSettings };
+      const params = new URLSearchParams({ restaurantId });
+      const [eventsRes, newsSettingsRes, channelsRes] = await Promise.all([
+        fetch(`/api/events/settings?${params}`),
+        fetch(`/api/news/settings?${params}`),
+        fetch(`/api/news/whatsapp-channels?${params}`),
+      ]);
+      const eventsData = (await eventsRes.json()) as { settings?: EventsSettings };
+      const newsSettingsData = (await newsSettingsRes.json()) as {
+        settings?: { whatsapp_channel_ids?: string[] };
+      };
+      const channelsData = (await channelsRes.json()) as {
+        channels?: WahaChannelOption[];
+      };
       if (cancelled) return;
-      if (data.settings) {
-        setSettings(data.settings);
-        setSavedSettings(data.settings);
-        setChannelInput(data.settings.whatsapp_channel_ids[0] ?? "");
+      if (eventsData.settings) {
+        setSettings(eventsData.settings);
+        setSavedSettings(eventsData.settings);
       }
+      setNewsWhatsappChannelIds(newsSettingsData.settings?.whatsapp_channel_ids ?? []);
+      setWhatsappChannels(channelsData.channels ?? []);
       setLoading(false);
     })();
     return () => {
@@ -94,21 +107,42 @@ export function EventsSettingsPanel() {
     };
   }, [restaurantId]);
 
-  const dirty =
-    JSON.stringify(settings) !== JSON.stringify(savedSettings) ||
-    channelInput.trim() !== (savedSettings.whatsapp_channel_ids[0] ?? "");
+  const channelLabelById = useMemo(
+    () =>
+      new Map(whatsappChannels.map((channel) => [channel.id, channel.name || channel.id])),
+    [whatsappChannels],
+  );
+
+  const whatsappConnected = useMemo(
+    () =>
+      connectors.some(
+        (connector) => connector.key === "whatsapp_channel" && connector.connected,
+      ),
+    [connectors],
+  );
+
+  const newsWhatsappSelectionLabel = useMemo(() => {
+    if (newsWhatsappChannelIds.length === 0) {
+      return "Alle OWNER-Kanäle automatisch (News-Einstellung)";
+    }
+    if (newsWhatsappChannelIds.length === 1) {
+      const id = newsWhatsappChannelIds[0]!;
+      return channelLabelById.get(id) ?? id;
+    }
+    return `${newsWhatsappChannelIds.length} Kanäle ausgewählt (News-Einstellung)`;
+  }, [channelLabelById, newsWhatsappChannelIds]);
+
+  const dirty = JSON.stringify(settings) !== JSON.stringify(savedSettings);
 
   const save = useCallback(async () => {
     if (!restaurantId) return;
     setSaving(true);
     try {
-      const channelIds = channelInput.trim() ? [channelInput.trim()] : [];
       const res = await fetch("/api/events/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           restaurantId,
-          whatsappChannelIds: channelIds,
           defaultEmbedView: settings.default_embed_view,
           embedMaxItems: settings.embed_max_items,
           embedPlatforms: settings.embed_platforms,
@@ -116,13 +150,11 @@ export function EventsSettingsPanel() {
         }),
       });
       if (!res.ok) throw new Error("save_failed");
-      const next = { ...settings, whatsapp_channel_ids: channelIds };
-      setSettings(next);
-      setSavedSettings(next);
+      setSavedSettings(settings);
     } finally {
       setSaving(false);
     }
-  }, [restaurantId, settings, channelInput]);
+  }, [restaurantId, settings]);
 
   const embedPlatformToggleItems = useMemo(
     () =>
@@ -158,18 +190,30 @@ export function EventsSettingsPanel() {
         <div>
           <h2 className="text-base font-semibold">WhatsApp Kanal</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Kanal-ID für Event-Ankündigungen beim Erstellen (optional).
+            Event-Ankündigungen nutzen denselben WhatsApp-Kanal wie News.
           </p>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="events-wa-channel">Kanal-ID</Label>
-          <Input
-            id="events-wa-channel"
-            value={channelInput}
-            onChange={(e) => setChannelInput(e.target.value)}
-            placeholder="123456789@newsletter"
+        <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
+          <p className="text-sm font-medium">{newsWhatsappSelectionLabel}</p>
+          <p className="text-xs text-muted-foreground">
+            {whatsappConnected
+              ? "Kanal-Auswahl und Anlegen erfolgen in den News-Einstellungen."
+              : "WhatsApp zuerst unter Einstellungen → Integrationen verbinden, danach Kanal in News hinterlegen."}
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            render={
+              <AppNavLink href="/dashboard/news/einstellungen" prefetch={false} />
+            }
+            nativeButton={false}
             disabled={connectorsLoading}
-          />
+          >
+            In News-Einstellungen ändern
+            <ArrowUpRight className="size-4" aria-hidden />
+          </Button>
         </div>
       </section>
 

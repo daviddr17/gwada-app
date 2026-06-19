@@ -2,6 +2,7 @@ import "server-only";
 
 import type { EventsPlatformConnector } from "@/lib/events/connectors/types";
 import { buildEventAnnouncementBody } from "@/lib/events/format-events-display-date";
+import { resolveNewsWhatsappChannelIds } from "@/lib/news/resolve-whatsapp-channel-ids";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -13,26 +14,6 @@ const CAPABILITIES = {
   isAnnouncementOnly: true,
   maxCoverCount: 0,
 } as const;
-
-function normalizeChannelIds(values: unknown): string[] {
-  if (!Array.isArray(values)) return [];
-  return values
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-}
-
-async function resolveChannelIds(
-  restaurantId: string,
-  sb: import("@supabase/supabase-js").SupabaseClient,
-): Promise<string[]> {
-  const { data } = await sb
-    .from("restaurant_events_settings")
-    .select("whatsapp_channel_ids")
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  return normalizeChannelIds(data?.whatsapp_channel_ids);
-}
 
 export const whatsappChannelEventsAnnouncementConnector: EventsPlatformConnector = {
   key: "whatsapp_channel",
@@ -53,7 +34,7 @@ export const whatsappChannelEventsAnnouncementConnector: EventsPlatformConnector
     return { items: [] };
   },
   async publishEvent(restaurantId, sb, input) {
-    const channelIds = await resolveChannelIds(restaurantId, sb);
+    const channelIds = await resolveNewsWhatsappChannelIds(restaurantId, sb);
     const channelId = channelIds[0];
     if (!channelId) return { ok: false, error: "whatsapp_channel_not_configured" };
     const text = buildEventAnnouncementBody({

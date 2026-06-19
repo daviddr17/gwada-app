@@ -26,6 +26,7 @@ import {
   contactInboxConversationRowClassName,
   contactInboxConversationRowOpenButtonClassName,
 } from "@/components/contacts/contact-inbox-conversation-row-classes";
+import { ContactThreadHeaderAvatar } from "@/components/contacts/contact-thread-header-avatar";
 import { ContactConversationsReadFilter } from "@/components/contacts/contact-conversations-read-filter";
 import { ContactConversationsSearchBar } from "@/components/contacts/contact-conversations-search-bar";
 import { toast } from "sonner";
@@ -104,6 +105,7 @@ import { setInboxLiveToastSuppressedByOpenThread } from "@/lib/contact-messages/
 import { fetchContactThreadPageClient } from "@/lib/contact-messages/fetch-contact-thread-client";
 import {
   appendOptimisticMessage,
+  confirmOptimisticWhatsappMessage,
   createOptimisticOutboundMetaMessage,
   createOptimisticOutboundWhatsappMessage,
   dropOptimisticMatchingAnchors,
@@ -113,6 +115,7 @@ import {
   removeOptimisticMessage,
   removeWhatsappMessageByWahaId,
 } from "@/lib/contact-messages/optimistic-thread-messages";
+import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import { dedupeWhatsappOutboundThreadRows, isWahaEditableMessage, contactThreadRowsEqual } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import { editWahaMessageClient } from "@/lib/contact-messages/waha-typing-client";
 import {
@@ -150,6 +153,7 @@ import {
   triggerMetaSendMessage,
   triggerSendContactMessage,
   triggerWahaSendMessage,
+  type SendContactMessageApiResult,
 } from "@/lib/contact-messages/trigger-send-contact-message";
 import {
   isWhatsAppJidOrRawNumberLabel,
@@ -329,6 +333,7 @@ export function ContactsMessagesScreen() {
     null,
   );
   const [contactName, setContactName] = useState("");
+  const [threadAvatarUrl, setThreadAvatarUrl] = useState<string | null>(null);
   const [hasPhone, setHasPhone] = useState(false);
   const [hasEmail, setHasEmail] = useState(false);
   const [hasFacebookId, setHasFacebookId] = useState(false);
@@ -413,6 +418,7 @@ export function ContactsMessagesScreen() {
       if (!cached?.messages.length) return false;
       setMessages(cached.messages);
       setContactName(cached.contactName);
+      setThreadAvatarUrl(cached.threadAvatarUrl ?? null);
       setHasPhone(cached.hasPhone);
       setHasEmail(cached.hasEmail);
       setHasFacebookId(cached.hasFacebookId ?? false);
@@ -426,6 +432,7 @@ export function ContactsMessagesScreen() {
 
   const resetThreadForLoad = useCallback(() => {
     setMessages([]);
+    setThreadAvatarUrl(null);
     setWhatsappThreadPhone(null);
     setWhatsappThreadChatId(null);
     setHasPhone(false);
@@ -942,6 +949,7 @@ export function ContactsMessagesScreen() {
 
     const applyContactMeta = (meta: NonNullable<typeof contact>) => {
       setContactName((prev) => meta.name || listTitle || prev);
+      setThreadAvatarUrl(meta.avatarUrl ?? null);
       setHasPhone(meta.hasPhone);
       setHasEmail(meta.hasEmail);
       setHasFacebookId(meta.hasFacebookId);
@@ -1002,6 +1010,7 @@ export function ContactsMessagesScreen() {
       setContactThreadCache(restaurantId, contactParam, {
         messages: next,
         contactName: resolvedName,
+        threadAvatarUrl: contact?.avatarUrl ?? null,
         hasPhone: contact?.hasPhone ?? false,
         hasEmail: contact?.hasEmail ?? false,
         hasFacebookId: contact?.hasFacebookId ?? false,
@@ -1084,6 +1093,7 @@ export function ContactsMessagesScreen() {
       setContactThreadCache(restaurantId, contactParam, {
         messages: next,
         contactName: contactNameRef.current,
+        threadAvatarUrl,
         hasPhone,
         hasEmail,
         hasFacebookId,
@@ -1094,6 +1104,7 @@ export function ContactsMessagesScreen() {
     [
       restaurantId,
       contactParam,
+      threadAvatarUrl,
       hasPhone,
       hasEmail,
       hasFacebookId,
@@ -1104,14 +1115,21 @@ export function ContactsMessagesScreen() {
   const applyRealtimeThreadInsert = useCallback(
     (row: ContactMessageRow) => {
       setMessages((prev) => {
-        if (prev.some((m) => m.id === row.id)) return prev;
-        let next = dedupeContactMessagesById([...prev, row]);
-        if (row.external_source_id?.startsWith("client:")) {
+        const enriched = enrichMessagesWithWahaReactionIds([row])[0]!;
+        if (prev.some((m) => m.id === enriched.id)) return prev;
+        if (
+          enriched.waha_message_id &&
+          prev.some((m) => m.waha_message_id === enriched.waha_message_id)
+        ) {
+          return prev;
+        }
+        let next = dedupeContactMessagesById([...prev, enriched]);
+        if (enriched.external_source_id?.startsWith("client:")) {
           next = next.filter(
             (m) =>
               !(
                 isOptimisticContactMessage(m) &&
-                m.external_source_id === row.external_source_id
+                m.external_source_id === enriched.external_source_id
               ),
           );
         }
@@ -1127,13 +1145,32 @@ export function ContactsMessagesScreen() {
   const applyRealtimeThreadUpdate = useCallback(
     (row: ContactMessageRow) => {
       setMessages((prev) => {
-        const idx = prev.findIndex((m) => m.id === row.id);
+        const enriched = enrichMessagesWithWahaReactionIds([row])[0]!;
+
+        let idx = prev.findIndex((m) => m.id === enriched.id);
+        if (idx === -1 && enriched.waha_message_id) {
+          idx = prev.findIndex(
+            (m) =>
+              m.waha_message_id === enriched.waha_message_id ||
+              m.external_source_id === enriched.external_source_id,
+          );
+        }
+        if (idx === -1 && enriched.external_source_id?.startsWith("waha:")) {
+          idx = prev.findIndex(
+            (m) =>
+              isOptimisticContactMessage(m) &&
+              m.platform === "whatsapp" &&
+              m.direction === "outbound" &&
+              m.body.trim() === enriched.body.trim(),
+          );
+        }
         if (idx === -1) return prev;
+
         const next = [...prev];
         next[idx] = {
           ...next[idx]!,
-          ...row,
-          attachments: next[idx]!.attachments ?? row.attachments,
+          ...enriched,
+          attachments: next[idx]!.attachments ?? enriched.attachments,
         };
         if (contactThreadRowsEqual(prev, next)) return prev;
         patchThreadCache(next);
@@ -1584,6 +1621,7 @@ export function ContactsMessagesScreen() {
     if (cached && cached.messages.length > 0) {
       setMessages(cached.messages);
       setContactName(cached.contactName);
+      setThreadAvatarUrl(cached.threadAvatarUrl ?? null);
       setHasPhone(cached.hasPhone);
       setHasEmail(cached.hasEmail);
       setHasFacebookId(cached.hasFacebookId ?? false);
@@ -1742,16 +1780,16 @@ export function ContactsMessagesScreen() {
     void loadConversations({ silent: true });
   }, [loadThread, loadConversations]);
 
-  const hasWahaMessagesInThread = useMemo(
-    () => displayMessages.some((m) => m.waha_message_id),
+  const threadHasWhatsappMessages = useMemo(
+    () => displayMessages.some((m) => messageDisplayPlatform(m) === "whatsapp"),
     [displayMessages],
   );
 
   const wahaReactionsConfig = useMemo((): ContactMessageWahaReactionsConfig | undefined => {
     if (!restaurantId || !whatsappThreadChatId) return undefined;
     const showWaha =
-      (linkedThread && hasWahaMessagesInThread) ||
-      isWahaPseudoContactId(overlayThreadId ?? "");
+      isWahaPseudoContactId(overlayThreadId ?? "") ||
+      (linkedThread && threadHasWhatsappMessages);
     if (!showWaha) return undefined;
     return {
       restaurantId,
@@ -1766,7 +1804,7 @@ export function ContactsMessagesScreen() {
     restaurantId,
     whatsappThreadChatId,
     linkedThread,
-    hasWahaMessagesInThread,
+    threadHasWhatsappMessages,
     overlayThreadId,
     handleWahaReactionChange,
     handleWahaMessageDeleted,
@@ -1785,6 +1823,33 @@ export function ContactsMessagesScreen() {
       onReactionChange: handleMetaReactionChange,
     };
   }, [restaurantId, overlayThreadId, linkedThread, handleMetaReactionChange]);
+
+  const applyWhatsappSendSuccess = useCallback(
+    (
+      optimisticWhatsapp: ContactMessageRow | null,
+      result: SendContactMessageApiResult | null,
+    ) => {
+      if (!optimisticWhatsapp || !result?.ok) return;
+
+      if (result.wahaMessageId || result.messageId) {
+        setMessages((prev) => {
+          const next = confirmOptimisticWhatsappMessage(prev, {
+            optimisticId: optimisticWhatsapp.id,
+            wahaMessageId: result.wahaMessageId,
+            messageId: result.messageId,
+          });
+          if (!contactThreadRowsEqual(prev, next)) {
+            patchThreadCache(next);
+          }
+          return next;
+        });
+        return;
+      }
+
+      /** Medien ohne WAHA-ID in der API-Response: Realtime INSERT/UPDATE übernimmt. */
+    },
+    [patchThreadCache],
+  );
 
   const handleSend = async ({
     body,
@@ -1892,7 +1957,9 @@ export function ContactsMessagesScreen() {
       else if (result?.ok) toast.success("Nachricht gesendet.");
       else toast.error("Senden fehlgeschlagen.");
       if (result?.ok) {
-        if (!sendWhatsapp && !(voiceNote && sendWhatsapp)) {
+        if (sendWhatsapp || (voiceNote && channels.includes("whatsapp"))) {
+          applyWhatsappSendSuccess(optimisticWhatsapp, result);
+        } else {
           void loadThread({ silent: true });
         }
         void loadConversations({ silent: true });
@@ -1932,6 +1999,7 @@ export function ContactsMessagesScreen() {
       else if (result?.ok) toast.success("WhatsApp-Nachricht gesendet.");
       else toast.error("Senden fehlgeschlagen.");
       if (result?.ok) {
+        applyWhatsappSendSuccess(optimisticWhatsapp, result);
         void loadConversations({ silent: true });
       }
       return;
@@ -2093,6 +2161,10 @@ export function ContactsMessagesScreen() {
               >
                 <ArrowLeft className="size-4" />
               </Button>
+              <ContactThreadHeaderAvatar
+                avatarUrl={threadAvatarUrl}
+                displayName={contactName || "Kontakt"}
+              />
               <div className="min-w-0 flex-1">
                 {canOpenLinkedContact(overlayThreadId) ? (
                   <button
@@ -2580,10 +2652,21 @@ export function ContactsMessagesScreen() {
                             </span>
                           )}
                         </p>
-                        {c.has_reservation_link ? (
+                        {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge
                             variant="outline"
-                            className="mt-1.5 h-5 gap-0.5 px-1.5 text-[10px] font-normal"
+                            className="pointer-events-auto mt-1.5 h-5 cursor-pointer gap-0.5 px-1.5 text-[10px] font-normal hover:bg-muted/60"
+                            render={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void openReservationFromMessage(
+                                    c.last_reservation_id!,
+                                  );
+                                }}
+                              />
+                            }
                           >
                             <CalendarDays className="size-3" aria-hidden />
                             Reservierung

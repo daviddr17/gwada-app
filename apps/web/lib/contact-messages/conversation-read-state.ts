@@ -87,3 +87,52 @@ export function conversationReadLookupKey(
 ): string {
   return `${platform}:${conversationKey}`;
 }
+
+/** Externer Kanal-Zähler (WAHA/IMAP) — nur wenn explizit gesetzt, nicht DB-Platzhalter 0. */
+export function conversationExternalUnreadCount(
+  conversation: {
+    whatsapp_unread_count?: number;
+    email_unread_count?: number;
+  },
+  platform: ContactMessagePlatform,
+): number | null {
+  if (platform === "whatsapp") {
+    return conversation.whatsapp_unread_count !== undefined
+      ? conversation.whatsapp_unread_count
+      : null;
+  }
+  if (platform === "email") {
+    return conversation.email_unread_count !== undefined
+      ? conversation.email_unread_count
+      : null;
+  }
+  return null;
+}
+
+export function conversationUnreadInput(
+  conversation: {
+    last_at: string;
+    last_direction: "inbound" | "outbound";
+    inbound_since_preview?: number;
+    whatsapp_unread_count?: number;
+    email_unread_count?: number;
+  },
+  platform: ContactMessagePlatform,
+): ConversationUnreadInput {
+  if (platform === "gwada") {
+    return {
+      last_at: conversation.last_at,
+      last_direction: conversation.last_direction,
+      inbound_count: conversation.inbound_since_preview,
+    };
+  }
+  return {
+    last_at: conversation.last_at,
+    last_direction: conversation.last_direction,
+    inbound_count: conversation.inbound_since_preview,
+    external_unread_count: conversationExternalUnreadCount(
+      conversation,
+      platform,
+    ),
+  };
+}

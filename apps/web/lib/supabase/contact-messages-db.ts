@@ -69,6 +69,8 @@ export type ContactConversationPreview = {
   unread_count: number;
   is_unread: boolean;
   has_reservation_link: boolean;
+  /** Reservierung der zuletzt sichtbaren Nachricht (für Vorschau-Link). */
+  last_reservation_id?: string | null;
   /** Nur Gwada: eingehende Nachrichten in der Vorschau-Berechnung. */
   inbound_since_preview?: number;
   /** WAHA: letzte Aktivität war eine Reaction (Emoji in der Liste). */
@@ -284,7 +286,6 @@ export async function fetchContactConversations(params: {
     : groupAttachmentsByMessageId(attachmentRows);
 
   const countByContact = new Map<string, number>();
-  const hasReservationByContact = new Map<string, boolean>();
   const inboundAfter = new Map<string, number>();
   const previews = new Map<string, ContactConversationPreview>();
   const lastInboundByContact = new Map<string, ContactMessagePlatform>();
@@ -298,9 +299,6 @@ export async function fetchContactConversations(params: {
     if (!threadKey) continue;
 
     countByContact.set(threadKey, (countByContact.get(threadKey) ?? 0) + 1);
-    if (row.reservation_id) {
-      hasReservationByContact.set(threadKey, true);
-    }
 
     const mapped = mapContactMessageRowFromRecord(
       row,
@@ -346,6 +344,8 @@ export async function fetchContactConversations(params: {
         ? previewBodyAndKindFromWhatsappMirror(mapped.body.trim())
         : { body: mapped.body.trim(), attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
 
+    const lastReservationId = (row.reservation_id as string | null) ?? null;
+
     previews.set(threadKey, {
       contact_id: threadKey,
       contact_name: contactName,
@@ -356,7 +356,8 @@ export async function fetchContactConversations(params: {
       message_count: 0,
       unread_count: 0,
       is_unread: false,
-      has_reservation_link: false,
+      has_reservation_link: Boolean(lastReservationId),
+      last_reservation_id: lastReservationId,
       inbound_since_preview: inboundAfter.get(threadKey) ?? 0,
       last_attachment_kind:
         primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??
@@ -368,8 +369,6 @@ export async function fetchContactConversations(params: {
   for (const [threadKey, preview] of previews) {
     preview.message_count = countByContact.get(threadKey) ?? 0;
     preview.inbound_since_preview = inboundAfter.get(threadKey) ?? 0;
-    preview.has_reservation_link =
-      hasReservationByContact.get(threadKey) ?? false;
     preview.last_inbound_platform = lastInboundByContact.get(threadKey);
   }
 

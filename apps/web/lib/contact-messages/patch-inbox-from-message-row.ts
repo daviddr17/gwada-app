@@ -47,6 +47,12 @@ export function patchInboxConversationsFromInboundMessage(
     (threadKey.includes(":") ? defaultConversationLabel(threadKey) : "Kontakt");
 
   const existing = conversations.find((c) => c.contact_id === threadKey);
+  const prevWaUnread = existing?.whatsapp_unread_count ?? 0;
+  const prevEmUnread = existing?.email_unread_count ?? 0;
+  const nextWaUnread =
+    msgPlatform === "whatsapp" ? prevWaUnread + 1 : prevWaUnread;
+  const nextEmUnread =
+    msgPlatform === "email" ? prevEmUnread + 1 : prevEmUnread;
   const nextPreview: ContactConversationPreview = existing
     ? {
         ...existing,
@@ -57,11 +63,17 @@ export function patchInboxConversationsFromInboundMessage(
         message_count: existing.message_count + 1,
         unread_count: existing.unread_count + 1,
         is_unread: true,
+        whatsapp_unread_count:
+          msgPlatform === "whatsapp" ? nextWaUnread : existing.whatsapp_unread_count,
+        email_unread_count:
+          msgPlatform === "email" ? nextEmUnread : existing.email_unread_count,
         last_attachment_kind:
           mirrored.attachmentKind ?? existing.last_attachment_kind,
         last_message_platform: msgPlatform,
         last_inbound_platform: msgPlatform,
         inbound_since_preview: (existing.inbound_since_preview ?? 0) + 1,
+        has_reservation_link: Boolean(message.reservation_id),
+        last_reservation_id: message.reservation_id ?? null,
       }
     : {
         contact_id: threadKey,
@@ -73,7 +85,10 @@ export function patchInboxConversationsFromInboundMessage(
         message_count: 1,
         unread_count: 1,
         is_unread: true,
+        whatsapp_unread_count: msgPlatform === "whatsapp" ? 1 : undefined,
+        email_unread_count: msgPlatform === "email" ? 1 : undefined,
         has_reservation_link: Boolean(message.reservation_id),
+        last_reservation_id: message.reservation_id ?? null,
         inbound_since_preview: 1,
         last_attachment_kind: mirrored.attachmentKind,
         last_message_platform: msgPlatform,

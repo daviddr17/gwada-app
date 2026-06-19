@@ -18,6 +18,8 @@ import {
   logContactThreadTiming,
   type ContactThreadTiming,
 } from "@/lib/contact-messages/contact-thread-timing";
+import { resolveContactThreadAvatarPresentation } from "@/lib/contacts/contact-thread-avatar-server";
+import { contactThreadAvatarInitials } from "@/lib/contacts/contact-thread-avatar-initials";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -28,6 +30,8 @@ export type ContactThreadContactMeta = {
   whatsappThreadChatId: string | null;
   hasFacebookId: boolean;
   hasInstagramId: boolean;
+  avatarUrl: string | null;
+  avatarInitials: string;
 };
 
 export type ContactThreadPageResult = {
@@ -108,14 +112,17 @@ function contactMetaFromRow(
       whatsappThreadChatId: null,
       hasFacebookId: false,
       hasInstagramId: false,
+      avatarUrl: null,
+      avatarInitials: contactThreadAvatarInitials({ displayName: fallbackName }),
     };
   }
 
   const phone = firstPhoneFromRow(contact);
   const email = firstEmailFromRow(contact);
+  const name = contactThreadDisplayName(contact);
 
   return {
-    name: contactThreadDisplayName(contact),
+    name,
     hasPhone: Boolean(phone),
     hasEmail: Boolean(email),
     whatsappThreadChatId: guestPhoneToWhatsAppChatId(phone),
@@ -124,6 +131,12 @@ function contactMetaFromRow(
       contact.contact_messaging_ids,
       "instagram",
     ),
+    avatarUrl: null,
+    avatarInitials: contactThreadAvatarInitials({
+      displayName: name,
+      firstName: contact.first_name,
+      lastName: contact.last_name,
+    }),
   };
 }
 
@@ -189,7 +202,14 @@ async function loadLinkedThreadSlice(
     hasMore: dbResult.hasMore,
     oldestCursor:
       dbResult.data.length > 0 ? dbResult.data[0]!.created_at : null,
-    contact: contactMetaFromRow(contact, "Kontakt"),
+    contact: await enrichContactThreadMetaWithAvatar(admin, {
+      restaurantId,
+      meta: contactMetaFromRow(contact, "Kontakt"),
+      linkedContactId: contactId,
+      firstName: contact?.first_name,
+      lastName: contact?.last_name,
+      includeAvatar: !before,
+    }),
     error: null,
   };
 }
@@ -237,20 +257,62 @@ async function loadConversationThreadSlice(
   };
 }
 
-function contactMetaForThread(
+async function enrichContactThreadMetaWithAvatar(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    meta: ContactThreadContactMeta;
+    linkedContactId?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    includeAvatar: boolean;
+  },
+): Promise<ContactThreadContactMeta> {
+  if (!params.includeAvatar) return params.meta;
+
+  const avatar = await resolveContactThreadAvatarPresentation(admin, {
+    restaurantId: params.restaurantId,
+    displayName: params.meta.name,
+    firstName: params.firstName,
+    lastName: params.lastName,
+    linkedContactId: params.linkedContactId,
+    whatsappChatId: params.meta.whatsappThreadChatId,
+  });
+
+  return {
+    ...params.meta,
+    avatarUrl: avatar.avatarUrl,
+    avatarInitials: avatar.avatarInitials,
+  };
+}
+
+async function contactMetaForThread(
+  admin: SupabaseClient,
+  restaurantId: string,
   contactId: string,
   linkedMeta: ContactThreadContactMeta | null,
-): ContactThreadContactMeta | null {
+  options?: { includeAvatar?: boolean },
+): Promise<ContactThreadContactMeta | null> {
   if (linkedMeta) return linkedMeta;
   if (isWahaPseudoContactId(contactId)) {
-    return {
+    const chatId = wahaChatIdFromPseudoContactId(contactId);
+    const base: ContactThreadContactMeta = {
       name: "WhatsApp",
       hasPhone: true,
       hasEmail: false,
-      whatsappThreadChatId: wahaChatIdFromPseudoContactId(contactId),
+      whatsappThreadChatId: chatId,
       hasFacebookId: false,
       hasInstagramId: false,
+      avatarUrl: null,
+      avatarInitials: contactThreadAvatarInitials({ displayName: "WhatsApp" }),
     };
+    if (!options?.includeAvatar || !chatId) return base;
+    const avatar = await resolveContactThreadAvatarPresentation(admin, {
+      restaurantId,
+      displayName: base.name,
+      whatsappChatId: chatId,
+    });
+    return { ...base, ...avatar };
   }
   if (isEmailPseudoContactId(contactId)) {
     return {
@@ -260,6 +322,20 @@ function contactMetaForThread(
       whatsappThreadChatId: null,
       hasFacebookId: false,
       hasInstagramId: false,
+      avatarUrl: null,
+      avatarInitials: contactThreadAvatarInitials({ displayName: "E-Mail" }),
+    };
+  }
+  if (isMetaPseudoContactId(contactId)) {
+    return {
+      name: "Messenger",
+      hasPhone: false,
+      hasEmail: false,
+      whatsappThreadChatId: null,
+      hasFacebookId: true,
+      hasInstagramId: false,
+      avatarUrl: null,
+      avatarInitials: contactThreadAvatarInitials({ displayName: "Messenger" }),
     };
   }
   return null;
@@ -323,7 +399,13 @@ export async function fetchContactThreadPageServer(
     messages: slice.messages,
     hasMore: slice.hasMore,
     oldestCursor: slice.oldestCursor,
-    contact: contactMetaForThread(contactId, null),
+    contact: await contactMetaForThread(
+      admin,
+      restaurantId,
+      contactId,
+      null,
+      { includeAvatar: !before },
+    ),
     error: slice.error,
     timing,
   };

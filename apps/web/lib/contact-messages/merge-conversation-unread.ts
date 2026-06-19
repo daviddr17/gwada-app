@@ -1,6 +1,7 @@
 import {
   computeConversationUnread,
   conversationReadLookupKey,
+  conversationUnreadInput,
   type ConversationReadRow,
 } from "@/lib/contact-messages/conversation-read-state";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
@@ -17,14 +18,7 @@ export function mergeUnreadIntoConversations(
     );
     const { unread_count, is_unread } = computeConversationUnread({
       read,
-      conversation:
-        platform === "gwada"
-          ? { last_at: c.last_at, last_direction: c.last_direction }
-          : {
-              last_at: c.last_at,
-              last_direction: c.last_direction,
-              external_unread_count: c.unread_count,
-            },
+      conversation: conversationUnreadInput(c, platform),
     });
     return {
       ...c,

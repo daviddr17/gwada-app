@@ -1,6 +1,7 @@
 import {
   computeConversationUnread,
   conversationReadLookupKey,
+  conversationExternalUnreadCount,
   type ConversationReadRow,
   type ConversationUnreadInput,
 } from "@/lib/contact-messages/conversation-read-state";
@@ -42,6 +43,7 @@ function gwadaChannelConversationInput(
   return {
     last_at: c.last_at,
     last_direction: c.last_direction,
+    inbound_count: c.inbound_since_preview,
   };
 }
 
@@ -110,7 +112,11 @@ function enrichOneConversation(
       : {
           last_at: c.last_at,
           last_direction: c.last_direction,
-          external_unread_count: c.unread_count,
+          inbound_count: c.inbound_since_preview,
+          external_unread_count: conversationExternalUnreadCount(
+            c,
+            readPlatform,
+          ),
         };
 
   const { unread_count, is_unread } = computeConversationUnread({

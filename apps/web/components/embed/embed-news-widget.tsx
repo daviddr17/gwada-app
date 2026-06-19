@@ -183,11 +183,25 @@ export function EmbedNewsWidget({
         ) : null}
 
         {filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {resolvedPlatformFilter === NEWS_FILTER_ALL
-              ? "Noch keine News veröffentlicht."
-              : "Keine News für diese Plattform."}
-          </p>
+          <ListPaginationSurround
+            classNameAbove="mb-4 border-b-0 pb-0"
+            classNameBelow="mt-4 border-t-0 pt-0"
+            page={clientPagination.page}
+            totalPages={clientPagination.totalPages}
+            shown={0}
+            totalCount={0}
+            itemLabel="Beiträge"
+            canPrevious={false}
+            canNext={false}
+            onPrevious={() => setPage(1)}
+            onNext={() => setPage(1)}
+          >
+            <p className="text-sm text-muted-foreground">
+              {resolvedPlatformFilter === NEWS_FILTER_ALL
+                ? "Noch keine News veröffentlicht."
+                : "Keine News für diese Plattform."}
+            </p>
+          </ListPaginationSurround>
         ) : showPagination ? (
           <ListPaginationSurround
             classNameAbove="mb-4 border-b-0 pb-0"

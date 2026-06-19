@@ -15,20 +15,11 @@ import { authorizeEventsRestaurant } from "@/lib/events/route-auth";
 export const dynamic = "force-dynamic";
 
 type EventsSettingsRow = {
-  whatsapp_channel_ids: string[];
   default_embed_view: "grid" | "list";
   embed_max_items: number;
   embed_platforms: EventsEmbedPlatforms;
   embed_show_all_filter: boolean;
 };
-
-function normalizeChannelIds(values: unknown): string[] {
-  if (!Array.isArray(values)) return [];
-  return values
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-}
 
 export async function GET(req: Request) {
   const restaurantId = new URL(req.url).searchParams.get("restaurantId")?.trim() ?? "";
@@ -40,7 +31,7 @@ export async function GET(req: Request) {
   const { data, error } = await auth.sb
     .from("restaurant_events_settings")
     .select(
-      "whatsapp_channel_ids, default_embed_view, embed_max_items, embed_platforms, embed_show_all_filter",
+      "default_embed_view, embed_max_items, embed_platforms, embed_show_all_filter",
     )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -50,7 +41,6 @@ export async function GET(req: Request) {
   }
 
   const settings: EventsSettingsRow = {
-    whatsapp_channel_ids: normalizeChannelIds(data?.whatsapp_channel_ids),
     default_embed_view: data?.default_embed_view === "grid" ? "grid" : "list",
     embed_max_items: Number(data?.embed_max_items ?? 24),
     embed_platforms: normalizeEventsEmbedPlatforms(data?.embed_platforms),
@@ -63,7 +53,6 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
     restaurantId?: string;
-    whatsappChannelIds?: string[];
     defaultEmbedView?: "grid" | "list";
     embedMaxItems?: number;
     embedPlatforms?: Partial<Record<EventsPlatform, boolean>>;
@@ -82,14 +71,12 @@ export async function PUT(req: Request) {
 
   const upsertRow: {
     restaurant_id: string;
-    whatsapp_channel_ids: string[];
     default_embed_view: "grid" | "list";
     embed_max_items: number;
     embed_platforms?: EventsEmbedPlatforms;
     embed_show_all_filter: boolean;
   } = {
     restaurant_id: restaurantId,
-    whatsapp_channel_ids: normalizeChannelIds(body.whatsappChannelIds),
     default_embed_view: body.defaultEmbedView === "grid" ? "grid" : "list",
     embed_max_items: embedMaxItems,
     embed_show_all_filter: body.embedShowAllFilter !== false,

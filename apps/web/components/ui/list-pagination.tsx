@@ -29,12 +29,16 @@ function listPaginationVisible({
   canNext,
   totalCount,
   showSummary,
+  itemLabel,
 }: Pick<
   ListPaginationProps,
-  "totalPages" | "canNext" | "totalCount" | "showSummary"
+  "totalPages" | "canNext" | "totalCount" | "showSummary" | "itemLabel"
 >) {
   if (showSummary === false) {
     return totalPages > 1 || canNext;
+  }
+  if (totalCount != null && itemLabel?.trim()) {
+    return true;
   }
   return !(
     totalPages <= 1 &&
@@ -66,7 +70,13 @@ export function ListPagination({
   showSummary = true,
 }: ListPaginationProps) {
   if (
-    !listPaginationVisible({ totalPages, canNext, totalCount, showSummary })
+    !listPaginationVisible({
+      totalPages,
+      canNext,
+      totalCount,
+      showSummary,
+      itemLabel,
+    })
   ) {
     return null;
   }

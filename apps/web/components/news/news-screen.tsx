@@ -446,35 +446,33 @@ export function NewsScreen() {
 
       {showFeedSkeleton ? (
         <NewsFeedSkeleton viewMode={viewMode} />
-      ) : filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          {platformFilter !== NEWS_FILTER_ALL &&
-          isNewsCacheablePlatform(platformFilter) &&
-          syncMeta?.platformItemCounts?.[platformFilter] === 0 &&
-          !syncMeta?.platformErrors?.[platformFilter]
-            ? `${NEWS_PLATFORM_LABELS[platformFilter]}: Sync erfolgreich, aber keine Beiträge im Konto — unter Einstellungen → Integrationen prüfen oder „Jetzt synchronisieren“.`
-            : "Noch keine News in dieser Ansicht."}
-        </p>
       ) : (
-        <>
-          <ListPaginationSurround
-            page={currentPage}
-            totalPages={totalPages}
-            shown={paginatedItems.length}
-            totalCount={totalCount}
-            itemLabel="Beiträge"
-            canPrevious={currentPage > 1}
-            canNext={currentPage < totalPages}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-          {viewMode === "list" ? (
+        <ListPaginationSurround
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginatedItems.length}
+          totalCount={totalCount}
+          itemLabel="Beiträge"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          {filtered.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {platformFilter !== NEWS_FILTER_ALL &&
+              isNewsCacheablePlatform(platformFilter) &&
+              syncMeta?.platformItemCounts?.[platformFilter] === 0 &&
+              !syncMeta?.platformErrors?.[platformFilter]
+                ? `${NEWS_PLATFORM_LABELS[platformFilter]}: Sync erfolgreich, aber keine Beiträge im Konto — unter Einstellungen → Integrationen prüfen oder „Jetzt synchronisieren“.`
+                : "Noch keine News in dieser Ansicht."}
+            </p>
+          ) : viewMode === "list" ? (
             <NewsListView items={paginatedItems} onItemClick={openDetail} />
           ) : (
             <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
           )}
-          </ListPaginationSurround>
-        </>
+        </ListPaginationSurround>
       )}
 
       <NewsDetailDrawer

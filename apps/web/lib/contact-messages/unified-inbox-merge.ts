@@ -29,8 +29,8 @@ function mergePreviewFields(
     message_count: Math.max(newer.message_count, older.message_count),
     unread_count: Math.max(newer.unread_count, older.unread_count),
     is_unread: newer.is_unread || older.is_unread,
-    has_reservation_link:
-      newer.has_reservation_link || older.has_reservation_link,
+    has_reservation_link: newer.has_reservation_link,
+    last_reservation_id: newer.last_reservation_id ?? null,
     last_message_platform:
       newer.last_message_platform ?? older.last_message_platform,
     last_inbound_platform:

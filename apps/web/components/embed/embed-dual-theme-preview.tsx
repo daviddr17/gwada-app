@@ -15,8 +15,18 @@ const PREVIEW_THEMES: { theme: EmbedTextTheme; label: string }[] = [
   { theme: "light", label: "Helle Schrift" },
 ];
 
-export function embedDualThemePreviewBackgroundClass(textTheme: EmbedTextTheme) {
+/** Schachbrett — Embed-Hintergrund ist transparent; Muster nur in der Admin-Vorschau. */
+export const embedPreviewTransparencyBackgroundClassName =
+  "bg-[#ececec] [background-image:linear-gradient(45deg,#d0d0d0_25%,transparent_25%),linear-gradient(-45deg,#d0d0d0_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#d0d0d0_75%),linear-gradient(-45deg,transparent_75%,#d0d0d0_75%)] [background-size:12px_12px] [background-position:0_0,0_6px,6px_-6px,-6px_0] dark:bg-[#262626] dark:[background-image:linear-gradient(45deg,#383838_25%,transparent_25%),linear-gradient(-45deg,#383838_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#383838_75%),linear-gradient(-45deg,transparent_75%,#383838_75%)]";
+
+export function embedDualThemePreviewHostBackgroundClass(textTheme: EmbedTextTheme) {
   return textTheme === "light" ? "bg-neutral-900" : "bg-muted/30";
+}
+
+function embedPreviewPaneCaption(textTheme: EmbedTextTheme, label: string) {
+  const simulatedHost =
+    textTheme === "light" ? "dunkler Website-Hintergrund" : "heller Website-Hintergrund";
+  return `${label} · transparenter Embed (Vorschau: ${simulatedHost})`;
 }
 
 export function EmbedDualThemePreviewPane({
@@ -30,28 +40,32 @@ export function EmbedDualThemePreviewPane({
   children: ReactNode;
   className?: string;
 }) {
-  const onDarkBackground = textTheme === "light";
+  const caption = embedPreviewPaneCaption(textTheme, label);
 
   return (
     <div
       className={cn(
         "overflow-hidden rounded-xl border border-border/50",
-        embedDualThemePreviewBackgroundClass(textTheme),
+        embedPreviewTransparencyBackgroundClassName,
         className,
       )}
     >
       <p
-        className={cn(
-          "border-b border-border/40 px-3 py-2 text-xs font-medium",
-          onDarkBackground
-            ? "bg-neutral-800/90 text-neutral-300"
-            : "bg-card/80 text-muted-foreground",
-        )}
+        className="border-b border-border/40 bg-background/90 px-3 py-2 text-xs font-medium text-muted-foreground backdrop-blur-sm"
+        title="Der eingebettete Widget-Hintergrund ist transparent. Die Vorschau simuliert den Hintergrund der Website, damit die Schrift lesbar bleibt."
       >
-        {label}
-        {onDarkBackground ? " · dunkler Hintergrund" : " · heller Hintergrund"}
+        {caption}
       </p>
-      <div className="min-h-0">{children}</div>
+      <div className="min-h-0 p-2">
+        <div
+          className={cn(
+            "min-h-0 overflow-hidden rounded-lg",
+            embedDualThemePreviewHostBackgroundClass(textTheme),
+          )}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

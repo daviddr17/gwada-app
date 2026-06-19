@@ -162,3 +162,22 @@ export function wahaTimestampToIso(ts: number | undefined): string {
   }
   return d.toISOString();
 }
+
+/** Profilbild-URL für einen Chat (WAHA cached ~24h). */
+export async function wahaGetChatPictureUrl(params: {
+  config: WahaServerConfig;
+  restaurantId: string;
+  chatId: string;
+  refresh?: boolean;
+}): Promise<string | null> {
+  const session = wahaSessionNameForRestaurant(params.restaurantId);
+  const chatSeg = encodeURIComponent(params.chatId.trim());
+  const refreshQuery = params.refresh ? "?refresh=True" : "";
+  const result = await wahaJsonGet<{ url?: string | null }>(
+    params.config,
+    `/api/${encodeURIComponent(session)}/chats/${chatSeg}/picture${refreshQuery}`,
+  );
+  if (!result.ok) return null;
+  const url = result.data?.url?.trim();
+  return url || null;
+}

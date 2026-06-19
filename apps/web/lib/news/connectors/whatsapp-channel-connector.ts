@@ -1,11 +1,9 @@
 import "server-only";
 
 import type { NewsPlatformConnector } from "@/lib/news/connectors/types";
+import { resolveNewsWhatsappChannelIds } from "@/lib/news/resolve-whatsapp-channel-ids";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
-import {
-  fetchWahaChannelMessages,
-  listWahaChannelsForRestaurant,
-} from "@/lib/waha/waha-channels";
+import { fetchWahaChannelMessages } from "@/lib/waha/waha-channels";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -21,37 +19,6 @@ const CAPABILITIES = {
   supportsVideo: true,
   maxMediaCount: 1,
 } as const;
-
-function normalizeChannelIds(values: unknown): string[] {
-  if (!Array.isArray(values)) return [];
-  return values
-    .filter((value): value is string => typeof value === "string")
-    .map((value) => value.trim())
-    .filter((value) => value.length > 0);
-}
-
-async function resolveChannelIds(
-  restaurantId: string,
-  sb: import("@supabase/supabase-js").SupabaseClient,
-  override?: string | null,
-): Promise<string[]> {
-  if (override?.includes("@newsletter")) return [override];
-  const { data } = await sb
-    .from("restaurant_news_settings")
-    .select("whatsapp_channel_ids, whatsapp_channel_id")
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-
-  const fromArray = normalizeChannelIds(data?.whatsapp_channel_ids);
-  if (fromArray.length > 0) return fromArray;
-
-  const legacy = (data?.whatsapp_channel_id as string | null)?.trim();
-  if (legacy) return [legacy];
-
-  const list = await listWahaChannelsForRestaurant(restaurantId, { role: "OWNER" });
-  if ("error" in list) return [];
-  return list.channels.map((channel) => channel.id).filter(Boolean);
-}
 
 export const whatsappChannelNewsConnector: NewsPlatformConnector = {
   key: "whatsapp_channel",
@@ -69,7 +36,7 @@ export const whatsappChannelNewsConnector: NewsPlatformConnector = {
     return data?.status === "working";
   },
   async fetchFeed(restaurantId, sb) {
-    const channelIds = await resolveChannelIds(restaurantId, sb, null);
+    const channelIds = await resolveNewsWhatsappChannelIds(restaurantId, sb, null);
     if (channelIds.length === 0) return { error: "whatsapp_channel_not_configured" };
 
     const batches = await Promise.all(
@@ -136,7 +103,7 @@ export const whatsappChannelNewsConnector: NewsPlatformConnector = {
       typeof input.platformConfig?.channelId === "string"
         ? input.platformConfig.channelId
         : null;
-    const channelIds = await resolveChannelIds(restaurantId, sb, override);
+    const channelIds = await resolveNewsWhatsappChannelIds(restaurantId, sb, override);
     const channelId = channelIds[0];
     if (!channelId) return { ok: false, error: "whatsapp_channel_not_configured" };
     const text = [input.title?.trim(), input.body.trim()].filter(Boolean).join("\n\n");

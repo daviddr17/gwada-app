@@ -5,6 +5,7 @@ import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 export type ContactThreadCacheEntry = {
   messages: ContactMessageRow[];
   contactName: string;
+  threadAvatarUrl: string | null;
   hasPhone: boolean;
   hasEmail: boolean;
   hasFacebookId: boolean;

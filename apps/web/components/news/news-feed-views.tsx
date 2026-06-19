@@ -8,6 +8,8 @@ import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news
 import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
+import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
+import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
 
 const PREVIEW_BODY_CHAR_THRESHOLD = 200;
@@ -106,6 +108,7 @@ const NewsCard = memo(function NewsCard({
               <NewsPlatformIcon platform={item.platform} className="size-3" />
               {NEWS_PLATFORM_LABELS[item.platform]}
             </Badge>
+            {item.isPinned ? <FeedPinnedBadge /> : null}
             {item.insights ? <NewsInsightsBadges insights={item.insights} /> : null}
           </div>
           <time
@@ -126,6 +129,7 @@ const NewsCard = memo(function NewsCard({
   const surfaceClassName = cn(
     newsCardSurfaceClassName,
     masonry && "mb-4 break-inside-avoid",
+    item.isPinned && feedPinnedItemSurfaceClassName,
     onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
   );
 

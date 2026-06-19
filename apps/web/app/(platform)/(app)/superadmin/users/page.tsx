@@ -135,7 +135,9 @@ export default function SuperadminUsersPage() {
           {
             id: "online",
             header: "Online",
-            sortValue: (r) => (r.is_online ? 1 : 0),
+            className: superadminDateCellClass,
+            sortValue: (r) =>
+              `${r.is_online ? "1" : "0"}_${r.last_seen_at ?? ""}`,
             cell: (r) =>
               r.is_online ? (
                 <Badge
@@ -145,7 +147,9 @@ export default function SuperadminUsersPage() {
                   Online
                 </Badge>
               ) : (
-                <span>Offline</span>
+                <span className={superadminDateCellClass}>
+                  {r.last_seen_at ? formatDt(r.last_seen_at) : "—"}
+                </span>
               ),
           },
           {
@@ -187,7 +191,7 @@ export default function SuperadminUsersPage() {
           },
           {
             id: "last_sign_in",
-            header: "Letzte Anmeldung",
+            header: "Letzter Login",
             className: superadminDateCellClass,
             sortValue: (r) => r.last_sign_in_at ?? "",
             cell: (r) => (

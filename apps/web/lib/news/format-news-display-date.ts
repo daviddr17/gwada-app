@@ -1,4 +1,5 @@
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 
 /** Canonical timestamp for display and feed sort (newest first). */
 export function newsDisplayTimestamp(item: UnifiedNewsItem): string {
@@ -16,11 +17,13 @@ export function newsSortTimestamp(item: UnifiedNewsItem): number {
 
 /** Newest first; stable tie-break on id. */
 export function sortNewsItemsByDate(items: UnifiedNewsItem[]): UnifiedNewsItem[] {
-  return [...items].sort((a, b) => {
-    const diff = newsSortTimestamp(b) - newsSortTimestamp(a);
-    if (diff !== 0) return diff;
-    return b.id.localeCompare(a.id);
-  });
+  return [...items].sort((a, b) =>
+    compareFeedItemsWithPinFirst(a, b, (left, right) => {
+      const diff = newsSortTimestamp(right) - newsSortTimestamp(left);
+      if (diff !== 0) return diff;
+      return right.id.localeCompare(left.id);
+    }),
+  );
 }
 
 export function formatNewsCardDate(item: UnifiedNewsItem): string {

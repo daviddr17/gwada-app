@@ -74,6 +74,10 @@ export const APP_ROUTES = {
   },
   events: {
     root: "/dashboard/events",
+    overview: "/dashboard/events/uebersicht",
+    embed: "/dashboard/events/einbinden",
+    statistics: "/dashboard/events/statistiken",
+    settings: "/dashboard/events/einstellungen",
   },
 } as const;
 

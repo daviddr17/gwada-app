@@ -1,0 +1,21 @@
+"use client";
+
+import { EmbedEventsWidget } from "@/components/embed/embed-events-widget";
+import type { PublicEmbedEvents } from "@/lib/events/public-events-server";
+
+export function RestaurantPublicProfileEvents({
+  events,
+}: {
+  events: PublicEmbedEvents;
+}) {
+  return (
+    <EmbedEventsWidget
+      variant="profileSheet"
+      accentHex={events.accentHex}
+      viewMode={events.viewMode}
+      connectedPlatforms={events.connectedPlatforms}
+      items={events.items}
+      showAllPlatformFilter={events.showAllPlatformFilter}
+    />
+  );
+}

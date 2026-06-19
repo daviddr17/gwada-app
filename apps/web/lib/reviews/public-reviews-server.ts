@@ -138,7 +138,7 @@ async function loadConnectedPlatformReviewsUncached(
 
   const { data: reviewRows } = await admin
     .from("gwada_reviews")
-    .select("id, rating, comment, guest_display_name, created_at")
+    .select("id, rating, comment, guest_display_name, created_at, is_pinned")
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false })
     .limit(PUBLIC_REVIEW_LIMIT);
@@ -150,6 +150,7 @@ async function loadConnectedPlatformReviewsUncached(
       comment: string | null;
       guest_display_name: string | null;
       created_at: string;
+      is_pinned?: boolean;
     };
     return {
       id: raw.id,
@@ -161,6 +162,7 @@ async function loadConnectedPlatformReviewsUncached(
       reply: null,
       canReply: false,
       externalUrl: null,
+      isPinned: Boolean(raw.is_pinned),
     };
   });
 
@@ -196,7 +198,11 @@ async function loadConnectedPlatformReviewsUncached(
   if (facebookOk) connectedPlatforms.push("facebook");
 
   const reviews = [...gwadaReviews, ...googleReviews, ...facebookReviews].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    (a, b) => {
+      const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
+      if (pinDiff !== 0) return pinDiff;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    },
   );
 
   return { reviews, connectedPlatforms };

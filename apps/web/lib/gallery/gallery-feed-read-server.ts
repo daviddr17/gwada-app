@@ -19,6 +19,7 @@ import type {
   UnifiedGalleryHighlight,
   UnifiedGalleryItem,
 } from "@/lib/gallery/unified-gallery-item";
+import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { GalleryFeedSyncMeta } from "@/lib/gallery/gallery-feed-sync-meta";
@@ -28,8 +29,10 @@ function resolvePlatforms(platforms?: GalleryPlatform[]): GalleryPlatform[] {
 }
 
 function sortGalleryItems(items: UnifiedGalleryItem[]): UnifiedGalleryItem[] {
-  return [...items].sort(
-    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  return [...items].sort((a, b) =>
+    compareFeedItemsWithPinFirst(a, b, (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    ),
   );
 }
 

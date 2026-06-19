@@ -1,6 +1,7 @@
 "use client";
 
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
+import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
 
 /** Galerie-Fotowand ohne Karten-Rahmen — 1 px Abstand über Spalten-Gap. */
@@ -21,7 +22,10 @@ export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
           <button
             type="button"
             onClick={() => onItemClick(item)}
-            className="group relative block w-full overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className={cn(
+              "group relative block w-full overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              item.isPinned && feedPinnedItemSurfaceClassName,
+            )}
           >
             {item.mediaKind === "video" ? (
               <video

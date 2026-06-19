@@ -52,6 +52,14 @@ export const GWADA_EMBED_WIDGETS: Record<
       `embed/news/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
+  events: {
+    id: "events",
+    title: "Events",
+    defaultMinHeightPx: 520,
+    embedPath: (slug) =>
+      `embed/events/${encodeURIComponent(normalizedSlug(slug))}`,
+    available: true,
+  },
   opening_hours: {
     id: "opening_hours",
     title: "Öffnungszeiten",

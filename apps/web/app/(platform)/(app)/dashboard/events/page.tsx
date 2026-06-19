@@ -1,5 +1,5 @@
-import { EventsComingSoonScreen } from "@/components/events/events-coming-soon-screen";
+import { redirect } from "next/navigation";
 
 export default function EventsPage() {
-  return <EventsComingSoonScreen />;
+  redirect("/dashboard/events/uebersicht");
 }

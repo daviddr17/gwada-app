@@ -5,11 +5,12 @@ import {
   MapPin,
   Newspaper,
   Star,
+  Ticket,
   UtensilsCrossed,
 } from "lucide-react";
 import type { ProfileModuleKey } from "@/lib/public-profile/use-profile-module-cache";
 
-export type ProfileAppId = "reserve" | "menu" | "reviews" | "news" | "gallery" | "info";
+export type ProfileAppId = "reserve" | "menu" | "reviews" | "news" | "events" | "gallery" | "info";
 
 export type ProfileAppDefinition = {
   id: ProfileAppId;
@@ -29,6 +30,14 @@ export const PROFILE_APP_DEFINITIONS: ProfileAppDefinition[] = [
     module: "news",
     icon: Newspaper,
     gradient: "from-rose-500 via-pink-600 to-fuchsia-600",
+  },
+  {
+    id: "events",
+    label: "Events",
+    subtitle: "Termine & Tickets",
+    module: "events",
+    icon: Ticket,
+    gradient: "from-amber-500 via-orange-600 to-red-600",
   },
   {
     id: "gallery",
@@ -76,6 +85,7 @@ export function profileAppsForModules(modules: {
   menu: boolean;
   reviews: boolean;
   news: boolean;
+  events: boolean;
   gallery: boolean;
 }): ProfileAppDefinition[] {
   return PROFILE_APP_DEFINITIONS.filter((app) => {
@@ -83,6 +93,7 @@ export function profileAppsForModules(modules: {
     if (app.id === "menu") return modules.menu;
     if (app.id === "reviews") return modules.reviews;
     if (app.id === "news") return modules.news;
+    if (app.id === "events") return modules.events;
     if (app.id === "gallery") return modules.gallery;
     return true;
   });

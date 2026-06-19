@@ -31,6 +31,7 @@ type GwadaGalleryRow = {
   width: number | null;
   height: number | null;
   created_at: string;
+  is_pinned?: boolean;
 };
 
 async function mapRow(
@@ -62,6 +63,7 @@ async function mapRow(
     externalUrl: null,
     externalId: row.id,
     parentExternalId: null,
+    isPinned: Boolean(row.is_pinned),
   };
 }
 
@@ -76,7 +78,7 @@ export const gwadaGalleryConnector: GalleryPlatformConnector = {
     const { data, error } = await sb
       .from("gwada_gallery_items")
       .select(
-        "id, restaurant_id, title, caption, category, storage_path, mime_type, size_bytes, width, height, created_at",
+        "id, restaurant_id, title, caption, category, storage_path, mime_type, size_bytes, width, height, created_at, is_pinned",
       )
       .eq("restaurant_id", restaurantId)
       .order("created_at", { ascending: false });

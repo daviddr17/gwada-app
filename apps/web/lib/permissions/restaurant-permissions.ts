@@ -26,6 +26,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "pos.kasse.export",
   "accounting.manage",
   "news.manage",
+  "events.manage",
   "gallery.read",
   "gallery.create",
   "gallery.update",
@@ -142,6 +143,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "News",
       description:
         "News und Posts veröffentlichen, planen und Kanäle verwalten.",
+      group: "buchfuehrung",
+    },
+    {
+      key: "events.manage",
+      label: "Events",
+      description:
+        "Events anlegen, mit Facebook/Google synchronisieren und einbinden.",
       group: "buchfuehrung",
     },
     {

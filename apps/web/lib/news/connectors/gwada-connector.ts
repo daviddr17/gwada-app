@@ -47,6 +47,7 @@ function mapRow(
     externalUrl: null,
     insights: null,
     authorName: null,
+    isPinned: Boolean(row.is_pinned),
   };
 }
 

@@ -9,6 +9,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
 import { GALLERY_PLATFORM_LABELS } from "@/lib/constants/gallery-platforms";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
 import { GalleryPlatformIcon } from "@/components/gallery/gallery-platform-icon";
@@ -19,8 +20,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   canUpdate: boolean;
   canDelete: boolean;
+  restaurantId: string;
   onEdit: () => void;
   onDelete: () => void;
+  onChanged?: (nextPinned?: boolean) => void;
 };
 
 export function GalleryItemActionSheet({
@@ -29,8 +32,10 @@ export function GalleryItemActionSheet({
   onOpenChange,
   canUpdate,
   canDelete,
+  restaurantId,
   onEdit,
   onDelete,
+  onChanged,
 }: Props) {
   if (!item) return null;
 
@@ -63,6 +68,17 @@ export function GalleryItemActionSheet({
             )}
           </div>
           <div className="grid gap-2">
+            {(canUpdate || canDelete) && restaurantId ? (
+              <FeedPinButton
+                restaurantId={restaurantId}
+                module="gallery"
+                platform={item.platform}
+                itemId={item.id}
+                isPinned={Boolean(item.isPinned)}
+                className="w-full justify-start"
+                onChanged={(nextPinned) => onChanged?.(nextPinned)}
+              />
+            ) : null}
             {item.externalUrl ? (
               <Button variant="outline" className="justify-start" render={<a href={item.externalUrl} target="_blank" rel="noopener noreferrer" />}>
                 <ExternalLink className="size-4" />

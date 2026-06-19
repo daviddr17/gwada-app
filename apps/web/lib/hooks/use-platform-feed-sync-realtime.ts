@@ -24,6 +24,7 @@ export function usePlatformFeedSyncRealtime(
     | "restaurant_news_platform_sync"
     | "restaurant_news_stories_sync"
     | "restaurant_reviews_platform_sync"
+    | "restaurant_events_platform_sync"
   >,
   onSyncComplete: () => void,
   options?: { enabled?: boolean; fallbackPollMs?: number },

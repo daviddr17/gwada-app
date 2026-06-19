@@ -12,7 +12,8 @@ export type RestaurantRealtimeTable =
   | "notification_events"
   | "restaurant_news_platform_sync"
   | "restaurant_news_stories_sync"
-  | "restaurant_reviews_platform_sync";
+  | "restaurant_reviews_platform_sync"
+  | "restaurant_events_platform_sync";
 
 type RealtimeChangeEvent = "INSERT" | "UPDATE" | "DELETE";
 

@@ -1,3 +1,4 @@
+import { fetchPublicEmbedEvents } from "@/lib/events/public-events-server";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
 import { fetchPublicEmbedNews } from "@/lib/news/public-news-server";
@@ -6,7 +7,7 @@ import { fetchPublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 
-const MODULES = ["reservation", "menu", "reviews", "news", "gallery"] as const;
+const MODULES = ["reservation", "menu", "reviews", "news", "gallery", "events"] as const;
 type ProfileModule = (typeof MODULES)[number];
 
 function isProfileModule(value: string): value is ProfileModule {
@@ -69,6 +70,17 @@ export async function GET(
 
   if (rawModule === "gallery") {
     const result = await fetchPublicEmbedGallery(slug);
+    if (!result.data) {
+      return Response.json(
+        { error: result.error },
+        { status: result.status, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    return Response.json(result.data, { headers: { "Cache-Control": CACHE_HEADER } });
+  }
+
+  if (rawModule === "events") {
+    const result = await fetchPublicEmbedEvents(slug);
     if (!result.data) {
       return Response.json(
         { error: result.error },

@@ -97,6 +97,14 @@ export function buildNewsEmbedSnippet(
   return buildGwadaEmbedSnippet({ widget: "news", slug, origin });
 }
 
+/** Events-Widget — kommende Events auf der Restaurant-Website. */
+export function buildEventsEmbedSnippet(
+  slug: string,
+  origin?: string,
+): GwadaEmbedSnippet {
+  return buildGwadaEmbedSnippet({ widget: "events", slug, origin });
+}
+
 /** Öffnungszeiten-Widget — reguläre Zeiten, optional Küche + Sondertermine. */
 export function buildOpeningHoursEmbedSnippet(
   slug: string,

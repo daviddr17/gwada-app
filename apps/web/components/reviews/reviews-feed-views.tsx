@@ -1,7 +1,8 @@
 "use client";
 
-import { CalendarDays, Eye, EyeOff, ScrollText, Star } from "lucide-react";
+import { CalendarDays, Eye, EyeOff, Pin, PinOff, ScrollText, Star } from "lucide-react";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
+import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -9,6 +10,7 @@ import {
   REVIEW_PLATFORM_LABELS,
 } from "@/lib/constants/review-platforms";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
 
 function StarsDisplay({ rating }: { rating: number }) {
@@ -42,6 +44,8 @@ export type ReviewCardActions = {
   onOpenContact?: () => void;
   onOpenReservation?: () => void;
   onToggleHidden?: () => void;
+  onTogglePin?: () => void;
+  pinBusy?: boolean;
 };
 
 function ReviewActionsRow({
@@ -51,6 +55,8 @@ function ReviewActionsRow({
   onOpenContact,
   onOpenReservation,
   onToggleHidden,
+  onTogglePin,
+  pinBusy,
   visibilityBusy,
 }: Pick<
   ReviewCardActions,
@@ -60,6 +66,8 @@ function ReviewActionsRow({
   | "onOpenContact"
   | "onOpenReservation"
   | "onToggleHidden"
+  | "onTogglePin"
+  | "pinBusy"
   | "visibilityBusy"
 >) {
   return (
@@ -85,6 +93,28 @@ function ReviewActionsRow({
       {review.canReply && onReply ? (
         <Button type="button" variant="outline" size="sm" onClick={onReply}>
           Antworten
+        </Button>
+      ) : null}
+      {onTogglePin ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-muted-foreground"
+          disabled={pinBusy}
+          onClick={onTogglePin}
+        >
+          {review.isPinned ? (
+            <>
+              <PinOff className="size-3.5" />
+              Pin lösen
+            </>
+          ) : (
+            <>
+              <Pin className="size-3.5" />
+              Anpinnen
+            </>
+          )}
         </Button>
       ) : null}
       {onToggleHidden ? (
@@ -125,6 +155,8 @@ export function ReviewCard({
   onOpenContact,
   onOpenReservation,
   onToggleHidden,
+  onTogglePin,
+  pinBusy,
 }: ReviewCardActions) {
   const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
     day: "2-digit",
@@ -139,6 +171,7 @@ export function ReviewCard({
           "border-border/50 shadow-card",
           isUnread && "border-accent/35 bg-accent/[0.03]",
           review.hiddenFromPublic && "opacity-80",
+          review.isPinned && feedPinnedItemSurfaceClassName,
         )}
       >
         <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
@@ -157,6 +190,7 @@ export function ReviewCard({
                   Ausgeblendet
                 </Badge>
               ) : null}
+              {review.isPinned ? <FeedPinnedBadge /> : null}
               <span className="text-xs text-muted-foreground">{date}</span>
             </div>
             {review.authorName ? (
@@ -205,6 +239,8 @@ export function ReviewCard({
               onOpenContact={onOpenContact}
               onOpenReservation={onOpenReservation}
               onToggleHidden={onToggleHidden}
+              onTogglePin={onTogglePin}
+              pinBusy={pinBusy}
               visibilityBusy={visibilityBusy}
             />
           </div>
@@ -219,6 +255,7 @@ export function ReviewCard({
         "mb-4 break-inside-avoid border-border/50 shadow-card",
         isUnread && "border-accent/35 bg-accent/[0.03]",
         review.hiddenFromPublic && "opacity-80",
+        review.isPinned && feedPinnedItemSurfaceClassName,
       )}
     >
       <CardHeader className="space-y-2 pb-2">
@@ -241,6 +278,7 @@ export function ReviewCard({
                 Ausgeblendet
               </Badge>
             ) : null}
+            {review.isPinned ? <FeedPinnedBadge /> : null}
           </div>
           {onProtocol ? (
             <Button
@@ -307,6 +345,8 @@ export function ReviewCard({
           onOpenContact={onOpenContact}
           onOpenReservation={onOpenReservation}
           onToggleHidden={onToggleHidden}
+          onTogglePin={onTogglePin}
+          pinBusy={pinBusy}
           visibilityBusy={visibilityBusy}
         />
       </CardContent>

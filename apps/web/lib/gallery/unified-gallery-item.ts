@@ -25,6 +25,8 @@ export type UnifiedGalleryItem = {
   externalUrl: string | null;
   externalId: string;
   parentExternalId: string | null;
+  /** Max. ein Pin pro Restaurant — sortiert nach oben. */
+  isPinned?: boolean;
 };
 
 export type UnifiedGalleryHighlight = {

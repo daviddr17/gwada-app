@@ -15,6 +15,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
 import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import {
@@ -64,7 +65,7 @@ export function NewsDetailDrawer({
   restaurantId: string;
   canManage: boolean;
   connectors: NewsConnectorPublicInfo[];
-  onChanged: () => void;
+  onChanged: (nextPinned?: boolean) => void;
 }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -225,6 +226,17 @@ export function NewsDetailDrawer({
             <p className="text-xs text-muted-foreground">
               Bearbeiten ist nur direkt auf {NEWS_PLATFORM_LABELS[platform]} möglich.
             </p>
+          ) : null}
+
+          {canManage && item.status !== "archived" ? (
+            <FeedPinButton
+              restaurantId={restaurantId}
+              module="news"
+              platform={item.platform}
+              itemId={item.id}
+              isPinned={Boolean(item.isPinned)}
+              onChanged={(nextPinned) => onChanged(nextPinned)}
+            />
           ) : null}
         </div>
 

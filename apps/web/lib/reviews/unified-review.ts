@@ -19,4 +19,6 @@ export type UnifiedReview = {
   hiddenFromPublic?: boolean;
   /** Pro Nutzer — fehlt in API = ungelesen. */
   isUnread?: boolean;
+  /** Max. ein Pin pro Restaurant — sortiert nach oben. */
+  isPinned?: boolean;
 };

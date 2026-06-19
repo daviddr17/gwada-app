@@ -316,8 +316,15 @@ export function GalleryScreen() {
         onOpenChange={setSheetOpen}
         canUpdate={canUpdate}
         canDelete={canDelete}
+        restaurantId={restaurantId}
         onEdit={() => toast.message("Bearbeiten folgt in Kürze")}
         onDelete={() => void handleDelete()}
+        onChanged={(nextPinned) => {
+          if (typeof nextPinned === "boolean" && selectedItem) {
+            setSelectedItem({ ...selectedItem, isPinned: nextPinned });
+          }
+          void load();
+        }}
       />
 
       <GalleryHighlightComposeDrawer

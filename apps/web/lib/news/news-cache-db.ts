@@ -89,7 +89,7 @@ export async function readCachedNewsItems(
 ): Promise<UnifiedNewsItem[]> {
   let query = sb
     .from("restaurant_news_platform_cache")
-    .select("item, published_at")
+    .select("item, published_at, is_pinned")
     .eq("restaurant_id", restaurantId)
     .order("published_at", { ascending: false, nullsFirst: false });
 
@@ -111,6 +111,7 @@ export async function readCachedNewsItems(
     if (rowPublishedAt && !item.publishedAt) {
       item.publishedAt = rowPublishedAt;
     }
+    item.isPinned = Boolean(row.is_pinned);
     items.push(normalizeCachedNewsItemMediaUrls(item));
   }
   return sortNewsItemsByDate(items);

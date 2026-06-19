@@ -84,7 +84,7 @@ export async function readCachedGalleryItems(
 ): Promise<UnifiedGalleryItem[]> {
   let query = sb
     .from("restaurant_gallery_platform_cache")
-    .select("item, created_at, category")
+    .select("item, created_at, category, is_pinned")
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false, nullsFirst: false });
 
@@ -102,6 +102,7 @@ export async function readCachedGalleryItems(
   for (const row of data ?? []) {
     const item = parseCachedItem(row.item);
     if (!item) continue;
+    item.isPinned = Boolean(row.is_pinned);
     items.push(item);
   }
   return items;

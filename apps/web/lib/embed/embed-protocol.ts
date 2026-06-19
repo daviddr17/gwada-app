@@ -21,6 +21,7 @@ export type GwadaEmbedWidgetId =
   | "menu"
   | "reviews"
   | "news"
+  | "events"
   | "opening_hours"
   | "contact";
 

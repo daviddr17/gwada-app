@@ -1,5 +1,6 @@
 "use client";
 
+import type { PublicEmbedEvents } from "@/lib/events/public-events-server";
 import type { PublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import type { PublicEmbedMenu } from "@/lib/menu/public-menu-server";
@@ -7,13 +8,20 @@ import type { PublicEmbedRestaurant } from "@/lib/reservations/public-embed-shar
 import type { PublicEmbedReviews } from "@/lib/reviews/public-reviews-server";
 import { useCallback, useRef, useState } from "react";
 
-export type ProfileModuleKey = "reservation" | "menu" | "reviews" | "news" | "gallery";
+export type ProfileModuleKey =
+  | "reservation"
+  | "menu"
+  | "reviews"
+  | "news"
+  | "events"
+  | "gallery";
 
 type ModuleCache = {
   reservation: PublicEmbedRestaurant | null;
   menu: PublicEmbedMenu | null;
   reviews: PublicEmbedReviews | null;
   news: PublicEmbedNews | null;
+  events: PublicEmbedEvents | null;
   gallery: PublicEmbedGallery | null;
 };
 
@@ -33,6 +41,7 @@ const INITIAL_CACHE: ModuleCache = {
   menu: null,
   reviews: null,
   news: null,
+  events: null,
   gallery: null,
 };
 
@@ -41,6 +50,7 @@ const INITIAL_STATE: Record<ProfileModuleKey, ModuleState> = {
   menu: { loading: false, error: null },
   reviews: { loading: false, error: null },
   news: { loading: false, error: null },
+  events: { loading: false, error: null },
   gallery: { loading: false, error: null },
 };
 
@@ -90,6 +100,7 @@ export function useProfileModuleCache(slug: string) {
             | PublicEmbedMenu
             | PublicEmbedReviews
             | PublicEmbedNews
+            | PublicEmbedEvents
             | PublicEmbedGallery;
           setCache((prev) => ({ ...prev, [module]: data }));
           setState((prev) => ({

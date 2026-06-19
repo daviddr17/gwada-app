@@ -3,6 +3,7 @@ import { formatDocumentTitle } from "@/lib/constants/document-title";
 
 export const EMBED_PAGE_MODULE_LABELS = {
   news: "News",
+  events: "Events",
   gallery: "Galerie",
   reservation: "Reservierung",
   menu: "Speisekarte",

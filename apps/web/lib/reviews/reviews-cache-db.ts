@@ -81,7 +81,7 @@ export async function readCachedReviews(
 ): Promise<UnifiedReview[]> {
   let query = sb
     .from("restaurant_reviews_platform_cache")
-    .select("item, created_at")
+    .select("item, created_at, is_pinned")
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false, nullsFirst: false });
 
@@ -103,6 +103,7 @@ export async function readCachedReviews(
     if (rowCreatedAt && !review.createdAt) {
       review.createdAt = rowCreatedAt;
     }
+    review.isPinned = Boolean(row.is_pinned);
     reviews.push(review);
   }
   return reviews;

@@ -169,6 +169,16 @@ export function NewsScreen() {
     void load({ silent: true });
   }, [load]);
 
+  const handleDetailChanged = useCallback(
+    (nextPinned?: boolean) => {
+      if (typeof nextPinned === "boolean" && detailItem) {
+        setDetailItem({ ...detailItem, isPinned: nextPinned });
+      }
+      refreshFeed();
+    },
+    [detailItem, refreshFeed],
+  );
+
   usePlatformFeedSyncRealtime("restaurant_news_platform_sync", refreshFeed, {
     enabled: Boolean(restaurantId && ready),
   });
@@ -474,7 +484,7 @@ export function NewsScreen() {
         restaurantId={restaurantId}
         canManage={canManage}
         connectors={connectors}
-        onChanged={refreshFeed}
+        onChanged={handleDetailChanged}
       />
 
       {canManage && restaurantId ? (

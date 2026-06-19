@@ -33,4 +33,6 @@ export type UnifiedNewsItem = {
   externalUrl: string | null;
   insights: NewsInsights | null;
   authorName: string | null;
+  /** Max. ein Pin pro Restaurant — sortiert nach oben. */
+  isPinned?: boolean;
 };

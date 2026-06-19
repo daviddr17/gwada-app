@@ -60,6 +60,7 @@ import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import { setFeedItemPin } from "@/lib/feed-pin/feed-pin-client";
 import {
   patchReviewsScreenQueryUrl,
   readReviewsScreenQueryFromSearch,
@@ -187,6 +188,7 @@ export function ReviewsScreen() {
   const [reservationDrawerRow, setReservationDrawerRow] =
     useState<ReservationListRow | null>(null);
   const [visibilityBusyKey, setVisibilityBusyKey] = useState<string | null>(null);
+  const [pinBusyKey, setPinBusyKey] = useState<string | null>(null);
 
   useEffect(() => {
     setViewModeState(readReviewsScreenQueryFromSearch(searchParams.toString()).viewMode);
@@ -854,6 +856,39 @@ export function ReviewsScreen() {
     [restaurantId, patchReviewInState],
   );
 
+  const toggleReviewPin = useCallback(
+    async (review: UnifiedReview) => {
+      if (!restaurantId) return;
+      const busyKey = `${review.platform}:${review.id}`;
+      setPinBusyKey(busyKey);
+      const nextPinned = !review.isPinned;
+      try {
+        const result = await setFeedItemPin({
+          restaurantId,
+          module: "reviews",
+          platform: review.platform,
+          itemId: review.id,
+          pinned: nextPinned,
+        });
+        if ("error" in result) {
+          toast.error("Anpinnen fehlgeschlagen.");
+          return;
+        }
+        patchReviewInState(review, { isPinned: result.isPinned });
+        toast.success(
+          result.isPinned
+            ? "Bewertung angepinnt — erscheint oben im Feed."
+            : "Pin entfernt.",
+        );
+      } catch {
+        toast.error("Netzwerkfehler beim Anpinnen.");
+      } finally {
+        setPinBusyKey(null);
+      }
+    },
+    [restaurantId, patchReviewInState],
+  );
+
   const openReservationDrawer = useCallback(
     async (review: UnifiedReview) => {
       if (!restaurantId || !review.reservationId) return;
@@ -1072,6 +1107,7 @@ export function ReviewsScreen() {
       return {
         isUnread: review.isUnread,
         visibilityBusy: visibilityBusyKey === busyKey,
+        pinBusy: pinBusyKey === busyKey,
         onMarkUnread: () => void markReviewUnread(review),
         onProtocol:
           review.platform === "gwada"
@@ -1093,13 +1129,16 @@ export function ReviewsScreen() {
             }
           : undefined,
         onToggleHidden: () => void toggleReviewVisibility(review),
+        onTogglePin: () => void toggleReviewPin(review),
       };
     },
     [
       visibilityBusyKey,
+      pinBusyKey,
       markReviewUnread,
       openReservationDrawer,
       toggleReviewVisibility,
+      toggleReviewPin,
     ],
   );
 

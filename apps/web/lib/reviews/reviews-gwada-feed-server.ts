@@ -1,6 +1,7 @@
 import "server-only";
 
 import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-review-server";
+import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -30,7 +31,7 @@ export async function loadGwadaReviewsForFeed(
   const { data, error } = await sb
     .from("gwada_reviews")
     .select(
-      "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id",
+      "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id, is_pinned",
     )
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false })
@@ -93,6 +94,7 @@ export async function loadGwadaReviewsForFeed(
       reservationNumber: reservationId
         ? (reservationNumberById.get(reservationId) ?? null)
         : null,
+      isPinned: Boolean(r.is_pinned),
     };
   });
 }

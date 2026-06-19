@@ -14,12 +14,14 @@ import {
 import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
 import { isReviewsPlatformConnected } from "@/lib/reviews/reviews-platform-connected-server";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 function sortReviewsByDateDesc(reviews: UnifiedReview[]): UnifiedReview[] {
-  return [...reviews].sort(
-    (a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  return [...reviews].sort((a, b) =>
+    compareFeedItemsWithPinFirst(a, b, (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+    ),
   );
 }
 

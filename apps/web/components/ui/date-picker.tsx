@@ -21,6 +21,9 @@ import { cn } from "@/lib/utils"
  * Native `type="time"`: Mausklicks setzen oft nur `:focus`, nicht `:focus-visible`.
  * `focus:*` ergänzt die Standard-`Input`-Fokusdarstellung (`focus-visible:*`), damit Maus
  * dieselbe Border + Ring wie Tastatur sieht.
+ *
+ * Controlled time inputs: nicht bei jedem `onChange` erneut `.focus()` aufrufen — das
+ * unterbricht die Segment-Eingabe (z. B. „12“ wird zu „02“).
  */
 export const formScheduleTimeInputClassName = cn(
   "h-11 w-[7.75rem] shrink-0 rounded-xl border border-input bg-transparent px-2.5 py-1 text-base tabular-nums transition-colors outline-none",

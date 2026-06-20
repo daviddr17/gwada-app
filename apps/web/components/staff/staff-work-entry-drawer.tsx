@@ -121,6 +121,7 @@ export function StaffWorkEntryDrawer({
   );
   const [logLoading, setLogLoading] = useState(false);
   const startTimeRef = useRef<HTMLInputElement>(null);
+  const didAutofocusStartTimeRef = useRef(false);
 
   const readOnly = !allowEdit;
   const isOpenEntry = Boolean(entry?.is_open);
@@ -169,18 +170,23 @@ export function StaffWorkEntryDrawer({
   }, [open, reloadLog]);
 
   useEffect(() => {
-    if (!open || readOnly) return;
+    if (!open) {
+      didAutofocusStartTimeRef.current = false;
+      return;
+    }
+    if (readOnly || didAutofocusStartTimeRef.current) return;
     let innerFrame = 0;
     const outerFrame = requestAnimationFrame(() => {
       innerFrame = requestAnimationFrame(() => {
         startTimeRef.current?.focus();
+        didAutofocusStartTimeRef.current = true;
       });
     });
     return () => {
       cancelAnimationFrame(outerFrame);
       cancelAnimationFrame(innerFrame);
     };
-  }, [open, readOnly, entry?.id, defaultDay, startTime]);
+  }, [open, readOnly, entry?.id, defaultDay]);
 
   const save = useCallback(async () => {
     if (pending || readOnly) return;

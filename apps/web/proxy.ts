@@ -80,6 +80,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/datenschutz/") ||
     pathname.startsWith("/embed/") ||
     pathname.startsWith("/display/") ||
+    pathname.startsWith("/api/display/") ||
     pathname.startsWith("/einladung/") ||
     pathname.startsWith("/bewertung/") ||
     pathname.startsWith("/nachrichten/") ||

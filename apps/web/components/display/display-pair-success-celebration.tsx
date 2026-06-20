@@ -104,33 +104,76 @@ export function DisplayPairSuccessCelebration({
                 }
               >
                 <Monitor
-                  className="absolute size-10 text-muted-foreground/25"
+                  className="absolute size-10 text-muted-foreground/20"
                   aria-hidden
                 />
-                <svg
-                  viewBox="0 0 24 24"
-                  className="relative size-12"
+                <motion.svg
+                  viewBox="0 0 52 52"
+                  className="relative size-14"
                   aria-hidden
+                  initial={{ scale: reduceMotion ? 1 : 0.85, opacity: reduceMotion ? 1 : 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={
+                    reduceMotion
+                      ? { duration: 0.1 }
+                      : { type: "spring", stiffness: 420, damping: 24, delay: 0.12 }
+                  }
                 >
-                  <motion.path
-                    d="M6.5 12.5L10 16l7.5-8.5"
+                  <motion.circle
+                    cx="26"
+                    cy="26"
+                    r="22"
+                    fill={`color-mix(in srgb, ${accent} 14%, transparent)`}
+                    initial={{ scale: reduceMotion ? 1 : 0, opacity: reduceMotion ? 1 : 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      duration: reduceMotion ? 0.1 : 0.35,
+                      delay: reduceMotion ? 0 : 0.18,
+                      ease: MOTION_EASE_OUT,
+                    }}
+                    style={{ transformOrigin: "26px 26px" }}
+                  />
+                  <motion.circle
+                    cx="26"
+                    cy="26"
+                    r="22"
                     fill="none"
                     stroke={accent}
-                    strokeWidth={2.4}
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    initial={{ pathLength: reduceMotion ? 1 : 0, opacity: reduceMotion ? 1 : 0 }}
+                    animate={{ pathLength: 1, opacity: 1 }}
+                    transition={{
+                      pathLength: {
+                        duration: reduceMotion ? 0 : 0.55,
+                        delay: reduceMotion ? 0 : 0.2,
+                        ease: MOTION_EASE_OUT,
+                      },
+                      opacity: { duration: 0.12, delay: reduceMotion ? 0 : 0.16 },
+                    }}
+                  />
+                  <motion.path
+                    d="M15 26.5 22.5 34 37 18.5"
+                    fill="none"
+                    stroke={accent}
+                    strokeWidth={3.25}
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     initial={{ pathLength: reduceMotion ? 1 : 0, opacity: reduceMotion ? 1 : 0 }}
                     animate={{ pathLength: 1, opacity: 1 }}
                     transition={{
                       pathLength: {
-                        duration: reduceMotion ? 0 : 0.5,
-                        delay: reduceMotion ? 0 : 0.28,
+                        duration: reduceMotion ? 0 : 0.42,
+                        delay: reduceMotion ? 0 : 0.62,
                         ease: MOTION_EASE_OUT,
                       },
-                      opacity: { duration: 0.12, delay: reduceMotion ? 0 : 0.22 },
+                      opacity: { duration: 0.12, delay: reduceMotion ? 0 : 0.58 },
+                    }}
+                    style={{
+                      filter: `drop-shadow(0 0 6px color-mix(in srgb, ${accent} 45%, transparent))`,
                     }}
                   />
-                </svg>
+                </motion.svg>
               </motion.div>
             </div>
 

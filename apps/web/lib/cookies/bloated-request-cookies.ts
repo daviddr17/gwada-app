@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  DISPLAY_DEVICE_COOKIE,
+  DISPLAY_SESSION_COOKIE,
+} from "@/lib/display/display-cookies";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 
 /** Volles OAuth-JSON im Cookie — Hauptursache für „header/cookie too large“. */
@@ -30,6 +34,7 @@ function isSupabaseSessionCookie(name: string): boolean {
 
 /** Cookies, die Kong/GoTrue nicht braucht — vom Request vor /sb-Proxy entfernen. */
 export function shouldStripCookieFromSupabaseProxy(name: string): boolean {
+  if (name === DISPLAY_DEVICE_COOKIE || name === DISPLAY_SESSION_COOKIE) return false;
   if (isSupabaseSessionCookie(name)) return false;
   if (
     (AUTH_ENTRY_COOKIES_TO_CLEAR as readonly string[]).includes(name) ||

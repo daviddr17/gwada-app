@@ -2,6 +2,9 @@
 
 import { DisplayRestaurantLogo } from "@/components/display/display-restaurant-logo";
 import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
+import {
+  displayRestaurantLogoMaxClassName,
+} from "@/lib/ui/display-restaurant-branding";
 import { cn } from "@/lib/utils";
 
 export function DisplayRestaurantHeading({
@@ -36,10 +39,11 @@ export function DisplayRestaurantHeading({
         alt={name}
         size="sm"
         className={cn(
-          "shrink-0",
+          "size-8 shrink-0 sm:size-9",
+          displayRestaurantLogoMaxClassName,
           !avatarUrl && "font-semibold text-muted-foreground",
         )}
-        imageClassName="p-1"
+        imageClassName="!max-h-full !max-w-full p-0.5 object-contain"
       />
     ) : (
       <span

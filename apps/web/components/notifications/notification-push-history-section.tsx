@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -161,7 +162,7 @@ export function NotificationPushHistorySection() {
         repositionInputs={false}
       >
         <DrawerContent className="mx-auto flex max-h-[min(92dvh,640px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Push-Verlauf
             </DrawerTitle>

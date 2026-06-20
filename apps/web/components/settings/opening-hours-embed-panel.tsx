@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { EmbedDualThemePreviewPane } from "@/components/embed/embed-dual-theme-preview";
+import { EmbedDualThemePreviewPane, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedOpeningHoursWidget } from "@/components/embed/embed-opening-hours-widget";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
@@ -312,8 +312,7 @@ export function OpeningHoursEmbedPanel() {
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
         <p className="text-xs text-muted-foreground">
-          Beide Schriftvarianten auf passendem Hintergrund — Änderungen oben werden
-          sofort in der Vorschau angezeigt.
+          {embedPreviewSectionHint} Änderungen oben wirken sofort.
         </p>
         {hoursPayload ? (
           <OpeningHoursEmbedDualPreview

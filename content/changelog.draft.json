@@ -1,0 +1,7 @@
+{
+  "title": "Einheitliche Bottom Sheets und feinere Berechtigungen",
+  "body": "- Positionen steuern pro Modul, wer ansehen, anlegen, bearbeiten und löschen darf\n- In der Buchführung lassen sich Benachrichtigungen für Angebote, Rechnungen und Belege einzeln aktivieren\n- Filter- und Formular-Bottom-Sheets sind optisch vereinheitlicht — gleiche Abstände, Sektionen und Footer\n- Die Galerie-Übersicht startet ohne Flacker-Ladebildschirm",
+  "superadminBody": "- Shared UI: drawer-chrome.ts, DrawerFormSection, DrawerFilterFooter, drawerFormFieldClassName\n- Migrationen: module_crud_permissions, accounting_notifications\n- Galerie: Sync-Cache beim ersten Render; RestaurantPositionSelect controlled fix\n- workspacePersistenceConfigured identisch SSR/Client",
+  "audience": "customers",
+  "version": "2026.06.20"
+}

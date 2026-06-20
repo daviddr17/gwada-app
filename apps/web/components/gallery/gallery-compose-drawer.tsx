@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -131,11 +134,12 @@ export function GalleryComposeDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent>
+      <DrawerContent className={drawerContentClassName("mediaTall")}>
         <DrawerHeader className="text-left">
           <DrawerTitle>Bild hinzufügen</DrawerTitle>
         </DrawerHeader>
-        <div className="space-y-4 px-4">
+        <div className={drawerScrollAreaClassName(4)}>
+          <DrawerFormSection contentPadding={4} title="Medien">
           <input
             ref={fileInputRef}
             type="file"
@@ -164,6 +168,9 @@ export function GalleryComposeDrawer({
               </>
             )}
           </button>
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Metadaten">
           <div className="space-y-2">
             <Label htmlFor="gallery-title">Titel</Label>
             <Input id="gallery-title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -176,6 +183,7 @@ export function GalleryComposeDrawer({
             <Label htmlFor="gallery-category">Kategorie</Label>
             <Input id="gallery-category" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="z. B. Speisekarte" />
           </div>
+          </DrawerFormSection>
         </div>
         <DrawerFormFooter
           onCancel={() => onOpenChange(false)}

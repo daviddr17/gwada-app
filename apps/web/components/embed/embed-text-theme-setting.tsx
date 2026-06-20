@@ -58,8 +58,8 @@ export function EmbedTextThemeSetting({
           Helle Schrift
         </Label>
         <p className="text-xs text-muted-foreground">
-          Für dunkle Website-Hintergründe. Standard ist dunkle Schrift — der
-          Widget-Hintergrund ist transparent. {publicSurfaceScopeHint("embed")}
+          Für dunkle Websites. Der Hintergrund bleibt transparent.{" "}
+          {publicSurfaceScopeHint("embed")}
         </p>
       </div>
       <Switch

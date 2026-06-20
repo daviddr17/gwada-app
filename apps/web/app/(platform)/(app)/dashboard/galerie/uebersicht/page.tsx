@@ -3,7 +3,7 @@ import { GalleryScreen } from "@/components/gallery/gallery-screen";
 
 export default function GalerieUebersichtPage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <GalleryScreen />
     </Suspense>
   );

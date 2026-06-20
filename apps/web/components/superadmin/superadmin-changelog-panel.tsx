@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { Check, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { dispatchSuperadminChangelogRefresh } from "@/lib/changelog/changelog-events";
@@ -355,12 +356,12 @@ export function SuperadminChangelogPanel() {
         repositionInputs={false}
       >
         <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               {editingId ? "Eintrag bearbeiten" : "Neuer Changelog-Eintrag"}
             </DrawerTitle>
           </DrawerHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+          <div className={drawerScrollAreaClassName(6)}>
             <div className="space-y-2">
               <Label htmlFor="changelog-title">Titel</Label>
               <Input

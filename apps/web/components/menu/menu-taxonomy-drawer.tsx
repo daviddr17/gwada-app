@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
 import {
   Drawer,
@@ -11,6 +13,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
@@ -142,9 +145,9 @@ export function MenuTaxonomyDrawer({
         repositionInputs={false}
       >
         <DrawerContent
-          className="mx-auto flex max-h-[min(92dvh,520px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+          className={drawerContentClassName("taxonomy")}
         >
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <DrawerTitle className="text-xl font-semibold tracking-tight">
@@ -169,61 +172,65 @@ export function MenuTaxonomyDrawer({
             </div>
           </DrawerHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-1 flex-col px-6 pb-4">
-            <div className="space-y-4 pb-4">
-              <div className="space-y-2">
-                <Label htmlFor="taxonomy-name">Name</Label>
-                <Input
-                  id="taxonomy-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={variant === "tags" ? "z. B. Bio" : "z. B. Sellerie"}
-                  className="h-12 rounded-xl"
-                  autoFocus
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="taxonomy-color">Chip-Hintergrundfarbe</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="taxonomy-color"
-                    type="color"
-                    value={HEX.test(backgroundColor) ? backgroundColor : "#64748b"}
-                    onChange={(e) => setBackgroundColor(e.target.value)}
-                    className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
-                    aria-label="Farbe wählen"
-                  />
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection title="Stammdaten">
+                <div className="space-y-2">
+                  <Label htmlFor="taxonomy-name">Name</Label>
                   <Input
-                    value={backgroundColor}
-                    onChange={(e) => setBackgroundColor(e.target.value)}
-                    placeholder="#64748b"
-                    className="h-12 flex-1 rounded-xl font-mono text-sm"
-                    spellCheck={false}
-                    maxLength={7}
-                    aria-label="Farbe als Hex"
+                    id="taxonomy-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={variant === "tags" ? "z. B. Bio" : "z. B. Sellerie"}
+                    className="h-12 rounded-xl"
+                    autoFocus
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Hex-Wert (#rrggbb) – wird für Chips in Karte und Tabelle verwendet.
-                </p>
-              </div>
 
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/25 px-4 py-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="taxonomy-active" className="text-sm font-medium">
-                    Aktiv
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="taxonomy-color">Chip-Hintergrundfarbe</Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="taxonomy-color"
+                      type="color"
+                      value={HEX.test(backgroundColor) ? backgroundColor : "#64748b"}
+                      onChange={(e) => setBackgroundColor(e.target.value)}
+                      className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
+                      aria-label="Farbe wählen"
+                    />
+                    <Input
+                      value={backgroundColor}
+                      onChange={(e) => setBackgroundColor(e.target.value)}
+                      placeholder="#64748b"
+                      className="h-12 flex-1 rounded-xl font-mono text-sm"
+                      spellCheck={false}
+                      maxLength={7}
+                      aria-label="Farbe als Hex"
+                    />
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Inaktive Einträge erscheinen nicht in Auswahl und Filtern.
+                    Hex-Wert (#rrggbb) – wird für Chips in Karte und Tabelle verwendet.
                   </p>
                 </div>
-                <Switch
-                  id="taxonomy-active"
-                  checked={active}
-                  onCheckedChange={(v) => setActive(v === true)}
-                />
-              </div>
+              </DrawerFormSection>
+
+              <DrawerFormSection title="Sichtbarkeit">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="taxonomy-active" className="text-sm font-medium">
+                      Aktiv
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      Inaktive Einträge erscheinen nicht in Auswahl und Filtern.
+                    </p>
+                  </div>
+                  <Switch
+                    id="taxonomy-active"
+                    checked={active}
+                    onCheckedChange={(v) => setActive(v === true)}
+                  />
+                </div>
+              </DrawerFormSection>
             </div>
 
             <DrawerFormFooter

@@ -23,10 +23,14 @@ export function embedDualThemePreviewHostBackgroundClass(textTheme: EmbedTextThe
   return textTheme === "light" ? "bg-neutral-900" : "bg-muted/30";
 }
 
-function embedPreviewPaneCaption(textTheme: EmbedTextTheme, label: string) {
-  const simulatedHost =
-    textTheme === "light" ? "dunkler Website-Hintergrund" : "heller Website-Hintergrund";
-  return `${label} · transparenter Embed (Vorschau: ${simulatedHost})`;
+/** Kurzer Hinweis unter Embed-Vorschau-Sektionen. */
+export const embedPreviewSectionHint =
+  "Hintergrund nur zur Vorschau — auf der Website transparent.";
+
+function embedPreviewPaneCaption(textTheme: EmbedTextTheme): string {
+  return textTheme === "light"
+    ? "Vorschau: helle Schrift, dunkler Hintergrund"
+    : "Vorschau: dunkle Schrift, heller Hintergrund";
 }
 
 export function EmbedDualThemePreviewPane({
@@ -40,7 +44,7 @@ export function EmbedDualThemePreviewPane({
   children: ReactNode;
   className?: string;
 }) {
-  const caption = embedPreviewPaneCaption(textTheme, label);
+  const caption = embedPreviewPaneCaption(textTheme);
 
   return (
     <div
@@ -52,7 +56,7 @@ export function EmbedDualThemePreviewPane({
     >
       <p
         className="border-b border-border/40 bg-background/90 px-3 py-2 text-xs font-medium text-muted-foreground backdrop-blur-sm"
-        title="Der eingebettete Widget-Hintergrund ist transparent. Die Vorschau simuliert den Hintergrund der Website, damit die Schrift lesbar bleibt."
+        title="Auf der Website ist der Hintergrund transparent — hier nur zur Vorschau simuliert."
       >
         {caption}
       </p>

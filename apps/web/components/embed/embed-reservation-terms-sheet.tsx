@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { cn } from "@/lib/utils";
 import {
   Drawer,
@@ -9,6 +10,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import { reservationBookingTermsSections } from "@/lib/legal/reservation-booking-terms-de";
 
 /** Über Profil-App-Sheet (z-[60]) und Dock (z-[9999]). */
@@ -39,11 +41,11 @@ export function EmbedReservationTermsSheet({
       <DrawerContent
         overlayClassName={elevatedClassName}
         className={cn(
-          "mx-auto flex max-h-[min(88dvh,640px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+          drawerContentClassName("formMd"),
           elevatedClassName,
         )}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Bedingungen zur Reservierung
           </DrawerTitle>
@@ -52,7 +54,7 @@ export function EmbedReservationTermsSheet({
             Reservierungsbedingungen
           </DrawerDescription>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-2">
+        <div className={drawerScrollAreaClassName(6)}>
           <div className="space-y-5 text-sm leading-relaxed text-foreground/90">
             {sections.map((section) => (
               <section key={section.title}>
@@ -72,7 +74,7 @@ export function EmbedReservationTermsSheet({
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full rounded-xl"
+            className={drawerFormFullWidthButtonClassName}
             onClick={() => onOpenChange(false)}
           >
             Schließen

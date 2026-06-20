@@ -9,6 +9,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -52,7 +53,7 @@ export function ShiftPlanSettingsDialog({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,420px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+      <DrawerContent className={drawerContentClassName("export")}>
         <DrawerHeader className="shrink-0 px-6 pt-2 pb-3 text-left">
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Schichtplan-Einstellungen

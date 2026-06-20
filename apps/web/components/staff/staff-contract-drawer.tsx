@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
@@ -347,7 +349,7 @@ export function StaffContractDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+      <DrawerContent className={drawerContentClassName("form")}>
         <DrawerHeader className="shrink-0 px-5 pt-2 pb-3 text-left">
           <DrawerTitle>
             {editId ? "Vertrag bearbeiten" : "Neuer Vertrag"}
@@ -359,8 +361,9 @@ export function StaffContractDrawer({
           ) : null}
         </DrawerHeader>
         <div
-          className={cn(staffDrawerScrollClassName, "space-y-4 px-5 pb-2")}
+          className={staffDrawerScrollClassName}
         >
+          <DrawerFormSection title="Laufzeit" contentPadding={5}>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Gültig von</Label>
@@ -381,7 +384,9 @@ export function StaffContractDrawer({
               />
             </div>
           </div>
+          </DrawerFormSection>
 
+          <DrawerFormSection title="Beschäftigung & Vergütung" contentPadding={5}>
           <div className="space-y-2">
             <Label>Beschäftigungsverhältnis</Label>
             <Select
@@ -474,7 +479,9 @@ export function StaffContractDrawer({
               />
             </div>
           ) : null}
+          </DrawerFormSection>
 
+          <DrawerFormSection title="Arbeitszeit & Urlaub" contentPadding={5}>
           <div className="space-y-2">
             <Label>Urlaubstage pro Jahr</Label>
             <Input
@@ -501,9 +508,9 @@ export function StaffContractDrawer({
               Wird im Schichtplan zum Abgleich der geplanten Stunden genutzt.
             </p>
           </div>
+          </DrawerFormSection>
 
-          <div className="space-y-2">
-            <Label>Notiz</Label>
+          <DrawerFormSection title="Notiz" contentPadding={5}>
             <Textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -511,11 +518,10 @@ export function StaffContractDrawer({
               rows={3}
               className={staffDrawerFieldClassName}
             />
-          </div>
+          </DrawerFormSection>
 
           {editId ? (
-            <div className="space-y-2 border-t border-border/50 pt-4">
-              <Label className="text-base font-semibold">Protokoll</Label>
+            <DrawerFormSection title="Protokoll" contentPadding={5}>
               {logLoading ? (
                 <p className="text-sm text-muted-foreground">Wird geladen …</p>
               ) : logEntries.length === 0 ? (
@@ -552,7 +558,7 @@ export function StaffContractDrawer({
                   ))}
                 </ul>
               )}
-            </div>
+            </DrawerFormSection>
           ) : null}
         </div>
 

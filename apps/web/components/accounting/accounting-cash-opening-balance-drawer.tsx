@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -43,7 +45,7 @@ export function AccountingCashOpeningBalanceDrawer({
           </DrawerDescription>
         </DrawerHeader>
         <form
-          className="space-y-4 px-4 pb-4"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
             void (async () => {
@@ -57,19 +59,24 @@ export function AccountingCashOpeningBalanceDrawer({
             })();
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="cash-opening-balance">Betrag</Label>
-            <Input
-              id="cash-opening-balance"
-              type="number"
-              step="0.01"
-              className={accountingFormControlClassName}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              required
-            />
+          <div className={drawerScrollAreaClassName(4)}>
+            <DrawerFormSection contentPadding={4}>
+              <div className="space-y-2">
+                <Label htmlFor="cash-opening-balance">Betrag</Label>
+                <Input
+                  id="cash-opening-balance"
+                  type="number"
+                  step="0.01"
+                  className={accountingFormControlClassName}
+                  value={value}
+                  onChange={(e) => setValue(e.target.value)}
+                  required
+                />
+              </div>
+            </DrawerFormSection>
           </div>
           <DrawerFormFooter
+            contentPadding={4}
             onCancel={() => onOpenChange(false)}
             submitLabel="Speichern"
             submitPending={saving}

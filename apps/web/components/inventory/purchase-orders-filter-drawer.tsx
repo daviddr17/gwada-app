@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
+import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
   Drawer,
   DrawerContent,
@@ -12,7 +14,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Label } from "@/components/ui/label";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Separator } from "@/components/ui/separator";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
@@ -99,8 +101,8 @@ export function PurchaseOrdersFilterDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("filter")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Filter
           </DrawerTitle>
@@ -110,11 +112,8 @@ export function PurchaseOrdersFilterDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-2">
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Zeitraum
-            </Label>
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection title="Zeitraum">
             <SearchableSelect
               options={scopeOptions}
               value={scope}
@@ -126,14 +125,9 @@ export function PurchaseOrdersFilterDrawer({
               aria-label="Aktive oder vergangene Bestellungen filtern"
               className={purchaseOrderFilterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
 
-          <Separator />
-
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Lieferant
-            </Label>
+          <DrawerFormSection title="Lieferant & Produktion">
             <SearchableSelect
               options={supplierOptions}
               value={supplierFilterId}
@@ -143,12 +137,6 @@ export function PurchaseOrdersFilterDrawer({
               aria-label="Nach Lieferant filtern"
               className={purchaseOrderFilterSelectClassName}
             />
-          </div>
-
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Produktionsstelle
-            </Label>
             <SearchableSelect
               options={productionOptions}
               value={productionFilterId}
@@ -158,28 +146,9 @@ export function PurchaseOrdersFilterDrawer({
               aria-label="Nach Produktionsstelle filtern"
               className={purchaseOrderFilterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
         </div>
-
-        <Separator />
-
-        <div className="flex gap-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1 rounded-xl tap-scale"
-            onClick={resetFilters}
-          >
-            Zurücksetzen
-          </Button>
-          <Button
-            type="button"
-            className={cn("h-12 flex-1", brandActionButtonRoundedClassName)}
-            onClick={() => onOpenChange(false)}
-          >
-            Fertig
-          </Button>
-        </div>
+        <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>
     </Drawer>
   );

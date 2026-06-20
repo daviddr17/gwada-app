@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -104,7 +106,8 @@ export function NewsStoryRingComposeDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Story-Ring anlegen</DrawerTitle>
         </DrawerHeader>
-        <div className="space-y-4 overflow-y-auto px-4">
+        <div className={drawerScrollAreaClassName(4)}>
+          <DrawerFormSection contentPadding={4} title="Allgemein">
           <div className="space-y-2">
             <Label htmlFor="story-ring-title">Titel</Label>
             <Input
@@ -114,8 +117,9 @@ export function NewsStoryRingComposeDrawer({
               placeholder="z. B. Aktionen, Team, Events"
             />
           </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Gwada-Beiträge</p>
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Gwada-Beiträge">
             {selectableItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Noch keine veröffentlichten Beiträge mit Bild oder Video.
@@ -156,7 +160,7 @@ export function NewsStoryRingComposeDrawer({
                 })}
               </div>
             )}
-          </div>
+          </DrawerFormSection>
         </div>
         <DrawerFormFooter
           className="px-4 pb-6"

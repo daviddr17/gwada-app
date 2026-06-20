@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
@@ -13,6 +14,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -173,8 +175,8 @@ export function DisplayReservationMessageSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(85dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("compact")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Nachricht senden
           </DrawerTitle>

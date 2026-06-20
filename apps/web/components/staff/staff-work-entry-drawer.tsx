@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import {
   Drawer,
@@ -20,6 +22,7 @@ import {
 import { formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   fetchStaffWorkEntryLogEntries,
   upsertStaffWorkEntry,
@@ -119,7 +122,8 @@ export function StaffWorkEntryDrawer({
   const [logLoading, setLogLoading] = useState(false);
   const startTimeRef = useRef<HTMLInputElement>(null);
 
-  const readOnly = !allowEdit || Boolean(entry?.is_open);
+  const readOnly = !allowEdit;
+  const isOpenEntry = Boolean(entry?.is_open);
   const isDisplayEntry = entry != null && isDisplayWorkEntry(entry);
 
   const reloadLog = useCallback(async () => {
@@ -144,11 +148,12 @@ export function StaffWorkEntryDrawer({
     if (!open) return;
     if (entry) {
       const s = new Date(entry.starts_at);
-      const e = new Date(entry.ends_at);
       setEntryType(entry.entry_type);
       setDateStr(toDateInput(s));
       setStartTime(toTimeInput(s));
-      setEndTime(toTimeInput(e));
+      setEndTime(
+        entry.is_open ? toTimeInput(new Date()) : toTimeInput(new Date(entry.ends_at)),
+      );
     } else {
       const day = defaultDay ?? new Date();
       setEntryType("work");
@@ -180,14 +185,19 @@ export function StaffWorkEntryDrawer({
   const save = useCallback(async () => {
     if (pending || readOnly) return;
     const starts_at = combineLocal(dateStr, startTime);
-    const ends_at = combineLocal(dateStr, endTime);
+    const ends_at_input = combineLocal(dateStr, endTime);
+    const startMs = new Date(starts_at).getTime();
+    const endMs = new Date(ends_at_input).getTime();
+    const closingOpenEntry =
+      isOpenEntry && endMs <= Date.now() && endMs > startMs;
+    const ends_at = isOpenEntry && !closingOpenEntry ? starts_at : ends_at_input;
 
     const timing = validateStaffWorkEntryTiming({
       entryType,
       startsAt: starts_at,
       endsAt: ends_at,
       entryId: entry?.id,
-      isOpen: entry?.is_open,
+      isOpen: isOpenEntry && !closingOpenEntry,
       siblings: siblingEntries,
     });
     if (!timing.ok) {
@@ -217,6 +227,7 @@ export function StaffWorkEntryDrawer({
     const res = await upsertStaffWorkEntry(restaurantId, staffId, {
       id: entry?.id,
       ...after,
+      ...(isOpenEntry ? { is_open: !closingOpenEntry } : {}),
     });
     setPending(false);
     if (!res) {
@@ -251,6 +262,7 @@ export function StaffWorkEntryDrawer({
     onOpenChange,
     absenceByDayKey,
     siblingEntries,
+    isOpenEntry,
   ]);
 
   const drawerTitle = entry
@@ -262,8 +274,8 @@ export function StaffWorkEntryDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,640px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("formMd")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle>{drawerTitle}</DrawerTitle>
           </DrawerHeader>
           <form
@@ -273,11 +285,12 @@ export function StaffWorkEntryDrawer({
               void save();
             }}
           >
-            <div className={cn(staffDrawerScrollClassName, "space-y-4 px-6 pb-4")}>
-              {entry?.is_open ? (
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection>
+              {isOpenEntry ? (
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-                  Dieser Eintrag läuft noch — Bearbeitung ist erst nach dem Ende
-                  möglich.
+                  Läuft noch — Zeiten sind bearbeitbar. „Bis“ in der Vergangenheit
+                  beendet den Eintrag.
                 </p>
               ) : null}
               {isDisplayEntry ? (
@@ -360,10 +373,10 @@ export function StaffWorkEntryDrawer({
                   />
                 </div>
               </div>
+              </DrawerFormSection>
 
               {entry?.id ? (
-                <div className="space-y-2 border-t border-border/50 pt-4">
-                  <Label className="text-base font-semibold">Protokoll</Label>
+                <DrawerFormSection title="Protokoll">
                   {logLoading ? (
                     <p className="text-sm text-muted-foreground">Wird geladen …</p>
                   ) : logEntries.length === 0 ? (
@@ -400,7 +413,7 @@ export function StaffWorkEntryDrawer({
                       ))}
                     </ul>
                   )}
-                </div>
+                </DrawerFormSection>
               ) : null}
             </div>
             <DrawerFormFooter

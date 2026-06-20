@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   AccountingCashTaxLinesEditor,
   cashTaxLineDraftsFromEntry,
@@ -207,7 +210,7 @@ export function AccountingCashEntryDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem]">
+        <DrawerContent className={drawerContentClassName("form")}>
           <DrawerHeader className="shrink-0">
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1 text-left">
@@ -269,7 +272,8 @@ export function AccountingCashEntryDrawer({
               })();
             }}
           >
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+            <div className={drawerScrollAreaClassName(4)}>
+              <DrawerFormSection contentPadding={4} title="Buchung">
               <div className={accountingFormGridClassName}>
                 <div className="space-y-2">
                   <Label htmlFor="cash-entry-date">Datum</Label>
@@ -337,10 +341,10 @@ export function AccountingCashEntryDrawer({
                   noch keine Beträge eingetragen sind.
                 </p>
               </div>
+              </DrawerFormSection>
 
-              <div className="space-y-2">
-                <Label>Steuerpositionen (Split)</Label>
-                <AccountingCashTaxLinesEditor
+              <DrawerFormSection contentPadding={4} title="Steuerpositionen">
+              <AccountingCashTaxLinesEditor
                   lines={
                     taxLines.length > 0
                       ? taxLines
@@ -350,8 +354,9 @@ export function AccountingCashEntryDrawer({
                   disabled={saving || deleting}
                   onChange={setTaxLines}
                 />
-              </div>
+              </DrawerFormSection>
 
+              <DrawerFormSection contentPadding={4} title="Notiz">
               <div className="space-y-2">
                 <Label htmlFor="cash-entry-note">Notiz</Label>
                 <Textarea
@@ -363,9 +368,10 @@ export function AccountingCashEntryDrawer({
                   rows={3}
                 />
               </div>
+              </DrawerFormSection>
             </div>
             <DrawerFormFooter
-              className="px-4"
+              contentPadding={4}
               onCancel={() => onOpenChange(false)}
               submitLabel={initial ? "Speichern" : "Buchen"}
               submitPending={saving}

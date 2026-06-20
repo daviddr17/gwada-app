@@ -7,6 +7,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import type {
   RestaurantStaffRow,
@@ -70,14 +72,14 @@ export function StaffOverviewLivePresenceSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-      <DrawerContent className="mx-auto flex max-h-[min(85dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("compact")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {copy.title}
           </DrawerTitle>
           <DrawerDescription>Live vom Display</DrawerDescription>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">
+        <div className={drawerScrollAreaClassName(6)}>
           {rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {copy.empty}

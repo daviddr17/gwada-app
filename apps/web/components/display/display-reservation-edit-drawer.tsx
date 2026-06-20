@@ -1,10 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {drawerFormFieldClassName,  drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -256,8 +259,7 @@ export function DisplayReservationEditDrawer({
   const hasPhone = Boolean(formatGuestPhone(phoneCountryIso, phoneLocal, countries));
   const hasEmail = Boolean(email.trim());
 
-  const fieldClass =
-    "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
+  const fieldClass = drawerFormFieldClassName;
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
 
   const snapTimeField = (hm: string) => {
@@ -387,8 +389,8 @@ export function DisplayReservationEditDrawer({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
+        <DrawerContent className={drawerContentClassName("form")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Reservierung bearbeiten
             </DrawerTitle>
@@ -406,7 +408,7 @@ export function DisplayReservationEditDrawer({
 
           {open ? (
             <>
-              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+              <div className={drawerScrollAreaClassName(6)}>
                 {loading ? (
                   <div className="space-y-3" aria-busy>
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -415,6 +417,7 @@ export function DisplayReservationEditDrawer({
                   </div>
                 ) : (
                   <>
+                    <DrawerFormSection title="Termin & Status">
                     <div className={drawerTwoColClass}>
                       <div className="min-w-0 space-y-1.5">
                         <Label
@@ -506,7 +509,9 @@ export function DisplayReservationEditDrawer({
                         />
                       </div>
                     </div>
+                    </DrawerFormSection>
 
+                    <DrawerFormSection title="Gast">
                     <div className={drawerTwoColClass}>
                       <div className="space-y-1.5">
                         <Label
@@ -568,6 +573,19 @@ export function DisplayReservationEditDrawer({
                       </div>
                     </div>
 
+                    {notesDisplay ? (
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">
+                          Gastnotiz
+                        </Label>
+                        <p className="text-sm leading-relaxed text-muted-foreground">
+                          {notesDisplay}
+                        </p>
+                      </div>
+                    ) : null}
+                    </DrawerFormSection>
+
+                    <DrawerFormSection title="Tisch & Verweildauer">
                     <div className={drawerTwoColClass}>
                       <div className="space-y-1.5">
                         <Label
@@ -630,22 +648,9 @@ export function DisplayReservationEditDrawer({
                         ) : null}
                       </div>
                     </div>
+                    </DrawerFormSection>
 
-                    {notesDisplay ? (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Gastnotiz
-                        </Label>
-                        <p className="rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5 text-sm leading-relaxed">
-                          {notesDisplay}
-                        </p>
-                      </div>
-                    ) : null}
-
-                    <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
-                      <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                        Benachrichtigungen & AGB
-                      </p>
+                    <DrawerFormSection title="Benachrichtigungen & AGB">
                       <div
                         className={cn(
                           "flex items-center justify-between gap-3",
@@ -706,7 +711,7 @@ export function DisplayReservationEditDrawer({
                           aria-labelledby="disp-edit-terms"
                         />
                       </div>
-                    </div>
+                    </DrawerFormSection>
                   </>
                 )}
               </div>

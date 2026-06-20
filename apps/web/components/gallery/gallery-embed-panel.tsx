@@ -5,7 +5,7 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { EmbedDualThemePreviewFrame } from "@/components/embed/embed-dual-theme-preview";
+import { EmbedDualThemePreviewFrame, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
@@ -49,6 +49,7 @@ export function GalleryEmbedPanel() {
           <EmbedTextThemeSetting restaurantId={restaurantId} widget="gallery" />
           {embedUrl ? (
             <>
+              <p className="text-xs text-muted-foreground">{embedPreviewSectionHint}</p>
               <EmbedDualThemePreviewFrame
                 embedUrl={embedUrl}
                 widget="gallery"

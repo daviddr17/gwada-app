@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
   Download,
   Pause,
@@ -25,6 +26,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import {
   Select,
   SelectContent,
@@ -866,14 +868,14 @@ export function DayReservationsDrawer({
     >
       <DrawerContent
         className={cn(
-          "mx-auto flex h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 w-full max-w-[100dvw] flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+          drawerContentClassName("dayOverview"),
           viewMode === "floor"
             ? "md:max-w-[min(100%,52rem)]"
             : "md:max-w-[42rem]",
           "data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:mt-4 data-[vaul-drawer-direction=bottom]:max-h-[min(96dvh,calc(100dvh-0.5rem))]",
         )}
       >
-        <DrawerHeader className="min-w-0 shrink-0 space-y-3 overflow-x-hidden px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6, "min-w-0 space-y-3 overflow-x-hidden")}>
           <div>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Tagesübersicht
@@ -978,7 +980,7 @@ export function DayReservationsDrawer({
           )}
         >
           {viewMode === "list" && (
-            <div className="h-full min-w-0 space-y-2 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y pb-4">
+            <div className="h-full min-w-0 space-y-2 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y pb-6">
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   Keine Reservierungen an diesem Tag.
@@ -989,7 +991,7 @@ export function DayReservationsDrawer({
             </div>
           )}
           {viewMode === "grid" && showGridOption && (
-            <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y pb-4">
+            <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y pb-6">
               {sorted.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   Keine Reservierungen an diesem Tag.
@@ -1494,7 +1496,7 @@ export function DayReservationsDrawer({
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full rounded-xl"
+            className={drawerFormFullWidthButtonClassName}
             onClick={() => onOpenChange(false)}
           >
             Schließen

@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DocumentsProtocolTableSkeleton } from "@/components/documents/documents-protocol-table-skeleton";
 import { GwadaReviewProtocolTable } from "@/components/reviews/gwada-review-protocol-table";
 import {
@@ -118,8 +121,8 @@ export function GwadaReviewProtocolDrawer(props: GwadaReviewProtocolDrawerProps)
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(88dvh,560px)] max-w-5xl flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("wide")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {title}
           </DrawerTitle>
@@ -127,7 +130,8 @@ export function GwadaReviewProtocolDrawer(props: GwadaReviewProtocolDrawerProps)
             {description}
           </DrawerDescription>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 sm:px-5">
+        <div className={drawerScrollAreaClassName("4-6")}>
+          <DrawerFormSection contentPadding="4-6">
           {loading && !showSkeleton ? (
             <div className="min-h-48" aria-busy="true" />
           ) : null}
@@ -141,6 +145,7 @@ export function GwadaReviewProtocolDrawer(props: GwadaReviewProtocolDrawerProps)
               onNavigate={() => onOpenChange(false)}
             />
           )}
+          </DrawerFormSection>
         </div>
       </DrawerContent>
     </Drawer>

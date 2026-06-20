@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {drawerFormFieldClassName,  drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -162,8 +165,7 @@ export function DisplayReservationDrawer({
   const hasPhone = Boolean(formatGuestPhone(phoneCountryIso, phoneLocal, countries));
   const hasEmail = Boolean(email.trim());
 
-  const fieldClass =
-    "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
+  const fieldClass = drawerFormFieldClassName;
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
 
   const snapTimeField = (hm: string) => {
@@ -256,8 +258,8 @@ export function DisplayReservationDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
+      <DrawerContent className={drawerContentClassName("form")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Neue Reservierung
           </DrawerTitle>
@@ -273,7 +275,7 @@ export function DisplayReservationDrawer({
 
         {open ? (
           <>
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+            <div className={drawerScrollAreaClassName(6)}>
               <div className={drawerTwoColClass}>
                 <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="disp-res-status" className="text-xs text-muted-foreground">
@@ -470,10 +472,7 @@ export function DisplayReservationDrawer({
                 />
               </div>
 
-              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Benachrichtigungen & AGB
-                </p>
+              <DrawerFormSection title="Benachrichtigungen & AGB">
                 <div
                   className={cn(
                     "flex items-center justify-between gap-3",
@@ -531,7 +530,7 @@ export function DisplayReservationDrawer({
                     aria-labelledby="disp-res-terms"
                   />
                 </div>
-              </div>
+              </DrawerFormSection>
             </div>
 
             <div className="flex shrink-0 gap-2 border-t border-border/50 px-6 py-3">

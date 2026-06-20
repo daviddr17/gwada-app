@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
-import { AccountingFormSection } from "@/components/accounting/accounting-form-section";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { AccountingVoucherDocumentPanel } from "@/components/accounting/accounting-voucher-document-panel";
 import { AccountingVoucherItemsEditor, createEmptyVoucherItem } from "@/components/accounting/accounting-voucher-items-editor";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -15,6 +15,10 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import {
+  drawerFormHeaderClassName,
+  drawerScrollAreaClassName,
+} from "@/lib/ui/drawer-form-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -57,10 +61,9 @@ import type {
 import {
   accountingFormControlClassName,
   accountingFormGridClassName,
-  accountingFormSectionClassName,
-  accountingFormSectionTitleClassName,
   accountingFormSelectClassName,
 } from "@/lib/ui/accounting-form-styles";
+import { drawerFormSectionTitleClassName } from "@/lib/ui/drawer-form-section";
 import {
   accountingVoucherDrawerContentClassName,
 } from "@/lib/ui/accounting-drawer-layout";
@@ -330,6 +333,8 @@ export function AccountingVoucherDrawer({
 
   const showDocumentPanel = !isEdit || hasExistingFile || Boolean(file);
 
+  const formSectionBleed = showDocumentPanel ? ("column" as const) : true;
+
   const documentPreviewUrl =
     editRow && hasExistingFile
       ? accountingVoucherFileUrl(restaurantId, editRow.id)
@@ -469,7 +474,7 @@ export function AccountingVoucherDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className={accountingVoucherDrawerContentClassName}>
-        <DrawerHeader className="shrink-0 border-b border-border/50 pb-3 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName("4-6", "border-b border-border/50")}>
           <DrawerTitle>
             {isEdit
               ? isAccountingCorrectionVariant(editRow?.document_variant)
@@ -497,7 +502,7 @@ export function AccountingVoucherDrawer({
         >
           <div
             className={cn(
-              "min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-3 md:px-6",
+              drawerScrollAreaClassName("4-6"),
               showDocumentPanel &&
                 "lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden",
             )}
@@ -524,15 +529,24 @@ export function AccountingVoucherDrawer({
                 </div>
               ) : null}
 
-              <div className="min-h-0 space-y-4 overflow-y-auto lg:pr-1">
+              <div className="min-h-0 space-y-0 overflow-y-auto lg:pr-1">
                 {readOnly ? (
-                  <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                    Lexware-Belege können nur in Lexware bearbeitet werden.
-                  </p>
+                  <DrawerFormSection
+                    contentPadding="4-6"
+                    bleed={formSectionBleed}
+                    className="pt-3"
+                  >
+                    <p className="text-sm text-muted-foreground">
+                      Lexware-Belege können nur in Lexware bearbeitet werden.
+                    </p>
+                  </DrawerFormSection>
                 ) : null}
 
-                <div className={accountingFormSectionClassName}>
-                  <p className={accountingFormSectionTitleClassName}>Stammdaten</p>
+                <DrawerFormSection
+                  title="Stammdaten"
+                  contentPadding="4-6"
+                  bleed={formSectionBleed}
+                >
                   <div className={accountingFormGridClassName}>
                     <div className="space-y-2">
                       <Label>Art</Label>
@@ -584,10 +598,14 @@ export function AccountingVoucherDrawer({
                       />
                     </div>
                   </div>
-                </div>
+                </DrawerFormSection>
 
                 {!readOnly ? (
-                  <AccountingFormSection title="Kontakt">
+                  <DrawerFormSection
+                    title="Kontakt"
+                    contentPadding="4-6"
+                    bleed={formSectionBleed}
+                  >
                     <div className={accountingFormGridClassName}>
                       <div className="space-y-2 sm:col-span-2">
                         <Label>Kontaktart</Label>
@@ -689,12 +707,14 @@ export function AccountingVoucherDrawer({
                         />
                       )}
                     </div>
-                  </AccountingFormSection>
+                  </DrawerFormSection>
                 ) : null}
 
-                <div className={accountingFormSectionClassName}>
+                <DrawerFormSection contentPadding="4-6" bleed={formSectionBleed}>
                   <div className="flex items-center justify-between gap-3">
-                    <p className={accountingFormSectionTitleClassName}>Steuerpositionen</p>
+                    <h3 className={drawerFormSectionTitleClassName}>
+                      Steuerpositionen
+                    </h3>
                     <SearchableSelect
                       disabled={readOnly || saving}
                       value={taxMode}
@@ -721,17 +741,20 @@ export function AccountingVoucherDrawer({
                       })}
                     </span>
                   </p>
-                </div>
+                </DrawerFormSection>
 
-                <div className="space-y-2">
-                  <Label>Notiz</Label>
+                <DrawerFormSection
+                  title="Notiz"
+                  contentPadding="4-6"
+                  bleed={formSectionBleed}
+                >
                   <Input
                     disabled={readOnly || saving}
                     className={accountingFormControlClassName}
                     value={remark}
                     onChange={(e) => setRemark(e.target.value)}
                   />
-                </div>
+                </DrawerFormSection>
 
                 {!isEdit && connectorConnected ? (
                   forceExternalCorrection ? (

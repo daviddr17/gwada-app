@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -11,6 +12,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import type { ReservationGwadaReviewSummary } from "@/lib/reviews/reservation-gwada-review-types";
 import { cn } from "@/lib/utils";
 
@@ -58,8 +60,8 @@ export function ReservationGwadaReviewSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(85dvh,520px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("reviewCompact")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Gwada-Bewertung
           </DrawerTitle>

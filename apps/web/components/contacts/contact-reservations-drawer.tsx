@@ -1,5 +1,8 @@
 "use client";
 
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import Link from "next/link";
 import { CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,8 +44,8 @@ export function ContactReservationsDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[min(88dvh,520px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("info")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Verknüpfte Reservierungen
           </DrawerTitle>
@@ -50,7 +53,8 @@ export function ContactReservationsDrawer({
             Reservierungen von „{contactName}“ im System.
           </DrawerDescription>
         </DrawerHeader>
-        <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-6 pb-4">
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection>
           {reservations.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Noch keine Reservierungen mit diesem Kontakt verknüpft.
@@ -60,7 +64,7 @@ export function ContactReservationsDrawer({
               {reservations.map((r) => (
                 <li
                   key={r.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/70 px-3 py-2.5"
                 >
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex min-w-0 items-center gap-2">
@@ -100,12 +104,13 @@ export function ContactReservationsDrawer({
               ))}
             </ul>
           )}
+          </DrawerFormSection>
         </div>
         <div className="border-t border-border/50 px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full rounded-xl"
+            className={drawerFormFullWidthButtonClassName}
             onClick={() => onOpenChange(false)}
           >
             Schließen

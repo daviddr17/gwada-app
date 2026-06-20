@@ -1,6 +1,7 @@
 "use client";
 
 import { FileSpreadsheet, FileText } from "lucide-react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,6 +11,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import {
   dayReservationExportTotals,
   downloadDayReservationsCsv,
@@ -68,8 +70,8 @@ export function DayReservationsExportSheet({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[min(88dvh,420px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("export")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Tagesliste exportieren
           </DrawerTitle>

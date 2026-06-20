@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -114,8 +117,8 @@ export function ShiftPlanTemplateDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("template")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               {mode === "edit" ? "Vorlage bearbeiten" : "Neue Vorlage"}
             </DrawerTitle>
@@ -125,13 +128,14 @@ export function ShiftPlanTemplateDrawer({
           </DrawerHeader>
 
           <form
-            className="flex flex-1 flex-col px-6 pb-4"
+            className="flex min-h-0 flex-1 flex-col"
             onSubmit={(e) => {
               e.preventDefault();
               void save();
             }}
           >
-            <div className="space-y-4 pb-4">
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection title="Vorlage">
               <div className="space-y-2">
                 <Label htmlFor="shift-template-name">Name</Label>
                 <Input
@@ -188,6 +192,7 @@ export function ShiftPlanTemplateDrawer({
                   />
                 </div>
               </div>
+              </DrawerFormSection>
             </div>
 
             <DrawerFormFooter

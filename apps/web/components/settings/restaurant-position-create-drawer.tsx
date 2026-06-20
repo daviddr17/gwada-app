@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -8,6 +10,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -79,8 +82,8 @@ export function RestaurantPositionCreateDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("form")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Neue Position
           </DrawerTitle>
@@ -90,35 +93,34 @@ export function RestaurantPositionCreateDrawer({
         </DrawerHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-4">
-            <div className="space-y-2">
-              <Label
-                htmlFor="position-create-name"
-                className={restaurantPositionDrawerLabelClassName}
-              >
-                Name
-              </Label>
-              <Input
-                id="position-create-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z. B. Bar"
-                className="h-12 rounded-xl"
-                autoFocus
+          <div className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection title="Stammdaten">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="position-create-name"
+                  className={restaurantPositionDrawerLabelClassName}
+                >
+                  Name
+                </Label>
+                <Input
+                  id="position-create-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. Bar"
+                  className="h-12 rounded-xl"
+                  autoFocus
+                />
+              </div>
+
+              <RestaurantPositionColorField
+                idPrefix="position-create"
+                color={color}
+                onColorChange={setColor}
+                fallbackSeed={name || "new-position"}
               />
-            </div>
+            </DrawerFormSection>
 
-            <RestaurantPositionColorField
-              idPrefix="position-create"
-              color={color}
-              onColorChange={setColor}
-              fallbackSeed={name || "new-position"}
-            />
-
-            <div className="space-y-2">
-              <Label className={restaurantPositionDrawerLabelClassName}>
-                Berechtigungen
-              </Label>
+            <DrawerFormSection title="Berechtigungen">
               <p className="text-xs text-muted-foreground">
                 Lege fest, was diese Position direkt beim Anlegen darf.
               </p>
@@ -127,7 +129,7 @@ export function RestaurantPositionCreateDrawer({
                 permDraft={permDraft}
                 onToggle={togglePerm}
               />
-            </div>
+            </DrawerFormSection>
           </div>
 
           <DrawerFormFooter

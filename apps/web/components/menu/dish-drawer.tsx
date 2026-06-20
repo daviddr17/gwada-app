@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
 import { DishForm } from "@/components/menu/dish-form";
 import { Button } from "@/components/ui/button";
@@ -104,9 +106,9 @@ export function DishDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("form")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 text-left">
               <DrawerTitle className="text-xl font-semibold tracking-tight">

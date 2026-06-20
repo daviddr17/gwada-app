@@ -11,6 +11,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Label } from "@/components/ui/label";
 import { DatePickerField } from "@/components/ui/date-picker";
@@ -198,8 +200,8 @@ export function ShiftPlanCopyDialog({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("formMd")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Schichten kopieren
           </DrawerTitle>
@@ -213,7 +215,7 @@ export function ShiftPlanCopyDialog({
             void runCopy();
           }}
         >
-          <div className={cn(staffDrawerScrollClassName, "space-y-4 px-6 pb-4")}>
+          <div className={cn(staffDrawerScrollClassName, "space-y-4")}>
             <div className="space-y-3 rounded-lg border border-border/50 bg-muted/20 p-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Von

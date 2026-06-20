@@ -4,13 +4,22 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import {
+  drawerHorizontalPaddingClassName,
+  type DrawerContentPadding,
+} from "@/lib/ui/drawer-form-section";
 import { cn } from "@/lib/utils";
 
 /** Sticky Fußzeile für Bottom-Sheet-Formulare (Abbrechen · Speichern · optional Löschen). */
-export const drawerFormFooterShellClassName = cn(
-  "flex shrink-0 flex-col gap-3 border-t border-border/50 px-6 pt-4",
-  "pb-[max(1.25rem,env(safe-area-inset-bottom))]",
-);
+export function drawerFormFooterShellClassName(
+  contentPadding: DrawerContentPadding = 6,
+): string {
+  return cn(
+    "flex shrink-0 flex-col gap-3 border-t border-border/50 pt-4",
+    drawerHorizontalPaddingClassName(contentPadding),
+    "pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+  );
+}
 
 export const drawerFormFooterActionsRowClassName = "flex gap-3";
 
@@ -45,6 +54,8 @@ export type DrawerFormFooterProps = {
   showCancel?: boolean;
   /** Speichern-Button ausblenden (nur Schließen). */
   showSubmit?: boolean;
+  /** Gleiches horizontales Padding wie Scroll-Bereich (4 / 5 / 6). */
+  contentPadding?: DrawerContentPadding;
   className?: string;
   children?: ReactNode;
 };
@@ -65,6 +76,7 @@ export function DrawerFormFooter({
   showSeparator = false,
   showCancel = true,
   showSubmit = true,
+  contentPadding = 6,
   className,
   children,
 }: DrawerFormFooterProps) {
@@ -87,7 +99,7 @@ export function DrawerFormFooter({
   };
 
   return (
-    <div className={cn(drawerFormFooterShellClassName, className)}>
+    <div className={cn(drawerFormFooterShellClassName(contentPadding), className)}>
       {showSeparator ? <Separator className="-mt-4 mb-1" /> : null}
       <div className={drawerFormFooterActionsRowClassName}>
         {showCancel ? (

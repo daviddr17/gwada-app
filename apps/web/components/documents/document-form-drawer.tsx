@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Upload } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
@@ -181,13 +184,13 @@ export function DocumentFormDrawer({
     >
       <DrawerContent
         className={cn(
-          "mx-auto flex max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+          drawerContentClassName("documentForm"),
           mode === "edit"
             ? "max-h-[min(92dvh,720px)]"
             : "max-h-[min(92dvh,560px)]",
         )}
       >
-        <DrawerHeader className="shrink-0 px-5 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(5)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {mode === "upload" ? "Dokument hochladen" : "Dokument bearbeiten"}
           </DrawerTitle>
@@ -199,10 +202,9 @@ export function DocumentFormDrawer({
         </DrawerHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden overscroll-contain px-5 pb-4">
+          <div className={drawerScrollAreaClassName(5)}>
             {mode === "upload" ? (
-              <div className="space-y-2">
-                <Label id="doc-file-label">Datei</Label>
+              <DrawerFormSection title="Datei" contentPadding={5}>
                 <input
                   ref={fileRef}
                   type="file"
@@ -268,45 +270,51 @@ export function DocumentFormDrawer({
                     </>
                   )}
                 </div>
-              </div>
+              </DrawerFormSection>
             ) : document ? (
-              <p className="text-sm text-muted-foreground">
-                Datei:{" "}
-                <span className="font-medium text-foreground">
-                  {document.file_name}
-                </span>
-              </p>
+              <DrawerFormSection contentPadding={5}>
+                <p className="text-sm text-muted-foreground">
+                  Datei:{" "}
+                  <span className="font-medium text-foreground">
+                    {document.file_name}
+                  </span>
+                </p>
+              </DrawerFormSection>
             ) : null}
 
-            <div className="space-y-2">
-              <Label htmlFor="doc-title">Titel</Label>
-              <Input
-                id="doc-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="z. B. Hygieneunterweisung 2026"
-                required
-              />
-            </div>
+            <DrawerFormSection title="Metadaten" contentPadding={5}>
+              <div className="space-y-2">
+                <Label htmlFor="doc-title">Titel</Label>
+                <Input
+                  id="doc-title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="z. B. Hygieneunterweisung 2026"
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label>Tag</Label>
-              <DocumentTagSelect
-                activeTags={activeTags}
-                value={tagId}
-                onValueChange={setTagId}
-                aria-label="Dokument-Tag"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label>Tag</Label>
+                <DocumentTagSelect
+                  activeTags={activeTags}
+                  value={tagId}
+                  onValueChange={setTagId}
+                  aria-label="Dokument-Tag"
+                />
+              </div>
+            </DrawerFormSection>
 
             {mode === "edit" && document ? (
-              <DocumentNotesSection
-                open={open}
-                restaurantId={document.restaurant_id}
-                documentId={document.id}
-                canEditNotes={canEditNotes}
-                onNotesChanged={onNotesChanged}
-              />
+              <DrawerFormSection title="Notizen" contentPadding={5}>
+                <DocumentNotesSection
+                  open={open}
+                  restaurantId={document.restaurant_id}
+                  documentId={document.id}
+                  canEditNotes={canEditNotes}
+                  onNotesChanged={onNotesChanged}
+                />
+              </DrawerFormSection>
             ) : null}
           </div>
 

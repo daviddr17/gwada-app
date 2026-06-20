@@ -8,7 +8,7 @@ import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { EmbedDualThemePreviewFrame } from "@/components/embed/embed-dual-theme-preview";
+import { EmbedDualThemePreviewFrame, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
 import { buildMenuEmbedSnippet } from "@/lib/embed/build-embed-snippet";
@@ -152,10 +152,7 @@ export function MenuEmbedPanel() {
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
-        <p className="text-xs text-muted-foreground">
-          Beide Schriftvarianten auf passendem Hintergrund — auf deiner Website bleibt
-          der Widget-Hintergrund transparent.
-        </p>
+        <p className="text-xs text-muted-foreground">{embedPreviewSectionHint}</p>
         {snippet ? (
           <EmbedDualThemePreviewFrame
             embedUrl={snippet.embedUrl}

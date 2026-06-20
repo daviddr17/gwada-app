@@ -1,5 +1,8 @@
 "use client";
 
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -36,15 +39,17 @@ export function StaffExportEntriesDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[min(88dvh,640px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("formMd")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {title}
           </DrawerTitle>
           <DrawerDescription className="text-base">{description}</DrawerDescription>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6">
-          <StaffExportEntriesByDay days={days} />
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection>
+            <StaffExportEntriesByDay days={days} />
+          </DrawerFormSection>
         </div>
       </DrawerContent>
     </Drawer>

@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -150,7 +153,7 @@ export function NewsDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto max-h-[min(92dvh,720px)] max-w-lg rounded-t-[1.75rem]">
+      <DrawerContent className={drawerContentClassName("form")}>
         <DrawerHeader className="text-left">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" className="gap-1">
@@ -165,9 +168,10 @@ export function NewsDetailDrawer({
           <p className="text-sm text-muted-foreground">{publishedLabel}</p>
         </DrawerHeader>
 
-        <div className="space-y-4 overflow-y-auto overscroll-contain px-4 pt-2 pb-2">
+        <div className={drawerScrollAreaClassName(4)}>
           {preview?.url ? (
-            <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
+            <DrawerFormSection contentPadding={4}>
+            <div className="overflow-hidden rounded-xl">
               {preview.kind === "video" ? (
                 <video
                   src={preview.url}
@@ -180,8 +184,10 @@ export function NewsDetailDrawer({
                 <img src={preview.url} alt="" className="max-h-64 w-full object-cover" />
               )}
             </div>
+            </DrawerFormSection>
           ) : null}
 
+          <DrawerFormSection contentPadding={4} title="Inhalt">
           {isGwadaEditable ? (
             <>
               <Input
@@ -205,7 +211,10 @@ export function NewsDetailDrawer({
               </p>
             </>
           )}
+          </DrawerFormSection>
 
+          {item.insights || externalUrl || (item.source === "external" && !item.canEdit) || (canManage && item.status !== "archived") ? (
+          <DrawerFormSection contentPadding={4} title="Aktionen">
           {item.insights ? (
             <NewsInsightsBadges insights={item.insights} className="text-sm" />
           ) : null}
@@ -237,6 +246,8 @@ export function NewsDetailDrawer({
               isPinned={Boolean(item.isPinned)}
               onChanged={(nextPinned) => onChanged(nextPinned)}
             />
+          ) : null}
+          </DrawerFormSection>
           ) : null}
         </div>
 

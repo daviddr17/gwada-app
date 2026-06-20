@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
-import { AccountingFormSection } from "@/components/accounting/accounting-form-section";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { AccountingLineItemsEditor } from "@/components/accounting/accounting-line-items-editor";
 import { AccountingSalesDocumentLivePreview } from "@/components/accounting/accounting-sales-document-live-preview";
 import { AccountingSendSection } from "@/components/accounting/accounting-send-section";
@@ -726,7 +728,7 @@ export function AccountingSalesDocumentDrawer({
 
   return (
     <Drawer open={open} onOpenChange={handleDrawerOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[92dvh] max-w-3xl flex-col overflow-hidden">
+      <DrawerContent className={drawerContentClassName("salesDocument")}>
         <DrawerHeader className="shrink-0 border-b border-border/50 pb-3 text-left">
           <DrawerTitle>{title}</DrawerTitle>
           <DrawerDescription>
@@ -738,22 +740,26 @@ export function AccountingSalesDocumentDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+        <div className={drawerScrollAreaClassName(4)}>
           {readOnlyExternal ? (
-            <p className="rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-              Änderungen nur direkt in Lexware möglich. Nutzen Sie „In Lexware“
-              in der Liste.
-            </p>
+            <DrawerFormSection contentPadding={4}>
+              <p className="text-sm text-muted-foreground">
+                Änderungen nur direkt in Lexware möglich. Nutzen Sie „In Lexware“
+                in der Liste.
+              </p>
+            </DrawerFormSection>
           ) : onPreviewStep ? (
-            <div className="space-y-4 pt-1">
-              <AccountingSalesDocumentLivePreview
-                restaurantId={restaurantId}
-                kind={documentKind}
-                enabled={open}
-                draft={previewDraft}
-                variant="step"
-              />
-              <AccountingFormSection title="Versand">
+            <>
+              <DrawerFormSection contentPadding={4} className="pt-1">
+                <AccountingSalesDocumentLivePreview
+                  restaurantId={restaurantId}
+                  kind={documentKind}
+                  enabled={open}
+                  draft={previewDraft}
+                  variant="step"
+                />
+              </DrawerFormSection>
+              <DrawerFormSection contentPadding={4} title="Versand">
                 <AccountingSendSection
                   sendEnabled={sendOnSave}
                   onSendEnabledChange={setSendOnSave}
@@ -766,12 +772,13 @@ export function AccountingSalesDocumentDrawer({
                   whatsappConnected={whatsappConnected}
                   disabled={saving}
                 />
-              </AccountingFormSection>
-            </div>
+              </DrawerFormSection>
+            </>
           ) : (
-            <div className="space-y-4">
+            <>
               {wasSent ? (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+                <DrawerFormSection contentPadding={4}>
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
                   <p className="font-medium text-foreground">
                     Bereits verschickt
                   </p>
@@ -782,10 +789,11 @@ export function AccountingSalesDocumentDrawer({
                     />
                     <span>Trotzdem bearbeiten</span>
                   </label>
-                </div>
+                  </div>
+                </DrawerFormSection>
               ) : null}
 
-              <AccountingFormSection title="Empfänger">
+              <DrawerFormSection contentPadding={4} title="Empfänger">
                 <div className={accountingFormGridClassName}>
                   <div className="space-y-2 sm:col-span-2">
                     <Label>Empfängerart</Label>
@@ -881,9 +889,9 @@ export function AccountingSalesDocumentDrawer({
                     />
                   )}
                 </div>
-              </AccountingFormSection>
+              </DrawerFormSection>
 
-              <AccountingFormSection title="Konditionen">
+              <DrawerFormSection contentPadding={4} title="Konditionen">
                 <div className={accountingFormGridClassName}>
                   {showGwadaNumbering ? (
                     <div className="space-y-2 sm:col-span-2">
@@ -1007,10 +1015,10 @@ export function AccountingSalesDocumentDrawer({
                     </div>
                   ) : null}
                 </div>
-              </AccountingFormSection>
+              </DrawerFormSection>
 
               {!editRow && connectorConnected ? (
-                <AccountingFormSection title="Lexware">
+                <DrawerFormSection contentPadding={4} title="Lexware">
                   <div className="space-y-3">
                     {forceExternalCorrection ? (
                       <p className="text-sm text-muted-foreground">
@@ -1078,7 +1086,7 @@ export function AccountingSalesDocumentDrawer({
                       </>
                     )}
                   </div>
-                </AccountingFormSection>
+                </DrawerFormSection>
               ) : null}
 
               {isCorrectionCreate &&
@@ -1091,7 +1099,7 @@ export function AccountingSalesDocumentDrawer({
               ) : null}
 
               {!editRow && !usePreviewFlow ? (
-                <AccountingFormSection title="Versand">
+                <DrawerFormSection contentPadding={4} title="Versand">
                   <AccountingSendSection
                     sendEnabled={sendOnSave}
                     onSendEnabledChange={setSendOnSave}
@@ -1104,10 +1112,10 @@ export function AccountingSalesDocumentDrawer({
                     whatsappConnected={whatsappConnected}
                     disabled={saving}
                   />
-                </AccountingFormSection>
+                </DrawerFormSection>
               ) : null}
 
-              <AccountingFormSection title="Positionen">
+              <DrawerFormSection contentPadding={4} title="Positionen">
                 <AccountingLineItemsEditor
                   items={lineItems}
                   taxMode={taxMode}
@@ -1126,8 +1134,8 @@ export function AccountingSalesDocumentDrawer({
                     }).format(totals.totalGross)}
                   </span>
                 </div>
-              </AccountingFormSection>
-            </div>
+              </DrawerFormSection>
+            </>
           )}
         </div>
 

@@ -1,9 +1,9 @@
 "use client";
 
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
-import { cn } from "@/lib/utils";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -11,7 +11,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Label } from "@/components/ui/label";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Select,
   SelectContent,
@@ -19,7 +19,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { formatMenuPrice } from "@/lib/menu/format-menu-price";
 import type { DietFilter, PriceRange } from "@/lib/types/menu";
@@ -54,9 +53,9 @@ export function FilterDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("template")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Filter
           </DrawerTitle>
@@ -65,14 +64,8 @@ export function FilterDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-2">
-          <div className="space-y-3">
-            <Label
-              htmlFor="filter-diet-select"
-              className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-            >
-              Eigenschaften
-            </Label>
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection title="Eigenschaften">
             <Select
               value={dietFilter}
               items={Object.fromEntries(
@@ -100,19 +93,12 @@ export function FilterDrawer({
             <p className="text-xs text-muted-foreground">
               Filtert Gerichte nach Ernährungsmerkmalen in der aktuellen Ansicht.
             </p>
-          </div>
+          </DrawerFormSection>
 
-          <Separator />
-
-          <div className="space-y-4">
-            <div className="flex items-baseline justify-between gap-4">
-              <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Preisspanne
-              </Label>
-              <p className="text-sm font-medium tabular-nums text-foreground">
-                {formatMenuPrice(lo, currencyCode)} – {formatMenuPrice(hi, currencyCode)}
-              </p>
-            </div>
+          <DrawerFormSection title="Preisspanne">
+            <p className="text-sm font-medium tabular-nums text-foreground">
+              {formatMenuPrice(lo, currencyCode)} – {formatMenuPrice(hi, currencyCode)}
+            </p>
             <Slider
               value={[Math.min(lo, hi), Math.max(lo, hi)]}
               onValueChange={(v) => {
@@ -130,32 +116,17 @@ export function FilterDrawer({
             <p className="text-xs text-muted-foreground">
               Von 0 bis {formatMenuPrice(safeMax, currencyCode)} (abhängig von den höchsten Preisen in der Karte)
             </p>
-          </div>
+          </DrawerFormSection>
         </div>
 
-        <Separator />
-
-        <div className="flex gap-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1 rounded-xl tap-scale"
-            onClick={() => {
-              onDietFilterChange("all");
-              onPriceRangeChange([0, safeMax]);
-              toast.success("Filter zurückgesetzt");
-            }}
-          >
-            Zurücksetzen
-          </Button>
-          <Button
-            type="button"
-            className={cn("h-12 flex-1 ", brandActionButtonRoundedClassName)}
-            onClick={() => onOpenChange(false)}
-          >
-            Fertig
-          </Button>
-        </div>
+        <DrawerFilterFooter
+          onReset={() => {
+            onDietFilterChange("all");
+            onPriceRangeChange([0, safeMax]);
+            toast.success("Filter zurückgesetzt");
+          }}
+          onDone={() => onOpenChange(false)}
+        />
       </DrawerContent>
     </Drawer>
   );

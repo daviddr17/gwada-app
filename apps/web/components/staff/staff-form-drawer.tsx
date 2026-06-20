@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Camera, ChevronRight, Link2, Loader2, LogOut, Mail, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,6 +16,7 @@ import {
 } from "@/components/staff/staff-form-field-styles";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { DatePickerField } from "@/components/ui/date-picker";
 import {
@@ -128,12 +130,9 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3">
-      <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {title}
-      </h3>
+    <DrawerFormSection title={title} contentPadding={5}>
       {children}
-    </section>
+    </DrawerFormSection>
   );
 }
 
@@ -702,7 +701,7 @@ export function StaffFormDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,760px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+      <DrawerContent className={drawerContentClassName("formStaff")}>
         <DrawerHeader className="shrink-0 px-5 pt-2 pb-0 text-left">
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {mode === "create" ? "Mitarbeiter anlegen" : "Mitarbeiter bearbeiten"}
@@ -713,9 +712,8 @@ export function StaffFormDrawer({
         </DrawerHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className={cn(staffDrawerScrollClassName, "px-5")}>
-            {/* Profil-Kopf (Facebook-ähnlich) */}
-            <div className="-mx-5 mb-5 border-b border-border/50 bg-muted/20 px-5 pt-2 pb-5">
+          <div className={staffDrawerScrollClassName}>
+            <DrawerFormSection contentPadding={5} className="pt-2 pb-5">
               <input
                 ref={avatarInputRef}
                 type="file"
@@ -783,9 +781,9 @@ export function StaffFormDrawer({
                   />
                 </div>
               </div>
-            </div>
+            </DrawerFormSection>
 
-            <div className="space-y-6 pb-2">
+            <div className="space-y-0">
               <FormSection title="Persönlich">
                 <div className="space-y-3">
                   <div className="space-y-1.5">
@@ -1041,7 +1039,7 @@ export function StaffFormDrawer({
 
               {mode === "edit" && staff && staff.profile_id ? (
                 <FormSection title="App-Account">
-                  <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-3">
+                  <div className="space-y-3">
                     <p className="text-sm font-medium">
                       {linkedProfileLabel ?? "Verbunden"}
                     </p>
@@ -1073,7 +1071,7 @@ export function StaffFormDrawer({
 
               {mode === "edit" && staff && !staff.profile_id ? (
                 <FormSection title="Einladung">
-                  <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 p-3">
+                  <div className="space-y-3">
                     <p className="text-xs text-muted-foreground">
                       {selectedPosition ? (
                         <>

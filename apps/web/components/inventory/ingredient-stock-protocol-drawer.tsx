@@ -1,5 +1,8 @@
 "use client";
 
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import {
@@ -81,9 +84,9 @@ export function IngredientStockProtocolDrawer({
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent
-        className="mx-auto flex max-h-[min(88dvh,560px)] max-w-5xl flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("wide")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Bestandsprotokoll
           </DrawerTitle>
@@ -98,7 +101,8 @@ export function IngredientStockProtocolDrawer({
             )}
           </DrawerDescription>
         </DrawerHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-6 sm:px-5">
+        <div className={drawerScrollAreaClassName("4-6")}>
+          <DrawerFormSection contentPadding="4-6">
           {entries.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
               Noch keine Bestandsänderungen protokolliert.
@@ -142,6 +146,7 @@ export function IngredientStockProtocolDrawer({
               </table>
             </div>
           )}
+          </DrawerFormSection>
         </div>
       </DrawerContent>
     </Drawer>

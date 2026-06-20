@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFieldClassName } from "@/lib/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Contact, Mail, Trash2 } from "lucide-react";
@@ -12,6 +14,7 @@ import {
   reservationNotifyRowTermsIconClassName,
   reservationNotifyRowWhatsAppIconClassName,
 } from "@/components/reservations/reservation-notify-toggle-styles";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -599,8 +602,7 @@ export function ReservationEditDrawer({
     onSaved();
   };
 
-  const fieldClass =
-    "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
+  const fieldClass = drawerFormFieldClassName;
 
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2 [&>*]:min-w-0";
 
@@ -615,10 +617,8 @@ export function ReservationEditDrawer({
       repositionInputs={false}
       handleOnly
     >
-      <DrawerContent
-        className="mx-auto flex h-[min(92dvh,720px)] max-h-[min(92dvh,720px)] min-h-0 w-full max-w-[100dvw] flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated md:max-w-lg"
-      >
-        <DrawerHeader className="min-w-0 shrink-0 overflow-x-hidden px-6 pt-2 pb-2">
+      <DrawerContent className={drawerContentClassName("formFixed")}>
+        <DrawerHeader className={cn(drawerFormHeaderClassName(6), "min-w-0 overflow-x-hidden")}>
           <div className="flex items-start gap-2">
             <div className="min-w-0 flex-1 text-left">
               <DrawerTitle className="text-xl font-semibold tracking-tight">
@@ -669,7 +669,7 @@ export function ReservationEditDrawer({
           <>
             <div
               data-vaul-no-drag
-              className="min-h-0 min-w-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain touch-pan-y px-6 pb-4"
+              className={drawerScrollAreaClassName(6, "min-w-0 overflow-x-hidden overscroll-x-none touch-pan-y")}
             >
               {isEdit && reservation ? (
                 <ReservationChangeRequestPanel
@@ -678,6 +678,7 @@ export function ReservationEditDrawer({
                   onResolved={onSaved}
                 />
               ) : null}
+              <DrawerFormSection title="Termin & Status">
               <div className={drawerTwoColClass}>
                 <div className="min-w-0 space-y-1.5">
                   <Label htmlFor="res-status" className="text-xs text-muted-foreground">
@@ -761,7 +762,9 @@ export function ReservationEditDrawer({
                   />
                 </div>
               </div>
+              </DrawerFormSection>
 
+              <DrawerFormSection title="Gast">
               <div className={drawerTwoColClass}>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-fn" className="text-xs text-muted-foreground">
@@ -830,6 +833,27 @@ export function ReservationEditDrawer({
                 </p>
               ) : null}
 
+              {isCreate ? (
+                <div className="space-y-1.5">
+                  <Label
+                    htmlFor="res-guest-message"
+                    className="text-xs text-muted-foreground"
+                  >
+                    Nachricht an das Restaurant
+                  </Label>
+                  <Textarea
+                    id="res-guest-message"
+                    value={guestMessage}
+                    onChange={(e) => setGuestMessage(e.target.value)}
+                    rows={3}
+                    placeholder="Wünsche, Allergien, Anlass …"
+                    className="min-h-[4.5rem] resize-y rounded-xl"
+                  />
+                </div>
+              ) : null}
+              </DrawerFormSection>
+
+              <DrawerFormSection title="Tisch & Verweildauer">
               <div className={cn(drawerTwoColClass, "sm:grid-cols-[1fr_1fr]")}>
                 <div className="space-y-1.5">
                   <Label htmlFor="res-dwell" className="text-xs text-muted-foreground">
@@ -885,27 +909,10 @@ export function ReservationEditDrawer({
                   ) : null}
                 </div>
               </div>
-
-              {isCreate ? (
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="res-guest-message"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Nachricht an das Restaurant
-                  </Label>
-                  <Textarea
-                    id="res-guest-message"
-                    value={guestMessage}
-                    onChange={(e) => setGuestMessage(e.target.value)}
-                    rows={3}
-                    placeholder="Wünsche, Allergien, Anlass …"
-                    className="min-h-[4.5rem] resize-y rounded-xl"
-                  />
-                </div>
-              ) : null}
+              </DrawerFormSection>
 
               {isEdit && reservation ? (
+                <DrawerFormSection title="Nachrichten">
                 <ReservationMessagesPanel
                   restaurantId={reservation.restaurant_id}
                   reservationId={reservation.id}
@@ -916,12 +923,10 @@ export function ReservationEditDrawer({
                   defaultSendWhatsapp={notifyWhatsapp}
                   defaultSendEmail={notifyEmail}
                 />
+                </DrawerFormSection>
               ) : null}
 
-              <div className="space-y-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-3">
-                <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Benachrichtigungen & AGB
-                </p>
+              <DrawerFormSection title="Benachrichtigungen & AGB">
                 <div
                   className={cn(
                     "flex items-center justify-between gap-3",
@@ -986,7 +991,7 @@ export function ReservationEditDrawer({
                     aria-labelledby="res-terms"
                   />
                 </div>
-              </div>
+              </DrawerFormSection>
             </div>
 
             <DrawerFormFooter

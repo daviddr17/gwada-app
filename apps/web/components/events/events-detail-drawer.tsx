@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -233,13 +236,14 @@ export function EventsDetailDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
-      <DrawerContent className="max-h-[92dvh]">
+      <DrawerContent className={drawerContentClassName("mediaTall")}>
         <DrawerHeader>
           <DrawerTitle>{isGwadaEditable ? "Event bearbeiten" : item.title}</DrawerTitle>
         </DrawerHeader>
-        <div className="space-y-4 overflow-y-auto px-4 pb-4">
+        <div className={drawerScrollAreaClassName(4)}>
           {isGwadaEditable ? (
             <>
+              <DrawerFormSection contentPadding={4} title="Inhalt">
               <div className="space-y-2">
                 <Label htmlFor="events-edit-title">Titel</Label>
                 <Input
@@ -257,6 +261,9 @@ export function EventsDetailDrawer({
                   rows={4}
                 />
               </div>
+              </DrawerFormSection>
+
+              <DrawerFormSection contentPadding={4} title="Termin">
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Startdatum</Label>
@@ -296,6 +303,9 @@ export function EventsDetailDrawer({
                   />
                 </div>
               </div>
+              </DrawerFormSection>
+
+              <DrawerFormSection contentPadding={4} title="Details">
               <div className="space-y-2">
                 <Label htmlFor="events-edit-location">Ort (optional)</Label>
                 <Input
@@ -314,6 +324,9 @@ export function EventsDetailDrawer({
                   placeholder="https://…"
                 />
               </div>
+              </DrawerFormSection>
+
+              <DrawerFormSection contentPadding={4} title="Titelbild">
               <div className="space-y-2">
                 <Label>Titelbild (optional)</Label>
                 {coverPreview ? (
@@ -356,7 +369,10 @@ export function EventsDetailDrawer({
                   </Button>
                 )}
               </div>
+              </DrawerFormSection>
+
               {canManage ? (
+                <DrawerFormSection contentPadding={4} title="Aktionen">
                 <FeedPinButton
                   restaurantId={restaurantId}
                   module="events"
@@ -365,18 +381,22 @@ export function EventsDetailDrawer({
                   isPinned={Boolean(item.isPinned)}
                   onChanged={(nextPinned) => onChanged(nextPinned)}
                 />
+                </DrawerFormSection>
               ) : null}
             </>
           ) : (
             <>
               {item.coverUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
+                <DrawerFormSection contentPadding={4}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={item.coverUrl}
                   alt=""
                   className="max-h-48 w-full rounded-xl object-cover"
                 />
+                </DrawerFormSection>
               ) : null}
+              <DrawerFormSection contentPadding={4} title="Details">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="gap-1.5">
                   <EventsPlatformIcon platform={item.platform} className="size-3" />
@@ -393,7 +413,9 @@ export function EventsDetailDrawer({
               ) : null}
               {item.location ? <p className="text-sm">📍 {item.location}</p> : null}
               <EventsDetailActions item={item} />
+              </DrawerFormSection>
               {canManage ? (
+                <DrawerFormSection contentPadding={4} title="Aktionen">
                 <FeedPinButton
                   restaurantId={restaurantId}
                   module="events"
@@ -402,6 +424,7 @@ export function EventsDetailDrawer({
                   isPinned={Boolean(item.isPinned)}
                   onChanged={(nextPinned) => onChanged(nextPinned)}
                 />
+                </DrawerFormSection>
               ) : null}
             </>
           )}

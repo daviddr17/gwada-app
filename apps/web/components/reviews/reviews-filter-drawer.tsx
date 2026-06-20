@@ -1,9 +1,11 @@
 "use client";
 
 import { toast } from "sonner";
+import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
   Drawer,
   DrawerContent,
@@ -11,7 +13,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Label } from "@/components/ui/label";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Select,
   SelectContent,
@@ -109,8 +111,8 @@ export function ReviewsFilterDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("filter")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Filter & Sortierung
           </DrawerTitle>
@@ -120,11 +122,8 @@ export function ReviewsFilterDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-2">
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Gelesen
-            </Label>
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection title="Gelesen">
             <SearchableSelect
               options={REVIEW_READ_FILTER_OPTIONS}
               value={readFilter}
@@ -134,12 +133,9 @@ export function ReviewsFilterDrawer({
               aria-label="Nach Gelesen-Status filtern"
               className={reviewsFilterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
 
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Sterne
-            </Label>
+          <DrawerFormSection title="Sterne">
             <SearchableSelect
               options={REVIEW_RATING_FILTER_OPTIONS}
               value={ratingFilter}
@@ -151,12 +147,9 @@ export function ReviewsFilterDrawer({
               aria-label="Nach Sternen filtern"
               className={reviewsFilterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
 
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Kommentar
-            </Label>
+          <DrawerFormSection title="Kommentar">
             <SearchableSelect
               options={REVIEW_COMMENT_FILTER_OPTIONS}
               value={commentFilter}
@@ -168,13 +161,10 @@ export function ReviewsFilterDrawer({
               aria-label="Nach Kommentar filtern"
               className={reviewsFilterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
 
           {showReplyFilter ? (
-            <div className="space-y-3">
-              <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Antwort
-              </Label>
+            <DrawerFormSection title="Antwort">
               <SearchableSelect
                 options={REVIEW_REPLY_FILTER_OPTIONS}
                 value={replyFilter}
@@ -186,15 +176,10 @@ export function ReviewsFilterDrawer({
                 aria-label="Nach Antwortstatus filtern"
                 className={reviewsFilterSelectClassName}
               />
-            </div>
+            </DrawerFormSection>
           ) : null}
 
-          <Separator />
-
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Sortierung
-            </Label>
+          <DrawerFormSection title="Sortierung">
             <Select
               value={sortKey}
               onValueChange={(v) => onSortKeyChange(v as ReviewSortKey)}
@@ -215,28 +200,9 @@ export function ReviewsFilterDrawer({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </DrawerFormSection>
         </div>
-
-        <Separator />
-
-        <div className="flex gap-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1 rounded-xl tap-scale"
-            onClick={resetFilters}
-          >
-            Zurücksetzen
-          </Button>
-          <Button
-            type="button"
-            className={cn("h-12 flex-1", brandActionButtonRoundedClassName)}
-            onClick={() => onOpenChange(false)}
-          >
-            Fertig
-          </Button>
-        </div>
+        <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>
     </Drawer>
   );

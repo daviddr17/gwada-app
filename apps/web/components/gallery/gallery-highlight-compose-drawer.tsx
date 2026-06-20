@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -110,7 +112,8 @@ export function GalleryHighlightComposeDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Highlight anlegen</DrawerTitle>
         </DrawerHeader>
-        <div className="space-y-4 overflow-y-auto px-4">
+        <div className={drawerScrollAreaClassName(4)}>
+          <DrawerFormSection contentPadding={4} title="Allgemein">
           <div className="space-y-2">
             <Label htmlFor="highlight-title">Titel</Label>
             <Input
@@ -121,8 +124,9 @@ export function GalleryHighlightComposeDrawer({
               maxLength={120}
             />
           </div>
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-foreground">Bilder (Gwada)</p>
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Bilder (Gwada)">
             {gwadaItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Zuerst eigene Bilder unter „Bild hinzufügen“ hochladen — Highlights
@@ -172,7 +176,7 @@ export function GalleryHighlightComposeDrawer({
                 })}
               </div>
             )}
-          </div>
+          </DrawerFormSection>
         </div>
         <DrawerFormFooter
           onCancel={() => onOpenChange(false)}

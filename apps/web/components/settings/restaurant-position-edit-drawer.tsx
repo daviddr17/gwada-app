@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -10,6 +12,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -214,8 +217,8 @@ export function RestaurantPositionEditDrawer({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("form")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="flex items-center gap-2 text-xl font-semibold tracking-tight">
               {position ? (
                 <>
@@ -237,7 +240,7 @@ export function RestaurantPositionEditDrawer({
           </DrawerHeader>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-4">
+            <div className={drawerScrollAreaClassName(6)}>
               {loading ? (
                 <div className="space-y-4" aria-busy="true">
                   <Skeleton className="h-12 w-full rounded-xl" />
@@ -247,31 +250,35 @@ export function RestaurantPositionEditDrawer({
                 </div>
               ) : (
                 <>
-                  <RestaurantPositionColorField
-                    idPrefix="position-edit"
-                    color={colorDraft}
-                    onColorChange={setColorDraft}
-                    fallbackSeed={position?.id}
-                  />
-
-                  {isOwner ? (
-                    <p className="text-sm text-muted-foreground">
-                      Vollzugriff inkl. Rollen, Team, WhatsApp und allen
-                      Einstellungen — Berechtigungen sind nicht einschränkbar.
-                    </p>
-                  ) : (
-                    <RestaurantPositionPermissionFields
-                      idPrefix="perm-edit"
-                      permDraft={permDraft}
-                      onToggle={togglePerm}
+                  <DrawerFormSection title="Darstellung">
+                    <RestaurantPositionColorField
+                      idPrefix="position-edit"
+                      color={colorDraft}
+                      onColorChange={setColorDraft}
+                      fallbackSeed={position?.id}
                     />
-                  )}
+                  </DrawerFormSection>
 
-                  {canDelete && usageHint ? (
-                    <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
-                      {usageHint}
-                    </p>
-                  ) : null}
+                  <DrawerFormSection title="Berechtigungen">
+                    {isOwner ? (
+                      <p className="text-sm text-muted-foreground">
+                        Vollzugriff inkl. Rollen, Team, WhatsApp und allen
+                        Einstellungen — Berechtigungen sind nicht einschränkbar.
+                      </p>
+                    ) : (
+                      <RestaurantPositionPermissionFields
+                        idPrefix="perm-edit"
+                        permDraft={permDraft}
+                        onToggle={togglePerm}
+                      />
+                    )}
+
+                    {canDelete && usageHint ? (
+                      <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+                        {usageHint}
+                      </p>
+                    ) : null}
+                  </DrawerFormSection>
                 </>
               )}
             </div>

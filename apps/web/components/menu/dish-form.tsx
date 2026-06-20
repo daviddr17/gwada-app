@@ -1,8 +1,10 @@
 "use client";
 
 import { Plus, Trash2 } from "lucide-react";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { cn } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -12,7 +14,6 @@ import {
 } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import type {
@@ -61,14 +62,9 @@ function DishFormSection({
   className?: string;
 }) {
   return (
-    <section className={cn("space-y-3", className)}>
-      {title ? (
-        <h3 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {title}
-        </h3>
-      ) : null}
+    <DrawerFormSection title={title} className={className}>
       {children}
-    </section>
+    </DrawerFormSection>
   );
 }
 
@@ -230,7 +226,7 @@ export function DishForm({
   return (
     <>
     <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-      <div className="flex-1 space-y-6 overflow-y-auto overscroll-contain px-6 pb-4">
+      <div className={drawerScrollAreaClassName(6)}>
         <DishFormSection>
           <div className="space-y-2">
             <Label htmlFor="dish-name" className={dishFieldLabelClassName}>
@@ -367,8 +363,6 @@ export function DishForm({
           </div>
         </DishFormSection>
 
-        <Separator />
-
         <DishFormSection title="Tags & Allergene">
           <TagMultiCombobox
             id="dish-tags-combo"
@@ -378,8 +372,6 @@ export function DishForm({
             aria-label="Tags und Allergene"
           />
         </DishFormSection>
-
-        <Separator />
 
         <DishFormSection title="Rezept">
           <p className="text-xs text-muted-foreground">

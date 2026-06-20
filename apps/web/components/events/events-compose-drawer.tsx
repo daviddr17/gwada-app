@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -243,11 +246,12 @@ export function EventsComposeDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
-      <DrawerContent className="max-h-[92dvh]">
+      <DrawerContent className={drawerContentClassName("mediaTall")}>
         <DrawerHeader>
           <DrawerTitle>Neues Event</DrawerTitle>
         </DrawerHeader>
-        <div className="space-y-4 overflow-y-auto px-4 pb-2">
+        <div className={drawerScrollAreaClassName(4)}>
+          <DrawerFormSection contentPadding={4} title="Inhalt">
           <div className="space-y-2">
             <Label htmlFor="event-title">Titel</Label>
             <Input
@@ -267,6 +271,9 @@ export function EventsComposeDrawer({
               placeholder="Details zum Event …"
             />
           </div>
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Termin">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Start</Label>
@@ -304,6 +311,9 @@ export function EventsComposeDrawer({
               </div>
             </div>
           </div>
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Details">
           <div className="space-y-2">
             <Label htmlFor="event-ticket">Ticketlink</Label>
             <Input
@@ -323,6 +333,9 @@ export function EventsComposeDrawer({
               placeholder="Terrasse, Saal …"
             />
           </div>
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Titelbild">
           <div className="space-y-2">
             <Label>Titelbild</Label>
             <input
@@ -363,12 +376,13 @@ export function EventsComposeDrawer({
               </Button>
             )}
           </div>
-          <div className="space-y-2">
-            <Label>Plattformen</Label>
-            <p className="text-xs text-muted-foreground">
-              Event als strukturierten Eintrag auf der Plattform veröffentlichen.
-            </p>
-            <div className="flex flex-wrap gap-2">
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Plattformen">
+          <p className="text-xs text-muted-foreground">
+            Event als strukturierten Eintrag auf der Plattform veröffentlichen.
+          </p>
+          <div className="flex flex-wrap gap-2">
               {eventPlatformChips.map((c) => (
                 <EventsPlatformChip
                   key={c.key}
@@ -379,16 +393,13 @@ export function EventsComposeDrawer({
                 />
               ))}
             </div>
-          </div>
+          </DrawerFormSection>
           {announcementPostOptions.length > 0 ? (
-            <div className="space-y-3 rounded-xl border border-border/50 p-3">
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium">Zusätzlich Beitrag posten</p>
-                <p className="text-xs text-muted-foreground">
-                  Optionaler Feed-Beitrag — unabhängig vom Event auf Facebook oder
-                  Google.
-                </p>
-              </div>
+            <DrawerFormSection contentPadding={4} title="Zusätzlich Beitrag posten">
+              <p className="text-xs text-muted-foreground">
+                Optionaler Feed-Beitrag — unabhängig vom Event auf Facebook oder
+                Google.
+              </p>
               <div className="space-y-3">
                 {announcementPostOptions.map((opt) => {
                   const switchId = `event-post-${opt.platform}`;
@@ -419,7 +430,7 @@ export function EventsComposeDrawer({
                   );
                 })}
               </div>
-            </div>
+            </DrawerFormSection>
           ) : null}
         </div>
         <DrawerFooter>

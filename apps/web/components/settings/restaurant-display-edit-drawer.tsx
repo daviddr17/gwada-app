@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Copy, Loader2, Monitor, QrCode, Unlink } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
@@ -174,8 +177,8 @@ export function RestaurantDisplayEditDrawer({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("form")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="flex items-center gap-2 text-xl font-semibold tracking-tight">
               <Monitor className="size-5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 truncate">{display?.name ?? "Display"}</span>
@@ -187,7 +190,8 @@ export function RestaurantDisplayEditDrawer({
           </DrawerHeader>
 
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-4">
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection title="Kopplung">
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -222,7 +226,7 @@ export function RestaurantDisplayEditDrawer({
               </div>
 
               {pairing ? (
-                <div className="rounded-xl border border-border/50 bg-muted/20 p-4">
+                <div className="space-y-3">
                   <p className="text-sm font-medium">Kopplungscode (15 Min.)</p>
                   <p className="mt-2 font-mono text-3xl tracking-[0.25em]">
                     {pairing.code}
@@ -251,7 +255,9 @@ export function RestaurantDisplayEditDrawer({
                   />
                 </div>
               ) : null}
+              </DrawerFormSection>
 
+              <DrawerFormSection title="Allgemein">
               <div className="space-y-2">
                 <Label
                   htmlFor="display-edit-name"
@@ -284,14 +290,18 @@ export function RestaurantDisplayEditDrawer({
                   className="h-12 rounded-xl"
                 />
               </div>
+              </DrawerFormSection>
 
+              <DrawerFormSection title="Module">
               <RestaurantDisplayModuleFields
                 idPrefix="display-edit"
                 allowedModules={allowedModules}
                 onChange={setAllowedModules}
               />
+              </DrawerFormSection>
 
-              <div className="flex items-center gap-3 rounded-lg border border-border/50 px-3 py-2">
+              <DrawerFormSection title="Status">
+              <div className="flex items-center justify-between gap-3">
                 <span
                   id="display-edit-active-label"
                   className="flex-1 text-sm font-medium"
@@ -306,6 +316,7 @@ export function RestaurantDisplayEditDrawer({
                   className="shrink-0"
                 />
               </div>
+              </DrawerFormSection>
             </div>
 
             <DrawerFormFooter

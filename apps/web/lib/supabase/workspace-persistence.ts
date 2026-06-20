@@ -30,9 +30,8 @@ export function supabasePublicEnvConfigured(): boolean {
   );
 }
 
-/** True in the browser when public Supabase env is set (used for remote JSON sync). */
+/** True when public Supabase env is set — identisch auf Server und Client (Hydration). */
 export function workspacePersistenceConfigured(): boolean {
-  if (typeof window === "undefined") return false;
   return supabasePublicEnvConfigured();
 }
 

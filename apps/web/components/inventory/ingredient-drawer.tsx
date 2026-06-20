@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -152,9 +155,9 @@ export function IngredientDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("template")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Neue Zutat
           </DrawerTitle>
@@ -163,116 +166,124 @@ export function IngredientDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-1 flex-col overflow-y-auto px-6 pb-4">
-          <div className="space-y-4 pb-4">
-            <div className="space-y-2">
-              <Label htmlFor="ing-name">Name</Label>
-              <Input
-                id="ing-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z. B. schwarzer Pfeffer"
-                className="h-12 rounded-xl"
-                autoFocus
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection title="Stammdaten">
               <div className="space-y-2">
-                <Label htmlFor="ing-unit">Einheit</Label>
-                <Select
-                  value={unit}
-                  items={unitSelectItems}
-                  onValueChange={(v) => {
-                    if (typeof v === "string") setUnit(v);
-                  }}
-                >
-                  <SelectTrigger id="ing-unit" className="h-11 w-full rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.name}
-                        {u.active === false ? " · inaktiv" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ing-stock">Aktueller Bestand</Label>
+                <Label htmlFor="ing-name">Name</Label>
                 <Input
-                  id="ing-stock"
-                  inputMode="decimal"
-                  value={currentStock}
-                  onChange={(e) => setCurrentStock(e.target.value)}
+                  id="ing-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. schwarzer Pfeffer"
                   className="h-12 rounded-xl"
+                  autoFocus
                 />
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ing-supplier">Lieferant</Label>
-              <SearchableSelect
-                id="ing-supplier"
-                options={supplierOptions}
-                value={supplierId || null}
-                onValueChange={setSupplierId}
-                placeholder="Lieferant wählen"
-                searchPlaceholder="Lieferant suchen…"
-                aria-label="Lieferant"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ing-cat">Kategorie</Label>
-              <SearchableSelect
-                id="ing-cat"
-                options={categoryOptions}
-                value={categoryId || null}
-                onValueChange={setCategoryId}
-                placeholder="Kategorie wählen"
-                searchPlaceholder="Kategorie suchen…"
-                aria-label="Zutaten-Kategorie"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ing-prod">Produktionsstelle</Label>
-              <SearchableSelect
-                id="ing-prod"
-                options={productionOptions}
-                value={productionSiteId || null}
-                onValueChange={setProductionSiteId}
-                placeholder="Produktionsstelle wählen"
-                searchPlaceholder="Stelle suchen…"
-                aria-label="Produktionsstelle"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ing-brand">Marke</Label>
-              <SearchableSelect
-                id="ing-brand"
-                options={brandOptions}
-                value={brandId || null}
-                onValueChange={setBrandId}
-                placeholder="Marke wählen"
-                searchPlaceholder="Marke suchen…"
-                aria-label="Marke"
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/25 px-4 py-3">
-              <div className="space-y-0.5">
-                <Label htmlFor="ing-active" className="text-sm font-medium">
-                  Aktiv
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Inaktive Zutaten können in Listen ausgeblendet werden.
-                </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="ing-unit">Einheit</Label>
+                  <Select
+                    value={unit}
+                    items={unitSelectItems}
+                    onValueChange={(v) => {
+                      if (typeof v === "string") setUnit(v);
+                    }}
+                  >
+                    <SelectTrigger id="ing-unit" className="h-11 w-full rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
+                          {u.active === false ? " · inaktiv" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ing-stock">Aktueller Bestand</Label>
+                  <Input
+                    id="ing-stock"
+                    inputMode="decimal"
+                    value={currentStock}
+                    onChange={(e) => setCurrentStock(e.target.value)}
+                    className="h-12 rounded-xl"
+                  />
+                </div>
               </div>
-              <Switch
-                id="ing-active"
-                checked={active}
-                onCheckedChange={(v) => setActive(v === true)}
-              />
-            </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Zuordnung">
+              <div className="space-y-2">
+                <Label htmlFor="ing-supplier">Lieferant</Label>
+                <SearchableSelect
+                  id="ing-supplier"
+                  options={supplierOptions}
+                  value={supplierId || null}
+                  onValueChange={setSupplierId}
+                  placeholder="Lieferant wählen"
+                  searchPlaceholder="Lieferant suchen…"
+                  aria-label="Lieferant"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ing-cat">Kategorie</Label>
+                <SearchableSelect
+                  id="ing-cat"
+                  options={categoryOptions}
+                  value={categoryId || null}
+                  onValueChange={setCategoryId}
+                  placeholder="Kategorie wählen"
+                  searchPlaceholder="Kategorie suchen…"
+                  aria-label="Zutaten-Kategorie"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ing-prod">Produktionsstelle</Label>
+                <SearchableSelect
+                  id="ing-prod"
+                  options={productionOptions}
+                  value={productionSiteId || null}
+                  onValueChange={setProductionSiteId}
+                  placeholder="Produktionsstelle wählen"
+                  searchPlaceholder="Stelle suchen…"
+                  aria-label="Produktionsstelle"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ing-brand">Marke</Label>
+                <SearchableSelect
+                  id="ing-brand"
+                  options={brandOptions}
+                  value={brandId || null}
+                  onValueChange={setBrandId}
+                  placeholder="Marke wählen"
+                  searchPlaceholder="Marke suchen…"
+                  aria-label="Marke"
+                />
+              </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Status">
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-0.5">
+                  <Label htmlFor="ing-active" className="text-sm font-medium">
+                    Aktiv
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Inaktive Zutaten können in Listen ausgeblendet werden.
+                  </p>
+                </div>
+                <Switch
+                  id="ing-active"
+                  checked={active}
+                  onCheckedChange={(v) => setActive(v === true)}
+                />
+              </div>
+            </DrawerFormSection>
           </div>
 
           <DrawerFormFooter

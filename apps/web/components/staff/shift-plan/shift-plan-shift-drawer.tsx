@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -218,8 +221,8 @@ export function ShiftPlanShiftDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,640px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("formMd")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               {isEdit ? "Schicht bearbeiten" : "Schicht planen"}
             </DrawerTitle>
@@ -234,7 +237,8 @@ export function ShiftPlanShiftDrawer({
               void save();
             }}
           >
-            <div className={cn(staffDrawerScrollClassName, "space-y-4 px-6 pb-4")}>
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection title="Planung">
               <div className="space-y-2">
                 <Label>Mitarbeiter</Label>
                 <SearchableSelect
@@ -309,16 +313,16 @@ export function ShiftPlanShiftDrawer({
                   />
                 </div>
               </div>
+              </DrawerFormSection>
 
-              <div className="space-y-2">
-                <Label>Notiz</Label>
+              <DrawerFormSection title="Notiz">
                 <Input
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="Optional"
                   className={staffDrawerFieldClassName}
                 />
-              </div>
+              </DrawerFormSection>
             </div>
 
             <DrawerFormFooter

@@ -1,11 +1,14 @@
 "use client";
 
 import { FileSpreadsheet, FileText, Filter, Search } from "lucide-react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SearchableSelect } from "@/components/ui/combobox";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -25,7 +28,11 @@ import {
 import type { Ingredient } from "@/lib/types/inventory";
 import type { PurchaseOrder, PurchaseOrderStatus } from "@/lib/types/purchase-order";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
+import {
+  drawerFormFooterShellClassName,
+} from "@/components/ui/drawer-form-footer";
+import { drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import {
   moduleSearchFilterActiveBadgeClassName,
   moduleSearchFilterButtonClassName,
@@ -158,8 +165,8 @@ function PurchaseOrdersExportFilterDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,520px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("purchaseList")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Filter
           </DrawerTitle>
@@ -168,11 +175,8 @@ function PurchaseOrdersExportFilterDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto overflow-x-hidden overscroll-contain px-6 pb-2">
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Lieferant
-            </Label>
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection title="Lieferant">
             <SearchableSelect
               options={supplierSelectOptions}
               value={supplierFilterId}
@@ -182,12 +186,9 @@ function PurchaseOrdersExportFilterDrawer({
               aria-label="Lieferant filtern"
               className={filterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
 
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Status
-            </Label>
+          <DrawerFormSection title="Status">
             <SearchableSelect
               options={statusSelectOptions}
               value={statusFilter}
@@ -201,14 +202,9 @@ function PurchaseOrdersExportFilterDrawer({
               aria-label="Status filtern"
               className={filterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
 
-          <Separator />
-
-          <div className="space-y-3">
-            <Label className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-              Erstellt im Monat
-            </Label>
+          <DrawerFormSection title="Erstellt im Monat">
             <SearchableSelect
               options={monthSelectOptions}
               value={createdMonthKey}
@@ -218,28 +214,10 @@ function PurchaseOrdersExportFilterDrawer({
               aria-label="Erstellungsmonat filtern"
               className={filterSelectClassName}
             />
-          </div>
+          </DrawerFormSection>
         </div>
 
-        <Separator />
-
-        <div className="flex gap-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1 rounded-xl tap-scale"
-            onClick={resetFilters}
-          >
-            Zurücksetzen
-          </Button>
-          <Button
-            type="button"
-            className={cn("h-12 flex-1", brandActionButtonRoundedClassName)}
-            onClick={() => onOpenChange(false)}
-          >
-            Fertig
-          </Button>
-        </div>
+        <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
       </DrawerContent>
     </Drawer>
   );
@@ -359,8 +337,8 @@ export function PurchaseOrdersExportDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("form")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Bestellung exportieren
             </DrawerTitle>
@@ -413,7 +391,7 @@ export function PurchaseOrdersExportDrawer({
             </p>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-2">
+          <div className={drawerScrollAreaClassName(6)}>
             {filteredOrders.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border/60 bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
                 Keine Bestellungen für Suche oder Filter.
@@ -470,7 +448,7 @@ export function PurchaseOrdersExportDrawer({
 
           <Separator />
 
-          <div className="shrink-0 space-y-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          <div className={cn(drawerFormFooterShellClassName(6), "space-y-3")}>
             {selectedOrder ? (
               <p className="text-sm text-muted-foreground">
                 Ausgewählt:{" "}
@@ -518,7 +496,7 @@ export function PurchaseOrdersExportDrawer({
             <Button
               type="button"
               variant="ghost"
-              className="h-11 w-full rounded-xl"
+              className={drawerFormFullWidthButtonClassName}
               onClick={() => onOpenChange(false)}
             >
               Abbrechen

@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import {
@@ -87,8 +90,8 @@ export function ContactMessagesDrawer({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(88dvh,560px)] w-full max-w-2xl flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerContent className={drawerContentClassName("messages")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Verknüpfte Nachrichten
             </DrawerTitle>
@@ -96,19 +99,21 @@ export function ContactMessagesDrawer({
               Nachrichten von „{contactName}“ (alle Kanäle).
             </DrawerDescription>
           </DrawerHeader>
-          <div className="flex min-h-0 flex-1 flex-col px-6 pb-4">
-          <ContactMessageChatViewport
-            messages={messages}
-            loading={loading}
-            threadKey={contactId}
-            onReservationOpen={(id) => void openReservationFromMessage(id)}
-          />
+          <div className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection bleed={false} className="min-h-0 flex-1">
+            <ContactMessageChatViewport
+              messages={messages}
+              loading={loading}
+              threadKey={contactId}
+              onReservationOpen={(id) => void openReservationFromMessage(id)}
+            />
+            </DrawerFormSection>
           </div>
           <div className="border-t border-border/50 px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <Button
               type="button"
               variant="outline"
-              className="h-11 w-full rounded-xl"
+              className={drawerFormFullWidthButtonClassName}
               render={
                 <a href={`/dashboard/kontakte/nachrichten?contact=${contactId}`} />
               }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
@@ -444,7 +445,7 @@ export function SuperadminNotificationLogPanel() {
         <DrawerContent className="mx-auto flex max-h-[min(88dvh,640px)] max-w-3xl flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
           {selected ? (
             <>
-              <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+              <DrawerHeader className={drawerFormHeaderClassName(6)}>
                 <DrawerTitle className="text-xl font-semibold tracking-tight">
                   {notificationModuleLabel(selected.module)}
                 </DrawerTitle>

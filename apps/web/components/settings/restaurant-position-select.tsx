@@ -40,8 +40,8 @@ export function RestaurantPositionSelect({
 
   return (
     <Select
-      value={value || undefined}
-      onValueChange={(value) => onValueChange(String(value))}
+      value={value}
+      onValueChange={(next) => onValueChange(String(next))}
       disabled={disabled}
     >
       <SelectTrigger

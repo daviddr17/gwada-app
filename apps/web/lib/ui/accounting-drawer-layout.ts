@@ -15,4 +15,4 @@ export const accountingVoucherDrawerSplitPaneClassName =
 
 /** Einspaltiger Scroll-Inhalt ohne Anhang-Spalte. */
 export const accountingVoucherDrawerScrollBodyClassName =
-  "min-h-0 flex-1 overflow-y-auto px-4 pb-6 pt-3 md:px-6";
+  "min-h-0 flex-1 overflow-y-auto px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-4";

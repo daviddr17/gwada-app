@@ -1,5 +1,8 @@
 "use client";
 
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import Link from "next/link";
 import { UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -33,9 +36,9 @@ export function IngredientUsageDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(88dvh,480px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("usage")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Verwendung im Rezept
           </DrawerTitle>
@@ -43,7 +46,8 @@ export function IngredientUsageDrawer({
             Speisen, in denen „{ingredientName}“ im Rezept hinterlegt ist.
           </DrawerDescription>
         </DrawerHeader>
-        <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-6 pb-4">
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection>
           {dishes.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
               Diese Zutat ist aktuell in keinem Gericht-Rezept verknüpft.
@@ -53,7 +57,7 @@ export function IngredientUsageDrawer({
               {dishes.map((d) => (
                 <li
                   key={d.id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/70 px-3 py-2.5"
                 >
                   <div className="flex min-w-0 items-center gap-2">
                     <UtensilsCrossed className="size-4 shrink-0 text-muted-foreground" />
@@ -78,12 +82,13 @@ export function IngredientUsageDrawer({
               ))}
             </ul>
           )}
+          </DrawerFormSection>
         </div>
         <div className="border-t border-border/50 px-6 py-3">
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full rounded-xl"
+            className={drawerFormFullWidthButtonClassName}
             onClick={() => onOpenChange(false)}
           >
             Schließen

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
-import { EmbedDualThemePreviewPane } from "@/components/embed/embed-dual-theme-preview";
+import { EmbedDualThemePreviewPane, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedReviewsWidget } from "@/components/embed/embed-reviews-widget";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -340,10 +340,7 @@ export function ReviewsEmbedPanel() {
 
       <section className="space-y-3 rounded-2xl border border-border/50 bg-card p-5 shadow-card">
         <h2 className="text-base font-semibold">Vorschau</h2>
-        <p className="text-xs text-muted-foreground">
-          Beide Schriftvarianten auf passendem Hintergrund — auf deiner Website bleibt
-          der Widget-Hintergrund transparent.
-        </p>
+        <p className="text-xs text-muted-foreground">{embedPreviewSectionHint}</p>
         {snippet ? (
           <EmbedReviewsDualPreview
             viewMode={settings.defaultEmbedView}

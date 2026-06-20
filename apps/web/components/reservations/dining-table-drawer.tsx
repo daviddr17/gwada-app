@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {drawerFormFieldClassName,  drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
@@ -134,8 +137,7 @@ export function DiningTableDrawer({
     }
   }, [open, table, areaId, areas, styleTemplate]);
 
-  const fieldClass =
-    "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
+  const fieldClass = drawerFormFieldClassName;
 
   const save = () => {
     if (saving) return;
@@ -229,9 +231,9 @@ export function DiningTableDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("template")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {mode === "edit" ? "Tisch bearbeiten" : "Neuer Tisch"}
           </DrawerTitle>
@@ -252,7 +254,8 @@ export function DiningTableDrawer({
             save();
           }}
         >
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+        <div className={drawerScrollAreaClassName(6)}>
+          <DrawerFormSection title="Stammdaten">
           <div className="space-y-1.5">
             <Label htmlFor="dt-area" className="text-xs text-muted-foreground">
               Bereich
@@ -353,23 +356,23 @@ export function DiningTableDrawer({
             <p className="text-xs text-muted-foreground">Hex (#rrggbb), wie beim Bereich.</p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="dt-cap" className="text-xs text-muted-foreground">
-                Kapazität
-              </Label>
-              <Input
-                id="dt-cap"
-                type="number"
-                min={1}
-                max={50}
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                className={cn(fieldClass, "tabular-nums")}
-              />
-            </div>
+          <div className="space-y-1.5 sm:max-w-[calc(50%-0.375rem)]">
+            <Label htmlFor="dt-cap" className="text-xs text-muted-foreground">
+              Kapazität
+            </Label>
+            <Input
+              id="dt-cap"
+              type="number"
+              min={1}
+              max={50}
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              className={cn(fieldClass, "tabular-nums")}
+            />
           </div>
+          </DrawerFormSection>
 
+          <DrawerFormSection title="Tischplan">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="dt-x" className="text-xs text-muted-foreground">
@@ -422,6 +425,7 @@ export function DiningTableDrawer({
               </p>
             </div>
           </div>
+          </DrawerFormSection>
         </div>
 
         <DrawerFormFooter

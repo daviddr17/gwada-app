@@ -1,5 +1,8 @@
 "use client";
 
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import { GripVertical, Pencil } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
@@ -100,9 +103,9 @@ export function CategoriesManageDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(88dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("overview")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {copy.title}
           </DrawerTitle>
@@ -114,11 +117,11 @@ export function CategoriesManageDrawer({
           ) : null}
         </DrawerHeader>
 
-        <div className="flex flex-col gap-2 overflow-y-auto px-6 pb-4">
+        <div className={drawerScrollAreaClassName(6)}>
           <Button
             type="button"
             variant="secondary"
-            className="h-11 rounded-xl"
+            className="mb-3 h-11 shrink-0 rounded-xl"
             onClick={() => {
               onNew();
               onOpenChange(false);
@@ -127,7 +130,8 @@ export function CategoriesManageDrawer({
             {copy.newButton}
           </Button>
 
-          <ul className="space-y-2 pt-1">
+          <DrawerFormSection bleed={false} className="flex-1">
+          <ul className="space-y-2">
             {ordered.map((cat, index) => {
               const handle = sort.getHandleProps(cat.id);
               return (
@@ -136,7 +140,7 @@ export function CategoriesManageDrawer({
                 ref={(el) => sort.registerItemRef(cat.id, el)}
                 className={sort.getItemDropClassName(
                   cat.id,
-                  "flex items-center gap-2 rounded-xl border border-border/50 bg-muted/20 p-2 shadow-none dark:shadow-xs",
+                  "flex items-center gap-2 rounded-xl border border-border/40 bg-background/70 p-2 shadow-none dark:shadow-xs",
                 )}
               >
                 <div
@@ -217,13 +221,14 @@ export function CategoriesManageDrawer({
               );
             }}
           />
+          </DrawerFormSection>
         </div>
 
         <div className="border-t border-border/50 px-6 py-3">
           <Button
             type="button"
             variant="outline"
-            className="h-11 w-full rounded-xl"
+            className={drawerFormFullWidthButtonClassName}
             onClick={() => onOpenChange(false)}
           >
             Schließen

@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -76,8 +79,8 @@ export function RestaurantDisplayCreateDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+      <DrawerContent className={drawerContentClassName("form")}>
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Neues Display
           </DrawerTitle>
@@ -87,63 +90,69 @@ export function RestaurantDisplayCreateDrawer({
         </DrawerHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-4">
-            <div className="space-y-2">
-              <Label
-                htmlFor="display-create-name"
-                className={restaurantPositionDrawerLabelClassName}
-              >
-                Name
-              </Label>
-              <Input
-                id="display-create-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z. B. Küche, Personalraum, Theke"
-                className="h-12 rounded-xl"
-                autoFocus
-              />
-            </div>
+          <div className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection title="Allgemein">
+              <div className="space-y-2">
+                <Label
+                  htmlFor="display-create-name"
+                  className={restaurantPositionDrawerLabelClassName}
+                >
+                  Name
+                </Label>
+                <Input
+                  id="display-create-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. Küche, Personalraum, Theke"
+                  className="h-12 rounded-xl"
+                  autoFocus
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label
-                htmlFor="display-create-lock"
-                className={restaurantPositionDrawerLabelClassName}
-              >
-                Auto-Lock (Sekunden)
-              </Label>
-              <Input
-                id="display-create-lock"
-                type="number"
-                min={15}
-                max={3600}
-                value={autoLockSeconds}
-                onChange={(e) => setAutoLockSeconds(e.target.value)}
-                className="h-12 rounded-xl"
-              />
-            </div>
+              <div className="space-y-2">
+                <Label
+                  htmlFor="display-create-lock"
+                  className={restaurantPositionDrawerLabelClassName}
+                >
+                  Auto-Lock (Sekunden)
+                </Label>
+                <Input
+                  id="display-create-lock"
+                  type="number"
+                  min={15}
+                  max={3600}
+                  value={autoLockSeconds}
+                  onChange={(e) => setAutoLockSeconds(e.target.value)}
+                  className="h-12 rounded-xl"
+                />
+              </div>
+            </DrawerFormSection>
 
-            <RestaurantDisplayModuleFields
-              idPrefix="display-create"
-              allowedModules={allowedModules}
-              onChange={setAllowedModules}
-            />
-
-            <div className="flex items-center gap-3 rounded-lg border border-border/50 px-3 py-2">
-              <span
-                id="display-create-active-label"
-                className="flex-1 text-sm font-medium"
-              >
-                Display aktiv
-              </span>
-              <Switch
-                id="display-create-active"
-                checked={isActive}
-                onCheckedChange={(on) => setIsActive(Boolean(on))}
-                aria-labelledby="display-create-active-label"
-                className="shrink-0"
+            <DrawerFormSection title="Module">
+              <RestaurantDisplayModuleFields
+                idPrefix="display-create"
+                allowedModules={allowedModules}
+                onChange={setAllowedModules}
               />
-            </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Status">
+              <div className="flex items-center justify-between gap-3">
+                <span
+                  id="display-create-active-label"
+                  className="flex-1 text-sm font-medium"
+                >
+                  Display aktiv
+                </span>
+                <Switch
+                  id="display-create-active"
+                  checked={isActive}
+                  onCheckedChange={(on) => setIsActive(Boolean(on))}
+                  aria-labelledby="display-create-active-label"
+                  className="shrink-0"
+                />
+              </div>
+            </DrawerFormSection>
           </div>
 
           <DrawerFormFooter

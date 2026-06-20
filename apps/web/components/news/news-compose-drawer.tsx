@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,11 +216,13 @@ export function NewsComposeDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="mx-auto max-h-[min(92dvh,720px)] max-w-lg rounded-t-[1.75rem]">
+      <DrawerContent className={drawerContentClassName("form")}>
         <DrawerHeader>
           <DrawerTitle>Neue News</DrawerTitle>
         </DrawerHeader>
-        <div className="space-y-4 overflow-y-auto overscroll-contain px-4 pt-2 pb-2">
+        <div className="flex min-h-0 flex-1 flex-col">
+        <div className={drawerScrollAreaClassName(4)}>
+          <DrawerFormSection contentPadding={4} title="Inhalt">
           <Input
             placeholder="Titel (optional)"
             value={title}
@@ -229,7 +234,9 @@ export function NewsComposeDrawer({
             onChange={(e) => setBody(e.target.value)}
             rows={5}
           />
+          </DrawerFormSection>
 
+          <DrawerFormSection contentPadding={4} title="Medien">
           <div className="space-y-2">
             <Label id="news-media-label">Bild oder Video</Label>
             <input
@@ -307,18 +314,18 @@ export function NewsComposeDrawer({
               </div>
             ) : null}
           </div>
+          </DrawerFormSection>
 
-          <div>
-            <p className="mb-2 text-sm font-medium">Planen (optional)</p>
-            <Input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-            />
-          </div>
-          <div>
-            <p className="mb-2 text-sm font-medium">Plattformen</p>
-            <div className="flex flex-wrap gap-2">
+          <DrawerFormSection contentPadding={4} title="Planen">
+          <Input
+            type="datetime-local"
+            value={scheduledAt}
+            onChange={(e) => setScheduledAt(e.target.value)}
+          />
+          </DrawerFormSection>
+
+          <DrawerFormSection contentPadding={4} title="Plattformen">
+          <div className="flex flex-wrap gap-2">
               {connectors.map((c) => {
                 const disabled = c.key !== "gwada" && !c.connected;
                 const selected = platforms.includes(c.key);
@@ -333,10 +340,9 @@ export function NewsComposeDrawer({
                 );
               })}
             </div>
-          </div>
+          </DrawerFormSection>
           {storyEligibleConnectors.length > 0 ? (
-            <div>
-              <p className="mb-2 text-sm font-medium">Zusätzlich als Story</p>
+            <DrawerFormSection contentPadding={4} title="Zusätzlich als Story">
               <div className="flex flex-wrap gap-2">
                 {storyEligibleConnectors.map((c) => {
                   const selected = storyPlatforms.includes(c.key as NewsStoriesPlatform);
@@ -358,10 +364,10 @@ export function NewsComposeDrawer({
                   Story erfordert Medien und ist nicht mit Planung kombinierbar.
                 </p>
               ) : null}
-            </div>
+            </DrawerFormSection>
           ) : null}
         </div>
-        <DrawerFooter className="border-t border-border/50 pt-2">
+        <DrawerFooter className="border-t border-border/50 pt-2 shrink-0">
           <DrawerFormFooter
             onCancel={() => onOpenChange(false)}
             cancelDisabled={saving || uploading}
@@ -372,6 +378,7 @@ export function NewsComposeDrawer({
             onSubmit={() => void save()}
           />
         </DrawerFooter>
+        </div>
       </DrawerContent>
     </Drawer>
   );

@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { DrawerFilterFooter } from "@/components/ui/drawer-filter-footer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 import {
   Drawer,
@@ -11,7 +13,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Label } from "@/components/ui/label";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Select,
   SelectContent,
@@ -73,9 +75,9 @@ export function ReservationsFilterDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("template")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Filter
           </DrawerTitle>
@@ -86,15 +88,9 @@ export function ReservationsFilterDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-2">
+        <div className={drawerScrollAreaClassName(6)}>
           {!unconfirmedMode ? (
-            <div className="space-y-3">
-              <Label
-                htmlFor="res-filter-status"
-                className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-              >
-                Status
-              </Label>
+            <DrawerFormSection title="Status">
               <Select
                 value={statusFilterId}
                 items={statusItems}
@@ -117,10 +113,11 @@ export function ReservationsFilterDrawer({
                   ))}
                 </SelectContent>
               </Select>
-            </div>
+            </DrawerFormSection>
           ) : null}
 
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/20 px-3 py-3">
+          <DrawerFormSection title="Unbestätigt">
+            <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <span
                 id="res-filter-unconfirmed"
@@ -141,11 +138,11 @@ export function ReservationsFilterDrawer({
               Status Offen oder Änderung prüfen — über alle Monate, wie vom
               Dashboard.
             </p>
-          </div>
+            </div>
+          </DrawerFormSection>
 
-          <Separator />
-
-          <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/20 px-3 py-3">
+          <DrawerFormSection title="Kalender">
+            <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
               <span
                 id="res-filter-empty-days"
@@ -164,12 +161,10 @@ export function ReservationsFilterDrawer({
               Blendet Kalendertage aus, an denen nach den aktuellen Filtern keine
               Reservierung angezeigt wird.
             </p>
-          </div>
+            </div>
 
           {showHidePastSection ? (
-            <>
-              <Separator />
-              <div className="space-y-2 rounded-2xl border border-border/50 bg-muted/20 px-3 py-3">
+            <div className="space-y-2 pt-1">
                 <div className="flex items-center justify-between gap-3">
                   <span
                     id="res-filter-hide-past"
@@ -192,34 +187,19 @@ export function ReservationsFilterDrawer({
                   angezeigt.
                 </p>
               </div>
-            </>
           ) : null}
+          </DrawerFormSection>
         </div>
 
-        <Separator />
-
-        <div className="flex gap-3 px-6 py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-12 flex-1 rounded-xl tap-scale"
-            onClick={() => {
-              onUnconfirmedModeChange(false);
-              onStatusFilterIdChange("all");
-              onHidePastReservationsChange(true);
-              onHideEmptyDaysChange(false);
-            }}
-          >
-            Zurücksetzen
-          </Button>
-          <Button
-            type="button"
-            className={cn("h-12 flex-1 ", brandActionButtonRoundedClassName)}
-            onClick={() => onOpenChange(false)}
-          >
-            Fertig
-          </Button>
-        </div>
+        <DrawerFilterFooter
+          onReset={() => {
+            onUnconfirmedModeChange(false);
+            onStatusFilterIdChange("all");
+            onHidePastReservationsChange(true);
+            onHideEmptyDaysChange(false);
+          }}
+          onDone={() => onOpenChange(false)}
+        />
       </DrawerContent>
     </Drawer>
   );

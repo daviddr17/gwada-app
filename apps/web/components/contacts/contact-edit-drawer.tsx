@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {drawerFormFieldClassName,  drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import Link from "next/link";
 import { toast } from "sonner";
 import { MessageSquare, Plus, Trash2 } from "lucide-react";
@@ -44,6 +46,7 @@ import { settingsAccentSaveButtonClassName } from "@/components/settings/setting
 import type { ContactCreateDraft } from "@/lib/contact-messages/draft-from-waha-chat";
 import { isInvalidContactEmailValue } from "@/lib/contacts/contact-identity-conflict";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { cn } from "@/lib/utils";
 
 type EmailDraft = { key: string; email: string; label: string };
@@ -204,8 +207,7 @@ export function ContactEditDrawer({
     !loading &&
     currentSnapshot !== savedSnapshotRef.current;
 
-  const fieldClass =
-    "h-11 w-full rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
+  const fieldClass = drawerFormFieldClassName;
 
   useEffect(() => {
     if (!open) return;
@@ -577,11 +579,11 @@ export function ContactEditDrawer({
         <DrawerContent
           overlayClassName={stackedSheetZClass}
           className={cn(
-            "mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated",
+            drawerContentClassName("form"),
             stackedSheetZClass,
           )}
         >
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <DrawerTitle className="text-xl font-semibold tracking-tight">
@@ -611,7 +613,8 @@ export function ContactEditDrawer({
 
           {open ? (
             <>
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 pb-4">
+          <div className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection title="Stammdaten">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Vorname</Label>
@@ -642,9 +645,9 @@ export function ContactEditDrawer({
                 className={fieldClass}
               />
             </div>
+            </DrawerFormSection>
 
-            <div className="space-y-3 rounded-lg border border-border/40 bg-background/60 p-3 dark:bg-background/40">
-              <p className="text-sm font-medium">Adresse</p>
+            <DrawerFormSection title="Adresse">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">
                   Straße & Hausnummer
@@ -686,11 +689,12 @@ export function ContactEditDrawer({
                   className={fieldClass}
                 />
               </div>
-            </div>
+            </DrawerFormSection>
 
+            <DrawerFormSection title="E-Mail-Adressen">
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-medium">E-Mail-Adressen</Label>
+                <span className="sr-only">E-Mail-Adressen</span>
                 <Button
                   type="button"
                   variant="outline"
@@ -756,10 +760,11 @@ export function ContactEditDrawer({
                 </div>
               ))}
             </div>
+            </DrawerFormSection>
 
+            <DrawerFormSection title="Telefonnummern">
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <Label className="text-sm font-medium">Telefonnummern</Label>
+              <div className="flex items-center justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -836,9 +841,11 @@ export function ContactEditDrawer({
                   </div>
               ))}
             </div>
+            </DrawerFormSection>
 
             {!isEdit && lexofficeConnected ? (
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+              <DrawerFormSection title="Lexware">
+              <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium">In Lexware Office anlegen</p>
                   <p className="text-xs text-muted-foreground">
@@ -854,15 +861,17 @@ export function ContactEditDrawer({
                   aria-label="In Lexware Office anlegen"
                 />
               </div>
+              </DrawerFormSection>
             ) : null}
 
             {isEdit && lexofficeConnected && !loading ? (
-              lexofficeLinkStatus?.linked ? (
-                <p className="rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5 text-xs text-muted-foreground">
+              <DrawerFormSection title="Lexware">
+              {lexofficeLinkStatus?.linked ? (
+                <p className="text-xs text-muted-foreground">
                   Mit Lexware Office verknüpft.
                 </p>
               ) : lexofficeLinkStatus?.canLinkToLexoffice ? (
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium">Mit Lexware verknüpfen</p>
                     <p className="text-xs text-muted-foreground">
@@ -878,7 +887,7 @@ export function ContactEditDrawer({
                   />
                 </div>
               ) : lexofficeLinkStatus?.canAddToLexoffice ? (
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium">
                       In Lexware Office hinzufügen
@@ -894,11 +903,11 @@ export function ContactEditDrawer({
                     aria-label="In Lexware Office hinzufügen"
                   />
                 </div>
-              ) : null
+              ) : null}
+              </DrawerFormSection>
             ) : null}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Notizen</Label>
+            <DrawerFormSection title="Notizen">
               <Textarea
                 value={notes}
                 disabled={loading}
@@ -906,12 +915,11 @@ export function ContactEditDrawer({
                 rows={4}
                 className="rounded-xl resize-y min-h-[5rem]"
               />
-            </div>
+            </DrawerFormSection>
 
             {isEdit && detail && detail.message_count > 0 ? (
-              <div className="space-y-2 border-t border-border/50 pt-4">
-                <p className="text-sm font-medium">Nachrichten</p>
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-sm">
+              <DrawerFormSection title="Nachrichten">
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/15 px-3 py-2 text-sm">
                   <span className="text-muted-foreground">
                     <span className="font-medium text-foreground tabular-nums">
                       {detail.message_count}
@@ -934,13 +942,12 @@ export function ContactEditDrawer({
                     Öffnen
                   </Button>
                 </div>
-              </div>
+              </DrawerFormSection>
             ) : null}
 
             {isEdit && linkedReservations.length > 0 ? (
-              <div className="space-y-2 border-t border-border/50 pt-4">
-                <p className="text-sm font-medium">Reservierungen</p>
-                <ul className="space-y-2">
+              <DrawerFormSection title="Reservierungen">
+              <ul className="space-y-2">
                   {linkedReservations.map((r) => (
                     <li
                       key={r.id}
@@ -977,12 +984,14 @@ export function ContactEditDrawer({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </DrawerFormSection>
             ) : isEdit && !loading ? (
-              <p className="text-xs text-muted-foreground border-t border-border/50 pt-4">
-                Noch keine verknüpften Reservierungen. Neue Reservierungen mit
-                passender E-Mail oder Telefonnummer werden automatisch verknüpft.
-              </p>
+              <DrawerFormSection title="Reservierungen">
+                <p className="text-xs text-muted-foreground">
+                  Noch keine verknüpften Reservierungen. Neue Reservierungen mit
+                  passender E-Mail oder Telefonnummer werden automatisch verknüpft.
+                </p>
+              </DrawerFormSection>
             ) : null}
           </div>
 

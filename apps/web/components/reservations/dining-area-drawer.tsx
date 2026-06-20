@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -90,9 +93,9 @@ export function DiningAreaDrawer({
       repositionInputs={false}
     >
       <DrawerContent
-        className="mx-auto flex max-h-[min(92dvh,560px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+        className={drawerContentClassName("template")}
       >
-        <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+        <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             {mode === "edit" ? "Bereich bearbeiten" : "Neuer Bereich"}
           </DrawerTitle>
@@ -101,60 +104,62 @@ export function DiningAreaDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
-        <form onSubmit={(e) => void handleSubmit(e)} className="flex flex-1 flex-col px-6 pb-4">
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pb-4">
-            <div className="space-y-2">
-              <Label htmlFor="dining-area-number">Nummer</Label>
-              <Input
-                id="dining-area-number"
-                inputMode="numeric"
-                value={displayNumber}
-                onChange={(e) => setDisplayNumber(e.target.value)}
-                placeholder="1"
-                className="h-12 rounded-xl font-mono tabular-nums"
-              />
-              <p className="text-xs text-muted-foreground">
-                Eindeutig pro Restaurant (1–9999), z. B. für Sortierung und Anzeige am Chip.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dining-area-name">Name</Label>
-              <Input
-                id="dining-area-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="z. B. Terrasse"
-                className="h-12 rounded-xl"
-                autoFocus={mode === "create"}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="dining-area-color">Farbe</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="dining-area-color"
-                  type="color"
-                  value={HEX.test(colorHex) ? colorHex : "#64748b"}
-                  onChange={(e) => setColorHex(e.target.value)}
-                  className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
-                  aria-label="Farbe wählen"
-                />
+        <form onSubmit={(e) => void handleSubmit(e)} className="flex min-h-0 flex-1 flex-col">
+          <div className={drawerScrollAreaClassName(6)}>
+            <DrawerFormSection title="Stammdaten">
+              <div className="space-y-2">
+                <Label htmlFor="dining-area-number">Nummer</Label>
                 <Input
-                  value={colorHex}
-                  onChange={(e) => setColorHex(e.target.value)}
-                  placeholder="#64748b"
-                  className="h-12 flex-1 rounded-xl font-mono text-sm"
-                  spellCheck={false}
-                  maxLength={7}
-                  aria-label="Farbe als Hex"
+                  id="dining-area-number"
+                  inputMode="numeric"
+                  value={displayNumber}
+                  onChange={(e) => setDisplayNumber(e.target.value)}
+                  placeholder="1"
+                  className="h-12 rounded-xl font-mono tabular-nums"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Eindeutig pro Restaurant (1–9999), z. B. für Sortierung und Anzeige am Chip.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dining-area-name">Name</Label>
+                <Input
+                  id="dining-area-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="z. B. Terrasse"
+                  className="h-12 rounded-xl"
+                  autoFocus={mode === "create"}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Hex-Wert (#rrggbb) – wie bei Tags/Allergenen in der Speisekarte.
-              </p>
-            </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="dining-area-color">Farbe</Label>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="dining-area-color"
+                    type="color"
+                    value={HEX.test(colorHex) ? colorHex : "#64748b"}
+                    onChange={(e) => setColorHex(e.target.value)}
+                    className={MENU_TAXONOMY_COLOR_INPUT_CLASSNAME}
+                    aria-label="Farbe wählen"
+                  />
+                  <Input
+                    value={colorHex}
+                    onChange={(e) => setColorHex(e.target.value)}
+                    placeholder="#64748b"
+                    className="h-12 flex-1 rounded-xl font-mono text-sm"
+                    spellCheck={false}
+                    maxLength={7}
+                    aria-label="Farbe als Hex"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Hex-Wert (#rrggbb) – wie bei Tags/Allergenen in der Speisekarte.
+                </p>
+              </div>
+            </DrawerFormSection>
           </div>
 
           <DrawerFormFooter

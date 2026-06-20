@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
 import {
   Drawer,
@@ -11,6 +13,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
@@ -116,9 +119,9 @@ export function CategoryDrawer({
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
         <DrawerContent
-          className="mx-auto flex max-h-[min(92dvh,480px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated"
+          className={drawerContentClassName("assign")}
         >
-          <DrawerHeader className="shrink-0 px-6 pt-2 pb-2 text-left">
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <DrawerTitle className="text-xl font-semibold tracking-tight">
@@ -143,34 +146,39 @@ export function CategoryDrawer({
             </div>
           </DrawerHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-1 flex-col px-6 pb-4">
-            <div className="space-y-4 pb-4">
-              <div className="space-y-2">
-                <Label htmlFor="category-name">{labels.nameLabel}</Label>
-                <Input
-                  id="category-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={labels.namePlaceholder}
-                  className="h-12 rounded-xl"
-                  autoFocus
-                />
-              </div>
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-muted/25 px-4 py-3">
-                <div className="space-y-0.5">
-                  <Label htmlFor="category-active" className="text-sm font-medium">
-                    {labels.activeLabel}
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    {labels.activeDescription}
-                  </p>
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+            <div className={drawerScrollAreaClassName(6)}>
+              <DrawerFormSection title="Stammdaten">
+                <div className="space-y-2">
+                  <Label htmlFor="category-name">{labels.nameLabel}</Label>
+                  <Input
+                    id="category-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={labels.namePlaceholder}
+                    className="h-12 rounded-xl"
+                    autoFocus
+                  />
                 </div>
-                <Switch
-                  id="category-active"
-                  checked={active}
-                  onCheckedChange={(v) => setActive(v === true)}
-                />
-              </div>
+              </DrawerFormSection>
+
+              <DrawerFormSection title="Sichtbarkeit">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="category-active" className="text-sm font-medium">
+                      {labels.activeLabel}
+                    </Label>
+                    <p className="text-xs text-muted-foreground">
+                      {labels.activeDescription}
+                    </p>
+                  </div>
+                  <Switch
+                    id="category-active"
+                    checked={active}
+                    onCheckedChange={(v) => setActive(v === true)}
+                  />
+                </div>
+              </DrawerFormSection>
             </div>
 
             <DrawerFormFooter

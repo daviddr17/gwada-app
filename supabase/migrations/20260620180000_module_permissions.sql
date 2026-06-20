@@ -586,13 +586,6 @@ create policy "restaurant_staff_work_entries_staff_all"
   using (public.auth_has_restaurant_permission(restaurant_id, 'staff.manage'))
   with check (public.auth_has_restaurant_permission(restaurant_id, 'staff.manage'));
 
-drop policy if exists "restaurant_staff_time_sessions_staff_all" on public.restaurant_staff_time_sessions;
-create policy "restaurant_staff_time_sessions_staff_all"
-  on public.restaurant_staff_time_sessions for all
-  to authenticated
-  using (public.auth_has_restaurant_permission(restaurant_id, 'staff.manage'))
-  with check (public.auth_has_restaurant_permission(restaurant_id, 'staff.manage'));
-
 drop policy if exists "restaurant_staff_employment_types_staff_all" on public.restaurant_staff_employment_types;
 create policy "restaurant_staff_employment_types_staff_all"
   on public.restaurant_staff_employment_types for all

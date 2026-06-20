@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const restaurantId = restaurantIdFromRequest(req);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "read");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

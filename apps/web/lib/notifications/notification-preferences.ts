@@ -39,6 +39,9 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       staff_shift_start: false,
       staff_shift_end: false,
       inventory_low_stock: true,
+      accounting_quotation: true,
+      accounting_invoice: true,
+      accounting_voucher: true,
     },
     pushEmailModules: {
       messages: true,
@@ -50,6 +53,9 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       staff_shift_start: true,
       staff_shift_end: true,
       inventory_low_stock: true,
+      accounting_quotation: true,
+      accounting_invoice: true,
+      accounting_voucher: true,
     },
   };
 }

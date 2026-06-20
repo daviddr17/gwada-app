@@ -3,6 +3,7 @@ import "server-only";
 import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summary-server";
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
+import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
@@ -234,6 +235,34 @@ async function buildInventoryLowStockModule(
   };
 }
 
+async function buildAccountingModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module:
+      | "accounting_quotation"
+      | "accounting_invoice"
+      | "accounting_voucher";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadAccountingNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 async function buildChangelogModule(
   sb: SupabaseClient,
   userId: string,
@@ -276,6 +305,21 @@ const MODULE_BUILDERS: Record<
   staff_shift_end: (ctx) =>
     buildStaffShiftModule(ctx.sb, { ...ctx, module: "staff_shift_end" }),
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
+  accounting_quotation: (ctx) =>
+    buildAccountingModule(ctx.sb, {
+      ...ctx,
+      module: "accounting_quotation",
+    }),
+  accounting_invoice: (ctx) =>
+    buildAccountingModule(ctx.sb, {
+      ...ctx,
+      module: "accounting_invoice",
+    }),
+  accounting_voucher: (ctx) =>
+    buildAccountingModule(ctx.sb, {
+      ...ctx,
+      module: "accounting_voucher",
+    }),
 };
 
 type ModuleBuildContext = {

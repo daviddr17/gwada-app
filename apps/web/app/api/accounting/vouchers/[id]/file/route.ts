@@ -16,7 +16,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 export async function GET(req: Request, context: RouteContext) {
   const { id } = await context.params;
   const restaurantId = restaurantIdFromRequest(req);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "read");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

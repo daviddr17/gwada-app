@@ -1,8 +1,14 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import "server-only";
+
+import { authorizeModuleCrud } from "@/lib/permissions/authorize-restaurant-module";
+import type { ModuleCrudOperation } from "@/lib/permissions/module-crud-permissions";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export async function assertAccountingApi(restaurantId: string): Promise<
+export async function assertAccountingApi(
+  restaurantId: string,
+  operation: ModuleCrudOperation = "read",
+): Promise<
   | { ok: true; userId: string; sb: SupabaseClient; restaurantId: string }
   | { ok: false; error: string; status: number }
 > {
@@ -10,23 +16,17 @@ export async function assertAccountingApi(restaurantId: string): Promise<
     return { ok: false, error: "invalid_request", status: 400 };
   }
 
-  const sb = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (!user) {
-    return { ok: false, error: "unauthorized", status: 401 };
+  const auth = await authorizeModuleCrud(restaurantId, "accounting", operation);
+  if (!auth.ok) {
+    return { ok: false, error: auth.error, status: auth.status };
   }
 
-  const { data: allowed } = await sb.rpc("auth_has_restaurant_permission", {
-    p_restaurant_id: restaurantId,
-    p_permission: "accounting.manage",
-  });
-  if (!allowed) {
-    return { ok: false, error: "forbidden", status: 403 };
-  }
-
-  return { ok: true, userId: user.id, sb, restaurantId };
+  return {
+    ok: true,
+    userId: auth.userId,
+    sb: auth.sb,
+    restaurantId,
+  };
 }
 
 export function restaurantIdFromRequest(

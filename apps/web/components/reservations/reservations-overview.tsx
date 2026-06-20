@@ -48,6 +48,9 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { publicHolidayChipClassName } from "@/lib/ui/public-holiday-chip";
 import { useReservationGwadaReviews } from "@/lib/hooks/use-reservation-gwada-reviews";
@@ -153,6 +156,8 @@ export function ReservationsOverview() {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "reservations");
 
   const monthFromYmd = localDayKey(monthStart);
   const monthToYmd = localDayKey(monthEnd);
@@ -595,6 +600,10 @@ export function ReservationsOverview() {
       ),
     [],
   );
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Reservierungen" />;
+  }
 
   return (
     <div className="space-y-6 pb-4">

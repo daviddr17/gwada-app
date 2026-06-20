@@ -13,7 +13,7 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
   const restaurantId = restaurantIdFromRequest(req);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "read");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

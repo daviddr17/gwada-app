@@ -1,4 +1,4 @@
-import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
+import { authorizeStaffRestaurant } from "@/lib/staff/route-auth";
 import { resolveStaffInviteContactConflicts } from "@/lib/staff/staff-invite-contact-conflict-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const auth = await assertRestaurantStaffApi(restaurantId);
+  const auth = await authorizeStaffRestaurant(restaurantId);
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const restaurantId = restaurantIdFromRequest(req);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "read");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     restaurantId?: string;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "create");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

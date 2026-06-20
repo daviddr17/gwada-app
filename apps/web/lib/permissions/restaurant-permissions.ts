@@ -1,5 +1,27 @@
 /** Berechtigungsschlüssel pro Restaurant-Position (in DB `restaurant_position_permissions`). */
 
+import {
+  MODULE_CRUD_LABELS,
+  MODULE_CRUD_PREFIXES,
+  type ModuleCrudOperation,
+} from "@/lib/permissions/module-crud-permissions";
+
+const MODULE_CRUD_OPS: ModuleCrudOperation[] = [
+  "read",
+  "create",
+  "update",
+  "delete",
+];
+
+const MODULE_CRUD_KEYS = MODULE_CRUD_PREFIXES.flatMap((prefix) =>
+  MODULE_CRUD_OPS.map((op) => `${prefix}.${op}` as const),
+);
+
+/** Legacy — weiterhin in DB, nicht mehr in der UI. */
+const LEGACY_MODULE_MANAGE_KEYS = MODULE_CRUD_PREFIXES.map(
+  (prefix) => `${prefix}.manage` as const,
+);
+
 export const RESTAURANT_PERMISSION_KEYS = [
   "roles.manage",
   "team.manage",
@@ -13,6 +35,12 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "settings.opening_hours",
   "settings.branding",
   "settings.dashboard",
+  ...MODULE_CRUD_KEYS,
+  ...LEGACY_MODULE_MANAGE_KEYS,
+  "gallery.read",
+  "gallery.create",
+  "gallery.update",
+  "gallery.delete",
   "documents.notes.edit",
   "display.manage",
   "display.time",
@@ -24,13 +52,6 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.module_switch",
   "pos.kasse.manage",
   "pos.kasse.export",
-  "accounting.manage",
-  "news.manage",
-  "events.manage",
-  "gallery.read",
-  "gallery.create",
-  "gallery.update",
-  "gallery.delete",
 ] as const;
 
 export type RestaurantPermissionKey =
@@ -42,6 +63,7 @@ export type RestaurantPermissionMeta = {
   description: string;
   group:
     | "administration"
+    | "module"
     | "einstellungen"
     | "integrationen"
     | "dokumente"
@@ -49,6 +71,34 @@ export type RestaurantPermissionMeta = {
     | "display"
     | "pos";
 };
+
+const MODULE_CRUD_DESCRIPTIONS: Record<
+  ModuleCrudOperation,
+  (moduleLabel: string) => string
+> = {
+  read: (m) => `${m} einsehen.`,
+  create: (m) => `Neue Einträge in ${m} anlegen.`,
+  update: (m) => `Bestehende Einträge in ${m} bearbeiten.`,
+  delete: (m) => `Einträge in ${m} löschen.`,
+};
+
+function moduleCrudCatalogEntries(): RestaurantPermissionMeta[] {
+  const out: RestaurantPermissionMeta[] = [];
+  for (const prefix of MODULE_CRUD_PREFIXES) {
+    const labels = MODULE_CRUD_LABELS[prefix];
+    const group = prefix === "accounting" ? "buchfuehrung" : "module";
+    for (const op of MODULE_CRUD_OPS) {
+      const labelKey = op as keyof typeof labels;
+      out.push({
+        key: `${prefix}.${op}` as RestaurantPermissionKey,
+        label: labels[labelKey],
+        description: MODULE_CRUD_DESCRIPTIONS[op](labels.module),
+        group,
+      });
+    }
+  }
+  return out;
+}
 
 export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] =
   [
@@ -63,6 +113,31 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "Team verwalten",
       description: "Mitglieder einladen, Position zuweisen, aktivieren.",
       group: "administration",
+    },
+    ...moduleCrudCatalogEntries(),
+    {
+      key: "gallery.read",
+      label: "Galerie: Ansehen",
+      description: "Bilder und Highlights in der Galerie einsehen.",
+      group: "module",
+    },
+    {
+      key: "gallery.create",
+      label: "Galerie: Anlegen",
+      description: "Neue Bilder und Highlights hochladen.",
+      group: "module",
+    },
+    {
+      key: "gallery.update",
+      label: "Galerie: Bearbeiten",
+      description: "Bilder, Kategorien und Highlights ändern.",
+      group: "module",
+    },
+    {
+      key: "gallery.delete",
+      label: "Galerie: Löschen",
+      description: "Bilder und Highlights entfernen.",
+      group: "module",
     },
     {
       key: "integrations.whatsapp",
@@ -132,51 +207,6 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       group: "dokumente",
     },
     {
-      key: "accounting.manage",
-      label: "Buchführung",
-      description:
-        "Rechnungen, Angebote und Belege anlegen, bearbeiten und versenden.",
-      group: "buchfuehrung",
-    },
-    {
-      key: "news.manage",
-      label: "News",
-      description:
-        "News und Posts veröffentlichen, planen und Kanäle verwalten.",
-      group: "buchfuehrung",
-    },
-    {
-      key: "events.manage",
-      label: "Events",
-      description:
-        "Events anlegen, mit Facebook/Google synchronisieren und einbinden.",
-      group: "buchfuehrung",
-    },
-    {
-      key: "gallery.read",
-      label: "Galerie ansehen",
-      description: "Bilder und Highlights in der Galerie einsehen.",
-      group: "buchfuehrung",
-    },
-    {
-      key: "gallery.create",
-      label: "Galerie: Anlegen",
-      description: "Neue Bilder und Highlights hochladen.",
-      group: "buchfuehrung",
-    },
-    {
-      key: "gallery.update",
-      label: "Galerie: Bearbeiten",
-      description: "Bilder, Kategorien und Highlights ändern.",
-      group: "buchfuehrung",
-    },
-    {
-      key: "gallery.delete",
-      label: "Galerie: Löschen",
-      description: "Bilder und Highlights entfernen.",
-      group: "buchfuehrung",
-    },
-    {
       key: "display.manage",
       label: "Displays verwalten",
       description: "Tablets koppeln, Module und Auto-Lock festlegen.",
@@ -242,5 +272,8 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
 
 /** Alle Keys — für System-Position „Inhaber“. */
 export const ALL_RESTAURANT_PERMISSION_KEYS: RestaurantPermissionKey[] = [
-  ...RESTAURANT_PERMISSION_KEYS,
+  ...RESTAURANT_PERMISSION_CATALOG.map((e) => e.key),
+  ...LEGACY_MODULE_MANAGE_KEYS.filter(
+    (k) => !RESTAURANT_PERMISSION_CATALOG.some((e) => e.key === k),
+  ),
 ];

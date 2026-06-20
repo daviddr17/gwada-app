@@ -8,6 +8,11 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
   reservierungen: ["reservations_pending"],
   kontakte: ["messages"],
   bewertungen: ["reviews"],
+  buchfuehrung: [
+    "accounting_quotation",
+    "accounting_invoice",
+    "accounting_voucher",
+  ],
 };
 
 export function sidebarModuleNotificationCount(

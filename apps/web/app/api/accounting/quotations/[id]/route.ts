@@ -21,7 +21,7 @@ export async function PATCH(
     status?: AccountingQuotationStatus;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "update");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

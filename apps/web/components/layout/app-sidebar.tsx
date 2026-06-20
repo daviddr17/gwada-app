@@ -47,6 +47,8 @@ import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-conte
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
 import { sidebarModuleNotificationCount } from "@/lib/navigation/sidebar-module-notification-counts";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 
 function profileInitials(firstName: string, lastName: string): string {
@@ -74,6 +76,7 @@ export function AppSidebar() {
   const { firstName, lastName } = usePersonalProfileNames();
   const { isSuperadmin } = useIsSuperadmin();
   const { order: sidebarModuleOrder } = useSidebarModuleOrder();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
   const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
@@ -84,8 +87,12 @@ export function AppSidebar() {
     () =>
       sidebarModuleOrder
         .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
-        .filter((mod): mod is NonNullable<typeof mod> => mod != null),
-    [sidebarModuleOrder],
+        .filter((mod): mod is NonNullable<typeof mod> => mod != null)
+        .filter(
+          (mod) =>
+            permissionsLoading || hasSidebarModuleAccess(has, mod.id),
+        ),
+    [sidebarModuleOrder, has, permissionsLoading],
   );
 
   const displayName =

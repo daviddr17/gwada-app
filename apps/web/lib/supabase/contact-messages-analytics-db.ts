@@ -56,12 +56,44 @@ const CONTACT_ANALYTICS_SELECT = `
   company,
   created_at,
   last_interaction_at,
-  reservation_count,
-  message_count,
   contact_emails ( id ),
   contact_phones ( id ),
   contact_messaging_ids ( id )
 `;
+
+function buildReservationCountByContact(
+  rows: Array<{ contact_id: string | null }>,
+): Map<string, number> {
+  const countByContact = new Map<string, number>();
+  for (const row of rows) {
+    const contactId = row.contact_id;
+    if (!contactId) continue;
+    countByContact.set(contactId, (countByContact.get(contactId) ?? 0) + 1);
+  }
+  return countByContact;
+}
+
+function mapContactAnalyticsRow(
+  raw: Record<string, unknown>,
+  reservationCount: number,
+): ContactAnalyticsRow {
+  const emails = raw.contact_emails as unknown[] | null;
+  const phones = raw.contact_phones as unknown[] | null;
+  const messaging = raw.contact_messaging_ids as unknown[] | null;
+  return {
+    id: raw.id as string,
+    first_name: raw.first_name as string,
+    last_name: raw.last_name as string,
+    company: (raw.company as string | null) ?? null,
+    created_at: raw.created_at as string,
+    last_interaction_at: (raw.last_interaction_at as string | null) ?? null,
+    reservation_count: reservationCount,
+    message_count: 0,
+    has_email: (emails?.length ?? 0) > 0,
+    has_phone: (phones?.length ?? 0) > 0,
+    has_messaging: (messaging?.length ?? 0) > 0,
+  };
+}
 
 function periodRange(monthsBack: ContactStatsPeriod): {
   periodStart: Date;
@@ -78,27 +110,6 @@ function periodRange(monthsBack: ContactStatsPeriod): {
   };
 }
 
-function mapContactAnalyticsRow(
-  raw: Record<string, unknown>,
-): ContactAnalyticsRow {
-  const emails = raw.contact_emails as unknown[] | null;
-  const phones = raw.contact_phones as unknown[] | null;
-  const messaging = raw.contact_messaging_ids as unknown[] | null;
-  return {
-    id: raw.id as string,
-    first_name: raw.first_name as string,
-    last_name: raw.last_name as string,
-    company: (raw.company as string | null) ?? null,
-    created_at: raw.created_at as string,
-    last_interaction_at: (raw.last_interaction_at as string | null) ?? null,
-    reservation_count: (raw.reservation_count as number) ?? 0,
-    message_count: (raw.message_count as number) ?? 0,
-    has_email: (emails?.length ?? 0) > 0,
-    has_phone: (phones?.length ?? 0) > 0,
-    has_messaging: (messaging?.length ?? 0) > 0,
-  };
-}
-
 export async function fetchContactStatisticsBundle(params: {
   restaurantId: string;
   monthsBack?: ContactStatsPeriod;
@@ -112,7 +123,7 @@ export async function fetchContactStatisticsBundle(params: {
   const rangeEndIso = exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd);
 
   const sb = createSupabaseBrowserClient();
-  const [messagesRes, contactsRes] = await Promise.all([
+  const [messagesRes, contactsRes, reservationsRes] = await Promise.all([
     sb
       .from("contact_messages")
       .select(MESSAGE_ANALYTICS_SELECT)
@@ -125,12 +136,25 @@ export async function fetchContactStatisticsBundle(params: {
       .select(CONTACT_ANALYTICS_SELECT)
       .eq("restaurant_id", params.restaurantId)
       .order("created_at", { ascending: false }),
+    sb
+      .from("reservations")
+      .select("contact_id")
+      .eq("restaurant_id", params.restaurantId)
+      .not("contact_id", "is", null),
   ]);
 
-  const error = messagesRes.error?.message ?? contactsRes.error?.message ?? null;
+  const error =
+    messagesRes.error?.message ??
+    contactsRes.error?.message ??
+    reservationsRes.error?.message ??
+    null;
   if (error) {
     return { data: null, error };
   }
+
+  const reservationCountByContact = buildReservationCountByContact(
+    (reservationsRes.data ?? []) as Array<{ contact_id: string | null }>,
+  );
 
   const messages = (messagesRes.data ?? []).map((raw) => {
     const row = raw as Record<string, unknown>;
@@ -144,9 +168,13 @@ export async function fetchContactStatisticsBundle(params: {
     };
   });
 
-  const contacts = (contactsRes.data ?? []).map((raw) =>
-    mapContactAnalyticsRow(raw as Record<string, unknown>),
-  );
+  const contacts = (contactsRes.data ?? []).map((raw) => {
+    const row = raw as Record<string, unknown>;
+    return mapContactAnalyticsRow(
+      row,
+      reservationCountByContact.get(row.id as string) ?? 0,
+    );
+  });
 
   return {
     data: {

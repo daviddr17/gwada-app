@@ -3,7 +3,7 @@ import {
   loadLexofficeContactsForRestaurant,
   resolveLexofficeContactsIntegration,
 } from "@/lib/contacts/contacts-server";
-import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
+import { authorizeContactsRestaurant } from "@/lib/contacts/route-auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const auth = await assertRestaurantStaffApi(restaurantId);
+  const auth = await authorizeContactsRestaurant(restaurantId);
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }

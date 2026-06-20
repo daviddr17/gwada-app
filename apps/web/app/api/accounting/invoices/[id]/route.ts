@@ -22,7 +22,7 @@ export async function GET(
 ) {
   const { id } = await ctx.params;
   const restaurantId = restaurantIdFromRequest(req);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "read");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -63,7 +63,7 @@ export async function PATCH(
     status?: AccountingInvoiceStatus;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "update");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

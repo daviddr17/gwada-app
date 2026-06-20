@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     sort_order?: number;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "create");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -39,7 +39,7 @@ export async function PATCH(req: Request) {
     archived?: boolean;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "update");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
@@ -75,7 +75,7 @@ export async function DELETE(req: Request) {
   const url = new URL(req.url);
   const restaurantId = restaurantIdFromRequest(req);
   const id = url.searchParams.get("id");
-  const auth = await assertAccountingApi(restaurantId);
+  const auth = await assertAccountingApi(restaurantId, "delete");
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }

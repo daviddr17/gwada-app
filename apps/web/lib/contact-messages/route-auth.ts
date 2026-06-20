@@ -1,3 +1,4 @@
+import { authorizeModuleCrud } from "@/lib/permissions/authorize-restaurant-module";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -17,20 +18,15 @@ export async function authorizeContactMessagesRestaurant(
     return { ok: false, status: 400, error: "invalid_request" };
   }
 
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return { ok: false, status: 401, error: "unauthorized" };
+  const auth = await authorizeModuleCrud(restaurantId, "contacts", "read");
+  if (!auth.ok) {
+    return { ok: false, status: auth.status, error: auth.error };
   }
 
-  const { data: allowed } = await supabase.rpc("auth_is_restaurant_staff", {
-    p_restaurant_id: restaurantId,
-  });
-  if (!allowed) {
-    return { ok: false, status: 403, error: "forbidden" };
-  }
-
-  return { ok: true, supabase, restaurantId, userId: user.id };
+  return {
+    ok: true,
+    supabase: auth.sb,
+    restaurantId,
+    userId: auth.userId,
+  };
 }

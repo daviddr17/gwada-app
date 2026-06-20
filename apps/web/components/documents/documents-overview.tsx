@@ -42,6 +42,8 @@ import { WORKSPACE_STORAGE_MODULE_LABELS } from "@/lib/constants/workspace-stora
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
   fetchDocumentsForRestaurant,
@@ -162,7 +164,9 @@ export function DocumentsOverview() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { has: hasPermission } = useRestaurantPermissions();
+  const { has: hasPermission, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(hasPermission, "documents");
+  const canCreate = hasModuleCreate(hasPermission, "documents");
   const canEditDocumentNotes = hasPermission("documents.notes.edit");
   const documentTags = useDocumentTagsStorage(restaurantId);
 
@@ -406,6 +410,10 @@ export function DocumentsOverview() {
   }
   if (!restaurantId) {
     return <WorkspaceRestaurantMissingMessage />;
+  }
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Dokumente" />;
   }
 
   return (

@@ -1,4 +1,4 @@
-import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
+import { authorizeStaffRestaurant } from "@/lib/staff/route-auth";
 import { insertStaffAuditLogEntryServer } from "@/lib/staff/staff-audit-log-server";
 import {
   createStaffInviteAdmin,
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const auth = await assertRestaurantStaffApi(restaurantId);
+  const auth = await authorizeStaffRestaurant(restaurantId);
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }

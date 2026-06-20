@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authorizeStaffRestaurant } from "@/lib/staff/route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,11 +26,9 @@ export async function POST(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const { data: allowed } = await sb.rpc("auth_is_restaurant_staff", {
-    p_restaurant_id: staff.restaurant_id,
-  });
-  if (!allowed) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const auth = await authorizeStaffRestaurant(staff.restaurant_id as string);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   let body: { pin?: string | null };
@@ -97,11 +96,9 @@ export async function GET(
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const { data: allowed } = await sb.rpc("auth_is_restaurant_staff", {
-    p_restaurant_id: staff.restaurant_id,
-  });
-  if (!allowed) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const auth = await authorizeStaffRestaurant(staff.restaurant_id as string);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   return NextResponse.json({

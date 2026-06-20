@@ -190,6 +190,9 @@ import { useContactThreadRealtime } from "@/lib/hooks/use-contact-thread-realtim
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import {
   contactThreadDisplayName,
@@ -299,6 +302,8 @@ export function ContactsMessagesScreen() {
 
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "contacts");
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -2092,6 +2097,10 @@ export function ContactsMessagesScreen() {
 
   if (!restaurantId) {
     return <WorkspaceRestaurantMissingMessage />;
+  }
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Nachrichten" />;
   }
 
   return (

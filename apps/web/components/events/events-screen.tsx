@@ -26,6 +26,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useEventsPlatformConnections } from "@/lib/hooks/use-events-platform-connections";
 import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-realtime";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
   peekEventsFeedCache,
@@ -39,7 +40,8 @@ import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primar
 export function EventsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
-  const canManage = has("events.manage");
+  const canRead = hasModuleRead(has, "events");
+  const canManage = hasModuleCreate(has, "events");
 
   const [platformFilter, setPlatformFilter] = useState<EventsPlatformFilter>(EVENTS_FILTER_ALL);
   const [page, setPage] = useState(1);

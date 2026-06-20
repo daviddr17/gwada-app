@@ -40,6 +40,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-realtime";
 import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import {
@@ -70,7 +71,8 @@ const NEWS_SYNC_POLL_MAX = 3;
 export function NewsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
-  const canManage = has("news.manage");
+  const canRead = hasModuleRead(has, "news");
+  const canManage = hasModuleCreate(has, "news");
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();

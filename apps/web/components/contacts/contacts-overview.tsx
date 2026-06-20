@@ -45,6 +45,9 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { resolveCountryIso2FromLabel } from "@/lib/constants/countries";
 import { cn } from "@/lib/utils";
@@ -129,6 +132,8 @@ export function ContactsOverview() {
   const platformParam = searchParams.get("platform");
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "contacts");
   const lexoffice = useLexofficeContactIntegration(restaurantId);
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
@@ -407,6 +412,10 @@ export function ContactsOverview() {
 
   if (!restaurantId) {
     return <WorkspaceRestaurantMissingMessage />;
+  }
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Nachrichten" />;
   }
 
   return (

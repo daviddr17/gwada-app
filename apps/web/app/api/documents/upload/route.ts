@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
+import { authorizeDocumentsRestaurant } from "@/lib/documents/route-auth";
 import {
   RESTAURANT_DOCUMENTS_QUOTA_BYTES,
   RESTAURANT_DOCUMENTS_STORAGE_BUCKET,
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const auth = await assertRestaurantStaffApi(restaurantId);
+  const auth = await authorizeDocumentsRestaurant(restaurantId, "create");
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }

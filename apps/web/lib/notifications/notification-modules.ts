@@ -3,8 +3,11 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarX2,
+  FileSpreadsheet,
+  FileText,
   MessageSquare,
   Package,
+  Receipt,
   ScrollText,
   Star,
   Timer,
@@ -22,6 +25,9 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_shift_start",
   "staff_shift_end",
   "inventory_low_stock",
+  "accounting_quotation",
+  "accounting_invoice",
+  "accounting_voucher",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -130,6 +136,36 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Niedrigbestand in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei Niedrigbestand",
     settingsPushEmailLabel: "E-Mail bei Niedrigbestand",
+  },
+  accounting_quotation: {
+    id: "accounting_quotation",
+    label: "Angebot",
+    labelPlural: "Angebote",
+    href: "/dashboard/buchfuehrung/angebote",
+    icon: FileSpreadsheet,
+    settingsInAppLabel: "Neue Angebote in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei neuen Angeboten",
+    settingsPushEmailLabel: "E-Mail bei neuen Angeboten",
+  },
+  accounting_invoice: {
+    id: "accounting_invoice",
+    label: "Rechnung",
+    labelPlural: "Rechnungen",
+    href: "/dashboard/buchfuehrung/rechnungen",
+    icon: FileText,
+    settingsInAppLabel: "Neue Rechnungen in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei neuen Rechnungen",
+    settingsPushEmailLabel: "E-Mail bei neuen Rechnungen",
+  },
+  accounting_voucher: {
+    id: "accounting_voucher",
+    label: "Beleg",
+    labelPlural: "Belege",
+    href: "/dashboard/buchfuehrung/belege",
+    icon: Receipt,
+    settingsInAppLabel: "Neue Belege in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei neuen Belegen",
+    settingsPushEmailLabel: "E-Mail bei neuen Belegen",
   },
 };
 

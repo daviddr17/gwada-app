@@ -54,6 +54,9 @@ import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-stor
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
 import {
@@ -583,6 +586,8 @@ export function InventoryScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "inventory");
   const suppliers = useInventoryTaxonomyStorage(
     INVENTORY_SUPPLIERS_KEY,
     SEED_SUPPLIERS,
@@ -890,6 +895,10 @@ export function InventoryScreen() {
     productionSites.isHydrated &&
     brands.isHydrated &&
     units.isHydrated;
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Bestand" />;
+  }
 
   return (
     <>

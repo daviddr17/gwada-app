@@ -8,6 +8,9 @@ import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { StaffModuleStickyBar } from "@/components/staff/staff-module-sticky-bar";
 import { StaffModuleSelectionProvider } from "@/lib/contexts/staff-module-selection-context";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 
 const STAFF_NAV: readonly ModuleSubnavItem[] = [
   {
@@ -45,10 +48,27 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
 
 function MitarbeiterLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "staff");
   const needsStaffPicker =
     pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
     pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten") ||
     pathname.startsWith("/dashboard/mitarbeiter/export");
+
+  if (!permissionsLoading && !canRead) {
+    return (
+      <>
+        <RegisterModuleChrome
+          title="Mitarbeiter"
+          subnavAriaLabel="Mitarbeiter-Bereiche"
+          subnavItems={STAFF_NAV}
+        />
+        <AppMain>
+          <ModuleAccessDenied label="Mitarbeiter" />
+        </AppMain>
+      </>
+    );
+  }
 
   return (
     <StaffModuleSelectionProvider needsStaffPicker={needsStaffPicker}>

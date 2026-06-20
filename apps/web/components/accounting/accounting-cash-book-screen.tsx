@@ -29,6 +29,11 @@ import { formatCashTaxRatesSummary } from "@/lib/accounting/accounting-cash-disp
 import { ACCOUNTING_CASH_DIRECTION_LABELS } from "@/lib/accounting/accounting-cash-book-defaults";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import {
+  hasModuleCreate,
+  hasModuleRead,
+  hasModuleUpdate,
+} from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type {
   AccountingDocumentStatusRow,
@@ -98,7 +103,10 @@ function SummaryCard({
 export function AccountingCashBookScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
-  const canManage = has("accounting.manage");
+  const canRead = hasModuleRead(has, "accounting");
+  const canCreate = hasModuleCreate(has, "accounting");
+  const canUpdate = hasModuleUpdate(has, "accounting");
+  const canManage = canCreate || canUpdate;
 
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<AccountingCashEntryRow[]>([]);

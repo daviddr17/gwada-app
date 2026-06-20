@@ -58,6 +58,9 @@ import {
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePlatformFeedSyncRealtime } from "@/lib/hooks/use-platform-feed-sync-realtime";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { setFeedItemPin } from "@/lib/feed-pin/feed-pin-client";
@@ -149,6 +152,8 @@ export function ReviewsScreen() {
   const searchParams = useSearchParams();
   const platformParam = searchParams.get("platform");
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "reviews");
   const {
     loading: connectionsLoading,
     googleConnected,
@@ -1178,6 +1183,10 @@ export function ReviewsScreen() {
   }
   if (!restaurantId) {
     return <WorkspaceRestaurantMissingMessage />;
+  }
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Bewertungen" />;
   }
 
   const resetFilters = () => {

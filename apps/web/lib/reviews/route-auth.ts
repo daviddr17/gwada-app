@@ -1,32 +1,26 @@
 import "server-only";
 
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { authorizeModuleCrud } from "@/lib/permissions/authorize-restaurant-module";
+import type { ModuleCrudOperation } from "@/lib/permissions/module-crud-permissions";
 
 export async function authorizeReviewsRestaurant(
   restaurantId: string,
+  operation: ModuleCrudOperation = "read",
 ): Promise<
   | {
       ok: true;
-      sb: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+      sb: Awaited<
+        ReturnType<
+          typeof import("@/lib/supabase/server").createSupabaseServerClient
+        >
+      >;
       userId: string;
     }
   | { ok: false; status: number }
 > {
-  if (!isUuidRestaurantId(restaurantId)) {
-    return { ok: false, status: 400 };
+  const auth = await authorizeModuleCrud(restaurantId, "reviews", operation);
+  if (!auth.ok) {
+    return { ok: false, status: auth.status };
   }
-
-  const sb = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-  if (!user) return { ok: false, status: 401 };
-
-  const { data: staff } = await sb.rpc("auth_is_restaurant_staff", {
-    p_restaurant_id: restaurantId,
-  });
-  if (!staff) return { ok: false, status: 403 };
-
-  return { ok: true, sb, userId: user.id };
+  return { ok: true, sb: auth.sb, userId: auth.userId };
 }

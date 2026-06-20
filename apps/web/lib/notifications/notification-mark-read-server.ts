@@ -35,6 +35,11 @@ import {
   dismissAllStaffShiftNotifications,
   dismissStaffShiftNotification,
 } from "@/lib/notifications/notification-staff-shift-server";
+import {
+  dismissAccountingNotification,
+  dismissAllAccountingNotifications,
+  isAccountingNotificationModule,
+} from "@/lib/notifications/notification-accounting-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { isContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
@@ -203,6 +208,31 @@ export async function markNotificationReadServer(
         restaurantId,
         userId,
         ingredientId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "accounting_quotation":
+    case "accounting_invoice":
+    case "accounting_voucher": {
+      if (!isAccountingNotificationModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllAccountingNotifications(admin, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const documentId = itemId ?? meta?.documentId;
+      if (!documentId) return { ok: false, error: "invalid_request" };
+      const result = await dismissAccountingNotification(sb, {
+        restaurantId,
+        userId,
+        documentId,
+        module,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

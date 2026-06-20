@@ -60,6 +60,14 @@ import type {
   PriceRange,
 } from "@/lib/types/menu";
 import { useMenuSettings } from "@/lib/hooks/use-menu-settings";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
+import {
+  hasModuleCreate,
+  hasModuleDelete,
+  hasModuleRead,
+  hasModuleUpdate,
+} from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { ListRangeCount } from "@/lib/ui/list-range-count";
@@ -76,6 +84,11 @@ export function MenuOverviewScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const canRead = hasModuleRead(has, "menu");
+  const canCreate = hasModuleCreate(has, "menu");
+  const canUpdate = hasModuleUpdate(has, "menu");
+  const canDelete = hasModuleDelete(has, "menu");
   const { currencyCode } = useMenuSettings(workspaceRestaurantId);
   const {
     categories,
@@ -413,6 +426,10 @@ export function MenuOverviewScreen() {
   );
 
   const showCards = !viewReady || viewMode === "cards";
+
+  if (!permissionsLoading && !canRead) {
+    return <ModuleAccessDenied label="Speisekarte" />;
+  }
 
   return (
     <>

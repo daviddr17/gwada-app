@@ -1,5 +1,5 @@
 import { assertRestaurantPermissionApi } from "@/lib/documents/assert-restaurant-permission-api";
-import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
+import { authorizeDocumentsRestaurant } from "@/lib/documents/route-auth";
 import {
   insertRestaurantDocumentLog,
   resolveRestaurantEmployeeId,
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "note_too_long" }, { status: 400 });
   }
 
-  const auth = await assertRestaurantStaffApi(restaurantId);
+  const auth = await authorizeDocumentsRestaurant(restaurantId, "create");
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }

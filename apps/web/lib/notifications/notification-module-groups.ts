@@ -37,6 +37,16 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
     title: "Bestand",
     moduleIds: ["inventory_low_stock"],
   },
+  {
+    id: "accounting",
+    title: "Buchführung",
+    description: "Neue Angebote, Rechnungen und Belege getrennt steuerbar.",
+    moduleIds: [
+      "accounting_quotation",
+      "accounting_invoice",
+      "accounting_voucher",
+    ],
+  },
 ];
 
 export function notificationModulesForSettingsGroup(

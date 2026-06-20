@@ -320,6 +320,58 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "accounting_quotation": {
+      const title = pickString(p.title) ?? "Neues Angebot";
+      const number = pickString(p.voucherNumber);
+      const recipient = pickString(p.recipientLabel);
+      const amount = pickString(p.amountLabel);
+      return buildPushMessage({
+        prefix,
+        headline: "Neues Angebot",
+        subject: `${prefix}Neues Angebot${number ? ` — ${number}` : ""}`,
+        href,
+        details: detailLines([
+          `Titel: ${title}`,
+          number ? `Nummer: ${number}` : null,
+          recipient ? `Empfänger: ${recipient}` : null,
+          amount ? `Betrag: ${amount}` : null,
+        ]),
+      });
+    }
+    case "accounting_invoice": {
+      const title = pickString(p.title) ?? "Neue Rechnung";
+      const number = pickString(p.voucherNumber);
+      const recipient = pickString(p.recipientLabel);
+      const amount = pickString(p.amountLabel);
+      return buildPushMessage({
+        prefix,
+        headline: "Neue Rechnung",
+        subject: `${prefix}Neue Rechnung${number ? ` — ${number}` : ""}`,
+        href,
+        details: detailLines([
+          `Titel: ${title}`,
+          number ? `Nummer: ${number}` : null,
+          recipient ? `Empfänger: ${recipient}` : null,
+          amount ? `Betrag: ${amount}` : null,
+        ]),
+      });
+    }
+    case "accounting_voucher": {
+      const contact = pickString(p.contactName) ?? "Beleg";
+      const number = pickString(p.voucherNumber);
+      const amount = pickString(p.amountLabel);
+      return buildPushMessage({
+        prefix,
+        headline: "Neuer Beleg",
+        subject: `${prefix}Neuer Beleg${number ? ` — ${number}` : ""}`,
+        href,
+        details: detailLines([
+          contact ? `Kontakt: ${contact}` : null,
+          number ? `Nummer: ${number}` : null,
+          amount ? `Betrag: ${amount}` : null,
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

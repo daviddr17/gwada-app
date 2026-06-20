@@ -39,6 +39,11 @@ import {
   isReadOnlyAccountingDocument,
 } from "@/lib/accounting/accounting-source";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import {
+  hasModuleCreate,
+  hasModuleRead,
+  hasModuleUpdate,
+} from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type {
   AccountingArticleRow,
@@ -77,7 +82,10 @@ function formatMoney(amount: number) {
 export function AccountingVouchersScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
-  const canManage = has("accounting.manage");
+  const canRead = hasModuleRead(has, "accounting");
+  const canCreate = hasModuleCreate(has, "accounting");
+  const canUpdate = hasModuleUpdate(has, "accounting");
+  const canManage = canCreate || canUpdate;
   const { connector } = useAccountingConnector(restaurantId);
   const {
     page,

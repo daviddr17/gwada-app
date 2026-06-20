@@ -25,8 +25,8 @@ export function DisplayRestaurantHeading({
   const initials = displayRestaurantInitials(name);
   const titleClass =
     size === "lg"
-      ? "text-2xl font-semibold leading-none tracking-tight sm:text-3xl"
-      : "text-lg font-semibold leading-none tracking-tight";
+      ? "text-xl font-semibold leading-none tracking-tight sm:text-2xl"
+      : "text-base font-medium leading-none tracking-tight";
 
   const logo =
     logoSize === "avatar-sm" ? (

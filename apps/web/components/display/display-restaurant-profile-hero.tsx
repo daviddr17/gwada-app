@@ -6,9 +6,14 @@ import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
 import { cn } from "@/lib/utils";
 
 const logoClassNameDefault =
-  "size-[4.75rem] shrink-0 border border-border shadow-sm ring-2 ring-card sm:size-20";
+  "size-10 shrink-0 border border-border/60 shadow-sm ring-1 ring-card sm:size-11";
 const logoClassNameCompact =
-  "size-12 shrink-0 border border-border/60 shadow-sm ring-2 ring-card sm:size-14";
+  "size-8 shrink-0 border border-border/60 shadow-sm ring-1 ring-card sm:size-9";
+const coverBannerClassName =
+  "relative h-14 w-full overflow-hidden border-b border-border/40 sm:h-16";
+const titleClassNameDefault =
+  "text-lg font-semibold leading-tight tracking-tight sm:text-xl";
+const titleClassNameCompact = "truncate text-sm font-medium sm:text-base";
 
 export function DisplayRestaurantProfileHero({
   name,
@@ -36,7 +41,7 @@ export function DisplayRestaurantProfileHero({
     return (
       <section
         className={cn(
-          "flex flex-col items-center gap-3 border-b border-border/50 px-6 pb-5 pt-7 sm:pt-8",
+          "flex items-center gap-2.5 border-b border-border/40 px-4 py-3 sm:px-5",
           className,
         )}
       >
@@ -44,15 +49,15 @@ export function DisplayRestaurantProfileHero({
           src={avatarUrl}
           initials={initials}
           alt={name}
-          className={cn(logoClassName, !avatarUrl && "text-sm sm:text-base")}
+          className={cn(logoClassName, !avatarUrl && "text-[10px] sm:text-xs")}
           imageClassName="p-0"
         />
-        <div className="text-center">
-          <h1 className="text-lg font-semibold leading-tight tracking-tight sm:text-xl">
-            {name}
-          </h1>
+        <div className="min-w-0 flex-1">
+          <h1 className={titleClassNameCompact}>{name}</h1>
           {subtitle ? (
-            <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">
+              {subtitle}
+            </div>
           ) : null}
         </div>
       </section>
@@ -61,19 +66,17 @@ export function DisplayRestaurantProfileHero({
 
   if (!hasCover) {
     return (
-      <section className={cn("bg-card px-5 py-5 sm:px-6 sm:py-6", className)}>
-        <div className="flex items-center gap-3.5 sm:gap-4">
+      <section className={cn("bg-card px-4 py-3 sm:px-5 sm:py-4", className)}>
+        <div className="flex items-center gap-3">
           <DisplayRestaurantLogo
             src={avatarUrl}
             initials={initials}
             alt={name}
-            className={cn(logoClassName, !avatarUrl && "text-lg sm:text-xl")}
+            className={cn(logoClassName, !avatarUrl && "text-sm sm:text-base")}
             imageClassName="p-0"
           />
           <div className="min-w-0 flex-1">
-            <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
-              {name}
-            </h1>
+            <h1 className={titleClassNameDefault}>{name}</h1>
             {subtitle ? (
               <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
             ) : null}
@@ -85,36 +88,34 @@ export function DisplayRestaurantProfileHero({
 
   return (
     <section className={cn("bg-card", className)}>
-      <div className="relative h-28 w-full overflow-hidden border-b border-border/40 sm:h-32">
+      <div className={coverBannerClassName}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={coverUrl!} alt="" className="size-full object-cover" />
       </div>
 
-      <div className="relative px-5 sm:px-6">
+      <div className="relative px-4 sm:px-5">
         <DisplayRestaurantLogo
           src={avatarUrl}
           initials={initials}
           alt={name}
           className={cn(
-            "absolute left-5 top-0 z-10 -translate-y-1/2 sm:left-6",
+            "absolute left-4 top-0 z-10 -translate-y-1/2 sm:left-5",
             logoClassName,
-            !avatarUrl && "text-lg sm:text-xl",
+            !avatarUrl && "text-sm sm:text-base",
           )}
           imageClassName="p-0"
         />
         <div
           className={cn(
             "flex items-center",
-            subtitle ? "min-h-[4.5rem] sm:min-h-[4.75rem]" : "min-h-[3.25rem] sm:min-h-14",
+            subtitle ? "min-h-[2.75rem] sm:min-h-12" : "min-h-10 sm:min-h-11",
           )}
         >
-          <div className="size-[4.75rem] shrink-0 sm:size-20" aria-hidden />
-          <div className="min-w-0 flex-1 pl-3.5 sm:pl-4">
-            <h1 className="text-xl font-semibold leading-tight tracking-tight sm:text-2xl">
-              {name}
-            </h1>
+          <div className="size-10 shrink-0 sm:size-11" aria-hidden />
+          <div className="min-w-0 flex-1 pl-3">
+            <h1 className={titleClassNameDefault}>{name}</h1>
             {subtitle ? (
-              <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
+              <div className="mt-0.5 text-sm text-muted-foreground">{subtitle}</div>
             ) : null}
           </div>
         </div>

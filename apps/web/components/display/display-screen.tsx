@@ -286,8 +286,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
           variant="compact"
         />
 
-        <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-8">
-          <p className="text-lg font-medium text-foreground">PIN eingeben</p>
+        <main className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-6">
+          <p className="text-base font-medium text-foreground">PIN eingeben</p>
           <DisplayPinPad
             value={pin}
             onChange={setPin}

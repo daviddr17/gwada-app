@@ -14,6 +14,7 @@ import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
 import { DisplayModuleShell } from "@/components/display/display-module-shell";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
+import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-badge";
 import { DisplayTimeModule } from "@/components/display/modules/display-time-module";
 import { DisplayReservationsModule } from "@/components/display/modules/display-reservations-module";
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
@@ -29,6 +30,7 @@ import {
 } from "@/lib/display/display-device-storage";
 import { syncDisplayReservationsLiveAfterPin } from "@/lib/display/display-reservations-live-events";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
+import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
 
 export function DisplayScreen({ slug }: { slug: string }) {
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
@@ -103,6 +105,10 @@ export function DisplayScreen({ slug }: { slug: string }) {
       context.session.modules.includes("reservations"),
   );
   useDisplayReservationsLive(reservationsLiveEnabled);
+
+  const { count: todoBadgeCount, refresh: refreshTodoBadge } = useDisplayTodoBadgeCount(
+    Boolean(context?.session && !locked),
+  );
 
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -326,6 +332,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
               <DisplayStaffLine
                 staff={session.staff}
                 suffix={context.display?.name ?? ""}
+                todoBadge={
+                  <DisplayStaffTodoBadge
+                    count={todoBadgeCount}
+                    onChanged={() => void refreshTodoBadge()}
+                  />
+                }
               />
             }
             className="border-b border-border/50"
@@ -375,11 +387,19 @@ export function DisplayScreen({ slug }: { slug: string }) {
             canSwitch={session.can_switch_modules && modules.length > 1}
             onModuleChange={setActiveModule}
             onLogout={() => void logout()}
+            todoBadgeCount={todoBadgeCount}
+            onTodoChanged={() => {
+              void refreshTodoBadge();
+              void refreshContext();
+            }}
           >
             {currentModule === "time" ? (
               <DisplayTimeModule
                 initial={context.time_session}
-                onChanged={() => void refreshContext()}
+                onChanged={() => {
+                  void refreshContext();
+                  void refreshTodoBadge();
+                }}
               />
             ) : null}
             {currentModule === "reservations" ? (

@@ -44,6 +44,11 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     label: "Export",
     matchMode: "exact",
   },
+  {
+    href: "/dashboard/mitarbeiter/todos",
+    label: "ToDo-Listen",
+    matchMode: "prefix",
+  },
 ];
 
 function MitarbeiterLayoutInner({ children }: { children: React.ReactNode }) {

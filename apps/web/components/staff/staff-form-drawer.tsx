@@ -47,6 +47,8 @@ import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restauran
 import { RestaurantPositionSelect } from "@/components/settings/restaurant-position-select";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
+import { StaffTodoProfileSection } from "@/components/staff/todos/staff-todo-profile-section";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
 import { isRestaurantOwnerRole } from "@/lib/types/employee-role";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
@@ -227,6 +229,7 @@ export function StaffFormDrawer({
 
   const { role: myRole } = useWorkspaceActiveRole();
   const { has } = useRestaurantPermissions();
+  const canReadStaffTodos = hasModuleRead(has, "staff_todos");
   const canManageTeam = has("team.manage") || isRestaurantOwnerRole(myRole);
 
   const channelConnections = useRestaurantChannelConnections(restaurantId);
@@ -913,6 +916,12 @@ export function StaffFormDrawer({
                       </div>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                     </button>
+                  ) : null}
+                  {mode === "edit" && staff && canReadStaffTodos ? (
+                    <StaffTodoProfileSection
+                      restaurantId={restaurantId}
+                      staff={staff}
+                    />
                   ) : null}
                 </div>
               </FormSection>

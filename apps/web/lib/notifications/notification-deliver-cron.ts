@@ -16,6 +16,7 @@ import {
 } from "@/lib/notifications/notification-deliver-send";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import { isNotificationModuleId } from "@/lib/notifications/notification-modules";
+import { filterStaffTodoPushTargets } from "@/lib/notifications/notification-staff-todos-server";
 import {
   defaultNotificationPreferences,
   isPushModuleEnabled,
@@ -176,7 +177,13 @@ async function fanOutEvent(
   }
 
   const moduleId = event.module as NotificationModuleId;
-  const targets = await loadStaffTargetsForEvent(admin, event);
+  let targets = await loadStaffTargetsForEvent(admin, event);
+  if (
+    moduleId === "staff_todo_completed" ||
+    moduleId === "staff_todo_deferred"
+  ) {
+    targets = await filterStaffTodoPushTargets(admin, targets);
+  }
   if (targets.length === 0) return { created: 0, error: null };
 
   const prefsMap = await loadPreferencesMap(admin, targets);

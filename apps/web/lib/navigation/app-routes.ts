@@ -55,6 +55,9 @@ export const APP_ROUTES = {
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
+    todos: "/dashboard/mitarbeiter/todos",
+    todosProtocol: "/dashboard/mitarbeiter/todos/protokoll",
+    todosSettings: "/dashboard/mitarbeiter/todos/einstellungen",
   },
   buchfuehrung: {
     root: "/dashboard/buchfuehrung",

@@ -372,6 +372,34 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_todo_completed": {
+      const title = pickString(p.todoTitle) ?? "ToDo";
+      return buildPushMessage({
+        prefix,
+        headline: "ToDo erledigt",
+        subject: `${prefix}ToDo erledigt — ${title}`,
+        href,
+        details: detailLines([`Aufgabe: ${title}`]),
+      });
+    }
+    case "staff_todo_deferred": {
+      const title = pickString(p.todoTitle) ?? "ToDo";
+      const details =
+        p.details && typeof p.details === "object"
+          ? (p.details as Record<string, unknown>)
+          : null;
+      const reason = pickString(details?.reason) ?? pickString(p.reason);
+      return buildPushMessage({
+        prefix,
+        headline: "ToDo verschoben",
+        subject: `${prefix}ToDo verschoben — ${title}`,
+        href,
+        details: detailLines([
+          `Aufgabe: ${title}`,
+          reason ? `Grund: ${reason}` : null,
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

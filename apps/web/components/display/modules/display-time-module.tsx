@@ -4,6 +4,10 @@ import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { Loader2, Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
+import {
+  DisplayTimeTodoPopup,
+  useDisplayTimeTodoGate,
+} from "@/components/display/modules/display-time-todo-popup";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import {
   displayTimeActionButtonOutlineClassName,
@@ -89,6 +93,7 @@ export function DisplayTimeModule({
     [],
   );
   const [busy, setBusy] = useState(false);
+  const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
 
   const refresh = useCallback(async () => {
     try {
@@ -116,58 +121,68 @@ export function DisplayTimeModule({
     return () => clearInterval(id);
   }, [refresh]);
 
+  const runTimeAction = useCallback(
+    async (action: "clock_in" | "start_break" | "end_break" | "clock_out") => {
+      const res = await fetch("/api/display/time", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const data = (await res.json()) as { error?: string; status?: TimeState["status"] };
+      if (!res.ok) {
+        toast.error(
+          data.error === "already_clocked_in"
+            ? "Schicht läuft bereits."
+            : data.error === "not_clocked_in"
+              ? "Bitte zuerst Schicht starten."
+              : "Aktion fehlgeschlagen.",
+        );
+        return false;
+      }
+      if (action === "clock_in") {
+        setState({
+          status: "working",
+          clocked_in_at: new Date().toISOString(),
+          break_started_at: null,
+        });
+      } else if (action === "start_break") {
+        setState((s) => ({
+          ...s,
+          status: "on_break",
+          break_started_at: new Date().toISOString(),
+        }));
+      } else if (action === "end_break") {
+        setState((s) => ({
+          ...s,
+          status: "working",
+          break_started_at: null,
+        }));
+      } else {
+        setState({
+          status: "off",
+          clocked_in_at: null,
+          break_started_at: null,
+        });
+      }
+      onChanged();
+      void refresh();
+      return true;
+    },
+    [onChanged, refresh],
+  );
+
   const runAction = useCallback(
     async (action: "clock_in" | "start_break" | "end_break" | "clock_out") => {
       setBusy(true);
       try {
-        const res = await fetch("/api/display/time", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action }),
-        });
-        const data = (await res.json()) as { error?: string; status?: TimeState["status"] };
-        if (!res.ok) {
-          toast.error(
-            data.error === "already_clocked_in"
-              ? "Schicht läuft bereits."
-              : data.error === "not_clocked_in"
-                ? "Bitte zuerst Schicht starten."
-                : "Aktion fehlgeschlagen.",
-          );
-          return;
-        }
-        if (action === "clock_in") {
-          setState({
-            status: "working",
-            clocked_in_at: new Date().toISOString(),
-            break_started_at: null,
-          });
-        } else if (action === "start_break") {
-          setState((s) => ({
-            ...s,
-            status: "on_break",
-            break_started_at: new Date().toISOString(),
-          }));
-        } else if (action === "end_break") {
-          setState((s) => ({
-            ...s,
-            status: "working",
-            break_started_at: null,
-          }));
-        } else {
-          setState({
-            status: "off",
-            clocked_in_at: null,
-            break_started_at: null,
-          });
-        }
-        onChanged();
-        void refresh();
+        const gate = await prepareAndGate(action);
+        if (gate === "blocked") return;
+        await runTimeAction(action);
       } finally {
         setBusy(false);
       }
     },
-    [onChanged, refresh],
+    [prepareAndGate, runTimeAction],
   );
 
   const since =
@@ -280,6 +295,8 @@ export function DisplayTimeModule({
       {canViewTeamPresence ? (
         <DisplayTimeTeamPresence members={teamPresence} />
       ) : null}
+
+      <DisplayTimeTodoPopup {...popupProps} />
     </div>
   );
 }

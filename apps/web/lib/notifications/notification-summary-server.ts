@@ -4,6 +4,7 @@ import { fetchMessagesUnreadSummary } from "@/lib/contact-messages/unread-summar
 import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-reviews-summary";
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
+import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
@@ -279,6 +280,31 @@ async function buildChangelogModule(
   };
 }
 
+async function buildStaffTodoModule(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    userId: string;
+    module: "staff_todo_completed" | "staff_todo_deferred";
+  },
+): Promise<NotificationModuleSummary> {
+  const def = NOTIFICATION_MODULES[params.module];
+  const { items, totalCount } = await loadStaffTodoNotificationItems(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
+    module: params.module,
+    limit: BELL_ITEMS_PER_MODULE,
+  });
+
+  return {
+    id: def.id,
+    count: totalCount,
+    label: def.labelPlural,
+    href: def.href,
+    items,
+  };
+}
+
 const MODULE_BUILDERS: Record<
   NotificationModuleId,
   (
@@ -319,6 +345,18 @@ const MODULE_BUILDERS: Record<
     buildAccountingModule(ctx.sb, {
       ...ctx,
       module: "accounting_voucher",
+    }),
+  staff_todo_completed: (ctx) =>
+    buildStaffTodoModule(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+      module: "staff_todo_completed",
+    }),
+  staff_todo_deferred: (ctx) =>
+    buildStaffTodoModule(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+      module: "staff_todo_deferred",
     }),
 };
 

@@ -11,6 +11,7 @@ export const MODULE_CRUD_PREFIXES = [
   "reviews",
   "documents",
   "staff",
+  "staff_todos",
   "accounting",
 ] as const;
 
@@ -147,6 +148,13 @@ export const MODULE_CRUD_LABELS: Record<
     create: "Mitarbeiter: Anlegen",
     update: "Mitarbeiter: Bearbeiten",
     delete: "Mitarbeiter: Löschen",
+  },
+  staff_todos: {
+    module: "ToDo-Listen",
+    read: "ToDo-Listen: Ansehen",
+    create: "ToDo-Listen: Anlegen",
+    update: "ToDo-Listen: Bearbeiten",
+    delete: "ToDo-Listen: Löschen",
   },
   accounting: {
     module: "Buchführung",

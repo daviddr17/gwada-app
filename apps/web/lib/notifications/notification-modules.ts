@@ -12,6 +12,8 @@ import {
   Star,
   Timer,
   TimerOff,
+  CheckCircle2,
+  Clock,
 } from "lucide-react";
 
 /** Erweiterbare Modul-IDs — neue Module hier registrieren. */
@@ -28,6 +30,8 @@ export const NOTIFICATION_MODULE_IDS = [
   "accounting_quotation",
   "accounting_invoice",
   "accounting_voucher",
+  "staff_todo_completed",
+  "staff_todo_deferred",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -166,6 +170,26 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Neue Belege in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei neuen Belegen",
     settingsPushEmailLabel: "E-Mail bei neuen Belegen",
+  },
+  staff_todo_completed: {
+    id: "staff_todo_completed",
+    label: "ToDo erledigt",
+    labelPlural: "ToDos erledigt",
+    href: "/dashboard/mitarbeiter/todos/protokoll",
+    icon: CheckCircle2,
+    settingsInAppLabel: "Erledigte ToDos in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei erledigten ToDos",
+    settingsPushEmailLabel: "E-Mail bei erledigten ToDos",
+  },
+  staff_todo_deferred: {
+    id: "staff_todo_deferred",
+    label: "ToDo verschoben",
+    labelPlural: "ToDos verschoben",
+    href: "/dashboard/mitarbeiter/todos/protokoll",
+    icon: Clock,
+    settingsInAppLabel: "Verschobene ToDos in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei verschobenen ToDos",
+    settingsPushEmailLabel: "E-Mail bei verschobenen ToDos",
   },
 };
 

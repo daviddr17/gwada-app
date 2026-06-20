@@ -29,8 +29,13 @@ export const NOTIFICATION_SETTINGS_GROUPS: NotificationSettingsGroup[] = [
   {
     id: "staff",
     title: "Mitarbeiter",
-    description: "Schichtbeginn und Schichtende als eigene Hinweise.",
-    moduleIds: ["staff_shift_start", "staff_shift_end"],
+    description: "Schichten und ToDo-Listen als eigene Hinweise.",
+    moduleIds: [
+      "staff_shift_start",
+      "staff_shift_end",
+      "staff_todo_completed",
+      "staff_todo_deferred",
+    ],
   },
   {
     id: "inventory",

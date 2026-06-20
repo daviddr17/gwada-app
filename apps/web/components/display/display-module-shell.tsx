@@ -6,6 +6,7 @@ import { DisplayLoggedInFooter } from "@/components/display/display-logged-in-fo
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
 import { DisplayRestaurantHeading } from "@/components/display/display-restaurant-heading";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
+import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-badge";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,8 @@ export function DisplayModuleShell({
   canSwitch,
   onModuleChange,
   onLogout,
+  todoBadgeCount,
+  onTodoChanged,
   children,
 }: {
   restaurantName: string;
@@ -37,6 +40,8 @@ export function DisplayModuleShell({
   canSwitch: boolean;
   onModuleChange: (mod: DisplayModule) => void;
   onLogout: () => void;
+  todoBadgeCount?: number;
+  onTodoChanged?: () => void;
   children: React.ReactNode;
 }) {
   const activeMeta = modules.find((m) => m.id === activeModule);
@@ -55,6 +60,12 @@ export function DisplayModuleShell({
           <DisplayStaffLine
             staff={staff}
             suffix={displayName}
+            todoBadge={
+              <DisplayStaffTodoBadge
+                count={todoBadgeCount ?? 0}
+                onChanged={onTodoChanged}
+              />
+            }
             className="mt-1.5"
           />
         </div>

@@ -40,6 +40,11 @@ import {
   dismissAllAccountingNotifications,
   isAccountingNotificationModule,
 } from "@/lib/notifications/notification-accounting-server";
+import {
+  dismissAllStaffTodoNotifications,
+  dismissStaffTodoNotification,
+  isStaffTodoNotificationModule,
+} from "@/lib/notifications/notification-staff-todos-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { isContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
@@ -232,6 +237,30 @@ export async function markNotificationReadServer(
         restaurantId,
         userId,
         documentId,
+        module,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_todo_completed":
+    case "staff_todo_deferred": {
+      if (!isStaffTodoNotificationModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllStaffTodoNotifications(sb, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const logEntryId = itemId ?? meta?.logEntryId;
+      if (!logEntryId) return { ok: false, error: "invalid_request" };
+      const result = await dismissStaffTodoNotification(sb, {
+        restaurantId,
+        userId,
+        logEntryId,
         module,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };

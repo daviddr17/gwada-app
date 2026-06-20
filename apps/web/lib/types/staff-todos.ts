@@ -122,18 +122,3 @@ export type StaffTodoUpsertInput = {
   blocks_shift_end?: boolean;
   sort_order?: number;
 };
-
-export type StaffTodoSettingsRow = {
-  restaurant_id: string;
-  defer_reason_default: string | null;
-  notify_on_completed: boolean;
-  notify_on_deferred: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type StaffTodoSettingsInput = {
-  defer_reason_default?: string | null;
-  notify_on_completed?: boolean;
-  notify_on_deferred?: boolean;
-};

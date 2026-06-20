@@ -83,9 +83,18 @@ export function RestaurantDisplayEditDrawer({
     setAllowedModules(display.allowed_modules);
     setAutoLockSeconds(String(display.auto_lock_seconds));
     setIsActive(display.is_active);
+  }, [
+    open,
+    display?.id,
+    display?.name,
+    display?.allowed_modules,
+    display?.auto_lock_seconds,
+    display?.is_active,
+  ]);
+
+  useEffect(() => {
     setPairing(null);
-    setPairingLoading(false);
-  }, [open, display]);
+  }, [display?.id]);
 
   useEffect(() => {
     if (!open) {
@@ -93,6 +102,7 @@ export function RestaurantDisplayEditDrawer({
       setConfirmRePairOpen(false);
       setConfirmDeleteOpen(false);
       setPairing(null);
+      setPairingLoading(false);
     }
   }, [open]);
 
@@ -236,6 +246,15 @@ export function RestaurantDisplayEditDrawer({
                       type="button"
                       variant="outline"
                       size="sm"
+                      onClick={() => void copyText(pairing.code, "Code")}
+                    >
+                      <Copy className="mr-1.5 size-4" />
+                      Code kopieren
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
                       onClick={() => void copyText(pairing.pair_url, "Link")}
                     >
                       <Copy className="mr-1.5 size-4" />
@@ -353,8 +372,8 @@ export function RestaurantDisplayEditDrawer({
         description="Sobald ein Tablet den neuen Code nutzt, funktionieren bereits gekoppelte Tablets mit diesem Display nicht mehr — sie brauchen dann ebenfalls den neuen Code."
         confirmLabel="Kopplungscode anzeigen"
         confirmDisabled={saving}
+        destructive={false}
         onConfirm={() => {
-          setConfirmRePairOpen(false);
           void runPairing();
         }}
       />

@@ -15,6 +15,16 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  DatePickerField,
+  formScheduleTimeInputClassName,
+} from "@/components/ui/date-picker";
+import {
+  datetimeLocalValueToIso,
+  datetimeLocalValueToYmdHm,
+  isoToDatetimeLocalValue,
+  ymdAndHmToDatetimeLocal,
+} from "@/lib/reservations/datetime-local";
 import { SearchableSelect } from "@/components/ui/combobox";
 import {
   staffDrawerFieldClassName,
@@ -42,22 +52,19 @@ import type { StaffPositionTagDefinition } from "@/lib/types/staff";
 import { Checkbox } from "@/components/ui/checkbox";
 import { hasModuleDelete } from "@/lib/permissions/module-crud-permissions";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { cn } from "@/lib/utils";
 
 const selectClass = appSelectTriggerAccentCn(staffDrawerFieldClassName);
+const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
 
-function toDatetimeLocal(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function isoToYmdHm(iso: string | null | undefined): { ymd: string; hm: string } {
+  if (!iso) return { ymd: "", hm: "" };
+  return datetimeLocalValueToYmdHm(isoToDatetimeLocalValue(iso));
 }
 
-function fromDatetimeLocal(value: string): string | null {
-  if (!value.trim()) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
+function ymdHmToIso(ymd: string, hm: string): string | null {
+  if (!ymd.trim()) return null;
+  return datetimeLocalValueToIso(ymdAndHmToDatetimeLocal(ymd, hm || "00:00"));
 }
 
 type StaffTodoFormDrawerProps = {
@@ -89,8 +96,10 @@ export function StaffTodoFormDrawer({
   const [staffId, setStaffId] = useState("");
   const [positionTagId, setPositionTagId] = useState("");
   const [priority, setPriority] = useState<StaffTodoPriority>("medium");
-  const [displayFrom, setDisplayFrom] = useState("");
-  const [displayUntil, setDisplayUntil] = useState("");
+  const [displayFromYmd, setDisplayFromYmd] = useState("");
+  const [displayFromHm, setDisplayFromHm] = useState("");
+  const [displayUntilYmd, setDisplayUntilYmd] = useState("");
+  const [displayUntilHm, setDisplayUntilHm] = useState("");
   const [completionMode, setCompletionMode] =
     useState<StaffTodoCompletionMode>("any_one");
   const [showOnDisplay, setShowOnDisplay] = useState(true);
@@ -111,8 +120,10 @@ export function StaffTodoFormDrawer({
       setStaffId(staffList[0]?.id ?? "");
       setPositionTagId(positionTags[0]?.id ?? "");
       setPriority("medium");
-      setDisplayFrom("");
-      setDisplayUntil("");
+      setDisplayFromYmd("");
+      setDisplayFromHm("");
+      setDisplayUntilYmd("");
+      setDisplayUntilHm("");
       setCompletionMode("any_one");
       setShowOnDisplay(true);
       setShowBeforeClockIn(false);
@@ -129,8 +140,12 @@ export function StaffTodoFormDrawer({
     setStaffId(todo.staff_id ?? "");
     setPositionTagId(todo.position_tag_id ?? "");
     setPriority(todo.priority);
-    setDisplayFrom(toDatetimeLocal(todo.display_from));
-    setDisplayUntil(toDatetimeLocal(todo.display_until));
+    const from = isoToYmdHm(todo.display_from);
+    const until = isoToYmdHm(todo.display_until);
+    setDisplayFromYmd(from.ymd);
+    setDisplayFromHm(from.hm);
+    setDisplayUntilYmd(until.ymd);
+    setDisplayUntilHm(until.hm);
     setCompletionMode(todo.completion_mode);
     setShowOnDisplay(todo.show_on_display);
     setShowBeforeClockIn(todo.show_before_clock_in);
@@ -198,8 +213,8 @@ export function StaffTodoFormDrawer({
       staff_id: assigneeType === "staff" ? staffId : null,
       position_tag_id: assigneeType === "position_tag" ? positionTagId : null,
       priority,
-      display_from: fromDatetimeLocal(displayFrom),
-      display_until: fromDatetimeLocal(displayUntil),
+      display_from: ymdHmToIso(displayFromYmd, displayFromHm),
+      display_until: ymdHmToIso(displayUntilYmd, displayUntilHm),
       completion_mode: completionMode,
       show_on_display: showOnDisplay,
       show_before_clock_in: showBeforeClockIn,
@@ -317,20 +332,61 @@ export function StaffTodoFormDrawer({
               />
             </DrawerFormSection>
             <DrawerFormSection title="Sichtbar ab">
-              <Input
-                type="datetime-local"
-                value={displayFrom}
-                onChange={(e) => setDisplayFrom(e.target.value)}
-                className={staffDrawerFieldClassName}
-              />
+              <div className={drawerTwoColClass}>
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Datum</span>
+                  <DatePickerField
+                    fullWidth
+                    value={displayFromYmd || null}
+                    onChange={(d) => setDisplayFromYmd(d ?? "")}
+                    placeholder="Optional"
+                    className="w-full"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Uhrzeit</span>
+                  <Input
+                    type="time"
+                    value={displayFromHm}
+                    onChange={(e) => setDisplayFromHm(e.target.value)}
+                    disabled={!displayFromYmd}
+                    className={cn(
+                      staffDrawerFieldClassName,
+                      formScheduleTimeInputClassName,
+                      "w-full",
+                    )}
+                  />
+                </div>
+              </div>
             </DrawerFormSection>
             <DrawerFormSection title="Fällig bis">
-              <Input
-                type="datetime-local"
-                value={displayUntil}
-                onChange={(e) => setDisplayUntil(e.target.value)}
-                className={staffDrawerFieldClassName}
-              />
+              <div className={drawerTwoColClass}>
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Datum</span>
+                  <DatePickerField
+                    fullWidth
+                    value={displayUntilYmd || null}
+                    onChange={(d) => setDisplayUntilYmd(d ?? "")}
+                    placeholder="Optional"
+                    className="w-full"
+                    minYmd={displayFromYmd || undefined}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">Uhrzeit</span>
+                  <Input
+                    type="time"
+                    value={displayUntilHm}
+                    onChange={(e) => setDisplayUntilHm(e.target.value)}
+                    disabled={!displayUntilYmd}
+                    className={cn(
+                      staffDrawerFieldClassName,
+                      formScheduleTimeInputClassName,
+                      "w-full",
+                    )}
+                  />
+                </div>
+              </div>
             </DrawerFormSection>
             <DrawerFormSection title="Erledigung">
               <SearchableSelect

@@ -25,6 +25,11 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/dashboard/mitarbeiter/todos",
+    label: "ToDo-Listen",
+    matchMode: "prefix",
+  },
+  {
     href: "/dashboard/mitarbeiter/vertraege",
     label: "Verträge",
     matchMode: "exact",
@@ -43,11 +48,6 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     href: "/dashboard/mitarbeiter/export",
     label: "Export",
     matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/todos",
-    label: "ToDo-Listen",
-    matchMode: "prefix",
   },
 ];
 

@@ -5,8 +5,6 @@ import type {
   RestaurantStaffTodoRow,
   StaffTodoLogAction,
   StaffTodoUpsertInput,
-  StaffTodoSettingsInput,
-  StaffTodoSettingsRow,
 } from "@/lib/types/staff-todos";
 
 const TODO_SELECT = `
@@ -211,36 +209,4 @@ export function formatStaffTodoLogDetails(entry: RestaurantStaffTodoLogEntry): s
   if (reason) return reason;
   if (title) return title;
   return "—";
-}
-
-export async function fetchStaffTodoSettings(
-  restaurantId: string,
-): Promise<{ data: StaffTodoSettingsRow | null; error: string | null }> {
-  const supabase = createSupabaseBrowserClient();
-  const { data, error } = await supabase
-    .from("restaurant_staff_todo_settings")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  return {
-    data: data as StaffTodoSettingsRow | null,
-    error: mapTodoError(error),
-  };
-}
-
-export async function upsertStaffTodoSettings(
-  restaurantId: string,
-  input: StaffTodoSettingsInput,
-): Promise<{ error: string | null }> {
-  const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.from("restaurant_staff_todo_settings").upsert(
-    {
-      restaurant_id: restaurantId,
-      defer_reason_default: input.defer_reason_default ?? null,
-      notify_on_completed: input.notify_on_completed ?? true,
-      notify_on_deferred: input.notify_on_deferred ?? true,
-    },
-    { onConflict: "restaurant_id" },
-  );
-  return { error: mapTodoError(error) };
 }

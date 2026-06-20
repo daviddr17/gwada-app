@@ -1,33 +1,58 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Loader2 } from "lucide-react";
+import {
+  DisplayPairSuccessCelebration,
+  displayPairSuccessNavigateDelayMs,
+} from "@/components/display/display-pair-success-celebration";
 import { DisplayThemeToggleSlot } from "@/components/display/display-theme-toggle-slot";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import {
   getOrCreateDisplayInstallationId,
   saveDisplayDeviceCredential,
 } from "@/lib/display/display-device-storage";
+import {
+  normalizeDisplayPairingCode,
+  parseDisplayPairingInput,
+} from "@/lib/display/display-pairing-input";
+import { MOTION_EASE_OUT } from "@/lib/ui/motion-presets";
+
+type PairSuccessState = {
+  slug: string;
+  restaurantName?: string;
+  accentHex?: string | null;
+};
 
 export default function DisplayPairPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const codeParam = searchParams.get("code") ?? "";
+  const reduceMotion = useReducedMotion() ?? false;
 
-  const [code, setCode] = useState(codeParam.toUpperCase());
+  const codeFromUrl = useMemo(
+    () => parseDisplayPairingInput(codeParam) ?? normalizeDisplayPairingCode(codeParam),
+    [codeParam],
+  );
+
+  const [code, setCode] = useState(codeFromUrl ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<PairSuccessState | null>(null);
+  const autoPairAttemptRef = useRef<string | null>(null);
 
   const pair = useCallback(async (pairCode: string) => {
-    const normalized = pairCode.trim().toUpperCase();
-    if (normalized.length !== 8) {
-      setError("Der Kopplungscode hat 8 Zeichen.");
+    const normalized =
+      parseDisplayPairingInput(pairCode) ?? normalizeDisplayPairingCode(pairCode);
+    if (!normalized) {
+      setError("Bitte 8-stelligen Code oder Kopplungslink eingeben.");
       return;
     }
     setBusy(true);
     setError(null);
+    let paired = false;
     try {
       const installationId = getOrCreateDisplayInstallationId();
       const res = await fetch("/api/display/pair", {
@@ -37,7 +62,7 @@ export default function DisplayPairPageInner() {
       });
       const data = (await res.json()) as {
         error?: string;
-        restaurant?: { slug: string };
+        restaurant?: { slug: string; name?: string; accent_hex?: string | null };
         display_id?: string;
         device_token?: string;
         installation_id?: string;
@@ -46,8 +71,8 @@ export default function DisplayPairPageInner() {
         const msg =
           data.error === "code_expired"
             ? "Code abgelaufen — bitte in den Einstellungen neu erzeugen."
-            : data.error === "code_not_found"
-              ? "Code ungültig."
+            : data.error === "code_not_found" || data.error === "invalid_code"
+              ? "Code ungültig — prüfe den aktuellen Code in den Einstellungen (nach „Neu koppeln“ ändert er sich)."
               : data.error === "display_inactive"
                 ? "Display ist deaktiviert."
                 : data.error === "server_misconfigured"
@@ -65,64 +90,119 @@ export default function DisplayPairPageInner() {
           installationId: data.installation_id,
         });
       }
-      toast.success("Tablet gekoppelt.");
-      router.replace(`/display/${data.restaurant?.slug ?? ""}`);
+      paired = true;
+      setSuccess({
+        slug: data.restaurant?.slug ?? "",
+        restaurantName: data.restaurant?.name,
+        accentHex: data.restaurant?.accent_hex ?? null,
+      });
     } catch {
       setError("Netzwerkfehler.");
     } finally {
-      setBusy(false);
+      if (!paired) setBusy(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
-    if (codeParam.length === 8) {
-      void pair(codeParam);
+    if (codeFromUrl) setCode(codeFromUrl);
+  }, [codeFromUrl]);
+
+  useEffect(() => {
+    const normalized = normalizeDisplayPairingCode(code);
+    if (!normalized) {
+      autoPairAttemptRef.current = null;
+      return;
     }
-  }, [codeParam, pair]);
+    if (busy || success || autoPairAttemptRef.current === normalized) return;
+    autoPairAttemptRef.current = normalized;
+    void pair(normalized);
+  }, [code, busy, success, pair]);
+
+  useEffect(() => {
+    if (!success?.slug) return;
+    const delayMs = displayPairSuccessNavigateDelayMs(reduceMotion);
+    const timer = window.setTimeout(() => {
+      router.replace(`/display/${success.slug}`);
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [success, reduceMotion, router]);
+
+  const handleInputChange = (value: string) => {
+    const parsed = parseDisplayPairingInput(value);
+    if (parsed) {
+      setCode(parsed);
+      return;
+    }
+    setCode(value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8));
+  };
 
   return (
-    <div className="relative flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
-      <DisplayThemeToggleSlot />
-      <div className="max-w-md space-y-2 text-center">
-        <h1 className="text-3xl font-semibold tracking-tight">Display koppeln</h1>
-        <p className="text-muted-foreground">
-          QR-Code scannen oder Kopplungscode aus den Einstellungen eingeben.
-        </p>
-      </div>
+    <>
+      <DisplayPairSuccessCelebration
+        open={Boolean(success)}
+        restaurantName={success?.restaurantName}
+        accentHex={success?.accentHex}
+      />
 
-      <div className="flex w-full max-w-sm flex-col gap-4">
-        <input
-          type="text"
-          inputMode="text"
-          autoComplete="off"
-          autoCapitalize="characters"
-          maxLength={8}
-          value={code}
-          onChange={(e) =>
-            setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
-          }
-          placeholder="ABCDEF12"
-          className="h-16 rounded-2xl border border-input bg-background px-4 text-center text-2xl font-semibold tracking-[0.3em] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        />
-        {error ? (
-          <p className="text-center text-sm text-destructive">{error}</p>
+      <AnimatePresence mode="wait">
+        {!success ? (
+          <motion.div
+            key="pair-form"
+            className="relative flex min-h-dvh flex-col items-center justify-center gap-8 p-6"
+            initial={{ opacity: 1, scale: 1 }}
+            exit={{
+              opacity: 0,
+              scale: reduceMotion ? 1 : 0.98,
+              filter: reduceMotion ? "none" : "blur(4px)",
+            }}
+            transition={{ duration: reduceMotion ? 0.1 : 0.35, ease: MOTION_EASE_OUT }}
+          >
+            <DisplayThemeToggleSlot />
+            <div className="max-w-md space-y-2 text-center">
+              <h1 className="text-3xl font-semibold tracking-tight">Display koppeln</h1>
+              <p className="text-muted-foreground">
+                QR-Code scannen, Kopplungslink öffnen oder 8-stelligen Code eingeben —
+                bei gültigem Code verbindet sich das Tablet automatisch.
+              </p>
+            </div>
+
+            <div className="flex w-full max-w-sm flex-col gap-4">
+              <input
+                type="text"
+                inputMode="text"
+                autoComplete="off"
+                autoCapitalize="characters"
+                value={code}
+                onChange={(e) => handleInputChange(e.target.value)}
+                placeholder="Code oder Link"
+                disabled={busy}
+                className="h-16 rounded-2xl border border-input bg-background px-4 text-center text-2xl font-semibold tracking-[0.3em] outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              />
+              {error ? (
+                <p className="text-center text-sm text-destructive">{error}</p>
+              ) : null}
+              <Button
+                size="lg"
+                className="h-14 rounded-2xl text-lg"
+                disabled={busy || !normalizeDisplayPairingCode(code)}
+                onClick={() => {
+                  autoPairAttemptRef.current = null;
+                  void pair(code);
+                }}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="mr-2 size-5 animate-spin" />
+                    Wird gekoppelt …
+                  </>
+                ) : (
+                  "Koppeln"
+                )}
+              </Button>
+            </div>
+          </motion.div>
         ) : null}
-        <Button
-          size="lg"
-          className="h-14 rounded-2xl text-lg"
-          disabled={busy || code.length !== 8}
-          onClick={() => void pair(code)}
-        >
-          {busy ? (
-            <>
-              <Loader2 className="mr-2 size-5 animate-spin" />
-              Wird gekoppelt …
-            </>
-          ) : (
-            "Koppeln"
-          )}
-        </Button>
-      </div>
-    </div>
+      </AnimatePresence>
+    </>
   );
 }

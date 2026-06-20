@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Filter, Pencil, Plus, Search, Check } from "lucide-react";
+import { Filter, Pencil, Plus, Search, Check, ScrollText } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,7 @@ import {
   type StaffTodosSortKey,
 } from "@/components/staff/todos/staff-todos-filter-drawer";
 import { StaffTodoFormDrawer } from "@/components/staff/todos/staff-todo-form-drawer";
-import { StaffTodosSubnav } from "@/components/staff/todos/staff-todos-subnav";
+import { StaffTodosProtocolDrawer } from "@/components/staff/todos/staff-todos-protocol-drawer";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
 import {
   fetchStaffTodosForRestaurant,
@@ -43,6 +43,14 @@ import {
   staffTodoStatusBadgeClass,
 } from "@/lib/staff/staff-todo-status";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleSearchFieldWrapClassName,
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+  moduleSearchInputClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -87,6 +95,7 @@ export function StaffTodosScreen() {
 
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [protocolOpen, setProtocolOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterAssignee, setFilterAssignee] = useState("all");
@@ -268,8 +277,6 @@ export function StaffTodosScreen() {
 
   return (
     <div className="w-full pb-16">
-      <StaffTodosSubnav />
-
       {staffFilterFromUrl ? (
         <p className="mb-4 text-sm text-muted-foreground">
           Gefiltert nach Mitarbeiter —{" "}
@@ -279,31 +286,46 @@ export function StaffTodosScreen() {
         </p>
       ) : null}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative min-w-0 flex-1">
+      <div className={cn("mb-4", moduleSearchFilterRowClassName)}>
+        <div className={moduleSearchFieldWrapClassName}>
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="ToDo suchen …"
-            className="h-11 rounded-2xl border-border/50 bg-card pl-10 shadow-none dark:shadow-sm"
+            className={moduleSearchInputClassName}
           />
         </div>
         <Button
           type="button"
           variant="outline"
-          size="icon-sm"
-          className="relative shrink-0 rounded-full border-border/60"
-          onClick={() => setFilterOpen(true)}
-          aria-label="Filter"
+          size="icon-lg"
+          className={moduleSearchFilterButtonClassName}
+          onClick={() => setProtocolOpen(true)}
+          aria-label="ToDo-Protokoll"
         >
-          <Filter className="size-4" />
-          {activeFilterCount > 0 ? (
-            <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-accent text-[10px] font-medium text-accent-foreground">
-              {activeFilterCount}
-            </span>
-          ) : null}
+          <ScrollText className="size-4" />
         </Button>
+        <div className={moduleSearchFilterButtonWrapClassName}>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            className={moduleSearchFilterButtonClassName}
+            onClick={() => setFilterOpen(true)}
+            aria-label="Filter"
+          >
+            <Filter className="size-4" />
+          </Button>
+          {activeFilterCount > 0 ? (
+            <Badge
+              variant="secondary"
+              className={moduleSearchFilterActiveBadgeClassName}
+            >
+              {activeFilterCount}
+            </Badge>
+          ) : null}
+        </div>
       </div>
 
       {canCreate ? (
@@ -459,6 +481,12 @@ export function StaffTodosScreen() {
         assigneeOptions={assigneeFilterOptions}
         sortKey={sortKey}
         onSortKeyChange={setSortKey}
+      />
+
+      <StaffTodosProtocolDrawer
+        open={protocolOpen}
+        onOpenChange={setProtocolOpen}
+        restaurantId={restaurantId}
       />
 
       <StaffTodoFormDrawer

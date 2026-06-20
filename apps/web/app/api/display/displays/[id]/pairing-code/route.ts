@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { generatePairingCode } from "@/lib/display/display-auth-server";
 import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function POST(
@@ -34,25 +35,43 @@ export async function POST(
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
+  }
+
   const { data: restaurant } = await sb
     .from("restaurants")
     .select("slug")
     .eq("id", display.restaurant_id)
     .maybeSingle();
 
-  await sb.from("restaurant_display_pairing_codes").delete().eq("display_id", id);
+  await admin.from("restaurant_display_pairing_codes").delete().eq("display_id", id);
 
-  const code = generatePairingCode();
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  let code = generatePairingCode();
+  let insertError: string | null = null;
 
-  const { error } = await sb.from("restaurant_display_pairing_codes").insert({
-    display_id: id,
-    code,
-    expires_at: expiresAt,
-  });
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const { error } = await admin.from("restaurant_display_pairing_codes").insert({
+      display_id: id,
+      code,
+      expires_at: expiresAt,
+    });
+    if (!error) {
+      insertError = null;
+      break;
+    }
+    if (error.code === "23505") {
+      code = generatePairingCode();
+      continue;
+    }
+    insertError = error.message;
+    break;
+  }
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (insertError) {
+    return NextResponse.json({ error: insertError }, { status: 500 });
   }
 
   const origin = resolvePublicAppOrigin(request);

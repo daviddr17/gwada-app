@@ -216,7 +216,12 @@ export function StaffTodoFormDrawer({
       display_from: ymdHmToIso(displayFromYmd, displayFromHm),
       display_until: ymdHmToIso(displayUntilYmd, displayUntilHm),
       completion_mode: completionMode,
-      show_on_display: showOnDisplay,
+      show_on_display:
+        showOnDisplay ||
+        showBeforeClockIn ||
+        showBeforeBreakStart ||
+        showBeforeBreakEnd ||
+        showBeforeClockOut,
       show_before_clock_in: showBeforeClockIn,
       show_before_break_start: showBeforeBreakStart,
       show_before_break_end: showBeforeBreakEnd,

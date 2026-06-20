@@ -5,14 +5,17 @@ import { DisplayRestaurantLogo } from "@/components/display/display-restaurant-l
 import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
 import { cn } from "@/lib/utils";
 
-const logoClassName =
+const logoClassNameDefault =
   "size-[4.75rem] shrink-0 border border-border shadow-sm ring-2 ring-card sm:size-20";
+const logoClassNameCompact =
+  "size-12 shrink-0 border border-border/60 shadow-sm ring-2 ring-card sm:size-14";
 
 export function DisplayRestaurantProfileHero({
   name,
   avatarUrl,
   coverUrl,
   subtitle,
+  variant = "default",
   className,
 }: {
   name: string;
@@ -20,10 +23,41 @@ export function DisplayRestaurantProfileHero({
   coverUrl: string | null | undefined;
   accentHex?: string | null;
   subtitle?: ReactNode;
+  /** Kompakt für PIN-Screen — kleineres Logo, kein Cover-Banner. */
+  variant?: "default" | "compact";
   className?: string;
 }) {
   const initials = displayRestaurantInitials(name);
-  const hasCover = Boolean(coverUrl);
+  const compact = variant === "compact";
+  const logoClassName = compact ? logoClassNameCompact : logoClassNameDefault;
+  const hasCover = Boolean(coverUrl) && !compact;
+
+  if (compact) {
+    return (
+      <section
+        className={cn(
+          "flex flex-col items-center gap-3 border-b border-border/50 px-6 pb-5 pt-7 sm:pt-8",
+          className,
+        )}
+      >
+        <DisplayRestaurantLogo
+          src={avatarUrl}
+          initials={initials}
+          alt={name}
+          className={cn(logoClassName, !avatarUrl && "text-sm sm:text-base")}
+          imageClassName="p-0"
+        />
+        <div className="text-center">
+          <h1 className="text-lg font-semibold leading-tight tracking-tight sm:text-xl">
+            {name}
+          </h1>
+          {subtitle ? (
+            <div className="mt-1 text-sm text-muted-foreground">{subtitle}</div>
+          ) : null}
+        </div>
+      </section>
+    );
+  }
 
   if (!hasCover) {
     return (

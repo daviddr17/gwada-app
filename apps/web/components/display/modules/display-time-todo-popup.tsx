@@ -60,7 +60,7 @@ export function DisplayTimeTodoPopup({
   const needsReason = todo.require_defer_reason;
 
   return (
-    <Drawer open={open} direction="bottom">
+    <Drawer open={open} direction="bottom" dismissible={false} modal>
       <DrawerContent className={drawerContentClassName("formMd")}>
         <DrawerHeader>
           <DrawerTitle>ToDo vor Schichtaktion</DrawerTitle>
@@ -163,7 +163,10 @@ export function useDisplayTimeTodoGate() {
           display_action: displayAction,
         }),
       });
-      if (!res.ok) return "proceed";
+      if (!res.ok) {
+        console.warn("[display] prepare_trigger failed", res.status);
+        return "proceed";
+      }
       const data = (await res.json()) as {
         todos?: DisplayTimeTodoPopupItem[];
         blocks?: boolean;

@@ -93,32 +93,62 @@ async function loadStaffPositionTagId(
   return (data as { position_tag_id: string | null } | null)?.position_tag_id ?? null;
 }
 
-async function fetchAssignableTodos(
-  admin: SupabaseClient,
-  restaurantId: string,
+function todoAssignedToStaff(
+  todo: TodoRow,
   staffId: string,
   positionTagId: string | null,
+): boolean {
+  if (todo.assignee_type === "staff") return todo.staff_id === staffId;
+  if (todo.assignee_type === "position_tag") {
+    return positionTagId != null && todo.position_tag_id === positionTagId;
+  }
+  return false;
+}
+
+async function fetchStaffTodoRows(
+  admin: SupabaseClient,
+  restaurantId: string,
 ): Promise<TodoRow[]> {
   const { data, error } = await admin
     .from("restaurant_staff_todos")
     .select(TODO_SELECT)
     .eq("restaurant_id", restaurantId)
-    .is("archived_at", null)
-    .eq("show_on_display", true);
+    .is("archived_at", null);
 
   if (error) {
     console.warn("[gwada] display todos fetch", error.message);
     return [];
   }
 
-  const rows = (data ?? []) as TodoRow[];
-  return rows.filter((t) => {
-    if (t.assignee_type === "staff") return t.staff_id === staffId;
-    if (t.assignee_type === "position_tag") {
-      return positionTagId != null && t.position_tag_id === positionTagId;
-    }
-    return false;
-  });
+  return (data ?? []) as TodoRow[];
+}
+
+/** Badge + ToDo-Sheet — nur `show_on_display`. */
+async function fetchAssignableTodos(
+  admin: SupabaseClient,
+  restaurantId: string,
+  staffId: string,
+  positionTagId: string | null,
+): Promise<TodoRow[]> {
+  const rows = await fetchStaffTodoRows(admin, restaurantId);
+  return rows.filter(
+    (t) => t.show_on_display && todoAssignedToStaff(t, staffId, positionTagId),
+  );
+}
+
+/** Schicht-Popups — unabhängig von `show_on_display`, nur Trigger-Flags am ToDo. */
+async function fetchTriggerTodos(
+  admin: SupabaseClient,
+  restaurantId: string,
+  staffId: string,
+  positionTagId: string | null,
+  trigger: StaffTodoDeferTrigger,
+): Promise<TodoRow[]> {
+  const col = triggerShowColumn(trigger);
+  const rows = await fetchStaffTodoRows(admin, restaurantId);
+  return rows.filter(
+    (t) => t[col] && todoAssignedToStaff(t, staffId, positionTagId),
+  );
 }
 
 async function loadCompletionsForTodos(
@@ -250,19 +280,34 @@ export async function getTodosForDisplayTrigger(
     });
   }
 
-  const all = await listDisplayTodosForStaff(admin, {
-    restaurantId: params.restaurantId,
-    staffId: params.staffId,
-  });
+  const positionTagId = await loadStaffPositionTagId(admin, params.staffId);
+  const todos = await fetchTriggerTodos(
+    admin,
+    params.restaurantId,
+    params.staffId,
+    positionTagId,
+    params.trigger,
+  );
+  const ids = todos.map((t) => t.id);
+  const [completionsMap, deferralsMap] = await Promise.all([
+    loadCompletionsForTodos(admin, ids),
+    loadActiveDeferrals(admin, params.staffId, ids),
+  ]);
 
-  const col = triggerShowColumn(params.trigger);
-  return all.filter((t) => {
-    if (!t[col]) return false;
-    if (isTodoDoneForStaff(t, t.completions, params.staffId)) return false;
-    if (t.status === "planned" || t.status === "archived") return false;
-    if (t.active_deferral?.trigger_type === params.trigger) return false;
-    return true;
-  });
+  return todos
+    .map((t) =>
+      enrichTodo(
+        t,
+        (completionsMap.get(t.id) ?? []) as RestaurantStaffTodoCompletionRow[],
+        deferralsMap.get(t.id) ?? null,
+      ),
+    )
+    .filter((t) => {
+      if (isTodoDoneForStaff(t, t.completions, params.staffId)) return false;
+      if (t.status === "planned" || t.status === "archived") return false;
+      if (t.active_deferral?.trigger_type === params.trigger) return false;
+      return true;
+    });
 }
 
 export async function completeDisplayTodo(

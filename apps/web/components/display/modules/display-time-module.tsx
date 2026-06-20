@@ -126,6 +126,7 @@ export function DisplayTimeModule({
       const res = await fetch("/api/display/time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ action }),
       });
       const data = (await res.json()) as { error?: string; status?: TimeState["status"] };

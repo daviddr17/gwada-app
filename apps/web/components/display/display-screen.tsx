@@ -283,7 +283,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
           avatarUrl={context.restaurant?.avatar_url}
           coverUrl={context.restaurant?.cover_url}
           accentHex={context.restaurant?.accent_hex}
-          className="border-b border-border/50"
+          variant="compact"
         />
 
         <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-8">

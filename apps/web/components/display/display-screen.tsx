@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import type { DisplayContextResponse, DisplayModule } from "@/lib/display/display-types";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { DISPLAY_MODULES } from "@/lib/display/display-types";
@@ -32,11 +33,19 @@ import {
 } from "@/lib/display/display-device-storage";
 import { syncDisplayReservationsLiveAfterPin } from "@/lib/display/display-reservations-live-events";
 import { syncDisplayTodosLiveAfterPin } from "@/lib/display/display-todos-live-events";
+import { submitDisplayPin } from "@/lib/display/submit-display-pin";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
 import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
 import { useDisplayTodosLive } from "@/lib/hooks/use-display-todos-live";
+import {
+  DISPLAY_PIN_REVEAL_MS,
+  DISPLAY_PIN_REVEAL_REDUCED_MS,
+  MOTION_EASE_OUT,
+} from "@/lib/ui/motion-presets";
 
 export function DisplayScreen({ slug }: { slug: string }) {
+  const reduceMotion = useReducedMotion() ?? false;
+  const pinRevealMs = reduceMotion ? DISPLAY_PIN_REVEAL_REDUCED_MS : DISPLAY_PIN_REVEAL_MS;
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [pin, setPin] = useState("");
@@ -155,23 +164,18 @@ export function DisplayScreen({ slug }: { slug: string }) {
     setPinError(null);
     setLockPinError(null);
     try {
-      const res = await fetch("/api/display/pin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin: pinValue }),
-      });
-      if (!res.ok) {
-        const msg =
-          pinValue.length === 4 ? "PIN falsch oder nicht vergeben." : "PIN falsch.";
-        setPinError(msg);
-        setLockPinError(msg);
+      const result = await submitDisplayPin(pinValue);
+      if (!result.ok) {
+        setPinError(result.message);
+        setLockPinError(result.message);
         setPin("");
         return;
       }
       setPin("");
       pendingPinTodoGateRef.current = true;
-      const ctx = await refreshContext();
+      const ctx = result.context;
       const mods = ctx.session?.modules ?? [];
+      setContext(ctx);
       setActiveModule(mods.length === 1 ? mods[0]! : null);
       setLocked(false);
       window.setTimeout(() => {
@@ -210,6 +214,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
     normalizeHex(context?.restaurant?.accent_hex ?? "") ?? DEFAULT_ACCENT_HEX;
 
   let content: React.ReactNode;
+  let contentKey = "shell";
+
+  const pinMotionTransition = {
+    duration: pinRevealMs / 1000,
+    ease: MOTION_EASE_OUT,
+  } as const;
 
   if (loading) {
     content = (
@@ -296,6 +306,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
       </div>
     );
   } else if (!context.session) {
+    contentKey = "pin";
     content = (
       <div className="relative flex min-h-dvh flex-col bg-background">
         <DisplayThemeToggleSlot />
@@ -306,6 +317,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             value={pin}
             onChange={setPin}
             disabled={pinBusy}
+            busy={pinBusy}
             onComplete={(p) => void submitPin(p)}
           />
           {pinError ? (
@@ -321,6 +333,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
       </div>
     );
   } else {
+    contentKey = "session";
     const session = context.session;
     const modules = session.modules;
     const moduleMeta = DISPLAY_MODULES.filter((m) => modules.includes(m.id));
@@ -428,7 +441,32 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   return (
     <DisplayAccentRoot accentHex={restaurantAccent}>
-      {content}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={contentKey}
+          className={contentKey === "pin" || contentKey === "session" ? "min-h-dvh" : undefined}
+          initial={
+            contentKey === "session"
+              ? { opacity: 0, y: reduceMotion ? 0 : 10, scale: reduceMotion ? 1 : 0.985 }
+              : false
+          }
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={
+            contentKey === "pin"
+              ? {
+                  opacity: 0,
+                  scale: reduceMotion ? 1 : 0.96,
+                  filter: reduceMotion ? "blur(0px)" : "blur(6px)",
+                }
+              : contentKey === "session"
+                ? { opacity: 0, y: reduceMotion ? 0 : -6 }
+                : undefined
+          }
+          transition={pinMotionTransition}
+        >
+          {content}
+        </motion.div>
+      </AnimatePresence>
       <DisplayTimeTodoPopup {...pinTodoPopupProps} />
     </DisplayAccentRoot>
   );

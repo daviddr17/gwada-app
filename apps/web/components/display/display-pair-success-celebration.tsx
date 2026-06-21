@@ -9,6 +9,7 @@ type DisplayPairSuccessCelebrationProps = {
   open: boolean;
   restaurantName?: string | null;
   accentHex?: string | null;
+  className?: string;
 };
 
 const RING_DELAYS = [0, 0.18, 0.36] as const;
@@ -17,6 +18,7 @@ export function DisplayPairSuccessCelebration({
   open,
   restaurantName,
   accentHex,
+  className,
 }: DisplayPairSuccessCelebrationProps) {
   const reduceMotion = useReducedMotion() ?? false;
   const accent = accentHex?.trim() || "var(--accent)";
@@ -25,7 +27,10 @@ export function DisplayPairSuccessCelebration({
     <AnimatePresence>
       {open ? (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden px-6"
+          className={cn(
+            "fixed inset-0 z-50 flex items-center justify-center overflow-hidden px-6",
+            className,
+          )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

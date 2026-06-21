@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { cn } from "@/lib/utils";
 
@@ -107,99 +116,110 @@ export function DisplayRecipesModule() {
     </button>
   );
 
-  if (selected) {
-    return (
-      <div className="mx-auto max-w-2xl space-y-6">
-        <button
-          type="button"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-          onClick={() => setSelectedId(null)}
-        >
-          ← Zurück zur Liste
-        </button>
-        <div>
-          <p className="text-sm text-muted-foreground">{selected.category_name}</p>
-          <h2 className="text-3xl font-semibold">{selected.name}</h2>
-          {selected.description ? (
-            <p className="mt-2 text-muted-foreground">{selected.description}</p>
-          ) : null}
-          <p className="mt-2 text-xl font-medium">{eur.format(selected.price)}</p>
+  return (
+    <>
+      <div className={cn(displayModuleContentClassName, "max-w-3xl")}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Gericht oder Zutat suchen …"
+            className="h-14 rounded-2xl pl-11 text-lg"
+          />
         </div>
-        {selected.recipe.length > 0 ? (
-          <div className="rounded-2xl border border-border/50 bg-card p-4 shadow-card">
-            <h3 className="mb-3 text-lg font-semibold">Rezept</h3>
-            <ul className="space-y-2">
-              {selected.recipe.map((line) => (
-                <li
-                  key={line.ingredient_id}
-                  className="flex items-center justify-between gap-4 text-lg"
-                >
-                  <span>{line.ingredient_name}</span>
-                  <span className="tabular-nums text-muted-foreground">
-                    {line.amount} {line.unit}
-                  </span>
-                </li>
-              ))}
-            </ul>
+
+        {!showSkeleton && categories.length > 0 ? (
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+            {categoryChip(ALL_CATEGORIES, "Alle")}
+            {categories.map((c) => categoryChip(c.id, c.name))}
           </div>
+        ) : null}
+
+        {showSkeleton ? (
+          <div className="space-y-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : dishes.length === 0 ? (
+          <p className="py-12 text-center text-muted-foreground">
+            Keine Gerichte gefunden.
+          </p>
         ) : (
-          <p className="text-muted-foreground">Kein Rezept hinterlegt.</p>
+          <ul className="space-y-2">
+            {dishes.map((d) => (
+              <li key={d.id}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between gap-4 rounded-2xl border border-border/50 bg-card px-4 py-4 text-left shadow-card",
+                    "transition-colors hover:border-primary/40 active:scale-[0.99]",
+                    selectedId === d.id && "border-accent/40 bg-accent/5",
+                  )}
+                  onClick={() => setSelectedId(d.id)}
+                >
+                  <div>
+                    <p className="text-lg font-semibold">{d.name}</p>
+                    <p className="text-sm text-muted-foreground">{d.category_name}</p>
+                  </div>
+                  <span className="text-lg tabular-nums">{eur.format(d.price)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
-    );
-  }
 
-  return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Gericht oder Zutat suchen …"
-          className="h-14 rounded-2xl pl-11 text-lg"
-        />
-      </div>
+      <Drawer
+        open={selected != null}
+        onOpenChange={(open) => {
+          if (!open) setSelectedId(null);
+        }}
+        direction="bottom"
+        repositionInputs={false}
+      >
+        <DrawerContent className={drawerContentClassName("formMd")}>
+          {selected ? (
+            <>
+              <DrawerHeader className="text-left">
+                <p className="text-sm text-muted-foreground">{selected.category_name}</p>
+                <DrawerTitle className="text-2xl font-semibold">{selected.name}</DrawerTitle>
+                {selected.description ? (
+                  <DrawerDescription className="text-base leading-relaxed">
+                    {selected.description}
+                  </DrawerDescription>
+                ) : null}
+                <p className="pt-1 text-xl font-medium tabular-nums">
+                  {eur.format(selected.price)}
+                </p>
+              </DrawerHeader>
 
-      {!showSkeleton && categories.length > 0 ? (
-        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-          {categoryChip(ALL_CATEGORIES, "Alle")}
-          {categories.map((c) => categoryChip(c.id, c.name))}
-        </div>
-      ) : null}
-
-      {showSkeleton ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-2xl" />
-          ))}
-        </div>
-      ) : dishes.length === 0 ? (
-        <p className="py-12 text-center text-muted-foreground">
-          Keine Gerichte gefunden.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {dishes.map((d) => (
-            <li key={d.id}>
-              <button
-                type="button"
-                className={cn(
-                  "flex w-full items-center justify-between gap-4 rounded-2xl border border-border/50 bg-card px-4 py-4 text-left shadow-card",
-                  "transition-colors hover:border-primary/40 active:scale-[0.99]",
+              <div className="max-h-[min(50dvh,420px)] overflow-y-auto px-6 pb-6">
+                {selected.recipe.length > 0 ? (
+                  <ul className="space-y-2 rounded-2xl border border-border/50 bg-muted/15 p-4">
+                    {selected.recipe.map((line) => (
+                      <li
+                        key={line.ingredient_id}
+                        className="flex items-center justify-between gap-4 text-base sm:text-lg"
+                      >
+                        <span className="font-medium">{line.ingredient_name}</span>
+                        <span className="shrink-0 tabular-nums text-muted-foreground">
+                          {line.amount} {line.unit}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="py-6 text-center text-muted-foreground">
+                    Kein Rezept hinterlegt.
+                  </p>
                 )}
-                onClick={() => setSelectedId(d.id)}
-              >
-                <div>
-                  <p className="text-lg font-semibold">{d.name}</p>
-                  <p className="text-sm text-muted-foreground">{d.category_name}</p>
-                </div>
-                <span className="text-lg tabular-nums">{eur.format(d.price)}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+              </div>
+            </>
+          ) : null}
+        </DrawerContent>
+      </Drawer>
+    </>
   );
 }

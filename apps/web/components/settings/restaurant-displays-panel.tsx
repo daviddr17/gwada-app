@@ -318,6 +318,7 @@ export function RestaurantDisplaysPanel() {
         onDelete={deleteDisplay}
         onUnpair={(id) => saveDisplay(id, { unpair: true })}
         onStartPairing={startPairing}
+        onDevicePaired={(id) => applyDisplayPatch(id, { is_paired: true })}
       />
     </>
   );

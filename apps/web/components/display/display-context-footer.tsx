@@ -6,7 +6,16 @@ import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-/** Fußzeile: Restaurant + Display dezent, Gwada-Mark — ohne Cover/Header-Branding. */
+const displayFooterLogoutButtonClassName =
+  "h-9 shrink-0 rounded-xl px-3 text-sm whitespace-nowrap";
+
+const displayFooterScrollClassName =
+  "flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
+
+const displayFooterRestaurantLogoClassName =
+  "size-5 shrink-0 rounded-full border border-border/60 object-cover object-center";
+
+/** Fußzeile: Restaurant links, Gwada Mitte, Gerät + ToDos rechts, Abmelden sticky. */
 export function DisplayContextFooter({
   restaurantName,
   restaurantAvatarUrl,
@@ -28,73 +37,79 @@ export function DisplayContextFooter({
   const initials = displayRestaurantInitials(restaurantName);
   const trimmedName = restaurantName.trim();
   const trimmedDisplay = displayName?.trim() ?? "";
+  const logoutVisible = showLogout && Boolean(onLogout);
 
   return (
     <footer
       className={cn(
-        "relative shrink-0 border-t border-border/20 px-4 py-3",
-        showLogout && "pr-[5.5rem] sm:pr-28",
+        "relative flex min-h-12 shrink-0 items-stretch border-t border-border/20 bg-background",
         className,
       )}
     >
-      <div className="flex min-w-0 items-center justify-center gap-1.5">
-        {restaurantAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={restaurantAvatarUrl}
-            alt=""
-            decoding="async"
-            className="size-[18px] shrink-0 rounded-[5px] object-cover object-center"
-          />
-        ) : trimmedName ? (
-          <span
-            aria-hidden
-            className="flex size-[18px] shrink-0 items-center justify-center rounded-[5px] bg-muted/80 text-[8px] font-semibold leading-none text-muted-foreground"
-          >
-            {initials}
-          </span>
-        ) : null}
+      <div className={displayFooterScrollClassName}>
+        <div className="flex min-w-max flex-1 items-center gap-3 py-2.5 pl-4 pr-3">
+          <div className="flex shrink-0 items-center gap-2">
+            {restaurantAvatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={restaurantAvatarUrl}
+                alt=""
+                decoding="async"
+                className={displayFooterRestaurantLogoClassName}
+              />
+            ) : trimmedName ? (
+              <span
+                aria-hidden
+                className={cn(
+                  displayFooterRestaurantLogoClassName,
+                  "flex items-center justify-center bg-muted/80 text-[8px] font-semibold leading-none text-muted-foreground",
+                )}
+              >
+                {initials}
+              </span>
+            ) : null}
+            {trimmedName ? (
+              <span className="whitespace-nowrap text-xs font-medium text-foreground/75">
+                {trimmedName}
+              </span>
+            ) : null}
+          </div>
 
-        <p className="min-w-0 truncate text-xs text-muted-foreground">
-          {trimmedName ? (
-            <span className="font-medium text-foreground/75">{trimmedName}</span>
-          ) : null}
-          {trimmedDisplay ? (
-            <>
-              {trimmedName ? <span aria-hidden> · </span> : null}
-              <span>{trimmedDisplay}</span>
-            </>
-          ) : null}
-        </p>
+          <div className="min-w-[5.5rem] flex-1 shrink-0" aria-hidden />
 
-        {todoBadge ? (
-          <>
-            <span aria-hidden className="shrink-0 text-border/50">
-              ·
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
             {todoBadge}
-          </>
-        ) : null}
-
-        <span aria-hidden className="shrink-0 text-border/50">
-          ·
-        </span>
-        <DisplayBrandMark size="sm" className="shrink-0" />
+            {trimmedDisplay ? (
+              <span className="whitespace-nowrap text-xs text-muted-foreground">
+                {trimmedDisplay}
+              </span>
+            ) : null}
+          </div>
+        </div>
       </div>
 
-      {showLogout && onLogout ? (
-        <div className="absolute top-1/2 right-4 -translate-y-1/2 sm:right-6">
+      <div
+        className="pointer-events-none absolute inset-y-0 left-1/2 z-[2] flex -translate-x-1/2 items-center"
+        aria-hidden={false}
+      >
+        <DisplayBrandMark layout="footer" className="pointer-events-auto bg-background/95 px-1" />
+      </div>
+
+      {logoutVisible ? (
+        <div className="sticky right-0 z-[3] flex shrink-0 items-center self-stretch border-l border-border/20 bg-background py-2 pr-4 pl-3 shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.12)] dark:shadow-[-10px_0_16px_-10px_rgba(0,0,0,0.45)]">
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="h-9 rounded-xl px-3"
+            className={displayFooterLogoutButtonClassName}
             onClick={onLogout}
           >
             Abmelden
           </Button>
         </div>
-      ) : null}
+      ) : (
+        <div className="shrink-0 pr-4" aria-hidden />
+      )}
     </footer>
   );
 }

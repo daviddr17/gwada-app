@@ -458,7 +458,7 @@ export function DisplayReservationDrawer({
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 pb-4">
                 <Label htmlFor="disp-res-guest-message" className="text-xs text-muted-foreground">
                   Nachricht an das Restaurant
                 </Label>

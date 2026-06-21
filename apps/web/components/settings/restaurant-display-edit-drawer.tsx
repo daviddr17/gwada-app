@@ -1,10 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useReducedMotion } from "framer-motion";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
-import { Copy, Loader2, Monitor, QrCode, Unlink } from "lucide-react";
+import { Copy, Loader2, Monitor, QrCode, TabletSmartphone, Unlink } from "lucide-react";
 import { toast } from "sonner";
+import {
+  DisplayPairSuccessCelebration,
+  displayPairSuccessNavigateDelayMs,
+} from "@/components/display/display-pair-success-celebration";
+import { pairDisplayWithCode } from "@/lib/display/pair-display-client";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -49,6 +55,7 @@ type RestaurantDisplayEditDrawerProps = {
   onDelete: (id: string) => Promise<boolean>;
   onUnpair: (id: string) => Promise<boolean>;
   onStartPairing: (id: string) => Promise<PairingInfo | null>;
+  onDevicePaired?: (displayId: string) => void;
 };
 
 function modulesEqual(a: DisplayModule[], b: DisplayModule[]) {
@@ -66,7 +73,9 @@ export function RestaurantDisplayEditDrawer({
   onDelete,
   onUnpair,
   onStartPairing,
+  onDevicePaired,
 }: RestaurantDisplayEditDrawerProps) {
+  const reduceMotion = useReducedMotion() ?? false;
   const [name, setName] = useState("");
   const [allowedModules, setAllowedModules] = useState<DisplayModule[]>([]);
   const [autoLockSeconds, setAutoLockSeconds] = useState("60");
@@ -76,6 +85,12 @@ export function RestaurantDisplayEditDrawer({
   const [confirmUnpairOpen, setConfirmUnpairOpen] = useState(false);
   const [confirmRePairOpen, setConfirmRePairOpen] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [pairDeviceBusy, setPairDeviceBusy] = useState(false);
+  const [pairDeviceSuccess, setPairDeviceSuccess] = useState<{
+    slug: string;
+    restaurantName?: string;
+    accentHex?: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!open || !display) return;
@@ -103,6 +118,8 @@ export function RestaurantDisplayEditDrawer({
       setConfirmDeleteOpen(false);
       setPairing(null);
       setPairingLoading(false);
+      setPairDeviceBusy(false);
+      setPairDeviceSuccess(null);
     }
   }, [open]);
 
@@ -158,17 +175,24 @@ export function RestaurantDisplayEditDrawer({
     }
   };
 
-  const runPairing = async () => {
-    if (!display || pairingLoading) return;
+  const runPairing = async (): Promise<boolean> => {
+    if (!display || pairingLoading) return false;
     setPairingLoading(true);
     setPairing(null);
     try {
       const info = await onStartPairing(display.id);
-      if (info) setPairing(info);
+      if (info) {
+        setPairing(info);
+        return true;
+      }
+      return false;
     } finally {
       setPairingLoading(false);
     }
   };
+
+  const anyConfirmOpen =
+    confirmUnpairOpen || confirmRePairOpen || confirmDeleteOpen;
 
   const copyText = async (text: string, label: string) => {
     try {
@@ -179,11 +203,59 @@ export function RestaurantDisplayEditDrawer({
     }
   };
 
+  const pairCurrentDevice = useCallback(async () => {
+    if (!display || !pairing?.code || pairDeviceBusy || pairDeviceSuccess) return;
+    setPairDeviceBusy(true);
+    try {
+      const result = await pairDisplayWithCode(pairing.code);
+      if (!result.ok) {
+        toast.error(result.message);
+        return;
+      }
+      setPairing(null);
+      onDevicePaired?.(display.id);
+      setPairDeviceSuccess({
+        slug: result.slug,
+        restaurantName: result.restaurantName,
+        accentHex: result.accentHex,
+      });
+    } catch {
+      toast.error("Netzwerkfehler.");
+    } finally {
+      setPairDeviceBusy(false);
+    }
+  }, [display, pairing?.code, pairDeviceBusy, pairDeviceSuccess, onDevicePaired]);
+
+  useEffect(() => {
+    if (!pairDeviceSuccess?.slug) return;
+    const delayMs = displayPairSuccessNavigateDelayMs(reduceMotion);
+    const timer = window.setTimeout(() => {
+      window.open(
+        `/display/${encodeURIComponent(pairDeviceSuccess.slug)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+      setPairDeviceSuccess(null);
+    }, delayMs);
+    return () => window.clearTimeout(timer);
+  }, [pairDeviceSuccess, reduceMotion]);
+
   return (
     <>
+      <DisplayPairSuccessCelebration
+        open={Boolean(pairDeviceSuccess)}
+        restaurantName={pairDeviceSuccess?.restaurantName}
+        accentHex={pairDeviceSuccess?.accentHex}
+        className="z-[100]"
+      />
+
       <Drawer
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && anyConfirmOpen) return;
+          onOpenChange(nextOpen);
+        }}
+        dismissible={!anyConfirmOpen}
         direction="bottom"
         repositionInputs={false}
       >
@@ -235,6 +307,13 @@ export function RestaurantDisplayEditDrawer({
                 ) : null}
               </div>
 
+              {pairingLoading && !pairing ? (
+                <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                  Kopplungscode wird erzeugt …
+                </div>
+              ) : null}
+
               {pairing ? (
                 <div className="space-y-3">
                   <p className="text-sm font-medium">Kopplungscode (15 Min.)</p>
@@ -259,6 +338,20 @@ export function RestaurantDisplayEditDrawer({
                     >
                       <Copy className="mr-1.5 size-4" />
                       Link kopieren
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={pairDeviceBusy || Boolean(pairDeviceSuccess)}
+                      onClick={() => void pairCurrentDevice()}
+                    >
+                      {pairDeviceBusy ? (
+                        <Loader2 className="mr-1.5 size-4 animate-spin" />
+                      ) : (
+                        <TabletSmartphone className="mr-1.5 size-4" />
+                      )}
+                      Aktuelles Gerät hinzufügen
                     </Button>
                   </div>
                   <p className="mt-2 break-all text-xs text-muted-foreground">
@@ -371,10 +464,11 @@ export function RestaurantDisplayEditDrawer({
         title="Neu koppeln?"
         description="Sobald ein Tablet den neuen Code nutzt, funktionieren bereits gekoppelte Tablets mit diesem Display nicht mehr — sie brauchen dann ebenfalls den neuen Code."
         confirmLabel="Kopplungscode anzeigen"
-        confirmDisabled={saving}
+        confirmDisabled={saving || pairingLoading}
         destructive={false}
-        onConfirm={() => {
-          void runPairing();
+        onConfirm={async () => {
+          const ok = await runPairing();
+          if (!ok) throw new Error("pairing_failed");
         }}
       />
 

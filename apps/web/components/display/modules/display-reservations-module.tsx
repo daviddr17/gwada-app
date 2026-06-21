@@ -40,6 +40,7 @@ import type { DiningAreaRow, DiningTableRow } from "@/lib/supabase/dining-floor-
 import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import type { DayHours, DateHoursException, Weekday } from "@/lib/types/restaurant";
+import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT } from "@/lib/display/display-reservations-live-events";
@@ -696,7 +697,7 @@ export function DisplayReservationsModule() {
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 pb-8">
+    <div className={displayModuleContentClassName}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -805,11 +806,11 @@ export function DisplayReservationsModule() {
         />
       ) : null}
 
-      <div className="space-y-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <AutoAssignTablesButton
           variant="display"
           size="default"
-          className="h-12 w-full sm:w-auto"
+          className="h-9 w-full rounded-xl sm:w-auto"
           reservations={reservations.map((r) => ({
             id: r.id,
             party_size: r.party_size,
@@ -822,9 +823,9 @@ export function DisplayReservationsModule() {
           onDone={() => void load({ silent: true })}
         />
         {viewMode === "list" ? (
-          <div className="flex justify-end">
+          <div className="flex shrink-0 justify-end sm:justify-start">
             <div
-              className="flex shrink-0 items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5"
+              className="flex h-9 shrink-0 items-center gap-0.5 rounded-lg border border-border/50 bg-muted/20 p-0.5"
               role="group"
               aria-label="Listenansicht"
             >

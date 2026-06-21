@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
   assertDisplayDeviceFromCookies,
+  buildDisplayContext,
   endDisplaySession,
   generateDisplayToken,
   hashDisplayToken,
@@ -97,7 +98,8 @@ export async function POST(request: Request) {
     },
   );
 
-  return NextResponse.json({ ok: true });
+  const context = await buildDisplayContext(cookieStore);
+  return NextResponse.json({ ok: true, context });
 }
 
 export async function DELETE() {

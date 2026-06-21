@@ -19,6 +19,7 @@ import type {
 } from "@/lib/display/display-inventory-server";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "stock" | "order";
@@ -475,7 +476,7 @@ export function DisplayInventoryModule() {
 
   if (showSkeleton) {
     return (
-      <div className="space-y-4 p-4 sm:p-6" aria-busy>
+      <div className={displayModuleContentClassName} aria-busy>
         <Skeleton className="h-12 w-full max-w-md rounded-2xl" />
         <div className="flex gap-3">
           <Skeleton className="h-12 flex-1 rounded-2xl" />
@@ -494,14 +495,14 @@ export function DisplayInventoryModule() {
 
   if (!data) {
     return (
-      <p className="p-6 text-center text-muted-foreground">
+      <p className="py-12 text-center text-muted-foreground">
         Keine Bestandsdaten verfügbar.
       </p>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4 p-4 sm:p-6">
+    <div className={displayModuleContentClassName}>
       <div data-inventory-toolbar className="flex flex-wrap gap-2">
         <button
           type="button"

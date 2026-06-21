@@ -1,7 +1,7 @@
 {
-  "title": "Display-ToDos: Live-Badge, Switch und Einstellungen",
-  "body": "- Am Display siehst du offene ToDos als farbigen Chip im Footer (grün, orange, rot je nach Dringlichkeit) — ohne Hard-Refresh, Updates kommen automatisch\n- ToDos erledigst du per großem Schalter; pro Aufgabe kannst du in den ToDo-Einstellungen erlauben, die Erledigung am Display wieder zurückzunehmen\n- Neue Option „Popup bei jeder PIN-Anmeldung“ — wichtige ToDos erscheinen direkt nach dem Einloggen am Display\n- Restaurant-Branding sitzt dezent im Footer; bei Auto-Sperre bleibt der Footer sichtbar",
-  "superadminBody": "- Display: useDisplayTodosLive (15s live-signal), display-context-footer, DisplayTodoCompleteToggle\n- Migrationen: show_on_pin_login, allow_reopen_on_display; API reopen + /api/display/todos/live-signal\n- Badge-Urgency: getDisplayTodoBadgeSummary; PIN-Gate syncDisplayTodosLiveAfterPin",
+  "title": "Display: schnellerer PIN-Login, Kopplung vom Tablet und UI-Feinschliff",
+  "body": "- PIN-Anmeldung am Display ist spürbar schneller — weniger Wartezeit, dezente Übergangsanimation beim Entsperren\n- In den Display-Einstellungen: „Aktuelles Gerät hinzufügen“ koppelt das offene Tablet direkt (mit Erfolgsanimation und Display-Tab)\n- Footer neu: Restaurant-Logo links, Gwada in der Mitte, Gerätename rechts; Abmelden bleibt am Rand fixiert\n- Zeiterfassung reagiert sofort auf Tipp (Schicht starten, Pause, Beenden) — kein hängender Ladezustand\n- Rezepte öffnen im Bottom Sheet; Reservierungen-Toolbar und einheitliches Modul-Padding auf dem Tablet",
+  "superadminBody": "- POST /api/display/pin liefert context mit (kein zweiter Fetch); buildDisplayContext parallelisiert\n- submitDisplayPin, pairDisplayWithCode; DisplayPinPad busy-Pulse + AnimatePresence PIN→Session\n- restaurant-display-edit-drawer: Aktuelles Gerät hinzufügen + Pair-Celebration\n- display-context-footer Layout; display-time-module optimistic UI; recipes bottom sheet; displayModuleContentClassName",
   "audience": "customers",
-  "version": "2026.06.24"
+  "version": "2026.06.21"
 }

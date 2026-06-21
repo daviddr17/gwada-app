@@ -9,6 +9,7 @@ import {
   useDisplayTimeTodoGate,
 } from "@/components/display/modules/display-time-todo-popup";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import {
   displayTimeActionButtonOutlineClassName,
   displayTimeActionButtonPrimaryClassName,
@@ -42,6 +43,54 @@ function statusLabel(status: TimeState["status"]): string {
       return "In Pause";
     default:
       return "Nicht eingestempelt";
+  }
+}
+
+type TimeAction = "clock_in" | "start_break" | "end_break" | "clock_out";
+
+function pendingStatusLabel(action: TimeAction): string {
+  switch (action) {
+    case "clock_in":
+      return "Schicht wird gestartet …";
+    case "start_break":
+      return "Pause wird gestartet …";
+    case "end_break":
+      return "Pause wird beendet …";
+    case "clock_out":
+      return "Schicht wird beendet …";
+  }
+}
+
+function optimisticStateForAction(
+  action: TimeAction,
+  prev: TimeState,
+): TimeState {
+  const now = new Date().toISOString();
+  switch (action) {
+    case "clock_in":
+      return {
+        status: "working",
+        clocked_in_at: prev.clocked_in_at ?? now,
+        break_started_at: null,
+      };
+    case "start_break":
+      return {
+        ...prev,
+        status: "on_break",
+        break_started_at: now,
+      };
+    case "end_break":
+      return {
+        ...prev,
+        status: "working",
+        break_started_at: null,
+      };
+    case "clock_out":
+      return {
+        status: "off",
+        clocked_in_at: null,
+        break_started_at: null,
+      };
   }
 }
 
@@ -93,6 +142,7 @@ export function DisplayTimeModule({
     [],
   );
   const [busy, setBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<TimeAction | null>(null);
   const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
 
   const refresh = useCallback(async () => {
@@ -122,7 +172,10 @@ export function DisplayTimeModule({
   }, [refresh]);
 
   const runTimeAction = useCallback(
-    async (action: "clock_in" | "start_break" | "end_break" | "clock_out") => {
+    async (
+      action: TimeAction,
+      options?: { skipStateUpdate?: boolean },
+    ): Promise<boolean> => {
       const res = await fetch("/api/display/time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,30 +193,8 @@ export function DisplayTimeModule({
         );
         return false;
       }
-      if (action === "clock_in") {
-        setState({
-          status: "working",
-          clocked_in_at: new Date().toISOString(),
-          break_started_at: null,
-        });
-      } else if (action === "start_break") {
-        setState((s) => ({
-          ...s,
-          status: "on_break",
-          break_started_at: new Date().toISOString(),
-        }));
-      } else if (action === "end_break") {
-        setState((s) => ({
-          ...s,
-          status: "working",
-          break_started_at: null,
-        }));
-      } else {
-        setState({
-          status: "off",
-          clocked_in_at: null,
-          break_started_at: null,
-        });
+      if (!options?.skipStateUpdate) {
+        setState((prev) => optimisticStateForAction(action, prev));
       }
       onChanged();
       void refresh();
@@ -173,41 +204,64 @@ export function DisplayTimeModule({
   );
 
   const runAction = useCallback(
-    async (action: "clock_in" | "start_break" | "end_break" | "clock_out") => {
+    async (action: TimeAction) => {
+      setPendingAction(action);
       setBusy(true);
+      const snapshot = state;
       try {
         const gate = await prepareAndGate(action);
         if (gate === "blocked") return;
-        await runTimeAction(action);
+
+        setState(optimisticStateForAction(action, snapshot));
+        setPendingAction(null);
+
+        const ok = await runTimeAction(action, { skipStateUpdate: true });
+        if (!ok) {
+          setState(snapshot);
+          void refresh();
+        }
       } finally {
+        setPendingAction(null);
         setBusy(false);
       }
     },
-    [prepareAndGate, runTimeAction],
+    [prepareAndGate, runTimeAction, state],
   );
+
+  const displayStatus = pendingAction
+    ? pendingStatusLabel(pendingAction)
+    : statusLabel(state.status);
 
   const since =
     state.clocked_in_at && state.status !== "off"
       ? timeFmt.format(new Date(state.clocked_in_at))
       : null;
 
+  function actionButtonBusy(action: TimeAction) {
+    return pendingAction === action;
+  }
+
   return (
-    <div className="mx-auto flex max-w-lg flex-col items-center gap-8 py-8">
+    <div className={cn(displayModuleContentClassName, "max-w-lg items-center gap-8")}>
       <div className="text-center">
         <p
           className={cn(
-            "text-sm font-medium uppercase tracking-wide",
-            state.status === "working"
-              ? "text-emerald-600"
-              : state.status === "on_break"
-                ? "text-amber-600"
-                : "text-muted-foreground",
+            "text-sm font-medium uppercase tracking-wide transition-colors",
+            pendingAction
+              ? "text-muted-foreground"
+              : state.status === "working"
+                ? "text-emerald-600"
+                : state.status === "on_break"
+                  ? "text-amber-600"
+                  : "text-muted-foreground",
           )}
         >
-          {statusLabel(state.status)}
+          {displayStatus}
         </p>
         {since ? (
           <p className="mt-2 text-4xl font-semibold tabular-nums">seit {since}</p>
+        ) : pendingAction ? (
+          <p className="mt-2 text-2xl text-muted-foreground/80">…</p>
         ) : (
           <p className="mt-2 text-2xl text-muted-foreground">
             Bereit für die Schicht?
@@ -223,7 +277,7 @@ export function DisplayTimeModule({
             disabled={busy}
             onClick={() => void runAction("clock_in")}
           >
-            {busy ? (
+            {actionButtonBusy("clock_in") ? (
               <Loader2 className="size-5 animate-spin" />
             ) : (
               <LogIn className="size-5" />
@@ -241,7 +295,7 @@ export function DisplayTimeModule({
               disabled={busy}
               onClick={() => void runAction("start_break")}
             >
-              {busy ? (
+              {actionButtonBusy("start_break") ? (
                 <Loader2 className="size-5 animate-spin" />
               ) : (
                 <Pause className="size-5" />
@@ -255,7 +309,7 @@ export function DisplayTimeModule({
               disabled={busy}
               onClick={() => void runAction("clock_out")}
             >
-              {busy ? (
+              {actionButtonBusy("clock_out") ? (
                 <Loader2 className="mr-2 size-5 animate-spin" />
               ) : (
                 <LogOut className="mr-2 size-5" />
@@ -273,7 +327,7 @@ export function DisplayTimeModule({
               disabled={busy}
               onClick={() => void runAction("end_break")}
             >
-              {busy ? (
+              {actionButtonBusy("end_break") ? (
                 <Loader2 className="size-5 animate-spin" />
               ) : (
                 <Coffee className="size-5" />
@@ -287,6 +341,11 @@ export function DisplayTimeModule({
               disabled={busy}
               onClick={() => void runAction("clock_out")}
             >
+              {actionButtonBusy("clock_out") ? (
+                <Loader2 className="mr-2 size-5 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 size-5" />
+              )}
               Schicht beenden
             </Button>
           </>

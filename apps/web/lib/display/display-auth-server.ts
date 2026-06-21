@@ -161,19 +161,24 @@ export async function assertDisplaySessionFromCookies(
     return { ok: false, error: "server_misconfigured", status: 503 };
   }
 
-  const { data: staffRow } = await admin
-    .from("restaurant_staff")
-    .select(
-      `
+  const [{ data: staffRow }, { data: permKeys }] = await Promise.all([
+    admin
+      .from("restaurant_staff")
+      .select(
+        `
       id,
       given_name,
       family_name,
       avatar_storage_path,
       restaurant_position:restaurant_positions ( name )
     `,
-    )
-    .eq("id", session.staff_id)
-    .maybeSingle();
+      )
+      .eq("id", session.staff_id)
+      .maybeSingle(),
+    admin.rpc("staff_display_permission_keys", {
+      p_staff_id: session.staff_id,
+    }),
+  ]);
 
   if (!staffRow) {
     return { ok: false, error: "staff_not_found", status: 404 };
@@ -185,10 +190,6 @@ export async function assertDisplaySessionFromCookies(
     posOne && typeof posOne === "object" && "name" in posOne
       ? String((posOne as { name: string }).name)
       : null;
-
-  const { data: permKeys } = await admin.rpc("staff_display_permission_keys", {
-    p_staff_id: session.staff_id,
-  });
 
   const { modules, canSwitchModules } = resolveStaffDisplayModules({
     displayModules: display.allowed_modules ?? [],
@@ -314,16 +315,14 @@ export async function buildDisplayContext(
     };
   }
 
-  const { data: restaurant } = await admin
-    .from("restaurants")
-    .select("id, name, slug, brand_accent_hex, avatar_storage_path, cover_storage_path")
-    .eq("id", deviceResult.display.restaurant_id)
-    .maybeSingle();
-
-  const sessionResult = await assertDisplaySessionFromCookies(
-    cookieStore,
-    deviceResult.display,
-  );
+  const [{ data: restaurant }, sessionResult] = await Promise.all([
+    admin
+      .from("restaurants")
+      .select("id, name, slug, brand_accent_hex, avatar_storage_path, cover_storage_path")
+      .eq("id", deviceResult.display.restaurant_id)
+      .maybeSingle(),
+    assertDisplaySessionFromCookies(cookieStore, deviceResult.display),
+  ]);
 
   let timeSession: DisplayContextResponse["time_session"] = null;
   if (sessionResult.ok) {
@@ -331,6 +330,15 @@ export async function buildDisplayContext(
       admin,
       sessionResult.session.staff_id,
     );
+  }
+
+  let avatarUrl: string | null = null;
+  let coverUrl: string | null = null;
+  if (restaurant) {
+    [avatarUrl, coverUrl] = await Promise.all([
+      signRestaurantAvatarUrl(admin, restaurant.avatar_storage_path as string | null),
+      signRestaurantAvatarUrl(admin, restaurant.cover_storage_path as string | null),
+    ]);
   }
 
   return {
@@ -342,14 +350,8 @@ export async function buildDisplayContext(
           slug: restaurant.slug as string,
           accent_hex:
             normalizeHex(String(restaurant.brand_accent_hex ?? "")) ?? null,
-          avatar_url: await signRestaurantAvatarUrl(
-            admin,
-            restaurant.avatar_storage_path as string | null,
-          ),
-          cover_url: await signRestaurantAvatarUrl(
-            admin,
-            restaurant.cover_storage_path as string | null,
-          ),
+          avatar_url: avatarUrl,
+          cover_url: coverUrl,
         }
       : null,
     display: {

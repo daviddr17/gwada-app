@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Delete, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DISPLAY_PIN_REVEAL_MS,
+  DISPLAY_PIN_REVEAL_REDUCED_MS,
+  MOTION_EASE_OUT,
+} from "@/lib/ui/motion-presets";
 import { cn } from "@/lib/utils";
 
 type DisplayPinPadProps = {
@@ -11,6 +17,8 @@ type DisplayPinPadProps = {
   onComplete?: (pin: string) => void;
   maxLength?: number;
   disabled?: boolean;
+  /** Während PIN geprüft wird — Punkte pulsieren dezent. */
+  busy?: boolean;
   className?: string;
 };
 
@@ -20,6 +28,7 @@ export function DisplayPinPad({
   onComplete,
   maxLength = 4,
   disabled = false,
+  busy = false,
   className,
 }: DisplayPinPadProps) {
   const lastCompleteRef = useRef<string | null>(null);
@@ -37,17 +46,17 @@ export function DisplayPinPad({
   }, [value, maxLength, onComplete]);
 
   const pushDigit = (digit: string) => {
-    if (disabled || value.length >= maxLength) return;
+    if (disabled || busy || value.length >= maxLength) return;
     onChange(value + digit);
   };
 
   const backspace = () => {
-    if (disabled) return;
+    if (disabled || busy) return;
     onChange(value.slice(0, -1));
   };
 
   useEffect(() => {
-    if (disabled) return;
+    if (disabled || busy) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -84,7 +93,7 @@ export function DisplayPinPad({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [disabled, maxLength, onChange]);
+  }, [disabled, busy, maxLength, onChange]);
 
   const digits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "del"];
 
@@ -93,17 +102,28 @@ export function DisplayPinPad({
       className={cn("flex flex-col items-center gap-8", className)}
       role="group"
       aria-label="PIN-Eingabe. Zifferntasten der Tastatur werden ebenfalls akzeptiert."
+      aria-busy={busy}
     >
       <div className="flex gap-5" aria-hidden>
         {Array.from({ length: maxLength }).map((_, i) => (
-          <div
+          <motion.div
             key={i}
             className={cn(
-              "size-7 rounded-full border-[3px] transition-all duration-200",
+              "size-7 rounded-full border-[3px]",
               i < value.length
-                ? "scale-110 border-accent bg-accent shadow-sm"
+                ? "border-accent bg-accent shadow-sm"
                 : "border-muted-foreground/35 bg-muted/30",
             )}
+            animate={
+              busy && i < value.length
+                ? { scale: [1, 1.08, 1], opacity: [1, 0.72, 1] }
+                : { scale: i < value.length ? 1.1 : 1, opacity: 1 }
+            }
+            transition={
+              busy && i < value.length
+                ? { duration: 0.85, repeat: Infinity, ease: "easeInOut" }
+                : { duration: 0.2, ease: MOTION_EASE_OUT }
+            }
           />
         ))}
       </div>
@@ -120,7 +140,7 @@ export function DisplayPinPad({
                 type="button"
                 variant="outline"
                 className="size-[4.5rem] rounded-full border-border/60 text-lg shadow-sm sm:size-20"
-                disabled={disabled || value.length === 0}
+                disabled={disabled || busy || value.length === 0}
                 onClick={backspace}
                 aria-label="Löschen"
               >
@@ -134,7 +154,7 @@ export function DisplayPinPad({
               type="button"
               variant="outline"
               className="size-[4.5rem] rounded-full border-border/60 text-3xl font-semibold shadow-sm sm:size-20"
-              disabled={disabled}
+              disabled={disabled || busy}
               onClick={() => pushDigit(d)}
             >
               {d}
@@ -160,35 +180,50 @@ export function DisplayLockOverlay({
   error?: string | null;
   placement?: "fullscreen" | "content";
 }) {
+  const reduceMotion = useReducedMotion() ?? false;
   const [pin, setPin] = useState("");
 
   useEffect(() => {
     if (open) setPin("");
   }, [open]);
 
-  if (!open) return null;
+  const revealMs = reduceMotion ? DISPLAY_PIN_REVEAL_REDUCED_MS : DISPLAY_PIN_REVEAL_MS;
 
   return (
-    <div
-      className={cn(
-        "flex flex-col items-center justify-center gap-6 bg-background/95 p-6 backdrop-blur-sm",
-        placement === "content"
-          ? "absolute inset-0 z-40"
-          : "fixed inset-0 z-50",
-      )}
-    >
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Lock className="size-5" />
-        <span className="text-lg">Display gesperrt</span>
-      </div>
-      <p className="text-sm text-muted-foreground">PIN eingeben</p>
-      <DisplayPinPad
-        value={pin}
-        onChange={setPin}
-        onComplete={onUnlock}
-        disabled={busy}
-      />
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-    </div>
+    <AnimatePresence>
+      {open ? (
+        <motion.div
+          key="display-lock"
+          className={cn(
+            "flex flex-col items-center justify-center gap-6 bg-background/95 p-6 backdrop-blur-sm",
+            placement === "content"
+              ? "absolute inset-0 z-40"
+              : "fixed inset-0 z-50",
+          )}
+          initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
+          animate={{ opacity: 1, backdropFilter: "blur(8px)" }}
+          exit={{
+            opacity: 0,
+            backdropFilter: "blur(0px)",
+            scale: reduceMotion ? 1 : 1.02,
+          }}
+          transition={{ duration: revealMs / 1000, ease: MOTION_EASE_OUT }}
+        >
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Lock className="size-5" />
+            <span className="text-lg">Display gesperrt</span>
+          </div>
+          <p className="text-sm text-muted-foreground">PIN eingeben</p>
+          <DisplayPinPad
+            value={pin}
+            onChange={setPin}
+            onComplete={onUnlock}
+            disabled={busy}
+            busy={busy}
+          />
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

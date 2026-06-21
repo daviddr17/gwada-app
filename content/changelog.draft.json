@@ -1,7 +1,7 @@
 {
-  "title": "ToDo-Listen für Mitarbeiter und Display",
-  "body": "- Unter Mitarbeiter gibt es ToDo-Listen: Aufgaben anlegen, filtern, Priorität und Fälligkeit — mit Protokoll aller Änderungen\n- Im Mitarbeiter-Profil siehst du offene ToDos des Mitarbeiters; in den Rollen steuern neue Rechte, wer ToDos verwalten darf\n- Am Display zeigt eine Badge offene ToDos — per Tippen direkt erledigen, unabhängig von Schicht-Popups\n- Vor Schichtbeginn, Pause oder Schichtende können Pflicht-ToDos als Popup erscheinen; Verschieben mit optionalem Grund\n- Bei Erledigen oder Verschieben informiert die Glocke das Team (einstellbar unter Profil → Benachrichtigungen und in den ToDo-Einstellungen)",
-  "superadminBody": "- Modul staff_todos: Migration 20260620230000 + Notifications 20260620240000\n- Routes: /dashboard/mitarbeiter/todos, protokoll, einstellungen; API /api/display/todos\n- Display: Badge-Sheet, Schicht-Popup-Gate, staff-display-todos-server\n- Notifications: staff_todo_completed, staff_todo_deferred; Sidebar mitarbeiter badge\n- Spec: docs/plans/staff-todos.md",
+  "title": "Display-ToDos: Live-Badge, Switch und Einstellungen",
+  "body": "- Am Display siehst du offene ToDos als farbigen Chip im Footer (grün, orange, rot je nach Dringlichkeit) — ohne Hard-Refresh, Updates kommen automatisch\n- ToDos erledigst du per großem Schalter; pro Aufgabe kannst du in den ToDo-Einstellungen erlauben, die Erledigung am Display wieder zurückzunehmen\n- Neue Option „Popup bei jeder PIN-Anmeldung“ — wichtige ToDos erscheinen direkt nach dem Einloggen am Display\n- Restaurant-Branding sitzt dezent im Footer; bei Auto-Sperre bleibt der Footer sichtbar",
+  "superadminBody": "- Display: useDisplayTodosLive (15s live-signal), display-context-footer, DisplayTodoCompleteToggle\n- Migrationen: show_on_pin_login, allow_reopen_on_display; API reopen + /api/display/todos/live-signal\n- Badge-Urgency: getDisplayTodoBadgeSummary; PIN-Gate syncDisplayTodosLiveAfterPin",
   "audience": "customers",
-  "version": "2026.06.21"
+  "version": "2026.06.24"
 }

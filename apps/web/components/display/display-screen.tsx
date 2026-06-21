@@ -4,9 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DisplayContextResponse, DisplayModule } from "@/lib/display/display-types";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { DISPLAY_MODULES } from "@/lib/display/display-types";
-import { DisplayBrandMark } from "@/components/display/display-brand-mark";
-import { DisplayLoggedInFooter } from "@/components/display/display-logged-in-footer";
-import { DisplayRestaurantProfileHero } from "@/components/display/display-restaurant-profile-hero";
+import { DisplayContextFooter } from "@/components/display/display-context-footer";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
 import { DisplayThemeToggleSlot } from "@/components/display/display-theme-toggle-slot";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
@@ -16,6 +14,10 @@ import { DisplayModuleShell } from "@/components/display/display-module-shell";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
 import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-badge";
 import { DisplayTimeModule } from "@/components/display/modules/display-time-module";
+import {
+  DisplayTimeTodoPopup,
+  useDisplayTimeTodoGate,
+} from "@/components/display/modules/display-time-todo-popup";
 import { DisplayReservationsModule } from "@/components/display/modules/display-reservations-module";
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
@@ -29,8 +31,10 @@ import {
   readDisplayDeviceCredential,
 } from "@/lib/display/display-device-storage";
 import { syncDisplayReservationsLiveAfterPin } from "@/lib/display/display-reservations-live-events";
+import { syncDisplayTodosLiveAfterPin } from "@/lib/display/display-todos-live-events";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
 import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
+import { useDisplayTodosLive } from "@/lib/hooks/use-display-todos-live";
 
 export function DisplayScreen({ slug }: { slug: string }) {
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
@@ -43,6 +47,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [lockPinError, setLockPinError] = useState<string | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
+  const pendingPinTodoGateRef = useRef(false);
+  const { preparePinLoginGate, popupProps: pinTodoPopupProps } =
+    useDisplayTimeTodoGate();
 
   const refreshContext = useCallback(async () => {
     const res = await fetch("/api/display/context", { cache: "no-store" });
@@ -106,9 +113,19 @@ export function DisplayScreen({ slug }: { slug: string }) {
   );
   useDisplayReservationsLive(reservationsLiveEnabled);
 
-  const { count: todoBadgeCount, refresh: refreshTodoBadge } = useDisplayTodoBadgeCount(
-    Boolean(context?.session && !locked),
-  );
+  const todosLiveEnabled = Boolean(context?.session && !locked);
+  useDisplayTodosLive(todosLiveEnabled);
+
+  const { count: todoBadgeCount, urgency: todoBadgeUrgency, refresh: refreshTodoBadge } =
+    useDisplayTodoBadgeCount(todosLiveEnabled);
+
+  useEffect(() => {
+    if (!pendingPinTodoGateRef.current || !context?.session) return;
+    pendingPinTodoGateRef.current = false;
+    void preparePinLoginGate().then(() => {
+      void refreshTodoBadge();
+    });
+  }, [context?.session, preparePinLoginGate, refreshTodoBadge]);
 
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -152,13 +169,17 @@ export function DisplayScreen({ slug }: { slug: string }) {
         return;
       }
       setPin("");
+      pendingPinTodoGateRef.current = true;
       const ctx = await refreshContext();
       const mods = ctx.session?.modules ?? [];
       setActiveModule(mods.length === 1 ? mods[0]! : null);
       setLocked(false);
-      if (mods.includes("reservations")) {
-        window.setTimeout(() => syncDisplayReservationsLiveAfterPin(), 0);
-      }
+      window.setTimeout(() => {
+        syncDisplayTodosLiveAfterPin();
+        if (mods.includes("reservations")) {
+          syncDisplayReservationsLiveAfterPin();
+        }
+      }, 0);
     } finally {
       setPinBusy(false);
     }
@@ -278,13 +299,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
     content = (
       <div className="relative flex min-h-dvh flex-col bg-background">
         <DisplayThemeToggleSlot />
-        <DisplayRestaurantProfileHero
-          name={context.restaurant?.name ?? ""}
-          avatarUrl={context.restaurant?.avatar_url}
-          coverUrl={context.restaurant?.cover_url}
-          accentHex={context.restaurant?.accent_hex}
-          variant="compact"
-        />
 
         <main className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-6">
           <p className="text-base font-medium text-foreground">PIN eingeben</p>
@@ -299,19 +313,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
           ) : null}
         </main>
 
-        <footer className="shrink-0 border-t border-border/30 px-4 py-3">
-          <div className="flex items-center justify-center gap-2.5 text-muted-foreground">
-            <DisplayBrandMark size="sm" className="!justify-start shrink-0" />
-            {context.display?.name ? (
-              <>
-                <span aria-hidden className="text-border/80">
-                  ·
-                </span>
-                <span className="text-xs">{context.display.name}</span>
-              </>
-            ) : null}
-          </div>
-        </footer>
+        <DisplayContextFooter
+          restaurantName={context.restaurant?.name ?? ""}
+          restaurantAvatarUrl={context.restaurant?.avatar_url}
+          displayName={context.display?.name}
+        />
       </div>
     );
   } else {
@@ -323,47 +329,53 @@ export function DisplayScreen({ slug }: { slug: string }) {
       content = (
         <div className="relative flex min-h-dvh flex-col bg-background">
           <DisplayThemeToggleSlot />
-          <DisplayRestaurantProfileHero
-            name={context.restaurant?.name ?? ""}
-            avatarUrl={context.restaurant?.avatar_url}
-            coverUrl={context.restaurant?.cover_url}
-            accentHex={context.restaurant?.accent_hex}
-            subtitle={
-              <DisplayStaffLine
-                staff={session.staff}
-                suffix={context.display?.name ?? ""}
-                todoBadge={
-                  <DisplayStaffTodoBadge
-                    count={todoBadgeCount}
-                    onChanged={() => void refreshTodoBadge()}
-                  />
-                }
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <DisplayLockOverlay
+              open={locked}
+              placement="content"
+              onUnlock={(p) => void unlockWithPin(p)}
+              busy={pinBusy}
+              error={lockPinError}
+            />
+            <header className="shrink-0 border-b border-border/20 px-4 py-3 sm:px-5">
+              <DisplayStaffLine staff={session.staff} />
+            </header>
+            <main className="grid flex-1 grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+              {moduleMeta.map((mod) => (
+                <button
+                  key={mod.id}
+                  type="button"
+                  className={cn(
+                    "flex min-h-44 flex-col items-center justify-center gap-3 rounded-3xl border border-border/50 bg-card p-6 text-center shadow-card transition-colors",
+                    "hover:border-accent/40 hover:bg-accent/5 active:scale-[0.98]",
+                  )}
+                  onClick={() => setActiveModule(mod.id)}
+                >
+                  <span className="flex size-14 items-center justify-center rounded-2xl bg-accent/15 text-accent">
+                    <DisplayModuleIcon module={mod.id} className="size-7" />
+                  </span>
+                  <span className="text-2xl font-semibold">{mod.label}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {mod.description}
+                  </span>
+                </button>
+              ))}
+            </main>
+          </div>
+          <DisplayContextFooter
+            restaurantName={context.restaurant?.name ?? ""}
+            restaurantAvatarUrl={context.restaurant?.avatar_url}
+            displayName={context.display?.name}
+            showLogout={!locked}
+            onLogout={() => void logout()}
+            todoBadge={
+              <DisplayStaffTodoBadge
+                count={todoBadgeCount}
+                urgency={todoBadgeUrgency}
+                onChanged={() => void refreshTodoBadge()}
               />
             }
-            className="border-b border-border/50"
           />
-          <main className="grid flex-1 grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
-            {moduleMeta.map((mod) => (
-              <button
-                key={mod.id}
-                type="button"
-                className={cn(
-                  "flex min-h-44 flex-col items-center justify-center gap-3 rounded-3xl border border-border/50 bg-card p-6 text-center shadow-card transition-colors",
-                  "hover:border-accent/40 hover:bg-accent/5 active:scale-[0.98]",
-                )}
-                onClick={() => setActiveModule(mod.id)}
-              >
-                <span className="flex size-14 items-center justify-center rounded-2xl bg-accent/15 text-accent">
-                  <DisplayModuleIcon module={mod.id} className="size-7" />
-                </span>
-                <span className="text-2xl font-semibold">{mod.label}</span>
-                <span className="text-sm text-muted-foreground">
-                  {mod.description}
-                </span>
-              </button>
-            ))}
-          </main>
-          <DisplayLoggedInFooter onLogout={() => void logout()} />
         </div>
       );
     } else {
@@ -371,12 +383,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
       content = (
         <div className="flex min-h-dvh flex-col">
-          <DisplayLockOverlay
-            open={locked}
-            onUnlock={(p) => void unlockWithPin(p)}
-            busy={pinBusy}
-            error={lockPinError}
-          />
           <DisplayModuleShell
             restaurantName={context.restaurant?.name ?? ""}
             restaurantAvatarUrl={context.restaurant?.avatar_url ?? null}
@@ -388,10 +394,15 @@ export function DisplayScreen({ slug }: { slug: string }) {
             onModuleChange={setActiveModule}
             onLogout={() => void logout()}
             todoBadgeCount={todoBadgeCount}
+            todoBadgeUrgency={todoBadgeUrgency}
             onTodoChanged={() => {
               void refreshTodoBadge();
               void refreshContext();
             }}
+            locked={locked}
+            onUnlock={(p) => void unlockWithPin(p)}
+            lockBusy={pinBusy}
+            lockError={lockPinError}
           >
             {currentModule === "time" ? (
               <DisplayTimeModule
@@ -416,6 +427,9 @@ export function DisplayScreen({ slug }: { slug: string }) {
   }
 
   return (
-    <DisplayAccentRoot accentHex={restaurantAccent}>{content}</DisplayAccentRoot>
+    <DisplayAccentRoot accentHex={restaurantAccent}>
+      {content}
+      <DisplayTimeTodoPopup {...pinTodoPopupProps} />
+    </DisplayAccentRoot>
   );
 }

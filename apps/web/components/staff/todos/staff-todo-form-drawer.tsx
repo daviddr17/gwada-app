@@ -107,8 +107,10 @@ export function StaffTodoFormDrawer({
   const [showBeforeBreakStart, setShowBeforeBreakStart] = useState(false);
   const [showBeforeBreakEnd, setShowBeforeBreakEnd] = useState(false);
   const [showBeforeClockOut, setShowBeforeClockOut] = useState(false);
+  const [showOnPinLogin, setShowOnPinLogin] = useState(false);
   const [requireDeferReason, setRequireDeferReason] = useState(false);
   const [blocksShiftEnd, setBlocksShiftEnd] = useState(false);
+  const [allowReopenOnDisplay, setAllowReopenOnDisplay] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -130,8 +132,10 @@ export function StaffTodoFormDrawer({
       setShowBeforeBreakStart(false);
       setShowBeforeBreakEnd(false);
       setShowBeforeClockOut(false);
+      setShowOnPinLogin(false);
       setRequireDeferReason(false);
       setBlocksShiftEnd(false);
+      setAllowReopenOnDisplay(false);
       return;
     }
     setTitle(todo.title);
@@ -152,8 +156,10 @@ export function StaffTodoFormDrawer({
     setShowBeforeBreakStart(todo.show_before_break_start);
     setShowBeforeBreakEnd(todo.show_before_break_end);
     setShowBeforeClockOut(todo.show_before_clock_out);
+    setShowOnPinLogin(todo.show_on_pin_login ?? false);
     setRequireDeferReason(todo.require_defer_reason);
     setBlocksShiftEnd(todo.blocks_shift_end);
+    setAllowReopenOnDisplay(todo.allow_reopen_on_display ?? false);
   }, [todo, staffList, positionTags]);
 
   useEffect(() => {
@@ -218,6 +224,7 @@ export function StaffTodoFormDrawer({
       completion_mode: completionMode,
       show_on_display:
         showOnDisplay ||
+        showOnPinLogin ||
         showBeforeClockIn ||
         showBeforeBreakStart ||
         showBeforeBreakEnd ||
@@ -226,8 +233,10 @@ export function StaffTodoFormDrawer({
       show_before_break_start: showBeforeBreakStart,
       show_before_break_end: showBeforeBreakEnd,
       show_before_clock_out: showBeforeClockOut,
+      show_on_pin_login: showOnPinLogin,
       require_defer_reason: requireDeferReason,
       blocks_shift_end: blocksShiftEnd,
+      allow_reopen_on_display: allowReopenOnDisplay,
     };
   };
 
@@ -413,6 +422,13 @@ export function StaffTodoFormDrawer({
               </label>
               <label className="flex items-center gap-2 text-sm">
                 <Checkbox
+                  checked={showOnPinLogin}
+                  onCheckedChange={(c) => setShowOnPinLogin(c === true)}
+                />
+                Popup bei jeder PIN-Anmeldung am Display
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
                   checked={showBeforeClockIn}
                   onCheckedChange={(c) => setShowBeforeClockIn(c === true)}
                 />
@@ -452,6 +468,13 @@ export function StaffTodoFormDrawer({
                   onCheckedChange={(c) => setBlocksShiftEnd(c === true)}
                 />
                 Schichtende blockieren bis erledigt
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={allowReopenOnDisplay}
+                  onCheckedChange={(c) => setAllowReopenOnDisplay(c === true)}
+                />
+                Erledigung am Display rückgängig machen
               </label>
             </div>
           </div>

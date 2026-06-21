@@ -8,6 +8,12 @@ import type {
 } from "@/lib/types/staff-todos";
 import { computeStaffTodoStatus } from "@/lib/staff/staff-todo-status";
 import {
+  maxStaffTodoDisplayUrgency,
+  staffTodoDisplayUrgency,
+  type StaffTodoDisplayUrgency,
+} from "@/lib/staff/staff-todo-status";
+import type { DisplayTodosLiveSignal } from "@/lib/staff/display-todos-live-signal";
+import {
   displayActionToTrigger,
   triggerShowColumn,
 } from "@/lib/staff/staff-todo-display-triggers";
@@ -30,10 +36,13 @@ type TodoRow = {
   show_before_break_start: boolean;
   show_before_break_end: boolean;
   show_before_clock_out: boolean;
+  show_on_pin_login: boolean;
+  allow_reopen_on_display: boolean;
   completion_mode: "any_one" | "each_assignee";
   require_defer_reason: boolean;
   blocks_shift_end: boolean;
   archived_at: string | null;
+  updated_at: string;
 };
 
 type CompletionRow = {
@@ -69,17 +78,42 @@ const TODO_SELECT = `
   show_before_break_start,
   show_before_break_end,
   show_before_clock_out,
+  show_on_pin_login,
+  allow_reopen_on_display,
   completion_mode,
   require_defer_reason,
   blocks_shift_end,
-  archived_at
+  archived_at,
+  updated_at
 `;
+
+export type { DisplayTodosLiveSignal } from "@/lib/staff/display-todos-live-signal";
 
 export type DisplayTodoItem = TodoRow & {
   status: ReturnType<typeof computeStaffTodoStatus>;
   completions: RestaurantStaffTodoCompletionRow[];
   active_deferral: DeferralRow | null;
 };
+
+export type DisplayTodoClientItem = DisplayTodoItem & {
+  done_for_staff: boolean;
+};
+
+export function mapDisplayTodoForClient(
+  item: DisplayTodoItem,
+  staffId: string,
+): DisplayTodoClientItem {
+  return {
+    ...item,
+    done_for_staff: isTodoDoneForStaff(item, item.completions, staffId),
+  };
+}
+
+export function isVisibleInDisplayTodoList(item: DisplayTodoClientItem): boolean {
+  if (item.status === "archived" || item.status === "planned") return false;
+  if (!item.done_for_staff) return true;
+  return item.allow_reopen_on_display;
+}
 
 async function loadStaffPositionTagId(
   admin: SupabaseClient,
@@ -239,17 +273,84 @@ export async function listDisplayTodosForStaff(
   );
 }
 
-export async function getDisplayTodoBadgeCount(
+export async function getDisplayTodoBadgeSummary(
   admin: SupabaseClient,
   params: { restaurantId: string; staffId: string },
-): Promise<number> {
+): Promise<{ count: number; urgency: StaffTodoDisplayUrgency }> {
   const items = await listDisplayTodosForStaff(admin, params);
-  return items.filter(
+  const open = items.filter(
     (t) =>
       !isTodoDoneForStaff(t, t.completions, params.staffId) &&
       t.status !== "planned" &&
       t.status !== "archived",
-  ).length;
+  );
+  return {
+    count: open.length,
+    urgency: maxStaffTodoDisplayUrgency(
+      open.map((t) => staffTodoDisplayUrgency(t, t.status)),
+    ),
+  };
+}
+
+export async function getDisplayTodoBadgeCount(
+  admin: SupabaseClient,
+  params: { restaurantId: string; staffId: string },
+): Promise<number> {
+  const summary = await getDisplayTodoBadgeSummary(admin, params);
+  return summary.count;
+}
+
+/** Leichtgewichtiges Polling-Signal für Display (ohne Supabase-Realtime). */
+export async function loadDisplayTodosLiveSignal(
+  admin: SupabaseClient,
+  params: { restaurantId: string; staffId: string },
+): Promise<DisplayTodosLiveSignal> {
+  const summary = await getDisplayTodoBadgeSummary(admin, params);
+  const positionTagId = await loadStaffPositionTagId(admin, params.staffId);
+  const todos = await fetchAssignableTodos(
+    admin,
+    params.restaurantId,
+    params.staffId,
+    positionTagId,
+  );
+
+  let maxMs = 0;
+  const bump = (iso: string | null | undefined) => {
+    if (!iso) return;
+    const t = new Date(iso).getTime();
+    if (!Number.isNaN(t) && t > maxMs) maxMs = t;
+  };
+
+  for (const t of todos) bump(t.updated_at);
+
+  const ids = todos.map((t) => t.id);
+  if (ids.length > 0) {
+    const [{ data: completions }, { data: deferrals }] = await Promise.all([
+      admin
+        .from("restaurant_staff_todo_completions")
+        .select("completed_at, reopened_at")
+        .in("todo_id", ids)
+        .eq("staff_id", params.staffId),
+      admin
+        .from("restaurant_staff_todo_deferrals")
+        .select("deferred_at, cleared_at")
+        .in("todo_id", ids)
+        .eq("staff_id", params.staffId),
+    ]);
+    for (const row of completions ?? []) {
+      bump(row.completed_at);
+      bump(row.reopened_at);
+    }
+    for (const row of deferrals ?? []) {
+      bump(row.deferred_at);
+      bump(row.cleared_at);
+    }
+  }
+
+  const minuteBucket = Math.floor(Date.now() / 60_000);
+  return {
+    revision: `${summary.count}|${summary.urgency}|${maxMs}|${minuteBucket}`,
+  };
 }
 
 export async function clearDeferralsForTrigger(
@@ -355,6 +456,71 @@ export async function completeDisplayTodo(
     action: "completed" satisfies StaffTodoLogAction,
     actor_staff_id: params.staffId,
     details: { title: (todo as { title: string }).title },
+  });
+
+  return { ok: true };
+}
+
+export async function reopenDisplayTodo(
+  admin: SupabaseClient,
+  params: {
+    restaurantId: string;
+    staffId: string;
+    todoId: string;
+  },
+): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+  const { data: todo } = await admin
+    .from("restaurant_staff_todos")
+    .select("id, restaurant_id, title, allow_reopen_on_display")
+    .eq("id", params.todoId)
+    .eq("restaurant_id", params.restaurantId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (!todo) {
+    return { ok: false, error: "not_found", status: 404 };
+  }
+
+  const row = todo as {
+    title: string;
+    allow_reopen_on_display: boolean;
+  };
+
+  if (!row.allow_reopen_on_display) {
+    return { ok: false, error: "reopen_not_allowed", status: 403 };
+  }
+
+  const now = new Date().toISOString();
+  const { data: completion, error: loadErr } = await admin
+    .from("restaurant_staff_todo_completions")
+    .select("id, reopened_at")
+    .eq("todo_id", params.todoId)
+    .eq("staff_id", params.staffId)
+    .is("reopened_at", null)
+    .maybeSingle();
+
+  if (loadErr) {
+    return { ok: false, error: loadErr.message, status: 500 };
+  }
+  if (!completion) {
+    return { ok: false, error: "not_completed", status: 409 };
+  }
+
+  const { error: updateErr } = await admin
+    .from("restaurant_staff_todo_completions")
+    .update({ reopened_at: now })
+    .eq("id", (completion as { id: string }).id);
+
+  if (updateErr) {
+    return { ok: false, error: updateErr.message, status: 500 };
+  }
+
+  await admin.from("restaurant_staff_todo_log_entries").insert({
+    restaurant_id: params.restaurantId,
+    todo_id: params.todoId,
+    action: "reopened" satisfies StaffTodoLogAction,
+    actor_staff_id: params.staffId,
+    details: { title: row.title },
   });
 
   return { ok: true };

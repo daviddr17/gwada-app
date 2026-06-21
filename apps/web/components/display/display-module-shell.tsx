@@ -2,9 +2,10 @@
 
 import type { DisplayModuleMeta } from "@/lib/display/display-types";
 import type { DisplayModule, DisplaySessionStaff } from "@/lib/display/display-types";
-import { DisplayLoggedInFooter } from "@/components/display/display-logged-in-footer";
+import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
+import { DisplayContextFooter } from "@/components/display/display-context-footer";
+import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
-import { DisplayRestaurantHeading } from "@/components/display/display-restaurant-heading";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
 import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-badge";
 import {
@@ -28,7 +29,12 @@ export function DisplayModuleShell({
   onModuleChange,
   onLogout,
   todoBadgeCount,
+  todoBadgeUrgency = "green",
   onTodoChanged,
+  locked = false,
+  onUnlock,
+  lockBusy = false,
+  lockError = null,
   children,
 }: {
   restaurantName: string;
@@ -41,7 +47,12 @@ export function DisplayModuleShell({
   onModuleChange: (mod: DisplayModule) => void;
   onLogout: () => void;
   todoBadgeCount?: number;
+  todoBadgeUrgency?: StaffTodoDisplayUrgency;
   onTodoChanged?: () => void;
+  locked?: boolean;
+  onUnlock?: (pin: string) => void;
+  lockBusy?: boolean;
+  lockError?: string | null;
   children: React.ReactNode;
 }) {
   const activeMeta = modules.find((m) => m.id === activeModule);
@@ -49,26 +60,21 @@ export function DisplayModuleShell({
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 px-4 py-3 sm:px-6">
-        <div className="min-w-0">
-          <DisplayRestaurantHeading
-            name={restaurantName}
-            avatarUrl={restaurantAvatarUrl}
-            size="md"
-            logoSize="avatar-sm"
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        {onUnlock ? (
+          <DisplayLockOverlay
+            open={locked}
+            placement="content"
+            onUnlock={onUnlock}
+            busy={lockBusy}
+            error={lockError}
           />
-          <DisplayStaffLine
-            staff={staff}
-            suffix={displayName}
-            todoBadge={
-              <DisplayStaffTodoBadge
-                count={todoBadgeCount ?? 0}
-                onChanged={onTodoChanged}
-              />
-            }
-            className="mt-1.5"
-          />
-        </div>
+        ) : null}
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/30 px-4 py-3 sm:px-6">
+        <DisplayStaffLine
+          staff={staff}
+          className="min-w-0 flex-1 text-base sm:text-sm"
+        />
         <div className="flex items-center gap-2">
           <ModeToggle className="size-11 shrink-0 rounded-full sm:size-10" />
           {canSwitch && modules.length > 1 ? (
@@ -109,7 +115,21 @@ export function DisplayModuleShell({
         </div>
       </header>
       <main className="flex-1 overflow-auto p-4 sm:p-6">{children}</main>
-      <DisplayLoggedInFooter onLogout={onLogout} />
+      </div>
+      <DisplayContextFooter
+        restaurantName={restaurantName}
+        restaurantAvatarUrl={restaurantAvatarUrl}
+        displayName={displayName}
+        showLogout={!locked}
+        onLogout={onLogout}
+        todoBadge={
+          <DisplayStaffTodoBadge
+            count={todoBadgeCount ?? 0}
+            urgency={todoBadgeUrgency}
+            onChanged={onTodoChanged}
+          />
+        }
+      />
     </div>
   );
 }

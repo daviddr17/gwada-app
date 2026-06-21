@@ -87,3 +87,36 @@ export function staffTodoPriorityBadgeClass(
       return "border-border/60 bg-card text-foreground";
   }
 }
+
+/** Display-Fußzeilen-Badge: grün / orange / rot (schlimmster offener ToDo). */
+export type StaffTodoDisplayUrgency = "green" | "orange" | "red";
+
+const DISPLAY_URGENCY_RANK: Record<StaffTodoDisplayUrgency, number> = {
+  green: 0,
+  orange: 1,
+  red: 2,
+};
+
+export function staffTodoDisplayUrgency(
+  todo: Pick<RestaurantStaffTodoRow, "priority">,
+  status: StaffTodoComputedStatus,
+): StaffTodoDisplayUrgency {
+  if (status === "overdue") return "red";
+  switch (todo.priority) {
+    case "high":
+      return "red";
+    case "medium":
+      return "orange";
+    default:
+      return "green";
+  }
+}
+
+export function maxStaffTodoDisplayUrgency(
+  urgencies: readonly StaffTodoDisplayUrgency[],
+): StaffTodoDisplayUrgency {
+  if (urgencies.length === 0) return "green";
+  return urgencies.reduce((max, u) =>
+    DISPLAY_URGENCY_RANK[u] > DISPLAY_URGENCY_RANK[max] ? u : max,
+  );
+}

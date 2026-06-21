@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,12 +12,13 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
+import { DisplayTodoCompleteToggle } from "@/components/display/display-todo-complete-toggle";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import type { StaffTodoDeferTrigger } from "@/lib/types/staff-todos";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import { staffTodoPriorityBadgeClass } from "@/lib/staff/staff-todo-status";
 import { displayActionToTrigger } from "@/lib/staff/staff-todo-display-triggers";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
 export type DisplayTimeTodoPopupItem = {
@@ -28,6 +28,7 @@ export type DisplayTimeTodoPopupItem = {
   priority: "high" | "medium" | "low";
   require_defer_reason: boolean;
   blocks_shift_end: boolean;
+  allow_reopen_on_display: boolean;
 };
 
 type DisplayTimeTodoPopupProps = {
@@ -36,7 +37,9 @@ type DisplayTimeTodoPopupProps = {
   trigger: StaffTodoDeferTrigger;
   blocksProceed: boolean;
   busy: boolean;
-  onComplete: () => void;
+  onComplete: () => Promise<boolean>;
+  onReopen: () => Promise<boolean>;
+  onProceed: () => void;
   onDefer: (reason: string) => void;
 };
 
@@ -47,26 +50,34 @@ export function DisplayTimeTodoPopup({
   blocksProceed,
   busy,
   onComplete,
+  onReopen,
+  onProceed,
   onDefer,
 }: DisplayTimeTodoPopupProps) {
   const [reason, setReason] = useState("");
+  const [markedDone, setMarkedDone] = useState(false);
 
   useEffect(() => {
-    if (open) setReason("");
+    if (open) {
+      setReason("");
+      setMarkedDone(false);
+    }
   }, [open, todo?.id]);
 
   if (!todo) return null;
 
-  const needsReason = todo.require_defer_reason;
+  const isPinLogin = trigger === "pin_login";
+  const title = isPinLogin ? "ToDo bei Anmeldung" : "ToDo vor Schichtaktion";
+  const description = isPinLogin
+    ? "Bitte erledigen oder auf die nächste Anmeldung verschieben."
+    : "Bitte erledigen oder verschieben, bevor Sie fortfahren.";
 
   return (
     <Drawer open={open} direction="bottom" dismissible={false} modal>
       <DrawerContent className={drawerContentClassName("formMd")}>
         <DrawerHeader>
-          <DrawerTitle>ToDo vor Schichtaktion</DrawerTitle>
-          <DrawerDescription>
-            Bitte erledigen oder verschieben, bevor Sie fortfahren.
-          </DrawerDescription>
+          <DrawerTitle>{title}</DrawerTitle>
+          <DrawerDescription>{description}</DrawerDescription>
         </DrawerHeader>
         <div className="space-y-4 px-6 pb-6">
           <div className="rounded-2xl border border-border/50 bg-muted/20 p-4">
@@ -90,7 +101,7 @@ export function DisplayTimeTodoPopup({
             ) : null}
           </div>
 
-          {needsReason ? (
+          {todo.require_defer_reason ? (
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="defer-reason">
                 Grund für Verschieben
@@ -106,26 +117,38 @@ export function DisplayTimeTodoPopup({
           ) : null}
 
           <div className="flex flex-col gap-3">
-            <Button
-              type="button"
-              size="lg"
-              className={cn("h-14 rounded-2xl text-base", brandActionButtonRoundedClassName)}
-              disabled={busy}
-              onClick={onComplete}
-            >
-              {busy ? (
-                <Loader2 className="mr-2 size-5 animate-spin" />
-              ) : (
-                <Check className="mr-2 size-5" />
-              )}
-              Erledigt
-            </Button>
+            <DisplayTodoCompleteToggle
+              checked={markedDone}
+              allowReopen={todo.allow_reopen_on_display}
+              busy={busy}
+              onMarkComplete={() => {
+                void onComplete().then((ok) => {
+                  if (ok) setMarkedDone(true);
+                });
+              }}
+              onMarkIncomplete={() => {
+                void onReopen().then((ok) => {
+                  if (ok) setMarkedDone(false);
+                });
+              }}
+            />
+            {todo.allow_reopen_on_display && markedDone ? (
+              <Button
+                type="button"
+                size="lg"
+                className={cn("h-14 rounded-2xl text-base", brandActionButtonRoundedClassName)}
+                disabled={busy}
+                onClick={onProceed}
+              >
+                Fortfahren
+              </Button>
+            ) : null}
             <Button
               type="button"
               size="lg"
               variant="outline"
               className="h-14 rounded-2xl text-base"
-              disabled={busy || (needsReason && !reason.trim())}
+              disabled={busy || (todo.require_defer_reason && !reason.trim())}
               onClick={() => onDefer(reason.trim())}
             >
               Verschieben
@@ -199,16 +222,42 @@ export function useDisplayTimeTodoGate() {
       setQueue((prev) => {
         const next = prev.slice(1);
         if (next.length === 0) {
-          finishGate(blocked ? "blocked" : "proceed");
+          setBlocksProceed(false);
+          if (resolver) {
+            finishGate(blocked ? "blocked" : "proceed");
+          }
+          setResolver(null);
         }
         return next;
       });
     },
-    [finishGate],
+    [finishGate, resolver],
   );
 
-  const handleComplete = useCallback(async () => {
-    if (!current) return;
+  const preparePinLoginGate = useCallback(async () => {
+    const res = await fetch("/api/display/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ action: "prepare_pin_login" }),
+    });
+    if (!res.ok) {
+      console.warn("[display] prepare_pin_login failed", res.status);
+      return;
+    }
+    const data = (await res.json()) as {
+      todos?: DisplayTimeTodoPopupItem[];
+    };
+    const todos = data.todos ?? [];
+    if (todos.length === 0) return;
+    setTrigger("pin_login");
+    setBlocksProceed(false);
+    setResolver(null);
+    setQueue(todos);
+  }, []);
+
+  const handleComplete = useCallback(async (): Promise<boolean> => {
+    if (!current) return false;
     setBusy(true);
     try {
       const res = await fetch("/api/display/todos", {
@@ -219,13 +268,40 @@ export function useDisplayTimeTodoGate() {
       });
       if (!res.ok) {
         toast.error("Erledigen fehlgeschlagen.");
-        return;
+        return false;
       }
-      advanceOrFinish(false);
+      if (!current.allow_reopen_on_display) {
+        advanceOrFinish(false);
+      }
+      return true;
     } finally {
       setBusy(false);
     }
   }, [current, advanceOrFinish]);
+
+  const handleReopen = useCallback(async (): Promise<boolean> => {
+    if (!current) return false;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/display/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "reopen", todo_id: current.id }),
+      });
+      if (!res.ok) {
+        toast.error("Zurücknehmen fehlgeschlagen.");
+        return false;
+      }
+      return true;
+    } finally {
+      setBusy(false);
+    }
+  }, [current]);
+
+  const handleProceed = useCallback(() => {
+    advanceOrFinish(false);
+  }, [advanceOrFinish]);
 
   const handleDefer = useCallback(
     async (reason: string) => {
@@ -269,13 +345,16 @@ export function useDisplayTimeTodoGate() {
 
   return {
     prepareAndGate,
+    preparePinLoginGate,
     popupProps: {
       open,
       todo: current,
       trigger,
       blocksProceed,
       busy,
-      onComplete: () => void handleComplete(),
+      onComplete: handleComplete,
+      onReopen: handleReopen,
+      onProceed: handleProceed,
       onDefer: (reason: string) => void handleDefer(reason),
     },
   };

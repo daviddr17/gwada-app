@@ -1,16 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { GWADA_DISPLAY_TODOS_REFRESH_EVENT } from "@/lib/display/display-todos-live-events";
+import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
 
 export function useDisplayTodoBadgeCount(enabled: boolean): {
   count: number;
+  urgency: StaffTodoDisplayUrgency;
   refresh: () => Promise<void>;
 } {
   const [count, setCount] = useState(0);
+  const [urgency, setUrgency] = useState<StaffTodoDisplayUrgency>("green");
 
   const refresh = useCallback(async () => {
     if (!enabled) {
       setCount(0);
+      setUrgency("green");
       return;
     }
     try {
@@ -19,8 +24,12 @@ export function useDisplayTodoBadgeCount(enabled: boolean): {
         credentials: "include",
       });
       if (!res.ok) return;
-      const data = (await res.json()) as { badge_count?: number };
+      const data = (await res.json()) as {
+        badge_count?: number;
+        badge_urgency?: StaffTodoDisplayUrgency;
+      };
       setCount(data.badge_count ?? 0);
+      setUrgency(data.badge_urgency ?? "green");
     } catch {
       /* ignore */
     }
@@ -28,9 +37,11 @@ export function useDisplayTodoBadgeCount(enabled: boolean): {
 
   useEffect(() => {
     void refresh();
-    const id = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(id);
+    const onRefresh = () => void refresh();
+    window.addEventListener(GWADA_DISPLAY_TODOS_REFRESH_EVENT, onRefresh);
+    return () =>
+      window.removeEventListener(GWADA_DISPLAY_TODOS_REFRESH_EVENT, onRefresh);
   }, [refresh]);
 
-  return { count, refresh };
+  return { count, urgency, refresh };
 }

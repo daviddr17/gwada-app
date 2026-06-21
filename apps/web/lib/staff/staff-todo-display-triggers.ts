@@ -19,7 +19,8 @@ export function triggerShowColumn(
   | "show_before_clock_in"
   | "show_before_break_start"
   | "show_before_break_end"
-  | "show_before_clock_out" {
+  | "show_before_clock_out"
+  | "show_on_pin_login" {
   switch (trigger) {
     case "clock_in":
       return "show_before_clock_in";
@@ -27,7 +28,9 @@ export function triggerShowColumn(
       return "show_before_break_start";
     case "break_end":
       return "show_before_break_end";
-    default:
+    case "clock_out":
       return "show_before_clock_out";
+    default:
+      return "show_on_pin_login";
   }
 }

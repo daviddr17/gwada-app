@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { ListTodo, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -12,8 +11,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { DisplayTodoCompleteToggle } from "@/components/display/display-todo-complete-toggle";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
   STAFF_TODO_PRIORITY_LABELS,
   type StaffTodoPriority,
@@ -24,7 +23,13 @@ import {
   staffTodoStatusBadgeClass,
   STAFF_TODO_STATUS_LABELS,
 } from "@/lib/staff/staff-todo-status";
-import { cn } from "@/lib/utils";
+import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
+import { GWADA_DISPLAY_TODOS_REFRESH_EVENT } from "@/lib/display/display-todos-live-events";
+import {
+  displayTodoFooterCountClassName,
+  displayTodoFooterIconClassName,
+  displayTodoFooterTriggerClassName,
+} from "@/lib/ui/display-todo-footer-trigger";
 
 type DisplayOpenTodo = {
   id: string;
@@ -32,19 +37,19 @@ type DisplayOpenTodo = {
   description: string | null;
   priority: StaffTodoPriority;
   status: StaffTodoComputedStatus;
+  allow_reopen_on_display: boolean;
+  done_for_staff: boolean;
 };
-
-function isOpenDisplayTodo(status: StaffTodoComputedStatus): boolean {
-  return status !== "done" && status !== "archived" && status !== "planned";
-}
 
 type DisplayStaffTodoBadgeProps = {
   count: number;
+  urgency?: StaffTodoDisplayUrgency;
   onChanged?: () => void;
 };
 
 export function DisplayStaffTodoBadge({
   count,
+  urgency = "green",
   onChanged,
 }: DisplayStaffTodoBadgeProps) {
   const [open, setOpen] = useState(false);
@@ -67,7 +72,7 @@ export function DisplayStaffTodoBadge({
       const data = (await res.json()) as {
         todos?: DisplayOpenTodo[];
       };
-      setTodos((data.todos ?? []).filter((t) => isOpenDisplayTodo(t.status)));
+      setTodos(data.todos ?? []);
     } catch {
       toast.error("ToDos konnten nicht geladen werden.");
       setTodos([]);
@@ -80,14 +85,28 @@ export function DisplayStaffTodoBadge({
     if (open) void loadOpenTodos();
   }, [open, loadOpenTodos]);
 
-  const handleComplete = async (todoId: string) => {
-    setBusyId(todoId);
+  useEffect(() => {
+    if (!open) return;
+    const onRefresh = () => void loadOpenTodos();
+    window.addEventListener(GWADA_DISPLAY_TODOS_REFRESH_EVENT, onRefresh);
+    return () =>
+      window.removeEventListener(GWADA_DISPLAY_TODOS_REFRESH_EVENT, onRefresh);
+  }, [open, loadOpenTodos]);
+
+  const patchTodo = (todoId: string, patch: Partial<DisplayOpenTodo>) => {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === todoId ? { ...t, ...patch } : t)),
+    );
+  };
+
+  const handleComplete = async (todo: DisplayOpenTodo) => {
+    setBusyId(todo.id);
     try {
       const res = await fetch("/api/display/todos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ action: "complete", todo_id: todoId }),
+        body: JSON.stringify({ action: "complete", todo_id: todo.id }),
       });
       if (!res.ok) {
         toast.error("Erledigen fehlgeschlagen.");
@@ -95,9 +114,34 @@ export function DisplayStaffTodoBadge({
       }
       toast.success("ToDo erledigt.");
       onChanged?.();
-      const next = todos.filter((t) => t.id !== todoId);
-      setTodos(next);
-      if (next.length === 0) setOpen(false);
+      if (todo.allow_reopen_on_display) {
+        patchTodo(todo.id, { done_for_staff: true, status: "done" });
+      } else {
+        const next = todos.filter((t) => t.id !== todo.id);
+        setTodos(next);
+        if (next.length === 0) setOpen(false);
+      }
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleReopen = async (todo: DisplayOpenTodo) => {
+    setBusyId(todo.id);
+    try {
+      const res = await fetch("/api/display/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "reopen", todo_id: todo.id }),
+      });
+      if (!res.ok) {
+        toast.error("Zurücknehmen fehlgeschlagen.");
+        return;
+      }
+      toast.success("ToDo wieder geöffnet.");
+      onChanged?.();
+      patchTodo(todo.id, { done_for_staff: false, status: "open" });
     } finally {
       setBusyId(null);
     }
@@ -105,20 +149,23 @@ export function DisplayStaffTodoBadge({
 
   if (count <= 0) return null;
 
+  const countLabel = count > 9 ? "9+" : String(count);
+
   return (
     <>
       <button
         type="button"
-        className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={displayTodoFooterTriggerClassName(urgency)}
         aria-label={`${count} offene ToDos — tippen zum Erledigen`}
         onClick={() => setOpen(true)}
       >
-        <Badge
-          variant="outline"
-          className="cursor-pointer border-amber-500/40 bg-amber-500/10 text-amber-800 transition-colors hover:bg-amber-500/20 dark:text-amber-300"
-        >
-          {count} ToDo{count === 1 ? "" : "s"}
-        </Badge>
+        <ListTodo className={displayTodoFooterIconClassName(urgency)} aria-hidden />
+        <span className="text-xs font-medium tracking-tight text-foreground/85">
+          ToDos
+        </span>
+        <span className={displayTodoFooterCountClassName(urgency)} aria-hidden>
+          {countLabel}
+        </span>
       </button>
 
       <Drawer open={open} onOpenChange={setOpen} direction="bottom">
@@ -126,7 +173,8 @@ export function DisplayStaffTodoBadge({
           <DrawerHeader>
             <DrawerTitle>Offene ToDos</DrawerTitle>
             <DrawerDescription>
-              Tippen Sie auf Erledigt — auch während einer verschobenen Aufgabe.
+              Schalter auf „Erledigt“ — bei erlaubten ToDos per Einstellung wieder
+              zurücknehmbar.
             </DrawerDescription>
           </DrawerHeader>
           <div className="max-h-[min(60dvh,420px)] space-y-3 overflow-y-auto px-6 pb-6">
@@ -154,9 +202,13 @@ export function DisplayStaffTodoBadge({
                     </Badge>
                     <Badge
                       variant="outline"
-                      className={staffTodoStatusBadgeClass(todo.status)}
+                      className={staffTodoStatusBadgeClass(
+                        todo.done_for_staff ? "done" : todo.status,
+                      )}
                     >
-                      {STAFF_TODO_STATUS_LABELS[todo.status]}
+                      {STAFF_TODO_STATUS_LABELS[
+                        todo.done_for_staff ? "done" : todo.status
+                      ]}
                     </Badge>
                   </div>
                   {todo.description ? (
@@ -164,23 +216,14 @@ export function DisplayStaffTodoBadge({
                       {todo.description}
                     </p>
                   ) : null}
-                  <Button
-                    type="button"
-                    size="lg"
-                    className={cn(
-                      "h-12 w-full rounded-xl",
-                      brandActionButtonRoundedClassName,
-                    )}
-                    disabled={busyId != null}
-                    onClick={() => void handleComplete(todo.id)}
-                  >
-                    {busyId === todo.id ? (
-                      <Loader2 className="mr-2 size-4 animate-spin" />
-                    ) : (
-                      <Check className="mr-2 size-4" />
-                    )}
-                    Erledigt
-                  </Button>
+                  <DisplayTodoCompleteToggle
+                    checked={todo.done_for_staff}
+                    allowReopen={todo.allow_reopen_on_display}
+                    busy={busyId === todo.id}
+                    disabled={busyId != null && busyId !== todo.id}
+                    onMarkComplete={() => void handleComplete(todo)}
+                    onMarkIncomplete={() => void handleReopen(todo)}
+                  />
                 </div>
               ))
             )}

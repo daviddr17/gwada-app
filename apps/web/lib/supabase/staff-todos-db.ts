@@ -91,9 +91,11 @@ export async function upsertStaffTodo(
     show_before_break_start: input.show_before_break_start ?? false,
     show_before_break_end: input.show_before_break_end ?? false,
     show_before_clock_out: input.show_before_clock_out ?? false,
+    show_on_pin_login: input.show_on_pin_login ?? false,
     completion_mode: input.completion_mode ?? "any_one",
     require_defer_reason: input.require_defer_reason ?? false,
     blocks_shift_end: input.blocks_shift_end ?? false,
+    allow_reopen_on_display: input.allow_reopen_on_display ?? false,
     sort_order: input.sort_order ?? 0,
   };
 

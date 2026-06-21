@@ -151,11 +151,14 @@ export function DisplayLockOverlay({
   onUnlock,
   busy,
   error,
+  /** `content` = nur Header/Hauptbereich; Fußzeile bleibt sichtbar. */
+  placement = "fullscreen",
 }: {
   open: boolean;
   onUnlock: (pin: string) => void;
   busy?: boolean;
   error?: string | null;
+  placement?: "fullscreen" | "content";
 }) {
   const [pin, setPin] = useState("");
 
@@ -166,7 +169,14 @@ export function DisplayLockOverlay({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-background/95 p-6 backdrop-blur-sm">
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center gap-6 bg-background/95 p-6 backdrop-blur-sm",
+        placement === "content"
+          ? "absolute inset-0 z-40"
+          : "fixed inset-0 z-50",
+      )}
+    >
       <div className="flex items-center gap-2 text-muted-foreground">
         <Lock className="size-5" />
         <span className="text-lg">Display gesperrt</span>

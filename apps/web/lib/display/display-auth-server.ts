@@ -371,6 +371,38 @@ export async function buildDisplayContext(
   };
 }
 
+export async function assertDisplaySessionAccess(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+): Promise<
+  | {
+      ok: true;
+      display: DisplayDeviceRow;
+      session: DisplaySessionRow;
+      staffId: string;
+      restaurantId: string;
+    }
+  | { ok: false; error: string; status: number }
+> {
+  const deviceResult = await assertDisplayDeviceFromCookies(cookieStore);
+  if (!deviceResult.ok) return deviceResult;
+
+  const sessionResult = await assertDisplaySessionFromCookies(
+    cookieStore,
+    deviceResult.display,
+  );
+  if (!sessionResult.ok) return sessionResult;
+
+  await touchDisplaySession(sessionResult.session.id);
+
+  return {
+    ok: true,
+    display: deviceResult.display,
+    session: sessionResult.session,
+    staffId: sessionResult.session.staff_id,
+    restaurantId: sessionResult.session.restaurant_id,
+  };
+}
+
 export async function assertDisplayModuleAccess(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
   module: DisplayModule,

@@ -8,7 +8,8 @@ export type StaffTodoDeferTrigger =
   | "clock_in"
   | "break_start"
   | "break_end"
-  | "clock_out";
+  | "clock_out"
+  | "pin_login";
 
 export type StaffTodoLogAction =
   | "created"
@@ -43,6 +44,8 @@ export type RestaurantStaffTodoRow = {
   show_before_break_start: boolean;
   show_before_break_end: boolean;
   show_before_clock_out: boolean;
+  show_on_pin_login: boolean;
+  allow_reopen_on_display: boolean;
   completion_mode: StaffTodoCompletionMode;
   require_defer_reason: boolean;
   blocks_shift_end: boolean;
@@ -117,6 +120,8 @@ export type StaffTodoUpsertInput = {
   show_before_break_start?: boolean;
   show_before_break_end?: boolean;
   show_before_clock_out?: boolean;
+  show_on_pin_login?: boolean;
+  allow_reopen_on_display?: boolean;
   completion_mode?: StaffTodoCompletionMode;
   require_defer_reason?: boolean;
   blocks_shift_end?: boolean;

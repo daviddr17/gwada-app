@@ -1,7 +1,7 @@
 {
-  "title": "Display: schnellerer PIN-Login, Kopplung vom Tablet und UI-Feinschliff",
-  "body": "- PIN-Anmeldung am Display ist spürbar schneller — weniger Wartezeit, dezente Übergangsanimation beim Entsperren\n- In den Display-Einstellungen: „Aktuelles Gerät hinzufügen“ koppelt das offene Tablet direkt (mit Erfolgsanimation und Display-Tab)\n- Footer neu: Restaurant-Logo links, Gwada in der Mitte, Gerätename rechts; Abmelden bleibt am Rand fixiert\n- Zeiterfassung reagiert sofort auf Tipp (Schicht starten, Pause, Beenden) — kein hängender Ladezustand\n- Rezepte öffnen im Bottom Sheet; Reservierungen-Toolbar und einheitliches Modul-Padding auf dem Tablet",
-  "superadminBody": "- POST /api/display/pin liefert context mit (kein zweiter Fetch); buildDisplayContext parallelisiert\n- submitDisplayPin, pairDisplayWithCode; DisplayPinPad busy-Pulse + AnimatePresence PIN→Session\n- restaurant-display-edit-drawer: Aktuelles Gerät hinzufügen + Pair-Celebration\n- display-context-footer Layout; display-time-module optimistic UI; recipes bottom sheet; displayModuleContentClassName",
+  "title": "Display: Zeiterfassungs-Animationen und Footer-Wortmarke",
+  "body": "- Schicht starten, Pause und Schicht beenden am Display mit kurzer Celebration-Animation (Ripple, Glow, Icon) — flüssig und nicht zu lang\n- Status und Buttons wechseln weich per Übergang, ohne Lade-Spinner\n- Footer-Mitte zeigt nur noch die Gwada-Wortmarke (ohne doppeltes Favicon)",
+  "superadminBody": "- display-time-action-celebration.tsx + AnimatePresence in display-time-module\n- Celebration nach erfolgreicher Time-API; display-brand-mark footer nur Logo",
   "audience": "customers",
-  "version": "2026.06.21"
+  "version": "2026.06.22"
 }

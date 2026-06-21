@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState, type ComponentProps } from "react";
-import { Loader2, Coffee, LogIn, LogOut, Pause } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
+import {
+  DisplayTimeActionCelebration,
+  type DisplayTimeCelebrationAction,
+} from "@/components/display/modules/display-time-action-celebration";
 import {
   DisplayTimeTodoPopup,
   useDisplayTimeTodoGate,
@@ -14,6 +19,7 @@ import {
   displayTimeActionButtonOutlineClassName,
   displayTimeActionButtonPrimaryClassName,
 } from "@/lib/ui/display-time-action-button";
+import { MOTION_EASE_OUT } from "@/lib/ui/motion-presets";
 import type { DisplayTeamPresenceMember } from "@/lib/types/staff";
 import type { StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -143,6 +149,9 @@ export function DisplayTimeModule({
   );
   const [busy, setBusy] = useState(false);
   const [pendingAction, setPendingAction] = useState<TimeAction | null>(null);
+  const [celebrationAction, setCelebrationAction] =
+    useState<DisplayTimeCelebrationAction | null>(null);
+  const reduceMotion = useReducedMotion() ?? false;
   const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
 
   const refresh = useCallback(async () => {
@@ -219,6 +228,8 @@ export function DisplayTimeModule({
         if (!ok) {
           setState(snapshot);
           void refresh();
+        } else {
+          setCelebrationAction(action);
         }
       } finally {
         setPendingAction(null);
@@ -237,119 +248,150 @@ export function DisplayTimeModule({
       ? timeFmt.format(new Date(state.clocked_in_at))
       : null;
 
-  function actionButtonBusy(action: TimeAction) {
-    return pendingAction === action;
-  }
+  const statusMotionKey = pendingAction ?? state.status;
 
   return (
-    <div className={cn(displayModuleContentClassName, "max-w-lg items-center gap-8")}>
+    <div
+      className={cn(
+        displayModuleContentClassName,
+        "relative max-w-lg items-center gap-8 overflow-hidden",
+      )}
+    >
+      <DisplayTimeActionCelebration
+        action={celebrationAction}
+        onDone={() => setCelebrationAction(null)}
+      />
+
       <div className="text-center">
-        <p
-          className={cn(
-            "text-sm font-medium uppercase tracking-wide transition-colors",
-            pendingAction
-              ? "text-muted-foreground"
-              : state.status === "working"
-                ? "text-emerald-600"
-                : state.status === "on_break"
-                  ? "text-amber-600"
-                  : "text-muted-foreground",
-          )}
-        >
-          {displayStatus}
-        </p>
-        {since ? (
-          <p className="mt-2 text-4xl font-semibold tabular-nums">seit {since}</p>
-        ) : pendingAction ? (
-          <p className="mt-2 text-2xl text-muted-foreground/80">…</p>
-        ) : (
-          <p className="mt-2 text-2xl text-muted-foreground">
-            Bereit für die Schicht?
-          </p>
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.p
+            key={statusMotionKey}
+            className={cn(
+              "text-sm font-medium uppercase tracking-wide",
+              pendingAction
+                ? "text-muted-foreground"
+                : state.status === "working"
+                  ? "text-emerald-600"
+                  : state.status === "on_break"
+                    ? "text-amber-600"
+                    : "text-muted-foreground",
+            )}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 10, filter: "blur(4px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : -8, filter: "blur(4px)" }}
+            transition={{ duration: reduceMotion ? 0.1 : 0.34, ease: MOTION_EASE_OUT }}
+          >
+            {displayStatus}
+          </motion.p>
+        </AnimatePresence>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={since ?? (pendingAction ? "pending" : "idle")}
+            className="mt-2"
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 8, scale: reduceMotion ? 1 : 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : -6, scale: reduceMotion ? 1 : 0.98 }}
+            transition={{ duration: reduceMotion ? 0.1 : 0.36, ease: MOTION_EASE_OUT }}
+          >
+            {since ? (
+              <p className="text-4xl font-semibold tabular-nums">seit {since}</p>
+            ) : pendingAction ? (
+              <p className="text-2xl text-muted-foreground/80">…</p>
+            ) : (
+              <p className="text-2xl text-muted-foreground">Bereit für die Schicht?</p>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       <div className="flex w-full flex-col gap-3">
-        {state.status === "off" ? (
-          <DisplayTimeActionButton
-            size="lg"
-            stripeType="work"
-            disabled={busy}
-            onClick={() => void runAction("clock_in")}
-          >
-            {actionButtonBusy("clock_in") ? (
-              <Loader2 className="size-5 animate-spin" />
-            ) : (
-              <LogIn className="size-5" />
-            )}
-            Schicht starten
-          </DisplayTimeActionButton>
-        ) : null}
-
-        {state.status === "working" ? (
-          <>
-            <DisplayTimeActionButton
-              size="lg"
-              variant="outline"
-              stripeType="break"
-              disabled={busy}
-              onClick={() => void runAction("start_break")}
+        <AnimatePresence mode="popLayout" initial={false}>
+          {state.status === "off" ? (
+            <motion.div
+              key="clock-in"
+              layout
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 12, scale: reduceMotion ? 1 : 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -10, scale: reduceMotion ? 1 : 0.96 }}
+              transition={{ duration: reduceMotion ? 0.1 : 0.38, ease: MOTION_EASE_OUT }}
             >
-              {actionButtonBusy("start_break") ? (
-                <Loader2 className="size-5 animate-spin" />
-              ) : (
+              <DisplayTimeActionButton
+                size="lg"
+                stripeType="work"
+                disabled={busy}
+                onClick={() => void runAction("clock_in")}
+              >
+                <LogIn className="size-5" />
+                Schicht starten
+              </DisplayTimeActionButton>
+            </motion.div>
+          ) : null}
+
+          {state.status === "working" ? (
+            <motion.div
+              key="working-actions"
+              layout
+              className="flex w-full flex-col gap-3"
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -10 }}
+              transition={{ duration: reduceMotion ? 0.1 : 0.38, ease: MOTION_EASE_OUT }}
+            >
+              <DisplayTimeActionButton
+                size="lg"
+                variant="outline"
+                stripeType="break"
+                disabled={busy}
+                onClick={() => void runAction("start_break")}
+              >
                 <Pause className="size-5" />
-              )}
-              Pause starten
-            </DisplayTimeActionButton>
-            <Button
-              size="lg"
-              variant="destructive"
-              className="h-16 rounded-2xl text-lg"
-              disabled={busy}
-              onClick={() => void runAction("clock_out")}
-            >
-              {actionButtonBusy("clock_out") ? (
-                <Loader2 className="mr-2 size-5 animate-spin" />
-              ) : (
+                Pause starten
+              </DisplayTimeActionButton>
+              <Button
+                size="lg"
+                variant="destructive"
+                className="h-16 rounded-2xl text-lg transition-transform active:scale-[0.98]"
+                disabled={busy}
+                onClick={() => void runAction("clock_out")}
+              >
                 <LogOut className="mr-2 size-5" />
-              )}
-              Schicht beenden
-            </Button>
-          </>
-        ) : null}
+                Schicht beenden
+              </Button>
+            </motion.div>
+          ) : null}
 
-        {state.status === "on_break" ? (
-          <>
-            <DisplayTimeActionButton
-              size="lg"
-              stripeType="break"
-              disabled={busy}
-              onClick={() => void runAction("end_break")}
+          {state.status === "on_break" ? (
+            <motion.div
+              key="break-actions"
+              layout
+              className="flex w-full flex-col gap-3"
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -10 }}
+              transition={{ duration: reduceMotion ? 0.1 : 0.38, ease: MOTION_EASE_OUT }}
             >
-              {actionButtonBusy("end_break") ? (
-                <Loader2 className="size-5 animate-spin" />
-              ) : (
+              <DisplayTimeActionButton
+                size="lg"
+                stripeType="break"
+                disabled={busy}
+                onClick={() => void runAction("end_break")}
+              >
                 <Coffee className="size-5" />
-              )}
-              Pause beenden
-            </DisplayTimeActionButton>
-            <Button
-              size="lg"
-              variant="destructive"
-              className="h-16 rounded-2xl text-lg"
-              disabled={busy}
-              onClick={() => void runAction("clock_out")}
-            >
-              {actionButtonBusy("clock_out") ? (
-                <Loader2 className="mr-2 size-5 animate-spin" />
-              ) : (
+                Pause beenden
+              </DisplayTimeActionButton>
+              <Button
+                size="lg"
+                variant="destructive"
+                className="h-16 rounded-2xl text-lg transition-transform active:scale-[0.98]"
+                disabled={busy}
+                onClick={() => void runAction("clock_out")}
+              >
                 <LogOut className="mr-2 size-5" />
-              )}
-              Schicht beenden
-            </Button>
-          </>
-        ) : null}
+                Schicht beenden
+              </Button>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
 
       {canViewTeamPresence ? (

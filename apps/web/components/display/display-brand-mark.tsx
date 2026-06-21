@@ -12,33 +12,23 @@ export function DisplayBrandMark({
 }: {
   className?: string;
   size?: "sm" | "md";
-  /** Fußzeile Display: Favicon + Wortmarke nebeneinander. */
+  /** Fußzeile Display: nur Wortmarke. */
   layout?: "default" | "footer";
 }) {
   const branding = usePlatformAppBrandingOptional();
   const src = useResolvedPlatformLogoSrc();
   const appName = branding?.appName ?? "gwada";
-  const faviconSrc = branding?.faviconUrl ?? null;
 
   if (layout === "footer") {
     return (
-      <div className={cn("flex shrink-0 items-center gap-1.5", className)}>
-        {faviconSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={faviconSrc}
-            alt=""
-            decoding="async"
-            className="size-[18px] shrink-0 rounded-full object-cover object-center"
-          />
-        ) : null}
+      <div className={cn("flex shrink-0 items-center", className)}>
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt=""
             decoding="async"
-            className="h-4 w-auto max-w-[4.75rem] shrink-0 object-contain object-left"
+            className="h-4 w-auto max-w-[4.75rem] shrink-0 object-contain object-center"
           />
         ) : (
           <p className="shrink-0 text-xs font-medium tracking-tight text-muted-foreground">

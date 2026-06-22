@@ -77,7 +77,7 @@ export function DisplayTimeActionCelebration({
   const [mounted, setMounted] = useState(false);
   const [renderAction, setRenderAction] =
     useState<DisplayTimeCelebrationAction | null>(null);
-  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdTimerRef = useRef<number | null>(null);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 

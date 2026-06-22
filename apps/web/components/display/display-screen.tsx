@@ -8,6 +8,7 @@ import { DISPLAY_MODULES } from "@/lib/display/display-types";
 import { DisplayContextFooter } from "@/components/display/display-context-footer";
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
+import { DisplaySignOutOverlay } from "@/components/display/display-sign-out-overlay";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
@@ -36,6 +37,7 @@ import { syncDisplayTodosLiveAfterPin } from "@/lib/display/display-todos-live-e
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
 import {
   displayChromeMainClassName,
+  displayChromeContentWrapClassName,
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
@@ -55,6 +57,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [pinUnlocking, setPinUnlocking] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<DisplayModule | null>(null);
   const [locked, setLocked] = useState(false);
@@ -204,10 +207,20 @@ export function DisplayScreen({ slug }: { slug: string }) {
   };
 
   const logout = async () => {
-    await fetch("/api/display/pin", { method: "DELETE" });
-    setActiveModule(null);
-    setLocked(false);
-    await refreshContext();
+    if (signingOut) return;
+    setSigningOut(true);
+    setLockPinError(null);
+    try {
+      await fetch("/api/display/pin", { method: "DELETE" });
+      setActiveModule(null);
+      setLocked(false);
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, pinRevealMs);
+      });
+      await refreshContext();
+    } finally {
+      setSigningOut(false);
+    }
   };
 
   const heartbeat = useCallback(async () => {
@@ -339,7 +352,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
           <span className="text-sm font-medium text-foreground">PIN eingeben</span>
         </DisplayChromeHeader>
 
-        <div className="relative min-h-0 flex-1">
+        <div className={displayChromeContentWrapClassName}>
           <AnimatePresence>
             {pinUnlocking ? (
               <motion.div
@@ -416,7 +429,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
           <DisplayChromeHeader>
             <DisplayStaffLine staff={session.staff} className="min-w-0 text-sm" />
           </DisplayChromeHeader>
-          <div className="relative min-h-0 flex-1">
+          <div className={displayChromeContentWrapClassName}>
             <DisplayLockOverlay
               open={locked}
               placement="content"
@@ -499,6 +512,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
                   void refreshContext();
                   void refreshTodoBadge();
                 }}
+                onClockOutSuccess={() => void logout()}
               />
             ) : null}
             {currentModule === "reservations" ? (
@@ -525,11 +539,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
               : false
           }
           animate={{ opacity: 1 }}
-          exit={
-            contentKey === "pin"
-              ? { opacity: 0 }
-              : undefined
-          }
+          exit={{ opacity: 0 }}
           transition={{
             duration: pinRevealMs / 1000,
             ease: MOTION_EASE_OUT,
@@ -538,6 +548,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
           {content}
         </motion.div>
       </AnimatePresence>
+      <DisplaySignOutOverlay open={signingOut} />
       <DisplayTimeTodoPopup {...pinTodoPopupProps} />
     </DisplayAccentRoot>
   );

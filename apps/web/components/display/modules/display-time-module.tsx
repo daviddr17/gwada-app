@@ -126,9 +126,12 @@ const displayTimeDestructiveButtonClassName =
 export function DisplayTimeModule({
   initial,
   onChanged,
+  onClockOutSuccess,
 }: {
   initial: TimeState | null;
   onChanged: () => void;
+  /** Nach erfolgreichem Ausstempeln (nach Celebration) Display-Session beenden. */
+  onClockOutSuccess?: () => void;
 }) {
   const [state, setState] = useState<TimeState>(
     initial ?? { status: "off", clocked_in_at: null, break_started_at: null },
@@ -142,6 +145,9 @@ export function DisplayTimeModule({
   const [actionBusy, setActionBusy] = useState(false);
   const reduceMotion = useReducedMotion() ?? false;
   const inFlightRef = useRef(false);
+  const pendingClockOutLogoutRef = useRef(false);
+  const onClockOutSuccessRef = useRef(onClockOutSuccess);
+  onClockOutSuccessRef.current = onClockOutSuccess;
   const stateRef = useRef(state);
   stateRef.current = state;
   const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
@@ -214,9 +220,12 @@ export function DisplayTimeModule({
 
         const ok = await runTimeAction(action);
         if (!ok) {
+          pendingClockOutLogoutRef.current = false;
           setCelebrationAction(null);
           setState(snapshot);
           void refresh();
+        } else if (action === "clock_out") {
+          pendingClockOutLogoutRef.current = true;
         }
       } finally {
         inFlightRef.current = false;
@@ -258,7 +267,13 @@ export function DisplayTimeModule({
     >
       <DisplayTimeActionCelebration
         action={celebrationAction}
-        onDone={() => setCelebrationAction(null)}
+        onDone={() => {
+          setCelebrationAction(null);
+          if (pendingClockOutLogoutRef.current) {
+            pendingClockOutLogoutRef.current = false;
+            onClockOutSuccessRef.current?.();
+          }
+        }}
       />
 
       <div className="w-full text-center">

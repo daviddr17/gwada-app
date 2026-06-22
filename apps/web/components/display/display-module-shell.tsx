@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
+  displayChromeContentWrapClassName,
   displayChromeMainClassName,
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
@@ -106,7 +107,7 @@ export function DisplayModuleShell({
         <DisplayStaffLine staff={staff} className="min-w-0 text-sm" />
       </DisplayChromeHeader>
 
-      <div className="relative min-h-0 flex-1">
+      <div className={displayChromeContentWrapClassName}>
         {onUnlock ? (
           <DisplayLockOverlay
             open={locked}

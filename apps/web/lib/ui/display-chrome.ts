@@ -9,6 +9,10 @@ export const displayChromeHeaderClassName =
 
 export const displayChromeMainClassName = "min-h-0 flex-1 overflow-y-auto";
 
+/** Wrapper zwischen Header und Footer — begrenzt Höhe, damit `main` scrollt. */
+export const displayChromeContentWrapClassName =
+  "relative flex min-h-0 flex-1 flex-col overflow-hidden";
+
 export const displayChromeFooterClassName =
   "sticky bottom-0 z-40 shrink-0 border-t border-border/20 bg-background/95 backdrop-blur-sm";
 

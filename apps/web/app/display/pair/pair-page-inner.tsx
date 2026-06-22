@@ -8,8 +8,12 @@ import {
   DisplayPairSuccessCelebration,
   displayPairSuccessNavigateDelayMs,
 } from "@/components/display/display-pair-success-celebration";
-import { DisplayThemeToggleSlot } from "@/components/display/display-theme-toggle-slot";
+import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { Button } from "@/components/ui/button";
+import {
+  displayChromeMainClassName,
+  displayChromeShellClassName,
+} from "@/lib/ui/display-chrome";
 import {
   getOrCreateDisplayInstallationId,
   saveDisplayDeviceCredential,
@@ -19,6 +23,7 @@ import {
   parseDisplayPairingInput,
 } from "@/lib/display/display-pairing-input";
 import { MOTION_EASE_OUT } from "@/lib/ui/motion-presets";
+import { cn } from "@/lib/utils";
 
 type PairSuccessState = {
   slug: string;
@@ -148,7 +153,7 @@ export default function DisplayPairPageInner() {
         {!success ? (
           <motion.div
             key="pair-form"
-            className="relative flex min-h-dvh flex-col items-center justify-center gap-8 p-6"
+            className={displayChromeShellClassName}
             initial={{ opacity: 1, scale: 1 }}
             exit={{
               opacity: 0,
@@ -157,7 +162,15 @@ export default function DisplayPairPageInner() {
             }}
             transition={{ duration: reduceMotion ? 0.1 : 0.35, ease: MOTION_EASE_OUT }}
           >
-            <DisplayThemeToggleSlot />
+            <DisplayChromeHeader>
+              <span className="text-sm font-medium text-foreground">Display koppeln</span>
+            </DisplayChromeHeader>
+            <main
+              className={cn(
+                displayChromeMainClassName,
+                "flex flex-col items-center justify-center gap-8 p-6",
+              )}
+            >
             <div className="max-w-md space-y-2 text-center">
               <h1 className="text-3xl font-semibold tracking-tight">Display koppeln</h1>
               <p className="text-muted-foreground">
@@ -200,6 +213,7 @@ export default function DisplayPairPageInner() {
                 )}
               </Button>
             </div>
+            </main>
           </motion.div>
         ) : null}
       </AnimatePresence>

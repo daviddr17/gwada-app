@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,19 +53,6 @@ function statusLabel(status: TimeState["status"]): string {
 }
 
 type TimeAction = "clock_in" | "start_break" | "end_break" | "clock_out";
-
-function pendingStatusLabel(action: TimeAction): string {
-  switch (action) {
-    case "clock_in":
-      return "Schicht wird gestartet …";
-    case "start_break":
-      return "Pause wird gestartet …";
-    case "end_break":
-      return "Pause wird beendet …";
-    case "clock_out":
-      return "Schicht wird beendet …";
-  }
-}
 
 function optimisticStateForAction(
   action: TimeAction,
@@ -133,6 +120,9 @@ function DisplayTimeActionButton({
   );
 }
 
+const displayTimeDestructiveButtonClassName =
+  "h-16 w-full rounded-2xl text-lg transition-transform active:scale-[0.98]";
+
 export function DisplayTimeModule({
   initial,
   onChanged,
@@ -147,11 +137,13 @@ export function DisplayTimeModule({
   const [teamPresence, setTeamPresence] = useState<DisplayTeamPresenceMember[]>(
     [],
   );
-  const [busy, setBusy] = useState(false);
-  const [pendingAction, setPendingAction] = useState<TimeAction | null>(null);
   const [celebrationAction, setCelebrationAction] =
     useState<DisplayTimeCelebrationAction | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
   const reduceMotion = useReducedMotion() ?? false;
+  const inFlightRef = useRef(false);
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
 
   const refresh = useCallback(async () => {
@@ -181,10 +173,7 @@ export function DisplayTimeModule({
   }, [refresh]);
 
   const runTimeAction = useCallback(
-    async (
-      action: TimeAction,
-      options?: { skipStateUpdate?: boolean },
-    ): Promise<boolean> => {
+    async (action: TimeAction): Promise<boolean> => {
       const res = await fetch("/api/display/time", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -202,9 +191,6 @@ export function DisplayTimeModule({
         );
         return false;
       }
-      if (!options?.skipStateUpdate) {
-        setState((prev) => optimisticStateForAction(action, prev));
-      }
       onChanged();
       void refresh();
       return true;
@@ -213,48 +199,61 @@ export function DisplayTimeModule({
   );
 
   const runAction = useCallback(
-    async (action: TimeAction) => {
-      setPendingAction(action);
-      setBusy(true);
-      const snapshot = state;
+    async (action: TimeAction, snapshot: TimeState) => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      setActionBusy(true);
+
       try {
         const gate = await prepareAndGate(action);
-        if (gate === "blocked") return;
+        if (gate === "blocked") {
+          setCelebrationAction(null);
+          setState(snapshot);
+          return;
+        }
 
-        setState(optimisticStateForAction(action, snapshot));
-        setPendingAction(null);
-
-        const ok = await runTimeAction(action, { skipStateUpdate: true });
+        const ok = await runTimeAction(action);
         if (!ok) {
+          setCelebrationAction(null);
           setState(snapshot);
           void refresh();
-        } else {
-          setCelebrationAction(action);
         }
       } finally {
-        setPendingAction(null);
-        setBusy(false);
+        inFlightRef.current = false;
+        setActionBusy(false);
       }
     },
-    [prepareAndGate, runTimeAction, state],
+    [prepareAndGate, runTimeAction, refresh],
   );
 
-  const displayStatus = pendingAction
-    ? pendingStatusLabel(pendingAction)
-    : statusLabel(state.status);
+  const beginAction = useCallback(
+    (action: TimeAction) => {
+      if (actionBusy || celebrationAction || inFlightRef.current) return;
+      const snapshot = stateRef.current;
+      setCelebrationAction(action);
+      setState(optimisticStateForAction(action, snapshot));
+      void runAction(action, snapshot);
+    },
+    [actionBusy, celebrationAction, runAction],
+  );
 
   const since =
     state.clocked_in_at && state.status !== "off"
       ? timeFmt.format(new Date(state.clocked_in_at))
       : null;
 
-  const statusMotionKey = pendingAction ?? state.status;
+  const statusTransition = {
+    duration: reduceMotion ? 0.12 : 0.42,
+    ease: MOTION_EASE_OUT,
+  } as const;
+
+  const actionsBlocked = actionBusy || Boolean(celebrationAction);
 
   return (
     <div
       className={cn(
         displayModuleContentClassName,
-        "relative max-w-lg items-center gap-8 overflow-hidden",
+        "relative mx-auto w-full max-w-lg gap-8",
       )}
     >
       <DisplayTimeActionCelebration
@@ -262,41 +261,37 @@ export function DisplayTimeModule({
         onDone={() => setCelebrationAction(null)}
       />
 
-      <div className="text-center">
+      <div className="w-full text-center">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
-            key={statusMotionKey}
+            key={state.status}
             className={cn(
               "text-sm font-medium uppercase tracking-wide",
-              pendingAction
-                ? "text-muted-foreground"
-                : state.status === "working"
-                  ? "text-emerald-600"
-                  : state.status === "on_break"
-                    ? "text-amber-600"
-                    : "text-muted-foreground",
+              state.status === "working"
+                ? "text-emerald-600"
+                : state.status === "on_break"
+                  ? "text-amber-600"
+                  : "text-muted-foreground",
             )}
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 10, filter: "blur(4px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: reduceMotion ? 0 : -8, filter: "blur(4px)" }}
-            transition={{ duration: reduceMotion ? 0.1 : 0.34, ease: MOTION_EASE_OUT }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
+            transition={statusTransition}
           >
-            {displayStatus}
+            {statusLabel(state.status)}
           </motion.p>
         </AnimatePresence>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
-            key={since ?? (pendingAction ? "pending" : "idle")}
+            key={since ?? "idle"}
             className="mt-2"
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 8, scale: reduceMotion ? 1 : 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: reduceMotion ? 0 : -6, scale: reduceMotion ? 1 : 0.98 }}
-            transition={{ duration: reduceMotion ? 0.1 : 0.36, ease: MOTION_EASE_OUT }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : -4 }}
+            transition={statusTransition}
           >
             {since ? (
               <p className="text-4xl font-semibold tabular-nums">seit {since}</p>
-            ) : pendingAction ? (
-              <p className="text-2xl text-muted-foreground/80">…</p>
             ) : (
               <p className="text-2xl text-muted-foreground">Bereit für die Schicht?</p>
             )}
@@ -310,16 +305,17 @@ export function DisplayTimeModule({
             <motion.div
               key="clock-in"
               layout
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 12, scale: reduceMotion ? 1 : 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: reduceMotion ? 0 : -10, scale: reduceMotion ? 1 : 0.96 }}
-              transition={{ duration: reduceMotion ? 0.1 : 0.38, ease: MOTION_EASE_OUT }}
+              className="w-full"
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
+              transition={statusTransition}
             >
               <DisplayTimeActionButton
                 size="lg"
                 stripeType="work"
-                disabled={busy}
-                onClick={() => void runAction("clock_in")}
+                disabled={actionsBlocked}
+                onClick={() => beginAction("clock_in")}
               >
                 <LogIn className="size-5" />
                 Schicht starten
@@ -332,17 +328,17 @@ export function DisplayTimeModule({
               key="working-actions"
               layout
               className="flex w-full flex-col gap-3"
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduceMotion ? 0 : -10 }}
-              transition={{ duration: reduceMotion ? 0.1 : 0.38, ease: MOTION_EASE_OUT }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
+              transition={statusTransition}
             >
               <DisplayTimeActionButton
                 size="lg"
                 variant="outline"
                 stripeType="break"
-                disabled={busy}
-                onClick={() => void runAction("start_break")}
+                disabled={actionsBlocked}
+                onClick={() => beginAction("start_break")}
               >
                 <Pause className="size-5" />
                 Pause starten
@@ -350,9 +346,9 @@ export function DisplayTimeModule({
               <Button
                 size="lg"
                 variant="destructive"
-                className="h-16 rounded-2xl text-lg transition-transform active:scale-[0.98]"
-                disabled={busy}
-                onClick={() => void runAction("clock_out")}
+                className={displayTimeDestructiveButtonClassName}
+                disabled={actionsBlocked}
+                onClick={() => beginAction("clock_out")}
               >
                 <LogOut className="mr-2 size-5" />
                 Schicht beenden
@@ -365,16 +361,16 @@ export function DisplayTimeModule({
               key="break-actions"
               layout
               className="flex w-full flex-col gap-3"
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduceMotion ? 0 : -10 }}
-              transition={{ duration: reduceMotion ? 0.1 : 0.38, ease: MOTION_EASE_OUT }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
+              transition={statusTransition}
             >
               <DisplayTimeActionButton
                 size="lg"
                 stripeType="break"
-                disabled={busy}
-                onClick={() => void runAction("end_break")}
+                disabled={actionsBlocked}
+                onClick={() => beginAction("end_break")}
               >
                 <Coffee className="size-5" />
                 Pause beenden
@@ -382,9 +378,9 @@ export function DisplayTimeModule({
               <Button
                 size="lg"
                 variant="destructive"
-                className="h-16 rounded-2xl text-lg transition-transform active:scale-[0.98]"
-                disabled={busy}
-                onClick={() => void runAction("clock_out")}
+                className={displayTimeDestructiveButtonClassName}
+                disabled={actionsBlocked}
+                onClick={() => beginAction("clock_out")}
               >
                 <LogOut className="mr-2 size-5" />
                 Schicht beenden
@@ -395,7 +391,7 @@ export function DisplayTimeModule({
       </div>
 
       {canViewTeamPresence ? (
-        <DisplayTimeTeamPresence members={teamPresence} />
+        <DisplayTimeTeamPresence members={teamPresence} className="w-full" />
       ) : null}
 
       <DisplayTimeTodoPopup {...popupProps} />

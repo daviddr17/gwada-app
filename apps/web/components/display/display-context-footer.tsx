@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { DisplayBrandMark } from "@/components/display/display-brand-mark";
 import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
 import { Button } from "@/components/ui/button";
+import { displayChromeFooterClassName } from "@/lib/ui/display-chrome";
 import { cn } from "@/lib/utils";
 
 const displayFooterLogoutButtonClassName =
@@ -42,12 +43,13 @@ export function DisplayContextFooter({
   return (
     <footer
       className={cn(
-        "relative flex min-h-12 shrink-0 items-stretch border-t border-border/20 bg-background",
+        displayChromeFooterClassName,
+        "relative flex min-h-11 items-stretch",
         className,
       )}
     >
       <div className={displayFooterScrollClassName}>
-        <div className="flex min-w-max flex-1 items-center gap-3 py-2.5 pl-4 pr-3">
+        <div className="flex min-w-max flex-1 items-center gap-3 py-2 pl-4 pr-3">
           <div className="flex shrink-0 items-center gap-2">
             {restaurantAvatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

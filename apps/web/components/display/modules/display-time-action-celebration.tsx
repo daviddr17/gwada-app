@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
-import { MOTION_EASE_OUT } from "@/lib/ui/motion-presets";
+import {
+  DISPLAY_TIME_CELEBRATION_EXIT_MS,
+  DISPLAY_TIME_CELEBRATION_EXIT_REDUCED_MS,
+  DISPLAY_TIME_CELEBRATION_HOLD_MS,
+  DISPLAY_TIME_CELEBRATION_HOLD_REDUCED_MS,
+  MOTION_EASE_OUT,
+} from "@/lib/ui/motion-presets";
 import { cn } from "@/lib/utils";
 
 export type DisplayTimeCelebrationAction =
@@ -49,10 +56,6 @@ const ACTION_META: Record<DisplayTimeCelebrationAction, ActionMeta> = {
 const RING_DELAYS = [0, 0.12, 0.24] as const;
 const PARTICLE_ANGLES = [0, 45, 90, 135, 180, 225, 270, 315] as const;
 
-export function displayTimeActionCelebrationMs(reduceMotion: boolean): number {
-  return reduceMotion ? 140 : 780;
-}
-
 type DisplayTimeActionCelebrationProps = {
   action: DisplayTimeCelebrationAction | null;
   onDone?: () => void;
@@ -63,37 +66,97 @@ export function DisplayTimeActionCelebration({
   onDone,
 }: DisplayTimeActionCelebrationProps) {
   const reduceMotion = useReducedMotion() ?? false;
-  const meta = action ? ACTION_META[action] : null;
+  const holdMs = reduceMotion
+    ? DISPLAY_TIME_CELEBRATION_HOLD_REDUCED_MS
+    : DISPLAY_TIME_CELEBRATION_HOLD_MS;
+  const exitMs = reduceMotion
+    ? DISPLAY_TIME_CELEBRATION_EXIT_REDUCED_MS
+    : DISPLAY_TIME_CELEBRATION_EXIT_MS;
+
+  const [visible, setVisible] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const [renderAction, setRenderAction] =
+    useState<DisplayTimeCelebrationAction | null>(null);
+  const holdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  const clearHoldTimer = () => {
+    if (holdTimerRef.current != null) {
+      window.clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    clearHoldTimer();
+
+    if (action) {
+      setRenderAction(action);
+      setVisible(true);
+      holdTimerRef.current = window.setTimeout(() => {
+        setVisible(false);
+        holdTimerRef.current = null;
+      }, holdMs);
+      return clearHoldTimer;
+    }
+
+    setVisible(false);
+    return clearHoldTimer;
+  }, [action, holdMs]);
+
+  const meta = renderAction ? ACTION_META[renderAction] : null;
   const accent = meta?.color ?? "var(--accent)";
   const Icon = meta?.Icon ?? LogIn;
 
-  useEffect(() => {
-    if (!action) return;
-    const timer = window.setTimeout(() => {
-      onDone?.();
-    }, displayTimeActionCelebrationMs(reduceMotion));
-    return () => window.clearTimeout(timer);
-  }, [action, onDone, reduceMotion]);
+  const exitEase = MOTION_EASE_OUT;
 
-  return (
-    <AnimatePresence>
-      {action && meta ? (
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence
+      mode="wait"
+      onExitComplete={() => {
+        setRenderAction(null);
+        onDoneRef.current?.();
+      }}
+    >
+      {visible && renderAction && meta ? (
         <motion.div
-          key={action}
-          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center overflow-hidden rounded-3xl"
+          key={renderAction}
+          className="pointer-events-none fixed inset-0 z-[35] flex items-center justify-center"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: reduceMotion ? 0.08 : 0.28, ease: MOTION_EASE_OUT }}
+          exit={{
+            opacity: 0,
+            scale: reduceMotion ? 1 : 0.98,
+          }}
+          transition={{
+            opacity: {
+              duration: reduceMotion ? 0.08 : 0.32,
+              ease: exitEase,
+            },
+            scale: {
+              duration: exitMs / 1000,
+              ease: exitEase,
+            },
+          }}
           aria-live="polite"
           aria-label={meta.label}
         >
           <motion.div
-            className="absolute inset-0 bg-background/55 backdrop-blur-xl"
+            className="absolute inset-0 bg-background/45 backdrop-blur-2xl"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0.08 : 0.32 }}
+            transition={{
+              duration: reduceMotion ? 0.08 : 0.32,
+              ease: exitEase,
+            }}
           />
 
           <motion.div
@@ -103,10 +166,10 @@ export function DisplayTimeActionCelebration({
             }}
             initial={{ scale: 0.4, opacity: 0 }}
             animate={{ scale: 1.35, opacity: 0.55 }}
-            exit={{ scale: 1.5, opacity: 0 }}
+            exit={{ scale: 1.2, opacity: 0 }}
             transition={{
-              duration: reduceMotion ? 0.12 : 0.85,
-              ease: MOTION_EASE_OUT,
+              duration: reduceMotion ? 0.12 : 0.7,
+              ease: exitEase,
             }}
           />
 
@@ -123,7 +186,7 @@ export function DisplayTimeActionCelebration({
                   transition={{
                     duration: 0.95,
                     delay,
-                    ease: MOTION_EASE_OUT,
+                    ease: exitEase,
                   }}
                 />
               ))
@@ -148,7 +211,7 @@ export function DisplayTimeActionCelebration({
                     transition={{
                       duration: 0.72,
                       delay: 0.08 + index * 0.025,
-                      ease: MOTION_EASE_OUT,
+                      ease: exitEase,
                     }}
                   />
                 );
@@ -157,13 +220,18 @@ export function DisplayTimeActionCelebration({
 
           <motion.div
             className="relative flex flex-col items-center gap-3 px-6 text-center"
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 14, scale: reduceMotion ? 1 : 0.9 }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 12, scale: reduceMotion ? 1 : 0.92 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: reduceMotion ? 0 : -8, scale: reduceMotion ? 1 : 0.96 }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : -6, scale: reduceMotion ? 1 : 0.96 }}
             transition={
               reduceMotion
                 ? { duration: 0.1 }
-                : { type: "spring", stiffness: 380, damping: 26, mass: 0.85 }
+                : {
+                    type: "spring",
+                    stiffness: 360,
+                    damping: 28,
+                    mass: 0.9,
+                  }
             }
           >
             <div className="relative">
@@ -174,19 +242,19 @@ export function DisplayTimeActionCelebration({
                 }}
                 initial={{ scale: 0.75, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ duration: reduceMotion ? 0.1 : 0.4, delay: 0.04 }}
+                transition={{ duration: reduceMotion ? 0.1 : 0.38, delay: 0.04 }}
               />
               <motion.div
                 className={cn(
                   "relative flex size-24 items-center justify-center rounded-full",
                   "bg-card/95 ring-1 ring-border/50 backdrop-blur-md",
                 )}
-                initial={{ scale: reduceMotion ? 1 : 0.55, rotate: reduceMotion ? 0 : -8 }}
+                initial={{ scale: reduceMotion ? 1 : 0.55, rotate: reduceMotion ? 0 : -6 }}
                 animate={{ scale: 1, rotate: 0 }}
                 transition={
                   reduceMotion
                     ? { duration: 0.1 }
-                    : { type: "spring", stiffness: 440, damping: 22, delay: 0.02 }
+                    : { type: "spring", stiffness: 420, damping: 24, delay: 0.02 }
                 }
               >
                 <motion.div
@@ -195,7 +263,7 @@ export function DisplayTimeActionCelebration({
                   transition={
                     reduceMotion
                       ? { duration: 0.1 }
-                      : { type: "spring", stiffness: 500, damping: 24, delay: 0.1 }
+                      : { type: "spring", stiffness: 480, damping: 26, delay: 0.08 }
                   }
                 >
                   <Icon
@@ -214,9 +282,9 @@ export function DisplayTimeActionCelebration({
                 initial={{ opacity: 0, y: reduceMotion ? 0 : 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{
-                  duration: reduceMotion ? 0.1 : 0.38,
-                  delay: reduceMotion ? 0 : 0.18,
-                  ease: MOTION_EASE_OUT,
+                  duration: reduceMotion ? 0.1 : 0.36,
+                  delay: reduceMotion ? 0 : 0.14,
+                  ease: exitEase,
                 }}
               >
                 {meta.label}
@@ -227,9 +295,9 @@ export function DisplayTimeActionCelebration({
                   initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
-                    duration: reduceMotion ? 0.1 : 0.38,
-                    delay: reduceMotion ? 0 : 0.26,
-                    ease: MOTION_EASE_OUT,
+                    duration: reduceMotion ? 0.1 : 0.36,
+                    delay: reduceMotion ? 0 : 0.22,
+                    ease: exitEase,
                   }}
                 >
                   {meta.sublabel}
@@ -239,6 +307,7 @@ export function DisplayTimeActionCelebration({
           </motion.div>
         </motion.div>
       ) : null}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

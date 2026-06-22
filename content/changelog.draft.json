@@ -1,7 +1,7 @@
 {
-  "title": "Display: Zeiterfassungs-Animationen und Footer-Wortmarke",
-  "body": "- Schicht starten, Pause und Schicht beenden am Display mit kurzer Celebration-Animation (Ripple, Glow, Icon) — flüssig und nicht zu lang\n- Status und Buttons wechseln weich per Übergang, ohne Lade-Spinner\n- Footer-Mitte zeigt nur noch die Gwada-Wortmarke (ohne doppeltes Favicon)",
-  "superadminBody": "- display-time-action-celebration.tsx + AnimatePresence in display-time-module\n- Celebration nach erfolgreicher Time-API; display-brand-mark footer nur Logo",
+  "title": "Display: flüssigere Zeiterfassung, kompakte Kopf-/Fußzeile",
+  "body": "- Schicht/Pause/Beenden: Animation startet sofort beim Tippen, läuft über den ganzen Bildschirm (ohne abgeschnittenen Kasten)\n- PIN-Login und Modulwechsel mit weicherem Übergang\n- Dark/Light-Umschalter sitzt in der oberen Zeile (nicht mehr schwebend); Kopf- und Fußzeile sind schlanker und bleiben beim Scrollen sichtbar",
+  "superadminBody": "- display-chrome-header + displayChromeShell; DisplayThemeToggleSlot entfernt\n- display-time-action-celebration Portal fixed inset-0; beginAction sofort\n- display-time-module w-full buttons; PIN crossfade display-screen",
   "audience": "customers",
   "version": "2026.06.22"
 }

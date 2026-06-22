@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 /** Große Touch-Aktionen in Display-Zeiterfassung — Akzent wie andere Display-CTAs. */
 export const displayTimeActionButtonBaseClassName =
-  "relative h-16 overflow-hidden rounded-2xl pl-6 text-lg";
+  "relative h-16 w-full overflow-hidden rounded-2xl pl-6 text-lg";
 
 export const displayTimeActionButtonPrimaryClassName = cn(
   displayTimeActionButtonBaseClassName,

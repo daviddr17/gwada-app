@@ -6,8 +6,8 @@ import type { DisplayContextResponse, DisplayModule } from "@/lib/display/displa
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { DISPLAY_MODULES } from "@/lib/display/display-types";
 import { DisplayContextFooter } from "@/components/display/display-context-footer";
+import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
-import { DisplayThemeToggleSlot } from "@/components/display/display-theme-toggle-slot";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
@@ -34,6 +34,10 @@ import {
 import { syncDisplayReservationsLiveAfterPin } from "@/lib/display/display-reservations-live-events";
 import { syncDisplayTodosLiveAfterPin } from "@/lib/display/display-todos-live-events";
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
+import {
+  displayChromeMainClassName,
+  displayChromeShellClassName,
+} from "@/lib/ui/display-chrome";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
 import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
 import { useDisplayTodosLive } from "@/lib/hooks/use-display-todos-live";
@@ -50,6 +54,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
+  const [pinUnlocking, setPinUnlocking] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<DisplayModule | null>(null);
   const [locked, setLocked] = useState(false);
@@ -172,12 +177,17 @@ export function DisplayScreen({ slug }: { slug: string }) {
         return;
       }
       setPin("");
+      setPinUnlocking(true);
       pendingPinTodoGateRef.current = true;
       const ctx = result.context;
       const mods = ctx.session?.modules ?? [];
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, reduceMotion ? 80 : 300);
+      });
       setContext(ctx);
       setActiveModule(mods.length === 1 ? mods[0]! : null);
       setLocked(false);
+      setPinUnlocking(false);
       window.setTimeout(() => {
         syncDisplayTodosLiveAfterPin();
         if (mods.includes("reservations")) {
@@ -216,16 +226,18 @@ export function DisplayScreen({ slug }: { slug: string }) {
   let content: React.ReactNode;
   let contentKey = "shell";
 
-  const pinMotionTransition = {
-    duration: pinRevealMs / 1000,
-    ease: MOTION_EASE_OUT,
-  } as const;
-
   if (loading) {
     content = (
-      <div className="relative flex min-h-dvh items-center justify-center">
-        <DisplayThemeToggleSlot />
-        <Loader2 className="size-10 animate-spin text-muted-foreground" />
+      <div className={displayChromeShellClassName}>
+        <DisplayChromeHeader />
+        <main
+          className={cn(
+            displayChromeMainClassName,
+            "flex items-center justify-center",
+          )}
+        >
+          <Loader2 className="size-10 animate-spin text-muted-foreground" />
+        </main>
       </div>
     );
   } else if (!context?.paired) {
@@ -266,64 +278,124 @@ export function DisplayScreen({ slug }: { slug: string }) {
     })();
 
     content = (
-      <div className="relative flex min-h-dvh flex-col items-center justify-center gap-6 p-8 text-center">
-        <DisplayThemeToggleSlot />
-        <MonitorOff className="size-16 text-muted-foreground" />
-        <div className="space-y-2">
-          <h1 className="text-3xl font-semibold">{pairingHint.title}</h1>
-          <p className="max-w-md text-muted-foreground">{pairingHint.body}</p>
-        </div>
-        {pairingHint.showPairLink ? (
-          <Link
-            href="/display/pair"
-            className={cn(
-              "inline-flex h-12 items-center justify-center px-6 text-lg font-medium",
-              brandActionButtonRoundedClassName,
-            )}
-          >
-            Display koppeln
-          </Link>
-        ) : null}
+      <div className={displayChromeShellClassName}>
+        <DisplayChromeHeader />
+        <main
+          className={cn(
+            displayChromeMainClassName,
+            "flex flex-col items-center justify-center gap-6 p-8 text-center",
+          )}
+        >
+          <MonitorOff className="size-16 text-muted-foreground" />
+          <div className="space-y-2">
+            <h1 className="text-3xl font-semibold">{pairingHint.title}</h1>
+            <p className="max-w-md text-muted-foreground">{pairingHint.body}</p>
+          </div>
+          {pairingHint.showPairLink ? (
+            <Link
+              href="/display/pair"
+              className={cn(
+                "inline-flex h-12 items-center justify-center px-6 text-lg font-medium",
+                brandActionButtonRoundedClassName,
+              )}
+            >
+              Display koppeln
+            </Link>
+          ) : null}
+        </main>
       </div>
     );
   } else if (context.restaurant && context.restaurant.slug !== slug) {
     content = (
-      <div className="relative flex min-h-dvh flex-col items-center justify-center gap-4 p-8 text-center">
-        <DisplayThemeToggleSlot />
-        <h1 className="text-2xl font-semibold">Falsches Restaurant</h1>
-        <p className="text-muted-foreground">
-          Dieses Tablet ist an „{context.restaurant.name}“ gekoppelt.
-        </p>
-        <Link
-          href={`/display/${context.restaurant.slug}`}
+      <div className={displayChromeShellClassName}>
+        <DisplayChromeHeader />
+        <main
           className={cn(
-            "inline-flex h-10 items-center justify-center px-4 text-sm font-medium",
-            brandActionButtonRoundedClassName,
+            displayChromeMainClassName,
+            "flex flex-col items-center justify-center gap-4 p-8 text-center",
           )}
         >
-          Weiter
-        </Link>
+          <h1 className="text-2xl font-semibold">Falsches Restaurant</h1>
+          <p className="text-muted-foreground">
+            Dieses Tablet ist an „{context.restaurant.name}“ gekoppelt.
+          </p>
+          <Link
+            href={`/display/${context.restaurant.slug}`}
+            className={cn(
+              "inline-flex h-10 items-center justify-center px-4 text-sm font-medium",
+              brandActionButtonRoundedClassName,
+            )}
+          >
+            Weiter
+          </Link>
+        </main>
       </div>
     );
   } else if (!context.session) {
     contentKey = "pin";
     content = (
-      <div className="relative flex min-h-dvh flex-col bg-background">
-        <DisplayThemeToggleSlot />
+      <div className={displayChromeShellClassName}>
+        <DisplayChromeHeader>
+          <span className="text-sm font-medium text-foreground">PIN eingeben</span>
+        </DisplayChromeHeader>
 
-        <main className="flex flex-1 flex-col items-center justify-center gap-5 px-6 py-6">
-          <p className="text-base font-medium text-foreground">PIN eingeben</p>
-          <DisplayPinPad
-            value={pin}
-            onChange={setPin}
-            disabled={pinBusy}
-            busy={pinBusy}
-            onComplete={(p) => void submitPin(p)}
-          />
-          {pinError ? (
-            <p className="text-sm text-destructive">{pinError}</p>
-          ) : null}
-        </main>
+        <div className="relative min-h-0 flex-1">
+          <AnimatePresence>
+            {pinUnlocking ? (
+              <motion.div
+                key="pin-unlock"
+                className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/65 backdrop-blur-md"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  duration: reduceMotion ? 0.1 : 0.32,
+                  ease: MOTION_EASE_OUT,
+                }}
+              >
+                <motion.div
+                  className="flex size-24 items-center justify-center rounded-full bg-accent/15 ring-2 ring-accent/40"
+                  initial={{ scale: reduceMotion ? 1 : 0.72, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={
+                    reduceMotion
+                      ? { duration: 0.1 }
+                      : { type: "spring", stiffness: 420, damping: 26 }
+                  }
+                >
+                  <motion.span
+                    className="size-4 rounded-full bg-accent"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={
+                      reduceMotion
+                        ? { duration: 0.1 }
+                        : { type: "spring", stiffness: 500, damping: 22, delay: 0.06 }
+                    }
+                  />
+                </motion.div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <main
+            className={cn(
+              displayChromeMainClassName,
+              "flex flex-col items-center justify-center gap-5 px-6 py-6",
+            )}
+          >
+            <DisplayPinPad
+              value={pin}
+              onChange={setPin}
+              disabled={pinBusy || pinUnlocking}
+              busy={pinBusy}
+              onComplete={(p) => void submitPin(p)}
+            />
+            {pinError ? (
+              <p className="text-sm text-destructive">{pinError}</p>
+            ) : null}
+          </main>
+        </div>
 
         <DisplayContextFooter
           restaurantName={context.restaurant?.name ?? ""}
@@ -340,9 +412,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
     if (!activeModule && modules.length > 1) {
       content = (
-        <div className="relative flex min-h-dvh flex-col bg-background">
-          <DisplayThemeToggleSlot />
-          <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className={displayChromeShellClassName}>
+          <DisplayChromeHeader>
+            <DisplayStaffLine staff={session.staff} className="min-w-0 text-sm" />
+          </DisplayChromeHeader>
+          <div className="relative min-h-0 flex-1">
             <DisplayLockOverlay
               open={locked}
               placement="content"
@@ -350,10 +424,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
               busy={pinBusy}
               error={lockPinError}
             />
-            <header className="shrink-0 border-b border-border/20 px-4 py-3 sm:px-5">
-              <DisplayStaffLine staff={session.staff} />
-            </header>
-            <main className="grid flex-1 grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3">
+            <main
+              className={cn(
+                displayChromeMainClassName,
+                "grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3",
+              )}
+            >
               {moduleMeta.map((mod) => (
                 <button
                   key={mod.id}
@@ -395,8 +471,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
       const currentModule = activeModule ?? modules[0]!;
 
       content = (
-        <div className="flex min-h-dvh flex-col">
-          <DisplayModuleShell
+        <DisplayModuleShell
             restaurantName={context.restaurant?.name ?? ""}
             restaurantAvatarUrl={context.restaurant?.avatar_url ?? null}
             displayName={context.display?.name ?? ""}
@@ -434,35 +509,31 @@ export function DisplayScreen({ slug }: { slug: string }) {
             ) : null}
             {currentModule === "inventory" ? <DisplayInventoryModule /> : null}
           </DisplayModuleShell>
-        </div>
       );
     }
   }
 
   return (
     <DisplayAccentRoot accentHex={restaurantAccent}>
-      <AnimatePresence mode="wait" initial={false}>
+      <AnimatePresence mode="sync" initial={false}>
         <motion.div
           key={contentKey}
           className={contentKey === "pin" || contentKey === "session" ? "min-h-dvh" : undefined}
           initial={
             contentKey === "session"
-              ? { opacity: 0, y: reduceMotion ? 0 : 10, scale: reduceMotion ? 1 : 0.985 }
+              ? { opacity: 0 }
               : false
           }
-          animate={{ opacity: 1, y: 0, scale: 1 }}
+          animate={{ opacity: 1 }}
           exit={
             contentKey === "pin"
-              ? {
-                  opacity: 0,
-                  scale: reduceMotion ? 1 : 0.96,
-                  filter: reduceMotion ? "blur(0px)" : "blur(6px)",
-                }
-              : contentKey === "session"
-                ? { opacity: 0, y: reduceMotion ? 0 : -6 }
-                : undefined
+              ? { opacity: 0 }
+              : undefined
           }
-          transition={pinMotionTransition}
+          transition={{
+            duration: pinRevealMs / 1000,
+            ease: MOTION_EASE_OUT,
+          }}
         >
           {content}
         </motion.div>

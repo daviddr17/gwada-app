@@ -105,27 +105,34 @@ export function DisplayPinPad({
       aria-busy={busy}
     >
       <div className="flex gap-5" aria-hidden>
-        {Array.from({ length: maxLength }).map((_, i) => (
-          <motion.div
-            key={i}
-            className={cn(
-              "size-7 rounded-full border-[3px]",
-              i < value.length
-                ? "border-accent bg-accent shadow-sm"
-                : "border-muted-foreground/35 bg-muted/30",
-            )}
-            animate={
-              busy && i < value.length
-                ? { scale: [1, 1.08, 1], opacity: [1, 0.72, 1] }
-                : { scale: i < value.length ? 1.1 : 1, opacity: 1 }
-            }
-            transition={
-              busy && i < value.length
-                ? { duration: 0.85, repeat: Infinity, ease: "easeInOut" }
-                : { duration: 0.2, ease: MOTION_EASE_OUT }
-            }
-          />
-        ))}
+        {Array.from({ length: maxLength }).map((_, i) => {
+          const filled = i < value.length;
+          return (
+            <motion.div
+              key={i}
+              className={cn(
+                "size-7 rounded-full border-[3px]",
+                filled
+                  ? "border-accent bg-accent"
+                  : "border-muted-foreground/35 bg-muted/30",
+              )}
+              animate={{
+                scale:
+                  busy && filled
+                    ? [1, 1.06, 1]
+                    : filled
+                      ? 1.12
+                      : 1,
+                opacity: busy && filled ? [1, 0.78, 1] : 1,
+              }}
+              transition={
+                busy && filled
+                  ? { duration: 0.9, repeat: Infinity, ease: "easeInOut" }
+                  : { type: "spring", stiffness: 520, damping: 32, mass: 0.65 }
+              }
+            />
+          );
+        })}
       </div>
 
       <div className="grid w-full max-w-[17rem] grid-cols-3 place-items-center gap-4 sm:max-w-[19rem] sm:gap-5">
@@ -200,13 +207,9 @@ export function DisplayLockOverlay({
               ? "absolute inset-0 z-40"
               : "fixed inset-0 z-50",
           )}
-          initial={{ opacity: 0, backdropFilter: "blur(0px)" }}
-          animate={{ opacity: 1, backdropFilter: "blur(8px)" }}
-          exit={{
-            opacity: 0,
-            backdropFilter: "blur(0px)",
-            scale: reduceMotion ? 1 : 1.02,
-          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={{ duration: revealMs / 1000, ease: MOTION_EASE_OUT }}
         >
           <div className="flex items-center gap-2 text-muted-foreground">

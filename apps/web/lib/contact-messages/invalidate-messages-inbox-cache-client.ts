@@ -2,7 +2,7 @@
 
 import { deleteContactThreadCacheEntry } from "@/lib/contact-messages/contact-thread-cache";
 import {
-  clearUnifiedInboxCache,
+  markAllUnifiedInboxCacheRead,
   patchUnifiedInboxCacheConversation,
 } from "@/lib/contact-messages/unified-inbox-cache";
 import { dispatchDashboardMessagesRefresh } from "@/lib/dashboard/dashboard-live-events";
@@ -15,18 +15,23 @@ export function invalidateMessagesInboxAfterMarkRead(params: {
   all?: boolean;
 }): void {
   const { restaurantId, contactId, all } = params;
+  const markAll = Boolean(all || !contactId?.trim());
 
-  if (all || !contactId?.trim()) {
-    clearUnifiedInboxCache(restaurantId);
+  if (markAll) {
+    markAllUnifiedInboxCacheRead(restaurantId);
   } else {
-    patchUnifiedInboxCacheConversation(restaurantId, contactId, {
+    patchUnifiedInboxCacheConversation(restaurantId, contactId!, {
       is_unread: false,
       unread_count: 0,
       whatsapp_unread_count: 0,
       email_unread_count: 0,
     });
-    deleteContactThreadCacheEntry(restaurantId, contactId);
+    deleteContactThreadCacheEntry(restaurantId, contactId!);
   }
 
-  dispatchDashboardMessagesRefresh();
+  dispatchDashboardMessagesRefresh({
+    restaurantId,
+    contactId: markAll ? undefined : contactId ?? undefined,
+    all: markAll,
+  });
 }

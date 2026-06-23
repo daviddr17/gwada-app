@@ -115,6 +115,22 @@ export function patchUnifiedInboxCacheConversation(
   setUnifiedInboxCache(restaurantId, conversations);
 }
 
+/** Alle Zeilen im Inbox-Cache als gelesen (Glocke „alle gelesen“) — kein Cache-Clear. */
+export function markAllUnifiedInboxCacheRead(restaurantId: string): void {
+  const entry = cache.get(restaurantId) ?? hydrateMemoryFromSession(restaurantId);
+  if (!entry) return;
+
+  const conversations = entry.conversations.map((c) => ({
+    ...c,
+    is_unread: false,
+    unread_count: 0,
+    whatsapp_unread_count: 0,
+    email_unread_count: 0,
+  }));
+
+  setUnifiedInboxCache(restaurantId, conversations);
+}
+
 export function clearUnifiedInboxCache(restaurantId?: string): void {
   if (restaurantId) {
     cache.delete(restaurantId);

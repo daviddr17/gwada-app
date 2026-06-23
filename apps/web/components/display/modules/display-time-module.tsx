@@ -8,7 +8,7 @@ import { DisplayTimeTeamPresence } from "@/components/display/modules/display-ti
 import {
   DisplayTimeActionCelebration,
   type DisplayTimeCelebrationAction,
-} from "@/components/display/modules/display-time-action-celebration";
+} from "@/components/display/display-celebration-overlay";
 import {
   DisplayTimeTodoPopup,
   useDisplayTimeTodoGate,

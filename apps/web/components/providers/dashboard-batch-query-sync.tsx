@@ -14,8 +14,10 @@ import { clearDashboardBatchSummaryCache, writeDashboardBatchSummaryCache } from
 import { visibleDashboardBatchWidgets } from "@/lib/dashboard/dashboard-batch-widgets";
 import {
   GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
+  type DashboardMessagesRefreshDetail,
   GWADA_DASHBOARD_RESERVATIONS_REFRESH_EVENT,
 } from "@/lib/dashboard/dashboard-live-events";
+import { patchMessagesUnreadSummary } from "@/lib/dashboard/patch-dashboard-messages-read-client";
 import type { DashboardBatchQueryData } from "@/lib/hooks/use-dashboard-batch-summary-query";
 import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSummaryQuery } from "@/lib/hooks/use-dashboard-batch-summary-query";
@@ -58,7 +60,33 @@ export function DashboardBatchQuerySync() {
       });
     };
 
-    const onMessagesRefresh = () => {
+    const patchMessagesFromReadDetail = (detail: DashboardMessagesRefreshDetail) => {
+      if (detail.restaurantId !== restaurantId) return false;
+      if (!detail.all && !detail.contactId) return false;
+
+      queryClient.setQueryData<DashboardBatchQueryData>(summaryKey, (old) => {
+        if (!old?.data?.messages) return old;
+        const nextMessages = patchMessagesUnreadSummary(old.data.messages, {
+          contactId: detail.contactId,
+          all: detail.all,
+        });
+        const nextPayload = {
+          ...old,
+          data: { ...old.data, messages: nextMessages },
+        };
+        writeDashboardBatchSummaryCache(restaurantId, widgets, nextPayload);
+        return nextPayload;
+      });
+      return true;
+    };
+
+    const onMessagesRefresh = (event: Event) => {
+      const detail = (event as CustomEvent<DashboardMessagesRefreshDetail | undefined>)
+        .detail;
+      if (detail && patchMessagesFromReadDetail(detail)) {
+        return;
+      }
+
       const conversations = peekUnifiedInboxCache(restaurantId);
       if (conversations) {
         patchMessagesFromInboxCache();

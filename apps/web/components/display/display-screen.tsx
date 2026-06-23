@@ -8,7 +8,7 @@ import { DISPLAY_MODULES } from "@/lib/display/display-types";
 import { DisplayContextFooter } from "@/components/display/display-context-footer";
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
-import { DisplaySignOutOverlay } from "@/components/display/display-sign-out-overlay";
+import { DisplayCelebrationOverlay, type DisplayCelebrationVariant } from "@/components/display/display-celebration-overlay";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
@@ -56,8 +56,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
-  const [pinUnlocking, setPinUnlocking] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
+  const [screenCelebration, setScreenCelebration] =
+    useState<DisplayCelebrationVariant | null>(null);
+  const [screenCelebrationSublabel, setScreenCelebrationSublabel] = useState<
+    string | undefined
+  >();
   const [pinError, setPinError] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState<DisplayModule | null>(null);
   const [locked, setLocked] = useState(false);
@@ -65,6 +68,10 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
   const pendingPinTodoGateRef = useRef(false);
+  const pendingPinSessionRef = useRef<{
+    ctx: DisplayContextResponse;
+    mods: DisplayModule[];
+  } | null>(null);
   const { preparePinLoginGate, popupProps: pinTodoPopupProps } =
     useDisplayTimeTodoGate();
 
@@ -167,6 +174,45 @@ export function DisplayScreen({ slug }: { slug: string }) {
     };
   }, [resetIdleTimer]);
 
+  const performLogout = useCallback(async () => {
+    await fetch("/api/display/pin", { method: "DELETE" });
+    setActiveModule(null);
+    setLocked(false);
+    await refreshContext();
+  }, [refreshContext]);
+
+  const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
+  screenCelebrationRef.current = screenCelebration;
+
+  const handleScreenCelebrationDone = useCallback(() => {
+    const variant = screenCelebrationRef.current;
+    setScreenCelebration(null);
+    setScreenCelebrationSublabel(undefined);
+
+    if (variant === "sign_out") {
+      void performLogout();
+      return;
+    }
+
+    if (variant === "pin_welcome") {
+      const pending = pendingPinSessionRef.current;
+      pendingPinSessionRef.current = null;
+      if (!pending) return;
+
+      pendingPinTodoGateRef.current = true;
+      const { ctx, mods } = pending;
+      setContext(ctx);
+      setActiveModule(mods.length === 1 ? mods[0]! : null);
+      setLocked(false);
+      window.setTimeout(() => {
+        syncDisplayTodosLiveAfterPin();
+        if (mods.includes("reservations")) {
+          syncDisplayReservationsLiveAfterPin();
+        }
+      }, 0);
+    }
+  }, [performLogout]);
+
   const submitPin = async (pinValue: string) => {
     setPinBusy(true);
     setPinError(null);
@@ -180,23 +226,14 @@ export function DisplayScreen({ slug }: { slug: string }) {
         return;
       }
       setPin("");
-      setPinUnlocking(true);
-      pendingPinTodoGateRef.current = true;
       const ctx = result.context;
       const mods = ctx.session?.modules ?? [];
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, reduceMotion ? 80 : 300);
-      });
-      setContext(ctx);
-      setActiveModule(mods.length === 1 ? mods[0]! : null);
-      setLocked(false);
-      setPinUnlocking(false);
-      window.setTimeout(() => {
-        syncDisplayTodosLiveAfterPin();
-        if (mods.includes("reservations")) {
-          syncDisplayReservationsLiveAfterPin();
-        }
-      }, 0);
+      pendingPinSessionRef.current = { ctx, mods };
+      const givenName = ctx.session?.staff.given_name?.trim();
+      setScreenCelebrationSublabel(
+        givenName ? `${givenName}!` : undefined,
+      );
+      setScreenCelebration("pin_welcome");
     } finally {
       setPinBusy(false);
     }
@@ -206,22 +243,14 @@ export function DisplayScreen({ slug }: { slug: string }) {
     await submitPin(pinValue);
   };
 
-  const logout = async () => {
-    if (signingOut) return;
-    setSigningOut(true);
-    setLockPinError(null);
-    try {
-      await fetch("/api/display/pin", { method: "DELETE" });
-      setActiveModule(null);
-      setLocked(false);
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, pinRevealMs);
-      });
-      await refreshContext();
-    } finally {
-      setSigningOut(false);
-    }
-  };
+  const requestLogout = useCallback(() => {
+    if (screenCelebration) return;
+    setScreenCelebration("sign_out");
+  }, [screenCelebration]);
+
+  const logoutAfterClockOut = useCallback(() => {
+    void performLogout();
+  }, [performLogout]);
 
   const heartbeat = useCallback(async () => {
     if (!context?.session || locked) return;
@@ -353,44 +382,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
         </DisplayChromeHeader>
 
         <div className={displayChromeContentWrapClassName}>
-          <AnimatePresence>
-            {pinUnlocking ? (
-              <motion.div
-                key="pin-unlock"
-                className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/65 backdrop-blur-md"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{
-                  duration: reduceMotion ? 0.1 : 0.32,
-                  ease: MOTION_EASE_OUT,
-                }}
-              >
-                <motion.div
-                  className="flex size-24 items-center justify-center rounded-full bg-accent/15 ring-2 ring-accent/40"
-                  initial={{ scale: reduceMotion ? 1 : 0.72, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={
-                    reduceMotion
-                      ? { duration: 0.1 }
-                      : { type: "spring", stiffness: 420, damping: 26 }
-                  }
-                >
-                  <motion.span
-                    className="size-4 rounded-full bg-accent"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={
-                      reduceMotion
-                        ? { duration: 0.1 }
-                        : { type: "spring", stiffness: 500, damping: 22, delay: 0.06 }
-                    }
-                  />
-                </motion.div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
           <main
             className={cn(
               displayChromeMainClassName,
@@ -400,7 +391,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             <DisplayPinPad
               value={pin}
               onChange={setPin}
-              disabled={pinBusy || pinUnlocking}
+              disabled={pinBusy || screenCelebration === "pin_welcome"}
               busy={pinBusy}
               onComplete={(p) => void submitPin(p)}
             />
@@ -469,7 +460,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             restaurantAvatarUrl={context.restaurant?.avatar_url}
             displayName={context.display?.name}
             showLogout={!locked}
-            onLogout={() => void logout()}
+            onLogout={requestLogout}
             todoBadge={
               <DisplayStaffTodoBadge
                 count={todoBadgeCount}
@@ -493,7 +484,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             activeModule={currentModule}
             canSwitch={session.can_switch_modules && modules.length > 1}
             onModuleChange={setActiveModule}
-            onLogout={() => void logout()}
+            onLogout={requestLogout}
             todoBadgeCount={todoBadgeCount}
             todoBadgeUrgency={todoBadgeUrgency}
             onTodoChanged={() => {
@@ -512,7 +503,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
                   void refreshContext();
                   void refreshTodoBadge();
                 }}
-                onClockOutSuccess={() => void logout()}
+                onClockOutSuccess={logoutAfterClockOut}
               />
             ) : null}
             {currentModule === "reservations" ? (
@@ -548,7 +539,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
           {content}
         </motion.div>
       </AnimatePresence>
-      <DisplaySignOutOverlay open={signingOut} />
+      <DisplayCelebrationOverlay
+        variant={screenCelebration}
+        sublabel={screenCelebrationSublabel}
+        onDone={handleScreenCelebrationDone}
+      />
       <DisplayTimeTodoPopup {...pinTodoPopupProps} />
     </DisplayAccentRoot>
   );

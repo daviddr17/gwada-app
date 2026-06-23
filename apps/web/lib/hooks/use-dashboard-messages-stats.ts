@@ -11,7 +11,8 @@ import {
   clearUnifiedInboxCache,
   peekUnifiedInboxCache,
 } from "@/lib/contact-messages/unified-inbox-cache";
-import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT } from "@/lib/dashboard/dashboard-live-events";
+import { GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT, type DashboardMessagesRefreshDetail } from "@/lib/dashboard/dashboard-live-events";
+import { patchMessagesUnreadSummary } from "@/lib/dashboard/patch-dashboard-messages-read-client";
 import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
 import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSlice } from "@/lib/hooks/use-dashboard-batch-slice";
@@ -114,7 +115,27 @@ export function useDashboardMessagesStats() {
       applyCache();
     };
 
-    const onPoll = () => void refreshSummary({ silent: true });
+    const onPoll = (event: Event) => {
+      const detail = (event as CustomEvent<DashboardMessagesRefreshDetail | undefined>)
+        .detail;
+      if (
+        detail?.restaurantId === restaurantId &&
+        (detail.all || detail.contactId)
+      ) {
+        setSummary((prev) => {
+          if (!prev) return prev;
+          return patchMessagesUnreadSummary(prev, {
+            contactId: detail.contactId,
+            all: detail.all,
+          });
+        });
+        hasDataRef.current = true;
+        setError(null);
+        setIsLoading(false);
+        return;
+      }
+      void refreshSummary({ silent: true });
+    };
     const onRestaurantChange = () => {
       clearUnifiedInboxCache(restaurantId);
       hasDataRef.current = false;

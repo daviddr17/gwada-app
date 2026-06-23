@@ -4,7 +4,8 @@ import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-bran
 import { useAppFaviconDisplay } from "@/lib/hooks/use-app-favicon-src";
 import { cn } from "@/lib/utils";
 
-const ICON_CLASS = "size-7 shrink-0 object-contain object-center md:size-8";
+/** Gleiche Außenmaße wie Header-`Button size="icon-sm"` (Kreis rechts). */
+const ICON_CLASS = "size-7 shrink-0 object-contain object-center";
 
 /**
  * Favicon / App-Icon in der Top-Chrome-Zeile (mittig im Header-Inset, nicht am Titel).

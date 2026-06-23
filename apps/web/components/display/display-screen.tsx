@@ -44,14 +44,16 @@ import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations
 import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
 import { useDisplayTodosLive } from "@/lib/hooks/use-display-todos-live";
 import {
-  DISPLAY_PIN_REVEAL_MS,
-  DISPLAY_PIN_REVEAL_REDUCED_MS,
+  DISPLAY_CELEBRATION_EXIT_MS,
+  DISPLAY_CELEBRATION_EXIT_REDUCED_MS,
   MOTION_EASE_OUT,
 } from "@/lib/ui/motion-presets";
 
 export function DisplayScreen({ slug }: { slug: string }) {
   const reduceMotion = useReducedMotion() ?? false;
-  const pinRevealMs = reduceMotion ? DISPLAY_PIN_REVEAL_REDUCED_MS : DISPLAY_PIN_REVEAL_MS;
+  const contentRevealMs = reduceMotion
+    ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS
+    : DISPLAY_CELEBRATION_EXIT_MS;
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [pin, setPin] = useState("");
@@ -175,19 +177,22 @@ export function DisplayScreen({ slug }: { slug: string }) {
   }, [resetIdleTimer]);
 
   const performLogout = useCallback(async () => {
-    await fetch("/api/display/pin", { method: "DELETE" });
     setActiveModule(null);
     setLocked(false);
+    setContext((prev) =>
+      prev?.session
+        ? { ...prev, session: null, time_session: null }
+        : prev,
+    );
+    await fetch("/api/display/pin", { method: "DELETE" });
     await refreshContext();
   }, [refreshContext]);
 
   const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
   screenCelebrationRef.current = screenCelebration;
 
-  const handleScreenCelebrationDone = useCallback(() => {
+  const handleScreenCelebrationExitStart = useCallback(() => {
     const variant = screenCelebrationRef.current;
-    setScreenCelebration(null);
-    setScreenCelebrationSublabel(undefined);
 
     if (variant === "sign_out") {
       void performLogout();
@@ -212,6 +217,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
       }, 0);
     }
   }, [performLogout]);
+
+  const handleScreenCelebrationDone = useCallback(() => {
+    setScreenCelebration(null);
+    setScreenCelebrationSublabel(undefined);
+  }, []);
 
   const submitPin = async (pinValue: string) => {
     setPinBusy(true);
@@ -524,15 +534,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
         <motion.div
           key={contentKey}
           className={contentKey === "pin" || contentKey === "session" ? "min-h-dvh" : undefined}
-          initial={
-            contentKey === "session"
-              ? { opacity: 0 }
-              : false
-          }
+          initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{
-            duration: pinRevealMs / 1000,
+            duration: contentRevealMs / 1000,
             ease: MOTION_EASE_OUT,
           }}
         >
@@ -542,6 +548,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
       <DisplayCelebrationOverlay
         variant={screenCelebration}
         sublabel={screenCelebrationSublabel}
+        onExitStart={handleScreenCelebrationExitStart}
         onDone={handleScreenCelebrationDone}
       />
       <DisplayTimeTodoPopup {...pinTodoPopupProps} />

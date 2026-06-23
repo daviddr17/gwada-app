@@ -78,12 +78,15 @@ type DisplayCelebrationOverlayProps = {
   variant: DisplayCelebrationVariant | null;
   /** Ersetzt Standard-Sublabel, z. B. Vorname bei PIN-Login. */
   sublabel?: string;
+  /** Wenn die Hold-Phase endet — Zielseite parallel zum Overlay-Ausblenden wechseln. */
+  onExitStart?: () => void;
   onDone?: () => void;
 };
 
 export function DisplayCelebrationOverlay({
   variant,
   sublabel,
+  onExitStart,
   onDone,
 }: DisplayCelebrationOverlayProps) {
   const reduceMotion = useReducedMotion() ?? false;
@@ -102,7 +105,9 @@ export function DisplayCelebrationOverlay({
   const [renderSublabel, setRenderSublabel] = useState<string | undefined>();
   const holdTimerRef = useRef<number | null>(null);
   const onDoneRef = useRef(onDone);
+  const onExitStartRef = useRef(onExitStart);
   onDoneRef.current = onDone;
+  onExitStartRef.current = onExitStart;
 
   const clearHoldTimer = () => {
     if (holdTimerRef.current != null) {
@@ -123,6 +128,7 @@ export function DisplayCelebrationOverlay({
       setRenderSublabel(sublabel);
       setVisible(true);
       holdTimerRef.current = window.setTimeout(() => {
+        onExitStartRef.current?.();
         setVisible(false);
         holdTimerRef.current = null;
       }, holdMs);

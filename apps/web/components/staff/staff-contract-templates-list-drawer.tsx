@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { GripVertical, Pencil, Plus } from "lucide-react";
+import { Download, GripVertical, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/drawer";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { SortableDragOverlay } from "@/components/ui/sortable-drag-overlay";
+import { StaffContractPlatformImportDrawer } from "@/components/staff/staff-contract-platform-import-drawer";
 import { StaffContractTemplateDrawer } from "@/components/staff/staff-contract-template-drawer";
 import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
 import {
@@ -45,6 +46,7 @@ export function StaffContractTemplatesListDrawer({
   const [loading, setLoading] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
   const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const reload = useCallback(async () => {
     if (!restaurantId || !employmentTypeId) {
@@ -110,15 +112,26 @@ export function StaffContractTemplatesListDrawer({
           </DrawerHeader>
 
           <div className={drawerScrollAreaClassName(6)}>
-            <Button
-              type="button"
-              variant="secondary"
-              className={cn("mb-3 h-11 shrink-0", drawerFormFullWidthButtonClassName)}
-              onClick={openNew}
-            >
-              <Plus className="size-4" />
-              Neue Mustervorlage
-            </Button>
+            <div className="mb-3 flex flex-col gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className={cn("h-11 shrink-0", drawerFormFullWidthButtonClassName)}
+                onClick={() => setImportOpen(true)}
+              >
+                <Download className="size-4" />
+                Aus Bibliothek importieren
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className={cn("h-11 shrink-0", drawerFormFullWidthButtonClassName)}
+                onClick={openNew}
+              >
+                <Plus className="size-4" />
+                Neue Mustervorlage
+              </Button>
+            </div>
 
             <DrawerFormSection bleed={false} className="flex-1">
               {loading ? (
@@ -209,6 +222,15 @@ export function StaffContractTemplatesListDrawer({
         employmentTypeName={employmentTypeName}
         templateId={editTemplateId}
         onSaved={() => void reload()}
+      />
+
+      <StaffContractPlatformImportDrawer
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        restaurantId={restaurantId}
+        employmentTypeId={employmentTypeId}
+        employmentTypeName={employmentTypeName}
+        onImported={() => void reload()}
       />
     </>
   );

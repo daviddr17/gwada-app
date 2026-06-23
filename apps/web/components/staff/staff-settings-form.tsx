@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   Card,
@@ -38,6 +39,8 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { cn } from "@/lib/utils";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
+import { StaffContractPlatformImportDrawer } from "@/components/staff/staff-contract-platform-import-drawer";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 
 const NONE_TAG_VALUE = "__none__";
 
@@ -60,6 +63,7 @@ export function StaffSettingsForm() {
   const [profileShowShiftPlan, setProfileShowShiftPlan] = useState(true);
   const [profileShowDocuments, setProfileShowDocuments] = useState(true);
   const [contractTwoStepSigning, setContractTwoStepSigning] = useState(false);
+  const [platformImportOpen, setPlatformImportOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedRef = useRef<string | null>(null);
@@ -303,6 +307,29 @@ export function StaffSettingsForm() {
           </CardContent>
         </Card>
 
+        <Card className="border-border/50 shadow-card">
+          <CardHeader>
+            <CardTitle className="text-xl">Plattform-Vorlagen</CardTitle>
+            <CardDescription>
+              Standard-Mustertexte für Arbeitsverträge aus der Gwada-Bibliothek —
+              abhängig vom Land des Restaurants. Importiert Vorlagen für alle
+              passenden Beschäftigungsarten.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button
+              type="button"
+              size="lg"
+              className={modulePrimaryAddButtonFullWidthClassName}
+              disabled={!restaurantId || loading}
+              onClick={() => setPlatformImportOpen(true)}
+            >
+              <Download className="size-4" />
+              Standardvorlagen importieren
+            </Button>
+          </CardContent>
+        </Card>
+
         <SettingsStickySaveBar show={dirty}>
           <Button
             type="submit"
@@ -316,6 +343,14 @@ export function StaffSettingsForm() {
           </Button>
         </SettingsStickySaveBar>
       </form>
+
+      {restaurantId ? (
+        <StaffContractPlatformImportDrawer
+          open={platformImportOpen}
+          onOpenChange={setPlatformImportOpen}
+          restaurantId={restaurantId}
+        />
+      ) : null}
     </div>
   );
 }

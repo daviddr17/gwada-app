@@ -12,6 +12,7 @@ import {
   LogOut,
   Plug,
   ScrollText,
+  FileText,
   Settings,
   Settings2,
   Shield,
@@ -247,6 +248,20 @@ export function AppSidebar() {
                           pendingChangelogCount,
                         )}
                       </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(
+                        "/superadmin/vertragsvorlagen",
+                      )}
+                      tooltip="Vertragsvorlagen"
+                      render={
+                        <Link href="/superadmin/vertragsvorlagen" prefetch />
+                      }
+                    >
+                      <FileText />
+                      <span>Vertragsvorlagen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>

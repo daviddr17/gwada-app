@@ -89,11 +89,11 @@ export function StaffContractCreationOverlay({
   const [templateId, setTemplateId] = useState<string>("");
   const [templateLoading, setTemplateLoading] = useState(false);
   const [title, setTitle] = useState("");
+  const [originalTitle, setOriginalTitle] = useState("");
   const [originalParagraphs, setOriginalParagraphs] = useState<ParagraphDraft[]>(
     [],
   );
   const [paragraphs, setParagraphs] = useState<ParagraphDraft[]>([]);
-  const [paragraphDirty, setParagraphDirty] = useState<boolean[]>([]);
   const [fieldOverrides, setFieldOverrides] = useState<Record<string, string>>(
     {},
   );
@@ -162,11 +162,20 @@ export function StaffContractCreationOverlay({
         body: p.body,
       }));
       setOriginalParagraphs(originals);
-      setParagraphDirty(originals.map(() => false));
-      setTitle(template.title.trim());
+      const resolvedTitle = replaceStaffContractPlaceholders(
+        template.title.trim(),
+        placeholderFields,
+        fieldOverrides,
+      );
+      setOriginalTitle(template.title.trim());
+      setTitle(resolvedTitle);
       setParagraphs(
         originals.map((p) => ({
-          heading: p.heading,
+          heading: replaceStaffContractPlaceholders(
+            p.heading,
+            placeholderFields,
+            fieldOverrides,
+          ),
           body: replaceStaffContractPlaceholders(
             p.body,
             placeholderFields,
@@ -203,6 +212,7 @@ export function StaffContractCreationOverlay({
 
     if (initialSnapshot) {
       setTemplateId(initialSnapshot.template_id ?? "");
+      setOriginalTitle(initialSnapshot.title);
       setTitle(initialSnapshot.title);
       const drafts = initialSnapshot.paragraphs.map((p) => ({
         heading: p.heading ?? "",
@@ -210,7 +220,6 @@ export function StaffContractCreationOverlay({
       }));
       setOriginalParagraphs(drafts);
       setParagraphs(drafts);
-      setParagraphDirty(drafts.map(() => true));
       setFieldOverrides(initialSnapshot.placeholders ?? {});
       return;
     }
@@ -231,22 +240,32 @@ export function StaffContractCreationOverlay({
       } else {
         setTemplateId("");
         setTitle("");
+        setOriginalTitle("");
         setOriginalParagraphs([]);
         setParagraphs([]);
-        setParagraphDirty([]);
       }
     })();
   }, [open, restaurantId, employmentTypeId, initialSnapshot, loadTemplateById]);
 
-  const reapplyFieldToParagraphs = useCallback(
+  const reapplyPlaceholderFields = useCallback(
     (nextOverrides: Record<string, string>) => {
+      setTitle(
+        replaceStaffContractPlaceholders(
+          originalTitle,
+          placeholderFields,
+          nextOverrides,
+        ),
+      );
       setParagraphs((prev) =>
         prev.map((p, index) => {
-          if (paragraphDirty[index]) return p;
           const original = originalParagraphs[index];
           if (!original) return p;
           return {
-            heading: p.heading,
+            heading: replaceStaffContractPlaceholders(
+              original.heading,
+              placeholderFields,
+              nextOverrides,
+            ),
             body: replaceStaffContractPlaceholders(
               original.body,
               placeholderFields,
@@ -256,13 +275,13 @@ export function StaffContractCreationOverlay({
         }),
       );
     },
-    [originalParagraphs, paragraphDirty, placeholderFields],
+    [originalTitle, originalParagraphs, placeholderFields],
   );
 
   const handleFieldOverride = (key: string, value: string) => {
     const next = { ...fieldOverrides, [key]: value };
     setFieldOverrides(next);
-    reapplyFieldToParagraphs(next);
+    reapplyPlaceholderFields(next);
   };
 
   const submitComplete = async (revise = false) => {
@@ -512,10 +531,20 @@ export function StaffContractCreationOverlay({
               <Label>Vertragstitel</Label>
               <Input
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTitle(value);
+                  setOriginalTitle(value);
+                }}
                 className={staffDrawerFieldClassName}
                 disabled={pending}
               />
+              <p className="text-xs text-muted-foreground">
+                Platzhalter wie{" "}
+                <code className="rounded bg-muted px-1">{`{{mitarbeiter.name}}`}</code>{" "}
+                bleiben in Titel, Überschriften und Text beim Anpassen der
+                Vertragsdaten dynamisch.
+              </p>
             </div>
 
             {missingFields.length > 0 || Object.keys(placeholderFields).length > 0 ? (
@@ -551,6 +580,10 @@ export function StaffContractCreationOverlay({
 
             <div className="space-y-4">
               <p className="text-sm font-medium">Vertragstext</p>
+              <p className="text-xs text-muted-foreground">
+                Bearbeiteter Text mit Platzhaltern wird bei geänderten
+                Vertragsdaten automatisch neu aufgelöst.
+              </p>
               {templateLoading ? (
                 <p className="text-sm text-muted-foreground">Vorlage wird geladen …</p>
               ) : (
@@ -562,12 +595,15 @@ export function StaffContractCreationOverlay({
                     <Input
                       value={p.heading}
                       onChange={(e) => {
+                        const value = e.target.value;
                         const next = [...paragraphs];
-                        next[index] = { ...next[index]!, heading: e.target.value };
+                        next[index] = { ...next[index]!, heading: value };
                         setParagraphs(next);
-                        setParagraphDirty((d) => {
-                          const copy = [...d];
-                          copy[index] = true;
+                        setOriginalParagraphs((orig) => {
+                          const copy = [...orig];
+                          const row = copy[index];
+                          if (!row) return orig;
+                          copy[index] = { ...row, heading: value };
                           return copy;
                         });
                       }}
@@ -578,12 +614,15 @@ export function StaffContractCreationOverlay({
                     <Textarea
                       value={p.body}
                       onChange={(e) => {
+                        const value = e.target.value;
                         const next = [...paragraphs];
-                        next[index] = { ...next[index]!, body: e.target.value };
+                        next[index] = { ...next[index]!, body: value };
                         setParagraphs(next);
-                        setParagraphDirty((d) => {
-                          const copy = [...d];
-                          copy[index] = true;
+                        setOriginalParagraphs((orig) => {
+                          const copy = [...orig];
+                          const row = copy[index];
+                          if (!row) return orig;
+                          copy[index] = { ...row, body: value };
                           return copy;
                         });
                       }}

@@ -236,9 +236,14 @@ export function StaffContractTemplateDrawer({
                     <Input
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
-                      placeholder="z. B. Arbeitsvertrag"
+                      placeholder="z. B. Arbeitsvertrag oder {{mitarbeiter.nachname}}"
                       className={staffDrawerFieldClassName}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Platzhalter wie in den Paragraphen (z. B.{" "}
+                      <code className="rounded bg-muted px-1">{`{{mitarbeiter.vorname}}`}</code>
+                      ) werden bei der Vertragserstellung ersetzt.
+                    </p>
                   </div>
                   <div className="flex items-center justify-between gap-4 rounded-lg border border-border/40 bg-muted/15 px-3 py-2.5">
                     <div>

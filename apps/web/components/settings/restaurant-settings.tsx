@@ -116,6 +116,10 @@ function pickStammdaten(p: RestaurantProfile) {
     website: p.website,
     phone: p.phone,
     vatNumber: p.vatNumber,
+    legalName: p.legalName,
+    legalRepresentative: p.legalRepresentative,
+    legalForm: p.legalForm,
+    commercialRegister: p.commercialRegister,
   };
 }
 
@@ -671,6 +675,75 @@ export function RestaurantSettingsPanel({
           </div>
         </CardContent>
       </Card>
+        <Card className="border-border/50 shadow-card">
+          <CardHeader className="gap-2">
+            <CardTitle className="text-xl">Arbeitgeber (Verträge)</CardTitle>
+            <CardDescription>
+              Für Platzhalter in digitalen Arbeitsverträgen. Adresse und
+              USt-IdNr. kommen aus den Feldern oben.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="rs-legal-name">Rechtlicher Name / Firma</Label>
+              <Input
+                id="rs-legal-name"
+                value={draft.legalName}
+                onChange={(e) =>
+                  setDraft((p) =>
+                    p ? { ...p, legalName: e.target.value } : p,
+                  )
+                }
+                placeholder="z. B. Muster Gastronomie GmbH"
+                className="h-11 rounded-xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rs-legal-representative">Vertreten durch</Label>
+              <Input
+                id="rs-legal-representative"
+                value={draft.legalRepresentative}
+                onChange={(e) =>
+                  setDraft((p) =>
+                    p ? { ...p, legalRepresentative: e.target.value } : p,
+                  )
+                }
+                placeholder="z. B. Max Mustermann, Geschäftsführer"
+                className="h-11 rounded-xl"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="rs-legal-form">Rechtsform</Label>
+                <Input
+                  id="rs-legal-form"
+                  value={draft.legalForm}
+                  onChange={(e) =>
+                    setDraft((p) =>
+                      p ? { ...p, legalForm: e.target.value } : p,
+                    )
+                  }
+                  placeholder="z. B. GmbH"
+                  className="h-11 rounded-xl"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="rs-commercial-register">Handelsregister</Label>
+                <Input
+                  id="rs-commercial-register"
+                  value={draft.commercialRegister}
+                  onChange={(e) =>
+                    setDraft((p) =>
+                      p ? { ...p, commercialRegister: e.target.value } : p,
+                    )
+                  }
+                  placeholder="z. B. HRB 12345"
+                  className="h-11 rounded-xl"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
         <SettingsBrandingCard
           draft={accentDraft}
           onDraftChange={setAccentDraft}

@@ -11,6 +11,7 @@ import { CategoriesManageDrawer } from "@/components/menu/categories-manage-draw
 import { StaffContractsSkeleton } from "@/components/staff/staff-contracts-skeleton";
 import { StaffContractDrawer } from "@/components/staff/staff-contract-drawer";
 import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useStaffEmploymentTypesStorage } from "@/lib/hooks/use-staff-employment-types-storage";
 import { fetchStaffContracts } from "@/lib/supabase/staff-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -26,6 +27,9 @@ import {
 import { staffEmploymentTypeLabel } from "@/lib/staff/staff-employment-type-label";
 import { formatStaffContractPaySummary } from "@/lib/staff/staff-contract-pay";
 import { staffDisplayName } from "@/lib/types/staff";
+import { StaffContractTemplatesListDrawer } from "@/components/staff/staff-contract-templates-list-drawer";
+import { StaffContractPdfDownloadButton } from "@/components/staff/staff-contract-pdf-download-button";
+import { StaffContractStatusBadge } from "@/components/staff/staff-contract-status-badge";
 import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { ListRangeCount } from "@/lib/ui/list-range-count";
@@ -37,7 +41,7 @@ import {
 const EMPLOYMENT_MANAGE_COPY = {
   title: "Beschäftigungsverhältnisse",
   description:
-    "Reihenfolge per Ziehen ändern. Inaktive erscheinen nicht in der Vertragsauswahl.",
+    "Reihenfolge per Ziehen ändern. Dokument-Symbol öffnet Mustervorlagen für Verträge.",
   newButton: "Neues Beschäftigungsverhältnis",
 };
 
@@ -59,6 +63,7 @@ export function StaffContractsScreen() {
 
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { selectedStaff, selectedStaffId } = useStaffModuleSelection();
+  const { profile: restaurantProfile } = useRestaurantProfile();
   const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +77,8 @@ export function StaffContractsScreen() {
     | { mode: "edit"; item: StaffEmploymentTypeDefinition }
     | null
   >(null);
+  const [templatesEmployment, setTemplatesEmployment] =
+    useState<StaffEmploymentTypeDefinition | null>(null);
 
   const reload = useCallback(async () => {
     if (!restaurantId || !selectedStaffId) {
@@ -193,19 +200,25 @@ export function StaffContractsScreen() {
                   onClick={() => openEdit(c)}
                 >
                   <CardHeader className="pb-2">
-                    <div className="space-y-1">
-                      <p className="text-base leading-snug">
-                        <span className="text-muted-foreground">Start </span>
-                        <span className="font-medium text-foreground tabular-nums">
-                          {formatStaffContractDateDe(c.valid_from)}
-                        </span>
-                      </p>
-                      <p className="text-base leading-snug">
-                        <span className="text-muted-foreground">Ende </span>
-                        <span className="font-medium text-foreground tabular-nums">
-                          {formatStaffContractEndDe(c.valid_to)}
-                        </span>
-                      </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-1">
+                        <p className="text-base leading-snug">
+                          <span className="text-muted-foreground">Start </span>
+                          <span className="font-medium text-foreground tabular-nums">
+                            {formatStaffContractDateDe(c.valid_from)}
+                          </span>
+                        </p>
+                        <p className="text-base leading-snug">
+                          <span className="text-muted-foreground">Ende </span>
+                          <span className="font-medium text-foreground tabular-nums">
+                            {formatStaffContractEndDe(c.valid_to)}
+                          </span>
+                        </p>
+                      </div>
+                      <StaffContractStatusBadge
+                        signedAt={c.signed_at}
+                        employeeSignaturePending={c.employee_signature_pending}
+                      />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-1 text-sm text-muted-foreground">
@@ -224,6 +237,14 @@ export function StaffContractsScreen() {
                     {c.note?.trim() ? (
                       <p className="line-clamp-2 text-xs">{c.note.trim()}</p>
                     ) : null}
+                    {c.current_document_id ? (
+                      <div className="pt-2">
+                        <StaffContractPdfDownloadButton
+                          restaurantId={restaurantId}
+                          documentId={c.current_document_id}
+                        />
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
               );
@@ -241,8 +262,9 @@ export function StaffContractsScreen() {
           if (!open) setEditContract(null);
         }}
         restaurantId={restaurantId}
-        staffId={selectedStaffId!}
-        staffName={selectedStaff ? staffDisplayName(selectedStaff) : null}
+        staff={selectedStaff}
+        staffName={staffDisplayName(selectedStaff)}
+        restaurant={restaurantProfile}
         contract={editContract}
         existingContracts={contracts}
         employmentTypes={employmentTypes.items}
@@ -251,6 +273,10 @@ export function StaffContractsScreen() {
         onDeleted={() => {
           setEditContract(null);
           void reload();
+        }}
+        onOpenTemplateManager={(employmentTypeId) => {
+          const full = employmentTypes.getById(employmentTypeId);
+          if (full) setTemplatesEmployment(full);
         }}
       />
 
@@ -281,8 +307,25 @@ export function StaffContractsScreen() {
           setEmploymentSheet({ mode: "create" });
           setManageEmploymentOpen(false);
         }}
+        onManageTemplates={(row) => {
+          const full = employmentTypes.getById(row.id);
+          if (full) setTemplatesEmployment(full);
+          setManageEmploymentOpen(false);
+        }}
         copy={EMPLOYMENT_MANAGE_COPY}
       />
+
+      {templatesEmployment ? (
+        <StaffContractTemplatesListDrawer
+          open={templatesEmployment !== null}
+          onOpenChange={(open) => {
+            if (!open) setTemplatesEmployment(null);
+          }}
+          restaurantId={restaurantId}
+          employmentTypeId={templatesEmployment.id}
+          employmentTypeName={templatesEmployment.name}
+        />
+      ) : null}
 
       <CategoryDrawer
         open={employmentSheet !== null}

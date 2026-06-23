@@ -14,6 +14,7 @@ import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
 import { DisplayModuleShell } from "@/components/display/display-module-shell";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
+import { DisplayTimeStatusSuffix } from "@/components/display/display-time-status-suffix";
 import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-badge";
 import { DisplayTimeModule } from "@/components/display/modules/display-time-module";
 import {
@@ -41,6 +42,7 @@ import {
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
+import { useDisplayTimeSession } from "@/lib/hooks/use-display-time-session";
 import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
 import { useDisplayTodosLive } from "@/lib/hooks/use-display-todos-live";
 import {
@@ -144,6 +146,13 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const { count: todoBadgeCount, urgency: todoBadgeUrgency, refresh: refreshTodoBadge } =
     useDisplayTodoBadgeCount(todosLiveEnabled);
+
+  const sessionActive = Boolean(context?.session);
+  const { state: timeSession, refresh: refreshTimeSession, patch: patchTimeSession } =
+    useDisplayTimeSession(sessionActive, context?.time_session ?? null);
+  const timeStatusSuffix = sessionActive ? (
+    <DisplayTimeStatusSuffix status={timeSession.status} />
+  ) : null;
 
   useEffect(() => {
     if (!pendingPinTodoGateRef.current || !context?.session) return;
@@ -428,7 +437,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
       content = (
         <div className={displayChromeShellClassName}>
           <DisplayChromeHeader>
-            <DisplayStaffLine staff={session.staff} className="min-w-0 text-sm" />
+            <DisplayStaffLine
+              staff={session.staff}
+              suffix={timeStatusSuffix}
+              className="min-w-0 text-sm"
+            />
           </DisplayChromeHeader>
           <div className={displayChromeContentWrapClassName}>
             <DisplayLockOverlay
@@ -490,6 +503,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             restaurantAvatarUrl={context.restaurant?.avatar_url ?? null}
             displayName={context.display?.name ?? ""}
             staff={session.staff}
+            staffSuffix={timeStatusSuffix}
             modules={moduleMeta}
             activeModule={currentModule}
             canSwitch={session.can_switch_modules && modules.length > 1}
@@ -499,6 +513,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             todoBadgeUrgency={todoBadgeUrgency}
             onTodoChanged={() => {
               void refreshTodoBadge();
+              void refreshTimeSession();
               void refreshContext();
             }}
             locked={locked}
@@ -509,8 +524,10 @@ export function DisplayScreen({ slug }: { slug: string }) {
             {currentModule === "time" ? (
               <DisplayTimeModule
                 initial={context.time_session}
+                onSessionChange={patchTimeSession}
                 onChanged={() => {
                   void refreshTodoBadge();
+                  void refreshTimeSession();
                 }}
                 onClockOutSuccess={logoutAfterClockOut}
               />

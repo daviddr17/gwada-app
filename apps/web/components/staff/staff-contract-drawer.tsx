@@ -26,11 +26,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { StaffContractCreationOverlay } from "@/components/staff/staff-contract-creation-overlay";
+import { StaffContractPdfDownloadButton } from "@/components/staff/staff-contract-pdf-download-button";
+import { StaffContractVersionsList } from "@/components/staff/staff-contract-versions-list";
+import { StaffContractLogSignatures } from "@/components/staff/staff-contract-log-signatures";
 import {
   staffDrawerFieldClassName,
   staffDrawerScrollClassName,
 } from "@/components/staff/staff-form-field-styles";
-import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   deleteStaffContract,
@@ -47,24 +51,29 @@ import { notifyStaffContractsUpdated } from "@/lib/staff/staff-contract-events";
 import {
   isStaffFixedPayType,
   staffFixedPayInputLabel,
-  staffFixedPayValidationError,
 } from "@/lib/staff/staff-contract-pay";
 import {
-  findOverlappingStaffContract,
   formatStaffContractDateDe,
   formatStaffContractEndDe,
-  formatStaffContractPeriodDe,
 } from "@/lib/staff/staff-contract-period";
-import type {
-  RestaurantStaffContractLogEntry,
-  RestaurantStaffContractRow,
-  StaffContractPayType,
-  StaffEmploymentTypeDefinition,
-} from "@/lib/types/staff";
+import {
+  validateStaffContractForm,
+  type StaffContractFormPayload,
+} from "@/lib/staff/staff-contract-form-utils";
+import { loadStaffContractTemplates } from "@/lib/supabase/staff-contract-templates-db";
+import { fetchStaffModuleSettings } from "@/lib/supabase/staff-module-settings-db";
+import type { RestaurantProfile } from "@/lib/types/restaurant";
 import {
   STAFF_CONTRACT_PAY_ITEMS,
   STAFF_CONTRACT_PAY_LABELS,
   STAFF_CONTRACT_PAY_TYPES,
+} from "@/lib/types/staff";
+import type {
+  RestaurantStaffContractLogEntry,
+  RestaurantStaffContractRow,
+  RestaurantStaffRow,
+  StaffContractPayType,
+  StaffEmploymentTypeDefinition,
 } from "@/lib/types/staff";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
@@ -92,8 +101,9 @@ type StaffContractDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
-  staffId: string;
+  staff: RestaurantStaffRow;
   staffName?: string | null;
+  restaurant: RestaurantProfile;
   contract: RestaurantStaffContractRow | null;
   existingContracts: readonly RestaurantStaffContractRow[];
   employmentTypes: readonly StaffEmploymentTypeDefinition[];
@@ -103,21 +113,25 @@ type StaffContractDrawerProps = {
   ) => Promise<{ id: string; name: string } | null>;
   onSaved: () => void;
   onDeleted: () => void;
+  onOpenTemplateManager?: (employmentTypeId: string) => void;
 };
 
 export function StaffContractDrawer({
   open,
   onOpenChange,
   restaurantId,
-  staffId,
+  staff,
   staffName,
+  restaurant,
   contract,
   existingContracts,
   employmentTypes,
   onAddEmploymentType,
   onSaved,
   onDeleted,
+  onOpenTemplateManager,
 }: StaffContractDrawerProps) {
+  const staffId = staff.id;
   const editId = contract?.id ?? null;
   const [validFrom, setValidFrom] = useState("");
   const [validTo, setValidTo] = useState("");
@@ -135,6 +149,13 @@ export function StaffContractDrawer({
   const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [employmentCreateOpen, setEmploymentCreateOpen] = useState(false);
+  const [createContract, setCreateContract] = useState(false);
+  const [creationOverlayOpen, setCreationOverlayOpen] = useState(false);
+  const [overlayPayload, setOverlayPayload] =
+    useState<StaffContractFormPayload | null>(null);
+  const [activeTemplateCount, setActiveTemplateCount] = useState(0);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [contractTwoStepSigning, setContractTwoStepSigning] = useState(false);
 
   const selectableEmploymentTypes = useMemo(
     () =>
@@ -152,6 +173,9 @@ export function StaffContractDrawer({
 
   useEffect(() => {
     if (!open) return;
+    setCreateContract(false);
+    setCreationOverlayOpen(false);
+    setOverlayPayload(null);
     if (contract) {
       setValidFrom(contract.valid_from);
       setValidTo(contract.valid_to ?? "");
@@ -191,6 +215,65 @@ export function StaffContractDrawer({
     }
   }, [open, contract]);
 
+  useEffect(() => {
+    if (!open || !employmentTypeId) {
+      setActiveTemplateCount(0);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setTemplatesLoading(true);
+      const { data } = await loadStaffContractTemplates(
+        restaurantId,
+        employmentTypeId,
+      );
+      if (cancelled) return;
+      setTemplatesLoading(false);
+      setActiveTemplateCount(data.filter((t) => t.is_active).length);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, restaurantId, employmentTypeId]);
+
+  const canCreateDigitalContract =
+    Boolean(employmentTypeId) && activeTemplateCount > 0 && !templatesLoading;
+
+  const currentFormState = useMemo(
+    () => ({
+      validFrom,
+      validTo,
+      payType,
+      hourly,
+      fixed,
+      employmentTypeId,
+      vacationDays,
+      targetWeeklyHours,
+      note,
+    }),
+    [
+      validFrom,
+      validTo,
+      payType,
+      hourly,
+      fixed,
+      employmentTypeId,
+      vacationDays,
+      targetWeeklyHours,
+      note,
+    ],
+  );
+
+  const logActionLabel = (action: RestaurantStaffContractLogEntry["action"]) => {
+    if (action === "created") return "Angelegt";
+    if (action === "signed") return "Unterschrieben";
+    if (action === "revised") return "Überarbeitet";
+    if (action === "pdf_version") return "PDF-Version";
+    if (action === "employer_signed") return "AG-Unterschrift";
+    if (action === "employee_signed") return "MA-Unterschrift";
+    return "Geändert";
+  };
+
   const reloadLog = useCallback(async () => {
     if (!editId) {
       setLogEntries([]);
@@ -207,110 +290,39 @@ export function StaffContractDrawer({
   }, [restaurantId, editId]);
 
   useEffect(() => {
+    if (!open || !restaurantId) return;
+    let cancel = false;
+    void (async () => {
+      const { data } = await fetchStaffModuleSettings(restaurantId);
+      if (cancel) return;
+      setContractTwoStepSigning(data?.contract_two_step_signing ?? false);
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [open, restaurantId]);
+
+  useEffect(() => {
     if (!open || !editId) return;
     void reloadLog();
   }, [open, editId, reloadLog]);
 
   const save = async () => {
-    if (!validFrom) {
-      toast.error("Bitte „Gültig von“ angeben.");
-      return;
-    }
-    if (validTo && validTo < validFrom) {
-      toast.error("„Gültig bis“ darf nicht vor „Gültig von“ liegen.");
-      return;
-    }
-
-    const vacationTrim = vacationDays.trim();
-    let vacationDaysPerYear: number | null = null;
-    if (vacationTrim) {
-      const n = Number.parseInt(vacationTrim, 10);
-      if (!Number.isFinite(n) || n < 0) {
-        toast.error("Urlaubstage müssen eine gültige Zahl ≥ 0 sein.");
-        return;
-      }
-      vacationDaysPerYear = n;
-    }
-
-    let targetWeeklyMinutes: number | null = null;
-    const targetRaw = targetWeeklyHours.trim();
-    if (targetRaw) {
-      const parsed = Number.parseFloat(targetRaw.replace(",", "."));
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        toast.error("Bitte gültige Soll-Wochenstunden angeben oder leer lassen.");
-        return;
-      }
-      targetWeeklyMinutes = Math.round(parsed * 60);
-    }
-
-    let hourlyCents: number | null = null;
-    let fixedCents: number | null = null;
-
-    if (payType === "hourly") {
-      const raw = hourly.trim();
-      if (!raw) {
-        toast.error("Bitte einen Stundenlohn angeben.");
-        return;
-      }
-      const parsed = Number.parseFloat(raw.replace(",", "."));
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        toast.error("Bitte einen gültigen Stundenlohn größer als 0 angeben.");
-        return;
-      }
-      hourlyCents = Math.round(parsed * 100);
-    } else if (isStaffFixedPayType(payType)) {
-      const raw = fixed.trim();
-      if (!raw) {
-        toast.error(
-          payType === "fixed_weekly"
-            ? "Bitte einen Wochen-Festlohn angeben."
-            : "Bitte einen Festlohn angeben.",
-        );
-        return;
-      }
-      const parsed = Number.parseFloat(raw.replace(",", "."));
-      if (!Number.isFinite(parsed) || parsed <= 0) {
-        toast.error(staffFixedPayValidationError(payType));
-        return;
-      }
-      fixedCents = Math.round(parsed * 100);
-    }
-
-    const selectedEmployment = employmentTypes.find(
-      (t) => t.id === employmentTypeId,
-    );
-
-    const payload = {
-      valid_from: validFrom,
-      valid_to: validTo || null,
-      pay_type: payType,
-      hourly_rate_cents: hourlyCents,
-      fixed_salary_cents: fixedCents,
-      currency: "EUR" as const,
-      note: note.trim() || null,
-      employment_type_id: employmentTypeId || null,
-      employment_type_name: selectedEmployment?.name ?? null,
-      vacation_days_per_year: vacationDaysPerYear,
-      target_weekly_minutes: targetWeeklyMinutes,
-    };
-
-    const overlap = findOverlappingStaffContract(
+    const validation = validateStaffContractForm({
+      form: currentFormState,
+      employmentTypes,
       existingContracts,
-      payload.valid_from,
-      payload.valid_to,
-      editId ?? undefined,
-    );
-    if (overlap) {
-      toast.error(
-        `Der Zeitraum überschneidet sich mit einem bestehenden Vertrag (${formatStaffContractPeriodDe(overlap.valid_from, overlap.valid_to)}).`,
-      );
+      editId,
+    });
+    if (!validation.ok) {
+      toast.error(validation.error);
       return;
     }
 
     setPending(true);
     const res = await upsertStaffContract(restaurantId, staffId, {
       id: editId ?? undefined,
-      ...payload,
+      ...validation.payload,
     });
     if (!res.ok) {
       setPending(false);
@@ -322,7 +334,11 @@ export function StaffContractDrawer({
       return;
     }
 
-    const changes = buildStaffContractChanges(contract, payload, employmentTypes);
+    const changes = buildStaffContractChanges(
+      contract,
+      validation.payload,
+      employmentTypes,
+    );
     await insertStaffContractLogEntry(
       restaurantId,
       res.id,
@@ -331,7 +347,7 @@ export function StaffContractDrawer({
     );
 
     setPending(false);
-    if (res.usedLegacyFields && targetWeeklyMinutes != null) {
+    if (res.usedLegacyFields && validation.payload.target_weekly_minutes != null) {
       toast.warning(
         "Vertrag gespeichert, aber Soll-Wochenstunden fehlen in der Datenbank — bitte Migration ausführen (npx supabase db push).",
       );
@@ -345,6 +361,35 @@ export function StaffContractDrawer({
     notifyStaffContractsUpdated();
     onSaved();
     onOpenChange(false);
+  };
+
+  const openContractCreation = () => {
+    const validation = validateStaffContractForm({
+      form: currentFormState,
+      employmentTypes,
+      existingContracts,
+      editId,
+    });
+    if (!validation.ok) {
+      toast.error(validation.error);
+      return;
+    }
+    if (!canCreateDigitalContract) {
+      toast.error(
+        "Für dieses Beschäftigungsverhältnis liegt keine Mustervorlage vor.",
+      );
+      return;
+    }
+    setOverlayPayload(validation.payload);
+    setCreationOverlayOpen(true);
+  };
+
+  const handleFooterSubmit = () => {
+    if (createContract) {
+      openContractCreation();
+      return;
+    }
+    void save();
   };
 
   return (
@@ -520,6 +565,69 @@ export function StaffContractDrawer({
             />
           </DrawerFormSection>
 
+          <DrawerFormSection title="Digitaler Vertrag" contentPadding={5}>
+            {contract?.employee_signature_pending ? (
+              <p className="mb-3 text-sm text-amber-700">
+                Vom Arbeitgeber unterschrieben — wartet auf Unterschrift des
+                Mitarbeiters im Profil.
+              </p>
+            ) : contract?.signed_at ? (
+              <p className="mb-3 text-sm text-amber-700">
+                Dieser Vertrag wurde bereits digital unterschrieben (
+                {whenFmt.format(new Date(contract.signed_at))}).
+              </p>
+            ) : null}
+            {contract?.current_document_id ? (
+              <div className="mb-3 space-y-3">
+                <StaffContractPdfDownloadButton
+                  restaurantId={restaurantId}
+                  documentId={contract.current_document_id}
+                  fullWidth
+                />
+                <StaffContractVersionsList
+                  restaurantId={restaurantId}
+                  contractId={editId}
+                />
+              </div>
+            ) : editId ? (
+              <StaffContractVersionsList
+                restaurantId={restaurantId}
+                contractId={editId}
+              />
+            ) : null}
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Vertrag erstellen</p>
+                <p className="text-xs text-muted-foreground">
+                  Mustervorlage ausfüllen, unterschreiben und als PDF in
+                  Dokumente speichern
+                  {contractTwoStepSigning
+                    ? " (Zweit-Schritt: Mitarbeiter unterschreibt im Profil)."
+                    : "."}
+                </p>
+                {!employmentTypeId ? (
+                  <p className="text-xs text-amber-600">
+                    Bitte zuerst ein Beschäftigungsverhältnis wählen.
+                  </p>
+                ) : templatesLoading ? (
+                  <p className="text-xs text-muted-foreground">
+                    Mustervorlagen werden geprüft …
+                  </p>
+                ) : activeTemplateCount === 0 ? (
+                  <p className="text-xs text-amber-600">
+                    Keine Mustervorlage für dieses Beschäftigungsverhältnis.
+                  </p>
+                ) : null}
+              </div>
+              <Switch
+                checked={createContract}
+                onCheckedChange={setCreateContract}
+                disabled={!canCreateDigitalContract || pending}
+                aria-label="Vertrag erstellen"
+              />
+            </div>
+          </DrawerFormSection>
+
           {editId ? (
             <DrawerFormSection title="Protokoll" contentPadding={5}>
               {logLoading ? (
@@ -536,9 +644,7 @@ export function StaffContractDrawer({
                       className="border-b border-border/30 pb-2 text-sm last:border-0 last:pb-0"
                     >
                       <p className="font-medium">
-                        {entry.action === "created"
-                          ? "Angelegt"
-                          : "Geändert"}
+                        {logActionLabel(entry.action)}
                         {" · "}
                         <span className="font-normal text-muted-foreground">
                           {whenFmt.format(new Date(entry.created_at))}
@@ -554,6 +660,22 @@ export function StaffContractDrawer({
                             entry.details.changes ?? [],
                           )}
                       </p>
+                      {entry.details.pdfSha256 ? (
+                        <p className="mt-1 font-mono text-[10px] text-muted-foreground">
+                          PDF SHA-256: {entry.details.pdfSha256}
+                        </p>
+                      ) : null}
+                      {entry.action === "signed" ||
+                      entry.action === "revised" ||
+                      entry.action === "pdf_version" ||
+                      entry.action === "employer_signed" ||
+                      entry.action === "employee_signed" ? (
+                        <StaffContractLogSignatures
+                          restaurantId={restaurantId}
+                          contractId={editId}
+                          details={entry.details}
+                        />
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -565,7 +687,8 @@ export function StaffContractDrawer({
         <DrawerFormFooter
           onCancel={() => onOpenChange(false)}
           submitType="button"
-          onSubmit={() => void save()}
+          onSubmit={handleFooterSubmit}
+          submitLabel={createContract ? "Zur Vertragserstellung" : "Speichern"}
           submitPending={pending}
           showDelete={!!editId}
           onDelete={() => setConfirmDelete(true)}
@@ -596,6 +719,26 @@ export function StaffContractDrawer({
           onOpenChange(false);
         }}
       />
+
+      {overlayPayload && creationOverlayOpen ? (
+        <StaffContractCreationOverlay
+          open={creationOverlayOpen}
+          onClose={() => setCreationOverlayOpen(false)}
+          restaurantId={restaurantId}
+          staff={staff}
+          restaurant={restaurant}
+          contractId={editId}
+          contractPayload={overlayPayload}
+          alreadySigned={Boolean(contract?.signed_at)}
+          initialSnapshot={contract?.contract_body_snapshot ?? null}
+          onCompleted={() => {
+            onSaved();
+            onOpenChange(false);
+          }}
+          onOpenTemplateManager={onOpenTemplateManager}
+          twoStepSigningEnabled={contractTwoStepSigning}
+        />
+      ) : null}
 
       <CategoryDrawer
         open={employmentCreateOpen}

@@ -400,6 +400,33 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_contract_signed": {
+      const title = pickString(p.contractTitle) ?? "Arbeitsvertrag";
+      const revised = p.revised === true;
+      const pending = p.pendingEmployeeSignature === true;
+      return buildPushMessage({
+        prefix,
+        headline: pending
+          ? "Vertrag unterschreiben"
+          : revised
+            ? "Vertrag überarbeitet"
+            : "Neuer Arbeitsvertrag",
+        subject: `${prefix}${
+          pending
+            ? "Vertrag unterschreiben"
+            : revised
+              ? "Vertrag überarbeitet"
+              : "Neuer Arbeitsvertrag"
+        } — ${title}`,
+        href: "/profile/dokumente",
+        details: detailLines([
+          title,
+          pending
+            ? "Bitte im Profil unter „Meine Dokumente“ unterschreiben."
+            : "Im Profil unter „Meine Dokumente“ einsehbar und herunterladbar.",
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

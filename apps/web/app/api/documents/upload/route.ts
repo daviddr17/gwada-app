@@ -26,6 +26,7 @@ export async function POST(req: Request) {
   const file = form?.get("file");
   const titleRaw = form?.get("title");
   const tagIdRaw = form?.get("tagId");
+  const staffIdRaw = form?.get("staffId");
 
   if (!(file instanceof File)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });
@@ -65,6 +66,23 @@ export async function POST(req: Request) {
 
   const tagId =
     typeof tagIdRaw === "string" && tagIdRaw.trim() ? tagIdRaw.trim() : null;
+  const staffId =
+    typeof staffIdRaw === "string" && staffIdRaw.trim()
+      ? staffIdRaw.trim()
+      : null;
+
+  if (staffId) {
+    const { data: staffRow } = await admin
+      .from("restaurant_staff")
+      .select("id")
+      .eq("id", staffId)
+      .eq("restaurant_id", restaurantId)
+      .maybeSingle();
+    if (!staffRow?.id) {
+      return Response.json({ error: "invalid_staff" }, { status: 400 });
+    }
+  }
+
   if (tagId) {
     const { data: tag } = await admin
       .from("restaurant_document_tags")
@@ -111,6 +129,7 @@ export async function POST(req: Request) {
     restaurant_id: restaurantId,
     tag_id: tagId,
     employee_id: employeeId,
+    staff_id: staffId,
     title,
     file_name: file.name,
     storage_path: storagePath,

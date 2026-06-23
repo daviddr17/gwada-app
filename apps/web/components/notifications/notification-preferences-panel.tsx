@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Mail } from "lucide-react";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import {
@@ -24,14 +25,21 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useMyRestaurantStaff } from "@/lib/hooks/use-my-restaurant-staff";
 import { useNotificationContact } from "@/lib/hooks/use-notification-contact";
 import { useNotificationPreferences } from "@/lib/hooks/use-notification-preferences";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { normalizeNotificationPhoneForStorage } from "@/lib/notifications/notification-contact-validation";
+import {
+  filterNotificationModulesForUser,
+  type NotificationModuleAccessContext,
+} from "@/lib/notifications/notification-module-permissions";
 import {
   notificationModulesInOrder,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
 import { NOTIFICATION_SETTINGS_GROUPS } from "@/lib/notifications/notification-module-groups";
+import type { NotificationSettingsGroup } from "@/lib/notifications/notification-module-groups";
 import type { NotificationModuleToggles } from "@/lib/notifications/notification-preferences";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
@@ -84,6 +92,8 @@ function ModuleToggleRows({
 
 export function NotificationPreferencesPanel() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const { staff, loading: staffLoading } = useMyRestaurantStaff();
   const contact = useNotificationContact();
   const {
     ready,
@@ -97,10 +107,29 @@ export function NotificationPreferencesPanel() {
     resetDraft: resetPrefsDraft,
   } = useNotificationPreferences();
 
-  const isLoadingAll = isLoading || contact.isLoading;
+  const isLoadingAll =
+    isLoading || contact.isLoading || permissionsLoading || staffLoading;
   const dirty = prefsDirty || contact.dirty;
   const isSaving = isSavingPrefs || contact.isSaving;
   const showSkeleton = useDeferredSkeleton(isLoadingAll);
+
+  const notificationAccess = useMemo(
+    (): NotificationModuleAccessContext => ({
+      has,
+      hasStaffProfile: Boolean(staff),
+    }),
+    [has, staff],
+  );
+
+  const visibleNotificationGroups = useMemo((): NotificationSettingsGroup[] => {
+    return NOTIFICATION_SETTINGS_GROUPS.map((group) => ({
+      ...group,
+      moduleIds: filterNotificationModulesForUser(
+        group.moduleIds,
+        notificationAccess,
+      ),
+    })).filter((group) => group.moduleIds.length > 0);
+  }, [notificationAccess]);
 
   if (!workspaceReady) {
     return <WorkspaceRestaurantResolvePlaceholder />;
@@ -244,31 +273,39 @@ export function NotificationPreferencesPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {NOTIFICATION_SETTINGS_GROUPS.map((group) => (
-            <div key={group.id}>
-              <p className="mb-1 text-sm font-medium text-foreground">
-                {group.title}
-              </p>
-              {group.description ? (
-                <p className="mb-3 text-xs text-muted-foreground">
-                  {group.description}
+          {visibleNotificationGroups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Für deine Berechtigungen sind keine Modul-Benachrichtigungen
+              verfügbar. Zustellung per E-Mail/WhatsApp kannst du oben trotzdem
+              pflegen.
+            </p>
+          ) : (
+            visibleNotificationGroups.map((group) => (
+              <div key={group.id}>
+                <p className="mb-1 text-sm font-medium text-foreground">
+                  {group.title}
                 </p>
-              ) : (
-                <div className="mb-3" />
-              )}
-              <ModuleToggleRows
-                toggles={draft.inAppModules}
-                moduleIds={group.moduleIds}
-                onChange={(id, enabled) =>
-                  patchModuleToggle("inAppModules", id, enabled)
-                }
-                labelFor={(id) =>
-                  notificationModulesInOrder().find((m) => m.id === id)!
-                    .settingsInAppLabel
-                }
-              />
-            </div>
-          ))}
+                {group.description ? (
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    {group.description}
+                  </p>
+                ) : (
+                  <div className="mb-3" />
+                )}
+                <ModuleToggleRows
+                  toggles={draft.inAppModules}
+                  moduleIds={group.moduleIds}
+                  onChange={(id, enabled) =>
+                    patchModuleToggle("inAppModules", id, enabled)
+                  }
+                  labelFor={(id) =>
+                    notificationModulesInOrder().find((m) => m.id === id)!
+                      .settingsInAppLabel
+                  }
+                />
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
@@ -293,7 +330,12 @@ export function NotificationPreferencesPanel() {
                   ? "Nur verfügbar, wenn WhatsApp unter Einstellungen → Integrationen verbunden ist."
                   : "Trage oben unter Zustellung eine Telefonnummer ein."}
             </p>
-            {NOTIFICATION_SETTINGS_GROUPS.map((group) => (
+            {visibleNotificationGroups.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Keine Push-Module für deine Berechtigungen.
+              </p>
+            ) : (
+              visibleNotificationGroups.map((group) => (
               <div key={`wa-${group.id}`} className="mb-4 last:mb-0">
                 <p className="mb-2 text-xs font-medium text-muted-foreground">
                   {group.title}
@@ -311,7 +353,8 @@ export function NotificationPreferencesPanel() {
                   }
                 />
               </div>
-            ))}
+            ))
+            )}
           </div>
           <div>
             <div className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground">
@@ -319,7 +362,12 @@ export function NotificationPreferencesPanel() {
               E-Mail
             </div>
             <p className="mb-3 text-xs text-muted-foreground">{emailNote}</p>
-            {NOTIFICATION_SETTINGS_GROUPS.map((group) => (
+            {visibleNotificationGroups.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                Keine Push-Module für deine Berechtigungen.
+              </p>
+            ) : (
+              visibleNotificationGroups.map((group) => (
               <div key={`mail-${group.id}`} className="mb-4 last:mb-0">
                 <p className="mb-2 text-xs font-medium text-muted-foreground">
                   {group.title}
@@ -337,7 +385,8 @@ export function NotificationPreferencesPanel() {
                   }
                 />
               </div>
-            ))}
+            ))
+            )}
           </div>
         </CardContent>
       </Card>

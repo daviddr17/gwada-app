@@ -15,6 +15,7 @@ export type RestaurantDocumentRow = {
   restaurant_id: string;
   tag_id: string | null;
   employee_id: string | null;
+  staff_id: string | null;
   uploaded_by: string | null;
   title: string;
   file_name: string;

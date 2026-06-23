@@ -5,6 +5,7 @@ import {
   CalendarX2,
   FileSpreadsheet,
   FileText,
+  FileSignature,
   MessageSquare,
   Package,
   Receipt,
@@ -32,6 +33,7 @@ export const NOTIFICATION_MODULE_IDS = [
   "accounting_voucher",
   "staff_todo_completed",
   "staff_todo_deferred",
+  "staff_contract_signed",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -190,6 +192,16 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Verschobene ToDos in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei verschobenen ToDos",
     settingsPushEmailLabel: "E-Mail bei verschobenen ToDos",
+  },
+  staff_contract_signed: {
+    id: "staff_contract_signed",
+    label: "Arbeitsvertrag",
+    labelPlural: "Arbeitsverträge",
+    href: "/profile/dokumente",
+    icon: FileSignature,
+    settingsInAppLabel: "Neue/unterschriebene Verträge in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei neuen Verträgen",
+    settingsPushEmailLabel: "E-Mail bei neuen Verträgen",
   },
 };
 

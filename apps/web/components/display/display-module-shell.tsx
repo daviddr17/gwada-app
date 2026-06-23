@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { DisplayModuleMeta } from "@/lib/display/display-types";
 import type { DisplayModule, DisplaySessionStaff } from "@/lib/display/display-types";
 import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
@@ -29,6 +30,7 @@ export function DisplayModuleShell({
   restaurantAvatarUrl,
   displayName,
   staff,
+  staffSuffix,
   modules,
   activeModule,
   canSwitch,
@@ -47,6 +49,8 @@ export function DisplayModuleShell({
   restaurantAvatarUrl: string | null;
   displayName: string;
   staff: DisplaySessionStaff;
+  /** z. B. Zeiterfassungsstatus neben Name/Position. */
+  staffSuffix?: ReactNode;
   modules: DisplayModuleMeta[];
   activeModule: DisplayModule;
   canSwitch: boolean;
@@ -59,7 +63,7 @@ export function DisplayModuleShell({
   onUnlock?: (pin: string) => void;
   lockBusy?: boolean;
   lockError?: string | null;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const activeMeta = modules.find((m) => m.id === activeModule);
   const activeLabel = activeMeta?.label ?? activeModule;
@@ -104,7 +108,11 @@ export function DisplayModuleShell({
   return (
     <div className={displayChromeShellClassName}>
       <DisplayChromeHeader trailing={moduleTrailing}>
-        <DisplayStaffLine staff={staff} className="min-w-0 text-sm" />
+        <DisplayStaffLine
+          staff={staff}
+          suffix={staffSuffix}
+          className="min-w-0 text-sm"
+        />
       </DisplayChromeHeader>
 
       <div className={displayChromeContentWrapClassName}>

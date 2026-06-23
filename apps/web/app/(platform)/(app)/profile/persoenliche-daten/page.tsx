@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { PersonalProfileHeader } from "@/components/profile/personal-profile-header";
+import { ProfileDocumentsSummaryCard } from "@/components/profile/profile-documents-summary-card";
 import { ProfilePersoenlicheDatenSkeleton } from "@/components/profile/profile-persoenliche-daten-skeleton";
 import {
   SettingsStickySaveBar,
@@ -189,6 +190,8 @@ export default function ProfilePersoenlicheDatenPage() {
           onImagePathsChange={patchImagePaths}
           disabled={!isHydrated}
         />
+
+        <ProfileDocumentsSummaryCard />
 
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-4 pt-6">

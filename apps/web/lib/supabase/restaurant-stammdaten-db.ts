@@ -21,6 +21,10 @@ export function restaurantRowFromProfile(
     phone: profile.phone.trim() || null,
     website: profile.website.trim() || null,
     vat_number: profile.vatNumber.trim() || null,
+    legal_name: profile.legalName.trim() || null,
+    legal_representative: profile.legalRepresentative.trim() || null,
+    legal_form: profile.legalForm.trim() || null,
+    commercial_register: profile.commercialRegister.trim() || null,
     receipt_footer: profile.receiptFooter.trim() || null,
     social_handle: profile.socialHandle.trim() || null,
     timezone: resolveRestaurantTimezone({
@@ -46,7 +50,7 @@ export async function fetchRestaurantStammdatenFromDb(
   const { data, error } = await sb
     .from("restaurants")
     .select(
-      "name, slug, address_line1, postal_code, city, country, phone, website, vat_number, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
+      "name, slug, address_line1, postal_code, city, country, phone, website, vat_number, legal_name, legal_representative, legal_form, commercial_register, receipt_footer, social_handle, avatar_storage_path, cover_storage_path",
     )
     .eq("id", restaurantId)
     .maybeSingle();
@@ -65,6 +69,16 @@ export async function fetchRestaurantStammdatenFromDb(
     phone: typeof data.phone === "string" ? data.phone : "",
     website: typeof data.website === "string" ? data.website : "",
     vatNumber: typeof data.vat_number === "string" ? data.vat_number : "",
+    legalName: typeof data.legal_name === "string" ? data.legal_name : "",
+    legalRepresentative:
+      typeof data.legal_representative === "string"
+        ? data.legal_representative
+        : "",
+    legalForm: typeof data.legal_form === "string" ? data.legal_form : "",
+    commercialRegister:
+      typeof data.commercial_register === "string"
+        ? data.commercial_register
+        : "",
     receiptFooter:
       typeof data.receipt_footer === "string" ? data.receipt_footer : "",
     socialHandle:

@@ -20,6 +20,11 @@ import {
   DOCUMENT_TAG_NONE,
   DocumentTagSelect,
 } from "@/components/documents/document-tag-select";
+import {
+  DOCUMENT_STAFF_NONE,
+  DocumentStaffSelect,
+  type DocumentStaffOption,
+} from "@/components/documents/document-staff-select";
 import { DocumentNotesSection } from "@/components/documents/document-notes-section";
 import { RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL } from "@/lib/constants/restaurant-documents";
 import {
@@ -38,10 +43,13 @@ type DocumentFormDrawerProps = {
   mode: "upload" | "edit";
   document: RestaurantDocumentRow | null;
   activeTags: DocumentTagDefinition[];
+  /** Optional — leer = kein Mitarbeiter-Picker (z. B. ohne staff.read). */
+  staffMembers?: readonly DocumentStaffOption[];
   onUpload: (params: {
     file: File;
     title: string;
     tagId: string | null;
+    staffId: string | null;
   }) => Promise<boolean>;
   onSaveEdit: (params: {
     documentId: string;
@@ -60,6 +68,7 @@ export function DocumentFormDrawer({
   mode,
   document,
   activeTags,
+  staffMembers = [],
   onUpload,
   onSaveEdit,
   canEditNotes = false,
@@ -70,6 +79,7 @@ export function DocumentFormDrawer({
   const dragDepthRef = useRef(0);
   const [title, setTitle] = useState("");
   const [tagId, setTagId] = useState<string>(DOCUMENT_TAG_NONE);
+  const [staffId, setStaffId] = useState<string>(DOCUMENT_STAFF_NONE);
   const [file, setFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [pending, setPending] = useState(false);
@@ -100,6 +110,7 @@ export function DocumentFormDrawer({
       setFile(null);
     } else {
       setTagId(DOCUMENT_TAG_NONE);
+      setStaffId(DOCUMENT_STAFF_NONE);
       if (initialFile) {
         applySelectedFile(initialFile);
       } else {
@@ -160,6 +171,7 @@ export function DocumentFormDrawer({
           file,
           title: trimmed,
           tagId: tagId === DOCUMENT_TAG_NONE ? null : tagId,
+          staffId: staffId === DOCUMENT_STAFF_NONE ? null : staffId,
         });
         if (ok) onOpenChange(false);
       } else if (document) {
@@ -196,7 +208,7 @@ export function DocumentFormDrawer({
           </DrawerTitle>
           <DrawerDescription className="text-base">
             {mode === "upload"
-              ? "Datei auswählen oder vom Desktop hierher ziehen, Titel und optional ein Tag."
+              ? "Datei auswählen oder vom Desktop hierher ziehen, Titel und optional Tag oder Mitarbeiter."
               : "Titel, Tag und Notizen."}
           </DrawerDescription>
         </DrawerHeader>
@@ -303,6 +315,22 @@ export function DocumentFormDrawer({
                   aria-label="Dokument-Tag"
                 />
               </div>
+
+              {staffMembers.length > 0 ? (
+                <div className="space-y-2">
+                  <Label>Mitarbeiter (optional)</Label>
+                  <DocumentStaffSelect
+                    staffMembers={staffMembers}
+                    value={staffId}
+                    onValueChange={setStaffId}
+                    aria-label="Mitarbeiter zuordnen"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Nur bei personalbezogenen Dokumenten — z. B. Zeugnis oder
+                    Ausweis. Allgemeine Dokumente ohne Zuordnung lassen.
+                  </p>
+                </div>
+              ) : null}
             </DrawerFormSection>
 
             {mode === "edit" && document ? (

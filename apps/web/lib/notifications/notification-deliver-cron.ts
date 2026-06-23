@@ -17,6 +17,7 @@ import {
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import { isNotificationModuleId } from "@/lib/notifications/notification-modules";
 import { filterStaffTodoPushTargets } from "@/lib/notifications/notification-staff-todos-server";
+import { filterStaffContractSignedPushTargets } from "@/lib/notifications/notification-staff-contract-server";
 import {
   defaultNotificationPreferences,
   isPushModuleEnabled,
@@ -183,6 +184,9 @@ async function fanOutEvent(
     moduleId === "staff_todo_deferred"
   ) {
     targets = await filterStaffTodoPushTargets(admin, targets);
+  }
+  if (moduleId === "staff_contract_signed") {
+    targets = await filterStaffContractSignedPushTargets(admin, event, targets);
   }
   if (targets.length === 0) return { created: 0, error: null };
 

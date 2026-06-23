@@ -1,7 +1,7 @@
 import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staff-api";
 import { RESTAURANT_DOCUMENTS_STORAGE_BUCKET } from "@/lib/constants/restaurant-documents";
+import { assertCanAccessStaffDocument } from "@/lib/staff/staff-documents-access-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 export const dynamic = "force-dynamic";
@@ -20,20 +20,16 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const userSb = await createSupabaseServerClient();
-  const { data: row, error } = await userSb
-    .from("restaurant_documents")
-    .select("file_name, mime_type, storage_path")
-    .eq("id", documentId)
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
+  const access = await assertCanAccessStaffDocument({
+    restaurantId,
+    documentId,
+    userId: auth.userId,
+  });
+  if (!access.ok) {
+    return Response.json({ error: access.error }, { status: access.status });
+  }
 
-  if (error) {
-    return Response.json({ error: error.message }, { status: 500 });
-  }
-  if (!row?.storage_path) {
-    return Response.json({ error: "not_found" }, { status: 404 });
-  }
+  const row = access.row;
 
   const admin = createSupabaseAdminClient();
   if (!admin) {
@@ -50,11 +46,14 @@ export async function GET(req: Request) {
 
   const fileName = (row.file_name as string) || "dokument";
   const mime = (row.mime_type as string) || "application/octet-stream";
+  const inline = url.searchParams.get("inline") === "1";
 
   return new Response(blob, {
     headers: {
       "Content-Type": mime,
-      "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
+      "Content-Disposition": inline
+        ? `inline; filename="${encodeURIComponent(fileName)}"`
+        : `attachment; filename="${encodeURIComponent(fileName)}"`,
       "Cache-Control": "private, no-store",
     },
   });

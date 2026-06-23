@@ -52,6 +52,7 @@ export const APP_ROUTES = {
     overview: "/dashboard/mitarbeiter/uebersicht",
     schedule: "/dashboard/mitarbeiter/schichtplan",
     contracts: "/dashboard/mitarbeiter/vertraege",
+    documents: "/dashboard/mitarbeiter/dokumente",
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",

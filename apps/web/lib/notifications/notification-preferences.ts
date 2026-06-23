@@ -44,6 +44,7 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       accounting_voucher: true,
       staff_todo_completed: false,
       staff_todo_deferred: false,
+      staff_contract_signed: true,
     },
     pushEmailModules: {
       messages: true,
@@ -60,6 +61,7 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       accounting_voucher: true,
       staff_todo_completed: true,
       staff_todo_deferred: true,
+      staff_contract_signed: true,
     },
   };
 }

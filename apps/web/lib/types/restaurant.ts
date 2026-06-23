@@ -42,6 +42,14 @@ export type RestaurantProfile = {
   phone: string;
   /** USt-IdNr. auf POS-Quittungen. */
   vatNumber: string;
+  /** Rechtlicher Name / Firma (Arbeitsverträge). */
+  legalName: string;
+  /** Vertreten durch — z. B. Geschäftsführung. */
+  legalRepresentative: string;
+  /** Rechtsform (z. B. GmbH). */
+  legalForm: string;
+  /** Handelsregister / HRB. */
+  commercialRegister: string;
   /** Dankeszeile / Footer auf Quittungen. */
   receiptFooter: string;
   /** z. B. @restaurant */

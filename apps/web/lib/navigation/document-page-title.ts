@@ -83,6 +83,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/profile/anmeldung": "Anmeldung",
   "/profile/arbeitszeiten": "Meine Arbeitszeiten",
   "/profile/dienstplan": "Dienstplan",
+  "/profile/dokumente": "Meine Dokumente",
   "/workspace": "Workspace",
   "/workspace/restaurants": "Restaurants",
   "/workspace/team": "Team",

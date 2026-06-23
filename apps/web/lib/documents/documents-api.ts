@@ -3,12 +3,14 @@ export async function uploadRestaurantDocumentClient(params: {
   file: File;
   title?: string;
   tagId?: string | null;
+  staffId?: string | null;
 }): Promise<{ documentId?: string; error?: string }> {
   const form = new FormData();
   form.set("restaurantId", params.restaurantId);
   form.set("file", params.file);
   if (params.title?.trim()) form.set("title", params.title.trim());
   if (params.tagId) form.set("tagId", params.tagId);
+  if (params.staffId?.trim()) form.set("staffId", params.staffId.trim());
 
   const res = await fetch("/api/documents/upload", {
     method: "POST",

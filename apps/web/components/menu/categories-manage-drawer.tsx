@@ -3,7 +3,7 @@
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
-import { GripVertical, Pencil } from "lucide-react";
+import { GripVertical, Pencil, FileText } from "lucide-react";
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +46,8 @@ type CategoriesManageDrawerProps = {
   onReorder: (next: ManageableListItem[]) => void;
   onEdit: (row: ManageableListItem) => void;
   onNew: () => void;
+  /** z. B. Mustervorlagen bei Beschäftigungsverhältnissen */
+  onManageTemplates?: (row: ManageableListItem) => void;
   /** z. B. Farbpunkt bei Tag-Stammdaten */
   rowLeading?: (row: ManageableListItem) => React.ReactNode;
   /** z. B. Bestand: Lieferanten, Marken, … */
@@ -61,6 +63,7 @@ export function CategoriesManageDrawer({
   onReorder,
   onEdit,
   onNew,
+  onManageTemplates,
   rowLeading,
   copy: copyProp,
   afterDescription,
@@ -191,6 +194,21 @@ export function CategoriesManageDrawer({
                   >
                     <Pencil className="size-4" />
                   </Button>
+                  {onManageTemplates ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="rounded-lg"
+                      aria-label="Mustervorlagen"
+                      onClick={() => {
+                        onManageTemplates(cat);
+                        onOpenChange(false);
+                      }}
+                    >
+                      <FileText className="size-4" />
+                    </Button>
+                  ) : null}
                 </div>
               </li>
               );

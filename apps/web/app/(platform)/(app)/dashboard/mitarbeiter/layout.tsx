@@ -35,6 +35,11 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
   },
   {
+    href: "/dashboard/mitarbeiter/dokumente",
+    label: "Dokumente",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/mitarbeiter/arbeitszeiten",
     label: "Arbeitszeiten",
     matchMode: "exact",
@@ -49,6 +54,11 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     label: "Export",
     matchMode: "exact",
   },
+  {
+    href: "/dashboard/mitarbeiter/einstellungen",
+    label: "Einstellungen",
+    matchMode: "prefix",
+  },
 ];
 
 function MitarbeiterLayoutInner({ children }: { children: React.ReactNode }) {
@@ -57,6 +67,7 @@ function MitarbeiterLayoutInner({ children }: { children: React.ReactNode }) {
   const canRead = hasModuleRead(has, "staff");
   const needsStaffPicker =
     pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
+    pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
     pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten") ||
     pathname.startsWith("/dashboard/mitarbeiter/export");
 

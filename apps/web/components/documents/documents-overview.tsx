@@ -43,6 +43,9 @@ import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import type { DocumentStaffOption } from "@/components/documents/document-staff-select";
+import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import { staffDisplayName } from "@/lib/types/staff";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
@@ -96,6 +99,8 @@ function uploadErrorMessage(code: string | undefined): string {
       return "Speicherlimit erreicht (max. 1 GB pro Restaurant).";
     case "invalid_file":
       return "Nur PDF, Word, Pages oder CSV (max. 100 MB).";
+    case "invalid_staff":
+      return "Der gewählte Mitarbeiter ist ungültig.";
     default:
       return code ?? "Upload fehlgeschlagen.";
   }
@@ -167,6 +172,7 @@ export function DocumentsOverview() {
   const { has: hasPermission, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(hasPermission, "documents");
   const canCreate = hasModuleCreate(hasPermission, "documents");
+  const canReadStaff = hasModuleRead(hasPermission, "staff");
   const canEditDocumentNotes = hasPermission("documents.notes.edit");
   const documentTags = useDocumentTagsStorage(restaurantId);
 
@@ -208,6 +214,7 @@ export function DocumentsOverview() {
   const [protocolDoc, setProtocolDoc] = useState<RestaurantDocumentRow | null>(
     null,
   );
+  const [staffMembers, setStaffMembers] = useState<DocumentStaffOption[]>([]);
 
   const openUploadDrawer = useCallback((file?: File | null) => {
     setFormMode("upload");
@@ -278,6 +285,22 @@ export function DocumentsOverview() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!restaurantId || !canReadStaff) {
+      setStaffMembers([]);
+      return;
+    }
+    void (async () => {
+      const { data } = await fetchStaffForRestaurant(restaurantId);
+      setStaffMembers(
+        data.map((s) => ({
+          id: s.id,
+          label: staffDisplayName(s),
+        })),
+      );
+    })();
+  }, [restaurantId, canReadStaff]);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -777,9 +800,10 @@ export function DocumentsOverview() {
         document={editDoc}
         initialFile={uploadInitialFile}
         activeTags={activeTags}
+        staffMembers={staffMembers}
         canEditNotes={canEditDocumentNotes}
         onNotesChanged={() => void reload()}
-        onUpload={async ({ file, title, tagId }) => {
+        onUpload={async ({ file, title, tagId, staffId }) => {
           const { documentId, error } = await trackDashboardFileUpload(
             () =>
               uploadRestaurantDocumentClient({
@@ -787,6 +811,7 @@ export function DocumentsOverview() {
                 file,
                 title,
                 tagId,
+                staffId,
               }),
             {
               successMessage: "Dokument hochgeladen.",

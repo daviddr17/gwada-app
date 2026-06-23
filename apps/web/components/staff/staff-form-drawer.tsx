@@ -49,6 +49,7 @@ import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-chan
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 import { StaffTodoProfileSection } from "@/components/staff/todos/staff-todo-profile-section";
+import { StaffDocumentsProfileSection } from "@/components/staff/staff-documents-profile-section";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
 import { isRestaurantOwnerRole } from "@/lib/types/employee-role";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
@@ -919,6 +920,12 @@ export function StaffFormDrawer({
                   ) : null}
                   {mode === "edit" && staff && canReadStaffTodos ? (
                     <StaffTodoProfileSection
+                      restaurantId={restaurantId}
+                      staff={staff}
+                    />
+                  ) : null}
+                  {mode === "edit" && staff ? (
+                    <StaffDocumentsProfileSection
                       restaurantId={restaurantId}
                       staff={staff}
                     />

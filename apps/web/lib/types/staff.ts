@@ -51,9 +51,28 @@ export type StaffAuditLogDetails = {
   actorFamilyName?: string;
   changes?: StaffAuditLogChange[];
   summary?: string;
+  signatureEmployer?: {
+    signer_name: string;
+    signed_at: string;
+    signature_storage_path?: string | null;
+  } | null;
+  signatureEmployee?: {
+    signer_name: string;
+    signed_at: string;
+    signature_storage_path?: string | null;
+  } | null;
+  /** SHA-256-Hex des finalen Vertrags-PDFs (Integritätsnachweis). */
+  pdfSha256?: string | null;
 };
 
-export type StaffContractLogAction = StaffAuditLogAction;
+export type StaffContractLogAction =
+  | "created"
+  | "updated"
+  | "signed"
+  | "revised"
+  | "pdf_version"
+  | "employer_signed"
+  | "employee_signed";
 export type StaffContractLogChange = StaffAuditLogChange;
 export type StaffContractLogDetails = StaffAuditLogDetails;
 
@@ -116,6 +135,11 @@ export type RestaurantStaffRow = {
   } | null;
 };
 
+import type {
+  StaffContractBodySnapshot,
+  StaffContractSignatureSnapshot,
+} from "@/lib/types/staff-contract-templates";
+
 export type RestaurantStaffContractRow = {
   id: string;
   restaurant_id: string;
@@ -133,6 +157,15 @@ export type RestaurantStaffContractRow = {
   vacation_days_per_year: number | null;
   /** Soll-Wochenarbeitszeit in Minuten (optional). */
   target_weekly_minutes: number | null;
+  /** Aktuelles Vertrags-PDF (neueste Version). */
+  current_document_id?: string | null;
+  signed_at?: string | null;
+  signed_by_user_id?: string | null;
+  contract_body_snapshot?: StaffContractBodySnapshot | null;
+  signature_employer?: StaffContractSignatureSnapshot | null;
+  signature_employee?: StaffContractSignatureSnapshot | null;
+  /** Wartet auf MA-Unterschrift im Profil (Zweit-Schritt). */
+  employee_signature_pending?: boolean;
 };
 
 export type RestaurantStaffContractLogEntry = {

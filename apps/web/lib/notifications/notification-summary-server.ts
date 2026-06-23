@@ -5,6 +5,7 @@ import { loadDashboardReviewsSummary } from "@/lib/dashboard/load-dashboard-revi
 import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notification-inventory-server";
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
+import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
@@ -358,6 +359,20 @@ const MODULE_BUILDERS: Record<
       userId: ctx.userId,
       module: "staff_todo_deferred",
     }),
+  staff_contract_signed: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_contract_signed;
+    const items = await loadStaffContractSignedNotificationItems(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+    });
+    return {
+      id: def.id,
+      count: items.length,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
 };
 
 type ModuleBuildContext = {

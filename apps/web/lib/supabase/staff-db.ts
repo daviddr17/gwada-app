@@ -11,6 +11,10 @@ import type {
   StaffEmploymentTypeDefinition,
 } from "@/lib/types/staff";
 import { isStaffFixedPayType } from "@/lib/staff/staff-contract-pay";
+import type {
+  StaffContractBodySnapshot,
+  StaffContractSignatureSnapshot,
+} from "@/lib/types/staff-contract-templates";
 
 const STAFF_SELECT = `
   id,
@@ -491,7 +495,7 @@ export async function reorderStaffEmploymentTypes(
 const STAFF_CONTRACT_SELECT_BASE =
   "id, restaurant_id, staff_id, valid_from, valid_to, pay_type, hourly_rate_cents, fixed_salary_cents, currency, note";
 
-const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type_id, vacation_days_per_year, target_weekly_minutes, employment_type:restaurant_staff_employment_types(id, name)`;
+const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type_id, vacation_days_per_year, target_weekly_minutes, current_document_id, signed_at, signed_by_user_id, contract_body_snapshot, signature_employer, signature_employee, employee_signature_pending, employment_type:restaurant_staff_employment_types(id, name)`;
 
 export async function fetchStaffContracts(
   restaurantId: string,
@@ -563,6 +567,16 @@ function mapStaffContractRow(r: Record<string, unknown>): RestaurantStaffContrac
     target_weekly_minutes: normalizeStaffContractTargetWeeklyMinutes(
       r.target_weekly_minutes,
     ),
+    current_document_id: (r.current_document_id as string | null) ?? null,
+    signed_at: (r.signed_at as string | null) ?? null,
+    signed_by_user_id: (r.signed_by_user_id as string | null) ?? null,
+    contract_body_snapshot:
+      (r.contract_body_snapshot as StaffContractBodySnapshot | null) ?? null,
+    signature_employer:
+      (r.signature_employer as StaffContractSignatureSnapshot | null) ?? null,
+    signature_employee:
+      (r.signature_employee as StaffContractSignatureSnapshot | null) ?? null,
+    employee_signature_pending: Boolean(r.employee_signature_pending),
   };
 }
 

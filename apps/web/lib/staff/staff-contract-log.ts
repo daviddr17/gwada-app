@@ -137,6 +137,21 @@ export function formatStaffContractLogSummary(
   if (action === "created") {
     return "Vertrag angelegt";
   }
+  if (action === "signed") {
+    return "Digital unterschrieben und PDF erstellt";
+  }
+  if (action === "revised") {
+    return "Vertrag überarbeitet und neue PDF-Version erstellt";
+  }
+  if (action === "pdf_version") {
+    return "Neue PDF-Version erstellt";
+  }
+  if (action === "employer_signed") {
+    return "Arbeitgeber-Unterschrift — wartet auf Mitarbeiter";
+  }
+  if (action === "employee_signed") {
+    return "Mitarbeiter-Unterschrift im Profil";
+  }
   if (changes.length === 0) {
     return "Gespeichert (keine Feldänderungen)";
   }

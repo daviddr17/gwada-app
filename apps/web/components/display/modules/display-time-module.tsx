@@ -25,16 +25,17 @@ import {
   MOTION_EASE_IN_OUT,
   MOTION_EASE_OUT,
 } from "@/lib/ui/motion-presets";
+import {
+  displayTimeStatusClassName,
+  displayTimeStatusLabel,
+  type DisplayTimeSessionState,
+} from "@/lib/display/display-time-status";
 import type { DisplayTeamPresenceMember } from "@/lib/types/staff";
 import type { StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-type TimeState = {
-  status: "off" | "working" | "on_break";
-  clocked_in_at: string | null;
-  break_started_at: string | null;
-};
+type TimeState = DisplayTimeSessionState;
 
 type TimePayload = TimeState & {
   can_view_team_presence?: boolean;
@@ -45,17 +46,6 @@ const timeFmt = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
   minute: "2-digit",
 });
-
-function statusLabel(status: TimeState["status"]): string {
-  switch (status) {
-    case "working":
-      return "In Schicht";
-    case "on_break":
-      return "In Pause";
-    default:
-      return "Nicht eingestempelt";
-  }
-}
 
 type TimeAction = "clock_in" | "start_break" | "end_break" | "clock_out";
 
@@ -131,10 +121,13 @@ const displayTimeDestructiveButtonClassName =
 export function DisplayTimeModule({
   initial,
   onChanged,
+  onSessionChange,
   onClockOutSuccess,
 }: {
   initial: TimeState | null;
   onChanged: () => void;
+  /** Live-Sync für Kopfzeile o. Ä. */
+  onSessionChange?: (state: TimeState) => void;
   /** Nach erfolgreichem Ausstempeln (nach Celebration) Display-Session beenden. */
   onClockOutSuccess?: () => void;
 }) {
@@ -161,6 +154,10 @@ export function DisplayTimeModule({
   const stateRef = useRef(state);
   stateRef.current = state;
   const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
+
+  useEffect(() => {
+    onSessionChange?.(state);
+  }, [state, onSessionChange]);
 
   const refresh = useCallback(async () => {
     try {
@@ -331,18 +328,14 @@ export function DisplayTimeModule({
             key={state.status}
             className={cn(
               "text-sm font-medium uppercase tracking-wide",
-              state.status === "working"
-                ? "text-emerald-600"
-                : state.status === "on_break"
-                  ? "text-amber-600"
-                  : "text-muted-foreground",
+              displayTimeStatusClassName(state.status),
             )}
             initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
             transition={statusTransition}
           >
-            {statusLabel(state.status)}
+            {displayTimeStatusLabel(state.status)}
           </motion.p>
         </AnimatePresence>
         <AnimatePresence mode="wait" initial={false}>

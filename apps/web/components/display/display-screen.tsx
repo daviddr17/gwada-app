@@ -510,7 +510,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
               <DisplayTimeModule
                 initial={context.time_session}
                 onChanged={() => {
-                  void refreshContext();
                   void refreshTodoBadge();
                 }}
                 onClockOutSuccess={logoutAfterClockOut}

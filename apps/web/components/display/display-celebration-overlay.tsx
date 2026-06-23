@@ -422,10 +422,18 @@ export function DisplayCelebrationOverlay({
 /** Zeiterfassungs-Varianten — dünner Alias für Modul-Nutzung. */
 export function DisplayTimeActionCelebration({
   action,
+  onExitStart,
   onDone,
 }: {
   action: DisplayTimeCelebrationAction | null;
+  onExitStart?: () => void;
   onDone?: () => void;
 }) {
-  return <DisplayCelebrationOverlay variant={action} onDone={onDone} />;
+  return (
+    <DisplayCelebrationOverlay
+      variant={action}
+      onExitStart={onExitStart}
+      onDone={onDone}
+    />
+  );
 }

@@ -19,7 +19,12 @@ import {
   displayTimeActionButtonOutlineClassName,
   displayTimeActionButtonPrimaryClassName,
 } from "@/lib/ui/display-time-action-button";
-import { MOTION_EASE_OUT } from "@/lib/ui/motion-presets";
+import {
+  DISPLAY_CELEBRATION_EXIT_MS,
+  DISPLAY_CELEBRATION_EXIT_REDUCED_MS,
+  MOTION_EASE_IN_OUT,
+  MOTION_EASE_OUT,
+} from "@/lib/ui/motion-presets";
 import type { DisplayTeamPresenceMember } from "@/lib/types/staff";
 import type { StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -142,10 +147,15 @@ export function DisplayTimeModule({
   );
   const [celebrationAction, setCelebrationAction] =
     useState<DisplayTimeCelebrationAction | null>(null);
+  const [contentHidden, setContentHidden] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const reduceMotion = useReducedMotion() ?? false;
+  const contentRevealSec =
+    (reduceMotion ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS : DISPLAY_CELEBRATION_EXIT_MS) /
+    1000;
   const inFlightRef = useRef(false);
   const pendingClockOutLogoutRef = useRef(false);
+  const pendingCelebrationSyncRef = useRef(false);
   const onClockOutSuccessRef = useRef(onClockOutSuccess);
   onClockOutSuccessRef.current = onClockOutSuccess;
   const stateRef = useRef(state);
@@ -160,10 +170,20 @@ export function DisplayTimeModule({
       });
       if (!res.ok) return;
       const data = (await res.json()) as TimePayload;
-      setState({
-        status: data.status,
-        clocked_in_at: data.clocked_in_at,
-        break_started_at: data.break_started_at,
+      setState((prev) => {
+        const next = {
+          status: data.status,
+          clocked_in_at: data.clocked_in_at,
+          break_started_at: data.break_started_at,
+        };
+        if (
+          prev.status === next.status &&
+          prev.clocked_in_at === next.clocked_in_at &&
+          prev.break_started_at === next.break_started_at
+        ) {
+          return prev;
+        }
+        return next;
       });
       setCanViewTeamPresence(data.can_view_team_presence === true);
       setTeamPresence(data.team_presence ?? []);
@@ -197,11 +217,9 @@ export function DisplayTimeModule({
         );
         return false;
       }
-      onChanged();
-      void refresh();
       return true;
     },
-    [onChanged, refresh],
+    [],
   );
 
   const runAction = useCallback(
@@ -214,18 +232,24 @@ export function DisplayTimeModule({
         const gate = await prepareAndGate(action);
         if (gate === "blocked") {
           setCelebrationAction(null);
+          setContentHidden(false);
           setState(snapshot);
           return;
         }
 
         const ok = await runTimeAction(action);
         if (!ok) {
+          pendingCelebrationSyncRef.current = false;
           pendingClockOutLogoutRef.current = false;
           setCelebrationAction(null);
+          setContentHidden(false);
           setState(snapshot);
           void refresh();
-        } else if (action === "clock_out") {
-          pendingClockOutLogoutRef.current = true;
+        } else {
+          pendingCelebrationSyncRef.current = true;
+          if (action === "clock_out") {
+            pendingClockOutLogoutRef.current = true;
+          }
         }
       } finally {
         inFlightRef.current = false;
@@ -240,6 +264,7 @@ export function DisplayTimeModule({
       if (actionBusy || celebrationAction || inFlightRef.current) return;
       const snapshot = stateRef.current;
       setCelebrationAction(action);
+      setContentHidden(true);
       setState(optimisticStateForAction(action, snapshot));
       void runAction(action, snapshot);
     },
@@ -252,7 +277,7 @@ export function DisplayTimeModule({
       : null;
 
   const statusTransition = {
-    duration: reduceMotion ? 0.12 : 0.42,
+    duration: celebrationAction || reduceMotion ? 0 : 0.42,
     ease: MOTION_EASE_OUT,
   } as const;
 
@@ -267,15 +292,39 @@ export function DisplayTimeModule({
     >
       <DisplayTimeActionCelebration
         action={celebrationAction}
+        onExitStart={() => {
+          if (pendingClockOutLogoutRef.current) {
+            pendingCelebrationSyncRef.current = false;
+            onClockOutSuccessRef.current?.();
+          }
+          setContentHidden(false);
+        }}
         onDone={() => {
-          setCelebrationAction(null);
           if (pendingClockOutLogoutRef.current) {
             pendingClockOutLogoutRef.current = false;
-            onClockOutSuccessRef.current?.();
+            setCelebrationAction(null);
+            setContentHidden(false);
+            return;
+          }
+          setCelebrationAction(null);
+          if (pendingCelebrationSyncRef.current) {
+            pendingCelebrationSyncRef.current = false;
+            void refresh();
+            onChanged();
           }
         }}
       />
 
+      <motion.div
+        className="flex w-full flex-col gap-8"
+        aria-hidden={contentHidden ? true : undefined}
+        initial={false}
+        animate={{ opacity: contentHidden ? 0 : 1 }}
+        transition={{
+          duration: contentHidden ? 0 : contentRevealSec,
+          ease: MOTION_EASE_IN_OUT,
+        }}
+      >
       <div className="w-full text-center">
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
@@ -408,6 +457,7 @@ export function DisplayTimeModule({
       {canViewTeamPresence ? (
         <DisplayTimeTeamPresence members={teamPresence} className="w-full" />
       ) : null}
+      </motion.div>
 
       <DisplayTimeTodoPopup {...popupProps} />
     </div>

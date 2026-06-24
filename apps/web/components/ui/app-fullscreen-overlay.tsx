@@ -110,7 +110,7 @@ export function AppFullscreenOverlay({
         {header}
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
 
       {footer ? (
         <footer className="sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">

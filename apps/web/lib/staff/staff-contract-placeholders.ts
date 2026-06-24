@@ -43,6 +43,16 @@ export const STAFF_CONTRACT_PLACEHOLDER_GROUPS: readonly {
     ],
   },
   {
+    id: "arbeitgeber",
+    label: "Erstellender Nutzer",
+    placeholders: [
+      {
+        token: "{{arbeitgeber.erstellt_von}}",
+        label: "Name (eingeloggter Nutzer)",
+      },
+    ],
+  },
+  {
     id: "restaurant",
     label: "Arbeitgeber",
     placeholders: [

@@ -778,13 +778,20 @@ export async function upsertStaffContract(
   return result;
 }
 
-export async function deleteStaffContract(contractId: string): Promise<boolean> {
-  const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase
-    .from("restaurant_staff_contracts")
-    .delete()
-    .eq("id", contractId);
-  return !error;
+export async function deleteStaffContract(
+  restaurantId: string,
+  contractId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await fetch("/api/staff/contracts/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restaurantId, contractId }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    return { ok: false, error: data.error ?? "delete_failed" };
+  }
+  return { ok: true };
 }
 
 export async function fetchStaffWorkEntriesInRange(

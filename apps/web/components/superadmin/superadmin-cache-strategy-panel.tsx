@@ -28,6 +28,10 @@ import {
   type ModuleCacheScope,
   type ModuleCacheStrategy,
 } from "@/lib/dashboard/module-data-cache-policy";
+import {
+  superadminCardGrid2ClassName,
+  superadminCardGrid3ClassName,
+} from "@/lib/ui/superadmin-card-grid";
 import { cn } from "@/lib/utils";
 
 function StrategyBadge({ strategy }: { strategy: ModuleCacheStrategy }) {
@@ -244,7 +248,7 @@ export function SuperadminCacheStrategyPanel() {
             zeigt den Stand automatisch — keine zweite Dokumentation pflegen.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className={superadminCardGrid3ClassName}>
           {MODULE_CACHE_DECISION_GUIDE.map((row) => (
             <div
               key={row.question}
@@ -298,7 +302,7 @@ export function SuperadminCacheStrategyPanel() {
             Strategien (Legende)
           </h2>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={superadminCardGrid3ClassName}>
           {(
             Object.entries(MODULE_CACHE_STRATEGY_META) as [
               ModuleCacheStrategy,
@@ -377,7 +381,7 @@ export function SuperadminCacheStrategyPanel() {
           {grouped.map(([group, entries]) => (
             <div key={group} className="space-y-3">
               <h3 className="text-sm font-semibold text-foreground">{group}</h3>
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className={superadminCardGrid2ClassName}>
                 {entries.map((entry) => (
                   <PolicyCard key={entry.id} entry={entry} />
                 ))}

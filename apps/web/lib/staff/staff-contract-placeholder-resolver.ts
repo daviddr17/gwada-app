@@ -32,6 +32,50 @@ function tokenToKey(token: string): string {
   return token.replace(/^\{\{|\}\}$/g, "");
 }
 
+const PLACEHOLDER_TOKEN_RE = /\{\{([a-z0-9_.]+)\}\}/gi;
+
+/** Platzhalter-Schlüssel aus Mustertext (Titel, Überschriften, Paragraphen). */
+export function extractStaffContractPlaceholderKeys(
+  ...texts: string[]
+): Set<string> {
+  const keys = new Set<string>();
+  for (const text of texts) {
+    if (!text) continue;
+    const re = new RegExp(PLACEHOLDER_TOKEN_RE.source, "gi");
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+      keys.add(match[1]!);
+    }
+  }
+  return keys;
+}
+
+export function isStaffContractPlaceholderApplicable(
+  key: string,
+  payType: StaffContractPayType,
+): boolean {
+  if (key === "vertrag.stundenlohn") return payType === "hourly";
+  if (key === "vertrag.festgehalt") return isStaffFixedPayType(payType);
+  return true;
+}
+
+/** Effektiver Wert: leere Snapshot-Overrides blockieren nicht neu befüllte Stammdaten. */
+export function resolveStaffContractPlaceholderValue(
+  fields: Record<string, StaffContractPlaceholderField>,
+  overrides: Record<string, string> | undefined,
+  key: string,
+): string {
+  const base = fields[key]?.value ?? "";
+  if (!overrides || !Object.prototype.hasOwnProperty.call(overrides, key)) {
+    return base;
+  }
+  const override = overrides[key] ?? "";
+  if (!override.trim() && base.trim()) {
+    return base;
+  }
+  return override;
+}
+
 function formatEuroCents(cents: number | null | undefined): string {
   if (cents == null) return "";
   return new Intl.NumberFormat("de-DE", {
@@ -75,8 +119,10 @@ export function buildStaffContractPlaceholderFields(params: {
   staff: RestaurantStaffRow;
   contract: StaffContractContractDraft;
   restaurant: RestaurantProfile;
+  /** Eingeloggter Nutzer, der den Vertrag erstellt / als AG unterschreibt. */
+  actingUserFullName?: string;
 }): Record<string, StaffContractPlaceholderField> {
-  const { staff, contract, restaurant } = params;
+  const { staff, contract, restaurant, actingUserFullName } = params;
   const fullName = staffFullName(staff);
 
   const raw: Record<string, string> = {
@@ -122,6 +168,7 @@ export function buildStaffContractPlaceholderFields(params: {
         : "",
     "vertrag.beschaeftigungsverhaeltnis":
       contract.employment_type_name?.trim() ?? "",
+    "arbeitgeber.erstellt_von": actingUserFullName?.trim() ?? "",
     "restaurant.name": restaurant.name?.trim() ?? "",
     "restaurant.firma": restaurant.legalName?.trim() || restaurant.name?.trim() || "",
     "restaurant.vertreten_durch": restaurant.legalRepresentative?.trim() ?? "",
@@ -160,9 +207,9 @@ export function replaceStaffContractPlaceholders(
   overrides?: Record<string, string>,
 ): string {
   let result = text;
-  for (const [key, field] of Object.entries(fields)) {
+  for (const [key] of Object.entries(fields)) {
     const token = `{{${key}}}`;
-    const value = overrides?.[key] ?? field.value;
+    const value = resolveStaffContractPlaceholderValue(fields, overrides, key);
     result = result.split(token).join(value);
   }
   return result;
@@ -173,8 +220,8 @@ export function staffContractPlaceholderValuesMap(
   overrides?: Record<string, string>,
 ): Record<string, string> {
   const map: Record<string, string> = {};
-  for (const [key, field] of Object.entries(fields)) {
-    map[key] = overrides?.[key] ?? field.value;
+  for (const key of Object.keys(fields)) {
+    map[key] = resolveStaffContractPlaceholderValue(fields, overrides, key);
   }
   return map;
 }
@@ -182,9 +229,20 @@ export function staffContractPlaceholderValuesMap(
 export function listMissingStaffContractFields(
   fields: Record<string, StaffContractPlaceholderField>,
   overrides?: Record<string, string>,
+  options?: {
+    onlyKeys?: Iterable<string>;
+    payType?: StaffContractPayType;
+  },
 ): StaffContractPlaceholderField[] {
+  const keyFilter = options?.onlyKeys ? new Set(options.onlyKeys) : null;
+  const payType = options?.payType;
+
   return Object.values(fields).filter((f) => {
-    const value = overrides?.[f.key] ?? f.value;
+    if (keyFilter && !keyFilter.has(f.key)) return false;
+    if (payType && !isStaffContractPlaceholderApplicable(f.key, payType)) {
+      return false;
+    }
+    const value = resolveStaffContractPlaceholderValue(fields, overrides, f.key);
     return !value.trim();
   });
 }

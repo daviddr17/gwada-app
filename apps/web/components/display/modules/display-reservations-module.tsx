@@ -117,8 +117,8 @@ function isFullDaySlotRange(
 
 export function DisplayReservationsModule() {
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
   const [payload, setPayload] = useState<DayPayload | null>(null);
+  const showDataSkeleton = useDeferredSkeleton(loading && !payload);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [listDensity, setListDensity] = useState<ListDensity>("comfortable");
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
@@ -133,6 +133,7 @@ export function DisplayReservationsModule() {
   );
   const [editReservationId, setEditReservationId] = useState<string | null>(null);
   const [selectedDayYmd, setSelectedDayYmd] = useState(() => localDayToYmd(new Date()));
+  const hadLoadedRef = useRef(false);
 
   const selectedDay = useMemo(() => {
     const [y, m, d] = selectedDayYmd.split("-").map((v) => Number.parseInt(v, 10));
@@ -198,7 +199,8 @@ export function DisplayReservationsModule() {
   }, [load]);
 
   useEffect(() => {
-    void load();
+    void load({ silent: hadLoadedRef.current });
+    hadLoadedRef.current = true;
     window.addEventListener(
       GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
       loadFromLive,
@@ -685,17 +687,6 @@ export function DisplayReservationsModule() {
     </button>
   );
 
-  if (showSkeleton) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-16 w-full rounded-2xl" />
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-24 w-full rounded-2xl" />
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div className={displayModuleContentClassName}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -749,19 +740,28 @@ export function DisplayReservationsModule() {
             <p className="text-sm text-muted-foreground">
               {formatDayHeadingDe(selectedDay)}
             </p>
-            <div className="mt-1 flex flex-wrap gap-4 text-lg">
-              <span>
-                <span className="font-semibold tabular-nums">{payload?.stats.count ?? 0}</span>{" "}
-                Reservierungen
-              </span>
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Users className="size-5" />
-                <span className="font-semibold tabular-nums text-foreground">
-                  {payload?.stats.guests ?? 0}
-                </span>{" "}
-                Gäste
-              </span>
-            </div>
+            {showDataSkeleton ? (
+              <div className="mt-2 flex flex-wrap gap-4">
+                <Skeleton className="h-7 w-36 rounded-lg" />
+                <Skeleton className="h-7 w-28 rounded-lg" />
+              </div>
+            ) : (
+              <div className="mt-1 flex flex-wrap gap-4 text-lg">
+                <span>
+                  <span className="font-semibold tabular-nums">
+                    {payload?.stats.count ?? 0}
+                  </span>{" "}
+                  Reservierungen
+                </span>
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <Users className="size-5" />
+                  <span className="font-semibold tabular-nums text-foreground">
+                    {payload?.stats.guests ?? 0}
+                  </span>{" "}
+                  Gäste
+                </span>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -769,6 +769,7 @@ export function DisplayReservationsModule() {
             size="lg"
             className={cn(modulePrimaryAddButtonClassName, "h-12 rounded-xl")}
             onClick={() => setCreateOpen(true)}
+            disabled={showDataSkeleton}
           >
             <Plus className="mr-2 size-5" />
             Neu
@@ -781,6 +782,33 @@ export function DisplayReservationsModule() {
         {viewChip("occupancy", "Tischbelegung")}
       </div>
 
+      {showDataSkeleton ? (
+        <>
+          <Skeleton className="h-14 w-full rounded-2xl" />
+          <Skeleton className="h-16 w-full rounded-2xl" />
+          <div
+            className={cn(
+              listDensity === "compact"
+                ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+                : "space-y-3",
+            )}
+            aria-busy
+          >
+            {Array.from({ length: listDensity === "compact" ? 6 : 4 }).map(
+              (_, i) => (
+                <Skeleton
+                  key={i}
+                  className={cn(
+                    "w-full rounded-2xl",
+                    listDensity === "compact" ? "h-20" : "h-24",
+                  )}
+                />
+              ),
+            )}
+          </div>
+        </>
+      ) : (
+        <>
       {slotMinutes.length > 1 ? (
         <DisplayTimeRangeSlider
           slotMinutes={slotMinutes}
@@ -958,6 +986,8 @@ export function DisplayReservationsModule() {
             filteredReservations.map((r) => renderListReservation(r))
           )}
         </div>
+      )}
+        </>
       )}
 
       <DisplayReservationEditDrawer

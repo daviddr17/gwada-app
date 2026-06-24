@@ -393,9 +393,9 @@ export function StaffContractDrawer({
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-      <DrawerContent className={drawerContentClassName("form")}>
-        <DrawerHeader className="shrink-0 px-5 pt-2 pb-3 text-left">
+    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
+      <DrawerContent className={drawerContentClassName("formStaff")}>
+        <DrawerHeader className="min-w-0 shrink-0 overflow-x-hidden px-5 pt-2 pb-3 text-left">
           <DrawerTitle>
             {editId ? "Vertrag bearbeiten" : "Neuer Vertrag"}
           </DrawerTitle>
@@ -405,8 +405,10 @@ export function StaffContractDrawer({
             </DrawerDescription>
           ) : null}
         </DrawerHeader>
+        <div className="flex min-h-0 flex-1 flex-col">
         <div
           className={staffDrawerScrollClassName}
+          data-vaul-no-drag
         >
           <DrawerFormSection title="Laufzeit" contentPadding={5}>
           <div className="grid grid-cols-2 gap-3">
@@ -693,6 +695,7 @@ export function StaffContractDrawer({
           showDelete={!!editId}
           onDelete={() => setConfirmDelete(true)}
         />
+        </div>
       </DrawerContent>
 
       <ConfirmDialog
@@ -708,13 +711,14 @@ export function StaffContractDrawer({
         destructive
         onConfirm={async () => {
           if (!editId) return;
-          const ok = await deleteStaffContract(editId);
-          if (!ok) {
+          const result = await deleteStaffContract(restaurantId, editId);
+          if (!result.ok) {
             toast.error("Vertrag konnte nicht gelöscht werden.");
-            throw new Error("delete failed");
+            throw new Error(result.error ?? "delete failed");
           }
           toast.success("Vertrag gelöscht");
           setConfirmDelete(false);
+          notifyStaffContractsUpdated();
           onDeleted();
           onOpenChange(false);
         }}

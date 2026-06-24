@@ -21,6 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { SettingsBrandingCard } from "@/components/settings/settings-branding-panel";
 import { RestaurantProfileHeader } from "@/components/settings/restaurant-profile-header";
+import { RestaurantBusinessCardDrawer } from "@/components/settings/restaurant-business-card-drawer";
 import { RestaurantSettingsSkeleton } from "@/components/settings/restaurant-settings-skeleton";
 import { WeekdayHoursGrid } from "@/components/settings/weekday-hours-grid";
 import {
@@ -140,6 +141,7 @@ export function RestaurantSettingsPanel({
   const [savedHoursFlash, setSavedHoursFlash] = useState(false);
   const [showPastExceptions, setShowPastExceptions] = useState(false);
   const [exceptionDeleteId, setExceptionDeleteId] = useState<string | null>(null);
+  const [businessCardOpen, setBusinessCardOpen] = useState(false);
   const [platformStatusRefresh, setPlatformStatusRefresh] = useState(0);
   const [openingHoursSettings, setOpeningHoursSettings] =
     useState<OpeningHoursSettingsRow>(defaultOpeningHoursSettingsRow);
@@ -572,6 +574,13 @@ export function RestaurantSettingsPanel({
             patchProfile(paths);
             setDraft((p) => (p ? { ...p, ...paths } : p));
           }}
+          onCreateBusinessCard={() => setBusinessCardOpen(true)}
+        />
+        <RestaurantBusinessCardDrawer
+          open={businessCardOpen}
+          onOpenChange={setBusinessCardOpen}
+          profile={draft}
+          accentHex={accentDraft}
         />
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">

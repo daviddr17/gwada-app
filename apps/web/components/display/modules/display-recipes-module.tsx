@@ -44,8 +44,8 @@ const eur = new Intl.NumberFormat("de-DE", {
 
 export function DisplayRecipesModule() {
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
   const [allDishes, setAllDishes] = useState<Dish[]>([]);
+  const showDataSkeleton = useDeferredSkeleton(loading && allDishes.length === 0);
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export function DisplayRecipesModule() {
 
   return (
     <>
-      <div className={cn(displayModuleContentClassName, "max-w-3xl")}>
+      <div className={displayModuleContentClassName}>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 size-5 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -129,14 +129,20 @@ export function DisplayRecipesModule() {
           />
         </div>
 
-        {!showSkeleton && categories.length > 0 ? (
+        {showDataSkeleton ? (
+          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-24 shrink-0 rounded-full" />
+            ))}
+          </div>
+        ) : categories.length > 0 ? (
           <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
             {categoryChip(ALL_CATEGORIES, "Alle")}
             {categories.map((c) => categoryChip(c.id, c.name))}
           </div>
         ) : null}
 
-        {showSkeleton ? (
+        {showDataSkeleton ? (
           <div className="space-y-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-16 w-full rounded-2xl" />

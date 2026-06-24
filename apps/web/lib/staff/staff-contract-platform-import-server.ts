@@ -31,20 +31,6 @@ export async function listPlatformContractCatalog(params: {
     typeof restaurant?.country === "string" ? restaurant.country : "DE",
   );
 
-  let employmentLegacyKey: string | null = null;
-  if (params.employmentTypeId) {
-    const { data: employmentType } = await admin
-      .from("restaurant_staff_employment_types")
-      .select("legacy_key")
-      .eq("id", params.employmentTypeId)
-      .eq("restaurant_id", params.restaurantId)
-      .maybeSingle();
-    employmentLegacyKey =
-      typeof employmentType?.legacy_key === "string"
-        ? employmentType.legacy_key
-        : null;
-  }
-
   const { templates, error } = await fetchPlatformStaffContractTemplates(admin, {
     countryCode,
     activeOnly: true,
@@ -54,23 +40,34 @@ export async function listPlatformContractCatalog(params: {
     return { ok: false, error, status: 500 };
   }
 
-  const filtered = templates.filter((t) =>
-    employmentLegacyKey ? t.employmentLegacyKey === employmentLegacyKey : true,
-  );
+  const { data: employmentTypes } = await admin
+    .from("restaurant_staff_employment_types")
+    .select("id, legacy_key")
+    .eq("restaurant_id", params.restaurantId);
+
+  const employmentByLegacy = new Map<string, string>();
+  for (const row of employmentTypes ?? []) {
+    if (row.legacy_key) {
+      employmentByLegacy.set(row.legacy_key as string, row.id as string);
+    }
+  }
 
   const { data: importedRows } = await admin
     .from("restaurant_staff_contract_templates")
-    .select("id, platform_template_id, imported_platform_version")
+    .select(
+      "id, platform_template_id, imported_platform_version, employment_type_id",
+    )
     .eq("restaurant_id", params.restaurantId)
     .not("platform_template_id", "is", null);
 
-  const importedByPlatform = new Map<
+  const importedByPlatformAndEmployment = new Map<
     string,
     { id: string; version: number | null }
   >();
   for (const row of importedRows ?? []) {
-    if (!row.platform_template_id) continue;
-    importedByPlatform.set(row.platform_template_id as string, {
+    if (!row.platform_template_id || !row.employment_type_id) continue;
+    const key = `${row.platform_template_id as string}:${row.employment_type_id as string}`;
+    importedByPlatformAndEmployment.set(key, {
       id: row.id as string,
       version:
         row.imported_platform_version == null
@@ -79,8 +76,19 @@ export async function listPlatformContractCatalog(params: {
     });
   }
 
-  const items: PlatformStaffContractCatalogItem[] = filtered.map((t) => {
-    const imported = importedByPlatform.get(t.id);
+  const items: PlatformStaffContractCatalogItem[] = templates.map((t) => {
+    const catalogEmploymentTypeId =
+      params.employmentTypeId ??
+      employmentByLegacy.get(t.employmentLegacyKey) ??
+      null;
+    const importKey = catalogEmploymentTypeId
+      ? `${t.id}:${catalogEmploymentTypeId}`
+      : null;
+    const imported = importKey
+      ? importedByPlatformAndEmployment.get(importKey)
+      : [...importedByPlatformAndEmployment.entries()].find(([k]) =>
+          k.startsWith(`${t.id}:`),
+        )?.[1];
     return {
       id: t.id,
       countryCode: t.countryCode,
@@ -121,7 +129,7 @@ export async function importPlatformContractTemplates(params: {
 
   const catalog = await listPlatformContractCatalog({
     restaurantId: params.restaurantId,
-    employmentTypeId: params.importAllForCountry ? null : params.employmentTypeId,
+    employmentTypeId: params.employmentTypeId,
   });
 
   if (!catalog.ok) {
@@ -154,22 +162,49 @@ export async function importPlatformContractTemplates(params: {
     }
   }
 
+  const { data: importedRows } = await admin
+    .from("restaurant_staff_contract_templates")
+    .select(
+      "id, platform_template_id, imported_platform_version, employment_type_id",
+    )
+    .eq("restaurant_id", params.restaurantId)
+    .not("platform_template_id", "is", null);
+
+  const importedByPlatformAndEmployment = new Map<
+    string,
+    { id: string; version: number | null }
+  >();
+  for (const row of importedRows ?? []) {
+    if (!row.platform_template_id || !row.employment_type_id) continue;
+    const key = `${row.platform_template_id as string}:${row.employment_type_id as string}`;
+    importedByPlatformAndEmployment.set(key, {
+      id: row.id as string,
+      version:
+        row.imported_platform_version == null
+          ? null
+          : Number(row.imported_platform_version),
+    });
+  }
+
   let imported = 0;
   let skipped = 0;
   const templateIds: string[] = [];
 
   for (const target of targets) {
-    if (target.alreadyImported && !params.platformTemplateIds?.length) {
-      skipped += 1;
-      continue;
-    }
-
     const employmentTypeId =
       params.employmentTypeId ??
       employmentByLegacy.get(target.employmentLegacyKey) ??
       null;
 
     if (!employmentTypeId) {
+      skipped += 1;
+      continue;
+    }
+
+    const importKey = `${target.id}:${employmentTypeId}`;
+    const existingImport = importedByPlatformAndEmployment.get(importKey);
+
+    if (existingImport) {
       skipped += 1;
       continue;
     }

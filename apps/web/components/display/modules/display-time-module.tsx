@@ -281,12 +281,8 @@ export function DisplayTimeModule({
   const actionsBlocked = actionBusy || Boolean(celebrationAction);
 
   return (
-    <div
-      className={cn(
-        displayModuleContentClassName,
-        "relative mx-auto w-full max-w-lg gap-8",
-      )}
-    >
+    <div className={displayModuleContentClassName}>
+      <div className="relative mx-auto flex w-full max-w-md flex-col gap-8">
       <DisplayTimeActionCelebration
         action={celebrationAction}
         onExitStart={() => {
@@ -446,11 +442,12 @@ export function DisplayTimeModule({
           ) : null}
         </AnimatePresence>
       </div>
+      </motion.div>
+      </div>
 
       {canViewTeamPresence ? (
         <DisplayTimeTeamPresence members={teamPresence} className="w-full" />
       ) : null}
-      </motion.div>
 
       <DisplayTimeTodoPopup {...popupProps} />
     </div>

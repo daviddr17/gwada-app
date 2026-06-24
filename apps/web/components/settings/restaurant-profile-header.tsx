@@ -1,8 +1,9 @@
 "use client";
 
-import { Camera } from "lucide-react";
+import { Camera, IdCard } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { RestaurantLogoMark } from "@/components/ui/restaurant-logo-mark";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -72,6 +73,7 @@ type RestaurantProfileHeaderProps = {
     avatarStoragePath?: string | null;
     coverStoragePath?: string | null;
   }) => void;
+  onCreateBusinessCard?: () => void;
 };
 
 export function RestaurantProfileHeader({
@@ -83,6 +85,7 @@ export function RestaurantProfileHeader({
   onNameChange,
   onSlugChange,
   onImagePathsChange,
+  onCreateBusinessCard,
 }: RestaurantProfileHeaderProps) {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -393,6 +396,18 @@ export function RestaurantProfileHeader({
                   placeholder="z. B. Gwada Soul Kitchen"
                   className="h-11 max-w-xl rounded-xl"
                 />
+                {onCreateBusinessCard ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-fit gap-2 rounded-lg"
+                    onClick={onCreateBusinessCard}
+                  >
+                    <IdCard className="size-4" aria-hidden />
+                    Visitenkarte erstellen
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>

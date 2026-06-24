@@ -1,7 +1,7 @@
 {
-  "title": "Display: flüssigere Zeiterfassung, kompakte Kopf-/Fußzeile",
-  "body": "- Schicht/Pause/Beenden: Animation startet sofort beim Tippen, läuft über den ganzen Bildschirm (ohne abgeschnittenen Kasten)\n- PIN-Login und Modulwechsel mit weicherem Übergang\n- Dark/Light-Umschalter sitzt in der oberen Zeile (nicht mehr schwebend); Kopf- und Fußzeile sind schlanker und bleiben beim Scrollen sichtbar",
-  "superadminBody": "- display-chrome-header + displayChromeShell; DisplayThemeToggleSlot entfernt\n- display-time-action-celebration Portal fixed inset-0; beginAction sofort\n- display-time-module w-full buttons; PIN crossfade display-screen",
+  "title": "Visitenkarte, Display-Feinschliff und stabilere Verträge",
+  "body": "- Unter **Einstellungen → Übersicht** kannst du eine **Visitenkarte als PDF** erstellen — mit Live-Vorschau, Akzentfarbe, Logo und wählbaren Inhalten (Adresse, Website, Öffnungszeiten …)\n- **Display**: Module nutzen die volle Breite; beim Tagwechsel in Reservierungen kein Flackern mehr durch Skeleton über die ganze Seite\n- **Verträge**: Löschen funktioniert wieder zuverlässig; Plattform-Vorlagen lassen sich **pro Beschäftigungsverhältnis** frei importieren\n- Vertragserstellung: „Vertreten durch“ ist der eingeloggte Nutzer; Platzhalter und Unterschriften-PDFs sind robuster",
+  "superadminBody": "- Lade-Strategie: Registry um Display-Kiosk, Workspace-Restaurant, ToDos, Bewertungen; Karten-Grid volle Breite bei einzelnen Einträgen\n- Migrationen: Vollzeit-Mustertext erweitert, PNG für Vertrags-Signaturen, Platzhalter arbeitgeber.erstellt_von\n- API DELETE /api/staff/contracts/delete (Service-Role, Storage-Cleanup)",
   "audience": "customers",
-  "version": "2026.06.22"
+  "version": "2026.06.24"
 }

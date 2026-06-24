@@ -478,6 +478,116 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     notes:
       "Server: restaurant_news_platform_cache + after(triggerNewsFeedSyncIfStale). Plattform-Chips = Client-Filter auf Gesamt-Feed, kein API-Reload.",
   },
+  {
+    id: "workspaceRestaurant",
+    label: "Workspace-Restaurant (UUID)",
+    scope: "chrome",
+    appModule: "App-Chrome",
+    strategy: "optimistic-local",
+    description:
+      "Aktives Restaurant für alle Module — sofort aus sessionStorage (peek), asynchron auflösen ohne „Kein Restaurant“-Flackern.",
+    loadTriggers: [
+      "Mount App-Zone: peekCachedWorkspaceRestaurantId",
+      "getWorkspaceRestaurantId() nachziehen",
+      "GWADA_WORKSPACE_RESTAURANT_CHANGED",
+    ],
+    invalidateTriggers: [
+      "Restaurant-Wechsel in Einstellungen",
+      "Workspace-Persistenz aktualisiert",
+    ],
+    implementationFiles: [
+      "lib/hooks/use-workspace-restaurant-uuid.ts",
+      "lib/supabase/workspace-persistence.ts",
+    ],
+    status: "active",
+  },
+  {
+    id: "displayKiosk",
+    label: "Display-Kiosk",
+    scope: "platform",
+    appModule: "Display",
+    strategy: "poll",
+    pollIntervalMs: 60_000,
+    description:
+      "Eigene Session-Zone (/display/[slug], kein Supabase-User-JWT). Module per fetch; Reservierungen mit Live-Signal-Poll und stillen Tag-Reloads ohne Full-Skeleton.",
+    loadTriggers: [
+      "PIN-Login → GET /api/display/context",
+      "Modul-Mount: reservations / inventory / recipes / time",
+      "Reservierungen: live-signal Poll 60s + GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT",
+      "ToDo-Badge: GET /api/display/todos?badge_only=1",
+    ],
+    invalidateTriggers: [
+      "Tagwechsel im Datepicker: silent load (Toolbar bleibt)",
+      "Neue Reservierung (Live-Signal) → Refresh-Event",
+      "PIN-Sperre / Entsperren",
+    ],
+    apiEndpoints: [
+      "/api/display/context",
+      "/api/display/reservations",
+      "/api/display/reservations/live-signal",
+      "/api/display/inventory",
+      "/api/display/recipes",
+      "/api/display/todos",
+    ],
+    implementationFiles: [
+      "components/display/display-screen.tsx",
+      "components/display/modules/display-reservations-module.tsx",
+      "components/display/modules/display-inventory-module.tsx",
+      "lib/hooks/use-display-reservations-live.ts",
+      "lib/hooks/use-display-todo-badge-count.ts",
+    ],
+    status: "active",
+    notes:
+      "Skeleton nur für dynamische Bereiche beim Erstload — nicht bei Filter-/Picker-Wechsel. Kein AppModuleLiveProviders (andere Auth-Zone).",
+  },
+  {
+    id: "staffTodos",
+    label: "ToDo-Listen",
+    scope: "module",
+    appModule: "Mitarbeiter",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 30_000,
+    description:
+      "Todos + Mitarbeiterliste beim Mount; Suche/Filter/Sortierung clientseitig. Deferred Skeleton nur beim Erstload.",
+    loadTriggers: ["Mount /dashboard/mitarbeiter/todos/**"],
+    invalidateTriggers: [
+      "Todo anlegen / bearbeiten / löschen",
+      "Status- oder Zuweisungsänderung",
+    ],
+    implementationFiles: [
+      "components/staff/todos/staff-todos-screen.tsx",
+      "lib/supabase/staff-todos-db.ts",
+      "lib/staff/staff-display-todos-server.ts",
+    ],
+    status: "active",
+    notes:
+      "Display-Zeiterfassung: Popup-Gate über staff-display-todos-server (defer-Trigger).",
+  },
+  {
+    id: "reviewsFeed",
+    label: "Bewertungen (Feed)",
+    scope: "module",
+    appModule: "Bewertungen",
+    strategy: "stale-while-revalidate",
+    staleTimeMs: 60_000,
+    description:
+      "Server-Pagination + Filter; KPIs und Feed getrennt laden. Kein Realtime — Refresh nach Antwort/Aktion.",
+    loadTriggers: [
+      "Mount Bewertungen-Übersicht",
+      "Seitenwechsel / Filter (Server-Request)",
+    ],
+    invalidateTriggers: [
+      "Antwort gespeichert",
+      "Link erstellt / gelöscht",
+      "Manueller Refresh",
+    ],
+    apiEndpoints: ["/api/reviews", "/api/reviews/statistics"],
+    implementationFiles: [
+      "components/reviews/reviews-screen.tsx",
+      "components/reviews/reviews-statistics-screen.tsx",
+    ],
+    status: "active",
+  },
 ];
 
 export const MODULE_DATA_CACHE_POLICY = Object.fromEntries(
@@ -558,5 +668,11 @@ export const MODULE_CACHE_DECISION_GUIDE: {
     question: "Kein Realtime, aber aktuell genug?",
     recommendation: "poll",
     hint: "refetchInterval nur bei sichtbarem Tab — Intervall in Registry dokumentieren.",
+  },
+  {
+    question: "Filter/Picker wechselt — nicht die ganze Seite skeletonisieren?",
+    recommendation: "stale-while-revalidate",
+    hint:
+      "Erstload: Skeleton nur für Datenbereich (Toolbar sichtbar lassen); Refetch silent bis neue Daten da sind. Display Reservierungen (Tag-Picker), Display Bestand/Rezepte.",
   },
 ];

@@ -364,8 +364,8 @@ function DisplayInventoryCard({
 
 export function DisplayInventoryModule() {
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
   const [data, setData] = useState<DisplayInventoryPayload | null>(null);
+  const showDataSkeleton = useDeferredSkeleton(loading && !data);
   const [mode, setMode] = useState<ViewMode>("stock");
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState(ALL);
@@ -474,26 +474,7 @@ export function DisplayInventoryModule() {
     </div>
   );
 
-  if (showSkeleton) {
-    return (
-      <div className={displayModuleContentClassName} aria-busy>
-        <Skeleton className="h-12 w-full max-w-md rounded-2xl" />
-        <div className="flex gap-3">
-          <Skeleton className="h-12 flex-1 rounded-2xl" />
-          <Skeleton className="h-12 flex-1 rounded-2xl" />
-          <Skeleton className="h-12 flex-1 rounded-2xl" />
-        </div>
-        <Skeleton className="h-11 w-full rounded-2xl" />
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="min-h-[10.5rem] rounded-3xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (!data) {
+  if (!data && !loading) {
     return (
       <p className="py-12 text-center text-muted-foreground">
         Keine Bestandsdaten verfügbar.
@@ -538,6 +519,25 @@ export function DisplayInventoryModule() {
         </button>
       </div>
 
+      {showDataSkeleton ? (
+        <>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Skeleton className="h-16 flex-1 rounded-2xl" />
+            <Skeleton className="h-16 flex-1 rounded-2xl" />
+            <Skeleton className="h-16 flex-1 rounded-2xl" />
+          </div>
+          <Skeleton className="h-11 w-full rounded-2xl" />
+          <div
+            className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+            aria-busy
+          >
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="min-h-[10.5rem] rounded-3xl" />
+            ))}
+          </div>
+        </>
+      ) : data ? (
+        <>
       <div
         data-inventory-toolbar
         className="flex flex-col gap-3 sm:flex-row"
@@ -620,6 +620,8 @@ export function DisplayInventoryModule() {
           ))}
         </div>
       )}
+        </>
+      ) : null}
     </div>
   );
 }

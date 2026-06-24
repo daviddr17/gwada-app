@@ -67,13 +67,19 @@ export async function uploadStaffContractSignaturePng(
   version: number,
 ): Promise<string | null> {
   const buffer = dataUrlToPngBuffer(dataUrl);
-  if (!buffer) return null;
+  if (!buffer || buffer.length < 32) return null;
   const safeVersion = Math.max(1, version);
   const path = `${restaurantId}/staff-contracts/${contractId}/v${safeVersion}/signature-${role}.png`;
   const { error } = await admin.storage
     .from(RESTAURANT_DOCUMENTS_STORAGE_BUCKET)
-    .upload(path, buffer, { contentType: "image/png", upsert: false });
-  if (error) return null;
+    .upload(path, buffer, { contentType: "image/png", upsert: true });
+  if (error) {
+    console.error("[gwada] staff contract signature upload", {
+      path,
+      message: error.message,
+    });
+    return null;
+  }
   return path;
 }
 

@@ -94,7 +94,11 @@ export function StaffContractPlatformImportDrawer({
       return;
     }
     if (result.imported === 0) {
-      toast.message("Vorlage war bereits importiert.");
+      toast.message(
+        employmentTypeName
+          ? "Vorlage ist für dieses Beschäftigungsverhältnis bereits importiert."
+          : "Vorlage war bereits importiert.",
+      );
     } else {
       toast.success("Vorlage importiert.");
     }
@@ -139,8 +143,8 @@ export function StaffContractPlatformImportDrawer({
           </DrawerTitle>
           <DrawerDescription className="text-base">
             {employmentTypeName
-              ? `${employmentTypeName} — Plattform-Vorlagen für ${countryLabel}`
-              : `Standardvorlagen für ${countryLabel} (alle Beschäftigungsarten)`}
+              ? `Alle Vorlagen für ${countryLabel} — werden „${employmentTypeName}" zugeordnet. Du kannst jede Vorlage einzeln wählen.`
+              : `Standardvorlagen für ${countryLabel}: jede Vorlage wird dem passenden Beschäftigungsverhältnis zugeordnet (Vollzeit, Teilzeit, …).`}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -178,8 +182,7 @@ export function StaffContractPlatformImportDrawer({
               <p className="text-sm text-muted-foreground">Wird geladen …</p>
             ) : items.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Keine Plattform-Vorlagen für {countryLabel}
-                {employmentTypeName ? ` / ${employmentTypeName}` : ""}.
+                Keine Plattform-Vorlagen für {countryLabel}.
               </p>
             ) : (
               <ul className="space-y-2">

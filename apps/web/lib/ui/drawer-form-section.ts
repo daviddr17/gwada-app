@@ -97,7 +97,7 @@ export function drawerScrollAreaClassName(
   className?: string,
 ): string {
   return cn(
-    "min-h-0 flex-1 space-y-0 overflow-y-auto overscroll-contain",
+    "min-h-0 min-w-0 flex-1 basis-0 space-y-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain touch-pan-y",
     drawerScrollPaddingClassName(contentPadding),
     className,
   );

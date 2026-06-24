@@ -104,7 +104,7 @@ export async function completeStaffContractEmployeeSign(
     signVersion,
   );
   if (!employeePath) {
-    return { ok: false, error: "invalid_signatures", status: 400 };
+    return { ok: false, error: "signature_upload_failed", status: 500 };
   }
 
   const signatureEmployee = {

@@ -169,7 +169,7 @@ async function completeEmployerOnlyStep(
     signVersion,
   );
   if (!employerPath) {
-    return { ok: false, error: "invalid_signatures", status: 400 };
+    return { ok: false, error: "signature_upload_failed", status: 500 };
   }
 
   const signedAt = new Date().toISOString();
@@ -328,7 +328,7 @@ export async function completeStaffContractDigital(
     signVersion,
   );
   if (!employerPath || !employeePath) {
-    return { ok: false, error: "invalid_signatures", status: 400 };
+    return { ok: false, error: "signature_upload_failed", status: 500 };
   }
 
   const signedAt = new Date().toISOString();

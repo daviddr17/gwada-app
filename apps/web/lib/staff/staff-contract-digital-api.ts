@@ -9,6 +9,8 @@ export type SubmitStaffContractDigitalCompleteParams =
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_request: "Ungültige Anfrage.",
   invalid_signatures: "Unterschriften konnten nicht gelesen werden.",
+  signature_upload_failed:
+    "Unterschriften konnten nicht gespeichert werden — bitte erneut versuchen.",
   signatures_required: "Beide Unterschriften sind erforderlich.",
   staff_not_found: "Mitarbeiter nicht gefunden.",
   contract_not_found: "Vertrag nicht gefunden.",

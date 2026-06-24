@@ -25,12 +25,16 @@ import { cn } from "@/lib/utils";
 import type { StaffContractFormPayload } from "@/lib/staff/staff-contract-form-utils";
 import {
   buildStaffContractPlaceholderFields,
+  extractStaffContractPlaceholderKeys,
+  isStaffContractPlaceholderApplicable,
   listMissingStaffContractFields,
   replaceStaffContractPlaceholders,
+  resolveStaffContractPlaceholderValue,
   staffContractPlaceholderValuesMap,
 } from "@/lib/staff/staff-contract-placeholder-resolver";
 import { submitStaffContractDigitalComplete } from "@/lib/staff/staff-contract-digital-api";
 import { notifyStaffContractsUpdated } from "@/lib/staff/staff-contract-events";
+import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import {
   loadStaffContractTemplateWithParagraphs,
   loadStaffContractTemplates,
@@ -80,6 +84,8 @@ export function StaffContractCreationOverlay({
   onOpenTemplateManager,
   twoStepSigningEnabled = false,
 }: StaffContractCreationOverlayProps) {
+  const { resolvedFullName, isHydrated: profileHydrated } =
+    usePersonalProfileNames();
   const employmentTypeId = contractPayload.employment_type_id ?? "";
 
   const [templates, setTemplates] = useState<
@@ -97,12 +103,7 @@ export function StaffContractCreationOverlay({
   const [fieldOverrides, setFieldOverrides] = useState<Record<string, string>>(
     {},
   );
-  const [employerName, setEmployerName] = useState(
-    restaurant.legalRepresentative?.trim() ||
-      restaurant.legalName?.trim() ||
-      restaurant.name?.trim() ||
-      "",
-  );
+  const [employerName, setEmployerName] = useState("");
   const [employeeName, setEmployeeName] = useState(
     [staff.given_name, staff.family_name].filter(Boolean).join(" ").trim(),
   );
@@ -128,13 +129,46 @@ export function StaffContractCreationOverlay({
         staff,
         contract: contractPayload,
         restaurant,
+        actingUserFullName:
+          employerName.trim() ||
+          (resolvedFullName !== "Nutzer" ? resolvedFullName : ""),
       }),
-    [staff, contractPayload, restaurant],
+    [staff, contractPayload, restaurant, employerName, resolvedFullName],
   );
 
+  const usedPlaceholderKeys = useMemo(
+    () =>
+      extractStaffContractPlaceholderKeys(
+        originalTitle,
+        ...originalParagraphs.flatMap((p) => [p.heading, p.body]),
+      ),
+    [originalTitle, originalParagraphs],
+  );
+
+  const templatePlaceholderFields = useMemo(() => {
+    if (usedPlaceholderKeys.size === 0) return [];
+    return [...usedPlaceholderKeys]
+      .filter(
+        (key) =>
+          placeholderFields[key] &&
+          isStaffContractPlaceholderApplicable(key, contractPayload.pay_type),
+      )
+      .map((key) => placeholderFields[key]!)
+      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  }, [usedPlaceholderKeys, placeholderFields, contractPayload.pay_type]);
+
   const missingFields = useMemo(
-    () => listMissingStaffContractFields(placeholderFields, fieldOverrides),
-    [placeholderFields, fieldOverrides],
+    () =>
+      listMissingStaffContractFields(placeholderFields, fieldOverrides, {
+        onlyKeys: usedPlaceholderKeys,
+        payType: contractPayload.pay_type,
+      }),
+    [
+      placeholderFields,
+      fieldOverrides,
+      usedPlaceholderKeys,
+      contractPayload.pay_type,
+    ],
   );
 
   const missingEmployerFields = useMemo(
@@ -220,7 +254,11 @@ export function StaffContractCreationOverlay({
       }));
       setOriginalParagraphs(drafts);
       setParagraphs(drafts);
-      setFieldOverrides(initialSnapshot.placeholders ?? {});
+      const snapshotPlaceholders = initialSnapshot.placeholders ?? {};
+      setFieldOverrides(snapshotPlaceholders);
+      const snapshotCreator =
+        snapshotPlaceholders["arbeitgeber.erstellt_von"]?.trim() ?? "";
+      if (snapshotCreator) setEmployerName(snapshotCreator);
       return;
     }
 
@@ -278,10 +316,38 @@ export function StaffContractCreationOverlay({
     [originalTitle, originalParagraphs, placeholderFields],
   );
 
+  useEffect(() => {
+    if (!open || initialSnapshot || !profileHydrated) return;
+    const creatorName =
+      resolvedFullName.trim() && resolvedFullName !== "Nutzer"
+        ? resolvedFullName.trim()
+        : "";
+    if (!creatorName || fieldOverrides["arbeitgeber.erstellt_von"]?.trim()) return;
+    if (originalParagraphs.length === 0) return;
+
+    const next = { ...fieldOverrides, "arbeitgeber.erstellt_von": creatorName };
+    setEmployerName((prev) => prev.trim() || creatorName);
+    setFieldOverrides(next);
+    reapplyPlaceholderFields(next);
+  }, [
+    open,
+    initialSnapshot,
+    profileHydrated,
+    resolvedFullName,
+    originalParagraphs.length,
+    fieldOverrides,
+    reapplyPlaceholderFields,
+  ]);
+
   const handleFieldOverride = (key: string, value: string) => {
     const next = { ...fieldOverrides, [key]: value };
     setFieldOverrides(next);
     reapplyPlaceholderFields(next);
+  };
+
+  const handleEmployerNameChange = (value: string) => {
+    setEmployerName(value);
+    handleFieldOverride("arbeitgeber.erstellt_von", value);
   };
 
   const submitComplete = async (revise = false) => {
@@ -441,7 +507,9 @@ export function StaffContractCreationOverlay({
           </div>
         }
       >
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div
+          className="min-h-0 min-w-0 flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain px-4 py-4"
+        >
           {missingEmployerFields.length > 0 ? (
             <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               Arbeitgeber-Stammdaten unvollständig (
@@ -547,15 +615,25 @@ export function StaffContractCreationOverlay({
               </p>
             </div>
 
-            {missingFields.length > 0 || Object.keys(placeholderFields).length > 0 ? (
+            {templatePlaceholderFields.length > 0 ? (
               <div className="space-y-3 rounded-xl border border-border/50 p-4">
                 <p className="text-sm font-medium">Vertragsdaten</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {Object.values(placeholderFields).map((field) => {
-                    const value = fieldOverrides[field.key] ?? field.value;
+                {missingFields.length > 0 ? (
+                  <p className="text-xs text-amber-700">
+                    Fehlend in dieser Vorlage:{" "}
+                    {missingFields.map((f) => f.label).join(", ")}
+                  </p>
+                ) : null}
+                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                  {templatePlaceholderFields.map((field) => {
+                    const value = resolveStaffContractPlaceholderValue(
+                      placeholderFields,
+                      fieldOverrides,
+                      field.key,
+                    );
                     const missing = !value.trim();
                     return (
-                      <div key={field.key} className="space-y-1.5">
+                      <div key={field.key} className="min-w-0 space-y-1.5">
                         <Label className={cn(missing && "text-amber-600")}>
                           {field.label}
                           {missing ? " · fehlt" : ""}
@@ -635,17 +713,21 @@ export function StaffContractCreationOverlay({
               )}
             </div>
 
-            <div className={cn("grid gap-6", twoStepSigningEnabled ? "" : "md:grid-cols-2")}>
+            <div className={cn("grid min-w-0 gap-6", twoStepSigningEnabled ? "" : "md:grid-cols-2")}>
               <div className="space-y-3 rounded-xl border border-border/50 p-4">
                 <p className="text-sm font-medium">Unterschrift Arbeitgeber</p>
                 <div className="space-y-2">
                   <Label>Name</Label>
                   <Input
                     value={employerName}
-                    onChange={(e) => setEmployerName(e.target.value)}
+                    onChange={(e) => handleEmployerNameChange(e.target.value)}
                     className={staffDrawerFieldClassName}
                     disabled={pending}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Aus deinem Profil — erscheint auch als „vertreten durch“ im
+                    Vertragstext.
+                  </p>
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Unterschriftsdatum wird beim Abschluss serverseitig gesetzt.

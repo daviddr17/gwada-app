@@ -5,7 +5,7 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Drawer,
   DrawerContent,
-  DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
@@ -250,6 +249,7 @@ export function EventsComposeDrawer({
         <DrawerHeader>
           <DrawerTitle>Neues Event</DrawerTitle>
         </DrawerHeader>
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           <DrawerFormSection contentPadding={4} title="Inhalt">
           <div className="space-y-2">
@@ -433,15 +433,14 @@ export function EventsComposeDrawer({
             </DrawerFormSection>
           ) : null}
         </div>
-        <DrawerFooter>
-          <DrawerFormFooter
-            onCancel={() => onOpenChange(false)}
-            onSubmit={() => void save()}
-            submitLabel="Veröffentlichen"
-            submitPending={saving}
-            submitDisabled={uploading}
-          />
-        </DrawerFooter>
+        <DrawerFormFooter
+          onCancel={() => onOpenChange(false)}
+          onSubmit={() => void save()}
+          submitLabel="Veröffentlichen"
+          submitPending={saving}
+          submitDisabled={uploading}
+        />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

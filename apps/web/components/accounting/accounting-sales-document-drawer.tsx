@@ -5,7 +5,7 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { AccountingLineItemsEditor } from "@/components/accounting/accounting-line-items-editor";
 import { AccountingSalesDocumentLivePreview } from "@/components/accounting/accounting-sales-document-live-preview";
 import { AccountingSendSection } from "@/components/accounting/accounting-send-section";
@@ -740,6 +740,7 @@ export function AccountingSalesDocumentDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           {readOnlyExternal ? (
             <DrawerFormSection contentPadding={4}>
@@ -1165,6 +1166,7 @@ export function AccountingSalesDocumentDrawer({
               : () => handleGoToPreview()
           }
         />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

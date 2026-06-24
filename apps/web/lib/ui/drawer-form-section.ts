@@ -91,6 +91,10 @@ export function drawerScrollPaddingClassName(
   }
 }
 
+/** Scroll + Footer — flex-Spalte zwischen Kopf und Fuß (min-h-0 für korrektes Scrollen). */
+export const drawerFormBodyClassName =
+  "flex min-h-0 min-w-0 flex-1 flex-col";
+
 /** Scroll-Container für Formular-Bottom-Sheets. */
 export function drawerScrollAreaClassName(
   contentPadding: DrawerContentPadding = 6,

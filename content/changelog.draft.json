@@ -1,7 +1,7 @@
 {
-  "title": "Visitenkarte, Display-Feinschliff und stabilere Verträge",
-  "body": "- Unter **Einstellungen → Übersicht** kannst du eine **Visitenkarte als PDF** erstellen — mit Live-Vorschau, Akzentfarbe, Logo und wählbaren Inhalten (Adresse, Website, Öffnungszeiten …)\n- **Display**: Module nutzen die volle Breite; beim Tagwechsel in Reservierungen kein Flackern mehr durch Skeleton über die ganze Seite\n- **Verträge**: Löschen funktioniert wieder zuverlässig; Plattform-Vorlagen lassen sich **pro Beschäftigungsverhältnis** frei importieren\n- Vertragserstellung: „Vertreten durch“ ist der eingeloggte Nutzer; Platzhalter und Unterschriften-PDFs sind robuster",
-  "superadminBody": "- Lade-Strategie: Registry um Display-Kiosk, Workspace-Restaurant, ToDos, Bewertungen; Karten-Grid volle Breite bei einzelnen Einträgen\n- Migrationen: Vollzeit-Mustertext erweitert, PNG für Vertrags-Signaturen, Platzhalter arbeitgeber.erstellt_von\n- API DELETE /api/staff/contracts/delete (Service-Role, Storage-Cleanup)",
+  "title": "Bottom Sheets und Vertrags-Löschen",
+  "body": "- **Bottom Sheets** (Formulare, Visitenkarte, Events …): Scroll-Bereich und Footer teilen sich die Höhe wieder korrekt — kein zusammengedrückter Inhalt mehr, Buttons liegen fest unten\n- **Verträge löschen** funktioniert zuverlässig — Bestätigungsdialog und serverseitiges Aufräumen von PDF, Protokoll und Signaturen",
+  "superadminBody": "- Drawer-Chrome: `min-h-0 overflow-hidden`, `DrawerFormBody`, Footer mit `bg-card`\n- Vertrag delete: ConfirmDialog außerhalb Vaul-Drawer; explizites Löschen von Log, Versionen, Dokumenten (Service-Role)",
   "audience": "customers",
-  "version": "2026.06.24"
+  "version": "2026.06.23"
 }

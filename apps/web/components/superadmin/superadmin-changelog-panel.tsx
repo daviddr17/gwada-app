@@ -21,6 +21,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { DrawerFormBody } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -361,6 +362,7 @@ export function SuperadminChangelogPanel() {
               {editingId ? "Eintrag bearbeiten" : "Neuer Changelog-Eintrag"}
             </DrawerTitle>
           </DrawerHeader>
+          <DrawerFormBody>
           <div className={drawerScrollAreaClassName(6)}>
             <div className="space-y-2">
               <Label htmlFor="changelog-title">Titel</Label>
@@ -479,6 +481,7 @@ export function SuperadminChangelogPanel() {
             onSubmit={() => void handleSave()}
             submitPending={saving}
           />
+          </DrawerFormBody>
         </DrawerContent>
       </Drawer>
     </>

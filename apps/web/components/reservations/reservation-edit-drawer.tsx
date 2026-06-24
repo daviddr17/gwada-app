@@ -14,7 +14,7 @@ import {
   reservationNotifyRowTermsIconClassName,
   reservationNotifyRowWhatsAppIconClassName,
 } from "@/components/reservations/reservation-notify-toggle-styles";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -666,7 +666,7 @@ export function ReservationEditDrawer({
         </DrawerHeader>
 
         {open ? (
-          <>
+          <DrawerFormBody>
             <div
               data-vaul-no-drag
               className={drawerScrollAreaClassName(6, "min-w-0 overflow-x-hidden overscroll-x-none touch-pan-y")}
@@ -1002,7 +1002,7 @@ export function ReservationEditDrawer({
               submitDisabled={!canSave}
               className="touch-pan-y"
             />
-          </>
+          </DrawerFormBody>
         ) : null}
       </DrawerContent>
     </Drawer>

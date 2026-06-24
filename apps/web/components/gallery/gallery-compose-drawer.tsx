@@ -5,7 +5,7 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -138,6 +138,7 @@ export function GalleryComposeDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Bild hinzufügen</DrawerTitle>
         </DrawerHeader>
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           <DrawerFormSection contentPadding={4} title="Medien">
           <input
@@ -191,6 +192,7 @@ export function GalleryComposeDrawer({
           submitLabel="Speichern"
           submitDisabled={uploading || !pendingUpload}
         />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

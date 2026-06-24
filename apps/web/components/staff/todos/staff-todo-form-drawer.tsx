@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
   Drawer,
@@ -293,6 +293,7 @@ export function StaffTodoFormDrawer({
               Aufgabe zuweisen, Priorität und Anzeigezeitraum festlegen.
             </DrawerDescription>
           </DrawerHeader>
+          <DrawerFormBody>
           <div className={staffDrawerScrollClassName}>
             <DrawerFormSection title="Titel">
               <Input
@@ -488,6 +489,7 @@ export function StaffTodoFormDrawer({
             onDelete={() => setConfirmArchive(true)}
             deleteDisabled={saving}
           />
+          </DrawerFormBody>
         </DrawerContent>
       </Drawer>
       <ConfirmDialog

@@ -11,7 +11,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -169,6 +169,7 @@ export function RestaurantBusinessCardDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(6)}>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:items-start">
             <DrawerFormSection bleed={false} title="Inhalte" className="space-y-1">
@@ -228,6 +229,7 @@ export function RestaurantBusinessCardDrawer({
           onSubmit={() => void handleDownload()}
           submitDisabled={!content.name.trim()}
         />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

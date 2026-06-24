@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -246,6 +246,7 @@ export function PlatformContractTemplateEditorDrawer({
             </DrawerDescription>
           </DrawerHeader>
 
+          <DrawerFormBody>
           <div className={drawerScrollAreaClassName(6)}>
             {loading ? (
               <p className="text-sm text-muted-foreground">Laden …</p>
@@ -449,6 +450,7 @@ export function PlatformContractTemplateEditorDrawer({
             onDelete={() => setConfirmDelete(true)}
             deleteLabel="Plattform-Vorlage löschen"
           />
+          </DrawerFormBody>
         </DrawerContent>
       </Drawer>
 

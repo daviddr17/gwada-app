@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Trash2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -240,6 +240,7 @@ export function EventsDetailDrawer({
         <DrawerHeader>
           <DrawerTitle>{isGwadaEditable ? "Event bearbeiten" : item.title}</DrawerTitle>
         </DrawerHeader>
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           {isGwadaEditable ? (
             <>
@@ -453,6 +454,7 @@ export function EventsDetailDrawer({
             </Button>
           </DrawerFooter>
         ) : null}
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

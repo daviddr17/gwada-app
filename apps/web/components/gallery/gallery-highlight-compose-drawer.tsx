@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -112,6 +112,7 @@ export function GalleryHighlightComposeDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Highlight anlegen</DrawerTitle>
         </DrawerHeader>
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           <DrawerFormSection contentPadding={4} title="Allgemein">
           <div className="space-y-2">
@@ -186,6 +187,7 @@ export function GalleryHighlightComposeDrawer({
             saving || !title.trim() || selectedIds.length === 0 || gwadaItems.length === 0
           }
         />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

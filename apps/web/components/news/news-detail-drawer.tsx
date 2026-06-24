@@ -5,7 +5,7 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -168,6 +168,7 @@ export function NewsDetailDrawer({
           <p className="text-sm text-muted-foreground">{publishedLabel}</p>
         </DrawerHeader>
 
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           {preview?.url ? (
             <DrawerFormSection contentPadding={4}>
@@ -279,6 +280,7 @@ export function NewsDetailDrawer({
             </Button>
           </DrawerFooter>
         )}
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

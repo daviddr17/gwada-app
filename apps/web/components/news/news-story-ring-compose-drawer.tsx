@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
   Drawer,
   DrawerContent,
@@ -106,6 +106,7 @@ export function NewsStoryRingComposeDrawer({
         <DrawerHeader className="text-left">
           <DrawerTitle>Story-Ring anlegen</DrawerTitle>
         </DrawerHeader>
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
           <DrawerFormSection contentPadding={4} title="Allgemein">
           <div className="space-y-2">
@@ -172,6 +173,7 @@ export function NewsStoryRingComposeDrawer({
           submitType="button"
           onSubmit={() => void handleSave()}
         />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

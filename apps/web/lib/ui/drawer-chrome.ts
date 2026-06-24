@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /** Gemeinsame Drawer-Shell (Abgerundung, Karte, Schatten). */
 export const drawerChromeShellClassName =
-  "mx-auto flex w-full flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated";
+  "mx-auto flex min-h-0 w-full flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated";
 
 export const drawerChromeSizeClassNames = {
   /** Standard-Formular (Reservierung, Kontakt, Einstellungen …). */

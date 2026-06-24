@@ -15,7 +15,7 @@ export function drawerFormFooterShellClassName(
   contentPadding: DrawerContentPadding = 6,
 ): string {
   return cn(
-    "flex shrink-0 flex-col gap-3 border-t border-border/50 pt-4",
+    "relative z-10 flex shrink-0 flex-col gap-3 border-t border-border/50 bg-card pt-4",
     drawerHorizontalPaddingClassName(contentPadding),
     "pb-[max(1.25rem,env(safe-area-inset-bottom))]",
   );

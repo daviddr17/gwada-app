@@ -393,7 +393,16 @@ export function StaffContractDrawer({
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
+    <>
+    <Drawer
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen && confirmDelete) return;
+        onOpenChange(nextOpen);
+      }}
+      direction="bottom"
+      repositionInputs={false}
+    >
       <DrawerContent className={drawerContentClassName("formStaff")}>
         <DrawerHeader className="min-w-0 shrink-0 overflow-x-hidden px-5 pt-2 pb-3 text-left">
           <DrawerTitle>
@@ -697,6 +706,7 @@ export function StaffContractDrawer({
         />
         </div>
       </DrawerContent>
+    </Drawer>
 
       <ConfirmDialog
         open={confirmDelete}
@@ -713,11 +723,14 @@ export function StaffContractDrawer({
           if (!editId) return;
           const result = await deleteStaffContract(restaurantId, editId);
           if (!result.ok) {
-            toast.error("Vertrag konnte nicht gelöscht werden.");
+            toast.error(
+              result.error === "forbidden"
+                ? "Keine Berechtigung zum Löschen."
+                : "Vertrag konnte nicht gelöscht werden.",
+            );
             throw new Error(result.error ?? "delete failed");
           }
           toast.success("Vertrag gelöscht");
-          setConfirmDelete(false);
           notifyStaffContractsUpdated();
           onDeleted();
           onOpenChange(false);
@@ -759,6 +772,6 @@ export function StaffContractDrawer({
           })();
         }}
       />
-    </Drawer>
+    </>
   );
 }

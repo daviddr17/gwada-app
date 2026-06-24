@@ -1,12 +1,10 @@
 import "server-only";
 
 import { RESTAURANT_DOCUMENTS_STORAGE_BUCKET } from "@/lib/constants/restaurant-documents";
-import { authorizeRestaurantModule } from "@/lib/permissions/authorize-restaurant-module";
+import { authorizeStaffRestaurant } from "@/lib/staff/route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
-function collectSignatureStoragePath(
-  snapshot: unknown,
-): string | null {
+function collectSignatureStoragePath(snapshot: unknown): string | null {
   if (!snapshot || typeof snapshot !== "object") return null;
   const path = (snapshot as { signature_storage_path?: unknown })
     .signature_storage_path;
@@ -39,7 +37,7 @@ export async function deleteStaffContractServer(params: {
 
   const { data: versionRows, error: versionsError } = await admin
     .from("restaurant_staff_contract_document_versions")
-    .select("document_id, restaurant_documents ( storage_path )")
+    .select("document_id")
     .eq("contract_id", params.contractId);
 
   if (versionsError) {
@@ -47,11 +45,30 @@ export async function deleteStaffContractServer(params: {
     return { ok: false, error: "fetch_failed", status: 500 };
   }
 
+  const documentIds = [
+    ...new Set(
+      (versionRows ?? [])
+        .map((row) => row.document_id as string)
+        .filter(Boolean),
+    ),
+  ];
+
   const storagePaths = new Set<string>();
-  for (const row of versionRows ?? []) {
-    const doc = row.restaurant_documents as { storage_path?: string } | null;
-    if (doc?.storage_path?.trim()) {
-      storagePaths.add(doc.storage_path.trim());
+
+  if (documentIds.length > 0) {
+    const { data: docs, error: docsError } = await admin
+      .from("restaurant_documents")
+      .select("storage_path")
+      .in("id", documentIds);
+
+    if (docsError) {
+      console.error("[gwada] delete staff contract documents", docsError.message);
+      return { ok: false, error: "fetch_failed", status: 500 };
+    }
+
+    for (const doc of docs ?? []) {
+      const path = doc.storage_path as string | null;
+      if (path?.trim()) storagePaths.add(path.trim());
     }
   }
 
@@ -59,6 +76,44 @@ export async function deleteStaffContractServer(params: {
   const employeePath = collectSignatureStoragePath(contract.signature_employee);
   if (employerPath) storagePaths.add(employerPath);
   if (employeePath) storagePaths.add(employeePath);
+
+  const { error: logDeleteError } = await admin
+    .from("restaurant_staff_contract_log_entries")
+    .delete()
+    .eq("contract_id", params.contractId);
+
+  if (logDeleteError) {
+    console.error("[gwada] delete staff contract log", logDeleteError.message);
+    return { ok: false, error: "delete_failed", status: 500 };
+  }
+
+  const { error: versionsDeleteError } = await admin
+    .from("restaurant_staff_contract_document_versions")
+    .delete()
+    .eq("contract_id", params.contractId);
+
+  if (versionsDeleteError) {
+    console.error(
+      "[gwada] delete staff contract version rows",
+      versionsDeleteError.message,
+    );
+    return { ok: false, error: "delete_failed", status: 500 };
+  }
+
+  if (documentIds.length > 0) {
+    const { error: documentsDeleteError } = await admin
+      .from("restaurant_documents")
+      .delete()
+      .in("id", documentIds);
+
+    if (documentsDeleteError) {
+      console.error(
+        "[gwada] delete staff contract pdf documents",
+        documentsDeleteError.message,
+      );
+      return { ok: false, error: "delete_failed", status: 500 };
+    }
+  }
 
   const { error: deleteError } = await admin
     .from("restaurant_staff_contracts")
@@ -98,7 +153,7 @@ export async function handleDeleteStaffContractRequest(
     return Response.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const auth = await authorizeRestaurantModule(restaurantId, "staff.manage");
+  const auth = await authorizeStaffRestaurant(restaurantId, "delete");
   if (!auth.ok) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }

@@ -4,6 +4,7 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { DrawerFloatingPortalContext } from "@/lib/contexts/drawer-floating-portal"
+import { drawerFormBodyClassName } from "@/lib/ui/drawer-form-section"
 import { cn } from "@/lib/utils"
 
 function Drawer({
@@ -46,9 +47,9 @@ function DrawerOverlay({
   )
 }
 
-/** Ein Griff — Vaul-Default (32px) + innerer Div erzeugten zuvor zwei Balken. */
+/** Ein Griff — große Hit-Area (44px) für zuverlässiges Runterziehen. */
 const drawerHandleClassName =
-  "!mx-auto !mt-4 hidden !h-1 !w-[100px] shrink-0 !rounded-full !bg-muted-foreground/30 !opacity-100 group-data-[vaul-drawer-direction=bottom]/drawer-content:!block hover:!opacity-100 [&_[data-vaul-handle-hitarea]]:!absolute [&_[data-vaul-handle-hitarea]]:!inset-0 [&_[data-vaul-handle-hitarea]]:!h-11 [&_[data-vaul-handle-hitarea]]:!w-full [&_[data-vaul-handle-hitarea]]:!min-h-0 [&_[data-vaul-handle-hitarea]]:!bg-transparent"
+  "!mx-auto !mt-3 !mb-1 hidden !h-1.5 !w-[100px] shrink-0 !cursor-grab !rounded-full !bg-muted-foreground/40 !opacity-100 active:!cursor-grabbing group-data-[vaul-drawer-direction=bottom]/drawer-content:!block hover:!opacity-100 [&_[data-vaul-handle-hitarea]]:!absolute [&_[data-vaul-handle-hitarea]]:!inset-x-0 [&_[data-vaul-handle-hitarea]]:!top-0 [&_[data-vaul-handle-hitarea]]:!h-12 [&_[data-vaul-handle-hitarea]]:!w-full [&_[data-vaul-handle-hitarea]]:!min-h-0 [&_[data-vaul-handle-hitarea]]:!bg-transparent"
 
 function DrawerContent({
   className,
@@ -70,7 +71,7 @@ function DrawerContent({
       <DrawerPrimitive.Content
         data-slot="drawer-content"
         className={cn(
-          "group/drawer-content relative fixed z-50 flex h-auto flex-col bg-popover text-sm text-popover-foreground data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:max-h-[92dvh] data-[vaul-drawer-direction=bottom]:rounded-t-xl data-[vaul-drawer-direction=bottom]:border-t data-[vaul-drawer-direction=bottom]:pb-[env(safe-area-inset-bottom,0px)] data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-3/4 data-[vaul-drawer-direction=left]:rounded-r-xl data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-3/4 data-[vaul-drawer-direction=right]:rounded-l-xl data-[vaul-drawer-direction=right]:border-r data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[92dvh] data-[vaul-drawer-direction=top]:rounded-b-xl data-[vaul-drawer-direction=top]:border-b data-[vaul-drawer-direction=left]:sm:max-w-sm data-[vaul-drawer-direction=right]:sm:max-w-sm",
+          "group/drawer-content relative fixed z-50 flex min-h-0 flex-col bg-popover text-sm text-popover-foreground data-[vaul-drawer-direction=bottom]:inset-x-0 data-[vaul-drawer-direction=bottom]:bottom-0 data-[vaul-drawer-direction=bottom]:mt-24 data-[vaul-drawer-direction=bottom]:max-h-[92dvh] data-[vaul-drawer-direction=bottom]:rounded-t-xl data-[vaul-drawer-direction=bottom]:border-t data-[vaul-drawer-direction=bottom]:pb-[env(safe-area-inset-bottom,0px)] data-[vaul-drawer-direction=left]:inset-y-0 data-[vaul-drawer-direction=left]:left-0 data-[vaul-drawer-direction=left]:w-3/4 data-[vaul-drawer-direction=left]:rounded-r-xl data-[vaul-drawer-direction=left]:border-r data-[vaul-drawer-direction=right]:inset-y-0 data-[vaul-drawer-direction=right]:right-0 data-[vaul-drawer-direction=right]:w-3/4 data-[vaul-drawer-direction=right]:rounded-l-xl data-[vaul-drawer-direction=right]:border-r data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[92dvh] data-[vaul-drawer-direction=top]:rounded-b-xl data-[vaul-drawer-direction=top]:border-b data-[vaul-drawer-direction=left]:sm:max-w-sm data-[vaul-drawer-direction=right]:sm:max-w-sm",
           className
         )}
         {...props}
@@ -82,7 +83,7 @@ function DrawerContent({
           />
         ) : null}
         <DrawerFloatingPortalContext.Provider value={floatingHost}>
-          {children}
+          <div className={cn(drawerFormBodyClassName, "flex-1")}>{children}</div>
           <div
             ref={setFloatingHost}
             data-slot="drawer-floating-host"

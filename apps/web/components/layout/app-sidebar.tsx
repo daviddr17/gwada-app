@@ -46,7 +46,10 @@ import {
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
-import { sidebarModuleNotificationCount } from "@/lib/navigation/sidebar-module-notification-counts";
+import {
+  sidebarChangelogUnreadCount,
+  sidebarModuleNotificationCount,
+} from "@/lib/navigation/sidebar-module-notification-counts";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
@@ -83,6 +86,7 @@ export function AppSidebar() {
   const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
     isSuperadmin && inSuperadmin,
   );
+  const changelogUnreadCount = sidebarChangelogUnreadCount(notificationSummary);
 
   const orderedSidebarModules = useMemo(
     () =>
@@ -293,7 +297,7 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   {orderedSidebarModules.map((mod) => {
                     const Icon = mod.icon;
-                    const badgeCount = sidebarModuleNotificationCount(
+                    const notificationCount = sidebarModuleNotificationCount(
                       notificationSummary,
                       mod.id,
                     );
@@ -306,7 +310,7 @@ export function AppSidebar() {
                         >
                           <Icon />
                           <span>
-                            {formatSidebarMenuLabel(mod.label, badgeCount)}
+                            {formatSidebarMenuLabel(mod.label, notificationCount)}
                           </span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -391,7 +395,9 @@ export function AppSidebar() {
                 render={<AppNavLink href="/changelog" />}
               >
                 <ScrollText />
-                <span>Changelog</span>
+                <span>
+                  {formatSidebarMenuLabel("Changelog", changelogUnreadCount)}
+                </span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           ) : null}

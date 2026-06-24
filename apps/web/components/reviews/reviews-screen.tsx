@@ -52,6 +52,7 @@ import {
 import {
   parseReviewPlatformFilter,
   REVIEW_FILTER_ALL,
+  REVIEW_PLATFORM_LABELS,
   type ReviewPlatform,
   type ReviewPlatformFilter,
 } from "@/lib/constants/review-platforms";
@@ -75,6 +76,8 @@ import {
   patchReviewInFeedCache,
   type ReviewsFeedClientCache,
 } from "@/lib/reviews/reviews-feed-client-cache";
+import { isReviewsCacheablePlatform } from "@/lib/reviews/reviews-cache-constants";
+import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
 import {
   fetchReservationById,
   type ReservationListRow,
@@ -111,6 +114,10 @@ import {
   resolveCountryIso2FromLabel,
 } from "@/lib/constants/countries";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { PlatformFeedSyncStatusBar } from "@/components/platform-feed/platform-feed-sync-status-bar";
+
+const REVIEWS_SYNC_POLL_MS = 5_000;
+const REVIEWS_SYNC_POLL_MAX = 3;
 
 type ReviewsApiResponse = {
   reviews: UnifiedReview[];
@@ -127,6 +134,7 @@ type ReviewsApiResponse = {
   platformTotals?: Partial<Record<ReviewPlatform, number>>;
   loadErrors?: Partial<Record<ReviewPlatform, string>>;
   loadError?: string | null;
+  sync?: ReviewsFeedSyncMeta;
 };
 
 type GoogleLocationSummary = {
@@ -166,6 +174,7 @@ export function ReviewsScreen() {
     createEmptyReviewsFeedClientCache(),
   );
   const [feedPrefetchLoading, setFeedPrefetchLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [paginationBusy, setPaginationBusy] = useState(false);
   const [googlePage, setGooglePage] = useState(1);
   const [allPage, setAllPage] = useState(1);
@@ -390,18 +399,20 @@ export function ReviewsScreen() {
     [],
   );
 
-  const prefetchFeed = useCallback(async () => {
+  const prefetchFeed = useCallback(async (options?: { silent?: boolean }) => {
     if (!restaurantId) {
-      setFeedPrefetchLoading(false);
+      if (!options?.silent) setFeedPrefetchLoading(false);
       return;
     }
-    setFeedPrefetchLoading(true);
-    setFeedCache(createEmptyReviewsFeedClientCache());
-    setGooglePage(1);
-    setAllPage(1);
-    setFacebookPage(1);
-    setGoogleLocationSummary(null);
-    setGoogleStatsError(null);
+    if (!options?.silent) {
+      setFeedPrefetchLoading(true);
+      setFeedCache(createEmptyReviewsFeedClientCache());
+      setGooglePage(1);
+      setAllPage(1);
+      setFacebookPage(1);
+      setGoogleLocationSummary(null);
+      setGoogleStatsError(null);
+    }
 
     try {
       const requests: Promise<void>[] = [];
@@ -431,6 +442,7 @@ export function ReviewsScreen() {
             platformTotals:
               json.platformTotals ?? json.mergedPagination?.platformTotals ?? {},
             loadErrors: json.loadErrors ?? {},
+            sync: json.sync ?? prev.sync,
           }));
         })(),
       );
@@ -483,6 +495,7 @@ export function ReviewsScreen() {
               loadErrors: json.loadError
                 ? { ...prev.loadErrors, google: json.loadError }
                 : prev.loadErrors,
+              sync: json.sync ?? prev.sync,
             }));
           })(),
         );
@@ -553,6 +566,7 @@ export function ReviewsScreen() {
               loadErrors: json.loadError
                 ? { ...prev.loadErrors, facebook: json.loadError }
                 : prev.loadErrors,
+              sync: json.sync ?? prev.sync,
             }));
           })(),
         );
@@ -561,9 +575,11 @@ export function ReviewsScreen() {
       await Promise.all(requests);
       setFeedCache((prev) => ({ ...prev, ready: true }));
     } catch {
-      toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+      if (!options?.silent) {
+        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+      }
     } finally {
-      setFeedPrefetchLoading(false);
+      if (!options?.silent) setFeedPrefetchLoading(false);
     }
   }, [
     restaurantId,
@@ -576,10 +592,49 @@ export function ReviewsScreen() {
   usePlatformFeedSyncRealtime(
     "restaurant_reviews_platform_sync",
     () => {
-      void prefetchFeed();
+      void prefetchFeed({ silent: true });
     },
     { enabled: Boolean(restaurantId && ready) },
   );
+
+  const syncNow = useCallback(async () => {
+    if (!restaurantId || syncing) return;
+    setSyncing(true);
+    try {
+      const platform =
+        platformFilter !== REVIEW_FILTER_ALL &&
+        isReviewsCacheablePlatform(platformFilter)
+          ? platformFilter
+          : undefined;
+      const res = await fetch("/api/reviews/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId, platform }),
+      });
+      if (!res.ok) throw new Error("sync_failed");
+      await prefetchFeed({ silent: true });
+      toast.success("Synchronisiert.");
+    } catch {
+      toast.error("Synchronisierung fehlgeschlagen.");
+    } finally {
+      setSyncing(false);
+    }
+  }, [restaurantId, platformFilter, syncing, prefetchFeed]);
+
+  useEffect(() => {
+    if (!feedCache.sync?.stale || feedPrefetchLoading) return;
+    let polls = 0;
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      polls += 1;
+      if (polls > REVIEWS_SYNC_POLL_MAX) {
+        window.clearInterval(id);
+        return;
+      }
+      void prefetchFeed({ silent: true });
+    }, REVIEWS_SYNC_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [feedCache.sync?.stale, feedPrefetchLoading, prefetchFeed]);
 
   const loadAllPage = useCallback(
     async (page: number, opts?: { force?: boolean }) => {
@@ -617,6 +672,7 @@ export function ReviewsScreen() {
             json.mergedPagination?.platformTotals ??
             prev.platformTotals,
           loadErrors: { ...prev.loadErrors, ...(json.loadErrors ?? {}) },
+          sync: json.sync ?? prev.sync,
         }));
         setAllPage(page);
       } catch {
@@ -660,6 +716,7 @@ export function ReviewsScreen() {
             json.googlePagination?.nextPageToken,
             prev.googleTokenByPage,
           ),
+          sync: json.sync ?? prev.sync,
         }));
         setGooglePage(page);
       } catch {
@@ -709,6 +766,7 @@ export function ReviewsScreen() {
             json.facebookPagination?.nextPageToken,
             prev.facebookTokenByPage,
           ),
+          sync: json.sync ?? prev.sync,
         }));
         setFacebookPage(page);
       } catch {
@@ -1205,6 +1263,13 @@ export function ReviewsScreen() {
         onFilterChange={selectPlatformFilter}
         isPlatformAvailable={isPlatformAvailable}
         disabled={connectionsLoading}
+      />
+
+      <PlatformFeedSyncStatusBar
+        syncMeta={feedCache.sync}
+        syncing={syncing}
+        onSyncNow={() => void syncNow()}
+        platformLabels={REVIEW_PLATFORM_LABELS}
       />
 
       {!connectionsLoading && platformFilter === "google" && !googleConnected ? (

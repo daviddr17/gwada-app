@@ -1,4 +1,5 @@
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
+import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
 import type { GoogleReviewsPaginationMeta } from "@/lib/reviews/google-reviews-pagination";
 import type {
   MergedReviewsPaginationMeta,
@@ -22,6 +23,7 @@ export type ReviewsFeedClientCache = {
   facebookTokenByPage: Record<number, string>;
   platformTotals: Partial<Record<ReviewPlatform, number>>;
   loadErrors: Partial<Record<ReviewPlatform, string>>;
+  sync: ReviewsFeedSyncMeta | null;
 };
 
 export function createEmptyReviewsFeedClientCache(): ReviewsFeedClientCache {
@@ -39,6 +41,7 @@ export function createEmptyReviewsFeedClientCache(): ReviewsFeedClientCache {
     facebookTokenByPage: {},
     platformTotals: {},
     loadErrors: {},
+    sync: null,
   };
 }
 

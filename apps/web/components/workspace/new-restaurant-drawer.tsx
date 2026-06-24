@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { toast } from "sonner";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Button } from "@/components/ui/button";
@@ -173,7 +174,7 @@ export function NewRestaurantDrawer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
-      <DrawerContent className="max-h-[85vh]">
+      <DrawerContent className={drawerContentClassName("compact")}>
         <DrawerHeader className="text-left">
           <DrawerTitle>Neues Restaurant</DrawerTitle>
           <DrawerDescription>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { toast } from "sonner";
 import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
@@ -108,7 +109,7 @@ export function GalleryHighlightComposeDrawer({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className="max-h-[90dvh]">
+      <DrawerContent className={drawerContentClassName("media")}>
         <DrawerHeader className="text-left">
           <DrawerTitle>Highlight anlegen</DrawerTitle>
         </DrawerHeader>

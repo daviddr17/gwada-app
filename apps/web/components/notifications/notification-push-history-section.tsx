@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -161,7 +162,7 @@ export function NotificationPushHistorySection() {
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,640px)] max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+        <DrawerContent className={drawerContentClassName("formMd")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Push-Verlauf

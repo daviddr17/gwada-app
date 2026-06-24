@@ -4,49 +4,78 @@ import { cn } from "@/lib/utils";
 export const drawerChromeShellClassName =
   "mx-auto flex min-h-0 w-full flex-col overflow-hidden rounded-t-[1.75rem] border-0 bg-card shadow-elevated";
 
+/** Feste Shell-Höhe — flex-1-Scroll braucht h + max-h (h-auto lässt Inhalt zusammensacken). */
+function drawerBoundedHeight(
+  maxHeight: string,
+  extra?: string,
+): string {
+  return cn(`h-[${maxHeight}] max-h-[${maxHeight}] min-h-0`, extra);
+}
+
 export const drawerChromeSizeClassNames = {
   /** Standard-Formular (Reservierung, Kontakt, Einstellungen …). */
-  form: "max-h-[min(92dvh,720px)] max-w-lg overflow-hidden",
+  form: cn(drawerBoundedHeight("min(92dvh,720px)"), "max-w-lg overflow-hidden"),
   /** Mitarbeiter-Profil (etwas höher). */
-  formStaff: "max-h-[min(92dvh,760px)] max-w-lg overflow-hidden",
+  formStaff: cn(
+    drawerBoundedHeight("min(92dvh,760px)"),
+    "max-w-lg overflow-hidden",
+  ),
   /** Mittleres Formular (Schicht, Export Mitarbeiter …). */
-  formMd: "max-h-[min(92dvh,640px)] max-w-lg overflow-hidden",
+  formMd: cn(drawerBoundedHeight("min(92dvh,640px)"), "max-w-lg overflow-hidden"),
   /** Filter-Bottom-Sheet. */
-  filter: "max-h-[min(92dvh,560px)] max-w-lg overflow-hidden",
+  filter: cn(drawerBoundedHeight("min(92dvh,560px)"), "max-w-lg overflow-hidden"),
   /** Protokoll / Übersicht (schmal). */
-  overview: "max-h-[min(88dvh,560px)] max-w-lg",
+  overview: cn(
+    drawerBoundedHeight("min(88dvh,560px)"),
+    "max-w-lg overflow-hidden",
+  ),
   /** Info-Sheet (Kontakt-Reservierungen …). */
-  info: "max-h-[min(88dvh,520px)] max-w-lg",
+  info: cn(drawerBoundedHeight("min(88dvh,520px)"), "max-w-lg overflow-hidden"),
   /** Export / kurze Aktion. */
-  export: "max-h-[min(88dvh,420px)] max-w-lg",
+  export: cn(drawerBoundedHeight("min(88dvh,420px)"), "max-w-lg overflow-hidden"),
   /** Kompakte Statistik-Sheets. */
-  compact: "max-h-[min(85dvh,560px)] max-w-lg",
+  compact: cn(drawerBoundedHeight("min(85dvh,560px)"), "max-w-lg overflow-hidden"),
   /** Breites Protokoll (Dokumente, Bewertungen). */
-  wide: "max-h-[min(88dvh,560px)] max-w-5xl",
+  wide: cn(drawerBoundedHeight("min(88dvh,560px)"), "max-w-5xl overflow-hidden"),
   /** Nachrichten-Thread (breiter). */
-  messages: "max-h-[min(88dvh,560px)] max-w-2xl",
+  messages: cn(
+    drawerBoundedHeight("min(88dvh,560px)"),
+    "max-w-2xl overflow-hidden",
+  ),
   /** Kontakt zuweisen. */
-  assign: "max-h-[min(92dvh,480px)] max-w-lg",
+  assign: cn(drawerBoundedHeight("min(92dvh,480px)"), "max-w-lg overflow-hidden"),
   /** Bewertungseinladung. */
-  invitation: "max-h-[min(90dvh,640px)] max-w-lg",
+  invitation: cn(
+    drawerBoundedHeight("min(90dvh,640px)"),
+    "max-w-lg overflow-hidden",
+  ),
   /** Bestell-Export (Liste). */
-  purchaseList: "max-h-[min(92dvh,520px)] max-w-lg overflow-hidden",
+  purchaseList: cn(
+    drawerBoundedHeight("min(92dvh,520px)"),
+    "max-w-lg overflow-hidden",
+  ),
   /** Schicht-Vorlage. */
-  template: "max-h-[min(92dvh,560px)] max-w-lg",
+  template: cn(drawerBoundedHeight("min(92dvh,560px)"), "max-w-lg overflow-hidden"),
   /** Zutaten-Verbrauch, kurzes Sheet. */
-  usage: "max-h-[min(88dvh,480px)] max-w-lg",
+  usage: cn(drawerBoundedHeight("min(88dvh,480px)"), "max-w-lg overflow-hidden"),
   /** Speisekarte-Taxonomie. */
-  taxonomy: "max-h-[min(92dvh,520px)] max-w-lg",
+  taxonomy: cn(drawerBoundedHeight("min(92dvh,520px)"), "max-w-lg overflow-hidden"),
   /** Dokument-Formular (Höhe flexibel). */
-  documentForm: "max-w-lg overflow-hidden",
+  documentForm: cn(
+    drawerBoundedHeight("min(92dvh,720px)"),
+    "max-w-lg overflow-hidden",
+  ),
   /** Buchführung Verkaufsbeleg. */
-  salesDocument: "max-h-[92dvh] max-w-3xl overflow-hidden",
+  salesDocument: cn(drawerBoundedHeight("92dvh"), "max-w-3xl overflow-hidden"),
   /** Bewertungs-Sheet. */
-  reviewCompact: "max-h-[min(85dvh,520px)] max-w-lg",
+  reviewCompact: cn(
+    drawerBoundedHeight("min(85dvh,520px)"),
+    "max-w-lg overflow-hidden",
+  ),
   /** Medien / Story (minimal). */
-  media: "max-h-[90dvh] max-w-lg",
+  media: cn(drawerBoundedHeight("90dvh"), "max-w-lg overflow-hidden"),
   /** Events / Galerie Compose (ohne festes Pixel-Limit). */
-  mediaTall: "max-h-[92dvh] max-w-lg",
+  mediaTall: cn(drawerBoundedHeight("92dvh"), "max-w-lg overflow-hidden"),
   /** Reservierung bearbeiten — feste Höhe auf Mobile. */
   formFixed:
     "h-[min(92dvh,720px)] max-h-[min(92dvh,720px)] min-h-0 max-w-[100dvw] overflow-hidden md:max-w-lg",

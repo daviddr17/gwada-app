@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils";
 export const galleryMasonryGridColumnsClassName =
   "columns-2 gap-px sm:columns-3 lg:columns-4";
 
+/** Äußere Abrundung der gesamten Fotowand (Ecken der Rand-Bilder). */
+export const galleryMasonryGridShellClassName = "overflow-hidden rounded-[10px]";
+
 type Props = {
   items: UnifiedGalleryItem[];
   onItemClick: (item: UnifiedGalleryItem) => void;
@@ -16,45 +19,47 @@ type Props = {
 
 export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
   return (
-    <div className={cn(galleryMasonryGridColumnsClassName, className)}>
-      {items.map((item) => (
-        <div key={item.id} className="mb-px break-inside-avoid">
-          <button
-            type="button"
-            onClick={() => onItemClick(item)}
-            className={cn(
-              "group relative block w-full overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-              item.isPinned && feedPinnedItemSurfaceClassName,
-            )}
-          >
-            {item.mediaKind === "video" ? (
-              <video
-                src={item.previewUrl}
-                className="block w-full object-cover"
-                autoPlay
-                muted
-                loop
-                playsInline
-                preload="metadata"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={item.previewUrl}
-                alt={item.title ?? item.caption ?? ""}
-                loading="lazy"
-                decoding="async"
-                width={item.width ?? undefined}
-                height={item.height ?? undefined}
-                className="block w-full transition duration-300 group-hover:scale-[1.02]"
-              />
-            )}
-            <span className="sr-only">
-              {item.title ?? item.caption ?? "Galeriebild"}
-            </span>
-          </button>
-        </div>
-      ))}
+    <div className={cn(galleryMasonryGridShellClassName, className)}>
+      <div className={galleryMasonryGridColumnsClassName}>
+        {items.map((item) => (
+          <div key={item.id} className="mb-px break-inside-avoid">
+            <button
+              type="button"
+              onClick={() => onItemClick(item)}
+              className={cn(
+                "group relative block w-full overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                item.isPinned && feedPinnedItemSurfaceClassName,
+              )}
+            >
+              {item.mediaKind === "video" ? (
+                <video
+                  src={item.previewUrl}
+                  className="block w-full object-cover"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={item.previewUrl}
+                  alt={item.title ?? item.caption ?? ""}
+                  loading="lazy"
+                  decoding="async"
+                  width={item.width ?? undefined}
+                  height={item.height ?? undefined}
+                  className="block w-full transition duration-300 group-hover:scale-[1.02]"
+                />
+              )}
+              <span className="sr-only">
+                {item.title ?? item.caption ?? "Galeriebild"}
+              </span>
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -75,23 +80,26 @@ export function GalleryMasonryGridSkeleton({
 }) {
   return (
     <div
-      className={cn(
-        galleryMasonryGridColumnsClassName,
-        "max-h-[min(14rem,32vh)] overflow-hidden",
-        className,
-      )}
+      className={cn(galleryMasonryGridShellClassName, className)}
       aria-busy
       aria-label="Galerie wird geladen"
     >
-      {Array.from({ length: count }).map((_, i) => (
-        <div
-          key={i}
-          className={cn(
-            "mb-px break-inside-avoid skeleton-shimmer bg-muted",
-            SKELETON_ASPECTS[i % SKELETON_ASPECTS.length],
-          )}
-        />
-      ))}
+      <div
+        className={cn(
+          galleryMasonryGridColumnsClassName,
+          "max-h-[min(14rem,32vh)] overflow-hidden",
+        )}
+      >
+        {Array.from({ length: count }).map((_, i) => (
+          <div
+            key={i}
+            className={cn(
+              "mb-px break-inside-avoid skeleton-shimmer bg-muted",
+              SKELETON_ASPECTS[i % SKELETON_ASPECTS.length],
+            )}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/drawer";
 import type { UnifiedGalleryHighlight } from "@/lib/gallery/unified-gallery-item";
 import { GalleryMasonryGrid } from "@/components/gallery/gallery-masonry-grid";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { cn } from "@/lib/utils";
 
 type Props = {
   highlight: UnifiedGalleryHighlight | null;
@@ -24,7 +26,7 @@ export function GalleryHighlightViewer({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-      <DrawerContent className="max-h-[90dvh] pb-safe">
+      <DrawerContent className={cn(drawerContentClassName("media"), "pb-safe")}>
         <DrawerHeader className="text-left">
           <DrawerTitle>{highlight.title}</DrawerTitle>
         </DrawerHeader>

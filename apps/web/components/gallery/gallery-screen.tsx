@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
@@ -20,8 +20,10 @@ import { GalleryPlatformFilterChips } from "@/components/gallery/gallery-platfor
 import {
   GALLERY_CATEGORY_ALL,
   GALLERY_FILTER_ALL,
+  GALLERY_PLATFORM_LABELS,
   type GalleryPlatformFilter,
 } from "@/lib/constants/gallery-platforms";
+import type { GalleryCacheablePlatform } from "@/lib/gallery/gallery-cache-constants";
 import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import {
   peekGalleryFeedCache,
@@ -44,6 +46,9 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+
+const GALLERY_SYNC_POLL_MS = 5_000;
+const GALLERY_SYNC_POLL_MAX = 3;
 
 function initialGalleryRestaurantId(): string | null {
   if (typeof window === "undefined") return null;
@@ -116,6 +121,7 @@ export function GalleryScreen() {
     () => initialFeed.syncMeta,
   );
   const [loading, setLoading] = useState(() => initialFeed.loading);
+  const [syncing, setSyncing] = useState(false);
   const loadGeneration = useRef(0);
 
   const applyCachedFeed = useCallback((cached: GalleryFeedCachePayload) => {
@@ -235,8 +241,37 @@ export function GalleryScreen() {
 
   useEffect(() => {
     if (!syncMeta?.stale || loading) return;
-    void load({ silent: true });
+    let polls = 0;
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      polls += 1;
+      if (polls > GALLERY_SYNC_POLL_MAX) {
+        window.clearInterval(id);
+        return;
+      }
+      void load({ silent: true });
+    }, GALLERY_SYNC_POLL_MS);
+    return () => window.clearInterval(id);
   }, [syncMeta?.stale, loading, load]);
+
+  const syncNow = useCallback(async () => {
+    if (!restaurantId || syncing) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/gallery/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId }),
+      });
+      if (!res.ok) throw new Error("sync_failed");
+      await load({ silent: true });
+      toast.success("Synchronisiert.");
+    } catch {
+      toast.error("Synchronisierung fehlgeschlagen.");
+    } finally {
+      setSyncing(false);
+    }
+  }, [restaurantId, syncing, load]);
 
   const handleDelete = useCallback(async () => {
     if (!restaurantId || !selectedItem) return;
@@ -273,10 +308,50 @@ export function GalleryScreen() {
 
   return (
     <div className="space-y-4 px-4 pb-8 sm:px-6">
-      {syncMeta?.stale ? (
-        <p className="text-xs text-muted-foreground">
-          Externe Kanäle werden im Hintergrund synchronisiert …
-        </p>
+      {syncMeta?.stale || syncMeta?.lastSyncedAt ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {syncMeta.lastSyncedAt ? (
+              <>
+                Externe Kanäle zuletzt aktualisiert:{" "}
+                {new Date(syncMeta.lastSyncedAt).toLocaleString("de-DE", {
+                  day: "2-digit",
+                  month: "short",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </>
+            ) : (
+              "Externe Kanäle werden synchronisiert …"
+            )}
+            {syncMeta.stale ? " · Aktualisierung läuft …" : null}
+          </p>
+          {syncMeta.stale || syncing ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="rounded-full border-border/60"
+              disabled={syncing}
+              onClick={() => void syncNow()}
+            >
+              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
+              Jetzt synchronisieren
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {syncMeta?.platformErrors &&
+      Object.keys(syncMeta.platformErrors).length > 0 ? (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+          {Object.entries(syncMeta.platformErrors).map(([platform, message]) => (
+            <p key={platform}>
+              {GALLERY_PLATFORM_LABELS[platform as GalleryCacheablePlatform]}:{" "}
+              {message}
+            </p>
+          ))}
+        </div>
       ) : null}
 
       <GalleryPlatformFilterChips

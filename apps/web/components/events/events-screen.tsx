@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
@@ -9,6 +9,7 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import { PlatformFeedSyncStatusBar } from "@/components/platform-feed/platform-feed-sync-status-bar";
 import { EventsComposeDrawer } from "@/components/events/events-compose-drawer";
 import { EventsDetailDrawer } from "@/components/events/events-detail-drawer";
 import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
@@ -16,6 +17,9 @@ import { EventsListView } from "@/components/events/events-feed-views";
 import { EventsPlatformFilterChips } from "@/components/events/events-platform-filter-chips";
 import {
   EVENTS_FILTER_ALL,
+  EVENTS_PLATFORM_LABELS,
+  isEventsCacheablePlatform,
+  type EventsCacheablePlatform,
   type EventsPlatformFilter,
 } from "@/lib/constants/events-platforms";
 import {
@@ -36,6 +40,9 @@ import { EVENTS_FEED_PAGE_SIZE } from "@/lib/events/events-feed-pagination";
 import type { EventsFeedSyncMeta } from "@/lib/events/events-feed-sync-meta";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+
+const EVENTS_SYNC_POLL_MS = 5_000;
+const EVENTS_SYNC_POLL_MAX = 3;
 
 export function EventsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -119,7 +126,14 @@ export function EventsScreen() {
       const res = await fetch("/api/events/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ restaurantId }),
+        body: JSON.stringify({
+          restaurantId,
+          platform:
+            platformFilter !== EVENTS_FILTER_ALL &&
+            isEventsCacheablePlatform(platformFilter)
+              ? platformFilter
+              : undefined,
+        }),
       });
       if (!res.ok) throw new Error("sync_failed");
       await load({ silent: true });
@@ -129,7 +143,22 @@ export function EventsScreen() {
     } finally {
       setSyncing(false);
     }
-  }, [restaurantId, syncing, load]);
+  }, [restaurantId, platformFilter, syncing, load]);
+
+  useEffect(() => {
+    if (!syncMeta?.stale || loading) return;
+    let polls = 0;
+    const id = window.setInterval(() => {
+      if (document.hidden) return;
+      polls += 1;
+      if (polls > EVENTS_SYNC_POLL_MAX) {
+        window.clearInterval(id);
+        return;
+      }
+      void load({ silent: true });
+    }, EVENTS_SYNC_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [syncMeta?.stale, loading, load]);
 
   const filteredItems = useMemo(() => {
     if (platformFilter === EVENTS_FILTER_ALL) return items;
@@ -157,30 +186,18 @@ export function EventsScreen() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <EventsPlatformFilterChips
-          value={platformFilter}
-          onChange={setPlatformFilter}
-          availablePlatforms={availablePlatforms}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          className="rounded-full border-border/60"
-          disabled={syncing}
-          onClick={() => void syncNow()}
-          aria-label="Jetzt synchronisieren"
-        >
-          <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
-        </Button>
-      </div>
+      <EventsPlatformFilterChips
+        value={platformFilter}
+        onChange={setPlatformFilter}
+        availablePlatforms={availablePlatforms}
+      />
 
-      {syncMeta?.stale ? (
-        <p className="text-xs text-muted-foreground">
-          Externe Events werden im Hintergrund aktualisiert …
-        </p>
-      ) : null}
+      <PlatformFeedSyncStatusBar
+        syncMeta={syncMeta}
+        syncing={syncing}
+        onSyncNow={() => void syncNow()}
+        platformLabels={EVENTS_PLATFORM_LABELS}
+      />
 
       {canManage ? (
         <Button

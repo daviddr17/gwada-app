@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SignaturePad } from "@/components/ui/signature-pad";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
   fetchPendingStaffContracts,
@@ -169,7 +170,7 @@ export function ProfilePendingContractsSection({
       </Card>
 
       <Drawer open={Boolean(active)} onOpenChange={(open) => !open && closeSign()}>
-        <DrawerContent className="max-h-[92dvh]">
+        <DrawerContent className={drawerContentClassName("mediaTall")}>
           <DrawerHeader>
             <DrawerTitle>{active?.title ?? "Vertrag unterschreiben"}</DrawerTitle>
             <DrawerDescription>

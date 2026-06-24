@@ -14,7 +14,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { DrawerFormBody, DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { Separator } from "@/components/ui/separator";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
@@ -125,6 +125,7 @@ export function InventoryFilterDrawer({
           </DrawerDescription>
         </DrawerHeader>
 
+        <DrawerFormBody>
         <div className={drawerScrollAreaClassName(6)}>
           <DrawerFormSection title="Lieferant & Kategorie">
             <div className="space-y-3">
@@ -177,6 +178,7 @@ export function InventoryFilterDrawer({
           </DrawerFormSection>
         </div>
         <DrawerFilterFooter onReset={resetFilters} onDone={() => onOpenChange(false)} />
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

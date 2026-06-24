@@ -35,7 +35,7 @@ const BELL_ITEMS_PER_MODULE = 5;
 async function fetchUnreadChangelogItems(
   sb: SupabaseClient,
   userId: string,
-): Promise<NotificationItem[]> {
+): Promise<{ items: NotificationItem[]; totalCount: number }> {
   const { data: entries } = await sb
     .from("platform_changelog_entries")
     .select("id, title, published_at, version")
@@ -44,7 +44,7 @@ async function fetchUnreadChangelogItems(
     .order("published_at", { ascending: false })
     .limit(20);
 
-  if (!entries?.length) return [];
+  if (!entries?.length) return { items: [], totalCount: 0 };
 
   const ids = entries.map((e) => (e as { id: string }).id);
   const { data: reads } = await sb
@@ -59,10 +59,11 @@ async function fetchUnreadChangelogItems(
     ),
   );
 
-  return entries
-    .filter((e) => !readIds.has((e as { id: string }).id))
-    .slice(0, BELL_ITEMS_PER_MODULE)
-    .map((e) => {
+  const unread = entries.filter((e) => !readIds.has((e as { id: string }).id));
+
+  return {
+    totalCount: unread.length,
+    items: unread.slice(0, BELL_ITEMS_PER_MODULE).map((e) => {
       const row = e as {
         id: string;
         title: string;
@@ -76,7 +77,8 @@ async function fetchUnreadChangelogItems(
         href: "/changelog",
         at: row.published_at,
       };
-    });
+    }),
+  };
 }
 
 async function buildMessagesModule(
@@ -270,11 +272,11 @@ async function buildChangelogModule(
   userId: string,
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES.changelog;
-  const items = await fetchUnreadChangelogItems(sb, userId);
+  const { items, totalCount } = await fetchUnreadChangelogItems(sb, userId);
 
   return {
     id: def.id,
-    count: items.length,
+    count: totalCount,
     label: def.labelPlural,
     href: def.href,
     items,

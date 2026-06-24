@@ -32,6 +32,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
+import { PlatformFeedSyncStatusBar } from "@/components/platform-feed/platform-feed-sync-status-bar";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   formatReviewRating,
@@ -47,6 +48,8 @@ import {
   peekReviewStatisticsCache,
   writeReviewStatisticsCache,
 } from "@/lib/reviews/reviews-statistics-client-cache";
+import { reviewsStatisticsBundleSyncToMeta } from "@/lib/reviews/reviews-statistics-sync-meta";
+import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
 import type { ReviewStatisticsBundle } from "@/lib/supabase/reviews-analytics-db";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -120,6 +123,7 @@ export function ReviewsStatisticsScreen() {
   const [period, setPeriod] = useState<ReviewStatsPeriod>(12);
   const [bundle, setBundle] = useState<ReviewStatisticsBundle | null>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const showSkeleton = useDeferredSkeleton(loading && !bundle);
   const followUpSyncKeyRef = useRef<string | null>(null);
   const pollTimerRef = useRef<number | null>(null);
@@ -233,6 +237,30 @@ export function ReviewsStatisticsScreen() {
 
   loadRef.current = load;
 
+  const syncMeta = useMemo(
+    () => reviewsStatisticsBundleSyncToMeta(bundle?.sync),
+    [bundle?.sync],
+  );
+
+  const syncNow = useCallback(async () => {
+    if (!restaurantId || syncing) return;
+    setSyncing(true);
+    try {
+      const res = await fetch("/api/reviews/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ restaurantId }),
+      });
+      if (!res.ok) throw new Error("sync_failed");
+      await load({ mode: "poll" });
+      toast.success("Synchronisiert.");
+    } catch {
+      toast.error("Synchronisierung fehlgeschlagen.");
+    } finally {
+      setSyncing(false);
+    }
+  }, [restaurantId, syncing, load]);
+
   useLayoutEffect(() => {
     if (!restaurantId) return;
     const cached = peekReviewStatisticsCache(restaurantId, period);
@@ -295,13 +323,12 @@ export function ReviewsStatisticsScreen() {
 
   return (
     <div className="space-y-6 pb-4">
-      {bundle?.sync.syncTriggered ||
-      bundle?.sync.google.stale ||
-      bundle?.sync.facebook.stale ? (
-        <p className="text-xs text-muted-foreground">
-          Google-/Facebook-Daten werden im Hintergrund aktualisiert …
-        </p>
-      ) : null}
+      <PlatformFeedSyncStatusBar
+        syncMeta={syncMeta}
+        syncing={syncing}
+        onSyncNow={() => void syncNow()}
+        platformLabels={REVIEW_PLATFORM_LABELS}
+      />
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         <div

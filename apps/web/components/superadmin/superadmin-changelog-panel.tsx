@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Check, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { dispatchSuperadminChangelogRefresh } from "@/lib/changelog/changelog-events";
@@ -356,7 +357,7 @@ export function SuperadminChangelogPanel() {
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+        <DrawerContent className={drawerContentClassName("form")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               {editingId ? "Eintrag bearbeiten" : "Neuer Changelog-Eintrag"}

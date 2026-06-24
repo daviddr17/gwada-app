@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { drawerFormHeaderClassName, drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
@@ -442,7 +443,7 @@ export function SuperadminNotificationLogPanel() {
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className="mx-auto flex max-h-[min(88dvh,640px)] max-w-3xl flex-col rounded-t-[1.75rem] border-0 bg-card shadow-elevated">
+        <DrawerContent className={drawerContentClassName("wide")}>
           {selected ? (
             <>
               <DrawerHeader className={drawerFormHeaderClassName(6)}>

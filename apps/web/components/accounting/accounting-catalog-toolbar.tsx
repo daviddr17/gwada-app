@@ -29,6 +29,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
+import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -970,7 +971,7 @@ function ArticleFormDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent className="mx-auto flex max-h-[min(92dvh,720px)] max-w-lg flex-col rounded-t-[1.75rem]">
+        <DrawerContent className={drawerContentClassName("form")}>
           <DrawerHeader className="shrink-0">
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1 text-left">

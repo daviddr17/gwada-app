@@ -2,6 +2,15 @@ import type { SidebarModuleId } from "@/lib/constants/sidebar-modules";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
 
+/** Ungelesene Changelog-Einträge für Sidebar-Footer (Glocke-Modul „changelog“). */
+export function sidebarChangelogUnreadCount(
+  summary: NotificationSummary | null | undefined,
+): number {
+  if (!summary) return 0;
+  const mod = summary.modules.find((m) => m.id === "changelog");
+  return mod?.count ?? 0;
+}
+
 const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
   Record<SidebarModuleId, readonly NotificationModuleId[]>
 > = {

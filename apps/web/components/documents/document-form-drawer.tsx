@@ -198,8 +198,8 @@ export function DocumentFormDrawer({
         className={cn(
           drawerContentClassName("documentForm"),
           mode === "edit"
-            ? "max-h-[min(92dvh,720px)]"
-            : "max-h-[min(92dvh,560px)]",
+            ? "h-[min(92dvh,720px)] max-h-[min(92dvh,720px)]"
+            : "h-[min(92dvh,560px)] max-h-[min(92dvh,560px)]",
         )}
       >
         <DrawerHeader className={drawerFormHeaderClassName(5)}>

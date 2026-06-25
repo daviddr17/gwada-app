@@ -32,8 +32,8 @@ echo "→ supabase db push …"
 docker run --rm --network "${network}" \
   -v "${mig_root}/supabase:/workspace/supabase" \
   -w /workspace \
-  ghcr.io/supabase/cli:2.105.0 \
-  db push --db-url "${DB_URL}" --yes --include-all
+  node:22-bookworm-slim \
+  bash -lc "npx --yes supabase@2.105.0 db push --db-url \"${DB_URL}\" --yes --include-all"
 
 if ! has_restaurants; then
   echo "WARN: public.restaurants fehlt — Migration-Historie zurücksetzen und erneut pushen …"
@@ -41,8 +41,8 @@ if ! has_restaurants; then
   docker run --rm --network "${network}" \
     -v "${mig_root}/supabase:/workspace/supabase" \
     -w /workspace \
-    ghcr.io/supabase/cli:2.105.0 \
-    db push --db-url "${DB_URL}" --yes --include-all
+    node:22-bookworm-slim \
+    bash -lc "npx --yes supabase@2.105.0 db push --db-url \"${DB_URL}\" --yes --include-all"
 fi
 
 if ! has_restaurants; then

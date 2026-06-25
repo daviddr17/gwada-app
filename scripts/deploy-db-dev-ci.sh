@@ -55,6 +55,8 @@ POSTGRES_PASSWORD="$(gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
 [[ -n "${POSTGRES_PASSWORD}" ]] || POSTGRES_PASSWORD="$(read_vps_env POSTGRES_PASSWORD)"
 POSTGRES_PORT="$(read_vps_env POSTGRES_PORT)"
 POSTGRES_PORT="${POSTGRES_PORT:-5435}"
+# Im Docker-Netz lauscht Postgres typisch auf 5432 (POSTGRES_PORT betrifft Host-Mapping).
+DB_TUNNEL_PORT="5432"
 DB_CONTAINER_IP="$(gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
   "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' gwada-dev-db")"
 [[ -n "${DB_CONTAINER_IP}" ]] || { echo "FEHLER: gwada-dev-db Container-IP fehlt." >&2; exit 1; }
@@ -62,8 +64,8 @@ ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv
 
 echo ""
 echo "=== Dev-DB: Migrationen anwenden (supabase db push via SSH-Tunnel) ==="
-echo "Tunnel → ${DB_CONTAINER_IP}:${POSTGRES_PORT} (Docker-Netz auf VPS)"
-gwada_ssh_cmd -N -L "${DEV_TUNNEL_LOCAL_PORT}:${DB_CONTAINER_IP}:${POSTGRES_PORT}" \
+echo "Tunnel → ${DB_CONTAINER_IP}:${DB_TUNNEL_PORT} (Docker-Netz auf VPS)"
+gwada_ssh_cmd -N -L "${DEV_TUNNEL_LOCAL_PORT}:${DB_CONTAINER_IP}:${DB_TUNNEL_PORT}" \
   "${DEV_SSH_USER}@${DEV_VPS_HOST}" &
 TUNNEL_PID=$!
 cleanup() {

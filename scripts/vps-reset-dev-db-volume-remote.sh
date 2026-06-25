@@ -10,10 +10,15 @@ export COMPOSE_PROJECT_NAME=gwada-dev
 echo "→ Dev-Stack stoppen und Postgres-Volumes entfernen …"
 docker compose down --remove-orphans 2>/dev/null || true
 docker compose down -v --remove-orphans 2>/dev/null || true
+docker rm -f gwada-dev-kong 2>/dev/null || true
 rm -f "${compose_dir}/.secrets-rotated-after-leak"
 
 echo "→ Dev-Stack neu starten …"
-docker compose up -d
+if ! docker compose up -d; then
+  echo "WARN: compose up fehlgeschlagen — Port-Konflikt bereinigen …" >&2
+  docker rm -f gwada-dev-kong 2>/dev/null || true
+  docker compose up -d
+fi
 
 for i in $(seq 1 60); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then

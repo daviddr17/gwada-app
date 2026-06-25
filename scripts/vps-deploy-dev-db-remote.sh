@@ -40,17 +40,22 @@ ensure_storage_schema() {
   if has_storage_buckets; then
     return
   fi
-  echo "→ Storage-Schema fehlt — storage-Container starten …"
-  docker compose up -d storage
-  for _ in $(seq 1 30); do
-    if has_storage_buckets; then
-      echo "✓ storage.buckets wiederhergestellt"
-      return
-    fi
-    sleep 2
-  done
-  echo "FEHLER: storage.buckets fehlt — Dev-Stack neu provisionieren (provision-dev-supabase)." >&2
-  exit 1
+  echo "→ Storage-Schema bootstrap (SQL) …"
+  if [[ -f /tmp/vps-bootstrap-dev-storage.sql ]]; then
+    psql_admin -f /tmp/vps-bootstrap-dev-storage.sql
+  else
+    echo "WARN: /tmp/vps-bootstrap-dev-storage.sql fehlt — storage-Container starten …"
+    docker compose up -d storage
+    for _ in $(seq 1 15); do
+      has_storage_buckets && return
+      sleep 2
+    done
+  fi
+  if ! has_storage_buckets; then
+    echo "FEHLER: storage.buckets fehlt nach Bootstrap." >&2
+    exit 1
+  fi
+  echo "✓ storage.buckets OK"
 }
 
 reset_dev_schemas() {

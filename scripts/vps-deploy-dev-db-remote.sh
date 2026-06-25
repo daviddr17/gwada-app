@@ -107,9 +107,10 @@ apply_all_migrations() {
     version text PRIMARY KEY
   );"
 
-  local pass f applied_any pending
-  for pass in $(seq 1 6); do
-    echo "=== Migrations pass ${pass}/6 ==="
+  local pass=0 f applied_any pending max_passes=20
+  while [[ "${pass}" -lt "${max_passes}" ]]; do
+    pass=$((pass + 1))
+    echo "=== Migrations pass ${pass}/${max_passes} ==="
     applied_any=0
     for f in "${files[@]}"; do
       if try_apply_migration "${f}"; then
@@ -118,12 +119,20 @@ apply_all_migrations() {
     done
     pending="$(psql_query "SELECT ${#files[@]} - count(*) FROM supabase_migrations.schema_migrations;" 2>/dev/null || echo 1)"
     echo "Ausstehend: ${pending}"
+    [[ "${pending}" == "0" ]] && break
     [[ "${applied_any}" -eq 0 ]] && break
   done
 
   pending="$(psql_query "SELECT ${#files[@]} - count(*) FROM supabase_migrations.schema_migrations;" 2>/dev/null || echo 1)"
   if [[ "${pending}" != "0" ]]; then
-    echo "WARN: ${pending} Migration(en) nicht angewendet nach Multi-Pass." >&2
+    echo "FEHLER: ${pending} Migration(en) nicht angewendet:" >&2
+    for f in "${files[@]}"; do
+      base="$(basename "${f}")"
+      version="${base%.sql}"
+      applied="$(psql_query "SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '${version}' LIMIT 1;" 2>/dev/null || true)"
+      [[ "${applied}" != "1" ]] && echo "  - ${base}" >&2
+    done
+    exit 1
   fi
 }
 

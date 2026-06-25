@@ -104,7 +104,16 @@ apply_all_migrations() {
   done
 }
 
-if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]] || ! has_restaurants; then
+needs_dev_repair() {
+  if ! has_restaurants; then
+    return 0
+  fi
+  local demo_users
+  demo_users="$(psql_query "SELECT count(*) FROM auth.users WHERE email = 'dreyer@techlion.de';" 2>/dev/null || echo 0)"
+  [[ "${demo_users}" != "1" ]]
+}
+
+if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]] || needs_dev_repair; then
   reset_dev_schemas
 fi
 

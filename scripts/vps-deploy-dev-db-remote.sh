@@ -27,41 +27,66 @@ PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -
 ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${PW}")"
 DB_PORT="$(grep -m1 '^POSTGRES_PORT=' .env | sed 's/^POSTGRES_PORT=//' | tr -d '\r\n')"
 DB_PORT="${DB_PORT:-5432}"
-DB_URL="postgresql://postgres:${ENC_PW}@gwada-dev-db:${DB_PORT}/postgres?sslmode=disable"
+DB_URL="postgresql://postgres:${ENC_PW}@db:${DB_PORT}/postgres?sslmode=disable"
+
+psql_exec() {
+  docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 "$@"
+}
 
 psql_query() {
-  docker run --rm --network "${network}" postgres:17 \
-    psql "${DB_URL}" -v ON_ERROR_STOP=1 -tAc "$1"
+  psql_exec -tAc "$1"
 }
 
 has_restaurants() {
   [[ "$(psql_query "SELECT to_regclass('public.restaurants') IS NOT NULL;")" == "t" ]]
 }
 
-echo "→ supabase db push …"
-docker run --rm --network "${network}" \
-  -v "${mig_root}/supabase:/workspace/supabase" \
-  -w /workspace \
-  node:22-bookworm-slim \
-  bash -lc "npx --yes supabase@2.105.0 db push --db-url \"${DB_URL}\" --yes --include-all"
+apply_migrations_psql() {
+  local mig_dir="${mig_root}/supabase/migrations"
+  shopt -s nullglob
+  local files=("${mig_dir}"/*.sql)
+  shopt -u nullglob
+  [[ ${#files[@]} -gt 0 ]] || { echo "FEHLER: keine Migrationen unter ${mig_dir}" >&2; exit 1; }
+
+  psql_exec -c "CREATE SCHEMA IF NOT EXISTS supabase_migrations;" >/dev/null
+  psql_exec -c "CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (
+    version text PRIMARY KEY
+  );" >/dev/null
+
+  local f base version applied
+  for f in "${files[@]}"; do
+    base="$(basename "${f}")"
+    version="${base%.sql}"
+    applied="$(psql_query "SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '${version}' LIMIT 1;" 2>/dev/null || true)"
+    if [[ "${applied}" == "1" ]]; then
+      echo "skip ${base}"
+      continue
+    fi
+    echo "→ ${base}"
+    psql_exec -f - < "${f}"
+    psql_exec -c "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('${version}') ON CONFLICT DO NOTHING;"
+  done
+}
+
+echo "→ Migrationen anwenden (psql via compose exec) …"
+apply_migrations_psql
 
 if ! has_restaurants; then
-  echo "WARN: public.restaurants fehlt — Migration-Historie zurücksetzen und erneut pushen …"
-  psql_query "TRUNCATE supabase_migrations.schema_migrations;" || true
+  echo "WARN: public.restaurants fehlt — versuche supabase db push …"
   docker run --rm --network "${network}" \
     -v "${mig_root}/supabase:/workspace/supabase" \
     -w /workspace \
     node:22-bookworm-slim \
-    bash -lc "npx --yes supabase@2.105.0 db push --db-url \"${DB_URL}\" --yes --include-all"
+    bash -lc "npx --yes supabase@2.105.0 db push --db-url \"${DB_URL}\" --yes --include-all" || true
 fi
 
 if ! has_restaurants; then
-  echo "FEHLER: public.restaurants fehlt nach db push." >&2
+  echo "FEHLER: public.restaurants fehlt nach Migrationen." >&2
   exit 1
 fi
 
 echo "→ PostgREST Schema neu laden …"
-docker compose exec -T db psql -U postgres -c "NOTIFY pgrst, 'reload schema';" || true
+psql_exec -c "NOTIFY pgrst, 'reload schema';" || true
 docker compose restart rest
 sleep 4
 

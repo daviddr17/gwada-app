@@ -27,16 +27,13 @@ PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -
 ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${PW}")"
 DB_PORT="$(grep -m1 '^POSTGRES_PORT=' .env | sed 's/^POSTGRES_PORT=//' | tr -d '\r\n')"
 DB_PORT="${DB_PORT:-5432}"
-DB_URL="postgresql://postgres:${ENC_PW}@gwada-dev-db:${DB_PORT}/postgres?sslmode=disable"
+DB_URL="postgresql://postgres:${ENC_PW}@db:${DB_PORT}/postgres?sslmode=disable"
 
 run_seed() {
   local rel="$1"
   local path="${seed_root}/${rel}"
   echo "→ ${rel}"
-  docker run --rm --network "${network}" \
-    -v "${path}:/seed.sql:ro" \
-    postgres:17 \
-    psql "${DB_URL}" -v ON_ERROR_STOP=1 -f /seed.sql
+  docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 -f - < "${path}"
 }
 
 for f in \
@@ -50,8 +47,7 @@ do
   run_seed "${f}"
 done
 
-user_count="$(docker run --rm --network "${network}" postgres:17 \
-  psql "${DB_URL}" -tAc "SELECT count(*) FROM auth.users WHERE email = 'dreyer@techlion.de';")"
+user_count="$(docker compose exec -T db psql -U postgres -tAc "SELECT count(*) FROM auth.users WHERE email = 'dreyer@techlion.de';")"
 if [[ "${user_count}" != "1" ]]; then
   echo "FEHLER: Demo-User fehlt nach Seeds (count=${user_count})." >&2
   exit 1

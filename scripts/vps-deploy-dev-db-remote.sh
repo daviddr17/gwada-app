@@ -83,8 +83,31 @@ prepare_public_schema_for_gwada() {
   fi
 
   echo "→ public + migration history zurücksetzen (Supabase-Vorgabe vs. gwada) …"
-  psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-  psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
+  docker compose stop auth rest realtime meta studio storage 2>/dev/null || true
+
+  drop_gwada_public() {
+    set +e
+    psql_admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" 2>/dev/null
+    psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
+    psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
+    set -e
+    [[ "$(psql_query_safe "SELECT to_regnamespace('public') IS NOT NULL;")" != "t" ]]
+  }
+
+  if ! drop_gwada_public; then
+    echo "WARN: DROP public fehlgeschlagen — Postgres neu starten …" >&2
+    docker compose restart db
+    for _ in $(seq 1 30); do
+      docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
+      sleep 2
+    done
+    drop_gwada_public || {
+      echo "FEHLER: public konnte nicht zurückgesetzt werden — pnpm repair:dev (reset_volume=true)." >&2
+      exit 1
+    }
+  fi
+
+  docker compose up -d auth rest realtime meta studio storage 2>/dev/null || true
   psql_exec -c "CREATE SCHEMA public;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO public;"

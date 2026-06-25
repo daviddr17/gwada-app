@@ -57,8 +57,8 @@ ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv
 
 echo ""
 echo "=== Dev-DB: Migrationen anwenden (supabase db push via SSH-Tunnel) ==="
-gwada_ssh_cmd -f -N -L "${DEV_TUNNEL_LOCAL_PORT}:127.0.0.1:${POSTGRES_PORT}" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}"
+gwada_ssh_cmd -N -L "${DEV_TUNNEL_LOCAL_PORT}:127.0.0.1:${POSTGRES_PORT}" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}" &
 TUNNEL_PID=$!
 cleanup() {
   kill "${TUNNEL_PID}" 2>/dev/null || true

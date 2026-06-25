@@ -49,7 +49,13 @@ ensure_env
 
 URL="$(api_url)"
 if ! api_reachable "${URL}"; then
-  start_tunnel_bg || true
+  VPS_FALLBACK="http://95.111.229.250:8100"
+  if api_reachable "${VPS_FALLBACK}"; then
+    log "API über ${VPS_FALLBACK} erreichbar."
+    export NEXT_PUBLIC_SUPABASE_URL="${VPS_FALLBACK}"
+  else
+    start_tunnel_bg || true
+  fi
 fi
 
 log "Starte Next.js …"

@@ -47,7 +47,12 @@ echo "KONG_IP=${kong_ip}"
 REMOTE
 }
 
-eval "$(resolve_ips | tail -2)"
+eval "$(resolve_ips 2>/dev/null | tail -2 || true)"
+
+if [[ -z "${DB_IP:-}" || -z "${KONG_IP:-}" ]]; then
+  echo "Dev-Tunnel: SSH fehlgeschlagen — API direkt über VPS-URL in .env.development nutzen." >&2
+  exit 1
+fi
 
 if [[ -n "${DEV_TUNNEL_REMOTE_HOST:-}" ]]; then
   DB_IP="${DEV_TUNNEL_REMOTE_HOST}"

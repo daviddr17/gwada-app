@@ -34,9 +34,9 @@ function latestSuccessRun(workflow) {
 }
 
 const runId =
+  latestSuccessRun("rotate-dev-secrets.yml") ||
   latestSuccessRun("seed-dev-db.yml") ||
-  latestSuccessRun("provision-dev-supabase.yml") ||
-  latestSuccessRun("rotate-dev-secrets.yml");
+  latestSuccessRun("provision-dev-supabase.yml");
 
 if (!runId) {
   if (existsSync(TARGET)) {

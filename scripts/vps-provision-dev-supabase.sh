@@ -50,6 +50,24 @@ fi
 
 export COMPOSE_PROJECT_NAME=gwada-dev
 
+if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
+  log "Volume-Reset: Dev-Stack und Volumes entfernen …"
+  if [[ -f docker-compose.yml ]]; then
+    docker compose stop -t 15 2>/dev/null || true
+    docker compose rm -f 2>/dev/null || true
+    docker compose down -v --remove-orphans 2>/dev/null || true
+  fi
+  if ids="$(docker ps -aq --filter name=gwada-dev-)"; [[ -n "${ids}" ]]; then
+    docker rm -f ${ids}
+  fi
+  while read -r vol; do
+    [[ -z "${vol}" ]] && continue
+    docker volume rm -f "${vol}" 2>/dev/null || true
+  done < <(docker volume ls -q | grep -E 'gwada-dev|gwada_dev' || true)
+  rm -f .env .secrets-rotated-after-leak
+  log "Alte .env entfernt — wird neu erzeugt."
+fi
+
 if [[ ! -f .env ]]; then
   log "Neue .env für Dev-Stack …"
   cp .env.example .env
@@ -89,12 +107,7 @@ upsert_env "GOTRUE_MAILER_AUTOCONFIRM" "true"
 upsert_env "ENABLE_EMAIL_SIGNUP" "true"
 
 if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
-  log "Volume-Reset angefordert …"
-  if [[ -f docker-compose.yml ]]; then
-    docker compose down --remove-orphans 2>/dev/null || true
-    docker compose down -v --remove-orphans 2>/dev/null || true
-    rm -f .secrets-rotated-after-leak
-  fi
+  log "Volume-Reset angefordert — übersprungen (bereits oben ausgeführt)."
 fi
 
 log "docker compose pull (kann mehrere Minuten dauern) …"

@@ -23,6 +23,8 @@ gwada_scp_cmd() {
 }
 
 gwada_scp_cmd "${ROOT}/scripts/vps-reset-dev-db-volume-remote.sh" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-reset-dev-db-volume-remote.sh"
+  "${ROOT}/scripts/vps-provision-dev-supabase.sh" \
+  "${ROOT}/scripts/vps-refresh-dev-env.sh" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
   "bash /tmp/vps-reset-dev-db-volume-remote.sh ${DEV_COMPOSE_DIR}"

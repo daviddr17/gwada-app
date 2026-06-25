@@ -5,7 +5,8 @@ set -euo pipefail
 compose_dir="$1"
 mig_root="$2"
 cli_version="${SUPABASE_CLI_VERSION:-2.105.0}"
-supabase_bin="/tmp/supabase-${cli_version}"
+cli_dir="/tmp/supabase-cli-${cli_version}"
+supabase_bin="${cli_dir}/supabase"
 
 cd "${compose_dir}"
 export COMPOSE_PROJECT_NAME=gwada-dev
@@ -24,15 +25,14 @@ DB_PORT="$(grep -m1 '^POSTGRES_PORT=' .env 2>/dev/null | sed 's/^POSTGRES_PORT=/
 DB_PORT="${DB_PORT:-5435}"
 DB_URL="postgresql://postgres:${ENC_PW}@127.0.0.1:${DB_PORT}/postgres?sslmode=disable"
 
-if [[ ! -x "${supabase_bin}" ]]; then
+if [[ ! -x "${cli_dir}/supabase-go" ]]; then
   echo "→ Supabase CLI v${cli_version} herunterladen …"
-  tmp_dir="$(mktemp -d)"
-  curl -fsSL "https://github.com/supabase/cli/releases/download/v${cli_version}/supabase_linux_amd64.tar.gz" \
-    | tar -xz -C "${tmp_dir}"
-  mv "${tmp_dir}/supabase" "${supabase_bin}"
-  chmod +x "${supabase_bin}"
-  rm -rf "${tmp_dir}"
+  mkdir -p "${cli_dir}"
+  curl -fsSL "https://github.com/supabase/cli/releases/download/v${cli_version}/supabase_${cli_version}_linux_amd64.tar.gz" \
+    | tar -xzf - -C "${cli_dir}"
+  chmod +x "${cli_dir}/supabase" "${cli_dir}/supabase-go" 2>/dev/null || true
 fi
+export PATH="${cli_dir}:${PATH}"
 
 echo "→ supabase db push (CLI-Binary, localhost:${DB_PORT}) …"
 cd "${mig_root}"

@@ -60,13 +60,20 @@ ensure_storage_schema() {
 
 reset_dev_schemas() {
   echo "→ Dev-DB Schema-Reset (public + migration history, storage policies) …"
+  docker compose stop auth rest realtime meta studio 2>/dev/null || true
+
   psql_admin -c "
     SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
     WHERE datname = current_database()
       AND pid <> pg_backend_pid();" 2>/dev/null || true
 
+  public_schema_dirty() {
+    [[ "$(psql_query "SELECT to_regnamespace('public') IS NOT NULL;")" == "t" ]]
+  }
+
   drop_public_and_migrations() {
+    set +e
     psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
     psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
     psql_admin -c "
@@ -77,7 +84,9 @@ reset_dev_schemas() {
             EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', r.policyname);
           END LOOP;
         END IF;
-      END \$\$;"
+      END \$\$;" 2>/dev/null
+    set -e
+    ! public_schema_dirty
   }
 
   if ! drop_public_and_migrations; then
@@ -88,8 +97,14 @@ reset_dev_schemas() {
       sleep 2
     done
     docker compose exec -T db pg_isready -U postgres
-    drop_public_and_migrations
+    drop_public_and_migrations || {
+      echo "FEHLER: public-Schema konnte nicht zurückgesetzt werden (Postgres-Katalog)." >&2
+      echo "       Einmalig: gh workflow run provision-dev-supabase.yml -f reset_volume=true" >&2
+      exit 1
+    }
   fi
+
+  docker compose up -d auth rest realtime meta studio 2>/dev/null || true
 
   psql_exec -c "CREATE SCHEMA public;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"

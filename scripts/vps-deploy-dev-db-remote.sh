@@ -77,6 +77,27 @@ reset_dev_schemas() {
   psql_exec -c "GRANT ALL ON SCHEMA public TO anon, authenticated, service_role;" 2>/dev/null || true
 }
 
+apply_migration_file() {
+  local mig_dir="$1"
+  local f="$2"
+  local base version applied
+  base="$(basename "${f}")"
+  version="${base%.sql}"
+
+  if [[ "${base}" == "20260613190000_superadmin_notification_log_server_filters.sql" ]]; then
+    apply_migration_file "${mig_dir}" "${mig_dir}/20260621130000_notification_push_delivery.sql"
+  fi
+
+  applied="$(psql_query "SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '${version}' LIMIT 1;" 2>/dev/null || true)"
+  if [[ "${applied}" == "1" ]]; then
+    echo "skip ${base}"
+    return
+  fi
+  echo "→ ${base}"
+  psql_exec -f - < "${f}"
+  psql_exec -c "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('${version}') ON CONFLICT DO NOTHING;"
+}
+
 apply_all_migrations() {
   local mig_dir="${mig_root}/supabase/migrations"
   shopt -s nullglob
@@ -89,18 +110,9 @@ apply_all_migrations() {
     version text PRIMARY KEY
   );"
 
-  local f base version applied
+  local f
   for f in "${files[@]}"; do
-    base="$(basename "${f}")"
-    version="${base%.sql}"
-    applied="$(psql_query "SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '${version}' LIMIT 1;" 2>/dev/null || true)"
-    if [[ "${applied}" == "1" ]]; then
-      echo "skip ${base}"
-      continue
-    fi
-    echo "→ ${base}"
-    psql_exec -f - < "${f}"
-    psql_exec -c "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('${version}') ON CONFLICT DO NOTHING;"
+    apply_migration_file "${mig_dir}" "${f}"
   done
 }
 

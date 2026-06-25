@@ -20,6 +20,10 @@ psql_exec() {
   docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 "$@"
 }
 
+psql_admin() {
+  docker compose exec -T db psql -U supabase_admin -v ON_ERROR_STOP=1 "$@"
+}
+
 psql_query() {
   psql_exec -tAc "$1"
 }
@@ -30,9 +34,9 @@ has_restaurants() {
 
 reset_dev_schemas() {
   echo "→ Dev-DB Schema-Reset (public + storage + migration history) …"
-  psql_exec -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-  psql_exec -c "DROP SCHEMA IF EXISTS storage CASCADE;"
-  psql_exec -c "DROP SCHEMA IF EXISTS public CASCADE;"
+  psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
+  psql_admin -c "DROP SCHEMA IF EXISTS storage CASCADE;"
+  psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
   psql_exec -c "CREATE SCHEMA public;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO public;"

@@ -28,7 +28,7 @@ echo "Docker-Netz: ${network}"
 
 PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
 ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${PW}")"
-DB_PORT="$(grep -m1 '^POSTGRES_PORT=' .env | sed 's/^POSTGRES_PORT=//' | tr -d '\r\n')"
+DB_PORT="$(grep -m1 '^POSTGRES_PORT=' .env 2>/dev/null | sed 's/^POSTGRES_PORT=//' | tr -d '\r\n')"
 DB_PORT="${DB_PORT:-5432}"
 DB_URL="postgresql://postgres:${ENC_PW}@db:${DB_PORT}/postgres?sslmode=disable"
 

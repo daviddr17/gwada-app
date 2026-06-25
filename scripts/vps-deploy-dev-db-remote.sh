@@ -33,10 +33,18 @@ has_restaurants() {
 }
 
 reset_dev_schemas() {
-  echo "→ Dev-DB Schema-Reset (public + storage + migration history) …"
+  echo "→ Dev-DB Schema-Reset (public + migration history, storage policies) …"
   psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-  psql_admin -c "DROP SCHEMA IF EXISTS storage CASCADE;"
   psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
+  psql_admin -c "
+    DO \$\$ DECLARE r record; BEGIN
+      IF to_regclass('storage.objects') IS NOT NULL THEN
+        FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects'
+        LOOP
+          EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', r.policyname);
+        END LOOP;
+      END IF;
+    END \$\$;"
   psql_exec -c "CREATE SCHEMA public;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO public;"

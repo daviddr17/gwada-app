@@ -136,8 +136,16 @@ apply_all_migrations() {
   fi
 }
 
+has_platform_superadmins() {
+  [[ "$(psql_query "SELECT to_regclass('public.platform_superadmins') IS NOT NULL;")" == "t" ]]
+}
+
 needs_dev_repair() {
   if ! has_restaurants; then
+    return 0
+  fi
+  if ! has_platform_superadmins; then
+    echo "WARN: Schema-Drift — restaurants ohne platform_superadmins" >&2
     return 0
   fi
   local demo_users

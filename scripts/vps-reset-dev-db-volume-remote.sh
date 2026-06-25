@@ -41,50 +41,13 @@ free_host_port 8101
 
 rm -f "${compose_dir}/.secrets-rotated-after-leak"
 
-regenerate_dev_dotenv() {
-  echo "→ Dev-.env neu generieren (frisches Volume, konsistente Secrets) …"
-  local kong_port=8100 studio_port=54324
-  if [[ -f .env ]]; then
-    kong_port="$(grep -m1 '^KONG_HTTP_PORT=' .env | sed 's/^KONG_HTTP_PORT=//' | tr -d '\r\n')"
-    studio_port="$(grep -m1 '^STUDIO_PORT=' .env | sed 's/^STUDIO_PORT=//' | tr -d '\r\n')"
-  fi
-  kong_port="${kong_port:-8100}"
-  studio_port="${studio_port:-54324}"
-
-  cp .env.example .env
-  if [[ -x ./utils/generate-keys.sh ]]; then
-    ./utils/generate-keys.sh .env
-  fi
-  local pg_pw
-  pg_pw="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-  if grep -q '^POSTGRES_PASSWORD=' .env; then
-    sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${pg_pw}|" .env
-  else
-    echo "POSTGRES_PASSWORD=${pg_pw}" >> .env
-  fi
-
-  upsert_env() {
-    local key="$1" val="$2"
-    if grep -q "^${key}=" .env; then
-      sed -i "s|^${key}=.*|${key}=${val}|" .env
-    else
-      echo "${key}=${val}" >> .env
-    fi
-  }
-  upsert_env "KONG_HTTP_PORT" "${kong_port}"
-  upsert_env "KONG_HTTPS_PORT" "$((kong_port + 1))"
-  upsert_env "STUDIO_PORT" "${studio_port}"
-  upsert_env "SITE_URL" "http://localhost:3000"
-  upsert_env "API_EXTERNAL_URL" "http://127.0.0.1:${kong_port}"
-  upsert_env "SUPABASE_PUBLIC_URL" "http://127.0.0.1:${kong_port}"
-  upsert_env "ADDITIONAL_REDIRECT_URLS" "http://localhost:3000/auth/callback,http://localhost:3000/api/auth/google/callback"
-  upsert_env "GOTRUE_MAILER_AUTOCONFIRM" "true"
-  upsert_env "ENABLE_EMAIL_SIGNUP" "true"
-  # Postgres intern Standard :5432 — nicht 5435 (bricht Auth/REST im Compose-Netz)
+echo "→ Dev-.env bereinigen (POSTGRES_PORT-Override entfernen) …"
+if [[ -f .env ]]; then
   sed -i '/^POSTGRES_PORT=/d' .env
-}
-
-regenerate_dev_dotenv
+else
+  echo "FEHLER: ${compose_dir}/.env fehlt — zuerst provision-dev-supabase ausführen." >&2
+  exit 1
+fi
 
 if ss -tln 2>/dev/null | grep -q ':8100 '; then
   echo "FEHLER: Host-Port 8100 noch belegt (kein Docker-Container?):" >&2
@@ -93,7 +56,11 @@ if ss -tln 2>/dev/null | grep -q ':8100 '; then
 fi
 
 echo "→ Dev-Stack neu starten …"
-docker compose up -d
+if ! docker compose up -d; then
+  echo "WARN: compose up fehlgeschlagen — DB-Logs:" >&2
+  docker compose logs db --tail 30 2>&1 || true
+  exit 1
+fi
 
 for i in $(seq 1 60); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then

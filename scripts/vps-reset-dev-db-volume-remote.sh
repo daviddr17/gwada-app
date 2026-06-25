@@ -9,14 +9,19 @@ export COMPOSE_PROJECT_NAME=gwada-dev
 
 free_host_port() {
   local port="$1"
-  local cid name
-  for cid in $(docker ps -q); do
-    if docker port "${cid}" 2>/dev/null | grep -qE ":${port}(/| ->)"; then
-      name="$(docker inspect --format '{{.Name}}' "${cid}" | sed 's#^/##')"
-      echo "→ Stoppe ${name} (Host :${port})"
-      docker rm -f "${cid}"
-    fi
-  done
+  local line cid
+  while IFS= read -r line; do
+    [[ -z "${line}" ]] && continue
+    cid="${line%% *}"
+    echo "→ Stoppe ${line#* } (Host :${port})"
+    docker rm -f "${cid}" 2>/dev/null || true
+  done < <(docker ps -a --format '{{.ID}} {{.Names}} {{.Ports}}' | grep -E ":${port}->" || true)
+
+  if command -v fuser >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q ":${port} "; then
+    echo "→ fuser :${port} …"
+    fuser -k "${port}/tcp" 2>/dev/null || true
+    sleep 1
+  fi
 }
 
 echo "→ Dev-Stack vollständig stoppen …"

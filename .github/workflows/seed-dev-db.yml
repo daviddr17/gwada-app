@@ -61,7 +61,7 @@ jobs:
           export LIVE_VPS_HOST
           bash scripts/deploy-db-dev-ci.sh
 
-      - name: Refresh auth stack (sync .env → containers)
+      - name: Refresh dev stack
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |

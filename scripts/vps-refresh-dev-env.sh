@@ -21,9 +21,6 @@ docker compose up -d kong db auth rest storage realtime meta studio 2>/dev/null 
   || docker compose up -d --no-recreate 2>/dev/null \
   || true
 
-# Nach Passwort-Rotation in .env: restart reicht nicht — Container-Env muss neu geladen werden.
-docker compose up -d --force-recreate auth rest 2>/dev/null || true
-
 for i in $(seq 1 30); do
   if curl -sf "http://127.0.0.1:${KONG_HOST_PORT}/auth/v1/health" >/dev/null 2>&1; then
     break

@@ -58,13 +58,10 @@ for i in $(seq 1 60); do
 done
 docker compose exec -T db pg_isready -U postgres
 
-echo "→ Auth/REST mit frischer .env …"
-docker compose up -d --force-recreate auth rest
-
 KONG_PORT="$(grep -m1 '^KONG_HTTP_PORT=' .env 2>/dev/null | sed 's/^KONG_HTTP_PORT=//' | tr -d '\r\n')"
 KONG_PORT="${KONG_PORT:-8100}"
 
-for i in $(seq 1 45); do
+for i in $(seq 1 60); do
   if curl -sf "http://127.0.0.1:${KONG_PORT}/auth/v1/health" >/dev/null 2>&1; then
     echo "✓ Dev-Postgres-Volume zurückgesetzt (Kong :${KONG_PORT})."
     exit 0

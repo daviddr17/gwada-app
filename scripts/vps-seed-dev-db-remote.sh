@@ -57,13 +57,7 @@ if [[ "${user_count}" != "1" ]]; then
 fi
 
 docker compose exec -T db psql -U postgres -c "NOTIFY pgrst, 'reload schema';" || true
-docker compose up -d --force-recreate auth rest 2>/dev/null || docker compose up -d auth rest
-
-for i in $(seq 1 30); do
-  if curl -sf "http://127.0.0.1:${KONG_PORT}/auth/v1/health" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 2
-done
+docker compose restart auth rest
+sleep 6
 
 echo "✓ Dev-DB mit lokalen Seeds befüllt (gwada-demo, dreyer@techlion.de / GwadaLocal2026!)."

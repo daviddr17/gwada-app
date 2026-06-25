@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rotiert Dev-Postgres-Passwort (und optional JWT) auf dem VPS — idempotent per Marker.
+# Rotiert Dev-Postgres-Passwort auf dem VPS — idempotent per Marker.
 set -euo pipefail
 
 INSTALL_DIR="${GWADA_DEV_SUPABASE_DIR:-/opt/gwada-supabase-dev}"
@@ -17,18 +17,15 @@ cd "${INSTALL_DIR}"
 export COMPOSE_PROJECT_NAME=gwada-dev
 
 NEW_PW="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-
-log "Postgres-Passwort rotieren …"
 OLD_PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
 
-rotate_pw() {
-  docker compose exec -T -e PGPASSWORD="${OLD_PW}" db \
-    psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 \
-    -c "ALTER USER postgres WITH PASSWORD '${NEW_PW}';" \
-    -c "ALTER USER supabase_admin WITH PASSWORD '${NEW_PW}';"
-}
-
-if ! rotate_pw 2>/dev/null; then
+log "Postgres-Passwort rotieren …"
+if docker compose exec -T -e PGPASSWORD="${OLD_PW}" db \
+  psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 \
+  -c "ALTER USER postgres WITH PASSWORD '${NEW_PW}';" \
+  -c "ALTER USER supabase_admin WITH PASSWORD '${NEW_PW}';" 2>/dev/null; then
+  log "via supabase_admin OK"
+else
   docker compose exec -T db \
     psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
     -c "ALTER USER postgres WITH PASSWORD '${NEW_PW}';"
@@ -40,15 +37,10 @@ else
   echo "POSTGRES_PASSWORD=${NEW_PW}" >> .env
 fi
 
-if [[ -x ./utils/generate-keys.sh ]]; then
-  log "JWT-Keys neu generieren …"
-  ./utils/generate-keys.sh .env
-fi
+log "Auth/REST/Pooler neu starten …"
+docker compose restart auth rest pooler 2>/dev/null || docker compose up -d auth rest pooler
 
-log "Services neu starten …"
-docker compose up -d
-
-for i in $(seq 1 30); do
+for i in $(seq 1 20); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
     break
   fi
@@ -56,4 +48,4 @@ for i in $(seq 1 30); do
 done
 
 date -u +"%Y-%m-%dT%H:%M:%SZ" > "${MARKER}"
-log "✓ Dev-Secrets rotiert. Marker: ${MARKER}"
+log "✓ Dev-Postgres-Passwort rotiert. Marker: ${MARKER}"

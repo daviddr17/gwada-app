@@ -62,6 +62,12 @@ create index notification_deliveries_pending_scheduled_idx
   on public.notification_deliveries (scheduled_at)
   where status = 'pending';
 
+create index if not exists notification_deliveries_created_at_desc_idx
+  on public.notification_deliveries (created_at desc);
+
+create index if not exists notification_events_created_at_desc_idx
+  on public.notification_events (created_at desc);
+
 alter table public.notification_events enable row level security;
 alter table public.notification_deliveries enable row level security;
 

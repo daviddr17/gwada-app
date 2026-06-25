@@ -208,8 +208,4 @@ comment on function public.superadmin_list_notification_log(integer, integer, te
 revoke all on function public.superadmin_list_notification_log(integer, integer, text, text, text, text) from public;
 grant execute on function public.superadmin_list_notification_log(integer, integer, text, text, text, text) to authenticated;
 
-create index if not exists notification_deliveries_created_at_desc_idx
-  on public.notification_deliveries (created_at desc);
-
-create index if not exists notification_events_created_at_desc_idx
-  on public.notification_events (created_at desc);
+-- Indizes: notification_* Tabellen existieren erst ab 20260621130000_notification_push_delivery.sql

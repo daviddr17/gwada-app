@@ -50,7 +50,9 @@ if [[ \${#NON_DB[@]} -gt 0 ]]; then
 fi
 REMOTE
 
-POSTGRES_PASSWORD="$(read_vps_env POSTGRES_PASSWORD)"
+POSTGRES_PASSWORD="$(gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+  "cd '${DEV_COMPOSE_DIR}' && COMPOSE_PROJECT_NAME=gwada-dev docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r'")"
+[[ -n "${POSTGRES_PASSWORD}" ]] || POSTGRES_PASSWORD="$(read_vps_env POSTGRES_PASSWORD)"
 POSTGRES_PORT="$(read_vps_env POSTGRES_PORT)"
 POSTGRES_PORT="${POSTGRES_PORT:-5435}"
 DB_CONTAINER_IP="$(gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \

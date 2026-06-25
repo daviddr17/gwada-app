@@ -41,6 +41,9 @@ patch_dev_compose() {
     sed -i "s|container_name: ${old}|container_name: ${new}|g" docker-compose.yml
   done < <(grep 'container_name:' docker-compose.yml 2>/dev/null || true)
   sed -i 's/name: supabase-/name: gwada-dev-/g' docker-compose.yml 2>/dev/null || true
+  # Pooler nicht auf Host :5432 (Live-Postgres auf dem VPS)
+  sed -i 's|- "${POSTGRES_PORT:-5432}:5432"|- "${POSTGRES_PORT:-5435}:5432"|g' docker-compose.yml 2>/dev/null || true
+  sed -i 's|- "5432:5432"|- "5435:5432"|g' docker-compose.yml 2>/dev/null || true
 }
 
 if [[ -f docker-compose.yml ]]; then
@@ -118,7 +121,8 @@ if docker ps --format '{{.Names}}' | grep -q '^gwada-dev-db$' \
 else
   docker compose pull
   log "docker compose up …"
-  docker compose up -d
+  mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || docker compose config --services)
+  docker compose up -d "${DEV_SERVICES[@]}"
 fi
 
 log "Warte auf Postgres …"

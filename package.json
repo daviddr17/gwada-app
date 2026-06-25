@@ -5,6 +5,7 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "dev": "bash scripts/dev-start.sh",
+    "dev:bg": "bash scripts/dev-server-bg.sh",
     "dev:raw": "pnpm --filter web dev",
     "dev:start": "bash scripts/dev-start.sh",
     "dev:local": "pnpm --filter web dev:local",
@@ -41,6 +42,7 @@
     "db:push:dev": "bash scripts/db-push-dev.sh",
     "db:seed": "bash scripts/seed-dev-db-ci.sh",
     "db:seed:dev": "gh workflow run seed-dev-db.yml --ref main",
+    "repair:dev": "gh workflow run seed-dev-db.yml --ref main -f reset_volume=true",
     "db:push:local": "supabase db push --local",
     "db:seed:demo-user": "supabase db query --local -f supabase/seed_demo_user.sql",
     "db:seed:dining-floor": "supabase db query --local -f supabase/seed_dining_floor_demo.sql",

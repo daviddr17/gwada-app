@@ -2,6 +2,15 @@ name: Seed dev DB (mirror local)
 
 on:
   workflow_dispatch:
+    inputs:
+      reset_volume:
+        description: Postgres-Volume löschen und neu aufsetzen (bei kaputter Dev-DB)
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 concurrency:
   group: seed-dev-db
@@ -10,6 +19,7 @@ concurrency:
 jobs:
   seed:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -32,6 +42,16 @@ jobs:
           ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
 
+      - name: Reset dev Postgres volume
+        if: inputs.reset_volume == 'true'
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/reset-dev-db-volume-ci.sh
+
       - name: Apply dev DB migrations
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
@@ -41,15 +61,14 @@ jobs:
           export LIVE_VPS_HOST
           bash scripts/deploy-db-dev-ci.sh
 
-      - name: Rotate dev secrets + refresh auth stack
+      - name: Refresh auth stack (sync .env → containers)
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
-            scripts/vps-rotate-dev-secrets.sh scripts/vps-refresh-dev-env.sh \
-            "root@${LIVE_VPS_HOST}:/tmp/"
+            scripts/vps-refresh-dev-env.sh "root@${LIVE_VPS_HOST}:/tmp/"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
-            "bash /tmp/vps-rotate-dev-secrets.sh; bash /tmp/vps-refresh-dev-env.sh"
+            "bash /tmp/vps-refresh-dev-env.sh"
 
       - name: Apply local seeds to dev DB
         env:
@@ -59,15 +78,6 @@ jobs:
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
           bash scripts/seed-dev-db-ci.sh
-
-      - name: Refresh dev env artifact
-        env:
-          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-        run: |
-          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
-            scripts/vps-refresh-dev-env.sh "root@${LIVE_VPS_HOST}:/tmp/"
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
-            "bash /tmp/vps-refresh-dev-env.sh"
 
       - name: Download dev env
         env:
@@ -95,6 +105,4 @@ jobs:
             ufw allow 8100/tcp comment 'gwada-dev-supabase-kong' || true
           fi
           ss -tln | grep ':8100 ' || echo "WARN: Kong :8100 nicht am Host"
-          curl -sf http://127.0.0.1:8100/rest/v1/ -H "apikey: test" >/dev/null 2>&1 \
-            || ss -tln | grep ':8100 ' && echo "Kong listening on :8100"
           REMOTE

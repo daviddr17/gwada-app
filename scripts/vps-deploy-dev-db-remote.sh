@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Auf dem VPS ausführen: Dev-DB-Migrationen + PostgREST-Reload.
+# Auf dem VPS: Dev-DB-Migrationen (Multi-Pass psql) + PostgREST-Reload.
+# Kein automatisches Schema-DROP — bei kaputter DB: vps-reset-dev-db-volume-remote.sh
 set -euo pipefail
 
 compose_dir="$1"
@@ -56,60 +57,6 @@ ensure_storage_schema() {
     exit 1
   fi
   echo "✓ storage.buckets OK"
-}
-
-reset_dev_schemas() {
-  echo "→ Dev-DB Schema-Reset (public + migration history, storage policies) …"
-  docker compose stop auth rest realtime meta studio 2>/dev/null || true
-
-  psql_admin -c "
-    SELECT pg_terminate_backend(pid)
-    FROM pg_stat_activity
-    WHERE datname = current_database()
-      AND pid <> pg_backend_pid();" 2>/dev/null || true
-
-  public_schema_dirty() {
-    [[ "$(psql_query "SELECT to_regnamespace('public') IS NOT NULL;")" == "t" ]]
-  }
-
-  drop_public_and_migrations() {
-    set +e
-    psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-    psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
-    psql_admin -c "
-      DO \$\$ DECLARE r record; BEGIN
-        IF to_regclass('storage.objects') IS NOT NULL THEN
-          FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects'
-          LOOP
-            EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', r.policyname);
-          END LOOP;
-        END IF;
-      END \$\$;" 2>/dev/null
-    set -e
-    ! public_schema_dirty
-  }
-
-  if ! drop_public_and_migrations; then
-    echo "WARN: Schema-DROP fehlgeschlagen — Postgres neu starten …" >&2
-    docker compose restart db
-    for _ in $(seq 1 30); do
-      docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
-      sleep 2
-    done
-    docker compose exec -T db pg_isready -U postgres
-    drop_public_and_migrations || {
-      echo "FEHLER: public-Schema konnte nicht zurückgesetzt werden (Postgres-Katalog)." >&2
-      echo "       Einmalig: gh workflow run provision-dev-supabase.yml -f reset_volume=true" >&2
-      exit 1
-    }
-  fi
-
-  docker compose up -d auth rest realtime meta studio 2>/dev/null || true
-
-  psql_exec -c "CREATE SCHEMA public;"
-  psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
-  psql_exec -c "GRANT ALL ON SCHEMA public TO public;"
-  psql_exec -c "GRANT ALL ON SCHEMA public TO anon, authenticated, service_role;" 2>/dev/null || true
 }
 
 try_apply_migration() {
@@ -171,34 +118,14 @@ apply_all_migrations() {
   fi
 }
 
-has_platform_superadmins() {
-  [[ "$(psql_query "SELECT to_regclass('public.platform_superadmins') IS NOT NULL;")" == "t" ]]
-}
-
-needs_dev_repair() {
-  if ! has_restaurants; then
-    return 0
-  fi
-  if ! has_platform_superadmins; then
-    echo "WARN: Schema-Drift — restaurants ohne platform_superadmins" >&2
-    return 0
-  fi
-  local demo_users
-  demo_users="$(psql_query "SELECT count(*) FROM auth.users WHERE email = 'dreyer@techlion.de';" 2>/dev/null || echo 0)"
-  [[ "${demo_users}" != "1" ]]
-}
-
-if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]] || needs_dev_repair; then
-  reset_dev_schemas
-fi
-
 ensure_storage_schema
 
-echo "→ Migrationen anwenden (psql) …"
+echo "→ Migrationen anwenden (psql, Multi-Pass) …"
 apply_all_migrations
 
 if ! has_restaurants; then
   echo "FEHLER: public.restaurants fehlt nach Migrationen." >&2
+  echo "       Tipp: gh workflow run seed-dev-db.yml -f reset_volume=true" >&2
   exit 1
 fi
 

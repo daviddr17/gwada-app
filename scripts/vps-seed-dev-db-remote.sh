@@ -9,6 +9,9 @@ seed_root="$3"
 cd "${compose_dir}"
 export COMPOSE_PROJECT_NAME=gwada-dev
 
+KONG_PORT="$(grep -m1 '^KONG_HTTP_PORT=' .env 2>/dev/null | sed 's/^KONG_HTTP_PORT=//' | tr -d '\r\n')"
+KONG_PORT="${KONG_PORT:-8100}"
+
 for i in $(seq 1 30); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
     break
@@ -54,7 +57,13 @@ if [[ "${user_count}" != "1" ]]; then
 fi
 
 docker compose exec -T db psql -U postgres -c "NOTIFY pgrst, 'reload schema';" || true
-docker compose restart rest auth
-sleep 4
+docker compose up -d --force-recreate auth rest 2>/dev/null || docker compose up -d auth rest
+
+for i in $(seq 1 30); do
+  if curl -sf "http://127.0.0.1:${KONG_PORT}/auth/v1/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
 
 echo "✓ Dev-DB mit lokalen Seeds befüllt (gwada-demo, dreyer@techlion.de / GwadaLocal2026!)."

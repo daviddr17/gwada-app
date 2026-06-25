@@ -7,6 +7,14 @@ on:
         description: Migrationen nach Provision überspringen
         required: false
         default: "false"
+      reset_volume:
+        description: Postgres-Volume löschen vor Provision
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 concurrency:
   group: provision-dev-supabase
@@ -50,7 +58,7 @@ jobs:
             scripts/vps-provision-dev-supabase.sh \
             "root@${LIVE_VPS_HOST}:/tmp/vps-provision-dev-supabase.sh"
           ssh ${SSH_OPTS} "root@${LIVE_VPS_HOST}" \
-            "bash /tmp/vps-provision-dev-supabase.sh"
+            "GWADA_DEV_FORCE_VOLUME_RESET=${{ inputs.reset_volume == 'true' && '1' || '0' }} bash /tmp/vps-provision-dev-supabase.sh"
 
       - name: Apply dev DB migrations
         if: inputs.skip_migrations != 'true'

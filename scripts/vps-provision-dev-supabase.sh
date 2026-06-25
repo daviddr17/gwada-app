@@ -84,8 +84,19 @@ upsert_env "SITE_URL" "http://localhost:3000"
 upsert_env "API_EXTERNAL_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
 upsert_env "SUPABASE_PUBLIC_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
 
-# GoTrue: lokale Redirects
+# GoTrue: lokale Redirects + Dev ohne SMTP
 upsert_env "ADDITIONAL_REDIRECT_URLS" "http://localhost:3000/auth/callback,http://localhost:3000/api/auth/google/callback"
+upsert_env "GOTRUE_MAILER_AUTOCONFIRM" "true"
+upsert_env "ENABLE_EMAIL_SIGNUP" "true"
+
+if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
+  log "Volume-Reset angefordert …"
+  if [[ -f docker-compose.yml ]]; then
+    docker compose down --remove-orphans 2>/dev/null || true
+    docker compose down -v --remove-orphans 2>/dev/null || true
+    rm -f .secrets-rotated-after-leak
+  fi
+fi
 
 log "docker compose pull (kann mehrere Minuten dauern) …"
 if docker ps --format '{{.Names}}' | grep -q '^gwada-dev-db$' \

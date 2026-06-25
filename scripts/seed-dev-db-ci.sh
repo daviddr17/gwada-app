@@ -49,3 +49,8 @@ gwada_scp_cmd "${ROOT}/scripts/vps-seed-dev-db-remote.sh" \
   "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-seed-dev-db-remote.sh"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
   "bash /tmp/vps-seed-dev-db-remote.sh ${DEV_COMPOSE_DIR} ${DEV_DOCKER_NETWORK} ${DEV_REMOTE_DIR}"
+
+gwada_scp_cmd "${ROOT}/scripts/vps-verify-dev-auth-remote.sh" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-verify-dev-auth-remote.sh"
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+  "bash /tmp/vps-verify-dev-auth-remote.sh ${DEV_COMPOSE_DIR}"

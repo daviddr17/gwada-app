@@ -28,8 +28,29 @@ psql_query() {
   psql_exec -tAc "$1"
 }
 
+has_storage_buckets() {
+  [[ "$(psql_query "SELECT to_regclass('storage.buckets') IS NOT NULL;")" == "t" ]]
+}
+
 has_restaurants() {
   [[ "$(psql_query "SELECT to_regclass('public.restaurants') IS NOT NULL;")" == "t" ]]
+}
+
+ensure_storage_schema() {
+  if has_storage_buckets; then
+    return
+  fi
+  echo "→ Storage-Schema fehlt — storage-Container starten …"
+  docker compose up -d storage
+  for _ in $(seq 1 30); do
+    if has_storage_buckets; then
+      echo "✓ storage.buckets wiederhergestellt"
+      return
+    fi
+    sleep 2
+  done
+  echo "FEHLER: storage.buckets fehlt — Dev-Stack neu provisionieren (provision-dev-supabase)." >&2
+  exit 1
 }
 
 reset_dev_schemas() {
@@ -63,19 +84,26 @@ apply_all_migrations() {
     version text PRIMARY KEY
   );"
 
-  local f base version
+  local f base version applied
   for f in "${files[@]}"; do
     base="$(basename "${f}")"
     version="${base%.sql}"
+    applied="$(psql_query "SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '${version}' LIMIT 1;" 2>/dev/null || true)"
+    if [[ "${applied}" == "1" ]]; then
+      echo "skip ${base}"
+      continue
+    fi
     echo "→ ${base}"
     psql_exec -f - < "${f}"
     psql_exec -c "INSERT INTO supabase_migrations.schema_migrations (version) VALUES ('${version}') ON CONFLICT DO NOTHING;"
   done
 }
 
-if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]] || ! has_restaurants; then
+if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]]; then
   reset_dev_schemas
 fi
+
+ensure_storage_schema
 
 echo "→ Migrationen anwenden (psql) …"
 apply_all_migrations

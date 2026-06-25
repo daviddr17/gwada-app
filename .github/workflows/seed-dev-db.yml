@@ -35,12 +35,10 @@ jobs:
       - name: Apply dev DB migrations
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-          GWADA_FORCE_DEV_DB_RESET: "1"
         run: |
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          export GWADA_FORCE_DEV_DB_RESET
           bash scripts/deploy-db-dev-ci.sh
 
       - name: Apply local seeds to dev DB

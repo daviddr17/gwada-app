@@ -26,7 +26,7 @@ if [[ -f docker-compose.yml ]]; then
   docker compose down -v --remove-orphans 2>/dev/null || true
 fi
 
-if ids="$(docker ps -aq --filter name=gwada-dev-)"; then
+if ids="$(docker ps -aq --filter name=gwada-dev-)"; [[ -n "${ids}" ]]; then
   echo "→ Entferne gwada-dev-* Container …"
   docker rm -f ${ids}
 fi

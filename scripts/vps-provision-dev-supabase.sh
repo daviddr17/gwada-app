@@ -30,6 +30,16 @@ fi
 
 cd "${INSTALL_DIR}"
 
+# Feste container_name in upstream-compose kollidieren mit Live-Coolify — eindeutige Dev-Namen
+if [[ ! -f .gwada-dev-compose-patched ]]; then
+  log "Compose patchen (gwada-dev-* Container & Volumes) …"
+  sed -i 's/container_name: supabase-/container_name: gwada-dev-/g' docker-compose.yml
+  sed -i 's/name: supabase-/name: gwada-dev-/g' docker-compose.yml 2>/dev/null || true
+  touch .gwada-dev-compose-patched
+fi
+
+export COMPOSE_PROJECT_NAME=gwada-dev
+
 if [[ ! -f .env ]]; then
   log "Neue .env für Dev-Stack …"
   cp .env.example .env
@@ -90,11 +100,14 @@ if ! ss -tln 2>/dev/null | grep -q ":${KONG_HOST_PORT} " && ! netstat -tln 2>/de
   log "WARNUNG: Kong-Port ${KONG_HOST_PORT} nicht am Host — API-Tunnel nötig (pnpm db:tunnel:dev)."
 fi
 
-# shellcheck disable=SC1091
-set -a
-source .env
-set +a
+# Keys aus .env (nicht source — Werte können Leerzeichen enthalten)
+read_env_key() {
+  local key="$1"
+  grep -m1 "^${key}=" .env | cut -d= -f2- | tr -d '\r'
+}
 
+ANON_KEY="$(read_env_key ANON_KEY)"
+SERVICE_ROLE_KEY="$(read_env_key SERVICE_ROLE_KEY)"
 POSTGRES_PASSWORD="$(docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r')"
 
 cat > "${ENV_OUT}" <<EOF

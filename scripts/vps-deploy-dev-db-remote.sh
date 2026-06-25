@@ -104,7 +104,7 @@ apply_all_migrations() {
   done
 }
 
-if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]]; then
+if [[ "${GWADA_FORCE_DEV_DB_RESET:-0}" == "1" ]] || ! has_restaurants; then
   reset_dev_schemas
 fi
 

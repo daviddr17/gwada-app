@@ -19,10 +19,11 @@ fi
 mkdir -p "${INSTALL_DIR}"
 
 if [[ ! -f "${INSTALL_DIR}/docker-compose.yml" ]]; then
-  log "Supabase Docker-Stack wird vorbereitet …"
+  log "Supabase Docker-Stack wird vorbereitet (nur docker/-Ordner) …"
   tmp="${INSTALL_DIR}/_supabase_src"
   rm -rf "${tmp}"
-  git clone --depth 1 --branch master https://github.com/supabase/supabase.git "${tmp}"
+  git clone --depth 1 --filter=blob:none --sparse https://github.com/supabase/supabase.git "${tmp}"
+  git -C "${tmp}" sparse-checkout set docker
   cp -a "${tmp}/docker/." "${INSTALL_DIR}/"
   rm -rf "${tmp}"
 fi
@@ -62,8 +63,8 @@ upsert_env "SUPABASE_PUBLIC_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
 # GoTrue: lokale Redirects
 upsert_env "ADDITIONAL_REDIRECT_URLS" "http://localhost:3000/auth/callback,http://localhost:3000/api/auth/google/callback"
 
-log "docker compose pull (kann dauern) …"
-docker compose pull -q 2>/dev/null || docker compose pull
+log "docker compose pull (kann mehrere Minuten dauern) …"
+docker compose pull
 
 log "docker compose up …"
 docker compose up -d

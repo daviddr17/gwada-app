@@ -15,6 +15,7 @@ concurrency:
 jobs:
   provision:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -44,10 +45,11 @@ jobs:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+          SSH_OPTS="-i ~/.ssh/id_ed25519 -o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=120"
+          scp ${SSH_OPTS} \
             scripts/vps-provision-dev-supabase.sh \
             "root@${LIVE_VPS_HOST}:/tmp/vps-provision-dev-supabase.sh"
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+          ssh ${SSH_OPTS} "root@${LIVE_VPS_HOST}" \
             "bash /tmp/vps-provision-dev-supabase.sh"
 
       - name: Apply dev DB migrations
@@ -65,7 +67,7 @@ jobs:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           mkdir -p dev-env-artifact
-          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes -o ServerAliveInterval=30 \
             "root@${LIVE_VPS_HOST}:/root/gwada-dev-env.development" \
             dev-env-artifact/gwada-dev-env.development
 

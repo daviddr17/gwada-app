@@ -29,12 +29,12 @@ psql_query() {
   psql_exec -tAc "$1"
 }
 
-has_storage_buckets() {
-  [[ "$(psql_query "SELECT to_regclass('storage.buckets') IS NOT NULL;")" == "t" ]]
+psql_query_safe() {
+  docker compose exec -T db psql -U postgres -tAc "$1" 2>/dev/null || true
 }
 
-has_restaurants() {
-  [[ "$(psql_query "SELECT to_regclass('public.restaurants') IS NOT NULL;")" == "t" ]]
+has_storage_buckets() {
+  [[ "$(psql_query "SELECT to_regclass('storage.buckets') IS NOT NULL;")" == "t" ]]
 }
 
 ensure_storage_schema() {
@@ -57,6 +57,42 @@ ensure_storage_schema() {
     exit 1
   fi
   echo "✓ storage.buckets OK"
+}
+
+has_restaurants() {
+  [[ "$(psql_query "SELECT to_regclass('public.restaurants') IS NOT NULL;")" == "t" ]]
+}
+
+initial_migration_applied() {
+  [[ "$(psql_query_safe "SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '20250517140000' LIMIT 1;")" == "1" ]]
+}
+
+prepare_public_schema_for_gwada() {
+  local mig_count prefilled_profiles
+  mig_count="$(psql_query_safe "SELECT count(*) FROM supabase_migrations.schema_migrations;")"
+  mig_count="${mig_count:-0}"
+  prefilled_profiles="$(psql_query_safe "SELECT to_regclass('public.profiles') IS NOT NULL;")"
+
+  # Supabase-Docker bringt public.profiles mit — gwada initial migration braucht leeres public.
+  if initial_migration_applied && has_restaurants; then
+    return
+  fi
+
+  if [[ "${prefilled_profiles}" != "t" && "${mig_count}" == "0" ]]; then
+    return
+  fi
+
+  echo "→ public + migration history zurücksetzen (Supabase-Vorgabe vs. gwada) …"
+  psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
+  psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
+  psql_exec -c "CREATE SCHEMA public;"
+  psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
+  psql_exec -c "GRANT ALL ON SCHEMA public TO public;"
+  psql_exec -c "GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;"
+  psql_exec -c "GRANT ALL ON SCHEMA public TO anon, authenticated, service_role;"
+  psql_exec -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;"
+  psql_exec -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;"
+  psql_exec -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;"
 }
 
 try_apply_migration() {
@@ -89,7 +125,7 @@ apply_all_migrations() {
     version text PRIMARY KEY
   );"
 
-  local pass=0 f applied_any pending max_passes=20
+  local pass=0 f applied_any pending max_passes=30
   while [[ "${pass}" -lt "${max_passes}" ]]; do
     pass=$((pass + 1))
     echo "=== Migrations pass ${pass}/${max_passes} ==="
@@ -119,6 +155,7 @@ apply_all_migrations() {
 }
 
 ensure_storage_schema
+prepare_public_schema_for_gwada
 
 echo "→ Migrationen anwenden (psql, Multi-Pass) …"
 apply_all_migrations

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI: Migrationen auf Dev-DB — supabase db push vom Runner via SSH-Tunnel.
+# CI: Migrationen auf Dev-DB — supabase db push auf dem VPS (CLI vom Runner).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -8,7 +8,8 @@ cd "$ROOT"
 export DEV_VPS_HOST="${DEV_VPS_HOST:-${LIVE_VPS_HOST:-95.111.229.250}}"
 export DEV_SSH_USER="${DEV_SSH_USER:-root}"
 export DEV_COMPOSE_DIR="${DEV_COMPOSE_DIR:-/opt/gwada-supabase-dev}"
-export DEV_TUNNEL_LOCAL_PORT="${DEV_TUNNEL_LOCAL_PORT:-15432}"
+export DEV_REMOTE_MIG_DIR="${DEV_REMOTE_MIG_DIR:-/tmp/gwada-dev-migrations}"
+export DEV_REMOTE_CLI_DIR="${DEV_REMOTE_CLI_DIR:-/tmp/supabase-cli}"
 
 : "${GWADA_SSH_IDENTITY:=${HOME}/.ssh/id_ed25519}"
 GWADA_SSH_OPTS=(-o ConnectTimeout=15 -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30 -o ServerAliveCountMax=120)
@@ -28,10 +29,12 @@ if ! gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" true 2>/dev/null; then
   exit 1
 fi
 
-read_vps_env() {
-  gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
-    "grep -m1 '^${1}=' '${DEV_COMPOSE_DIR}/.env' | sed 's/^${1}=//' | tr -d '\r\n'"
-}
+SUPABASE_BIN="$(command -v supabase)"
+[[ -x "${SUPABASE_BIN}" ]] || { echo "FEHLER: supabase CLI fehlt auf dem Runner." >&2; exit 1; }
+SUPABASE_DIR="$(dirname "${SUPABASE_BIN}")"
+SUPABASE_GO="${SUPABASE_DIR}/supabase-go"
+[[ -x "${SUPABASE_GO}" ]] || SUPABASE_GO="$(find "${SUPABASE_DIR}" -maxdepth 1 -name 'supabase-go' -type f -perm -111 2>/dev/null | head -1)"
+[[ -x "${SUPABASE_GO}" ]] || { echo "FEHLER: supabase-go neben Runner-CLI nicht gefunden." >&2; exit 1; }
 
 echo "→ Postgres auf VPS bereit halten …"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" bash <<REMOTE
@@ -50,45 +53,22 @@ if [[ \${#NON_DB[@]} -gt 0 ]]; then
 fi
 REMOTE
 
-POSTGRES_PASSWORD="$(gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
-  "cd '${DEV_COMPOSE_DIR}' && COMPOSE_PROJECT_NAME=gwada-dev docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r'")"
-[[ -n "${POSTGRES_PASSWORD}" ]] || POSTGRES_PASSWORD="$(read_vps_env POSTGRES_PASSWORD)"
-POSTGRES_PORT="$(read_vps_env POSTGRES_PORT)"
-POSTGRES_PORT="${POSTGRES_PORT:-5435}"
-# Im Docker-Netz lauscht Postgres typisch auf 5432 (POSTGRES_PORT betrifft Host-Mapping).
-DB_TUNNEL_PORT="5432"
-DB_CONTAINER_IP="$(gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
-  "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' gwada-dev-db")"
-[[ -n "${DB_CONTAINER_IP}" ]] || { echo "FEHLER: gwada-dev-db Container-IP fehlt." >&2; exit 1; }
-ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${POSTGRES_PASSWORD}")"
+echo "Übertrage Migrationen …"
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" "rm -rf ${DEV_REMOTE_MIG_DIR} ${DEV_REMOTE_CLI_DIR} && mkdir -p ${DEV_REMOTE_MIG_DIR} ${DEV_REMOTE_CLI_DIR}"
+tar -C "${ROOT}" -czf - supabase/migrations supabase/config.toml \
+  | gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" "tar -xzf - -C ${DEV_REMOTE_MIG_DIR}"
+
+echo "Übertrage Supabase CLI (linux amd64 vom Runner) …"
+gwada_scp_cmd "${SUPABASE_BIN}" "${SUPABASE_GO}" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:${DEV_REMOTE_CLI_DIR}/"
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" "chmod +x ${DEV_REMOTE_CLI_DIR}/supabase ${DEV_REMOTE_CLI_DIR}/supabase-go"
 
 echo ""
-echo "=== Dev-DB: Migrationen anwenden (supabase db push via SSH-Tunnel) ==="
-echo "Tunnel → ${DB_CONTAINER_IP}:${DB_TUNNEL_PORT} (Docker-Netz auf VPS)"
-gwada_ssh_cmd -N -L "${DEV_TUNNEL_LOCAL_PORT}:${DB_CONTAINER_IP}:${DB_TUNNEL_PORT}" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}" &
-TUNNEL_PID=$!
-cleanup() {
-  kill "${TUNNEL_PID}" 2>/dev/null || true
-}
-trap cleanup EXIT
-
-for i in $(seq 1 60); do
-  if (echo >/dev/tcp/127.0.0.1/"${DEV_TUNNEL_LOCAL_PORT}") >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-
-DB_URL="postgresql://postgres:${ENC_PW}@127.0.0.1:${DEV_TUNNEL_LOCAL_PORT}/postgres?sslmode=disable"
-if ! command -v supabase >/dev/null 2>&1; then
-  echo "FEHLER: supabase CLI fehlt auf dem Runner (setup-cli)." >&2
-  exit 1
-fi
-PGSSLMODE=disable PGCONNECT_TIMEOUT=15 \
-  supabase db push --db-url "${DB_URL}" --yes --include-all
-
-gwada_scp_cmd "${ROOT}/scripts/vps-finish-dev-db-after-push-remote.sh" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-finish-dev-db-after-push-remote.sh"
+echo "=== Dev-DB: Migrationen anwenden (supabase db push auf VPS) ==="
+gwada_scp_cmd "${ROOT}/scripts/vps-deploy-dev-db-push-remote.sh" \
+  "${ROOT}/scripts/vps-finish-dev-db-after-push-remote.sh" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/"
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
+  "bash /tmp/vps-deploy-dev-db-push-remote.sh ${DEV_COMPOSE_DIR} ${DEV_REMOTE_MIG_DIR} ${DEV_REMOTE_CLI_DIR}"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
   "bash /tmp/vps-finish-dev-db-after-push-remote.sh ${DEV_COMPOSE_DIR}"

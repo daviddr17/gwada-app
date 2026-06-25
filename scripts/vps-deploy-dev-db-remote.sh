@@ -9,6 +9,39 @@ mig_root="$2"
 cd "${compose_dir}"
 export COMPOSE_PROJECT_NAME=gwada-dev
 
+dev_compose_services() {
+  docker compose config --services 2>/dev/null | grep -Ev '^(supavisor|pooler)$' || true
+}
+
+quiesce_dev_stack_for_migrations() {
+  echo "→ Dev-Stack pausieren (nur Postgres für Migrationen) …"
+  docker compose stop 2>/dev/null || true
+  docker compose up -d db
+  for i in $(seq 1 60); do
+    if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  docker compose exec -T db pg_isready -U postgres
+  psql_admin_quiet() {
+    docker compose exec -T db psql -U supabase_admin -v ON_ERROR_STOP=1 "$@"
+  }
+  psql_admin_quiet -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" 2>/dev/null || true
+}
+
+restore_dev_stack_after_migrations() {
+  echo "→ Dev-Stack wieder starten …"
+  mapfile -t DEV_SERVICES < <(dev_compose_services)
+  if [[ ${#DEV_SERVICES[@]} -gt 0 ]]; then
+    docker compose up -d "${DEV_SERVICES[@]}"
+  else
+    docker compose up -d
+  fi
+}
+
+quiesce_dev_stack_for_migrations
+
 for i in $(seq 1 30); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
     break
@@ -45,12 +78,8 @@ ensure_storage_schema() {
   if [[ -f /tmp/vps-bootstrap-dev-storage.sql ]]; then
     psql_admin -f - < /tmp/vps-bootstrap-dev-storage.sql
   else
-    echo "WARN: /tmp/vps-bootstrap-dev-storage.sql fehlt — storage-Container starten …"
-    docker compose up -d storage
-    for _ in $(seq 1 15); do
-      has_storage_buckets && return
-      sleep 2
-    done
+    echo "FEHLER: /tmp/vps-bootstrap-dev-storage.sql fehlt — Storage-Bootstrap ohne laufende Services." >&2
+    exit 1
   fi
   if ! has_storage_buckets; then
     echo "FEHLER: storage.buckets fehlt nach Bootstrap." >&2
@@ -83,13 +112,6 @@ prepare_public_schema_for_gwada() {
 
   # Kaputte Teil-Migration: Tabellen einzeln leeren (DROP SCHEMA public → catalog corruption).
   echo "→ public zurücksetzen (Teil-Migration, ${mig_count} Einträge) …"
-  docker compose stop 2>/dev/null || true
-  docker compose up -d db
-  for _ in $(seq 1 30); do
-    docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
-    sleep 2
-  done
-
   psql_admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" 2>/dev/null || true
   psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
   psql_admin <<'SQL'
@@ -107,9 +129,6 @@ BEGIN
   END LOOP;
 END $$;
 SQL
-
-  mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || docker compose config --services)
-  docker compose up -d "${DEV_SERVICES[@]}" 2>/dev/null || docker compose up -d
 }
 
 try_apply_migration() {
@@ -184,9 +203,10 @@ if ! has_restaurants; then
 fi
 
 echo "→ PostgREST Schema neu laden …"
+restore_dev_stack_after_migrations
 psql_exec -c "NOTIFY pgrst, 'reload schema';" || true
-docker compose restart rest
-sleep 4
+docker compose restart rest auth
+sleep 6
 
 mig_count="$(psql_query "SELECT count(*) FROM supabase_migrations.schema_migrations;")"
 echo "✓ Dev-DB-Migrationen angewendet (${mig_count} Migrationen, restaurants OK)."

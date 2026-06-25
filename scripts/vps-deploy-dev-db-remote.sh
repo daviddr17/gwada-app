@@ -9,13 +9,21 @@ mig_root="$3"
 cd "${compose_dir}"
 export COMPOSE_PROJECT_NAME=gwada-dev
 
+for i in $(seq 1 30); do
+  if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
+    break
+  fi
+  sleep 2
+done
+docker compose exec -T db pg_isready -U postgres
+
 if ! docker network inspect "${network}" >/dev/null 2>&1; then
   network="$(docker network ls --format '{{.Name}}' | grep '^gwada-dev' | head -1 || true)"
 fi
 [[ -n "${network}" ]] || { echo "FEHLER: Docker-Netz gwada-dev_* fehlt." >&2; exit 1; }
 echo "Docker-Netz: ${network}"
 
-PW="$(docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r')"
+PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
 ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${PW}")"
 DB_URL="postgresql://postgres:${ENC_PW}@gwada-dev-db:5432/postgres?sslmode=disable"
 

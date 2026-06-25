@@ -32,16 +32,6 @@ jobs:
           ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
 
-      - name: Rotate dev secrets (idempotent)
-        env:
-          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-        run: |
-          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
-            scripts/vps-rotate-dev-secrets.sh scripts/vps-refresh-dev-env.sh \
-            "root@${LIVE_VPS_HOST}:/tmp/"
-          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
-            "bash /tmp/vps-rotate-dev-secrets.sh; bash /tmp/vps-refresh-dev-env.sh"
-
       - name: Apply dev DB migrations
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
@@ -59,6 +49,16 @@ jobs:
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
           bash scripts/seed-dev-db-ci.sh
+
+      - name: Rotate dev secrets (idempotent)
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            scripts/vps-rotate-dev-secrets.sh scripts/vps-refresh-dev-env.sh \
+            "root@${LIVE_VPS_HOST}:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "bash /tmp/vps-rotate-dev-secrets.sh; bash /tmp/vps-refresh-dev-env.sh"
 
       - name: Download dev env
         env:

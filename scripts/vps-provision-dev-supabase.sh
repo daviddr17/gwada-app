@@ -30,12 +30,22 @@ fi
 
 cd "${INSTALL_DIR}"
 
-# Feste container_name in upstream-compose kollidieren mit Live-Coolify — eindeutige Dev-Namen
-if [[ ! -f .gwada-dev-compose-patched ]]; then
-  log "Compose patchen (gwada-dev-* Container & Volumes) …"
-  sed -i 's/container_name: supabase-/container_name: gwada-dev-/g' docker-compose.yml
+# Feste container_name in upstream-compose kollidieren mit Live — eindeutige gwada-dev-* Namen
+patch_dev_compose() {
+  local old new line
+  while IFS= read -r line; do
+    old="${line#*container_name: }"
+    old="${old// /}"
+    [[ -z "${old}" || "${old}" == gwada-dev-* ]] && continue
+    new="gwada-dev-${old}"
+    sed -i "s|container_name: ${old}|container_name: ${new}|g" docker-compose.yml
+  done < <(grep 'container_name:' docker-compose.yml 2>/dev/null || true)
   sed -i 's/name: supabase-/name: gwada-dev-/g' docker-compose.yml 2>/dev/null || true
-  touch .gwada-dev-compose-patched
+}
+
+if [[ -f docker-compose.yml ]]; then
+  log "Compose patchen (gwada-dev-* Container & Volumes) …"
+  patch_dev_compose
 fi
 
 export COMPOSE_PROJECT_NAME=gwada-dev

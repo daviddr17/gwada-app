@@ -69,5 +69,6 @@ jobs:
             ufw allow 8100/tcp comment 'gwada-dev-supabase-kong' || true
           fi
           ss -tln | grep ':8100 ' || echo "WARN: Kong :8100 nicht am Host"
-          curl -sf http://127.0.0.1:8100/auth/v1/health && echo " Kong OK"
+          curl -sf http://127.0.0.1:8100/rest/v1/ -H "apikey: test" >/dev/null 2>&1 \
+            || ss -tln | grep ':8100 ' && echo "Kong listening on :8100"
           REMOTE

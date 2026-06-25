@@ -26,6 +26,7 @@ apps/web/out/
 
 # misc
 .DS_Store
+.tmp/
 *.pem
 
 # debug

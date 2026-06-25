@@ -16,6 +16,8 @@ ensure_env() {
     log "Hole .env.development vom letzten CI-Run …"
     pnpm setup:dev:env
   fi
+  log "Synchronisiere .env.local → Remote-Dev …"
+  pnpm env:sync:dev
 }
 
 api_url() {

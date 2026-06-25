@@ -16,16 +16,26 @@ function gh(...args) {
   return execFileSync("gh", args, { encoding: "utf8", cwd: ROOT }).trim();
 }
 
-const runId = gh(
-  "run",
-  "list",
-  "--workflow=provision-dev-supabase.yml",
-  "--status=success",
-  "--limit=1",
-  "--json=databaseId",
-  "-q",
-  ".[0].databaseId",
-);
+function latestSuccessRun(workflow) {
+  try {
+    return gh(
+      "run",
+      "list",
+      `--workflow=${workflow}`,
+      "--status=success",
+      "--limit=1",
+      "--json=databaseId,conclusion",
+      "-q",
+      ".[0].databaseId",
+    );
+  } catch {
+    return "";
+  }
+}
+
+const runId =
+  latestSuccessRun("seed-dev-db.yml") ||
+  latestSuccessRun("provision-dev-supabase.yml");
 
 if (!runId) {
   console.error("Kein erfolgreicher provision-dev-supabase Run gefunden.");

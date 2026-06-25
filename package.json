@@ -33,6 +33,7 @@
     "dev:stack:hybrid": "supabase start && pnpm dev:hybrid",
     "db:start": "supabase start",
     "env:sync:local": "node scripts/sync-local-supabase-env.mjs",
+    "env:sync:dev": "node scripts/sync-dev-env.mjs",
     "db:stop": "supabase stop",
     "db:status": "supabase status",
     "db:push": "bash scripts/db-push-dev.sh",

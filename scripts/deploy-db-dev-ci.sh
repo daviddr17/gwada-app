@@ -81,7 +81,8 @@ if ! command -v supabase >/dev/null 2>&1; then
   echo "FEHLER: supabase CLI fehlt auf dem Runner (setup-cli)." >&2
   exit 1
 fi
-supabase db push --db-url "${DB_URL}" --yes --include-all
+PGSSLMODE=disable PGCONNECT_TIMEOUT=15 \
+  supabase db push --db-url "${DB_URL}" --yes --include-all
 
 gwada_scp_cmd "${ROOT}/scripts/vps-finish-dev-db-after-push-remote.sh" \
   "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-finish-dev-db-after-push-remote.sh"

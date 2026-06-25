@@ -37,8 +37,9 @@ else
   echo "POSTGRES_PASSWORD=${NEW_PW}" >> .env
 fi
 
-log "Auth/REST/Pooler neu starten …"
-docker compose restart auth rest pooler 2>/dev/null || docker compose up -d auth rest pooler
+log "Auth/REST neu erstellen (DB-Passwort aus .env) …"
+docker compose up -d --force-recreate auth rest 2>/dev/null \
+  || docker compose up -d auth rest
 
 for i in $(seq 1 20); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then

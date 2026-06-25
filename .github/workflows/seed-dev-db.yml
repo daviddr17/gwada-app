@@ -41,6 +41,16 @@ jobs:
           export LIVE_VPS_HOST
           bash scripts/deploy-db-dev-ci.sh
 
+      - name: Rotate dev secrets + refresh auth stack
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            scripts/vps-rotate-dev-secrets.sh scripts/vps-refresh-dev-env.sh \
+            "root@${LIVE_VPS_HOST}:/tmp/"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "bash /tmp/vps-rotate-dev-secrets.sh; bash /tmp/vps-refresh-dev-env.sh"
+
       - name: Apply local seeds to dev DB
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
@@ -50,15 +60,14 @@ jobs:
           export LIVE_VPS_HOST
           bash scripts/seed-dev-db-ci.sh
 
-      - name: Rotate dev secrets (idempotent)
+      - name: Refresh dev env artifact
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: |
           scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
-            scripts/vps-rotate-dev-secrets.sh scripts/vps-refresh-dev-env.sh \
-            "root@${LIVE_VPS_HOST}:/tmp/"
+            scripts/vps-refresh-dev-env.sh "root@${LIVE_VPS_HOST}:/tmp/"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
-            "bash /tmp/vps-rotate-dev-secrets.sh; bash /tmp/vps-refresh-dev-env.sh"
+            "bash /tmp/vps-refresh-dev-env.sh"
 
       - name: Download dev env
         env:

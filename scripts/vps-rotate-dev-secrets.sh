@@ -19,8 +19,20 @@ export COMPOSE_PROJECT_NAME=gwada-dev
 NEW_PW="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
 
 log "Postgres-Passwort rotieren …"
-docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 \
-  -c "ALTER USER postgres WITH PASSWORD '${NEW_PW}';"
+OLD_PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
+
+rotate_pw() {
+  docker compose exec -T -e PGPASSWORD="${OLD_PW}" db \
+    psql -U supabase_admin -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER USER postgres WITH PASSWORD '${NEW_PW}';" \
+    -c "ALTER USER supabase_admin WITH PASSWORD '${NEW_PW}';"
+}
+
+if ! rotate_pw 2>/dev/null; then
+  docker compose exec -T db \
+    psql -U postgres -d postgres -v ON_ERROR_STOP=1 \
+    -c "ALTER USER postgres WITH PASSWORD '${NEW_PW}';"
+fi
 
 if grep -q '^POSTGRES_PASSWORD=' .env; then
   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${NEW_PW}|" .env

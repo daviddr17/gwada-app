@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CI: Migrationen auf Dev-DB via supabase db push auf dem VPS (Docker-Netz, kein Runner-Tunnel).
+# CI: Migrationen auf Dev-DB — läuft auf dem VPS im Docker-Netz (kein Runner-Tunnel).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -34,11 +34,25 @@ tar -C "${ROOT}" -czf - supabase/migrations supabase/config.toml \
   | gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" "tar -xzf - -C ${DEV_REMOTE_MIG_DIR}"
 
 echo ""
-echo "=== Dev-DB: Migrationen anwenden (supabase db push auf VPS) ==="
-gwada_scp_cmd "${ROOT}/scripts/vps-deploy-dev-db-push-remote.sh" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-deploy-dev-db-push-remote.sh"
+echo "=== Dev-DB: Migrationen anwenden (VPS psql, Multi-Pass) ==="
+gwada_scp_cmd "${ROOT}/scripts/vps-deploy-dev-db-remote.sh" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-deploy-dev-db-remote.sh"
+gwada_scp_cmd "${ROOT}/scripts/vps-bootstrap-dev-storage.sql" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-bootstrap-dev-storage.sql"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
-  "bash /tmp/vps-deploy-dev-db-push-remote.sh ${DEV_COMPOSE_DIR} ${DEV_REMOTE_MIG_DIR}"
+  "bash /tmp/vps-deploy-dev-db-remote.sh ${DEV_COMPOSE_DIR} ${DEV_REMOTE_MIG_DIR}"
+
+echo ""
+echo "→ Dev-Stack hochfahren + Auth/REST neu laden …"
+gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" bash <<REMOTE
+set -euo pipefail
+cd "${DEV_COMPOSE_DIR}"
+export COMPOSE_PROJECT_NAME=gwada-dev
+mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || true)
+docker compose up -d "\${DEV_SERVICES[@]}"
+docker compose exec -T db psql -U postgres -c "NOTIFY pgrst, 'reload schema';" 2>/dev/null || true
+docker compose up -d --force-recreate auth rest 2>/dev/null || docker compose restart auth rest
+REMOTE
 
 echo ""
 echo "Dev-DB-Migrationen angewendet."

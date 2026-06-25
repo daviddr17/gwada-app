@@ -125,20 +125,13 @@ else
   log "docker compose up …"
   mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || docker compose config --services)
   if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
-    log "Frisches Volume — zuerst nur Postgres starten …"
+    log "Frisches Volume — nur Postgres starten (Migrationen starten übrige Services) …"
     docker compose up -d db
     for i in $(seq 1 60); do
       docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
       sleep 2
     done
     docker compose exec -T db pg_isready -U postgres
-    log "Postgres bereit — übrige Dev-Services starten …"
-    other_services=()
-    for svc in "${DEV_SERVICES[@]}"; do
-      [[ "${svc}" == "db" ]] && continue
-      other_services+=("${svc}")
-    done
-    docker compose up -d "${other_services[@]}"
   else
     docker compose up -d "${DEV_SERVICES[@]}"
   fi
@@ -157,7 +150,10 @@ KONG_CONTAINER="$(docker compose ps -q kong)"
 [[ -n "${DB_CONTAINER}" ]] || { echo "DB-Container fehlt." >&2; exit 1; }
 
 DB_IP="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${DB_CONTAINER}")"
-KONG_IP="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${KONG_CONTAINER}")"
+KONG_IP=""
+if [[ -n "${KONG_CONTAINER}" ]]; then
+  KONG_IP="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${KONG_CONTAINER}")"
+fi
 echo "${DB_IP}" > "${DEV_TUNNEL_REMOTE_HOST_FILE}"
 
 # Kong auf Host-Port binden (falls Compose das nicht schon tut)

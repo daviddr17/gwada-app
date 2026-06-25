@@ -14,16 +14,21 @@ dev_compose_services() {
 }
 
 quiesce_dev_stack_for_migrations() {
-  echo "→ Dev-Stack pausieren (nur Postgres für Migrationen) …"
-  docker compose stop 2>/dev/null || true
-  docker compose up -d db
+  echo "→ Dev-Stack pausieren (Auth/REST aus, Postgres bleibt) …"
+  mapfile -t NON_DB_SERVICES < <(dev_compose_services | grep -Ev '^db$' || true)
+  if [[ ${#NON_DB_SERVICES[@]} -gt 0 ]]; then
+    docker compose stop "${NON_DB_SERVICES[@]}" 2>/dev/null || true
+  fi
+  local pg_port
+  pg_port="$(grep -m1 '^POSTGRES_PORT=' .env 2>/dev/null | sed 's/^POSTGRES_PORT=//' | tr -d '\r\n')"
+  pg_port="${pg_port:-5432}"
   for i in $(seq 1 60); do
-    if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
+    if docker compose exec -T db pg_isready -U postgres -h localhost -p "${pg_port}" >/dev/null 2>&1; then
       break
     fi
     sleep 2
   done
-  docker compose exec -T db pg_isready -U postgres
+  docker compose exec -T db pg_isready -U postgres -h localhost -p "${pg_port}"
   psql_admin_quiet() {
     docker compose exec -T db psql -U supabase_admin -v ON_ERROR_STOP=1 "$@"
   }

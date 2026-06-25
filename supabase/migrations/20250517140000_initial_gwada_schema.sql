@@ -66,11 +66,11 @@ $$;
 -- RENAME statt DROP — DROP kann „cache lookup failed“ auf frischem Supabase-Stack auslösen.
 -- ---------------------------------------------------------------------------
 drop trigger if exists on_auth_user_created on auth.users;
-drop trigger if exists profiles_set_updated_at on public.profiles;
 
 do $gwada_drop_supabase_profiles$
 begin
   if to_regclass('public.profiles') is not null then
+    execute 'drop trigger if exists profiles_set_updated_at on public.profiles';
     execute 'alter table public.profiles rename to _supabase_bootstrap_profiles';
   end if;
 end $gwada_drop_supabase_profiles$;

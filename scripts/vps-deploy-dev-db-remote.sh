@@ -42,7 +42,7 @@ ensure_storage_schema() {
   fi
   echo "→ Storage-Schema bootstrap (SQL) …"
   if [[ -f /tmp/vps-bootstrap-dev-storage.sql ]]; then
-    psql_admin -f /tmp/vps-bootstrap-dev-storage.sql
+    psql_admin -f - < /tmp/vps-bootstrap-dev-storage.sql
   else
     echo "WARN: /tmp/vps-bootstrap-dev-storage.sql fehlt — storage-Container starten …"
     docker compose up -d storage

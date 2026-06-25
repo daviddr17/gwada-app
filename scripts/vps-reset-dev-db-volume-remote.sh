@@ -41,12 +41,20 @@ free_host_port 8101
 
 rm -f "${compose_dir}/.secrets-rotated-after-leak"
 
-echo "→ Dev-.env bereinigen (POSTGRES_PORT-Override entfernen) …"
-if [[ -f .env ]]; then
-  sed -i '/^POSTGRES_PORT=/d' .env
-else
+echo "→ Dev-.env: POSTGRES_PORT=5432 (intern) …"
+if [[ ! -f .env ]]; then
   echo "FEHLER: ${compose_dir}/.env fehlt — zuerst provision-dev-supabase ausführen." >&2
   exit 1
+fi
+if grep -q '^POSTGRES_PORT=' .env; then
+  sed -i 's|^POSTGRES_PORT=.*|POSTGRES_PORT=5432|' .env
+else
+  echo "POSTGRES_PORT=5432" >> .env
+fi
+
+if vols="$(docker volume ls -q --filter name=gwada-dev)"; [[ -n "${vols}" ]]; then
+  echo "→ Entferne gwada-dev-Volumes …"
+  docker volume rm -f ${vols} 2>/dev/null || true
 fi
 
 if ss -tln 2>/dev/null | grep -q ':8100 '; then

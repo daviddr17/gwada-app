@@ -88,10 +88,14 @@ upsert_env "SUPABASE_PUBLIC_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
 upsert_env "ADDITIONAL_REDIRECT_URLS" "http://localhost:3000/auth/callback,http://localhost:3000/api/auth/google/callback"
 
 log "docker compose pull (kann mehrere Minuten dauern) …"
-docker compose pull
-
-log "docker compose up …"
-docker compose up -d
+if docker ps --format '{{.Names}}' | grep -q '^gwada-dev-db$' \
+  && docker ps --format '{{.Names}}' | grep -q '^gwada-dev-kong$'; then
+  log "Dev-Stack läuft bereits — überspringe pull/up."
+else
+  docker compose pull
+  log "docker compose up …"
+  docker compose up -d
+fi
 
 log "Warte auf Postgres …"
 for i in $(seq 1 60); do

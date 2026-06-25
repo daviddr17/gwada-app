@@ -1,0 +1,9 @@
+node_modules/
+**/.next/
+.git/
+apps/staff/.expo/
+apps/staff/ios/
+apps/staff/android/
+dist/
+coverage/
+*.tsbuildinfo

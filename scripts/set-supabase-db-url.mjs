@@ -10,10 +10,16 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const ENV_FILE = resolve(ROOT, ".env.production");
+const envFileName = process.env.GWADA_ENV_FILE ?? ".env.production";
+const ENV_FILE = resolve(ROOT, envFileName);
+const isDev = envFileName.includes("development");
 
-const HOST = process.env.LIVE_DB_HOST ?? "95.111.229.250";
-const PORT = process.env.LIVE_DB_PORT ?? "5432";
+const HOST = isDev
+  ? (process.env.DEV_DB_HOST ?? "127.0.0.1")
+  : (process.env.LIVE_DB_HOST ?? "95.111.229.250");
+const PORT = isDev
+  ? (process.env.DEV_DB_PORT ?? "5434")
+  : (process.env.LIVE_DB_PORT ?? "5432");
 const USER = process.env.LIVE_DB_USER ?? "postgres";
 const DB = process.env.LIVE_DB_NAME ?? "postgres";
 
@@ -78,10 +84,14 @@ if (!password) {
 const url = buildUrl(password);
 upsertEnvFile(url);
 
-console.log("\n✓ .env.production aktualisiert:");
+console.log(`\n✓ ${envFileName} aktualisiert:`);
 console.log(`  SUPABASE_DB_URL=postgresql://${USER}:****@${HOST}:${PORT}/${DB}`);
 console.log("\nAls Nächstes:");
-console.log("  npm run db:push:live -- --dry-run");
 console.log(
-  "\nBei „connection refused“: Postgres ist von außen nicht offen → docs/supabase-lokal-und-live.md (SSH-Tunnel).",
+  isDev
+    ? "  pnpm db:push:dev -- --dry-run"
+    : "  npm run db:push:live -- --dry-run",
+);
+console.log(
+  "\nBei „connection refused“: Postgres ist von außen nicht offen → docs/remote-dev-supabase.md (SSH-Tunnel).",
 );

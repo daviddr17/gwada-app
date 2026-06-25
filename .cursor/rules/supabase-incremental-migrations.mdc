@@ -1,5 +1,5 @@
 ---
-description: Migrationen inkrementell; nach neuer Migration immer db push ausführen; kein db reset als Standard
+description: Migrationen inkrementell; nach neuer Migration db push auf Dev-DB; kein db reset als Standard
 globs: supabase/**/*
 alwaysApply: true
 ---
@@ -10,13 +10,13 @@ Wenn du **neue Datenbanktabellen** oder Schemaänderungen anlegst:
 
 1. **Migration** als neue Datei unter `supabase/migrations/` hinzufügen (eine logische Änderung pro Datei, sinnvoller Timestamp-Präfix).
 
-2. **Direkt danach Migrationen lokal pushen** (Repo-Root), damit die Änderung **inkrementell** auf der **lokalen** DB ankommt — nicht nur die Datei ablegen:
-   - **Standard:** `npm run db:push:local` bzw. `npx supabase db push --local` (Docker/`supabase start` muss laufen).
-   - **Live/VPS nur**, wenn der Nutzer **ausdrücklich** live deployen / Schema auf Production will — siehe `supabase-schema-local-deploy-live.mdc` und `live-deploy-on-request.mdc` (`npm run db:push:live`, `deploy:live`, …). **Nicht** automatisch `db push` ohne `--local` oder `--db-url` aus `.env.production`.
-   Wenn lokaler Push fehlschlägt: Fehler kurz melden und auf `supabase start` / Studio `http://127.0.0.1:54323` hinweisen.
+2. **Direkt danach auf die Dev-DB pushen** (Repo-Root) — nicht nur die Datei ablegen:
+   - **Standard:** `pnpm db:push` (Entwickler-DB auf dem VPS, `.env.development`)
+   - **Lokal mit Docker** nur wenn nötig: `pnpm db:push:local`
+   - **Live/VPS nur**, wenn der Nutzer **explizit** live deployen / Production-Schema will — `GWADA_CONFIRM_LIVE_DB=1 pnpm db:push:live` (siehe `live-deploy-on-request.mdc`, `supabase-dev-db-default.mdc`)
 
-3. **`db:reset` niemals vorschlagen**, nur um neue Migrationen anzuwenden — das wäre irreführend. `npm run db:reset` / `supabase db reset` nur, wenn der Nutzer **ausdrücklich** einen leeren lokalen Stand will (löscht Daten und spielt Migrationen + Seeds neu ein).
+   Wenn Dev-Push fehlschlägt: `pnpm db:tunnel:dev` in separatem Terminal, oder `gh workflow run deploy-dev-db.yml --ref main`.
 
-4. **Alternativen** nur bei lokalem Push-Blocker: einmalig SQL im **lokalen** Studio, `psql` gegen `127.0.0.1:54322`, oder `npx supabase migration up --local`.
+3. **`db:reset` niemals vorschlagen**, nur um neue Migrationen anzuwenden. `pnpm db:reset` nur, wenn der Nutzer **ausdrücklich** einen leeren lokalen Stand will.
 
-5. Kurz mitteilen, **dass lokaler Push** (oder Ersatzweg) gelaufen ist bzw. warum nicht. Live-Schema **erst** nach ausdrücklicher Live-Anfrage bestätigen.
+4. Kurz mitteilen, dass **Dev-Push** gelaufen ist bzw. warum nicht. Live-Schema **erst** nach ausdrücklicher Live-Anfrage.

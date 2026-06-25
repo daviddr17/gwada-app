@@ -1,0 +1,35 @@
+---
+description: Standard-DB ist Remote-Dev auf dem VPS; Live-DB nur auf explizite Nutzer-Anfrage
+globs: supabase/**/*
+alwaysApply: true
+---
+
+# Supabase: Entwickler-DB (VPS) ist Standard
+
+**Kein lokales Docker** für den Alltag. Die App entwickelt gegen die **Dev-Supabase auf dem VPS** (`.env.development`).
+
+## Migrationen & Schema
+
+| Aktion | Befehl |
+|--------|--------|
+| **Standard (Dev-DB)** | `pnpm db:push` |
+| Lokal mit Docker (selten) | `pnpm db:push:local` |
+| **Live-DB** | **Nur** wenn der Nutzer **explizit** live deployen / Live-DB pushen will: `GWADA_CONFIRM_LIVE_DB=1 pnpm db:push:live` |
+
+Nach neuer Datei unter `supabase/migrations/`: **immer** `pnpm db:push` (Dev) — nicht `db:push:live`, nicht `db:push:local`, außer der Nutzer verlangt das ausdrücklich.
+
+## App starten
+
+- `pnpm dev` — lädt `.env.development` (Remote-Dev)
+- `pnpm dev:live` — nur für Paritäts-Check gegen Live
+- `pnpm dev:local` — nur mit lokalem Docker (`supabase start`)
+
+Tunnel für Mac (Terminal offen lassen): `pnpm db:tunnel:dev`
+
+## Live
+
+`db:push:live`, `deploy:live`, `sync:live:*` — siehe `live-deploy-on-request.mdc` und `supabase-schema-local-deploy-live.mdc`. **Nie** proaktiv Live-Schema anwenden.
+
+## Referenz
+
+`docs/remote-dev-supabase.md`

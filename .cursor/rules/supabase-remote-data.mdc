@@ -1,11 +1,10 @@
 ---
-description: Supabase-Daten und Schema standardmäßig lokal; Live nur auf ausdrückliche Anfrage.
+description: Standard ist Remote-Dev-DB auf dem VPS; lokales Docker und Live nur bei expliziter Anfrage
 alwaysApply: true
 ---
 
-# Supabase: lokal standardmäßig
+# Supabase: Remote-Dev standardmäßig
 
-- **Standard:** Schema, Seeds und Ad-hoc-SQL gegen die **lokale** Supabase (`supabase start`, `npm run db:push:local`, `npx supabase db query --local -f …`, lokales Studio `127.0.0.1:54323`). Die App nutzt dafür **`.env.local`** (API `127.0.0.1:54321`).
-- **Live/VPS** (`.env.production`, Tunnel, `sync:live:*`, `deploy:live`, `db:push:live`) **nur**, wenn der Nutzer das **explizit** will — siehe `supabase-schema-local-deploy-live.mdc` und `live-deploy-on-request.mdc`.
-- **Kein `supabase db reset`** vorschlagen, um Daten anzulegen oder zu „pushen“.
-- **Kein** `supabase link` / `db push` ohne `--local` als Annahme, dass etwas „schon auf der DB liegt“ — bis zur Live-Anfrage gilt: **lokal anwenden und prüfen**.
+- **Standard:** Schema, Seeds und Ad-hoc-SQL gegen die **Entwickler-Supabase auf dem VPS** (`pnpm db:push`, `pnpm dev`, `.env.development`). Kein `supabase start` im Alltag.
+- **Lokales Docker** (`pnpm db:push:local`, `pnpm dev:local`) nur bei Offline-Bedarf oder wenn der Nutzer es verlangt.
+- **Live/VPS Production** (`.env.production`, `sync:live:*`, `deploy:live`, `GWADA_CONFIRM_LIVE_DB=1 pnpm db:push:live`) **nur**, wenn der Nutzer das **explizit** will — siehe `live-deploy-on-request.mdc` und `supabase-dev-db-default.mdc`.

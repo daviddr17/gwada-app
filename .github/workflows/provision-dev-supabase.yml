@@ -1,0 +1,83 @@
+name: Provision dev Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_migrations:
+        description: Migrationen nach Provision überspringen
+        required: false
+        default: "false"
+
+concurrency:
+  group: provision-dev-supabase
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.105.0
+
+      - name: Setup SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+          echo "VPS: ${LIVE_VPS_HOST}"
+
+      - name: Provision dev Supabase stack on VPS
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            scripts/vps-provision-dev-supabase.sh \
+            "root@${LIVE_VPS_HOST}:/tmp/vps-provision-dev-supabase.sh"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "bash /tmp/vps-provision-dev-supabase.sh"
+
+      - name: Apply dev DB migrations
+        if: inputs.skip_migrations != 'true'
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/deploy-db-dev-ci.sh
+
+      - name: Download dev env file
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          mkdir -p dev-env-artifact
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            "root@${LIVE_VPS_HOST}:/root/gwada-dev-env.development" \
+            dev-env-artifact/gwada-dev-env.development
+
+      - name: Upload dev env artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-env
+          path: dev-env-artifact/gwada-dev-env.development
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "### Dev-Supabase bereit" >> "$GITHUB_STEP_SUMMARY"
+          echo "Lokal: \`pnpm setup:dev:env\` → \`.env.development\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "Tunnel: \`pnpm db:tunnel:dev\` · App: \`pnpm dev\`" >> "$GITHUB_STEP_SUMMARY"

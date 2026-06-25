@@ -8,15 +8,23 @@ gh run watch --workflow=provision-dev-supabase.yml --exit-status
 pnpm setup:dev:env          # schreibt .env.development vom CI-Artifact
 ```
 
-**Täglich (zwei Terminals):**
+**Täglich:**
 
 ```bash
-# Terminal 1 — Tunnel (Postgres :5434 + Kong API :8100)
-pnpm db:tunnel:dev
+pnpm dev                    # sync Env aus CI + Hot Reload gegen Dev-DB
+pnpm db:push                # Migrationen → Dev (Tunnel nötig, siehe unten)
+```
 
-# Terminal 2
-pnpm dev                    # Hot Reload gegen Dev-DB
-pnpm db:push                # Migrationen → Dev (Standard)
+**Migrationen lokal:** Terminal 1 `pnpm db:tunnel:dev` (Postgres :5434), Terminal 2 `pnpm db:push`.
+
+**Login schlägt fehl?** Dev-DB auf dem VPS ist kaputt oder Env veraltet:
+
+```bash
+pnpm setup:dev:env          # frische Keys vom letzten CI-Run
+pnpm env:sync:dev           # → .env.local
+pnpm repair:dev             # einmalig: Volume-Reset + Seeds (CI, ~10 min)
+pnpm setup:dev:env && pnpm env:sync:dev && pnpm dev
+# Demo: dreyer@techlion.de / GwadaLocal2026!
 ```
 
 **Live nur explizit:**

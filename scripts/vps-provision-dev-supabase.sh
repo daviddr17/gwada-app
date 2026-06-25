@@ -103,9 +103,11 @@ upsert_env "STUDIO_PORT" "${STUDIO_HOST_PORT}"
 upsert_env "POSTGRES_PORT" "5435"
 upsert_env "POOLER_PROXY_PORT_TRANSACTION" "6544"
 upsert_env "POOLER_PROXY_PORT_SESSION" "6545"
+VPS_PUBLIC_HOST="${GWADA_VPS_PUBLIC_HOST:-95.111.229.250}"
 upsert_env "SITE_URL" "http://localhost:3000"
-upsert_env "API_EXTERNAL_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
-upsert_env "SUPABASE_PUBLIC_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
+# Mac-Dev spricht Kong direkt auf VPS-IP — GoTrue-JWT/Redirects müssen erreichbar sein
+upsert_env "API_EXTERNAL_URL" "http://${VPS_PUBLIC_HOST}:${KONG_HOST_PORT}"
+upsert_env "SUPABASE_PUBLIC_URL" "http://${VPS_PUBLIC_HOST}:${KONG_HOST_PORT}"
 
 # GoTrue: lokale Redirects + Dev ohne SMTP
 upsert_env "ADDITIONAL_REDIRECT_URLS" "http://localhost:3000/auth/callback,http://localhost:3000/api/auth/google/callback"

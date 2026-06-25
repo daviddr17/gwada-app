@@ -21,6 +21,8 @@ docker compose up -d kong db auth rest storage realtime meta studio 2>/dev/null 
   || docker compose up -d --no-recreate 2>/dev/null \
   || true
 
+docker compose up -d --force-recreate auth 2>/dev/null || docker compose restart auth 2>/dev/null || true
+
 for i in $(seq 1 30); do
   if curl -sf "http://127.0.0.1:${KONG_HOST_PORT}/auth/v1/health" >/dev/null 2>&1; then
     break
@@ -38,6 +40,20 @@ read_env_key() {
   local key="$1"
   grep -m1 "^${key}=" .env | sed "s/^${key}=//" | tr -d '\r\n'
 }
+
+upsert_env() {
+  local key="$1" val="$2"
+  if grep -q "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${val}|" .env
+  else
+    echo "${key}=${val}" >> .env
+  fi
+}
+
+# Mac-Dev ohne Tunnel: GoTrue muss VPS-IP kennen (nicht 127.0.0.1 im Container)
+upsert_env "API_EXTERNAL_URL" "http://${VPS_HOST}:${KONG_HOST_PORT}"
+upsert_env "SUPABASE_PUBLIC_URL" "http://${VPS_HOST}:${KONG_HOST_PORT}"
+upsert_env "SITE_URL" "http://localhost:3000"
 
 ANON_KEY="$(read_env_key ANON_KEY)"
 SERVICE_ROLE_KEY="$(read_env_key SERVICE_ROLE_KEY)"

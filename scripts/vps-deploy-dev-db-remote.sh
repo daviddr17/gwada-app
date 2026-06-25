@@ -110,25 +110,11 @@ prepare_public_schema_for_gwada() {
     return
   fi
 
-  # Kaputte Teil-Migration: Tabellen einzeln leeren (DROP SCHEMA public → catalog corruption).
-  echo "→ public zurücksetzen (Teil-Migration, ${mig_count} Einträge) …"
-  psql_admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" 2>/dev/null || true
-  psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-  psql_admin <<'SQL'
-DO $$
-DECLARE r RECORD;
-BEGIN
-  FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-    EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
-  END LOOP;
-  FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
-    EXECUTE format('DROP SEQUENCE IF EXISTS public.%I CASCADE', r.sequence_name);
-  END LOOP;
-  FOR r IN (SELECT typname FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typtype = 'e') LOOP
-    EXECUTE format('DROP TYPE IF EXISTS public.%I CASCADE', r.typname);
-  END LOOP;
-END $$;
-SQL
+  if ! has_restaurants; then
+    echo "FEHLER: kaputte Dev-DB (${mig_count} Migrationen, public.restaurants fehlt)." >&2
+    echo "       Nur Volume-Reset: pnpm repair:dev (reset_volume=true)" >&2
+    exit 1
+  fi
 }
 
 try_apply_migration() {

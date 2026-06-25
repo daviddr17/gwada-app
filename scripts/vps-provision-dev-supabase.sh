@@ -67,6 +67,8 @@ if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
     [[ -z "${vol}" ]] && continue
     docker volume rm -f "${vol}" 2>/dev/null || true
   done < <(docker volume ls -q | grep -E 'gwada-dev|gwada_dev' || true)
+  rm -rf "${INSTALL_DIR}/volumes/db/data" "${INSTALL_DIR}/volumes/storage" 2>/dev/null || true
+  log "Postgres-Daten (volumes/db/data) entfernt."
   rm -f .env .secrets-rotated-after-leak
   log "Alte .env entfernt — wird neu erzeugt."
 fi

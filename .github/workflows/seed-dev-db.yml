@@ -13,6 +13,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.105.0
+
       - name: Setup SSH
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
@@ -33,6 +41,15 @@ jobs:
             "root@${LIVE_VPS_HOST}:/tmp/"
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
             "bash /tmp/vps-rotate-dev-secrets.sh; bash /tmp/vps-refresh-dev-env.sh"
+
+      - name: Apply dev DB migrations
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/deploy-db-dev-ci.sh
 
       - name: Apply local seeds to dev DB
         env:

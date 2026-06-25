@@ -76,6 +76,10 @@ upsert_env() {
 upsert_env "KONG_HTTP_PORT" "${KONG_HOST_PORT}"
 upsert_env "KONG_HTTPS_PORT" "$((KONG_HOST_PORT + 1))"
 upsert_env "STUDIO_PORT" "${STUDIO_HOST_PORT}"
+# Live-Postgres/Pooler nutzen Host :5432 — Dev nur intern + SSH-Tunnel zur Container-IP
+upsert_env "POSTGRES_PORT" "5435"
+upsert_env "POOLER_PROXY_PORT_TRANSACTION" "6544"
+upsert_env "POOLER_PROXY_PORT_SESSION" "6545"
 upsert_env "SITE_URL" "http://localhost:3000"
 upsert_env "API_EXTERNAL_URL" "http://127.0.0.1:${KONG_HOST_PORT}"
 upsert_env "SUPABASE_PUBLIC_URL" "http://127.0.0.1:${KONG_HOST_PORT}"

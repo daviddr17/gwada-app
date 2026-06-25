@@ -60,17 +60,37 @@ ensure_storage_schema() {
 
 reset_dev_schemas() {
   echo "→ Dev-DB Schema-Reset (public + migration history, storage policies) …"
-  psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-  psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
   psql_admin -c "
-    DO \$\$ DECLARE r record; BEGIN
-      IF to_regclass('storage.objects') IS NOT NULL THEN
-        FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects'
-        LOOP
-          EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', r.policyname);
-        END LOOP;
-      END IF;
-    END \$\$;"
+    SELECT pg_terminate_backend(pid)
+    FROM pg_stat_activity
+    WHERE datname = current_database()
+      AND pid <> pg_backend_pid();" 2>/dev/null || true
+
+  drop_public_and_migrations() {
+    psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
+    psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
+    psql_admin -c "
+      DO \$\$ DECLARE r record; BEGIN
+        IF to_regclass('storage.objects') IS NOT NULL THEN
+          FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects'
+          LOOP
+            EXECUTE format('DROP POLICY IF EXISTS %I ON storage.objects', r.policyname);
+          END LOOP;
+        END IF;
+      END \$\$;"
+  }
+
+  if ! drop_public_and_migrations; then
+    echo "WARN: Schema-DROP fehlgeschlagen — Postgres neu starten …" >&2
+    docker compose restart db
+    for _ in $(seq 1 30); do
+      docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
+      sleep 2
+    done
+    docker compose exec -T db pg_isready -U postgres
+    drop_public_and_migrations
+  fi
+
   psql_exec -c "CREATE SCHEMA public;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
   psql_exec -c "GRANT ALL ON SCHEMA public TO public;"

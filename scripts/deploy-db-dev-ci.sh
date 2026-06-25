@@ -32,13 +32,11 @@ tar -C "${ROOT}" -czf - supabase/migrations supabase/config.toml \
   | gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" "tar -xzf - -C ${DEV_REMOTE_MIG_DIR}"
 
 echo ""
-echo "=== Dev-DB: Migrationen anwenden (nur Schema) ==="
+echo "=== Dev-DB: Migrationen anwenden (supabase db push) ==="
 gwada_scp_cmd() {
   scp "${GWADA_SSH_OPTS[@]}" "$@"
 }
-gwada_scp_cmd "${ROOT}/scripts/vps-deploy-dev-db-remote.sh" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-deploy-dev-db-remote.sh"
-gwada_scp_cmd "${ROOT}/scripts/vps-bootstrap-dev-storage.sql" \
-  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-bootstrap-dev-storage.sql"
+gwada_scp_cmd "${ROOT}/scripts/vps-deploy-dev-db-push-remote.sh" \
+  "${DEV_SSH_USER}@${DEV_VPS_HOST}:/tmp/vps-deploy-dev-db-push-remote.sh"
 gwada_ssh_cmd "${DEV_SSH_USER}@${DEV_VPS_HOST}" \
-  "bash /tmp/vps-deploy-dev-db-remote.sh ${DEV_COMPOSE_DIR} ${DEV_REMOTE_MIG_DIR}"
+  "bash /tmp/vps-deploy-dev-db-push-remote.sh ${DEV_COMPOSE_DIR} ${DEV_REMOTE_MIG_DIR}"

@@ -62,7 +62,13 @@ $$;
 
 -- ---------------------------------------------------------------------------
 -- Profiles (1:1 with auth.users)
+-- Self-hosted Supabase Docker may ship public.profiles before gwada migrations.
 -- ---------------------------------------------------------------------------
+drop trigger if exists on_auth_user_created on auth.users;
+drop trigger if exists profiles_set_updated_at on public.profiles;
+drop table if exists public.profiles cascade;
+drop function if exists public.handle_new_user() cascade;
+
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text,

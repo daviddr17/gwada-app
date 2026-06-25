@@ -68,54 +68,48 @@ initial_migration_applied() {
 }
 
 prepare_public_schema_for_gwada() {
-  local mig_count prefilled_profiles
+  local mig_count
   mig_count="$(psql_query_safe "SELECT count(*) FROM supabase_migrations.schema_migrations;")"
   mig_count="${mig_count:-0}"
-  prefilled_profiles="$(psql_query_safe "SELECT to_regclass('public.profiles') IS NOT NULL;")"
 
-  # Supabase-Docker bringt public.profiles mit — gwada initial migration braucht leeres public.
   if initial_migration_applied && has_restaurants; then
     return
   fi
 
-  if [[ "${prefilled_profiles}" != "t" && "${mig_count}" == "0" ]]; then
+  # Frische Dev-DB: Supabase-Docker legt public.profiles an — initial migration droppt sie selbst.
+  if [[ "${mig_count}" == "0" ]]; then
     return
   fi
 
-  echo "→ public + migration history zurücksetzen (Supabase-Vorgabe vs. gwada) …"
-  docker compose stop auth rest realtime meta studio storage 2>/dev/null || true
+  # Kaputte Teil-Migration: Tabellen einzeln leeren (DROP SCHEMA public → catalog corruption).
+  echo "→ public zurücksetzen (Teil-Migration, ${mig_count} Einträge) …"
+  docker compose stop 2>/dev/null || true
+  docker compose up -d db
+  for _ in $(seq 1 30); do
+    docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
+    sleep 2
+  done
 
-  drop_gwada_public() {
-    set +e
-    psql_admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" 2>/dev/null
-    psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
-    psql_admin -c "DROP SCHEMA IF EXISTS public CASCADE;"
-    set -e
-    [[ "$(psql_query_safe "SELECT to_regnamespace('public') IS NOT NULL;")" != "t" ]]
-  }
+  psql_admin -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid();" 2>/dev/null || true
+  psql_admin -c "DROP SCHEMA IF EXISTS supabase_migrations CASCADE;"
+  psql_admin <<'SQL'
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+    EXECUTE format('DROP TABLE IF EXISTS public.%I CASCADE', r.tablename);
+  END LOOP;
+  FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+    EXECUTE format('DROP SEQUENCE IF EXISTS public.%I CASCADE', r.sequence_name);
+  END LOOP;
+  FOR r IN (SELECT typname FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typtype = 'e') LOOP
+    EXECUTE format('DROP TYPE IF EXISTS public.%I CASCADE', r.typname);
+  END LOOP;
+END $$;
+SQL
 
-  if ! drop_gwada_public; then
-    echo "WARN: DROP public fehlgeschlagen — Postgres neu starten …" >&2
-    docker compose restart db
-    for _ in $(seq 1 30); do
-      docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
-      sleep 2
-    done
-    drop_gwada_public || {
-      echo "FEHLER: public konnte nicht zurückgesetzt werden — pnpm repair:dev (reset_volume=true)." >&2
-      exit 1
-    }
-  fi
-
-  docker compose up -d auth rest realtime meta studio storage 2>/dev/null || true
-  psql_exec -c "CREATE SCHEMA public;"
-  psql_exec -c "GRANT ALL ON SCHEMA public TO postgres;"
-  psql_exec -c "GRANT ALL ON SCHEMA public TO public;"
-  psql_exec -c "GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;"
-  psql_exec -c "GRANT ALL ON SCHEMA public TO anon, authenticated, service_role;"
-  psql_exec -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;"
-  psql_exec -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;"
-  psql_exec -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;"
+  mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || docker compose config --services)
+  docker compose up -d "${DEV_SERVICES[@]}" 2>/dev/null || docker compose up -d
 }
 
 try_apply_migration() {
@@ -177,8 +171,8 @@ apply_all_migrations() {
   fi
 }
 
-ensure_storage_schema
 prepare_public_schema_for_gwada
+ensure_storage_schema
 
 echo "→ Migrationen anwenden (psql, Multi-Pass) …"
 apply_all_migrations

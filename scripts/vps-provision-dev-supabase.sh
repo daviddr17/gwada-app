@@ -122,7 +122,24 @@ else
   docker compose pull
   log "docker compose up …"
   mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || docker compose config --services)
-  docker compose up -d "${DEV_SERVICES[@]}"
+  if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
+    log "Frisches Volume — zuerst nur Postgres starten …"
+    docker compose up -d db
+    for i in $(seq 1 60); do
+      docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1 && break
+      sleep 2
+    done
+    docker compose exec -T db pg_isready -U postgres
+    log "Postgres bereit — übrige Dev-Services starten …"
+    other_services=()
+    for svc in "${DEV_SERVICES[@]}"; do
+      [[ "${svc}" == "db" ]] && continue
+      other_services+=("${svc}")
+    done
+    docker compose up -d "${other_services[@]}"
+  else
+    docker compose up -d "${DEV_SERVICES[@]}"
+  fi
 fi
 
 log "Warte auf Postgres …"

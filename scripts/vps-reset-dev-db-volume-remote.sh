@@ -41,7 +41,7 @@ free_host_port 8101
 
 rm -f "${compose_dir}/.secrets-rotated-after-leak"
 
-echo "→ Dev-.env: POSTGRES_PORT=5432 (intern) …"
+echo "→ Dev-.env: POSTGRES_PORT=5432, neues Postgres-Passwort …"
 if [[ ! -f .env ]]; then
   echo "FEHLER: ${compose_dir}/.env fehlt — zuerst provision-dev-supabase ausführen." >&2
   exit 1
@@ -50,6 +50,12 @@ if grep -q '^POSTGRES_PORT=' .env; then
   sed -i 's|^POSTGRES_PORT=.*|POSTGRES_PORT=5432|' .env
 else
   echo "POSTGRES_PORT=5432" >> .env
+fi
+NEW_PG_PW="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+if grep -q '^POSTGRES_PASSWORD=' .env; then
+  sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=${NEW_PG_PW}|" .env
+else
+  echo "POSTGRES_PASSWORD=${NEW_PG_PW}" >> .env
 fi
 
 if vols="$(docker volume ls -q --filter name=gwada-dev)"; [[ -n "${vols}" ]]; then
@@ -63,8 +69,8 @@ if ss -tln 2>/dev/null | grep -q ':8100 '; then
   exit 1
 fi
 
-echo "→ Dev-Stack neu starten …"
-if ! docker compose up -d; then
+echo "→ Dev-Stack neu starten (frische Container + DB) …"
+if ! docker compose up -d --force-recreate; then
   echo "WARN: compose up fehlgeschlagen — DB-Logs:" >&2
   docker compose logs db --tail 30 2>&1 || true
   exit 1

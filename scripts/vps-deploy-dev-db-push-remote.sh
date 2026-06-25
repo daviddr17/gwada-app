@@ -21,6 +21,9 @@ docker compose exec -T db pg_isready -U postgres
 PW="$(docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r\n')"
 [[ -n "${PW}" ]] || PW="$(grep -m1 '^POSTGRES_PASSWORD=' .env | sed 's/^POSTGRES_PASSWORD=//' | tr -d '\r\n')"
 ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${PW}")"
+# TCP-Auth von außen: Passwort explizit setzen (Exec nutzt oft Peer/Trust).
+docker compose exec -T db psql -U postgres -v ON_ERROR_STOP=1 \
+  -c "ALTER USER postgres WITH PASSWORD '${PW//\'/\'\'}';"
 DB_IP="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q db)")"
 [[ -n "${DB_IP}" ]] || { echo "FEHLER: DB-Container-IP fehlt." >&2; exit 1; }
 

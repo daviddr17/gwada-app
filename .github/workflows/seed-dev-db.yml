@@ -1,0 +1,73 @@
+name: Seed dev DB (mirror local)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: seed-dev-db
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+
+      - name: Refresh dev env and Kong
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            scripts/vps-refresh-dev-env.sh \
+            "root@${LIVE_VPS_HOST}:/tmp/vps-refresh-dev-env.sh"
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" \
+            "bash /tmp/vps-refresh-dev-env.sh"
+
+      - name: Apply local seeds to dev DB
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/seed-dev-db-ci.sh
+
+      - name: Download dev env
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          mkdir -p dev-env-artifact
+          scp -i ~/.ssh/id_ed25519 -o BatchMode=yes \
+            "root@${LIVE_VPS_HOST}:/root/gwada-dev-env.development" \
+            dev-env-artifact/gwada-dev-env.development
+
+      - name: Upload dev env artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-env
+          path: dev-env-artifact/gwada-dev-env.development
+          retention-days: 90
+
+      - name: Open dev Kong port (ufw)
+        env:
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash <<'REMOTE'
+          set -euo pipefail
+          if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
+            ufw allow 8100/tcp comment 'gwada-dev-supabase-kong' || true
+          fi
+          ss -tln | grep ':8100 ' || echo "WARN: Kong :8100 nicht am Host"
+          curl -sf http://127.0.0.1:8100/auth/v1/health && echo " Kong OK"
+          REMOTE

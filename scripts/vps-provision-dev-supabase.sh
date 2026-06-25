@@ -121,34 +121,36 @@ fi
 # Keys aus .env (nicht source — Werte können Leerzeichen enthalten)
 read_env_key() {
   local key="$1"
-  grep -m1 "^${key}=" .env | cut -d= -f2- | tr -d '\r'
+  grep -m1 "^${key}=" .env | sed "s/^${key}=//" | tr -d '\r\n'
 }
 
-ANON_KEY="$(read_env_key ANON_KEY)"
-SERVICE_ROLE_KEY="$(read_env_key SERVICE_ROLE_KEY)"
-POSTGRES_PASSWORD="$(docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r')"
+if [[ -x "${INSTALL_DIR}/vps-refresh-dev-env.sh" ]] || [[ -f /tmp/vps-refresh-dev-env.sh ]]; then
+  GWADA_VPS_PUBLIC_HOST="${GWADA_VPS_PUBLIC_HOST:-95.111.229.250}" \
+    bash "${INSTALL_DIR}/vps-refresh-dev-env.sh" 2>/dev/null || \
+    GWADA_VPS_PUBLIC_HOST="${GWADA_VPS_PUBLIC_HOST:-95.111.229.250}" \
+    bash /tmp/vps-refresh-dev-env.sh
+else
+  ANON_KEY="$(read_env_key ANON_KEY)"
+  SERVICE_ROLE_KEY="$(read_env_key SERVICE_ROLE_KEY)"
+  POSTGRES_PASSWORD="$(docker compose exec -T db printenv POSTGRES_PASSWORD | tr -d '\r')"
+  ENC_PW="$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "${POSTGRES_PASSWORD}" 2>/dev/null || echo "${POSTGRES_PASSWORD}")"
 
-cat > "${ENV_OUT}" <<EOF
-# Generiert von scripts/vps-provision-dev-supabase.sh — nicht committen.
-# Lokal: cp nach .env.development oder pnpm setup:dev:env
-
+  cat > "${ENV_OUT}" <<EOF
 NEXT_PUBLIC_SUPABASE_PROXY=false
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:${KONG_HOST_PORT}
+NEXT_PUBLIC_SUPABASE_URL=http://95.111.229.250:${KONG_HOST_PORT}
 NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}
 SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}
-
-NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-dev
+NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-demo
 NEXT_PUBLIC_GWADA_SUPABASE_ONLY=false
-
 DEV_TUNNEL_REMOTE_HOST=${DB_IP}
 DEV_KONG_CONTAINER_IP=${KONG_IP}
-SUPABASE_DB_URL=postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:5434/postgres?sslmode=disable
+SUPABASE_DB_URL=postgresql://postgres:${ENC_PW}@127.0.0.1:5434/postgres?sslmode=disable
 EOF
-
-chmod 600 "${ENV_OUT}"
+  chmod 600 "${ENV_OUT}"
+fi
 
 log "Dev-Stack bereit."
 log "Env-Vorlage: ${ENV_OUT}"
-log "Kong (VPS): http://127.0.0.1:${KONG_HOST_PORT} (von Mac: SSH-Tunnel oder Host-Port)"
+log "Kong (VPS): http://95.111.229.250:${KONG_HOST_PORT}"
 log "Postgres-Container-IP: ${DB_IP}"

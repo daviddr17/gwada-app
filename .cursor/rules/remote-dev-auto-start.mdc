@@ -1,0 +1,15 @@
+---
+description: Nach Schema-/Dev-Setup Tunnel prüfen und pnpm dev starten; Seeds auf Dev spiegeln
+alwaysApply: true
+---
+
+# Remote-Dev: automatisch starten
+
+Wenn du an der Gwada-Web-App arbeitest und die Dev-Umgebung brauchst:
+
+1. **`.env.development`** — fehlt: `pnpm setup:dev:env`
+2. **Seeds** (lokal gespiegelt): einmalig `gh workflow run seed-dev-db.yml --ref main` oder `pnpm db:seed`
+3. **App starten:** `pnpm dev:start` (oder `pnpm dev` wenn API schon erreichbar)
+4. **Migrationen:** `pnpm db:push` (Dev) — nie Live ohne explizite Nutzer-Anfrage
+
+Login wie lokal: `dreyer@techlion.de` / `GwadaLocal2026!` · Workspace `gwada-demo`

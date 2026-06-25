@@ -7,33 +7,43 @@ compose_dir="${1:-/opt/gwada-supabase-dev}"
 cd "${compose_dir}"
 export COMPOSE_PROJECT_NAME=gwada-dev
 
-echo "→ Dev-Stack stoppen und Postgres-Volumes entfernen …"
-docker compose down -v --remove-orphans 2>/dev/null || true
+free_host_port() {
+  local port="$1"
+  local cid name
+  for cid in $(docker ps -q); do
+    if docker port "${cid}" 2>/dev/null | grep -qE ":${port}(/| ->)"; then
+      name="$(docker inspect --format '{{.Name}}' "${cid}" | sed 's#^/##')"
+      echo "→ Stoppe ${name} (Host :${port})"
+      docker rm -f "${cid}"
+    fi
+  done
+}
 
-# Verwaiste gwada-dev-* Container (z. B. Kong mit blockiertem :8100)
+echo "→ Dev-Stack vollständig stoppen …"
+if [[ -f docker-compose.yml ]]; then
+  docker compose stop -t 10 2>/dev/null || true
+  docker compose rm -f 2>/dev/null || true
+  docker compose down -v --remove-orphans 2>/dev/null || true
+fi
+
 if ids="$(docker ps -aq --filter name=gwada-dev-)"; then
-  echo "→ Entferne verwaiste gwada-dev-Container …"
-  docker rm -f ${ids} 2>/dev/null || true
+  echo "→ Entferne gwada-dev-* Container …"
+  docker rm -f ${ids}
 fi
 
-# Port 8100 freimachen (alter Kong o. ä.)
-if ids="$(docker ps -q --filter publish=8100)"; then
-  echo "→ Entferne Container auf Host-Port 8100 …"
-  docker rm -f ${ids} 2>/dev/null || true
-fi
+free_host_port 8100
+free_host_port 8101
 
 rm -f "${compose_dir}/.secrets-rotated-after-leak"
 
-echo "→ Dev-Stack neu starten …"
-set +e
-docker compose up -d
-rc=$?
-set -e
-if [[ "${rc}" -ne 0 ]]; then
-  echo "WARN: compose up fehlgeschlagen (rc=${rc}) — erneuter Versuch …" >&2
-  docker rm -f gwada-dev-kong 2>/dev/null || true
-  docker compose up -d
+if ss -tln 2>/dev/null | grep -q ':8100 '; then
+  echo "FEHLER: Host-Port 8100 noch belegt (kein Docker-Container?):" >&2
+  ss -tlnp 2>/dev/null | grep ':8100 ' || true
+  exit 1
 fi
+
+echo "→ Dev-Stack neu starten …"
+docker compose up -d
 
 for i in $(seq 1 60); do
   if docker compose exec -T db pg_isready -U postgres >/dev/null 2>&1; then
@@ -44,16 +54,19 @@ done
 docker compose exec -T db pg_isready -U postgres
 
 echo "→ Auth/REST mit frischer .env …"
-docker compose up -d --force-recreate auth rest 2>/dev/null || docker compose up -d auth rest
+docker compose up -d --force-recreate auth rest
 
-for i in $(seq 1 30); do
-  if curl -sf "http://127.0.0.1:8100/auth/v1/health" >/dev/null 2>&1; then
-    break
+KONG_PORT="$(grep -m1 '^KONG_HTTP_PORT=' .env 2>/dev/null | sed 's/^KONG_HTTP_PORT=//' | tr -d '\r\n')"
+KONG_PORT="${KONG_PORT:-8100}"
+
+for i in $(seq 1 45); do
+  if curl -sf "http://127.0.0.1:${KONG_PORT}/auth/v1/health" >/dev/null 2>&1; then
+    echo "✓ Dev-Postgres-Volume zurückgesetzt (Kong :${KONG_PORT})."
+    exit 0
   fi
   sleep 2
 done
 
-curl -sf "http://127.0.0.1:8100/auth/v1/health" >/dev/null \
-  || { echo "FEHLER: Kong/Auth auf :8100 nicht erreichbar." >&2; exit 1; }
-
-echo "✓ Dev-Postgres-Volume zurückgesetzt."
+echo "FEHLER: Kong/Auth auf :${KONG_PORT} nicht erreichbar." >&2
+docker compose ps >&2
+exit 1

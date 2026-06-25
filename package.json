@@ -4,7 +4,8 @@
   "private": true,
   "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "pnpm --filter web dev",
+    "dev": "bash scripts/dev-start.sh",
+    "dev:raw": "pnpm --filter web dev",
     "dev:start": "bash scripts/dev-start.sh",
     "dev:local": "pnpm --filter web dev:local",
     "dev:supabase-only": "pnpm --filter web dev:supabase-only",

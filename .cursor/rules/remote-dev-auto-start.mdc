@@ -5,11 +5,14 @@ alwaysApply: true
 
 # Remote-Dev: automatisch starten
 
-Wenn du an der Gwada-Web-App arbeitest und die Dev-Umgebung brauchst:
+**`pnpm dev`** macht alles selbst (kein manuelles Env-Sync):
 
-1. **`.env.development`** — fehlt: `pnpm setup:dev:env`
-2. **Seeds** (lokal gespiegelt): einmalig `gh workflow run seed-dev-db.yml --ref main` oder `pnpm db:seed`
-3. **App starten:** `pnpm dev:start` (oder `pnpm dev` wenn API schon erreichbar)
-4. **Migrationen:** `pnpm db:push` (Dev) — nie Live ohne explizite Nutzer-Anfrage
+1. Holt `.env.development` vom letzten Dev-CI-Artifact (`setup:dev:env`)
+2. Synchronisiert `.env.local` (`env:sync:dev`)
+3. Startet Next.js gegen Remote-Dev-DB
 
 Login wie lokal: `dreyer@techlion.de` / `GwadaLocal2026!` · Workspace `gwada-demo`
+
+Migrationen: **`pnpm db:push`** (Dev). Live nur auf explizite Nutzer-Anfrage (`GWADA_CONFIRM_LIVE_DB=1`).
+
+Dev-Secrets-Rotation auf dem VPS läuft idempotent per CI (`rotate-dev-secrets.yml`).

@@ -19,10 +19,11 @@ echo "→ Dev-Stack hochfahren …"
 mapfile -t DEV_SERVICES < <(docker compose config --services | grep -Ev '^(supavisor|pooler)$' || true)
 docker compose up -d "${DEV_SERVICES[@]}"
 
-echo "→ PostgREST + GoTrue neu laden …"
+echo "→ PostgREST + GoTrue + Kong neu laden …"
 docker compose exec -T db psql -U postgres -c "NOTIFY pgrst, 'reload schema';" 2>/dev/null || true
-docker compose up -d --force-recreate auth rest 2>/dev/null || docker compose restart auth rest
-sleep 8
+docker compose up -d --force-recreate kong rest auth realtime 2>/dev/null \
+  || docker compose restart kong rest auth realtime
+sleep 12
 
 mig_count="$(docker compose exec -T db psql -U postgres -tAc "SELECT count(*) FROM supabase_migrations.schema_migrations;")"
 echo "✓ Dev-DB-Migrationen angewendet (${mig_count} Migrationen)."

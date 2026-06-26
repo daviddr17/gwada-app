@@ -17,6 +17,7 @@ import {
   displayActionToTrigger,
   triggerShowColumn,
 } from "@/lib/staff/staff-todo-display-triggers";
+import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 
 export { displayActionToTrigger } from "@/lib/staff/staff-todo-display-triggers";
 
@@ -25,9 +26,11 @@ type TodoRow = {
   restaurant_id: string;
   title: string;
   description: string | null;
-  assignee_type: "staff" | "position_tag";
+  assignee_type: "staff" | "position_tag" | "mixed" | null;
   staff_id: string | null;
   position_tag_id: string | null;
+  staff_assignees?: { staff_id: string }[];
+  position_assignees?: { position_tag_id: string }[];
   priority: "high" | "medium" | "low";
   display_from: string | null;
   display_until: string | null;
@@ -70,6 +73,8 @@ const TODO_SELECT = `
   assignee_type,
   staff_id,
   position_tag_id,
+  staff_assignees:restaurant_staff_todo_staff_assignees ( staff_id ),
+  position_assignees:restaurant_staff_todo_position_assignees ( position_tag_id ),
   priority,
   display_from,
   display_until,
@@ -132,11 +137,9 @@ function todoAssignedToStaff(
   staffId: string,
   positionTagId: string | null,
 ): boolean {
-  if (todo.assignee_type === "staff") return todo.staff_id === staffId;
-  if (todo.assignee_type === "position_tag") {
-    return positionTagId != null && todo.position_tag_id === positionTagId;
-  }
-  return false;
+  return isAssignedToStaffMember(todo, staffId, positionTagId, {
+    emptyMeansAll: false,
+  });
 }
 
 async function fetchStaffTodoRows(
@@ -418,6 +421,7 @@ export async function completeDisplayTodo(
     staffId: string;
     todoId: string;
     completedByStaffId: string;
+    completionNote?: string | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
   const { data: todo } = await admin
@@ -442,6 +446,7 @@ export async function completeDisplayTodo(
         completed_at: now,
         reopened_at: null,
         confirmed_at: now,
+        completion_note: params.completionNote?.trim() || null,
       },
       { onConflict: "todo_id,staff_id" },
     );

@@ -1,4 +1,4 @@
-export type StaffTodoAssigneeType = "staff" | "position_tag";
+export type StaffTodoAssigneeType = "staff" | "position_tag" | "mixed";
 
 export type StaffTodoPriority = "high" | "medium" | "low";
 
@@ -33,7 +33,7 @@ export type RestaurantStaffTodoRow = {
   restaurant_id: string;
   title: string;
   description: string | null;
-  assignee_type: StaffTodoAssigneeType;
+  assignee_type: StaffTodoAssigneeType | null;
   staff_id: string | null;
   position_tag_id: string | null;
   priority: StaffTodoPriority;
@@ -56,6 +56,14 @@ export type RestaurantStaffTodoRow = {
   updated_at: string;
   staff?: { id: string; given_name: string; family_name: string | null } | null;
   position_tag?: { id: string; name: string } | null;
+  staff_assignees?: {
+    staff_id: string;
+    staff?: { id: string; given_name: string; family_name: string | null } | null;
+  }[];
+  position_assignees?: {
+    position_tag_id: string;
+    position_tag?: { id: string; name: string } | null;
+  }[];
   completions?: RestaurantStaffTodoCompletionRow[];
 };
 
@@ -66,6 +74,7 @@ export type RestaurantStaffTodoCompletionRow = {
   completed_at: string;
   reopened_at: string | null;
   confirmed_at: string | null;
+  completion_note: string | null;
   created_at: string;
 };
 
@@ -109,9 +118,8 @@ export const STAFF_TODO_LOG_ACTION_LABELS: Record<StaffTodoLogAction, string> = 
 export type StaffTodoUpsertInput = {
   title: string;
   description?: string | null;
-  assignee_type: StaffTodoAssigneeType;
-  staff_id?: string | null;
-  position_tag_id?: string | null;
+  staff_ids: string[];
+  position_tag_ids: string[];
   priority: StaffTodoPriority;
   display_from?: string | null;
   display_until?: string | null;

@@ -20,9 +20,12 @@ import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-sk
 import {
   fetchStaffTodosForRestaurant,
   staffTodoAssigneeLabel,
+  assignedStaffIds,
+  assignedPositionTagIds,
   completeStaffTodoForStaff,
   insertStaffTodoLogEntry,
 } from "@/lib/supabase/staff-todos-db";
+import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -153,17 +156,11 @@ export function StaffTodosScreen() {
 
     if (staffFilterFromUrl) {
       const staff = staffById.get(staffFilterFromUrl);
-      rows = rows.filter((t) => {
-        if (t.staff_id === staffFilterFromUrl) return true;
-        if (
-          t.assignee_type === "position_tag" &&
-          staff?.position_tag_id &&
-          t.position_tag_id === staff.position_tag_id
-        ) {
-          return true;
-        }
-        return false;
-      });
+      rows = rows.filter((t) =>
+        isAssignedToStaffMember(t, staffFilterFromUrl, staff?.position_tag_id ?? null, {
+          emptyMeansAll: false,
+        }),
+      );
     }
 
     rows = rows.filter((t) => {
@@ -172,13 +169,8 @@ export function StaffTodosScreen() {
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterAssignee !== "all") {
         const [kind, id] = filterAssignee.split(":");
-        if (kind === "staff" && !(t.assignee_type === "staff" && t.staff_id === id))
-          return false;
-        if (
-          kind === "tag" &&
-          !(t.assignee_type === "position_tag" && t.position_tag_id === id)
-        )
-          return false;
+        if (kind === "staff" && !assignedStaffIds(t).includes(id)) return false;
+        if (kind === "tag" && !assignedPositionTagIds(t).includes(id)) return false;
       }
       if (q) {
         const hay = [
@@ -243,11 +235,15 @@ export function StaffTodosScreen() {
 
   const handleMarkDone = async (todo: RestaurantStaffTodoRow) => {
     if (!restaurantId || !canUpdate) return;
-    let staffId = todo.staff_id;
-    if (!staffId && todo.assignee_type === "position_tag" && todo.position_tag_id) {
+    let staffId = assignedStaffIds(todo)[0] ?? todo.staff_id ?? null;
+    if (!staffId) {
+      const tagIds = assignedPositionTagIds(todo);
       staffId =
         staffList.find(
-          (s) => s.is_active && s.position_tag_id === todo.position_tag_id,
+          (s) =>
+            s.is_active &&
+            s.position_tag_id != null &&
+            tagIds.includes(s.position_tag_id),
         )?.id ?? null;
     }
     if (!staffId) {

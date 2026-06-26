@@ -33,12 +33,13 @@ import {
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   archiveStaffTodo,
+  assignedStaffIds,
+  assignedPositionTagIds,
   insertStaffTodoLogEntry,
   upsertStaffTodo,
 } from "@/lib/supabase/staff-todos-db";
 import type {
   RestaurantStaffTodoRow,
-  StaffTodoAssigneeType,
   StaffTodoCompletionMode,
   StaffTodoPriority,
   StaffTodoUpsertInput,
@@ -50,6 +51,7 @@ import {
 import { staffDisplayName, type RestaurantStaffRow } from "@/lib/types/staff";
 import type { StaffPositionTagDefinition } from "@/lib/types/staff";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MultiSelectCheckboxList } from "@/components/ui/multi-select-checkbox-list";
 import { hasModuleDelete } from "@/lib/permissions/module-crud-permissions";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { cn } from "@/lib/utils";
@@ -92,9 +94,8 @@ export function StaffTodoFormDrawer({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [assigneeType, setAssigneeType] = useState<StaffTodoAssigneeType>("staff");
-  const [staffId, setStaffId] = useState("");
-  const [positionTagId, setPositionTagId] = useState("");
+  const [staffIds, setStaffIds] = useState<string[]>([]);
+  const [positionTagIds, setPositionTagIds] = useState<string[]>([]);
   const [priority, setPriority] = useState<StaffTodoPriority>("medium");
   const [displayFromYmd, setDisplayFromYmd] = useState("");
   const [displayFromHm, setDisplayFromHm] = useState("");
@@ -118,9 +119,8 @@ export function StaffTodoFormDrawer({
     if (!todo) {
       setTitle("");
       setDescription("");
-      setAssigneeType("staff");
-      setStaffId(staffList[0]?.id ?? "");
-      setPositionTagId(positionTags[0]?.id ?? "");
+      setStaffIds(staffList.filter((s) => s.is_active)[0]?.id ? [staffList.filter((s) => s.is_active)[0]!.id] : []);
+      setPositionTagIds([]);
       setPriority("medium");
       setDisplayFromYmd("");
       setDisplayFromHm("");
@@ -140,9 +140,8 @@ export function StaffTodoFormDrawer({
     }
     setTitle(todo.title);
     setDescription(todo.description ?? "");
-    setAssigneeType(todo.assignee_type);
-    setStaffId(todo.staff_id ?? "");
-    setPositionTagId(todo.position_tag_id ?? "");
+    setStaffIds(assignedStaffIds(todo));
+    setPositionTagIds(assignedPositionTagIds(todo));
     setPriority(todo.priority);
     const from = isoToYmdHm(todo.display_from);
     const until = isoToYmdHm(todo.display_until);
@@ -182,11 +181,6 @@ export function StaffTodoFormDrawer({
     [positionTags],
   );
 
-  const assigneeTypeOptions = [
-    { value: "staff", label: "Einzelperson" },
-    { value: "position_tag", label: "Position (Tag)" },
-  ];
-
   const priorityOptions = (
     Object.entries(STAFF_TODO_PRIORITY_LABELS) as [StaffTodoPriority, string][]
   ).map(([value, label]) => ({ value, label }));
@@ -204,20 +198,15 @@ export function StaffTodoFormDrawer({
       toast.error("Titel ist erforderlich.");
       return null;
     }
-    if (assigneeType === "staff" && !staffId) {
-      toast.error("Bitte einen Mitarbeiter wählen.");
-      return null;
-    }
-    if (assigneeType === "position_tag" && !positionTagId) {
-      toast.error("Bitte eine Position wählen.");
+    if (staffIds.length === 0 && positionTagIds.length === 0) {
+      toast.error("Bitte mindestens einen Mitarbeiter oder eine Position wählen.");
       return null;
     }
     return {
       title: trimmed,
       description: description.trim() || null,
-      assignee_type: assigneeType,
-      staff_id: assigneeType === "staff" ? staffId : null,
-      position_tag_id: assigneeType === "position_tag" ? positionTagId : null,
+      staff_ids: staffIds,
+      position_tag_ids: positionTagIds,
       priority,
       display_from: ymdHmToIso(displayFromYmd, displayFromHm),
       display_until: ymdHmToIso(displayUntilYmd, displayUntilHm),
@@ -311,33 +300,31 @@ export function StaffTodoFormDrawer({
                 className={staffDrawerFieldClassName}
               />
             </DrawerFormSection>
-            <DrawerFormSection title="Zuordnung">
-              <SearchableSelect
-                value={assigneeType}
-                onValueChange={(v) => setAssigneeType(v as StaffTodoAssigneeType)}
-                options={assigneeTypeOptions}
-                className={selectClass}
-              />
+            <DrawerFormSection title="Zuständigkeit">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Mehrere Mitarbeiter und/oder Positionen möglich.
+              </p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Mitarbeiter</p>
+                  <MultiSelectCheckboxList
+                    options={staffOptions}
+                    value={staffIds}
+                    onChange={setStaffIds}
+                    emptyMessage="Keine aktiven Mitarbeiter."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Positionen</p>
+                  <MultiSelectCheckboxList
+                    options={tagOptions}
+                    value={positionTagIds}
+                    onChange={setPositionTagIds}
+                    emptyMessage="Keine aktiven Positionen."
+                  />
+                </div>
+              </div>
             </DrawerFormSection>
-            {assigneeType === "staff" ? (
-              <DrawerFormSection title="Mitarbeiter">
-                <SearchableSelect
-                  value={staffId}
-                  onValueChange={setStaffId}
-                  options={staffOptions}
-                  className={selectClass}
-                />
-              </DrawerFormSection>
-            ) : (
-              <DrawerFormSection title="Position">
-                <SearchableSelect
-                  value={positionTagId}
-                  onValueChange={setPositionTagId}
-                  options={tagOptions}
-                  className={selectClass}
-                />
-              </DrawerFormSection>
-            )}
             <DrawerFormSection title="Priorität">
               <SearchableSelect
                 value={priority}

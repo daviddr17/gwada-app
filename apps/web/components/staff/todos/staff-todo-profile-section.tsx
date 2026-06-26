@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, ListTodo } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
+import { staffTodosPageUrl } from "@/lib/staff/staff-todo-navigation";
 import {
   fetchStaffTodosForRestaurant,
   staffTodoAssigneeLabel,
 } from "@/lib/supabase/staff-todos-db";
-import { staffTodosPageUrl } from "@/lib/staff/staff-todo-navigation";
 import {
   computeStaffTodoStatus,
   STAFF_TODO_STATUS_LABELS,
@@ -19,15 +20,9 @@ import type { RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 
 function todoMatchesStaff(todo: RestaurantStaffTodoRow, staff: RestaurantStaffRow): boolean {
-  if (todo.staff_id === staff.id) return true;
-  if (
-    todo.assignee_type === "position_tag" &&
-    staff.position_tag_id &&
-    todo.position_tag_id === staff.position_tag_id
-  ) {
-    return true;
-  }
-  return false;
+  return isAssignedToStaffMember(todo, staff.id, staff.position_tag_id ?? null, {
+    emptyMeansAll: false,
+  });
 }
 
 type StaffTodoProfileSectionProps = {

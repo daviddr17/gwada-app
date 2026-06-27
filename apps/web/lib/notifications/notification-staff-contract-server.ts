@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NotificationItem } from "@/lib/notifications/notification-types";
+import { isSelfOriginatedNotification } from "@/lib/notifications/notification-self-origin";
 
 export async function emitStaffContractSignedNotification(
   admin: SupabaseClient,
@@ -18,6 +19,14 @@ export async function emitStaffContractSignedNotification(
   },
 ): Promise<void> {
   if (!params.targetProfileId) return;
+  if (
+    isSelfOriginatedNotification(
+      params.targetProfileId,
+      params.actorUserId,
+    )
+  ) {
+    return;
+  }
 
   const referenceId = params.pendingEmployeeSignature
     ? `${params.contractId}:pending-employee`
@@ -43,6 +52,7 @@ export async function emitStaffContractSignedNotification(
       contractTitle: params.contractTitle,
       documentId: params.documentId,
       actorUserId: params.actorUserId,
+      actorProfileId: params.actorUserId,
       revised: params.revised,
       pendingEmployeeSignature: params.pendingEmployeeSignature ?? false,
     },
@@ -95,6 +105,14 @@ export async function loadStaffContractSignedNotificationItems(
     const payload = row.payload ?? {};
     const targetProfileId = payload.targetProfileId;
     if (targetProfileId !== params.userId) continue;
+
+    const actorUserId = payload.actorUserId;
+    if (
+      typeof actorUserId === "string" &&
+      isSelfOriginatedNotification(params.userId, actorUserId)
+    ) {
+      continue;
+    }
 
     const contractId = payload.contractId;
     if (typeof contractId !== "string" || dismissedIds.has(contractId)) continue;

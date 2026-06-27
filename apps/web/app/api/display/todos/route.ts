@@ -9,13 +9,18 @@ import {
   deferDisplayTodo,
   displayActionToTrigger,
   displayTriggerBlocksProceed,
+  DisplayTodosFetchError,
   getDisplayTodoBadgeSummary,
   getTodosForDisplayTrigger,
+  fetchStaffTodoDeferReasonDefault,
   isVisibleInDisplayTodoList,
   listDisplayTodosForStaff,
+  mapDisplayTodoClientPayload,
   mapDisplayTodoForClient,
+  countDisplayTodosForBadge,
   reopenDisplayTodo,
 } from "@/lib/staff/staff-display-todos-server";
+import type { StaffTodoCapturePayload } from "@/lib/staff/staff-todo-capture";
 import type { StaffTodoDeferTrigger } from "@/lib/types/staff-todos";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -39,38 +44,52 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  if (badgeOnly) {
-    const summary = await getDisplayTodoBadgeSummary(admin, {
+  try {
+    if (badgeOnly) {
+      const summary = await getDisplayTodoBadgeSummary(admin, {
+        restaurantId: access.restaurantId,
+        staffId: access.staffId,
+      });
+      return NextResponse.json({
+        badge_count: summary.count,
+        badge_urgency: summary.urgency,
+      });
+    }
+
+    if (trigger) {
+      const todos = await getTodosForDisplayTrigger(admin, {
+        restaurantId: access.restaurantId,
+        staffId: access.staffId,
+        trigger,
+        prepareTrigger: prepare,
+      });
+      const blocks = displayTriggerBlocksProceed(todos, trigger);
+      const clientTodos = todos.map((t) =>
+        mapDisplayTodoClientPayload(t, access.staffId),
+      );
+      return NextResponse.json({ todos: clientTodos, blocks });
+    }
+
+    const items = await listDisplayTodosForStaff(admin, {
       restaurantId: access.restaurantId,
       staffId: access.staffId,
     });
-    return NextResponse.json({
-      badge_count: summary.count,
-      badge_urgency: summary.urgency,
-    });
+    const clientTodos = items
+      .map((t) => mapDisplayTodoForClient(t, access.staffId))
+      .filter(isVisibleInDisplayTodoList)
+      .map((t) => mapDisplayTodoClientPayload(t, access.staffId));
+    const { count: badge_count } = countDisplayTodosForBadge(
+      items,
+      access.staffId,
+    );
+
+    return NextResponse.json({ todos: clientTodos, badge_count });
+  } catch (error) {
+    if (error instanceof DisplayTodosFetchError) {
+      return NextResponse.json({ error: "todos_fetch_failed" }, { status: 503 });
+    }
+    throw error;
   }
-
-  if (trigger) {
-    const todos = await getTodosForDisplayTrigger(admin, {
-      restaurantId: access.restaurantId,
-      staffId: access.staffId,
-      trigger,
-      prepareTrigger: prepare,
-    });
-    const blocks = displayTriggerBlocksProceed(todos, trigger);
-    return NextResponse.json({ todos, blocks });
-  }
-
-  const todos = await listDisplayTodosForStaff(admin, {
-    restaurantId: access.restaurantId,
-    staffId: access.staffId,
-  });
-  const clientTodos = todos
-    .map((t) => mapDisplayTodoForClient(t, access.staffId))
-    .filter(isVisibleInDisplayTodoList);
-  const badge_count = clientTodos.filter((t) => !t.done_for_staff).length;
-
-  return NextResponse.json({ todos: clientTodos, badge_count });
 }
 
 type PostBody =
@@ -78,6 +97,11 @@ type PostBody =
       action: "complete";
       todo_id: string;
       completed_by_staff_id?: string;
+      completion_note?: string | null;
+      captured_numeric?: number | null;
+      captured_text?: string | null;
+      captured_boolean?: boolean | null;
+      corrective_action?: string | null;
     }
   | {
       action: "reopen";
@@ -124,11 +148,24 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "complete") {
+    const capture: StaffTodoCapturePayload = {
+      captured_numeric:
+        "captured_numeric" in body ? body.captured_numeric ?? null : null,
+      captured_text:
+        "captured_text" in body ? body.captured_text ?? null : null,
+      captured_boolean:
+        "captured_boolean" in body ? body.captured_boolean ?? null : null,
+      corrective_action:
+        "corrective_action" in body ? body.corrective_action ?? null : null,
+    };
     const result = await completeDisplayTodo(admin, {
       restaurantId: access.restaurantId,
       staffId: access.staffId,
       todoId: body.todo_id,
       completedByStaffId: body.completed_by_staff_id ?? access.staffId,
+      completionNote:
+        "completion_note" in body ? body.completion_note ?? null : null,
+      capture,
     });
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
@@ -163,26 +200,43 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "prepare_pin_login") {
-    const todos = await getTodosForDisplayTrigger(admin, {
-      restaurantId: access.restaurantId,
-      staffId: access.staffId,
-      trigger: "pin_login",
-      prepareTrigger: true,
+    const [todos, deferReasonDefault] = await Promise.all([
+      getTodosForDisplayTrigger(admin, {
+        restaurantId: access.restaurantId,
+        staffId: access.staffId,
+        trigger: "pin_login",
+        prepareTrigger: true,
+      }),
+      fetchStaffTodoDeferReasonDefault(admin, access.restaurantId),
+    ]);
+    const clientTodos = todos.map((t) =>
+      mapDisplayTodoClientPayload(t, access.staffId),
+    );
+    return NextResponse.json({
+      todos: clientTodos,
+      blocks: false,
+      defer_reason_default: deferReasonDefault,
     });
-    return NextResponse.json({ todos, blocks: false });
   }
 
   if (body.action === "prepare_trigger") {
     const trigger = displayActionToTrigger(body.display_action);
-    const todos = await getTodosForDisplayTrigger(admin, {
-      restaurantId: access.restaurantId,
-      staffId: access.staffId,
-      trigger,
-      prepareTrigger: true,
-    });
+    const [todos, deferReasonDefault] = await Promise.all([
+      getTodosForDisplayTrigger(admin, {
+        restaurantId: access.restaurantId,
+        staffId: access.staffId,
+        trigger,
+        prepareTrigger: true,
+      }),
+      fetchStaffTodoDeferReasonDefault(admin, access.restaurantId),
+    ]);
+    const clientTodos = todos.map((t) =>
+      mapDisplayTodoClientPayload(t, access.staffId),
+    );
     return NextResponse.json({
-      todos,
+      todos: clientTodos,
       blocks: displayTriggerBlocksProceed(todos, trigger),
+      defer_reason_default: deferReasonDefault,
     });
   }
 

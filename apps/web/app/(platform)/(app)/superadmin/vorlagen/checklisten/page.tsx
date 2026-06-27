@@ -1,15 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
+import { SUPERADMIN_VORLAGEN_ROUTES } from "@/lib/navigation/superadmin-vorlagen-routes";
 
-import { SuperadminComplianceTemplatesPanel } from "@/components/superadmin/superadmin-compliance-templates-panel";
-
-export default function SuperadminChecklistenVorlagenPage() {
-  return (
-    <div className="space-y-6 pt-2">
-      <p className="text-sm text-muted-foreground">
-        Zentrale HACCP-Checklistenvorlagen — Restaurants importieren Kopien unter
-        Checklisten → Vorlagen (Standardvorlagen importieren).
-      </p>
-      <SuperadminComplianceTemplatesPanel />
-    </div>
-  );
+export default function SuperadminChecklistenVorlagenRedirectPage() {
+  redirect(SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen);
 }

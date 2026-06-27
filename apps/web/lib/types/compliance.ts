@@ -1,7 +1,6 @@
 export const COMPLIANCE_CATEGORIES = [
   "temperature",
   "cleaning",
-  "goods_receipt",
   "hot_hold",
   "cooking",
   "other",
@@ -12,7 +11,6 @@ export type ComplianceCategory = (typeof COMPLIANCE_CATEGORIES)[number];
 export const COMPLIANCE_CATEGORY_LABELS: Record<ComplianceCategory, string> = {
   temperature: "Temperatur",
   cleaning: "Reinigung",
-  goods_receipt: "Wareneingang",
   hot_hold: "Warmhalten",
   cooking: "Kerntemperatur",
   other: "Sonstiges",
@@ -22,7 +20,6 @@ export const COMPLIANCE_FREQUENCIES = [
   "daily",
   "weekly",
   "monthly",
-  "per_delivery",
   "ad_hoc",
 ] as const;
 
@@ -32,7 +29,6 @@ export const COMPLIANCE_FREQUENCY_LABELS: Record<ComplianceFrequency, string> = 
   daily: "Täglich",
   weekly: "Wöchentlich",
   monthly: "Monatlich",
-  per_delivery: "Pro Lieferung",
   ad_hoc: "Bei Bedarf",
 };
 

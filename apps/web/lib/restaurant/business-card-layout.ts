@@ -1,9 +1,13 @@
 import { openingHoursWeekdayRows } from "@/lib/opening-hours/embed-display-utils";
-import type { RestaurantProfile } from "@/lib/types/restaurant";
+import { WEEKDAY_LABEL_DE } from "@/lib/constants/restaurant-profile";
+import type { DayHours, RestaurantProfile, Weekday } from "@/lib/types/restaurant";
 
-export const BUSINESS_CARD_WIDTH_MM = 90;
-export const BUSINESS_CARD_HEIGHT_MM = 128;
+export const BUSINESS_CARD_WIDTH_MM = 85;
+export const BUSINESS_CARD_HEIGHT_MM = 55;
 export const BUSINESS_CARD_ASPECT = BUSINESS_CARD_WIDTH_MM / BUSINESS_CARD_HEIGHT_MM;
+
+/** Max Öffnungszeiten-Zeilen auf der Rückseite (Preview + PDF). */
+export const BUSINESS_CARD_MAX_HOUR_ROWS = 4;
 
 export type BusinessCardOptions = {
   showCover: boolean;
@@ -54,6 +58,30 @@ export function normalizeWebsiteHref(url: string): string | null {
   return `https://${trimmed}`;
 }
 
+/** Gruppiert aufeinanderfolgende Wochentage mit gleichen Zeiten (kompakt für Visitenkarte). */
+export function compactOpeningHourRows(
+  weeklyHours: Record<Weekday, DayHours>,
+): Array<{ label: string; value: string }> {
+  const rows = openingHoursWeekdayRows(weeklyHours);
+  const grouped: Array<{ start: Weekday; end: Weekday; value: string }> = [];
+
+  for (const row of rows) {
+    const last = grouped[grouped.length - 1];
+    if (last && last.value === row.value) {
+      last.end = row.day;
+    } else {
+      grouped.push({ start: row.day, end: row.day, value: row.value });
+    }
+  }
+
+  return grouped.map(({ start, end, value }) => {
+    const startLabel = WEEKDAY_LABEL_DE[start].slice(0, 2);
+    const endLabel = WEEKDAY_LABEL_DE[end].slice(0, 2);
+    const label = start === end ? startLabel : `${startLabel}–${endLabel}`;
+    return { label, value };
+  });
+}
+
 export function buildBusinessCardContent(
   profile: RestaurantProfile,
   options: BusinessCardOptions,
@@ -76,7 +104,10 @@ export function buildBusinessCardContent(
   const websiteLabel = websiteRaw ? formatWebsiteDisplay(websiteRaw) : null;
 
   const hourRows = options.showOpeningHours
-    ? openingHoursWeekdayRows(profile.weeklyHours)
+    ? compactOpeningHourRows(profile.weeklyHours).slice(
+        0,
+        BUSINESS_CARD_MAX_HOUR_ROWS,
+      )
     : [];
 
   return {

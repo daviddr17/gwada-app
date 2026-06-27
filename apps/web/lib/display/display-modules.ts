@@ -5,6 +5,7 @@ export const DISPLAY_MODULE_PERMISSION: Record<DisplayModule, string> = {
   reservations: "display.reservations",
   recipes: "display.recipes",
   inventory: "display.inventory",
+  compliance: "display.compliance",
   kds: "display.kds",
 };
 

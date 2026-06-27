@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
   deriveMessagesUnreadSummaryFromConversations,
 } from "@/lib/contact-messages/messages-unread-summary";
@@ -11,7 +11,6 @@ import {
 } from "@/lib/contact-messages/unified-inbox-cache";
 import { markDashboardBatchMessagesFetched } from "@/lib/dashboard/dashboard-batch-warm-coordinator";
 import { clearDashboardBatchSummaryCache, writeDashboardBatchSummaryCache } from "@/lib/dashboard/dashboard-batch-summary-cache";
-import { visibleDashboardBatchWidgets } from "@/lib/dashboard/dashboard-batch-widgets";
 import {
   GWADA_DASHBOARD_MESSAGES_REFRESH_EVENT,
   type DashboardMessagesRefreshDetail,
@@ -21,7 +20,7 @@ import { patchMessagesUnreadSummary } from "@/lib/dashboard/patch-dashboard-mess
 import type { DashboardBatchQueryData } from "@/lib/hooks/use-dashboard-batch-summary-query";
 import { useDashboardBatchQueryEnabled } from "@/lib/hooks/use-dashboard-batch-query-enabled";
 import { useDashboardBatchSummaryQuery } from "@/lib/hooks/use-dashboard-batch-summary-query";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { queryKeys } from "@/lib/query/query-keys";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
@@ -35,12 +34,8 @@ export function DashboardBatchQuerySync() {
   const queryClient = useQueryClient();
   const enabled = useDashboardBatchQueryEnabled();
   const { restaurantId } = useWorkspaceRestaurantUuid();
-  const { visibility } = useDashboardWidgetPreferences();
+  const { visibility, batchWidgets } = useDashboardEffectiveWidgetPrefs();
   const { data: batchData } = useDashboardBatchSummaryQuery();
-  const widgets = useMemo(
-    () => visibleDashboardBatchWidgets(visibility),
-    [visibility],
-  );
 
   useEffect(() => {
     if (!restaurantId || !visibility.messages || !batchData?.data?.messages) {
@@ -52,7 +47,7 @@ export function DashboardBatchQuerySync() {
   useEffect(() => {
     if (!enabled || !restaurantId) return;
 
-    const summaryKey = queryKeys.dashboard.summary(restaurantId, widgets);
+    const summaryKey = queryKeys.dashboard.summary(restaurantId, batchWidgets);
 
     const invalidateBatch = () => {
       void queryClient.invalidateQueries({
@@ -74,7 +69,7 @@ export function DashboardBatchQuerySync() {
           ...old,
           data: { ...old.data, messages: nextMessages },
         };
-        writeDashboardBatchSummaryCache(restaurantId, widgets, nextPayload);
+        writeDashboardBatchSummaryCache(restaurantId, batchWidgets, nextPayload);
         return nextPayload;
       });
       return true;
@@ -105,7 +100,7 @@ export function DashboardBatchQuerySync() {
           ...old,
           data: { ...old.data, messages: nextMessages },
         };
-        writeDashboardBatchSummaryCache(restaurantId, widgets, nextPayload);
+        writeDashboardBatchSummaryCache(restaurantId, batchWidgets, nextPayload);
         return nextPayload;
       });
     };
@@ -158,7 +153,7 @@ export function DashboardBatchQuerySync() {
         onInboxCache,
       );
     };
-  }, [enabled, queryClient, restaurantId, widgets]);
+  }, [enabled, queryClient, restaurantId, batchWidgets]);
 
   return null;
 }

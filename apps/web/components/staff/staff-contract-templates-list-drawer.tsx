@@ -35,12 +35,14 @@ export function StaffContractTemplatesListDrawer({
   restaurantId,
   employmentTypeId,
   employmentTypeName,
+  onTemplatesChanged,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   restaurantId: string;
   employmentTypeId: string;
   employmentTypeName: string;
+  onTemplatesChanged?: () => void;
 }) {
   const [templates, setTemplates] = useState<StaffContractTemplateRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,6 +70,16 @@ export function StaffContractTemplatesListDrawer({
     void reload();
   }, [open, reload]);
 
+  const openNew = () => {
+    setEditTemplateId(null);
+    setTemplateEditorOpen(true);
+  };
+
+  const openEdit = (id: string) => {
+    setEditTemplateId(id);
+    setTemplateEditorOpen(true);
+  };
+
   const templateIds = useMemo(() => templates.map((t) => t.id), [templates]);
 
   const sort = useSortableReorder({
@@ -83,14 +95,8 @@ export function StaffContractTemplatesListDrawer({
     },
   });
 
-  const openNew = () => {
-    setEditTemplateId(null);
-    setTemplateEditorOpen(true);
-  };
-
-  const openEdit = (id: string) => {
-    setEditTemplateId(id);
-    setTemplateEditorOpen(true);
+  const notifyTemplatesChanged = () => {
+    onTemplatesChanged?.();
   };
 
   return (
@@ -221,7 +227,10 @@ export function StaffContractTemplatesListDrawer({
         employmentTypeId={employmentTypeId}
         employmentTypeName={employmentTypeName}
         templateId={editTemplateId}
-        onSaved={() => void reload()}
+        onSaved={() => {
+          notifyTemplatesChanged();
+          void reload();
+        }}
       />
 
       <StaffContractPlatformImportDrawer
@@ -230,7 +239,10 @@ export function StaffContractTemplatesListDrawer({
         restaurantId={restaurantId}
         employmentTypeId={employmentTypeId}
         employmentTypeName={employmentTypeName}
-        onImported={() => void reload()}
+        onImported={() => {
+          notifyTemplatesChanged();
+          void reload();
+        }}
       />
     </>
   );

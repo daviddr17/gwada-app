@@ -25,11 +25,24 @@ import { cn } from "@/lib/utils"
  * Controlled time inputs: nicht bei jedem `onChange` erneut `.focus()` aufrufen — das
  * unterbricht die Segment-Eingabe (z. B. „12“ wird zu „02“).
  */
-export const formScheduleTimeInputClassName = cn(
-  "h-11 w-[7.75rem] shrink-0 rounded-xl border border-input bg-transparent px-2.5 py-1 text-base tabular-nums transition-colors outline-none",
-  "placeholder:text-muted-foreground",
+const formScheduleTimeInputBaseClassName = cn(
+  "h-11 min-w-0 shrink-0 rounded-xl border border-input bg-transparent px-3 py-1 text-sm tabular-nums transition-colors outline-none shadow-none",
+  "placeholder:text-muted-foreground text-foreground",
+  "hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/40",
   "focus:border-ring focus:ring-3 focus:ring-ring/50",
-  "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:bg-input/30 dark:disabled:bg-input/80",
+  "disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 dark:disabled:bg-input/80",
+)
+
+/** Schmal (Schichtplan, Öffnungszeiten-Grid). */
+export const formScheduleTimeInputClassName = cn(
+  formScheduleTimeInputBaseClassName,
+  "w-[7.75rem]",
+)
+
+/** Volle Spaltenbreite neben DatePicker in Drawer-Formularen. */
+export const formScheduleTimeInputFullWidthClassName = cn(
+  formScheduleTimeInputBaseClassName,
+  "w-full",
 )
 
 function parseYmdToDate(ymd: string | null | undefined): Date | undefined {

@@ -7,18 +7,18 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Building2,
-  Database,
+  Hourglass,
   LayoutDashboard,
   LogOut,
   Plug,
   ScrollText,
   FileText,
   Files,
+  Server,
   Settings,
   Settings2,
   Shield,
   Users,
-  Workflow,
 } from "lucide-react";
 import {
   Sidebar,
@@ -31,9 +31,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -41,10 +38,13 @@ import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context"
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { AppSidebarBrandLogo } from "@/components/layout/app-sidebar-brand-logo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { SUPERADMIN_VORLAGEN_ROUTES } from "@/lib/navigation/superadmin-vorlagen-routes";
+import {
+  SUPERADMIN_SYSTEM_ROUTES,
+  isSuperadminSystemPath,
+} from "@/lib/navigation/superadmin-system-routes";
 import {
   SIDEBAR_MODULE_BY_ID,
   type SidebarModuleId,
@@ -194,6 +194,16 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/warteliste")}
+                      tooltip="Warteliste"
+                      render={<Link href="/superadmin/warteliste" prefetch />}
+                    >
+                      <Hourglass />
+                      <span>Warteliste</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
                       isActive={pathname.startsWith(
                         "/superadmin/restaurants",
                       )}
@@ -220,26 +230,40 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith("/superadmin/datenbank")}
-                      tooltip="Datenbank"
-                      render={<Link href="/superadmin/datenbank" prefetch />}
+                      isActive={isSuperadminSystemPath(pathname)}
+                      tooltip="System"
+                      render={
+                        <Link href={SUPERADMIN_SYSTEM_ROUTES.datenbank} prefetch />
+                      }
                     >
-                      <Database />
-                      <span>Datenbank</span>
+                      <Server />
+                      <span>System</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
+                      tooltip="Vorlagen"
+                      render={
+                        <Link href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} prefetch />
+                      }
+                    >
+                      <Files />
+                      <span>Vorlagen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       isActive={pathname.startsWith(
-                        "/superadmin/lade-strategie",
+                        "/superadmin/benachrichtigungen",
                       )}
-                      tooltip="Lade- & Cache-Strategie"
+                      tooltip="Benachrichtigungen"
                       render={
-                        <Link href="/superadmin/lade-strategie" prefetch />
+                        <Link href="/superadmin/benachrichtigungen" prefetch />
                       }
                     >
-                      <Workflow />
-                      <span>Lade-Strategie</span>
+                      <Bell />
+                      <span>Benachrichtigungen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
@@ -257,64 +281,6 @@ export function AppSidebar() {
                           pendingChangelogCount,
                         )}
                       </span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
-                      tooltip="Vorlagen"
-                      render={
-                        <Link href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} prefetch />
-                      }
-                    >
-                      <Files />
-                      <span>Vorlagen</span>
-                    </SidebarMenuButton>
-                    <SidebarMenuSub>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          isActive={pathname.startsWith(
-                            SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen,
-                          )}
-                          render={
-                            <Link
-                              href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen}
-                              prefetch
-                            />
-                          }
-                        >
-                          Vertragsvorlagen
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                      <SidebarMenuSubItem>
-                        <SidebarMenuSubButton
-                          isActive={pathname.startsWith(
-                            SUPERADMIN_VORLAGEN_ROUTES.checklisten,
-                          )}
-                          render={
-                            <Link
-                              href={SUPERADMIN_VORLAGEN_ROUTES.checklisten}
-                              prefetch
-                            />
-                          }
-                        >
-                          Checklisten-Vorlagen
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    </SidebarMenuSub>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      isActive={pathname.startsWith(
-                        "/superadmin/benachrichtigungen",
-                      )}
-                      tooltip="Benachrichtigungen"
-                      render={
-                        <Link href="/superadmin/benachrichtigungen" prefetch />
-                      }
-                    >
-                      <Bell />
-                      <span>Benachrichtigungen</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>
@@ -356,7 +322,6 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <AppSidebarBrandLogo />
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>

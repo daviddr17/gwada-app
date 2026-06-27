@@ -32,7 +32,7 @@ type MenuTaxonomyDrawerProps = {
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
   initial?: MenuTaxonomyDefinition | null;
-  variant: "tags" | "allergens" | "documentTags" | "staffPositionTags";
+  variant: "tags" | "allergens" | "documentTags" | "staffPositionTags" | "checklistAreas";
   onSave: (payload: SavePayload) => void;
   onDelete?: (id: string) => void | Promise<void>;
 };
@@ -71,6 +71,13 @@ const COPY: Record<
     description:
       "Name, Sichtbarkeit und Chip-Farbe für Mitarbeiter-Positionen.",
     deleteLabel: "Position löschen",
+  },
+  checklistAreas: {
+    titleCreate: "Neuer Bereich",
+    titleEdit: "Bereich bearbeiten",
+    description:
+      "Name, Sichtbarkeit und Chip-Farbe für Checklisten-Bereiche (z. B. Küche, Lager).",
+    deleteLabel: "Bereich löschen",
   },
 };
 

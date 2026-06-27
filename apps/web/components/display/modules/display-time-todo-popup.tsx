@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,24 +12,36 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { DisplayTodoCompleteToggle } from "@/components/display/display-todo-complete-toggle";
+import {
+  DisplayTodoCaptureFields,
+  EMPTY_DISPLAY_TODO_CAPTURE,
+  displayTodoCapturePayloadForComplete,
+  displayTodoCaptureReadyForComplete,
+  displayTodoShowsCaptureFields,
+  type DisplayTodoCaptureState,
+} from "@/components/display/display-todo-capture-fields";
+import { DisplayTodoContextBadges } from "@/components/display/display-todo-context-badges";
+import type { DisplayTodoClient } from "@/lib/display/display-todo-client";
+import { postDisplayTodoComplete } from "@/lib/display/display-todo-client";
+import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import type { StaffTodoDeferTrigger } from "@/lib/types/staff-todos";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import { staffTodoPriorityBadgeClass } from "@/lib/staff/staff-todo-status";
+import {
+  evaluateStaffTodoCapture,
+  resolveStaffTodoCaptureLimits,
+} from "@/lib/staff/staff-todo-capture";
 import { displayActionToTrigger } from "@/lib/staff/staff-todo-display-triggers";
+import { dispatchDisplayTodosRefresh } from "@/lib/display/display-todos-live-events";
+import { buildStaffTodoLimitsLabel } from "@/components/display/display-todo-capture-fields";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
-export type DisplayTimeTodoPopupItem = {
-  id: string;
-  title: string;
-  description: string | null;
-  priority: "high" | "medium" | "low";
-  require_defer_reason: boolean;
-  blocks_shift_end: boolean;
-  allow_reopen_on_display: boolean;
-};
+export type DisplayTimeTodoPopupItem = DisplayTodoClient;
 
 type DisplayTimeTodoPopupProps = {
   open: boolean;
@@ -37,11 +49,22 @@ type DisplayTimeTodoPopupProps = {
   trigger: StaffTodoDeferTrigger;
   blocksProceed: boolean;
   busy: boolean;
-  onComplete: () => Promise<boolean>;
+  deferReasonDefault?: string | null;
+  onComplete: (payload: {
+    completionNote: string | null;
+    capture: DisplayTodoCaptureState;
+  }) => Promise<boolean>;
   onReopen: () => Promise<boolean>;
   onProceed: () => void;
   onDefer: (reason: string) => void;
 };
+
+function captureReady(
+  todo: DisplayTimeTodoPopupItem,
+  capture: DisplayTodoCaptureState,
+): boolean {
+  return displayTodoCaptureReadyForComplete(todo, capture);
+}
 
 export function DisplayTimeTodoPopup({
   open,
@@ -49,28 +72,52 @@ export function DisplayTimeTodoPopup({
   trigger,
   blocksProceed,
   busy,
+  deferReasonDefault,
   onComplete,
   onReopen,
   onProceed,
   onDefer,
 }: DisplayTimeTodoPopupProps) {
   const [reason, setReason] = useState("");
+  const [completionNote, setCompletionNote] = useState("");
+  const [capture, setCapture] = useState<DisplayTodoCaptureState>(
+    EMPTY_DISPLAY_TODO_CAPTURE,
+  );
   const [markedDone, setMarkedDone] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setReason("");
+      setReason(deferReasonDefault?.trim() ?? "");
+      setCompletionNote("");
+      setCapture(EMPTY_DISPLAY_TODO_CAPTURE);
       setMarkedDone(false);
     }
-  }, [open, todo?.id]);
+  }, [open, todo?.id, deferReasonDefault]);
+
+  const limits = useMemo(
+    () => (todo ? resolveStaffTodoCaptureLimits(todo) : { min: null, max: null }),
+    [todo],
+  );
+
+  const captureEvaluation = useMemo(() => {
+    if (!todo || !displayTodoShowsCaptureFields(todo.capture_type)) return null;
+    const payload = displayTodoCapturePayloadForComplete(todo.capture_type, capture);
+    return evaluateStaffTodoCapture(todo, payload);
+  }, [todo, capture]);
+
+  const showCorrective = Boolean(
+    captureEvaluation?.has_deviation && todo?.require_corrective_on_deviation,
+  );
 
   if (!todo) return null;
 
   const isPinLogin = trigger === "pin_login";
-  const title = isPinLogin ? "ToDo bei Anmeldung" : "ToDo vor Schichtaktion";
+  const title = isPinLogin ? "Checkliste bei Anmeldung" : "Checkliste vor Schichtaktion";
   const description = isPinLogin
-    ? "Bitte erledigen oder auf die nächste Anmeldung verschieben."
-    : "Bitte erledigen oder verschieben, bevor Sie fortfahren.";
+    ? "Bitte erfassen oder erledigen, oder auf die nächste Anmeldung verschieben."
+    : "Bitte erfassen oder erledigen, bevor Sie fortfahren.";
+
+  const canComplete = captureReady(todo, capture);
 
   return (
     <Drawer open={open} direction="bottom" dismissible={false} modal>
@@ -90,16 +137,29 @@ export function DisplayTimeTodoPopup({
                 {STAFF_TODO_PRIORITY_LABELS[todo.priority]}
               </Badge>
             </div>
+            <DisplayTodoContextBadges todo={todo} className="mt-2" />
             {todo.description ? (
               <p className="mt-2 text-sm text-muted-foreground">{todo.description}</p>
             ) : null}
             {blocksProceed && trigger === "clock_out" ? (
               <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
-                Schichtende ist blockiert, bis dieses ToDo erledigt oder verschoben
-                wurde.
+                Schichtende ist blockiert, bis diese Checkliste erledigt oder
+                verschoben wurde.
               </p>
             ) : null}
           </div>
+
+          {displayTodoShowsCaptureFields(todo.capture_type) ? (
+            <DisplayTodoCaptureFields
+              captureType={todo.capture_type}
+              limits={limits}
+              limitsLabel={buildStaffTodoLimitsLabel(todo)}
+              values={capture}
+              onChange={setCapture}
+              showCorrective={showCorrective}
+              large
+            />
+          ) : null}
 
           {todo.require_defer_reason ? (
             <div className="space-y-1.5">
@@ -116,13 +176,29 @@ export function DisplayTimeTodoPopup({
             </div>
           ) : null}
 
+          <div className="space-y-1.5">
+            <Label htmlFor="todo-completion-note">Notiz bei Erledigung (optional)</Label>
+            <Textarea
+              id="todo-completion-note"
+              value={completionNote}
+              onChange={(e) => setCompletionNote(e.target.value)}
+              rows={2}
+              placeholder="Optional …"
+              className="rounded-xl"
+            />
+          </div>
+
           <div className="flex flex-col gap-3">
             <DisplayTodoCompleteToggle
               checked={markedDone}
               allowReopen={todo.allow_reopen_on_display}
               busy={busy}
+              disabled={!canComplete && !markedDone}
               onMarkComplete={() => {
-                void onComplete().then((ok) => {
+                void onComplete({
+                  completionNote: completionNote.trim() || null,
+                  capture,
+                }).then((ok) => {
                   if (ok) setMarkedDone(true);
                 });
               }}
@@ -162,12 +238,14 @@ export function DisplayTimeTodoPopup({
 
 export function useDisplayTimeTodoGate() {
   const [queue, setQueue] = useState<DisplayTimeTodoPopupItem[]>([]);
+  const [deferReasonDefault, setDeferReasonDefault] = useState<string | null>(null);
   const [trigger, setTrigger] = useState<StaffTodoDeferTrigger>("clock_in");
   const [blocksProceed, setBlocksProceed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resolver, setResolver] = useState<
     ((result: "proceed" | "blocked") => void) | null
   >(null);
+  const [pinResolver, setPinResolver] = useState<(() => void) | null>(null);
 
   const current = queue[0] ?? null;
   const open = queue.length > 0;
@@ -188,11 +266,15 @@ export function useDisplayTimeTodoGate() {
       });
       if (!res.ok) {
         console.warn("[display] prepare_trigger failed", res.status);
-        return "proceed";
+        toast.error(
+          "Checklisten konnten nicht geladen werden. Schichtaktion abgebrochen.",
+        );
+        return "blocked";
       }
       const data = (await res.json()) as {
         todos?: DisplayTimeTodoPopupItem[];
         blocks?: boolean;
+        defer_reason_default?: string | null;
       };
       const todos = data.todos ?? [];
       if (todos.length === 0) return "proceed";
@@ -200,6 +282,7 @@ export function useDisplayTimeTodoGate() {
       return new Promise((resolve) => {
         setTrigger(trig);
         setBlocksProceed(Boolean(data.blocks));
+        setDeferReasonDefault(data.defer_reason_default ?? null);
         setQueue(todos);
         setResolver(() => resolve);
       });
@@ -213,8 +296,10 @@ export function useDisplayTimeTodoGate() {
       setBlocksProceed(false);
       resolver?.(result);
       setResolver(null);
+      pinResolver?.();
+      setPinResolver(null);
     },
-    [resolver],
+    [resolver, pinResolver],
   );
 
   const advanceOrFinish = useCallback(
@@ -225,59 +310,86 @@ export function useDisplayTimeTodoGate() {
           setBlocksProceed(false);
           if (resolver) {
             finishGate(blocked ? "blocked" : "proceed");
+          } else {
+            pinResolver?.();
+            setPinResolver(null);
           }
-          setResolver(null);
         }
         return next;
       });
     },
-    [finishGate, resolver],
+    [finishGate, resolver, pinResolver],
   );
 
-  const preparePinLoginGate = useCallback(async () => {
-    const res = await fetch("/api/display/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ action: "prepare_pin_login" }),
+  const preparePinLoginGateAsync = useCallback((): Promise<void> => {
+    return new Promise((resolve) => {
+      void (async () => {
+        const res = await fetch("/api/display/todos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "prepare_pin_login" }),
+        });
+        if (!res.ok) {
+          console.warn("[display] prepare_pin_login failed", res.status);
+          toast.error("Checklisten konnten nicht geladen werden.");
+          resolve();
+          return;
+        }
+        const data = (await res.json()) as {
+          todos?: DisplayTimeTodoPopupItem[];
+          defer_reason_default?: string | null;
+        };
+        const todos = data.todos ?? [];
+        if (todos.length === 0) {
+          resolve();
+          return;
+        }
+        setTrigger("pin_login");
+        setBlocksProceed(false);
+        setDeferReasonDefault(data.defer_reason_default ?? null);
+        setResolver(null);
+        setPinResolver(() => resolve);
+        setQueue(todos);
+      })();
     });
-    if (!res.ok) {
-      console.warn("[display] prepare_pin_login failed", res.status);
-      return;
-    }
-    const data = (await res.json()) as {
-      todos?: DisplayTimeTodoPopupItem[];
-    };
-    const todos = data.todos ?? [];
-    if (todos.length === 0) return;
-    setTrigger("pin_login");
-    setBlocksProceed(false);
-    setResolver(null);
-    setQueue(todos);
   }, []);
 
-  const handleComplete = useCallback(async (): Promise<boolean> => {
-    if (!current) return false;
-    setBusy(true);
-    try {
-      const res = await fetch("/api/display/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "complete", todo_id: current.id }),
-      });
-      if (!res.ok) {
-        toast.error("Erledigen fehlgeschlagen.");
-        return false;
+  const preparePinLoginGate = useCallback(async () => {
+    await preparePinLoginGateAsync();
+  }, [preparePinLoginGateAsync]);
+
+  const handleComplete = useCallback(
+    async (payload: {
+      completionNote: string | null;
+      capture: DisplayTodoCaptureState;
+    }): Promise<boolean> => {
+      if (!current) return false;
+      setBusy(true);
+      try {
+        const capturePayload = displayTodoCapturePayloadForComplete(
+          current.capture_type,
+          payload.capture,
+        );
+        const result = await postDisplayTodoComplete(current.id, {
+          completionNote: payload.completionNote,
+          capture: capturePayload,
+        });
+        if (!result.ok) {
+          toast.error(displayTodoErrorMessage(result.error));
+          return false;
+        }
+        dispatchDisplayTodosRefresh();
+        if (!current.allow_reopen_on_display) {
+          advanceOrFinish(false);
+        }
+        return true;
+      } finally {
+        setBusy(false);
       }
-      if (!current.allow_reopen_on_display) {
-        advanceOrFinish(false);
-      }
-      return true;
-    } finally {
-      setBusy(false);
-    }
-  }, [current, advanceOrFinish]);
+    },
+    [current, advanceOrFinish],
+  );
 
   const handleReopen = useCallback(async (): Promise<boolean> => {
     if (!current) return false;
@@ -293,6 +405,7 @@ export function useDisplayTimeTodoGate() {
         toast.error("Zurücknehmen fehlgeschlagen.");
         return false;
       }
+      dispatchDisplayTodosRefresh();
       return true;
     } finally {
       setBusy(false);
@@ -321,11 +434,7 @@ export function useDisplayTimeTodoGate() {
         });
         const data = (await res.json()) as { error?: string };
         if (!res.ok) {
-          toast.error(
-            data.error === "reason_required"
-              ? "Bitte einen Grund angeben."
-              : "Verschieben fehlgeschlagen.",
-          );
+          toast.error(displayTodoErrorMessage(data.error));
           return;
         }
         const blocked =
@@ -335,6 +444,7 @@ export function useDisplayTimeTodoGate() {
           setQueue([]);
           return;
         }
+        dispatchDisplayTodosRefresh();
         advanceOrFinish(false);
       } finally {
         setBusy(false);
@@ -346,12 +456,14 @@ export function useDisplayTimeTodoGate() {
   return {
     prepareAndGate,
     preparePinLoginGate,
+    preparePinLoginGateAsync,
     popupProps: {
       open,
       todo: current,
       trigger,
       blocksProceed,
       busy,
+      deferReasonDefault,
       onComplete: handleComplete,
       onReopen: handleReopen,
       onProceed: handleProceed,
@@ -359,3 +471,13 @@ export function useDisplayTimeTodoGate() {
     },
   };
 }
+
+export type DisplayShiftGateAction =
+  | "clock_in"
+  | "start_break"
+  | "end_break"
+  | "clock_out";
+
+export type DisplayPrepareAndGate = (
+  displayAction: DisplayShiftGateAction,
+) => Promise<"proceed" | "blocked">;

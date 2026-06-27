@@ -18,7 +18,7 @@ import {
   type DashboardWidgetId,
 } from "@/lib/constants/dashboard-widgets";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
 import { cn } from "@/lib/utils";
 
@@ -27,12 +27,21 @@ const OPTION_BY_ID = new Map(
 );
 
 export function DashboardWidgetsPanel() {
-  const { visibility, order, setWidgetVisible, reorderWidgets, isReady } =
-    useDashboardWidgetPreferences();
+  const {
+    visibility,
+    order,
+    setWidgetVisible,
+    reorderWidgets,
+    isReady,
+    permittedWidgetIds,
+  } = useDashboardEffectiveWidgetPrefs();
 
   const orderedOptions = useMemo(
-    () => order.map((id) => OPTION_BY_ID.get(id)!),
-    [order],
+    () =>
+      order
+        .filter((id) => permittedWidgetIds.includes(id))
+        .map((id) => OPTION_BY_ID.get(id)!),
+    [order, permittedWidgetIds],
   );
 
   const sort = useSortableReorder({

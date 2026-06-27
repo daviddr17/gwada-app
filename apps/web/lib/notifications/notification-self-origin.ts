@@ -13,7 +13,7 @@ export function actorProfileIdFromPayload(
   payload: Record<string, unknown> | null | undefined,
 ): string | null {
   if (!payload) return null;
-  for (const key of ["actorProfileId", "createdByProfileId"] as const) {
+  for (const key of ["actorProfileId", "actorUserId", "createdByProfileId"] as const) {
     const value = payload[key];
     if (typeof value === "string" && value.trim()) {
       return value.trim();

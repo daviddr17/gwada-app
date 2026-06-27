@@ -55,3 +55,22 @@ export function isFaviconRenderableInImg(
     p.endsWith(".svg")
   );
 }
+
+/** Same-origin Vorschau für Superadmin-Branding (unabhängig von Storage-Proxy). */
+export function platformBrandingPreviewHref(
+  storagePath: string | null | undefined,
+): string | null {
+  const path = storagePath?.trim();
+  if (!path || path.includes("..") || path.includes("/")) return null;
+
+  if (
+    path.startsWith("logo-") ||
+    path.startsWith("logo_dark-") ||
+    path.startsWith("favicon-")
+  ) {
+    const params = new URLSearchParams({ v: path });
+    return `/api/platform/branding-asset?${params.toString()}`;
+  }
+
+  return null;
+}

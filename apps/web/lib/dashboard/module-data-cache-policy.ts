@@ -549,7 +549,7 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
     staleTimeMs: 30_000,
     description:
       "Todos + Mitarbeiterliste beim Mount; Suche/Filter/Sortierung clientseitig. Deferred Skeleton nur beim Erstload.",
-    loadTriggers: ["Mount /dashboard/mitarbeiter/todos/**"],
+    loadTriggers: ["Mount /dashboard/checklisten/todos/**"],
     invalidateTriggers: [
       "Todo anlegen / bearbeiten / löschen",
       "Status- oder Zuweisungsänderung",

@@ -1,6 +1,7 @@
 "use client";
 
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
+import { SUPERADMIN_SYSTEM_NAV } from "@/lib/navigation/superadmin-system-routes";
 
 export default function SuperadminLadeStrategieLayout({
   children,
@@ -8,9 +9,9 @@ export default function SuperadminLadeStrategieLayout({
   return (
     <>
       <RegisterModuleChrome
-        title="Lade- & Cache-Strategie"
-        subnavAriaLabel={null}
-        subnavItems={null}
+        title="System"
+        subnavAriaLabel="Superadmin System"
+        subnavItems={SUPERADMIN_SYSTEM_NAV}
       />
       {children}
     </>

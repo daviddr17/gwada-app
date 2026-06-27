@@ -9,6 +9,10 @@ import { enrichGwadaReviewsWithContactIds } from "@/lib/reviews/contact-gwada-re
 import { enrichReviewsWithReadState } from "@/lib/reviews/enrich-reviews-with-read-state";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { readPlatformSyncMeta, readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
+import {
+  fetchReviewPlatformMessagingFlags,
+  isReviewPlatformVisibleInDashboard,
+} from "@/lib/reviews/reviews-platform-availability-server";
 import { averageRating } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
@@ -118,15 +122,17 @@ export async function loadDashboardReviewsSummary(
     gwadaAll.map((r) => ({ rating: Number(r.rating) })),
   );
 
-  const [googleIntegration, facebookIntegration, cachedFeed] = await Promise.all([
-    fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
-      oauthConfigFromJson(raw),
-    ),
-    fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
-      oauthConfigFromJson(raw),
-    ),
-    readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook"]),
-  ]);
+  const [googleIntegration, facebookIntegration, cachedFeed, platformFlags] =
+    await Promise.all([
+      fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
+        oauthConfigFromJson(raw),
+      ),
+      fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
+        oauthConfigFromJson(raw),
+      ),
+      readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook"]),
+      fetchReviewPlatformMessagingFlags(sb),
+    ]);
 
   const googleIntegrationOk = googleIntegration?.status === "working";
   const facebookIntegrationOk = facebookIntegration?.status === "working";
@@ -160,7 +166,21 @@ export async function loadDashboardReviewsSummary(
   const facebookCount = facebookCached.length;
   const facebookAvg = facebookConnected ? averageRating(facebookCached) : null;
 
-  const mergedRecent = [...gwadaReviews, ...googleRecent, ...facebookRecent].sort(
+  const platformVisibility = {
+    flags: platformFlags,
+    googleConnected,
+    facebookConnected,
+  };
+
+  const mergedRecent = [
+    ...gwadaReviews,
+    ...(isReviewPlatformVisibleInDashboard("google", platformVisibility)
+      ? googleRecent
+      : []),
+    ...(isReviewPlatformVisibleInDashboard("facebook", platformVisibility)
+      ? facebookRecent
+      : []),
+  ].sort(
     (a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   );
@@ -171,12 +191,16 @@ export async function loadDashboardReviewsSummary(
     reviews: mergedRecent,
   });
 
-  const unreadRecent = enrichedRecent
+  const visibleRecent = enrichedRecent.filter((review) =>
+    isReviewPlatformVisibleInDashboard(review.platform, platformVisibility),
+  );
+
+  const unreadRecent = visibleRecent
     .filter((r) => r.isUnread)
     .slice(0, 5)
     .map(toRecentItem);
 
-  const platforms: DashboardReviewPlatformStat[] = [
+  const allPlatforms: DashboardReviewPlatformStat[] = [
     {
       platform: "gwada",
       label: REVIEW_PLATFORM_LABELS.gwada,
@@ -203,9 +227,13 @@ export async function loadDashboardReviewsSummary(
     },
   ];
 
+  const platforms = allPlatforms.filter((entry) =>
+    isReviewPlatformVisibleInDashboard(entry.platform, platformVisibility),
+  );
+
   return {
     platforms,
     recent: unreadRecent,
-    unreadRecentCount: enrichedRecent.filter((r) => r.isUnread).length,
+    unreadRecentCount: visibleRecent.filter((r) => r.isUnread).length,
   };
 }

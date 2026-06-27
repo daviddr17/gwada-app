@@ -1,10 +1,9 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
-import { visibleDashboardBatchWidgets } from "@/lib/dashboard/dashboard-batch-widgets";
+import { useEffect } from "react";
 import { dashboardBatchSummaryQueryOptions } from "@/lib/hooks/dashboard-batch-summary-query-options";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -14,28 +13,23 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
  */
 export function DashboardBatchPrefetchMount() {
   const queryClient = useQueryClient();
-  const { visibility } = useDashboardWidgetPreferences();
+  const { batchWidgets } = useDashboardEffectiveWidgetPrefs();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-
-  const widgets = useMemo(
-    () => visibleDashboardBatchWidgets(visibility),
-    [visibility],
-  );
 
   useEffect(() => {
     if (
       !workspaceReady ||
       !restaurantId ||
       !isUuidRestaurantId(restaurantId) ||
-      widgets.length === 0
+      batchWidgets.length === 0
     ) {
       return;
     }
 
     void queryClient.prefetchQuery(
-      dashboardBatchSummaryQueryOptions(restaurantId, widgets),
+      dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
     );
-  }, [queryClient, restaurantId, widgets, workspaceReady]);
+  }, [queryClient, restaurantId, batchWidgets, workspaceReady]);
 
   return null;
 }

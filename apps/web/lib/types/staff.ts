@@ -72,7 +72,9 @@ export type StaffContractLogAction =
   | "revised"
   | "pdf_version"
   | "employer_signed"
-  | "employee_signed";
+  | "employee_signed"
+  | "prepared"
+  | "external_uploaded";
 export type StaffContractLogChange = StaffAuditLogChange;
 export type StaffContractLogDetails = StaffAuditLogDetails;
 
@@ -140,6 +142,8 @@ import type {
   StaffContractSignatureSnapshot,
 } from "@/lib/types/staff-contract-templates";
 
+export type StaffContractSource = "platform" | "external";
+
 export type RestaurantStaffContractRow = {
   id: string;
   restaurant_id: string;
@@ -166,6 +170,8 @@ export type RestaurantStaffContractRow = {
   signature_employee?: StaffContractSignatureSnapshot | null;
   /** Wartet auf MA-Unterschrift im Profil (Zweit-Schritt). */
   employee_signature_pending?: boolean;
+  /** platform = Gwada-Flow; external = PDF-Upload. */
+  contract_source?: StaffContractSource;
 };
 
 export type RestaurantStaffContractLogEntry = {

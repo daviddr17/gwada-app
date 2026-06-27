@@ -8,6 +8,17 @@ export type StaffContractDigitalSignatureInput = {
   signature_data_url: string;
 };
 
+export type StaffContractPreparePayload = {
+  restaurantId: string;
+  staffId: string;
+  contractId?: string | null;
+  contractFields: StaffContractFormPayload;
+  bodySnapshot: StaffContractBodySnapshot;
+};
+
+/** Server-intern — gleiche Form wie API-Payload. */
+export type StaffContractPrepareInput = StaffContractPreparePayload;
+
 export type StaffContractDigitalCompletePayload = {
   restaurantId: string;
   staffId: string;
@@ -18,7 +29,6 @@ export type StaffContractDigitalCompletePayload = {
   signatureEmployee?: StaffContractDigitalSignatureInput | null;
   /** Nur Arbeitgeber-Unterschrift (Zweit-Schritt-Modus). */
   employerOnly?: boolean;
-  revise?: boolean;
   /** Einwilligung zur elektronischen Unterzeichnung ohne QES. */
   consentAccepted: boolean;
 };

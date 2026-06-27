@@ -36,6 +36,41 @@ function wrapText(
   return y;
 }
 
+function pageNumberY(doc: InstanceType<ReturnType<typeof loadPDFDocument>>): number {
+  return doc.page.height - doc.page.margins.bottom + 4;
+}
+
+function contentBottomLimit(
+  doc: InstanceType<ReturnType<typeof loadPDFDocument>>,
+): number {
+  return pageNumberY(doc) - 12;
+}
+
+function addPageNumbers(
+  doc: InstanceType<ReturnType<typeof loadPDFDocument>>,
+  x: number,
+  pageWidth: number,
+) {
+  const range = doc.bufferedPageRange();
+  const totalPages = range.count;
+  const footerY = pageNumberY(doc);
+  const rightEdge = x + pageWidth;
+
+  for (let i = 0; i < totalPages; i++) {
+    doc.switchToPage(range.start + i);
+    doc
+      .font("Helvetica")
+      .fontSize(9)
+      .fillColor("#444444")
+      .text(`Seite ${i + 1}/${totalPages}`, rightEdge - 72, footerY, {
+        width: 72,
+        align: "right",
+        lineBreak: false,
+      });
+    doc.fillColor("#000000");
+  }
+}
+
 export async function generateStaffContractPdfBuffer(
   input: StaffContractPdfInput,
 ): Promise<Buffer> {
@@ -43,7 +78,8 @@ export async function generateStaffContractPdfBuffer(
     const PDFDocument = loadPDFDocument();
     const doc = new PDFDocument({
       size: "A4",
-      margins: { top: 56, bottom: 56, left: 56, right: 56 },
+      margins: { top: 56, bottom: 72, left: 56, right: 56 },
+      bufferPages: true,
       info: { Title: input.title },
     });
 
@@ -54,6 +90,7 @@ export async function generateStaffContractPdfBuffer(
 
     const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
     const x = doc.page.margins.left;
+    const bottomLimit = () => contentBottomLimit(doc);
 
     doc.font("Helvetica-Bold").fontSize(16).text(input.title, x, doc.y, {
       width: pageWidth,
@@ -64,6 +101,7 @@ export async function generateStaffContractPdfBuffer(
 
     for (const paragraph of input.paragraphs) {
       if (paragraph.heading?.trim()) {
+        if (doc.y > bottomLimit()) doc.addPage();
         doc.font("Helvetica-Bold").fontSize(12).text(paragraph.heading.trim(), x, doc.y, {
           width: pageWidth,
         });
@@ -71,6 +109,7 @@ export async function generateStaffContractPdfBuffer(
         doc.font("Helvetica").fontSize(11);
       }
       if (paragraph.body.trim()) {
+        if (doc.y > bottomLimit()) doc.addPage();
         wrapText(doc, paragraph.body.trim(), x, pageWidth, 14);
         doc.moveDown(0.8);
       }
@@ -83,15 +122,14 @@ export async function generateStaffContractPdfBuffer(
 
     if (signatures.length > 0) {
       doc.moveDown(1);
+      if (doc.y > bottomLimit()) doc.addPage();
       doc.font("Helvetica-Bold").fontSize(12).text("Unterschriften", x, doc.y);
       doc.moveDown(0.6);
       doc.font("Helvetica").fontSize(10);
 
       for (const { label, sig } of signatures) {
         if (!sig) continue;
-        if (doc.y > doc.page.height - 180) {
-          doc.addPage();
-        }
+        if (doc.y > bottomLimit()) doc.addPage();
         doc.font("Helvetica-Bold").text(label, x, doc.y);
         doc.moveDown(0.3);
         doc.font("Helvetica").text(sig.name, x, doc.y);
@@ -108,22 +146,8 @@ export async function generateStaffContractPdfBuffer(
       }
     }
 
-    const footerY = doc.page.height - doc.page.margins.bottom - 20;
-    if (doc.y > footerY - 12) {
-      doc.addPage();
-    }
-    doc
-      .font("Helvetica")
-      .fontSize(8)
-      .fillColor("#666666")
-      .text(
-        "Elektronisch unterzeichnet ohne qualifizierte elektronische Signatur (QES/eIDAS).",
-        x,
-        footerY,
-        { width: pageWidth, align: "center" },
-      );
-    doc.fillColor("#000000");
-
+    addPageNumbers(doc, x, pageWidth);
+    doc.flushPages();
     doc.end();
   });
 }

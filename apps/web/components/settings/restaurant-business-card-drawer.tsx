@@ -29,46 +29,55 @@ import {
   drawerFormHeaderClassName,
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
+import { cn } from "@/lib/utils";
 
 const TOGGLE_ITEMS: Array<{
   key: keyof BusinessCardOptions;
   label: string;
   description: string;
+  sideHint?: string;
 }> = [
   {
     key: "showCover",
     label: "Titelbild",
-    description: "Oberer Bildstreifen — sonst Verlauf in Akzentfarbe.",
+    description: "Schmaler Bildstreifen auf der Rückseite.",
+    sideHint: "Rückseite",
   },
   {
     key: "showLogo",
     label: "Logo",
-    description: "Profilbild über dem Inhalt.",
+    description: "Profilbild auf der Rückseite.",
+    sideHint: "Rückseite",
   },
   {
     key: "showAddress",
     label: "Anschrift",
     description: "Straße, PLZ, Ort und Land.",
+    sideHint: "Vorderseite",
   },
   {
     key: "showPhone",
     label: "Telefon",
     description: "Rufnummer aus den Stammdaten.",
+    sideHint: "Vorderseite",
   },
   {
     key: "showWebsite",
     label: "Website",
     description: "Internetadresse als Kurzlink.",
+    sideHint: "Vorderseite",
   },
   {
     key: "showOpeningHours",
     label: "Öffnungszeiten",
-    description: "Wochenplan aus den Öffnungszeiten-Einstellungen.",
+    description: "Kompakter Wochenplan — Rückseite.",
+    sideHint: "Rückseite",
   },
   {
     key: "showGwadaFooter",
     label: "„Erstellt mit Gwada“",
     description: "Kleiner Hinweis am unteren Kartenrand.",
+    sideHint: "Rückseite",
   },
 ];
 
@@ -90,10 +99,15 @@ export function RestaurantBusinessCardDrawer({
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
 
+  const hasCoverImage = Boolean(profile.coverStoragePath?.trim());
+
   useEffect(() => {
     if (!open) return;
-    setOptions(DEFAULT_BUSINESS_CARD_OPTIONS);
-  }, [open, profile.id]);
+    setOptions({
+      ...DEFAULT_BUSINESS_CARD_OPTIONS,
+      showCover: hasCoverImage ? DEFAULT_BUSINESS_CARD_OPTIONS.showCover : false,
+    });
+  }, [open, profile.id, hasCoverImage]);
 
   useEffect(() => {
     if (!open) return;
@@ -135,11 +149,12 @@ export function RestaurantBusinessCardDrawer({
   const handleDownload = async () => {
     setDownloading(true);
     try {
+      const effectiveShowCover = options.showCover && hasCoverImage;
       const blob = await generateBusinessCardPdf({
         content,
-        options,
+        options: { ...options, showCover: effectiveShowCover },
         accentHex,
-        coverUrl: options.showCover ? coverUrl : null,
+        coverUrl: effectiveShowCover ? coverUrl : null,
         logoUrl: options.showLogo ? logoUrl : null,
       });
       const url = URL.createObjectURL(blob);
@@ -164,8 +179,8 @@ export function RestaurantBusinessCardDrawer({
             Visitenkarte erstellen
           </DrawerTitle>
           <DrawerDescription className="text-sm leading-relaxed">
-            Inhalte wählen — die Vorschau aktualisiert sich sofort. PDF in
-            Akzentfarbe mit Logo und Titelbild.
+            Vorderseite: Kontaktdaten — Rückseite: Logo und Öffnungszeiten.
+            PDF mit zwei Seiten zum Drucken.
           </DrawerDescription>
         </DrawerHeader>
 
@@ -173,31 +188,50 @@ export function RestaurantBusinessCardDrawer({
         <div className={drawerScrollAreaClassName(6)}>
           <div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)] lg:items-start">
             <DrawerFormSection bleed={false} title="Inhalte" className="space-y-1">
-              {TOGGLE_ITEMS.map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-2.5"
-                >
-                  <div className="min-w-0">
-                    <Label
-                      htmlFor={`bc-${item.key}`}
-                      className="text-sm font-medium"
-                    >
-                      {item.label}
-                    </Label>
-                    <p className="text-xs text-muted-foreground">
-                      {item.description}
-                    </p>
+              {TOGGLE_ITEMS.map((item) => {
+                const coverDisabled = item.key === "showCover" && !hasCoverImage;
+                const description = coverDisabled
+                  ? "Titelbild in Stammdaten hochladen."
+                  : item.description;
+
+                return (
+                  <div
+                    key={item.key}
+                    className={cn(
+                      "flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/15 px-3 py-2.5",
+                      coverDisabled && "opacity-70",
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Label
+                          htmlFor={`bc-${item.key}`}
+                          className={cn(
+                            "text-sm font-medium",
+                            coverDisabled && "text-muted-foreground",
+                          )}
+                        >
+                          {item.label}
+                        </Label>
+                        {item.sideHint ? (
+                          <span className="rounded-full bg-muted/60 px-1.5 py-0.5 text-[0.62rem] font-medium text-muted-foreground">
+                            {item.sideHint}
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-muted-foreground">{description}</p>
+                    </div>
+                    <Switch
+                      id={`bc-${item.key}`}
+                      checked={coverDisabled ? false : options[item.key]}
+                      disabled={coverDisabled}
+                      onCheckedChange={(checked) =>
+                        setOption(item.key, checked === true)
+                      }
+                    />
                   </div>
-                  <Switch
-                    id={`bc-${item.key}`}
-                    checked={options[item.key]}
-                    onCheckedChange={(checked) =>
-                      setOption(item.key, checked === true)
-                    }
-                  />
-                </div>
-              ))}
+                );
+              })}
             </DrawerFormSection>
 
             <div className="flex flex-col items-center gap-3">
@@ -210,9 +244,11 @@ export function RestaurantBusinessCardDrawer({
                 accentHex={accentHex}
                 coverUrl={coverUrl}
                 logoUrl={logoUrl}
+                hasCoverImage={hasCoverImage}
               />
               <p className="max-w-xs text-center text-xs text-muted-foreground">
-                Format 90 × 128 mm — druckfertiges PDF mit eingebetteten Farben.
+                Format 85 × 55 mm (Querformat) — druckfertiges PDF mit Vorder-
+                und Rückseite.
               </p>
             </div>
           </div>

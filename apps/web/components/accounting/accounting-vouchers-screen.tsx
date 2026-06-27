@@ -30,6 +30,7 @@ import {
 import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultVoucherSort } from "@/lib/accounting/accounting-list-sort";
+import { useMarkNotificationModuleReadOnOpen } from "@/lib/hooks/use-mark-notification-module-read-on-open";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useAccountingVoucherPageFileDrop } from "@/lib/hooks/use-accounting-voucher-page-file-drop";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
@@ -130,6 +131,11 @@ export function AccountingVouchersScreen() {
   const [syncing, setSyncing] = useState(false);
 
   const showSkeleton = useDeferredSkeleton(loading);
+
+  useMarkNotificationModuleReadOnOpen(
+    "accounting_voucher",
+    Boolean(restaurantId && canRead),
+  );
 
   const load = useCallback(async () => {
     if (!restaurantId) return;

@@ -68,9 +68,10 @@ async function loadQuotationItems(
   const { data, error } = await sb
     .from("accounting_quotations")
     .select(
-      "id, voucher_number, title, recipient_snapshot, totals, currency, created_at, created_by",
+      "id, voucher_number, title, recipient_snapshot, totals, currency, created_at, created_by, source",
     )
     .eq("restaurant_id", params.restaurantId)
+    .eq("source", "gwada")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(params.limit, 5), 100));
@@ -95,6 +96,7 @@ async function loadQuotationItems(
       return r;
     })
     .filter((r) => !params.dismissed.has(r.id))
+    .filter((r) => Boolean(r.created_by))
     .filter(
       (r) => !isSelfOriginatedNotification(params.userId, r.created_by),
     );
@@ -116,9 +118,10 @@ async function loadInvoiceItems(
   const { data, error } = await sb
     .from("accounting_invoices")
     .select(
-      "id, voucher_number, title, recipient_snapshot, totals, currency, created_at, created_by",
+      "id, voucher_number, title, recipient_snapshot, totals, currency, created_at, created_by, source",
     )
     .eq("restaurant_id", params.restaurantId)
+    .eq("source", "gwada")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(params.limit, 5), 100));
@@ -140,6 +143,7 @@ async function loadInvoiceItems(
       created_by: string | null;
     })
     .filter((r) => !params.dismissed.has(r.id))
+    .filter((r) => Boolean(r.created_by))
     .filter(
       (r) => !isSelfOriginatedNotification(params.userId, r.created_by),
     );
@@ -161,9 +165,10 @@ async function loadVoucherItems(
   const { data, error } = await sb
     .from("accounting_vouchers")
     .select(
-      "id, voucher_number, contact_name, total_gross_amount, currency, created_at, created_by",
+      "id, voucher_number, contact_name, total_gross_amount, currency, created_at, created_by, source",
     )
     .eq("restaurant_id", params.restaurantId)
+    .eq("source", "gwada")
     .gte("created_at", since)
     .order("created_at", { ascending: false })
     .limit(Math.min(Math.max(params.limit, 5), 100));
@@ -184,6 +189,7 @@ async function loadVoucherItems(
       created_by: string | null;
     })
     .filter((r) => !params.dismissed.has(r.id))
+    .filter((r) => Boolean(r.created_by))
     .filter(
       (r) => !isSelfOriginatedNotification(params.userId, r.created_by),
     );

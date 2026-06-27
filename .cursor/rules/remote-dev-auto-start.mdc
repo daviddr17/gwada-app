@@ -1,18 +1,18 @@
 ---
-description: Nach Schema-/Dev-Setup Tunnel prüfen und pnpm dev starten; Seeds auf Dev spiegeln
+description: Dev-Server automatisch starten wenn Agent an gwada-app arbeitet
 alwaysApply: true
 ---
 
-# Remote-Dev: automatisch starten
+# Dev-Server: automatisch starten
 
-**`pnpm dev`** macht alles selbst (kein manuelles Env-Sync):
+Zu Beginn einer Session oder wenn du an der Web-App arbeitest:
 
-1. Holt `.env.development` vom letzten Dev-CI-Artifact (`setup:dev:env`)
-2. Synchronisiert `.env.local` (`env:sync:dev`)
-3. Startet Next.js gegen Remote-Dev-DB
+1. Prüfe `curl -sf http://localhost:3000/` — wenn nicht **200**, starte:
+   ```bash
+   bash scripts/dev-server-bg.sh
+   ```
+2. Nicht `pnpm db:push:local` — Standard ist `pnpm db:push` (Dev-VPS).
 
-Login wie lokal: `dreyer@techlion.de` / `GwadaLocal2026!` · Workspace `gwada-demo`
+Der Cursor-Hook `sessionStart` startet den Server beim Öffnen des Projekts automatisch (`.cursor/hooks.json`).
 
-Migrationen: **`pnpm db:push`** (Dev). Live nur auf explizite Nutzer-Anfrage (`GWADA_CONFIRM_LIVE_DB=1`).
-
-Dev-Secrets-Rotation auf dem VPS läuft idempotent per CI (`rotate-dev-secrets.yml`).
+Log bei Problemen: `$TMPDIR/gwada-dev-server.log` (meist `/var/folders/.../T/gwada-dev-server.log`)

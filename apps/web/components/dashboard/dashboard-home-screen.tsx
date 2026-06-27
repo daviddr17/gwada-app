@@ -7,11 +7,11 @@ import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-i
 import { DashboardBatchQuerySync } from "@/components/providers/dashboard-batch-query-sync";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 import { useDashboardPageBackgroundRefresh } from "@/lib/dashboard/dashboard-widget-refresh";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 
 /** Dashboard-Home — Page-Segment `/dashboard` (RSC/Router-Sync). */
 export function DashboardHomeScreen() {
-  const { visibility } = useDashboardWidgetPreferences();
+  const { visibility } = useDashboardEffectiveWidgetPrefs();
   useDashboardPageBackgroundRefresh();
 
   return (

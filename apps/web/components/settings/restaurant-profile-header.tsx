@@ -396,19 +396,21 @@ export function RestaurantProfileHeader({
                   placeholder="z. B. Gwada Soul Kitchen"
                   className="h-11 max-w-xl rounded-xl"
                 />
-                {onCreateBusinessCard ? (
+              </div>
+              {onCreateBusinessCard ? (
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 w-fit gap-2 rounded-lg"
+                    className="gap-2 rounded-full border-border/60"
                     onClick={onCreateBusinessCard}
                   >
                     <IdCard className="size-4" aria-hidden />
                     Visitenkarte erstellen
                   </Button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

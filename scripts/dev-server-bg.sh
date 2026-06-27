@@ -15,7 +15,7 @@ PORT=3000
 
 log() { echo "[dev-server] $*"; }
 
-if lsof -ti:"${PORT}" >/dev/null 2>&1; then
+if lsof -tiTCP:"${PORT}" -sTCP:LISTEN >/dev/null 2>&1; then
   log "Läuft bereits auf Port ${PORT}."
   exit 0
 fi
@@ -43,12 +43,8 @@ if [[ "${FOREGROUND}" -eq 1 ]]; then
 fi
 
 log "Starte Next.js im Hintergrund …"
-(
-  cd "${ROOT}"
-  exec pnpm --filter web dev
-) >>"${LOG_FILE}" 2>&1 &
+nohup pnpm --filter web dev >>"${LOG_FILE}" 2>&1 &
 server_pid=$!
-disown "${server_pid}" 2>/dev/null || true
 echo "${server_pid}" > "${PID_FILE}"
 
 for _ in $(seq 1 45); do

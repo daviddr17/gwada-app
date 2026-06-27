@@ -1,13 +1,19 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import {
   ArrowDown,
   ArrowUp,
+  Factory,
   Filter,
+  Layers,
   Package,
   Plus,
+  Ruler,
   ScrollText,
+  Tag,
   Trash2,
+  Truck,
   UtensilsCrossed,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -69,6 +75,7 @@ import type {
   InventoryTaxonomyDefinition,
 } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
+import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   clampListPage,
@@ -105,6 +112,14 @@ type TaxonomyStore = {
 
 const MANAGE_BASE_DESC =
   "Reihenfolge per Ziehen ändern (wie Kategorien in der Speisekarte). Inaktive Einträge stehen in Zutaten-Auswahlfeldern nicht zur Verfügung.";
+
+const KIND_ICON: Record<InventoryTaxonomyKind, LucideIcon> = {
+  supplier: Truck,
+  ingredientCategory: Layers,
+  productionSite: Factory,
+  brand: Tag,
+  unit: Ruler,
+};
 
 const KIND_UI: Record<
   InventoryTaxonomyKind,
@@ -915,18 +930,22 @@ export function InventoryScreen() {
             "brand",
             "unit",
           ] as const
-        ).map((kind) => (
+        ).map((kind) => {
+          const KindIcon = KIND_ICON[kind];
+          return (
           <Button
             key={kind}
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-full border-border/60"
+            className={moduleManageChipButtonClassName}
             onClick={() => setManageKind(kind)}
           >
-            {KIND_UI[kind].short} verwalten
+            <KindIcon className="size-4" />
+            {KIND_UI[kind].short}
           </Button>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mb-4 space-y-3">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Briefcase, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -31,8 +31,9 @@ import { StaffContractTemplatesListDrawer } from "@/components/staff/staff-contr
 import { StaffContractPdfDownloadButton } from "@/components/staff/staff-contract-pdf-download-button";
 import { StaffContractStatusBadge } from "@/components/staff/staff-contract-status-badge";
 import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
+import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
-import { ListRangeCount } from "@/lib/ui/list-range-count";
+import { formatListRangeLabel } from "@/lib/ui/list-range-count";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -79,6 +80,7 @@ export function StaffContractsScreen() {
   >(null);
   const [templatesEmployment, setTemplatesEmployment] =
     useState<StaffEmploymentTypeDefinition | null>(null);
+  const [templateRefreshKey, setTemplateRefreshKey] = useState(0);
 
   const reload = useCallback(async () => {
     if (!restaurantId || !selectedStaffId) {
@@ -150,27 +152,34 @@ export function StaffContractsScreen() {
           type="button"
           variant="outline"
           size="sm"
-          className="rounded-full border-border/60"
+          className={moduleManageChipButtonClassName}
           onClick={() => setManageEmploymentOpen(true)}
         >
+          <Briefcase className="size-4" />
           Beschäftigungsverhältnisse
         </Button>
       </div>
 
       <div className="mb-4 space-y-2">
         <p className="text-sm text-muted-foreground">
-          Verträge für{" "}
+          {!showSkeleton ? (
+            <>
+              <span className="tabular-nums">
+                {formatListRangeLabel(
+                  contracts.length,
+                  contracts.length,
+                  "Verträge",
+                )}
+              </span>
+              {" von "}
+            </>
+          ) : (
+            "Verträge von "
+          )}
           <span className="font-medium text-foreground">
             {staffDisplayName(selectedStaff)}
           </span>
         </p>
-        {!showSkeleton ? (
-          <ListRangeCount
-            shown={contracts.length}
-            total={contracts.length}
-            itemLabel="Verträge"
-          />
-        ) : null}
         <Button
           type="button"
           size="lg"
@@ -215,10 +224,7 @@ export function StaffContractsScreen() {
                           </span>
                         </p>
                       </div>
-                      <StaffContractStatusBadge
-                        signedAt={c.signed_at}
-                        employeeSignaturePending={c.employee_signature_pending}
-                      />
+                      <StaffContractStatusBadge contract={c} />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-1 text-sm text-muted-foreground">
@@ -242,6 +248,10 @@ export function StaffContractsScreen() {
                         <StaffContractPdfDownloadButton
                           restaurantId={restaurantId}
                           documentId={c.current_document_id}
+                          documentTitle={
+                            c.contract_body_snapshot?.title?.trim() ||
+                            undefined
+                          }
                         />
                       </div>
                     ) : null}
@@ -250,9 +260,6 @@ export function StaffContractsScreen() {
               );
             })
           : null}
-        {!showSkeleton && contracts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Keine Verträge.</p>
-        ) : null}
       </div>
 
       <StaffContractDrawer
@@ -278,6 +285,7 @@ export function StaffContractsScreen() {
           const full = employmentTypes.getById(employmentTypeId);
           if (full) setTemplatesEmployment(full);
         }}
+        templateRefreshKey={templateRefreshKey}
       />
 
       <CategoriesManageDrawer
@@ -324,6 +332,9 @@ export function StaffContractsScreen() {
           restaurantId={restaurantId}
           employmentTypeId={templatesEmployment.id}
           employmentTypeName={templatesEmployment.name}
+          onTemplatesChanged={() =>
+            setTemplateRefreshKey((key) => key + 1)
+          }
         />
       ) : null}
 

@@ -13,6 +13,10 @@ const APP_FULLSCREEN_OVERLAY_CLOSE_MS = 260;
 
 export const APP_FULLSCREEN_OVERLAY_Z_INDEX = 200;
 
+/** Scroll-Bereich in Vollbild-Overlays — Touch-Scroll ohne vorherigen Input-Fokus (iPad). */
+export const appFullscreenOverlayScrollClassName =
+  "min-h-0 min-w-0 flex-1 basis-0 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain [-webkit-overflow-scrolling:touch]";
+
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -63,9 +67,12 @@ export function AppFullscreenOverlay({
   useEffect(() => {
     if (!mounted) return;
     const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
     document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "none";
     return () => {
       document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
     };
   }, [mounted]);
 
@@ -91,7 +98,7 @@ export function AppFullscreenOverlay({
       aria-modal="true"
       aria-label={ariaLabel}
       className={cn(
-        "fixed inset-0 flex flex-col bg-background",
+        "fixed inset-0 flex flex-col overscroll-none bg-background touch-manipulation",
         className,
       )}
       style={{
@@ -110,7 +117,9 @@ export function AppFullscreenOverlay({
         {header}
       </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
 
       {footer ? (
         <footer className="sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">

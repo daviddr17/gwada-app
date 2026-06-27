@@ -226,6 +226,35 @@ export function staffContractPlaceholderValuesMap(
   return map;
 }
 
+/** Platzhalter-Felder aus Vorlage, gruppiert wie in STAFF_CONTRACT_PLACEHOLDER_GROUPS. */
+export function groupStaffContractPlaceholderFields(
+  usedKeys: Set<string>,
+  fields: Record<string, StaffContractPlaceholderField>,
+  payType: StaffContractPayType,
+): Array<{ id: string; label: string; items: StaffContractPlaceholderField[] }> {
+  const groups: Array<{
+    id: string;
+    label: string;
+    items: StaffContractPlaceholderField[];
+  }> = [];
+
+  for (const group of STAFF_CONTRACT_PLACEHOLDER_GROUPS) {
+    const items: StaffContractPlaceholderField[] = [];
+    for (const placeholder of group.placeholders) {
+      const key = tokenToKey(placeholder.token);
+      if (!usedKeys.has(key)) continue;
+      if (!isStaffContractPlaceholderApplicable(key, payType)) continue;
+      const field = fields[key];
+      if (field) items.push(field);
+    }
+    if (items.length > 0) {
+      groups.push({ id: group.id, label: group.label, items });
+    }
+  }
+
+  return groups;
+}
+
 export function listMissingStaffContractFields(
   fields: Record<string, StaffContractPlaceholderField>,
   overrides?: Record<string, string>,

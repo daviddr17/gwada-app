@@ -36,6 +36,7 @@ import {
 import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sort";
+import { useMarkNotificationModuleReadOnOpen } from "@/lib/hooks/use-mark-notification-module-read-on-open";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useAccountingConnector } from "@/lib/hooks/use-accounting-connector";
 import {
@@ -144,6 +145,11 @@ export function AccountingSalesDocumentsScreen({
   const [syncing, setSyncing] = useState(false);
 
   const showSkeleton = useDeferredSkeleton(loading);
+
+  useMarkNotificationModuleReadOnOpen(
+    isInvoice ? "accounting_invoice" : "accounting_quotation",
+    Boolean(restaurantId && canRead),
+  );
 
   const load = useCallback(async () => {
     if (!restaurantId) return;

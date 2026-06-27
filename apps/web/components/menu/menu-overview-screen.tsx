@@ -13,6 +13,8 @@ import {
   LayoutGrid,
   Plus,
   Table2,
+  Tags,
+  TriangleAlert,
   UtensilsCrossed,
 } from "lucide-react";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
@@ -69,6 +71,7 @@ import {
   hasModuleUpdate,
 } from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { ListRangeCount } from "@/lib/ui/list-range-count";
 import { cn } from "@/lib/utils";
@@ -442,19 +445,21 @@ export function MenuOverviewScreen() {
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-full border-border/60"
+            className={moduleManageChipButtonClassName}
             onClick={() => setTaxonomyManage("tags")}
           >
-            Tags verwalten
+            <Tags className="size-4" />
+            Tags
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-full border-border/60"
+            className={moduleManageChipButtonClassName}
             onClick={() => setTaxonomyManage("allergens")}
           >
-            Allergene verwalten
+            <TriangleAlert className="size-4" />
+            Allergene
           </Button>
         </div>
 

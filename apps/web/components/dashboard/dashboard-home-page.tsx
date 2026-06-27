@@ -7,7 +7,7 @@ import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/da
 import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 
 const dynamicTile = (
   loader: () => Promise<{ default: React.ComponentType }>,
@@ -86,7 +86,7 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
 }
 
 export function DashboardHomePage() {
-  const { visibility, order } = useDashboardWidgetPreferences();
+  const { visibility, order } = useDashboardEffectiveWidgetPrefs();
 
   const orderedVisible = groupDashboardLayoutSections(
     order.filter((id) => visibility[id]),
@@ -98,10 +98,10 @@ export function DashboardHomePage() {
     return (
       <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
         <p className="max-w-md text-sm text-muted-foreground sm:text-base">
-          Für das Dashboard sind aktuell keine Widgets aktiviert. Unter
-          Einstellungen kannst du Speisekarte, Reservierungen, Bewertungen,
-          Mitarbeiter, Wetter, Nachrichten, Integrationen und Bestand wieder
-          einblenden.
+          Für das Dashboard sind aktuell keine Widgets sichtbar — entweder sind
+          sie deaktiviert oder deine Position hat keinen Lesezugriff auf die
+          zugehörigen Module. Unter Einstellungen kannst du Widgets einblenden,
+          sofern sie für deine Rolle verfügbar sind.
         </p>
         <Button render={<Link href="/settings/dashboard" prefetch />}>
           Dashboard-Einstellungen

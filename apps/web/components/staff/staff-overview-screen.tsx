@@ -42,6 +42,7 @@ import type {
 import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
+import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -279,10 +280,10 @@ export function StaffOverviewScreen() {
             type="button"
             variant="outline"
             size="sm"
-            className="rounded-full border-border/60"
+            className={moduleManageChipButtonClassName}
             onClick={() => setManageTagsOpen(true)}
           >
-            <Tags className="size-3.5" />
+            <Tags className="size-4" />
             Positionen
           </Button>
         </div>

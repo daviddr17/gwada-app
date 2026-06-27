@@ -22,7 +22,8 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
     "accounting_invoice",
     "accounting_voucher",
   ],
-  mitarbeiter: ["staff_todo_completed", "staff_todo_deferred"],
+  checklisten: ["staff_todo_completed", "staff_todo_deferred"],
+  mitarbeiter: [],
 };
 
 export function sidebarModuleNotificationCount(

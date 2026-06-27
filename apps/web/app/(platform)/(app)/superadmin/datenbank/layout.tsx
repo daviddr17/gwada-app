@@ -1,15 +1,7 @@
 "use client";
 
-import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
-
-const DATENBANK_NAV: readonly ModuleSubnavItem[] = [
-  {
-    href: "/superadmin/datenbank",
-    label: "Übersicht",
-    matchMode: "exact",
-  },
-];
+import { SUPERADMIN_SYSTEM_NAV } from "@/lib/navigation/superadmin-system-routes";
 
 export default function SuperadminDatenbankLayout({
   children,
@@ -17,9 +9,9 @@ export default function SuperadminDatenbankLayout({
   return (
     <>
       <RegisterModuleChrome
-        title="Datenbank"
-        subnavAriaLabel="Datenbank-Bereich"
-        subnavItems={DATENBANK_NAV}
+        title="System"
+        subnavAriaLabel="Superadmin System"
+        subnavItems={SUPERADMIN_SYSTEM_NAV}
       />
       {children}
     </>

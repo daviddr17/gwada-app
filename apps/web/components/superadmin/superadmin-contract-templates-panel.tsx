@@ -30,6 +30,7 @@ import {
 } from "@/lib/types/platform-contract-templates";
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { cn } from "@/lib/utils";
 
 export function SuperadminContractTemplatesPanel() {
   const [countryCode, setCountryCode] = useState("DE");
@@ -92,15 +93,15 @@ export function SuperadminContractTemplatesPanel() {
   return (
     <>
       <Card className="border-border/50 shadow-card">
-        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
+        <CardHeader className="flex flex-col gap-4">
+          <div className="min-w-0">
             <CardTitle className="text-xl">Bibliothek</CardTitle>
             <CardDescription>
               Mustertexte pro Land — Restaurants importieren eine Kopie in ihre
               Beschäftigungsverhältnisse.
             </CardDescription>
           </div>
-          <div className="flex flex-wrap items-end gap-2">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Land</Label>
               <Select
@@ -112,7 +113,9 @@ export function SuperadminContractTemplatesPanel() {
                   if (typeof v === "string") setCountryCode(v);
                 }}
               >
-                <SelectTrigger className={appSelectTriggerAccentCn("h-9 min-w-[10rem]")}>
+                <SelectTrigger
+                  className={appSelectTriggerAccentCn("h-9 w-full min-w-[10rem] sm:w-[10rem]")}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -124,24 +127,26 @@ export function SuperadminContractTemplatesPanel() {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="size-9 shrink-0 rounded-full border-border/60"
-              aria-label="Aktualisieren"
-              onClick={() => void load()}
-            >
-              <RefreshCw className="size-4" />
-            </Button>
-            <Button
-              type="button"
-              className={modulePrimaryAddButtonClassName}
-              onClick={openCreate}
-            >
-              <Plus className="size-4" />
-              Neue Vorlage
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="size-9 shrink-0 rounded-full border-border/60"
+                aria-label="Aktualisieren"
+                onClick={() => void load()}
+              >
+                <RefreshCw className="size-4" />
+              </Button>
+              <Button
+                type="button"
+                className={cn(modulePrimaryAddButtonClassName, "flex-1 sm:flex-none")}
+                onClick={openCreate}
+              >
+                <Plus className="size-4" />
+                Neue Vorlage
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
-import { Upload } from "lucide-react";
+import { Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
@@ -56,6 +58,7 @@ type DocumentFormDrawerProps = {
     title: string;
     tagId: string | null;
   }) => Promise<boolean>;
+  onDelete?: () => Promise<void>;
   canEditNotes?: boolean;
   onNotesChanged?: () => void;
   /** Vorausgewählte Datei (z. B. per Drop auf die Übersicht). */
@@ -71,6 +74,7 @@ export function DocumentFormDrawer({
   staffMembers = [],
   onUpload,
   onSaveEdit,
+  onDelete,
   canEditNotes = false,
   onNotesChanged,
   initialFile = null,
@@ -83,6 +87,9 @@ export function DocumentFormDrawer({
   const [file, setFile] = useState<File | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [pending, setPending] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const canDelete = mode === "edit" && document != null && onDelete != null;
 
   const applySelectedFile = useCallback((next: File | null) => {
     if (!next) {
@@ -187,7 +194,15 @@ export function DocumentFormDrawer({
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!onDelete) return;
+    await onDelete();
+    setConfirmDeleteOpen(false);
+    onOpenChange(false);
+  };
+
   return (
+    <>
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
@@ -203,14 +218,30 @@ export function DocumentFormDrawer({
         )}
       >
         <DrawerHeader className={drawerFormHeaderClassName(5)}>
-          <DrawerTitle className="text-xl font-semibold tracking-tight">
-            {mode === "upload" ? "Dokument hochladen" : "Dokument bearbeiten"}
-          </DrawerTitle>
-          <DrawerDescription className="text-base">
-            {mode === "upload"
-              ? "Datei auswählen oder vom Desktop hierher ziehen, Titel und optional Tag oder Mitarbeiter."
-              : "Titel, Tag und Notizen."}
-          </DrawerDescription>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1 text-left">
+              <DrawerTitle className="text-xl font-semibold tracking-tight">
+                {mode === "upload" ? "Dokument hochladen" : "Dokument bearbeiten"}
+              </DrawerTitle>
+              <DrawerDescription className="text-base">
+                {mode === "upload"
+                  ? "Datei auswählen oder vom Desktop hierher ziehen, Titel und optional Tag oder Mitarbeiter."
+                  : "Titel, Tag und Notizen."}
+              </DrawerDescription>
+            </div>
+            {canDelete ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground hover:text-destructive"
+                aria-label="Dokument löschen"
+                onClick={() => setConfirmDeleteOpen(true)}
+              >
+                <Trash2 className="size-4" />
+              </Button>
+            ) : null}
+          </div>
         </DrawerHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
@@ -358,5 +389,22 @@ export function DocumentFormDrawer({
         </form>
       </DrawerContent>
     </Drawer>
+
+    <ConfirmDialog
+      open={confirmDeleteOpen}
+      onOpenChange={setConfirmDeleteOpen}
+      title="Dokument löschen?"
+      description={
+        document ? (
+          <>
+            „<span className="font-medium text-foreground">{document.title}</span>“
+            wird dauerhaft entfernt.
+          </>
+        ) : null
+      }
+      confirmLabel="Löschen"
+      onConfirm={handleConfirmDelete}
+    />
+    </>
   );
 }

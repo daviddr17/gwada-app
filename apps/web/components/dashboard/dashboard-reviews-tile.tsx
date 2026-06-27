@@ -68,15 +68,13 @@ export function DashboardReviewsTile() {
                 label={p.label}
                 icon={<ReviewPlatformIcon platform={p.platform} />}
                 value={
-                  !p.connected && p.platform !== "gwada"
-                    ? "—"
-                    : p.average != null
-                      ? `Ø ${p.average.toLocaleString("de-DE")} · ${p.count}`
-                      : p.count > 0
-                        ? String(p.count)
-                        : "0"
+                  p.average != null
+                    ? `Ø ${p.average.toLocaleString("de-DE")} · ${p.count}`
+                    : p.count > 0
+                      ? String(p.count)
+                      : "0"
                 }
-                href={p.connected || p.platform === "gwada" ? p.href : undefined}
+                href={p.href}
               />
             ))}
           </DashboardCompactInlineMetrics>

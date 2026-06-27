@@ -1,8 +1,44 @@
 import type {
+  SuperadminDatabaseDetails,
   SuperadminGithubRepoStatus,
   SuperadminLiveAppDeployStatus,
   SuperadminLiveAppDeploySyncState,
+  SuperadminVpsInfo,
 } from "@/lib/types/superadmin-ops-status";
+
+export function isSuperadminLocalDevRuntime(vps: SuperadminVpsInfo): boolean {
+  return vps.runtime === "development";
+}
+
+export function localDevRuntimeLabel(): string {
+  return "Lokale Entwicklung";
+}
+
+export function localDevRuntimeBadgeClass(): string {
+  return "border-sky-500/40 bg-sky-500/10 text-sky-900 dark:text-sky-200";
+}
+
+export function localDevRuntimeSummary(
+  database: SuperadminDatabaseDetails,
+  vps: SuperadminVpsInfo,
+  github: SuperadminGithubRepoStatus,
+): string {
+  const parts: string[] = ["pnpm dev"];
+  if (vps.workspaceSlug) {
+    parts.push(`Workspace ${vps.workspaceSlug}`);
+  }
+  if (database.upstreamHost) {
+    parts.push(`DB ${database.upstreamHost}`);
+  }
+  const head = formatDeploySha(
+    github.headCommit.shortSha ?? github.headCommit.sha,
+  );
+  if (github.configured && head !== "—") {
+    parts.push(`GitHub ${head}`);
+  }
+  parts.push("Live-Sync nur auf VPS");
+  return parts.join(" · ");
+}
 
 export function formatDeploySha(value: string | null | undefined): string {
   if (!value) return "—";

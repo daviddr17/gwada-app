@@ -1,10 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
-import { visibleDashboardBatchWidgets } from "@/lib/dashboard/dashboard-batch-widgets";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 function isDashboardHomePath(pathname: string): boolean {
@@ -15,21 +13,16 @@ function isDashboardHomePath(pathname: string): boolean {
   return path === "/dashboard";
 }
 
-/** Batch-Query nur auf der Dashboard-Home mit sichtbaren API-Widgets. */
+/** Batch-Query nur auf der Dashboard-Home mit sichtbaren API-Widgets (Prefs ∩ Berechtigungen). */
 export function useDashboardBatchQueryEnabled(): boolean {
   const pathname = usePathname();
-  const { visibility } = useDashboardWidgetPreferences();
+  const { batchWidgets } = useDashboardEffectiveWidgetPrefs();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-
-  const widgets = useMemo(
-    () => visibleDashboardBatchWidgets(visibility),
-    [visibility],
-  );
 
   return (
     isDashboardHomePath(pathname) &&
     workspaceReady &&
     Boolean(restaurantId && isUuidRestaurantId(restaurantId)) &&
-    widgets.length > 0
+    batchWidgets.length > 0
   );
 }

@@ -9,10 +9,7 @@ import {
   DisplayTimeActionCelebration,
   type DisplayTimeCelebrationAction,
 } from "@/components/display/display-celebration-overlay";
-import {
-  DisplayTimeTodoPopup,
-  useDisplayTimeTodoGate,
-} from "@/components/display/modules/display-time-todo-popup";
+import type { DisplayPrepareAndGate } from "@/components/display/modules/display-shift-gates";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import {
@@ -123,6 +120,7 @@ export function DisplayTimeModule({
   onChanged,
   onSessionChange,
   onClockOutSuccess,
+  prepareAndGate,
 }: {
   initial: TimeState | null;
   onChanged: () => void;
@@ -130,6 +128,7 @@ export function DisplayTimeModule({
   onSessionChange?: (state: TimeState) => void;
   /** Nach erfolgreichem Ausstempeln (nach Celebration) Display-Session beenden. */
   onClockOutSuccess?: () => void;
+  prepareAndGate: DisplayPrepareAndGate;
 }) {
   const [state, setState] = useState<TimeState>(
     initial ?? { status: "off", clocked_in_at: null, break_started_at: null },
@@ -153,7 +152,6 @@ export function DisplayTimeModule({
   onClockOutSuccessRef.current = onClockOutSuccess;
   const stateRef = useRef(state);
   stateRef.current = state;
-  const { prepareAndGate, popupProps } = useDisplayTimeTodoGate();
 
   useEffect(() => {
     onSessionChange?.(state);
@@ -219,54 +217,46 @@ export function DisplayTimeModule({
     [],
   );
 
-  const runAction = useCallback(
-    async (action: TimeAction, snapshot: TimeState) => {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
-      setActionBusy(true);
-
-      try {
-        const gate = await prepareAndGate(action);
-        if (gate === "blocked") {
-          setCelebrationAction(null);
-          setContentHidden(false);
-          setState(snapshot);
-          return;
-        }
-
-        const ok = await runTimeAction(action);
-        if (!ok) {
-          pendingCelebrationSyncRef.current = false;
-          pendingClockOutLogoutRef.current = false;
-          setCelebrationAction(null);
-          setContentHidden(false);
-          setState(snapshot);
-          void refresh();
-        } else {
-          pendingCelebrationSyncRef.current = true;
-          if (action === "clock_out") {
-            pendingClockOutLogoutRef.current = true;
-          }
-        }
-      } finally {
-        inFlightRef.current = false;
-        setActionBusy(false);
-      }
-    },
-    [prepareAndGate, runTimeAction, refresh],
-  );
-
   const beginAction = useCallback(
     (action: TimeAction) => {
       if (actionBusy || celebrationAction || inFlightRef.current) return;
       const snapshot = stateRef.current;
-      setCelebrationAction(action);
-      setContentHidden(true);
-      setState(optimisticStateForAction(action, snapshot));
-      void runAction(action, snapshot);
+      inFlightRef.current = true;
+      setActionBusy(true);
+
+      void (async () => {
+        try {
+          const gate = await prepareAndGate(action);
+          if (gate === "blocked") return;
+
+          setCelebrationAction(action);
+          setContentHidden(true);
+          setState(optimisticStateForAction(action, snapshot));
+
+          const ok = await runTimeAction(action);
+          if (!ok) {
+            pendingCelebrationSyncRef.current = false;
+            pendingClockOutLogoutRef.current = false;
+            setCelebrationAction(null);
+            setContentHidden(false);
+            setState(snapshot);
+            void refresh();
+          } else {
+            pendingCelebrationSyncRef.current = true;
+            if (action === "clock_out") {
+              pendingClockOutLogoutRef.current = true;
+            }
+          }
+        } finally {
+          inFlightRef.current = false;
+          setActionBusy(false);
+        }
+      })();
     },
-    [actionBusy, celebrationAction, runAction],
+    [actionBusy, celebrationAction, prepareAndGate, runTimeAction, refresh],
   );
+
+  const actionsBlocked = actionBusy || Boolean(celebrationAction);
 
   const since =
     state.clocked_in_at && state.status !== "off"
@@ -277,8 +267,6 @@ export function DisplayTimeModule({
     duration: celebrationAction || reduceMotion ? 0 : 0.42,
     ease: MOTION_EASE_OUT,
   } as const;
-
-  const actionsBlocked = actionBusy || Boolean(celebrationAction);
 
   return (
     <div className={displayModuleContentClassName}>
@@ -448,8 +436,6 @@ export function DisplayTimeModule({
       {canViewTeamPresence ? (
         <DisplayTimeTeamPresence members={teamPresence} className="w-full" />
       ) : null}
-
-      <DisplayTimeTodoPopup {...popupProps} />
     </div>
   );
 }

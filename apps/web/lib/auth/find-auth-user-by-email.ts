@@ -1,0 +1,34 @@
+import "server-only";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+/** Sucht ein Auth-Konto per E-Mail (Admin-Client). */
+export async function findAuthUserIdByEmailAdmin(
+  admin: SupabaseClient,
+  email: string,
+): Promise<string | null> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) return null;
+
+  let page = 1;
+  const perPage = 200;
+  while (page <= 25) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.warn("[auth] email lookup", error.message);
+      return null;
+    }
+    const users = data.users ?? [];
+    const match = users.find(
+      (user) => normalizeEmail(user.email ?? "") === normalized,
+    );
+    if (match) return match.id;
+    if (users.length < perPage) break;
+    page += 1;
+  }
+  return null;
+}

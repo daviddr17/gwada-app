@@ -49,6 +49,7 @@ type SettingsSnapshot = {
   profileShowWorkHours: boolean;
   profileShowShiftPlan: boolean;
   profileShowDocuments: boolean;
+  profileAllowDisplayPinSelfService: boolean;
   contractTwoStepSigning: boolean;
 };
 
@@ -62,6 +63,8 @@ export function StaffSettingsForm() {
   const [profileShowWorkHours, setProfileShowWorkHours] = useState(true);
   const [profileShowShiftPlan, setProfileShowShiftPlan] = useState(true);
   const [profileShowDocuments, setProfileShowDocuments] = useState(true);
+  const [profileAllowDisplayPinSelfService, setProfileAllowDisplayPinSelfService] =
+    useState(false);
   const [contractTwoStepSigning, setContractTwoStepSigning] = useState(false);
   const [platformImportOpen, setPlatformImportOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -74,6 +77,7 @@ export function StaffSettingsForm() {
       profileShowWorkHours,
       profileShowShiftPlan,
       profileShowDocuments,
+      profileAllowDisplayPinSelfService,
       contractTwoStepSigning,
     }),
     [
@@ -81,6 +85,7 @@ export function StaffSettingsForm() {
       profileShowWorkHours,
       profileShowShiftPlan,
       profileShowDocuments,
+      profileAllowDisplayPinSelfService,
       contractTwoStepSigning,
     ],
   );
@@ -95,6 +100,7 @@ export function StaffSettingsForm() {
     setProfileShowWorkHours(next.profileShowWorkHours);
     setProfileShowShiftPlan(next.profileShowShiftPlan);
     setProfileShowDocuments(next.profileShowDocuments);
+    setProfileAllowDisplayPinSelfService(next.profileAllowDisplayPinSelfService);
     setContractTwoStepSigning(next.contractTwoStepSigning);
     savedRef.current = JSON.stringify(next);
   };
@@ -117,6 +123,8 @@ export function StaffSettingsForm() {
         profileShowWorkHours: data?.profile_show_work_hours ?? true,
         profileShowShiftPlan: data?.profile_show_shift_plan ?? true,
         profileShowDocuments: data?.profile_show_documents ?? true,
+        profileAllowDisplayPinSelfService:
+          data?.profile_allow_display_pin_self_service ?? false,
         contractTwoStepSigning: data?.contract_two_step_signing ?? false,
       });
     })();
@@ -135,6 +143,7 @@ export function StaffSettingsForm() {
         profileShowWorkHours,
         profileShowShiftPlan,
         profileShowDocuments,
+        profileAllowDisplayPinSelfService,
         contractTwoStepSigning,
       });
       setSaving(false);
@@ -168,7 +177,7 @@ export function StaffSettingsForm() {
   const activeTags = documentTags.filter((t) => t.active);
 
   return (
-    <div className="space-y-6 pb-4">
+    <div className="pb-4">
       <form
         className="contents"
         onSubmit={(e) => {
@@ -176,7 +185,8 @@ export function StaffSettingsForm() {
           save();
         }}
       >
-        <Card className="border-border/50 shadow-card">
+        <div className="space-y-6">
+          <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">
             <CardTitle className="text-xl">Profil (Self-Service)</CardTitle>
             <CardDescription>
@@ -226,6 +236,22 @@ export function StaffSettingsForm() {
                 onCheckedChange={setProfileShowDocuments}
                 disabled={loading}
                 aria-label="Meine Dokumente im Profil anzeigen"
+              />
+            </div>
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Display-PIN (Self-Service)</p>
+                <p className="text-xs text-muted-foreground">
+                  Verknüpfte Mitarbeiter können ihre 4-stellige Display-PIN im
+                  Profil neu setzen — nach Bestätigung mit dem Gwada-Passwort.
+                  Die alte PIN wird aus Sicherheitsgründen nicht angezeigt.
+                </p>
+              </div>
+              <Switch
+                checked={profileAllowDisplayPinSelfService}
+                onCheckedChange={setProfileAllowDisplayPinSelfService}
+                disabled={loading}
+                aria-label="Display-PIN Self-Service im Profil erlauben"
               />
             </div>
           </CardContent>
@@ -329,6 +355,7 @@ export function StaffSettingsForm() {
             </Button>
           </CardContent>
         </Card>
+        </div>
 
         <SettingsStickySaveBar show={dirty}>
           <Button

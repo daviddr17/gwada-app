@@ -16,7 +16,7 @@ import {
   resolveDashboardFabShortcuts,
   type DashboardShortcutDefinition,
 } from "@/lib/constants/dashboard-shortcuts";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
@@ -164,7 +164,7 @@ function DashboardFabLayer({
 
 export function DashboardFab() {
   const reduceMotion = useReducedMotion() ?? false;
-  const { shortcuts, isReady } = useDashboardWidgetPreferences();
+  const { shortcuts, isReady } = useDashboardEffectiveWidgetPrefs();
   const [mounted, setMounted] = useState(false);
 
   const items = useMemo(() => {

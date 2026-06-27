@@ -48,6 +48,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.reservations",
   "display.recipes",
   "display.inventory",
+  "display.compliance",
   "display.kds",
   "display.module_switch",
   "pos.kasse.manage",
@@ -242,6 +243,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       label: "Display: Bestand & Bestellung",
       description:
         "Bestand erfassen und Bestellmengen am Tablet eingeben (Touch-Inventur).",
+      group: "display",
+    },
+    {
+      key: "display.compliance",
+      label: "Display: Eigenkontrolle",
+      description:
+        "HACCP-Checklisten am Tablet erfassen — Temperatur, Reinigung u. a.",
       group: "display",
     },
     {

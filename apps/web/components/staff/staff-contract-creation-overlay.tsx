@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { AppFullscreenOverlay } from "@/components/ui/app-fullscreen-overlay";
+import {
+  AppFullscreenOverlay,
+  appFullscreenOverlayScrollClassName,
+} from "@/components/ui/app-fullscreen-overlay";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,19 +24,21 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
 import type { StaffContractFormPayload } from "@/lib/staff/staff-contract-form-utils";
 import {
   buildStaffContractPlaceholderFields,
   extractStaffContractPlaceholderKeys,
-  isStaffContractPlaceholderApplicable,
+  groupStaffContractPlaceholderFields,
   listMissingStaffContractFields,
   replaceStaffContractPlaceholders,
   resolveStaffContractPlaceholderValue,
   staffContractPlaceholderValuesMap,
 } from "@/lib/staff/staff-contract-placeholder-resolver";
-import { submitStaffContractDigitalComplete } from "@/lib/staff/staff-contract-digital-api";
+import { submitStaffContractDigitalComplete, submitStaffContractPrepare } from "@/lib/staff/staff-contract-digital-api";
 import { notifyStaffContractsUpdated } from "@/lib/staff/staff-contract-events";
+import { trackDashboardBusyOperation } from "@/lib/uploads/dashboard-busy-operation";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import {
   loadStaffContractTemplateWithParagraphs,
@@ -50,6 +55,13 @@ type ParagraphDraft = {
   body: string;
 };
 
+export type StaffContractOverlayMode = "create" | "sign";
+
+export type StaffContractOverlayOutcome =
+  | "prepared"
+  | "signed"
+  | "pending_employee";
+
 type StaffContractCreationOverlayProps = {
   open: boolean;
   onClose: () => void;
@@ -58,12 +70,13 @@ type StaffContractCreationOverlayProps = {
   restaurant: RestaurantProfile;
   contractId?: string | null;
   contractPayload: StaffContractFormPayload;
-  alreadySigned?: boolean;
   initialSnapshot?: StaffContractBodySnapshot | null;
-  onCompleted: () => void;
+  onCompleted: (outcome: StaffContractOverlayOutcome) => void;
   onOpenTemplateManager?: (employmentTypeId: string) => void;
   /** Zweistufige Unterzeichnung: nur AG-Unterschrift, MA unterschreibt im Profil. */
   twoStepSigningEnabled?: boolean;
+  /** create: Vorlage ausfüllen; sign: vorbereiteten Vertrag vor Ort unterschreiben. */
+  overlayMode?: StaffContractOverlayMode;
 };
 
 function normalizePersonName(value: string): string {
@@ -78,12 +91,13 @@ export function StaffContractCreationOverlay({
   restaurant,
   contractId,
   contractPayload,
-  alreadySigned = false,
   initialSnapshot,
   onCompleted,
   onOpenTemplateManager,
   twoStepSigningEnabled = false,
+  overlayMode = "create",
 }: StaffContractCreationOverlayProps) {
+  const signOnly = overlayMode === "sign";
   const { resolvedFullName, isHydrated: profileHydrated } =
     usePersonalProfileNames();
   const employmentTypeId = contractPayload.employment_type_id ?? "";
@@ -115,13 +129,13 @@ export function StaffContractCreationOverlay({
   );
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [pending, setPending] = useState(false);
-  const [confirmRevise, setConfirmRevise] = useState(false);
-  const [reviseConfirmed, setReviseConfirmed] = useState(false);
   const [confirmMissingFields, setConfirmMissingFields] = useState(false);
   const [confirmEmployerFields, setConfirmEmployerFields] = useState(false);
   const [acknowledgedMissingFields, setAcknowledgedMissingFields] = useState(false);
   const [acknowledgedEmployerFields, setAcknowledgedEmployerFields] = useState(false);
-  const [completeReviseFlag, setCompleteReviseFlag] = useState(false);
+  const [confirmIntent, setConfirmIntent] = useState<"complete" | "prepare">(
+    "complete",
+  );
 
   const placeholderFields = useMemo(
     () =>
@@ -145,17 +159,15 @@ export function StaffContractCreationOverlay({
     [originalTitle, originalParagraphs],
   );
 
-  const templatePlaceholderFields = useMemo(() => {
-    if (usedPlaceholderKeys.size === 0) return [];
-    return [...usedPlaceholderKeys]
-      .filter(
-        (key) =>
-          placeholderFields[key] &&
-          isStaffContractPlaceholderApplicable(key, contractPayload.pay_type),
-      )
-      .map((key) => placeholderFields[key]!)
-      .sort((a, b) => a.label.localeCompare(b.label, "de"));
-  }, [usedPlaceholderKeys, placeholderFields, contractPayload.pay_type]);
+  const groupedPlaceholderFields = useMemo(
+    () =>
+      groupStaffContractPlaceholderFields(
+        usedPlaceholderKeys,
+        placeholderFields,
+        contractPayload.pay_type,
+      ),
+    [usedPlaceholderKeys, placeholderFields, contractPayload.pay_type],
+  );
 
   const missingFields = useMemo(
     () =>
@@ -237,7 +249,6 @@ export function StaffContractCreationOverlay({
 
   useEffect(() => {
     if (!open) return;
-    setReviseConfirmed(false);
     setAcknowledgedMissingFields(false);
     setAcknowledgedEmployerFields(false);
     setConsentAccepted(false);
@@ -350,70 +361,158 @@ export function StaffContractCreationOverlay({
     handleFieldOverride("arbeitgeber.erstellt_von", value);
   };
 
-  const submitComplete = async (revise = false) => {
-    const bodySnapshot: StaffContractBodySnapshot = {
-      template_id: templateId || null,
-      template_name:
-        templates.find((t) => t.id === templateId)?.name ?? null,
-      title: title.trim(),
-      paragraphs: paragraphs.map((p) => ({
-        heading: p.heading.trim() || null,
-        body: p.body,
-      })),
-      placeholders: staffContractPlaceholderValuesMap(
-        placeholderFields,
-        fieldOverrides,
-      ),
-    };
-
-    setPending(true);
-    const result = await submitStaffContractDigitalComplete({
-      restaurantId,
-      staffId: staff.id,
-      contractId,
-      contractFields: contractPayload,
-      bodySnapshot,
-      consentAccepted: true,
-      signatureEmployer: {
-        signer_name: employerName.trim(),
-        signature_data_url: employerSignature!,
-      },
-      ...(twoStepSigningEnabled
-        ? { employerOnly: true }
-        : {
-            signatureEmployee: {
-              signer_name: employeeName.trim(),
-              signature_data_url: employeeSignature!,
-            },
-          }),
-      revise: alreadySigned || revise || reviseConfirmed,
+  const updateParagraph = (
+    index: number,
+    patch: Partial<ParagraphDraft>,
+  ) => {
+    setParagraphs((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index]!, ...patch };
+      return next;
     });
-    setPending(false);
-
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-
-    toast.success(
-      result.pendingEmployeeSignature
-        ? "Arbeitgeber-Unterschrift gespeichert — der Mitarbeiter wird benachrichtigt."
-        : "Vertrag unterschrieben und PDF gespeichert.",
-    );
-    notifyStaffContractsUpdated();
-    onCompleted();
-    onClose();
+    setOriginalParagraphs((orig) => {
+      const copy = [...orig];
+      const row = copy[index] ?? { heading: "", body: "" };
+      copy[index] = { ...row, ...patch };
+      return copy;
+    });
   };
 
-  const handleComplete = async (revise = false) => {
+  const removeParagraph = (index: number) => {
+    setParagraphs((prev) => prev.filter((_, i) => i !== index));
+    setOriginalParagraphs((orig) => orig.filter((_, i) => i !== index));
+  };
+
+  const addParagraph = () => {
+    const empty = { heading: "", body: "" };
+    setParagraphs((prev) => [...prev, empty]);
+    setOriginalParagraphs((orig) => [...orig, empty]);
+  };
+
+  const buildBodySnapshot = (): StaffContractBodySnapshot => ({
+    template_id: templateId || null,
+    template_name: templates.find((t) => t.id === templateId)?.name ?? null,
+    title: title.trim(),
+    paragraphs: paragraphs.map((p) => ({
+      heading: p.heading.trim() || null,
+      body: p.body,
+    })),
+    placeholders: staffContractPlaceholderValuesMap(
+      placeholderFields,
+      fieldOverrides,
+    ),
+  });
+
+  const validateContractText = (): boolean => {
     if (!title.trim()) {
       toast.error("Bitte einen Vertragstitel angeben.");
-      return;
+      return false;
     }
     if (paragraphs.every((p) => !p.body.trim())) {
       toast.error("Der Vertrag enthält keinen Text.");
+      return false;
+    }
+    return true;
+  };
+
+  const submitPrepare = async () => {
+    if (!validateContractText()) return;
+
+    if (missingEmployerFields.length > 0 && !acknowledgedEmployerFields) {
+      setConfirmIntent("prepare");
+      setConfirmEmployerFields(true);
       return;
     }
+
+    if (missingFields.length > 0 && !acknowledgedMissingFields) {
+      setConfirmIntent("prepare");
+      setConfirmMissingFields(true);
+      return;
+    }
+
+    setPending(true);
+    try {
+      const result = await trackDashboardBusyOperation(
+        "Entwurf wird gespeichert …",
+        () =>
+          submitStaffContractPrepare({
+            restaurantId,
+            staffId: staff.id,
+            contractId,
+            contractFields: contractPayload,
+            bodySnapshot: buildBodySnapshot(),
+          }),
+      );
+
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(
+        result.revised
+          ? "Entwurf aktualisiert."
+          : "Entwurf gespeichert — Unterschrift kann vor Ort erfolgen.",
+      );
+      notifyStaffContractsUpdated();
+      onCompleted("prepared");
+      onClose();
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const submitComplete = async () => {
+    const bodySnapshot = buildBodySnapshot();
+    setPending(true);
+    try {
+      const result = await trackDashboardBusyOperation(
+        "Vertrag wird erstellt …",
+        () =>
+          submitStaffContractDigitalComplete({
+            restaurantId,
+            staffId: staff.id,
+            contractId,
+            contractFields: contractPayload,
+            bodySnapshot,
+            consentAccepted: true,
+            signatureEmployer: {
+              signer_name: employerName.trim(),
+              signature_data_url: employerSignature!,
+            },
+            ...(twoStepSigningEnabled
+              ? { employerOnly: true }
+              : {
+                  signatureEmployee: {
+                    signer_name: employeeName.trim(),
+                    signature_data_url: employeeSignature!,
+                  },
+                }),
+          }),
+      );
+
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(
+        result.pendingEmployeeSignature
+          ? "Arbeitgeber-Unterschrift gespeichert — der Mitarbeiter wird benachrichtigt."
+          : "Vertrag unterschrieben und PDF gespeichert.",
+      );
+      notifyStaffContractsUpdated();
+      onCompleted(
+        result.pendingEmployeeSignature ? "pending_employee" : "signed",
+      );
+      onClose();
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!validateContractText()) return;
     if (!employerName.trim()) {
       toast.error("Bitte den Namen für die Arbeitgeber-Unterschrift angeben.");
       return;
@@ -437,25 +536,23 @@ export function StaffContractCreationOverlay({
       }
     }
 
-    if (alreadySigned && !revise && !reviseConfirmed) {
-      setCompleteReviseFlag(revise);
-      setConfirmRevise(true);
-      return;
-    }
-
     if (missingEmployerFields.length > 0 && !acknowledgedEmployerFields) {
-      setCompleteReviseFlag(revise);
+      setConfirmIntent("complete");
       setConfirmEmployerFields(true);
       return;
     }
 
     if (missingFields.length > 0 && !acknowledgedMissingFields) {
-      setCompleteReviseFlag(revise);
+      setConfirmIntent("complete");
       setConfirmMissingFields(true);
       return;
     }
 
-    await submitComplete(revise);
+    await submitComplete();
+  };
+
+  const handlePrepare = async () => {
+    await submitPrepare();
   };
 
   return (
@@ -463,7 +560,7 @@ export function StaffContractCreationOverlay({
       <AppFullscreenOverlay
         open={open}
         onClose={onClose}
-        aria-label="Vertragserstellung"
+        aria-label={signOnly ? "Vertrag unterschreiben" : "Vertragserstellung"}
         header={
           <div className="flex items-center gap-3 px-4 py-3">
             <Button
@@ -478,7 +575,9 @@ export function StaffContractCreationOverlay({
               <span className="sr-only">Zurück</span>
             </Button>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold">Vertragserstellung</p>
+              <p className="truncate text-base font-semibold">
+                {signOnly ? "Vertrag unterschreiben" : "Vertragserstellung"}
+              </p>
               <p className="truncate text-xs text-muted-foreground">
                 {[staff.given_name, staff.family_name].filter(Boolean).join(" ")}
               </p>
@@ -486,11 +585,15 @@ export function StaffContractCreationOverlay({
           </div>
         }
         footer={
-          <div className="px-4 py-3">
+          <div className="space-y-2 px-4 py-3">
             <Button
               type="button"
               className={cn("h-12 w-full", brandActionButtonRoundedClassName)}
-              disabled={pending || templates.length === 0 || !consentAccepted}
+              disabled={
+                pending ||
+                (!signOnly && templates.length === 0) ||
+                !consentAccepted
+              }
               onClick={() => void handleComplete()}
             >
               {pending ? (
@@ -504,24 +607,45 @@ export function StaffContractCreationOverlay({
                 "Vertrag abschließen"
               )}
             </Button>
+            {!signOnly ? (
+              <Button
+                type="button"
+                variant="secondary"
+                className={cn("h-12 w-full", brandActionButtonRoundedClassName)}
+                disabled={
+                  pending || (!initialSnapshot && templates.length === 0)
+                }
+                onClick={() => void handlePrepare()}
+              >
+                {pending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Wird gespeichert …
+                  </>
+                ) : (
+                  "Entwurf speichern"
+                )}
+              </Button>
+            ) : null}
           </div>
         }
       >
-        <div
-          className="min-h-0 min-w-0 flex-1 basis-0 overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain px-4 py-4"
-        >
+        <div className={cn(appFullscreenOverlayScrollClassName, "px-4 py-4")}>
+          {signOnly ? (
+            <div className="mb-4 rounded-xl border border-border/50 bg-muted/20 px-4 py-3 text-sm">
+              Entwurf — Unterschriften können jetzt vor Ort gesetzt werden
+              {twoStepSigningEnabled
+                ? " (zuerst Arbeitgeber, Mitarbeiter optional im Profil)."
+                : " (Arbeitgeber und Arbeitnehmer in dieser Ansicht)."}
+            </div>
+          ) : null}
+
           {missingEmployerFields.length > 0 ? (
             <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               Arbeitgeber-Stammdaten unvollständig (
               {missingEmployerFields.map((f) => f.label).join(", ")}). Bitte
               unter Einstellungen → Restaurant ergänzen — der Vertrag kann
               trotzdem abgeschlossen werden.
-            </div>
-          ) : null}
-          {alreadySigned && !reviseConfirmed ? (
-            <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-              Dieser Vertrag wurde bereits digital unterschrieben. Beim Abschluss
-              wird eine neue PDF-Version erstellt.
             </div>
           ) : null}
 
@@ -539,6 +663,7 @@ export function StaffContractCreationOverlay({
           ) : null}
 
           <div className="space-y-4">
+            {!signOnly ? (
             <div className="space-y-2">
               <Label>Mustervorlage</Label>
               <div className="flex gap-2">
@@ -555,7 +680,9 @@ export function StaffContractCreationOverlay({
                   disabled={templatesLoading || templateLoading || pending}
                 >
                   <SelectTrigger
-                    className={appSelectTriggerAccentCn(staffDrawerFieldClassName)}
+                    className={appSelectTriggerAccentCn(
+                      cn(staffDrawerFieldClassName, "min-w-0 flex-1"),
+                    )}
                   >
                     <SelectValue placeholder="Vorlage wählen">
                       {templates.find((t) => t.id === templateId)?.name}
@@ -574,8 +701,8 @@ export function StaffContractCreationOverlay({
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="shrink-0 rounded-xl"
-                    title="Neues Muster erstellen"
+                    className="h-11 w-11 shrink-0 rounded-xl px-0"
+                    title="Mustervorlage anlegen oder importieren"
                     onClick={() => {
                       onOpenTemplateManager(employmentTypeId);
                       onClose();
@@ -588,12 +715,27 @@ export function StaffContractCreationOverlay({
               {templatesLoading ? (
                 <p className="text-xs text-muted-foreground">Vorlagen werden geladen …</p>
               ) : templates.length === 0 ? (
-                <p className="text-xs text-amber-600">
-                  Keine Mustervorlage für dieses Beschäftigungsverhältnis — bitte zuerst
-                  anlegen.
-                </p>
+                onOpenTemplateManager && employmentTypeId ? (
+                  <button
+                    type="button"
+                    className="text-left text-xs text-amber-600 underline-offset-2 hover:underline"
+                    onClick={() => {
+                      onOpenTemplateManager(employmentTypeId);
+                      onClose();
+                    }}
+                  >
+                    Keine Mustervorlage für dieses Beschäftigungsverhältnis —
+                    anlegen oder importieren.
+                  </button>
+                ) : (
+                  <p className="text-xs text-amber-600">
+                    Keine Mustervorlage für dieses Beschäftigungsverhältnis —
+                    bitte zuerst anlegen oder importieren.
+                  </p>
+                )
               ) : null}
             </div>
+            ) : null}
 
             <div className="space-y-2">
               <Label>Vertragstitel</Label>
@@ -615,44 +757,53 @@ export function StaffContractCreationOverlay({
               </p>
             </div>
 
-            {templatePlaceholderFields.length > 0 ? (
-              <div className="space-y-3 rounded-xl border border-border/50 p-4">
-                <p className="text-sm font-medium">Vertragsdaten</p>
-                {missingFields.length > 0 ? (
-                  <p className="text-xs text-amber-700">
-                    Fehlend in dieser Vorlage:{" "}
-                    {missingFields.map((f) => f.label).join(", ")}
-                  </p>
-                ) : null}
-                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                  {templatePlaceholderFields.map((field) => {
-                    const value = resolveStaffContractPlaceholderValue(
-                      placeholderFields,
-                      fieldOverrides,
-                      field.key,
-                    );
-                    const missing = !value.trim();
-                    return (
-                      <div key={field.key} className="min-w-0 space-y-1.5">
-                        <Label className={cn(missing && "text-amber-600")}>
-                          {field.label}
-                          {missing ? " · fehlt" : ""}
-                        </Label>
-                        <Input
-                          value={value}
-                          onChange={(e) =>
-                            handleFieldOverride(field.key, e.target.value)
-                          }
-                          className={cn(
-                            staffDrawerFieldClassName,
-                            missing && "border-amber-500/60 ring-amber-500/20",
-                          )}
-                          disabled={pending}
-                        />
-                      </div>
-                    );
-                  })}
+            {groupedPlaceholderFields.length > 0 ? (
+              <div className="space-y-4 rounded-xl border border-border/50 p-4">
+                <div>
+                  <p className="text-sm font-medium">Vertragsdaten</p>
+                  {missingFields.length > 0 ? (
+                    <p className="mt-1 text-xs text-amber-700">
+                      Fehlend in dieser Vorlage:{" "}
+                      {missingFields.map((f) => f.label).join(", ")}
+                    </p>
+                  ) : null}
                 </div>
+                {groupedPlaceholderFields.map((group) => (
+                  <div key={group.id} className="space-y-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </p>
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+                      {group.items.map((field) => {
+                        const value = resolveStaffContractPlaceholderValue(
+                          placeholderFields,
+                          fieldOverrides,
+                          field.key,
+                        );
+                        const missing = !value.trim();
+                        return (
+                          <div key={field.key} className="min-w-0 space-y-1.5">
+                            <Label className={cn(missing && "text-amber-600")}>
+                              {field.label}
+                              {missing ? " · fehlt" : ""}
+                            </Label>
+                            <Input
+                              value={value}
+                              onChange={(e) =>
+                                handleFieldOverride(field.key, e.target.value)
+                              }
+                              className={cn(
+                                staffDrawerFieldClassName,
+                                missing && "border-amber-500/60 ring-amber-500/20",
+                              )}
+                              disabled={pending}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : null}
 
@@ -665,51 +816,57 @@ export function StaffContractCreationOverlay({
               {templateLoading ? (
                 <p className="text-sm text-muted-foreground">Vorlage wird geladen …</p>
               ) : (
-                paragraphs.map((p, index) => (
-                  <div
-                    key={index}
-                    className="space-y-2 rounded-xl border border-border/40 p-3"
+                <>
+                  {paragraphs.map((p, index) => (
+                    <div
+                      key={index}
+                      className="space-y-2 rounded-xl border border-border/40 p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Input
+                          value={p.heading}
+                          onChange={(e) =>
+                            updateParagraph(index, { heading: e.target.value })
+                          }
+                          placeholder="Abschnittsüberschrift (optional)"
+                          className={cn(staffDrawerFieldClassName, "min-w-0 flex-1")}
+                          disabled={pending}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="shrink-0 rounded-lg text-muted-foreground hover:text-destructive"
+                          aria-label="Abschnitt entfernen"
+                          disabled={pending}
+                          onClick={() => removeParagraph(index)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                      <Textarea
+                        value={p.body}
+                        onChange={(e) =>
+                          updateParagraph(index, { body: e.target.value })
+                        }
+                        rows={5}
+                        className={staffDrawerFieldClassName}
+                        disabled={pending}
+                      />
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className={modulePrimaryAddButtonFullWidthClassName}
+                    disabled={pending || templateLoading}
+                    onClick={addParagraph}
                   >
-                    <Input
-                      value={p.heading}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const next = [...paragraphs];
-                        next[index] = { ...next[index]!, heading: value };
-                        setParagraphs(next);
-                        setOriginalParagraphs((orig) => {
-                          const copy = [...orig];
-                          const row = copy[index];
-                          if (!row) return orig;
-                          copy[index] = { ...row, heading: value };
-                          return copy;
-                        });
-                      }}
-                      placeholder="Abschnittsüberschrift (optional)"
-                      className={staffDrawerFieldClassName}
-                      disabled={pending}
-                    />
-                    <Textarea
-                      value={p.body}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        const next = [...paragraphs];
-                        next[index] = { ...next[index]!, body: value };
-                        setParagraphs(next);
-                        setOriginalParagraphs((orig) => {
-                          const copy = [...orig];
-                          const row = copy[index];
-                          if (!row) return orig;
-                          copy[index] = { ...row, body: value };
-                          return copy;
-                        });
-                      }}
-                      rows={5}
-                      className={staffDrawerFieldClassName}
-                      disabled={pending}
-                    />
-                  </div>
-                ))
+                    <Plus className="size-4" />
+                    Abschnitt hinzufügen
+                  </Button>
+                </>
               )}
             </div>
 
@@ -789,19 +946,6 @@ export function StaffContractCreationOverlay({
       </AppFullscreenOverlay>
 
       <ConfirmDialog
-        open={confirmRevise}
-        onOpenChange={setConfirmRevise}
-        title="Vertrag erneut bearbeiten?"
-        description="Der Vertrag wurde bereits unterschrieben. Beim Abschluss entsteht eine neue PDF-Version; die alte bleibt erhalten."
-        confirmLabel="Trotzdem bearbeiten"
-        onConfirm={async () => {
-          setReviseConfirmed(true);
-          setConfirmRevise(false);
-          await handleComplete(true);
-        }}
-      />
-
-      <ConfirmDialog
         open={confirmEmployerFields}
         onOpenChange={setConfirmEmployerFields}
         title="Arbeitgeber-Stammdaten unvollständig"
@@ -814,7 +958,11 @@ export function StaffContractCreationOverlay({
             setConfirmMissingFields(true);
             return;
           }
-          await submitComplete(completeReviseFlag);
+          if (confirmIntent === "prepare") {
+            await submitPrepare();
+          } else {
+            await submitComplete();
+          }
         }}
       />
 
@@ -823,11 +971,17 @@ export function StaffContractCreationOverlay({
         onOpenChange={setConfirmMissingFields}
         title="Vertragsdaten unvollständig"
         description={`Fehlende Felder: ${missingFields.map((f) => f.label).join(", ")}. Sie können den Vertrag trotzdem abschließen — fehlende Werte erscheinen leer im PDF.`}
-        confirmLabel="Dennoch abschließen"
+        confirmLabel={
+          confirmIntent === "prepare" ? "Dennoch speichern" : "Dennoch abschließen"
+        }
         onConfirm={async () => {
           setAcknowledgedMissingFields(true);
           setConfirmMissingFields(false);
-          await submitComplete(completeReviseFlag);
+          if (confirmIntent === "prepare") {
+            await submitPrepare();
+          } else {
+            await submitComplete();
+          }
         }}
       />
     </>

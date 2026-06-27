@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, RefreshCw } from "lucide-react";
+import { Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -18,7 +17,6 @@ import {
   importPlatformContractTemplates,
 } from "@/lib/staff/staff-contract-platform-import-api";
 import {
-  PLATFORM_EMPLOYMENT_LEGACY_LABELS,
   type PlatformStaffContractCatalogItem,
 } from "@/lib/types/platform-contract-templates";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
@@ -29,6 +27,16 @@ import {
 } from "@/lib/ui/drawer-form-section";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { cn } from "@/lib/utils";
+
+const importActionButtonClassName = cn(
+  "h-9",
+  drawerFormFullWidthButtonClassName,
+);
+
+const importedStatusClassName = cn(
+  importActionButtonClassName,
+  "inline-flex items-center justify-center gap-1 border border-emerald-500/30 bg-emerald-500/15 px-2.5 text-[0.8rem] font-medium text-emerald-700 dark:text-emerald-400",
+);
 
 export function StaffContractPlatformImportDrawer({
   open,
@@ -81,29 +89,40 @@ export function StaffContractPlatformImportDrawer({
     [items],
   );
 
+  const sheetLegalNotice = useMemo(() => {
+    for (const item of items) {
+      const notice = item.legalNotice?.trim();
+      if (notice) return notice;
+    }
+    return null;
+  }, [items]);
+
   const importOne = async (platformTemplateId: string) => {
     setImportingId(platformTemplateId);
-    const result = await importPlatformContractTemplates({
-      restaurantId,
-      employmentTypeId: employmentTypeId ?? undefined,
-      platformTemplateIds: [platformTemplateId],
-    });
-    setImportingId(null);
-    if (!result.ok) {
-      toast.error("Import fehlgeschlagen.");
-      return;
+    try {
+      const result = await importPlatformContractTemplates({
+        restaurantId,
+        employmentTypeId: employmentTypeId ?? undefined,
+        platformTemplateIds: [platformTemplateId],
+      });
+      if (!result.ok) {
+        toast.error("Import fehlgeschlagen.");
+        return;
+      }
+      if (result.imported === 0) {
+        toast.message(
+          employmentTypeName
+            ? "Vorlage ist für dieses Beschäftigungsverhältnis bereits importiert."
+            : "Vorlage war bereits importiert.",
+        );
+      } else {
+        toast.success("Vorlage importiert.");
+      }
+      onImported?.();
+      await reload();
+    } finally {
+      setImportingId(null);
     }
-    if (result.imported === 0) {
-      toast.message(
-        employmentTypeName
-          ? "Vorlage ist für dieses Beschäftigungsverhältnis bereits importiert."
-          : "Vorlage war bereits importiert.",
-      );
-    } else {
-      toast.success("Vorlage importiert.");
-    }
-    onImported?.();
-    void reload();
   };
 
   const importAll = async () => {
@@ -149,18 +168,11 @@ export function StaffContractPlatformImportDrawer({
         </DrawerHeader>
 
         <div className={drawerScrollAreaClassName(6)}>
-          <div className="mb-3 flex items-center justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-sm"
-              className="rounded-full border-border/60"
-              aria-label="Aktualisieren"
-              onClick={() => void reload()}
-            >
-              <RefreshCw className="size-4" />
-            </Button>
-          </div>
+          {sheetLegalNotice ? (
+            <p className="mb-4 text-xs leading-relaxed text-muted-foreground">
+              {sheetLegalNotice}
+            </p>
+          ) : null}
 
           {importableCount > 0 ? (
             <Button
@@ -185,39 +197,67 @@ export function StaffContractPlatformImportDrawer({
                 Keine Plattform-Vorlagen für {countryLabel}.
               </p>
             ) : (
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {items.map((item) => {
                   const busy = importingId === item.id || bulkPending;
                   return (
                     <li
                       key={item.id}
-                      className="flex items-center gap-3 rounded-xl border border-border/40 bg-background/70 px-3 py-2.5"
+                      className="rounded-xl border border-border/40 bg-background/70 px-4 py-3"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{item.name}</p>
-                        <p className="truncate text-xs text-muted-foreground">
-                          {PLATFORM_EMPLOYMENT_LEGACY_LABELS[item.employmentLegacyKey]} · v
-                          {item.version}
-                        </p>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold leading-snug">
+                            {item.name}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
+                          {item.alreadyImported && !item.updateAvailable ? (
+                            <span className={importedStatusClassName}>
+                              <Check className="size-4 shrink-0" aria-hidden />
+                              Importiert
+                            </span>
+                          ) : item.alreadyImported && item.updateAvailable ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className={importActionButtonClassName}
+                              disabled={busy}
+                              onClick={() => void importOne(item.id)}
+                            >
+                              {busy && importingId === item.id ? (
+                                <Loader2
+                                  className="size-4 animate-spin"
+                                  aria-hidden
+                                />
+                              ) : (
+                                <Download className="size-4" aria-hidden />
+                              )}
+                              Update importieren
+                            </Button>
+                          ) : (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className={importActionButtonClassName}
+                              disabled={busy}
+                              onClick={() => void importOne(item.id)}
+                            >
+                              {busy && importingId === item.id ? (
+                                <Loader2
+                                  className="size-4 animate-spin"
+                                  aria-hidden
+                                />
+                              ) : (
+                                <Download className="size-4" aria-hidden />
+                              )}
+                              Importieren
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      {item.alreadyImported ? (
-                        item.updateAvailable ? (
-                          <Badge variant="outline">Update verfügbar</Badge>
-                        ) : (
-                          <Badge variant="secondary">Importiert</Badge>
-                        )
-                      ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="secondary"
-                          className={drawerFormFullWidthButtonClassName}
-                          disabled={busy}
-                          onClick={() => void importOne(item.id)}
-                        >
-                          Importieren
-                        </Button>
-                      )}
                     </li>
                   );
                 })}

@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   DatePickerField,
-  formScheduleTimeInputClassName,
+  formScheduleTimeInputFullWidthClassName,
 } from "@/components/ui/date-picker";
 import {
   datetimeLocalValueToIso,
@@ -25,7 +25,7 @@ import {
   isoToDatetimeLocalValue,
   ymdAndHmToDatetimeLocal,
 } from "@/lib/reservations/datetime-local";
-import { SearchableSelect } from "@/components/ui/combobox";
+import { SearchableSelect, SearchableMultiSelect } from "@/components/ui/combobox";
 import {
   staffDrawerFieldClassName,
   staffDrawerScrollClassName,
@@ -40,18 +40,27 @@ import {
 } from "@/lib/supabase/staff-todos-db";
 import type {
   RestaurantStaffTodoRow,
+  StaffTodoCaptureType,
   StaffTodoCompletionMode,
   StaffTodoPriority,
+  StaffTodoRecurrence,
   StaffTodoUpsertInput,
 } from "@/lib/types/staff-todos";
 import {
+  STAFF_TODO_CAPTURE_TYPE_LABELS,
+  STAFF_TODO_CAPTURE_TYPES,
   STAFF_TODO_COMPLETION_MODE_LABELS,
   STAFF_TODO_PRIORITY_LABELS,
+  STAFF_TODO_RECURRENCE_LABELS,
+  STAFF_TODO_RECURRENCES,
 } from "@/lib/types/staff-todos";
+import type { ChecklistAreaDefinition } from "@/lib/types/checklist-areas-devices";
+import type { RestaurantChecklistDeviceRow } from "@/lib/types/checklist-areas-devices";
 import { staffDisplayName, type RestaurantStaffRow } from "@/lib/types/staff";
 import type { StaffPositionTagDefinition } from "@/lib/types/staff";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MultiSelectCheckboxList } from "@/components/ui/multi-select-checkbox-list";
+import { DisplayPopupMultiSelect } from "@/components/checklisten/display-popup-multi-select";
+import { displayPopupHasTrigger } from "@/lib/staff/display-popup-options";
 import { hasModuleDelete } from "@/lib/permissions/module-crud-permissions";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { cn } from "@/lib/utils";
@@ -69,6 +78,13 @@ function ymdHmToIso(ymd: string, hm: string): string | null {
   return datetimeLocalValueToIso(ymdAndHmToDatetimeLocal(ymd, hm || "00:00"));
 }
 
+function parseOptionalNumber(raw: string): number | null {
+  const t = raw.trim().replace(",", ".");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+
 type StaffTodoFormDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +92,8 @@ type StaffTodoFormDrawerProps = {
   todo: RestaurantStaffTodoRow | null;
   staffList: readonly RestaurantStaffRow[];
   positionTags: readonly StaffPositionTagDefinition[];
+  checklistAreas: readonly ChecklistAreaDefinition[];
+  checklistDevices: readonly RestaurantChecklistDeviceRow[];
   onSaved: () => void;
 };
 
@@ -86,6 +104,8 @@ export function StaffTodoFormDrawer({
   todo,
   staffList,
   positionTags,
+  checklistAreas,
+  checklistDevices,
   onSaved,
 }: StaffTodoFormDrawerProps) {
   const { has } = useRestaurantPermissions();
@@ -112,6 +132,14 @@ export function StaffTodoFormDrawer({
   const [requireDeferReason, setRequireDeferReason] = useState(false);
   const [blocksShiftEnd, setBlocksShiftEnd] = useState(false);
   const [allowReopenOnDisplay, setAllowReopenOnDisplay] = useState(false);
+  const [recurrence, setRecurrence] = useState<string>("");
+  const [captureType, setCaptureType] = useState<StaffTodoCaptureType>("boolean");
+  const [checklistAreaId, setChecklistAreaId] = useState("");
+  const [checklistDeviceId, setChecklistDeviceId] = useState("");
+  const [targetMin, setTargetMin] = useState("");
+  const [targetMax, setTargetMax] = useState("");
+  const [requireCorrectiveOnDeviation, setRequireCorrectiveOnDeviation] =
+    useState(false);
   const [saving, setSaving] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
 
@@ -136,6 +164,13 @@ export function StaffTodoFormDrawer({
       setRequireDeferReason(false);
       setBlocksShiftEnd(false);
       setAllowReopenOnDisplay(false);
+      setRecurrence("");
+      setCaptureType("boolean");
+      setChecklistAreaId("");
+      setChecklistDeviceId("");
+      setTargetMin("");
+      setTargetMax("");
+      setRequireCorrectiveOnDeviation(false);
       return;
     }
     setTitle(todo.title);
@@ -159,11 +194,30 @@ export function StaffTodoFormDrawer({
     setRequireDeferReason(todo.require_defer_reason);
     setBlocksShiftEnd(todo.blocks_shift_end);
     setAllowReopenOnDisplay(todo.allow_reopen_on_display ?? false);
+    setRecurrence(todo.recurrence ?? "");
+    setCaptureType(todo.capture_type ?? "boolean");
+    setChecklistAreaId(todo.checklist_area_id ?? "");
+    setChecklistDeviceId(todo.checklist_device_id ?? "");
+    setTargetMin(todo.target_min != null ? String(todo.target_min) : "");
+    setTargetMax(todo.target_max != null ? String(todo.target_max) : "");
+    setRequireCorrectiveOnDeviation(todo.require_corrective_on_deviation ?? false);
   }, [todo, staffList, positionTags]);
 
   useEffect(() => {
     if (open) resetFromTodo();
   }, [open, resetFromTodo]);
+
+  const handleDeviceChange = (id: string) => {
+    setChecklistDeviceId(id);
+    if (!id) return;
+    const dev = checklistDevices.find((d) => d.id === id);
+    if (!dev) return;
+    if (dev.area_id) setChecklistAreaId(dev.area_id);
+    if (captureType === "temperature") {
+      if (dev.target_min != null) setTargetMin(String(dev.target_min));
+      if (dev.target_max != null) setTargetMax(String(dev.target_max));
+    }
+  };
 
   const staffOptions = useMemo(
     () =>
@@ -177,7 +231,11 @@ export function StaffTodoFormDrawer({
     () =>
       positionTags
         .filter((t) => t.active)
-        .map((t) => ({ value: t.id, label: t.name })),
+        .map((t) => ({
+          value: t.id,
+          label: t.name,
+          leadingColor: t.backgroundColor,
+        })),
     [positionTags],
   );
 
@@ -191,6 +249,49 @@ export function StaffTodoFormDrawer({
       string,
     ][]
   ).map(([value, label]) => ({ value, label }));
+
+  const areaOptions = useMemo(
+    () => [
+      { value: "", label: "Kein Bereich" },
+      ...checklistAreas
+        .filter((a) => a.active)
+        .map((a) => ({ value: a.id, label: a.name })),
+    ],
+    [checklistAreas],
+  );
+
+  const deviceOptions = useMemo(
+    () => [
+      { value: "", label: "Kein Gerät" },
+      ...checklistDevices
+        .filter((d) => d.is_active)
+        .map((d) => ({ value: d.id, label: d.name })),
+    ],
+    [checklistDevices],
+  );
+
+  const recurrenceOptions = useMemo(
+    () => [
+      { value: "", label: "Einmalig / manuell" },
+      ...STAFF_TODO_RECURRENCES.map((r) => ({
+        value: r,
+        label: STAFF_TODO_RECURRENCE_LABELS[r],
+      })),
+    ],
+    [],
+  );
+
+  const captureOptions = useMemo(
+    () =>
+      STAFF_TODO_CAPTURE_TYPES.map((c) => ({
+        value: c,
+        label: STAFF_TODO_CAPTURE_TYPE_LABELS[c],
+      })),
+    [],
+  );
+
+  const showLimits =
+    captureType === "temperature" || captureType === "number";
 
   const buildInput = (): StaffTodoUpsertInput | null => {
     const trimmed = title.trim();
@@ -213,11 +314,15 @@ export function StaffTodoFormDrawer({
       completion_mode: completionMode,
       show_on_display:
         showOnDisplay ||
-        showOnPinLogin ||
-        showBeforeClockIn ||
-        showBeforeBreakStart ||
-        showBeforeBreakEnd ||
-        showBeforeClockOut,
+        displayPopupHasTrigger({
+          showOnPinLogin,
+          showBeforeClockIn,
+          showBeforeBreakStart,
+          showBeforeBreakEnd,
+          showBeforeClockOut,
+          requireDeferReason,
+          blocksShiftEnd,
+        }),
       show_before_clock_in: showBeforeClockIn,
       show_before_break_start: showBeforeBreakStart,
       show_before_break_end: showBeforeBreakEnd,
@@ -226,6 +331,14 @@ export function StaffTodoFormDrawer({
       require_defer_reason: requireDeferReason,
       blocks_shift_end: blocksShiftEnd,
       allow_reopen_on_display: allowReopenOnDisplay,
+      recurrence: (recurrence || null) as StaffTodoRecurrence | null,
+      capture_type: captureType,
+      checklist_area_id: checklistAreaId || null,
+      checklist_device_id: checklistDeviceId || null,
+      target_min: showLimits ? parseOptionalNumber(targetMin) : null,
+      target_max: showLimits ? parseOptionalNumber(targetMax) : null,
+      require_corrective_on_deviation:
+        captureType === "temperature" ? requireCorrectiveOnDeviation : false,
     };
   };
 
@@ -300,6 +413,91 @@ export function StaffTodoFormDrawer({
                 className={staffDrawerFieldClassName}
               />
             </DrawerFormSection>
+            <DrawerFormSection title="Bereich & Gerät">
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Bereich</span>
+                  <SearchableSelect
+                    value={checklistAreaId}
+                    onValueChange={setChecklistAreaId}
+                    options={areaOptions}
+                    className={selectClass}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">Gerät</span>
+                  <SearchableSelect
+                    value={checklistDeviceId}
+                    onValueChange={handleDeviceChange}
+                    options={deviceOptions}
+                    className={selectClass}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Optional — übernimmt Bereich und Soll-Temperaturen bei
+                    Temperatur-Erfassung.
+                  </p>
+                </div>
+              </div>
+            </DrawerFormSection>
+            <DrawerFormSection title="Erfassung">
+              <div className="space-y-3">
+                <SearchableSelect
+                  value={captureType}
+                  onValueChange={(v) => setCaptureType(v as StaffTodoCaptureType)}
+                  options={captureOptions}
+                  className={selectClass}
+                />
+                {showLimits ? (
+                  <div className={drawerTwoColClass}>
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {captureType === "temperature" ? "Min. °C" : "Min."}
+                      </span>
+                      <Input
+                        inputMode="decimal"
+                        value={targetMin}
+                        onChange={(e) => setTargetMin(e.target.value)}
+                        className={staffDrawerFieldClassName}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <span className="text-xs text-muted-foreground">
+                        {captureType === "temperature" ? "Max. °C" : "Max."}
+                      </span>
+                      <Input
+                        inputMode="decimal"
+                        value={targetMax}
+                        onChange={(e) => setTargetMax(e.target.value)}
+                        className={staffDrawerFieldClassName}
+                      />
+                    </div>
+                  </div>
+                ) : null}
+                {captureType === "temperature" ? (
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={requireCorrectiveOnDeviation}
+                      onCheckedChange={(c) =>
+                        setRequireCorrectiveOnDeviation(c === true)
+                      }
+                    />
+                    Korrekturmaßnahme bei Abweichung erforderlich
+                  </label>
+                ) : null}
+              </div>
+            </DrawerFormSection>
+            <DrawerFormSection title="Wiederholung">
+              <SearchableSelect
+                value={recurrence}
+                onValueChange={setRecurrence}
+                options={recurrenceOptions}
+                className={selectClass}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Bei Wiederholung optional zusätzlich „Sichtbar ab“ / „Fällig bis“
+                für einmalige Zeitfenster.
+              </p>
+            </DrawerFormSection>
             <DrawerFormSection title="Zuständigkeit">
               <p className="mb-2 text-xs text-muted-foreground">
                 Mehrere Mitarbeiter und/oder Positionen möglich.
@@ -307,20 +505,26 @@ export function StaffTodoFormDrawer({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Mitarbeiter</p>
-                  <MultiSelectCheckboxList
+                  <SearchableMultiSelect
                     options={staffOptions}
                     value={staffIds}
                     onChange={setStaffIds}
+                    placeholder="Mitarbeiter wählen …"
+                    searchPlaceholder="Weitere suchen …"
                     emptyMessage="Keine aktiven Mitarbeiter."
+                    aria-label="Mitarbeiter"
                   />
                 </div>
                 <div className="space-y-2">
                   <p className="text-sm font-medium">Positionen</p>
-                  <MultiSelectCheckboxList
+                  <SearchableMultiSelect
                     options={tagOptions}
                     value={positionTagIds}
                     onChange={setPositionTagIds}
+                    placeholder="Positionen wählen …"
+                    searchPlaceholder="Weitere suchen …"
                     emptyMessage="Keine aktiven Positionen."
+                    aria-label="Positionen"
                   />
                 </div>
               </div>
@@ -352,11 +556,7 @@ export function StaffTodoFormDrawer({
                     value={displayFromHm}
                     onChange={(e) => setDisplayFromHm(e.target.value)}
                     disabled={!displayFromYmd}
-                    className={cn(
-                      staffDrawerFieldClassName,
-                      formScheduleTimeInputClassName,
-                      "w-full",
-                    )}
+                    className={formScheduleTimeInputFullWidthClassName}
                   />
                 </div>
               </div>
@@ -381,11 +581,7 @@ export function StaffTodoFormDrawer({
                     value={displayUntilHm}
                     onChange={(e) => setDisplayUntilHm(e.target.value)}
                     disabled={!displayUntilYmd}
-                    className={cn(
-                      staffDrawerFieldClassName,
-                      formScheduleTimeInputClassName,
-                      "w-full",
-                    )}
+                    className={formScheduleTimeInputFullWidthClassName}
                   />
                 </div>
               </div>
@@ -400,71 +596,44 @@ export function StaffTodoFormDrawer({
                 className={selectClass}
               />
             </DrawerFormSection>
-            <div className="space-y-3 px-4 pb-2">
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={showOnDisplay}
-                  onCheckedChange={(c) => setShowOnDisplay(c === true)}
-                />
-                Auf Display anzeigen
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={showOnPinLogin}
-                  onCheckedChange={(c) => setShowOnPinLogin(c === true)}
-                />
-                Popup bei jeder PIN-Anmeldung am Display
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={showBeforeClockIn}
-                  onCheckedChange={(c) => setShowBeforeClockIn(c === true)}
-                />
-                Popup vor Schichtbeginn
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={showBeforeBreakStart}
-                  onCheckedChange={(c) => setShowBeforeBreakStart(c === true)}
-                />
-                Popup vor Pausenbeginn
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={showBeforeBreakEnd}
-                  onCheckedChange={(c) => setShowBeforeBreakEnd(c === true)}
-                />
-                Popup vor Pausenende
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={showBeforeClockOut}
-                  onCheckedChange={(c) => setShowBeforeClockOut(c === true)}
-                />
-                Popup vor Schichtende
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={requireDeferReason}
-                  onCheckedChange={(c) => setRequireDeferReason(c === true)}
-                />
-                Grund bei Verschieben erforderlich
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={blocksShiftEnd}
-                  onCheckedChange={(c) => setBlocksShiftEnd(c === true)}
-                />
-                Schichtende blockieren bis erledigt
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={allowReopenOnDisplay}
-                  onCheckedChange={(c) => setAllowReopenOnDisplay(c === true)}
-                />
-                Erledigung am Display rückgängig machen
-              </label>
-            </div>
+            <DrawerFormSection title="Display">
+              <div className="space-y-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={showOnDisplay}
+                    onCheckedChange={(c) => setShowOnDisplay(c === true)}
+                  />
+                  Auf Display anzeigen (Badge)
+                </label>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Popup am Display</p>
+                  <DisplayPopupMultiSelect
+                    includeAllowReopen
+                    blocksShiftEndLabel="Schichtende blockieren bis erledigt"
+                    flags={{
+                      showOnPinLogin,
+                      showBeforeClockIn,
+                      showBeforeBreakStart,
+                      showBeforeBreakEnd,
+                      showBeforeClockOut,
+                      requireDeferReason,
+                      blocksShiftEnd,
+                      allowReopenOnDisplay,
+                    }}
+                    onChange={(next) => {
+                      setShowOnPinLogin(next.showOnPinLogin);
+                      setShowBeforeClockIn(next.showBeforeClockIn);
+                      setShowBeforeBreakStart(next.showBeforeBreakStart);
+                      setShowBeforeBreakEnd(next.showBeforeBreakEnd);
+                      setShowBeforeClockOut(next.showBeforeClockOut);
+                      setRequireDeferReason(next.requireDeferReason);
+                      setBlocksShiftEnd(next.blocksShiftEnd);
+                      setAllowReopenOnDisplay(next.allowReopenOnDisplay ?? false);
+                    }}
+                  />
+                </div>
+              </div>
+            </DrawerFormSection>
           </div>
           <DrawerFormFooter
             submitPending={saving}

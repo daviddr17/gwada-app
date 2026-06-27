@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -74,11 +75,16 @@ export function useDashboardWidgetPreferencesState(): DashboardWidgetPreferences
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
 
-  const [prefs, setPrefs] = useState<DashboardWidgetPrefs>(() => {
-    return peekOptimisticDashboardWidgetPrefs() ?? defaultDashboardWidgetPrefs();
-  });
+  const [prefs, setPrefs] = useState<DashboardWidgetPrefs>(
+    defaultDashboardWidgetPrefs,
+  );
   const [isReady, setIsReady] = useState(true);
   const [isReconciled, setIsReconciled] = useState(false);
+
+  useLayoutEffect(() => {
+    const optimistic = peekOptimisticDashboardWidgetPrefs();
+    if (optimistic) setPrefs(optimistic);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

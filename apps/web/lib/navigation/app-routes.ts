@@ -47,6 +47,15 @@ export const APP_ROUTES = {
     statistics: "/dashboard/dokumente/statistiken",
     log: "/dashboard/dokumente/protokoll",
   },
+  checklisten: {
+    root: "/dashboard/checklisten",
+    todos: "/dashboard/checklisten/todos",
+    vorlagen: "/dashboard/checklisten/vorlagen",
+    geraete: "/dashboard/checklisten/geraete",
+    eintraege: "/dashboard/checklisten/eintraege",
+    protokoll: "/dashboard/checklisten/protokoll",
+    settings: "/dashboard/checklisten/einstellungen",
+  },
   mitarbeiter: {
     root: "/dashboard/mitarbeiter",
     overview: "/dashboard/mitarbeiter/uebersicht",
@@ -56,7 +65,7 @@ export const APP_ROUTES = {
     hours: "/dashboard/mitarbeiter/arbeitszeiten",
     statistics: "/dashboard/mitarbeiter/statistiken",
     export: "/dashboard/mitarbeiter/export",
-    todos: "/dashboard/mitarbeiter/todos",
+    todos: "/dashboard/checklisten/todos",
   },
   buchfuehrung: {
     root: "/dashboard/buchfuehrung",
@@ -115,5 +124,21 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   {
     source: "/buchfuehrung/:path*",
     destination: "/dashboard/buchfuehrung/:path*",
+  },
+  {
+    source: "/settings/eigenkontrolle",
+    destination: "/dashboard/checklisten",
+  },
+  {
+    source: "/settings/eigenkontrolle/:path*",
+    destination: "/dashboard/checklisten/:path*",
+  },
+  {
+    source: "/dashboard/mitarbeiter/todos",
+    destination: "/dashboard/checklisten/todos",
+  },
+  {
+    source: "/dashboard/mitarbeiter/todos/:path*",
+    destination: "/dashboard/checklisten/todos",
   },
 ];

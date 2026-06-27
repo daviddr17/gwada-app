@@ -16,6 +16,13 @@ import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { getSupabaseAnonKey } from "@/lib/public-env";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
+import {
+  GWADA_PUBLIC_SIGNUP_ENABLED,
+  GWADA_WAITLIST_SIGNUP_MESSAGE,
+  parseOAuthIdTokenEmail,
+} from "@/lib/auth/public-signup-gate";
 
 function redirectLogin(
   origin: string,
@@ -145,6 +152,31 @@ export async function handleGoogleOAuthCallback(
     return clearNonce(
       redirectProfile(origin, { oauth_linked: true }),
     );
+  }
+
+  if (!GWADA_PUBLIC_SIGNUP_ENABLED) {
+    const oauthEmail = parseOAuthIdTokenEmail(tokenResult.idToken);
+    if (!oauthEmail) {
+      return clearNonce(
+        redirectLogin(
+          origin,
+          "Google-Anmeldung: E-Mail konnte nicht gelesen werden.",
+          state.next,
+        ),
+      );
+    }
+    const admin = createSupabaseAdminClient();
+    if (!admin) {
+      return clearNonce(
+        redirectLogin(origin, "Anmeldedienst nicht verfügbar.", state.next),
+      );
+    }
+    const existingUserId = await findAuthUserIdByEmailAdmin(admin, oauthEmail);
+    if (!existingUserId) {
+      return clearNonce(
+        redirectLogin(origin, GWADA_WAITLIST_SIGNUP_MESSAGE, state.next),
+      );
+    }
   }
 
   const { error } = await supabase.auth.signInWithIdToken({

@@ -58,14 +58,13 @@ create table public.restaurant_compliance_checklists (
     category in (
       'temperature',
       'cleaning',
-      'goods_receipt',
       'hot_hold',
       'cooking',
       'other'
     )
   ),
   constraint restaurant_compliance_checklists_frequency_check check (
-    frequency in ('daily', 'weekly', 'monthly', 'per_delivery', 'ad_hoc')
+    frequency in ('daily', 'weekly', 'monthly', 'ad_hoc')
   ),
   constraint restaurant_compliance_checklists_items_is_array check (
     jsonb_typeof(items) = 'array'

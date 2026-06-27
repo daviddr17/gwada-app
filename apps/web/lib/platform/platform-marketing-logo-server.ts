@@ -7,9 +7,8 @@ import {
 } from "@/lib/platform/platform-marketing-logo-url";
 import type { PlatformLogoTheme } from "@/lib/platform/resolve-platform-logo";
 import { fetchPlatformAppBranding } from "@/lib/supabase/platform-app-settings-db";
-import { platformBrandingPublicObjectPath } from "@/lib/supabase/platform-branding-public-url";
+import { resolvePlatformBrandingFetchUrl } from "@/lib/supabase/platform-branding-public-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveSupabaseUpstreamUrl } from "@/lib/supabase/supabase-upstream-url";
 
 export type PlatformMarketingLogoAsset = {
   body: Buffer;
@@ -18,9 +17,7 @@ export type PlatformMarketingLogoAsset = {
 };
 
 function logoUpstreamUrl(storagePath: string): string | null {
-  const rel = platformBrandingPublicObjectPath(storagePath);
-  if (!rel) return null;
-  return `${resolveSupabaseUpstreamUrl()}${rel.slice("/sb".length)}`;
+  return resolvePlatformBrandingFetchUrl(storagePath);
 }
 
 export async function loadPlatformMarketingLogoAsset(params: {

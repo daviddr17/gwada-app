@@ -7,6 +7,7 @@
     "dev": "bash scripts/dev-start.sh",
     "dev:bg": "bash scripts/dev-server-bg.sh",
     "dev:raw": "pnpm --filter web dev",
+    "dev:webpack": "pnpm --filter web dev:webpack",
     "dev:start": "bash scripts/dev-start.sh",
     "dev:local": "pnpm --filter web dev:local",
     "dev:supabase-only": "pnpm --filter web dev:supabase-only",

@@ -7,6 +7,12 @@ import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
 import { appendAuthEntryCookieCleanup } from "@/lib/cookies/bloated-request-cookies";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  GWADA_PUBLIC_SIGNUP_ENABLED,
+  GWADA_WAITLIST_SIGNUP_MESSAGE,
+} from "@/lib/auth/public-signup-gate";
+import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
 
 function loginRedirect(
   origin: string,
@@ -56,9 +62,20 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     return loginRedirect(origin, error.message, searchParams.get("next"));
+  }
+
+  if (
+    !GWADA_PUBLIC_SIGNUP_ENABLED &&
+    sessionData.session?.user?.created_at
+  ) {
+    const createdMs = new Date(sessionData.session.user.created_at).getTime();
+    if (Date.now() - createdMs < 120_000) {
+      await supabase.auth.signOut();
+      return loginRedirect(origin, GWADA_WAITLIST_SIGNUP_MESSAGE, searchParams.get("next"));
+    }
   }
 
   const enterUrl = new URL(

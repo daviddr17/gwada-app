@@ -2,9 +2,8 @@ import "server-only";
 
 import { faviconMimeTypeFromPath } from "@/lib/platform/branding-asset-url";
 import { fetchPlatformAppBranding } from "@/lib/supabase/platform-app-settings-db";
-import { platformBrandingPublicObjectPath } from "@/lib/supabase/platform-branding-public-url";
+import { resolvePlatformBrandingFetchUrl } from "@/lib/supabase/platform-branding-public-url";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { resolveSupabaseUpstreamUrl } from "@/lib/supabase/supabase-upstream-url";
 
 export type PlatformFaviconAsset = {
   body: ArrayBuffer;
@@ -13,9 +12,7 @@ export type PlatformFaviconAsset = {
 };
 
 function faviconUpstreamUrl(storagePath: string): string | null {
-  const rel = platformBrandingPublicObjectPath(storagePath);
-  if (!rel) return null;
-  return `${resolveSupabaseUpstreamUrl()}${rel.slice("/sb".length)}`;
+  return resolvePlatformBrandingFetchUrl(storagePath);
 }
 
 export async function loadPlatformFaviconAsset(): Promise<PlatformFaviconAsset | null> {

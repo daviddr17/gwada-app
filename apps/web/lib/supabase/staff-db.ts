@@ -495,40 +495,71 @@ export async function reorderStaffEmploymentTypes(
 const STAFF_CONTRACT_SELECT_BASE =
   "id, restaurant_id, staff_id, valid_from, valid_to, pay_type, hourly_rate_cents, fixed_salary_cents, currency, note";
 
-const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_BASE}, employment_type_id, vacation_days_per_year, target_weekly_minutes, current_document_id, signed_at, signed_by_user_id, contract_body_snapshot, signature_employer, signature_employee, employee_signature_pending, employment_type:restaurant_staff_employment_types(id, name)`;
+const STAFF_CONTRACT_SELECT_DIGITAL = `${STAFF_CONTRACT_SELECT_BASE}, employment_type_id, vacation_days_per_year, target_weekly_minutes, current_document_id, signed_at, signed_by_user_id, contract_body_snapshot, signature_employer, signature_employee, employee_signature_pending, employment_type:restaurant_staff_employment_types(id, name)`;
+
+const STAFF_CONTRACT_SELECT_EXTENDED = `${STAFF_CONTRACT_SELECT_DIGITAL}, contract_source`;
+
+const STAFF_CONTRACT_SELECT_TIERS = [
+  STAFF_CONTRACT_SELECT_EXTENDED,
+  STAFF_CONTRACT_SELECT_DIGITAL,
+  STAFF_CONTRACT_SELECT_BASE,
+] as const;
+
+function isMissingStaffContractColumnError(message: string): boolean {
+  return /column .* does not exist|employment_type_id|vacation_days_per_year|target_weekly_minutes|contract_log|contract_source|employee_signature_pending|contract_body_snapshot|signed_at|current_document_id/i.test(
+    message,
+  );
+}
+
+async function fetchStaffContractRows(
+  supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  params: {
+    restaurantId: string;
+    staffId?: string;
+    order?: { column: string; ascending: boolean };
+  },
+): Promise<{ rows: Record<string, unknown>[]; error: string | null }> {
+  for (const select of STAFF_CONTRACT_SELECT_TIERS) {
+    let query = supabase
+      .from("restaurant_staff_contracts")
+      .select(select)
+      .eq("restaurant_id", params.restaurantId);
+
+    if (params.staffId) {
+      query = query.eq("staff_id", params.staffId);
+    }
+
+    if (params.order) {
+      query = query.order(params.order.column, {
+        ascending: params.order.ascending,
+      });
+    }
+
+    const { data, error } = await query;
+    if (!error) {
+      return { rows: (data ?? []) as Record<string, unknown>[], error: null };
+    }
+    if (!isMissingStaffContractColumnError(error.message)) {
+      return { rows: [], error: error.message };
+    }
+  }
+
+  return { rows: [], error: "Verträge konnten nicht geladen werden." };
+}
 
 export async function fetchStaffContracts(
   restaurantId: string,
   staffId: string,
 ): Promise<{ data: RestaurantStaffContractRow[]; error: string | null }> {
   const supabase = createSupabaseBrowserClient();
-  const extended = await supabase
-    .from("restaurant_staff_contracts")
-    .select(STAFF_CONTRACT_SELECT_EXTENDED)
-    .eq("restaurant_id", restaurantId)
-    .eq("staff_id", staffId)
-    .order("valid_from", { ascending: false });
-  let rows: Record<string, unknown>[] | null = extended.data as Record<
-    string,
-    unknown
-  >[] | null;
-  if (
-    extended.error &&
-    isMissingStaffContractColumnError(extended.error.message)
-  ) {
-    const legacy = await supabase
-      .from("restaurant_staff_contracts")
-      .select(STAFF_CONTRACT_SELECT_BASE)
-      .eq("restaurant_id", restaurantId)
-      .eq("staff_id", staffId)
-      .order("valid_from", { ascending: false });
-    if (legacy.error) return { data: [], error: legacy.error.message };
-    rows = legacy.data as Record<string, unknown>[] | null;
-  } else if (extended.error) {
-    return { data: [], error: extended.error.message };
-  }
+  const { rows, error } = await fetchStaffContractRows(supabase, {
+    restaurantId,
+    staffId,
+    order: { column: "valid_from", ascending: false },
+  });
+  if (error) return { data: [], error };
   return {
-    data: (rows ?? []).map((r) => mapStaffContractRow(r)),
+    data: rows.map((r) => mapStaffContractRow(r)),
     error: null,
   };
 }
@@ -577,6 +608,8 @@ function mapStaffContractRow(r: Record<string, unknown>): RestaurantStaffContrac
     signature_employee:
       (r.signature_employee as StaffContractSignatureSnapshot | null) ?? null,
     employee_signature_pending: Boolean(r.employee_signature_pending),
+    contract_source:
+      r.contract_source === "external" ? "external" : "platform",
   };
 }
 
@@ -584,31 +617,13 @@ export async function fetchStaffContractsForRestaurant(
   restaurantId: string,
 ): Promise<{ data: RestaurantStaffContractRow[]; error: string | null }> {
   const supabase = createSupabaseBrowserClient();
-  const extended = await supabase
-    .from("restaurant_staff_contracts")
-    .select(STAFF_CONTRACT_SELECT_EXTENDED)
-    .eq("restaurant_id", restaurantId)
-    .order("valid_from", { ascending: false });
-  let rows: Record<string, unknown>[] | null = extended.data as Record<
-    string,
-    unknown
-  >[] | null;
-  if (
-    extended.error &&
-    isMissingStaffContractColumnError(extended.error.message)
-  ) {
-    const legacy = await supabase
-      .from("restaurant_staff_contracts")
-      .select(STAFF_CONTRACT_SELECT_BASE)
-      .eq("restaurant_id", restaurantId)
-      .order("valid_from", { ascending: false });
-    if (legacy.error) return { data: [], error: legacy.error.message };
-    rows = legacy.data as Record<string, unknown>[] | null;
-  } else if (extended.error) {
-    return { data: [], error: extended.error.message };
-  }
+  const { rows, error } = await fetchStaffContractRows(supabase, {
+    restaurantId,
+    order: { column: "valid_from", ascending: false },
+  });
+  if (error) return { data: [], error };
   return {
-    data: (rows ?? []).map((r) => mapStaffContractRow(r)),
+    data: rows.map((r) => mapStaffContractRow(r)),
     error: null,
   };
 }
@@ -679,12 +694,6 @@ export async function fetchStaffWorkEntryLogEntries(
 export type UpsertStaffContractResult =
   | { ok: true; id: string; usedLegacyFields?: boolean }
   | { ok: false; error: string };
-
-function isMissingStaffContractColumnError(message: string): boolean {
-  return /employment_type_id|vacation_days_per_year|target_weekly_minutes|contract_log/i.test(
-    message,
-  );
-}
 
 function buildStaffContractRow(
   restaurantId: string,

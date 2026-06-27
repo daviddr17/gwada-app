@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
   ChefHat,
+  ClipboardCheck,
   Clock,
   MonitorPlay,
   Package,
@@ -16,6 +17,7 @@ const MODULE_ICONS: Record<DisplayModule, LucideIcon> = {
   reservations: CalendarDays,
   recipes: ChefHat,
   inventory: Package,
+  compliance: ClipboardCheck,
   kds: MonitorPlay,
 };
 

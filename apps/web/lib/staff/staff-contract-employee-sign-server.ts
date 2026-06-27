@@ -12,7 +12,6 @@ import {
   parseStaffContractSignatureVersion,
   uploadStaffContractSignaturePng,
 } from "@/lib/staff/staff-contract-pdf-finalize.server";
-import { emitStaffContractSignedNotification } from "@/lib/notifications/notification-staff-contract-server";
 import type { StaffContractEmployeeSignPayload } from "@/lib/staff/staff-contract-digital-types";
 import type { StaffContractBodySnapshot } from "@/lib/types/staff-contract-templates";
 
@@ -166,18 +165,6 @@ export async function completeStaffContractEmployeeSign(
     signatureEmployer,
     signatureEmployee,
     pdfSha256: pdfResult.pdfSha256,
-  });
-
-  await emitStaffContractSignedNotification(admin, {
-    restaurantId: input.restaurantId,
-    contractId: input.contractId,
-    staffId: staffRow.id as string,
-    targetProfileId: userId,
-    contractTitle: pdfResult.title,
-    documentId: pdfResult.documentId,
-    actorUserId: userId,
-    revised: false,
-    pendingEmployeeSignature: false,
   });
 
   return { ok: true, contractId: input.contractId, documentId: pdfResult.documentId };

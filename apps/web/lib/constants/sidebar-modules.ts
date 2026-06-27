@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
+  ClipboardCheck,
   FileText,
   Images,
   MessageCircle,
@@ -25,6 +26,7 @@ export const SIDEBAR_MODULE_IDS = [
   "galerie",
   "buchfuehrung",
   "dokumente",
+  "checklisten",
   "mitarbeiter",
 ] as const;
 
@@ -125,6 +127,14 @@ export const SIDEBAR_MODULE_DEFINITIONS: readonly SidebarModuleDefinition[] = [
     href: "/dashboard/dokumente/uebersicht",
     pathPrefix: "/dashboard/dokumente",
     icon: FileText,
+  },
+  {
+    id: "checklisten",
+    label: "Checklisten",
+    tooltip: "Checklisten",
+    href: "/dashboard/checklisten",
+    pathPrefix: "/dashboard/checklisten",
+    icon: ClipboardCheck,
   },
   {
     id: "mitarbeiter",

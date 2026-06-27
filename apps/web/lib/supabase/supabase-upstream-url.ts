@@ -42,5 +42,10 @@ export function resolveSupabaseUpstreamUrl(): string {
     return trimBase(fallback);
   }
 
+  const publicUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (publicUrl && !publicUrl.includes("/sb")) {
+    return trimBase(publicUrl);
+  }
+
   return "http://127.0.0.1:54321";
 }

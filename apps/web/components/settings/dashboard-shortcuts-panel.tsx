@@ -14,13 +14,14 @@ import {
 import { SortableDragOverlay } from "@/components/ui/sortable-drag-overlay";
 import { DashboardWidgetsPanelSkeleton } from "@/components/settings/dashboard-widgets-panel-skeleton";
 import {
-  countDashboardVisibleShortcuts,
   DASHBOARD_FAB_MAX_SHORTCUTS,
   DASHBOARD_SHORTCUT_OPTIONS,
   type DashboardShortcutId,
 } from "@/lib/constants/dashboard-shortcuts";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { useDashboardWidgetPreferences } from "@/lib/hooks/use-dashboard-widget-preferences";
+import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasDashboardShortcutAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
 import { cn } from "@/lib/utils";
 
@@ -34,16 +35,22 @@ export function DashboardShortcutsPanel() {
     setShortcutVisible,
     reorderShortcuts,
     isReady,
-  } = useDashboardWidgetPreferences();
+    permittedShortcutIds,
+  } = useDashboardEffectiveWidgetPrefs();
+  const { has, loading: permissionsLoading } = useRestaurantPermissions();
 
   const orderedOptions = useMemo(
-    () => shortcuts.order.map((id) => OPTION_BY_ID.get(id)!),
-    [shortcuts.order],
+    () =>
+      shortcuts.order
+        .filter((id) => permittedShortcutIds.includes(id))
+        .map((id) => OPTION_BY_ID.get(id)!),
+    [shortcuts.order, permittedShortcutIds],
   );
 
   const visibleShortcutCount = useMemo(
-    () => countDashboardVisibleShortcuts(shortcuts.visibility),
-    [shortcuts.visibility],
+    () =>
+      permittedShortcutIds.filter((id) => shortcuts.visibility[id]).length,
+    [permittedShortcutIds, shortcuts.visibility],
   );
 
   const [limitError, setLimitError] = useState(false);
@@ -57,6 +64,13 @@ export function DashboardShortcutsPanel() {
     id: DashboardShortcutId,
     checked: boolean,
   ) => {
+    if (
+      checked &&
+      !permissionsLoading &&
+      !hasDashboardShortcutAccess(has, id)
+    ) {
+      return;
+    }
     if (
       checked &&
       !shortcuts.visibility[id] &&

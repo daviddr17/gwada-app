@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
+  isSuperadminLocalDevRuntime,
   liveAppSyncBadgeClass,
   liveAppSyncLabel,
   liveAppVersionSummary,
+  localDevRuntimeBadgeClass,
+  localDevRuntimeLabel,
+  localDevRuntimeSummary,
 } from "@/lib/superadmin/superadmin-live-app-sync-ui";
 import {
   fetchSuperadminDatabaseStatus,
@@ -56,23 +60,25 @@ function collectPlatformAlerts(
     });
   }
 
-  if (status.liveApp.syncState === "out_of_sync") {
-    alerts.push({
-      key: "live-out-of-sync",
-      label: "Live-App veraltet",
-      detail: status.liveApp.message ?? undefined,
-      tone: "error",
-    });
-  } else if (
-    status.liveApp.syncState === "unknown" &&
-    !status.liveApp.liveReachable
-  ) {
-    alerts.push({
-      key: "live-unreachable",
-      label: "Live-App nicht erreichbar",
-      detail: status.liveApp.message ?? undefined,
-      tone: "error",
-    });
+  if (!isSuperadminLocalDevRuntime(status.vps)) {
+    if (status.liveApp.syncState === "out_of_sync") {
+      alerts.push({
+        key: "live-out-of-sync",
+        label: "Live-App veraltet",
+        detail: status.liveApp.message ?? undefined,
+        tone: "error",
+      });
+    } else if (
+      status.liveApp.syncState === "unknown" &&
+      !status.liveApp.liveReachable
+    ) {
+      alerts.push({
+        key: "live-unreachable",
+        label: "Live-App nicht erreichbar",
+        detail: status.liveApp.message ?? undefined,
+        tone: "error",
+      });
+    }
   }
 
   for (const item of integrationErrors) {
@@ -122,11 +128,14 @@ export function SuperadminPlatformStatusSummary() {
     void load();
   }, [load]);
 
+  const isLocalDev = status?.vps ? isSuperadminLocalDevRuntime(status.vps) : false;
+
   const shouldPoll =
-    status?.liveApp.syncState === "deploying" ||
-    status?.liveApp.syncState === "out_of_sync" ||
-    status?.github.appDeployWorkflow.activeRun != null ||
-    status?.github.dbDeployWorkflow.activeRun != null;
+    !isLocalDev &&
+    (status?.liveApp.syncState === "deploying" ||
+      status?.liveApp.syncState === "out_of_sync" ||
+      status?.github.appDeployWorkflow.activeRun != null ||
+      status?.github.dbDeployWorkflow.activeRun != null);
 
   useEffect(() => {
     if (!shouldPoll) return;
@@ -202,14 +211,24 @@ export function SuperadminPlatformStatusSummary() {
         <div
           className={cn(
             "px-4 py-3",
-            liveAppSyncBadgeClass(status.liveApp.syncState),
+            isLocalDev
+              ? localDevRuntimeBadgeClass()
+              : liveAppSyncBadgeClass(status.liveApp.syncState),
           )}
         >
           <p className="text-sm font-semibold">
-            {liveAppSyncLabel(status.liveApp.syncState)}
+            {isLocalDev
+              ? localDevRuntimeLabel()
+              : liveAppSyncLabel(status.liveApp.syncState)}
           </p>
           <p className="mt-0.5 text-xs opacity-90">
-            {liveAppVersionSummary(status.liveApp, status.github)}
+            {isLocalDev
+              ? localDevRuntimeSummary(
+                  status.database,
+                  status.vps,
+                  status.github,
+                )
+              : liveAppVersionSummary(status.liveApp, status.github)}
           </p>
         </div>
       </div>

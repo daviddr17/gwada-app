@@ -13,6 +13,9 @@ export const RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS = [
   "doc",
   "docx",
   "csv",
+  "png",
+  "jpg",
+  "jpeg",
 ] as const;
 
 export type RestaurantDocumentExtension =
@@ -37,6 +40,9 @@ export const RESTAURANT_DOCUMENT_EXTENSION_MIMES: Record<
     "application/zip",
     "application/x-zip-compressed",
   ],
+  png: ["image/png"],
+  jpg: ["image/jpeg", "image/jpg"],
+  jpeg: ["image/jpeg", "image/jpg"],
 };
 
 /** Storage-Bucket + schnelle Prüfung. */
@@ -45,4 +51,4 @@ export const RESTAURANT_DOCUMENT_ALLOWED_MIMES = new Set(
 );
 
 export const RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL =
-  "PDF, Word (.doc/.docx), Pages, CSV";
+  "PDF, Word (.doc/.docx), Pages, CSV, JPEG, PNG";

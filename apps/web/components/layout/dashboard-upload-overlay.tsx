@@ -1,48 +1,77 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { useAppFaviconDisplay } from "@/lib/hooks/use-app-favicon-src";
-import { subscribeDashboardUploadActive } from "@/lib/uploads/dashboard-upload-bus";
+import {
+  subscribeDashboardUploadState,
+  type DashboardUploadState,
+} from "@/lib/uploads/dashboard-upload-bus";
 import { cn } from "@/lib/utils";
 
 export function DashboardUploadOverlay() {
-  const [active, setActive] = useState(false);
-  const { src: faviconSrc } = useAppFaviconDisplay();
+  const [state, setState] = useState<DashboardUploadState>({
+    active: false,
+    progress: 0,
+    message: "Wird hochgeladen …",
+  });
 
-  useEffect(() => subscribeDashboardUploadActive(setActive), []);
+  useEffect(() => subscribeDashboardUploadState(setState), []);
 
-  if (!active) return null;
+  const progressLabel = `${Math.min(100, Math.round(state.progress))}`;
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-background/50 backdrop-blur-[3px]"
+      className={cn(
+        "pointer-events-none fixed inset-0 z-[200] flex items-center justify-center transition-opacity duration-300 ease-out motion-reduce:transition-none",
+        state.active ? "opacity-100" : "opacity-0",
+      )}
       role="status"
       aria-live="polite"
-      aria-busy="true"
-      aria-label="Datei wird hochgeladen"
+      aria-busy={state.active}
+      aria-label={
+        state.active
+          ? `${state.message}, ${progressLabel} Prozent`
+          : undefined
+      }
     >
       <div
         className={cn(
-          "flex flex-col items-center gap-3 rounded-2xl border border-border/50",
-          "bg-card/95 px-8 py-6 shadow-card",
+          "absolute inset-0 bg-black/30 backdrop-blur-xl motion-reduce:backdrop-blur-sm",
+          state.active ? "pointer-events-auto" : "pointer-events-none",
+        )}
+        aria-hidden
+      />
+
+      <div
+        className={cn(
+          "relative w-[min(19rem,calc(100%-2.5rem))] overflow-hidden rounded-[1.375rem] border border-white/25 bg-background/80 shadow-[0_20px_60px_-12px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none dark:border-white/10 dark:bg-background/70",
+          state.active
+            ? "scale-100 opacity-100"
+            : "scale-[0.98] opacity-0",
         )}
       >
-        {faviconSrc ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={faviconSrc}
-            alt=""
-            className="size-12 animate-spin object-contain motion-reduce:animate-none"
-            decoding="async"
-          />
-        ) : (
-          <Loader2
-            className="size-10 animate-spin text-accent motion-reduce:animate-none"
-            aria-hidden
-          />
-        )}
-        <p className="text-sm font-medium text-foreground">Wird hochgeladen …</p>
+        <div className="px-5 pt-5 pb-4 text-center">
+          <p className="text-[15px] font-semibold tracking-tight text-foreground">
+            {state.message}
+          </p>
+          <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+            {progressLabel}&nbsp;%
+          </p>
+        </div>
+
+        <div className="px-5 pb-5">
+          <div
+            className="h-1 overflow-hidden rounded-full bg-foreground/10"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(100, Math.round(state.progress))}
+          >
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-200 ease-out motion-reduce:transition-none"
+              style={{ width: `${Math.min(100, state.progress)}%` }}
+            />
+          </div>
+        </div>
       </div>
     </div>
   );

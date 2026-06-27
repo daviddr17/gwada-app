@@ -152,6 +152,12 @@ export function formatStaffContractLogSummary(
   if (action === "employee_signed") {
     return "Mitarbeiter-Unterschrift im Profil";
   }
+  if (action === "prepared") {
+    return "Entwurf gespeichert — ohne Unterschrift";
+  }
+  if (action === "external_uploaded") {
+    return "Externer Vertrag — PDF hochgeladen";
+  }
   if (changes.length === 0) {
     return "Gespeichert (keine Feldänderungen)";
   }

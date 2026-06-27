@@ -1,5 +1,6 @@
 import { authorizeDashboardRestaurant } from "@/lib/dashboard/authorize-dashboard-restaurant";
 import { parseDashboardBatchWidgetsParam } from "@/lib/dashboard/dashboard-batch-widgets";
+import { filterDashboardBatchWidgetsForRestaurant } from "@/lib/dashboard/filter-dashboard-batch-widgets-server";
 import { loadDashboardBatchSummaryServer } from "@/lib/dashboard/load-dashboard-batch-summary-server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -13,8 +14,15 @@ export async function GET(req: Request) {
     return Response.json({ error: auth.error }, { status: auth.status });
   }
 
-  const widgets = parseDashboardBatchWidgetsParam(url.searchParams.get("widgets"));
+  const requested = parseDashboardBatchWidgetsParam(
+    url.searchParams.get("widgets"),
+  );
   const sb = await createSupabaseServerClient();
+  const widgets = await filterDashboardBatchWidgetsForRestaurant(
+    sb,
+    auth.restaurantId,
+    requested,
+  );
 
   try {
     const { data, errors } = await loadDashboardBatchSummaryServer(

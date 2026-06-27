@@ -16,13 +16,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useDocumentTitleOverride } from "@/lib/contexts/document-title-override-context";
 import { useWorkspaceDatabaseGate } from "@/components/providers/supabase-database-gate";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { syncUserProfileNames } from "@/lib/profile/sync-user-profile-names";
 import {
   GWADA_SUPABASE_SIGNIN_TIMEOUT_MS,
   raceWithTimeout,
@@ -36,12 +36,9 @@ import {
 import {
   useAuthScreenTransition,
 } from "@/components/auth/use-auth-screen-transition";
+import { AuthScreenBrandLogo } from "@/components/auth/auth-screen-brand-logo";
 import { useAuthEnterTransition } from "@/components/auth/use-auth-enter-transition";
-import { PasswordStrengthBar } from "@/components/auth/password-strength-bar";
-import {
-  PASSWORD_POLICY_ERROR_MESSAGE,
-  passwordMeetsPolicy,
-} from "@/lib/auth/password-policy";
+import { waitlistErrorMessage } from "@/lib/waitlist/waitlist-errors";
 
 const backNavLinkClass =
   "inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline";
@@ -104,8 +101,8 @@ export function LoginForm() {
   const [regEmail, setRegEmail] = useState("");
   const [regGivenName, setRegGivenName] = useState("");
   const [regFamilyName, setRegFamilyName] = useState("");
-  const [regPassword, setRegPassword] = useState("");
-  const [regPasswordConfirm, setRegPasswordConfirm] = useState("");
+  const [regNote, setRegNote] = useState("");
+  const [waitlistBusy, setWaitlistBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [magicLinkBusy, setMagicLinkBusy] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
@@ -363,89 +360,61 @@ export function LoginForm() {
     }
   };
 
-  const handleRegisterSubmit = async () => {
+  const handleWaitlistSubmit = async () => {
     if (!regGivenName.trim() || !regFamilyName.trim()) {
       toast.error("Bitte Vor- und Nachname eingeben.");
       return;
     }
-    if (!regEmail.trim()) {
-      toast.error("Bitte eine E-Mail-Adresse eingeben.");
-      return;
-    }
-    if (!regPassword) {
-      toast.error("Bitte ein Passwort eingeben.");
-      return;
-    }
-    if (!passwordMeetsPolicy(regPassword)) {
-      toast.error(PASSWORD_POLICY_ERROR_MESSAGE);
-      return;
-    }
-    if (regPassword !== regPasswordConfirm) {
-      toast.error("Die Passwörter stimmen nicht überein.");
+    if (!regEmail.trim() || !regEmail.includes("@")) {
+      toast.error("Bitte eine gültige E-Mail-Adresse eingeben.");
       return;
     }
 
-    setBusy(true);
+    setWaitlistBusy(true);
     try {
-      if (isSupabaseOnlyMode()) {
-        let reach: { ok: boolean; message: string };
-        try {
-          reach = await ensureReachable();
-        } catch {
-          loginToastError("Die Datenbank konnte nicht geprüft werden.");
-          return;
-        }
-        if (!reach.ok) {
-          loginToastError(
-            "Aktuell gibt es Probleme mit der Datenbank. Eine Registrierung ist zurzeit nicht möglich.",
-          );
-          return;
-        }
-      }
-
-      const sb = createSupabaseBrowserClient();
-      const givenName = regGivenName.trim();
-      const familyName = regFamilyName.trim();
-      const { data, error } = await sb.auth.signUp({
-        email: regEmail.trim(),
-        password: regPassword,
-        options: {
-          data: {
-            given_name: givenName,
-            family_name: familyName,
-          },
-        },
+      const res = await fetch("/api/public/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          given_name: regGivenName.trim(),
+          family_name: regFamilyName.trim(),
+          email: regEmail.trim(),
+          note: regNote.trim() || null,
+        }),
       });
-
-      if (error) {
-        loginToastError("Registrierung fehlgeschlagen.", error.message);
-        return;
-      }
-
-      if (!data.user?.id) {
-        toast.info(
-          "Bitte bestätige deine E-Mail — danach kannst du dich anmelden.",
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        already_registered?: boolean;
+        error?: string;
+        message?: string;
+      };
+      if (!res.ok) {
+        toast.error(
+          typeof data.message === "string"
+            ? data.message
+            : waitlistErrorMessage(data.error),
         );
-        transitionTo("login");
-        setEmail(regEmail.trim());
         return;
       }
-
-      const synced = await syncUserProfileNames(sb, { givenName, familyName });
-      if (!synced.ok) {
-        loginToastError("Profilname konnte nicht gespeichert werden.");
-        return;
+      if (data.already_registered) {
+        toast.success("Du stehst bereits auf der Warteliste.", {
+          description:
+            "Wir benachrichtigen dich per E-Mail, sobald Gwada verfügbar ist.",
+        });
+      } else {
+        toast.success("Du bist auf der Warteliste.", {
+          description:
+            "Wir benachrichtigen dich per E-Mail, sobald Gwada verfügbar ist.",
+        });
       }
-
-      toast.success("Konto angelegt — du kannst dich jetzt anmelden.");
       transitionTo("login");
       setEmail(regEmail.trim());
-      setPassword("");
+      setRegNote("");
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      loginToastError("Registrierung fehlgeschlagen.", raw);
+      loginToastError("Eintrag auf die Warteliste fehlgeschlagen.", raw);
     } finally {
-      setBusy(false);
+      setWaitlistBusy(false);
     }
   };
 
@@ -453,7 +422,7 @@ export function LoginForm() {
     <div className="flex min-h-dvh items-center justify-center bg-background p-4">
       {authScreenOverlay}
       {authEnterOverlay}
-      <div className="flex w-full max-w-md flex-col gap-3">
+      <div className="flex w-full max-w-md flex-col gap-2">
         {screen === "login" ? (
           <Link href="/" className={backNavLinkClass}>
             <ArrowLeft className="size-4 shrink-0" aria-hidden />
@@ -471,6 +440,7 @@ export function LoginForm() {
             Zurück zur Anmeldung
           </button>
         )}
+        <AuthScreenBrandLogo href="/" />
         <Card className="w-full border-border/50 shadow-card">
           {screen === "login" ? (
             <>
@@ -655,10 +625,12 @@ export function LoginForm() {
           <>
             <CardHeader className="space-y-1">
               <CardTitle className="text-2xl font-semibold tracking-tight">
-                Registrieren
+                Demnächst verfügbar
               </CardTitle>
               <CardDescription>
-                Lege ein Konto mit Vor- und Nachname an.
+                Gwada wird bald öffentlich starten. Trage dich auf die Warteliste
+                ein — wir benachrichtigen dich per E-Mail, sobald du ein Konto
+                anlegen kannst.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -696,85 +668,31 @@ export function LoginForm() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reg-password">Passwort</Label>
-                <Input
-                  id="reg-password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                  className="h-11 rounded-xl"
+                <Label htmlFor="reg-note">Notiz (optional)</Label>
+                <Textarea
+                  id="reg-note"
+                  value={regNote}
+                  onChange={(e) => setRegNote(e.target.value)}
+                  rows={3}
+                  placeholder="z. B. Restaurantname oder kurze Nachricht …"
+                  className="rounded-xl"
                 />
-                <PasswordStrengthBar password={regPassword} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="reg-password-2">Passwort wiederholen</Label>
-                <Input
-                  id="reg-password-2"
-                  type="password"
-                  autoComplete="new-password"
-                  value={regPasswordConfirm}
-                  onChange={(e) => setRegPasswordConfirm(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void handleRegisterSubmit();
-                  }}
-                  className="h-11 rounded-xl"
-                />
-                <PasswordStrengthBar password={regPasswordConfirm} showRequirements={false} />
               </div>
               <Button
                 type="button"
                 className="h-11 w-full"
-                disabled={busy}
-                onClick={() => void handleRegisterSubmit()}
+                disabled={waitlistBusy}
+                onClick={() => void handleWaitlistSubmit()}
               >
-                {busy ? (
+                {waitlistBusy ? (
                   <>
                     <Loader2 className="mr-2 size-4 animate-spin" />
-                    Registrierung…
+                    Wird eingetragen…
                   </>
                 ) : (
-                  "Konto anlegen"
+                  "Auf Warteliste setzen"
                 )}
               </Button>
-
-              {showOAuthSection ? (
-                <>
-                  <div className="relative py-1">
-                    <Separator />
-                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                      oder
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    {showGoogle ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                        disabled={busy}
-                        onClick={() => void handleOAuth("google")}
-                      >
-                        <GoogleGlyph />
-                        Mit Google registrieren
-                      </Button>
-                    ) : null}
-                    {showApple ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                        disabled={busy}
-                        onClick={() => void handleOAuth("apple")}
-                      >
-                        <Apple className="size-5 shrink-0" aria-hidden />
-                        Mit Apple registrieren
-                      </Button>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
             </CardContent>
           </>
         )}

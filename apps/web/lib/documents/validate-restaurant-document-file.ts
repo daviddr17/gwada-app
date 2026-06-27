@@ -1,5 +1,6 @@
 import {
   RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS,
+  RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL,
   RESTAURANT_DOCUMENT_EXTENSION_MIMES,
   RESTAURANT_DOCUMENT_MAX_FILE_BYTES,
   type RestaurantDocumentExtension,
@@ -39,7 +40,7 @@ export function resolveRestaurantDocumentMime(file: File): string | null {
 
   if (allowed.includes(reported)) {
     if (ZIP_MIMES.has(reported) && ext !== "pages") return null;
-    return reported;
+    return reported === "image/jpg" ? "image/jpeg" : reported;
   }
 
   return null;
@@ -60,7 +61,7 @@ export function validateRestaurantDocumentFile(file: File): string | null {
     return "Datei ist zu groß (max. 100 MB).";
   }
   if (!restaurantDocumentExtension(file.name)) {
-    return "Nur PDF, Word, Pages oder CSV sind erlaubt.";
+    return `Nur ${RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL} sind erlaubt.`;
   }
   if (!resolveRestaurantDocumentMime(file)) {
     return "Dateityp passt nicht zur Endung oder ist nicht erlaubt.";

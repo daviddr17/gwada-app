@@ -47,6 +47,12 @@ const supabaseStoragePatterns = [
   {
     protocol: "http" as const,
     hostname: "95.111.229.250",
+    port: "8100",
+    pathname: "/storage/v1/object/**",
+  },
+  {
+    protocol: "http" as const,
+    hostname: "95.111.229.250",
     port: "3000",
     pathname: "/sb/storage/v1/object/**",
   },
@@ -69,6 +75,9 @@ const nextConfig: NextConfig = {
     localPatterns: [
       {
         pathname: "/api/platform/logo",
+      },
+      {
+        pathname: "/api/platform/branding-asset",
       },
     ],
     remotePatterns: [

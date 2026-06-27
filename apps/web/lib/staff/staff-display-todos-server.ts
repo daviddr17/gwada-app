@@ -18,6 +18,29 @@ import {
   triggerShowColumn,
 } from "@/lib/staff/staff-todo-display-triggers";
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
+import {
+  evaluateStaffTodoCapture,
+  type StaffTodoCapturePayload,
+} from "@/lib/staff/staff-todo-capture";
+import { isStaffTodoDoneForStaff } from "@/lib/staff/staff-todo-due";
+import type {
+  StaffTodoCaptureType,
+  StaffTodoRecurrence,
+  StaffTodoPriority,
+} from "@/lib/types/staff-todos";
+
+export class DisplayTodosFetchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DisplayTodosFetchError";
+  }
+}
+
+const STAFF_TODO_PRIORITY_RANK: Record<StaffTodoPriority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
 
 export { displayActionToTrigger } from "@/lib/staff/staff-todo-display-triggers";
 
@@ -46,6 +69,25 @@ type TodoRow = {
   blocks_shift_end: boolean;
   archived_at: string | null;
   updated_at: string;
+  recurrence: StaffTodoRecurrence | null;
+  capture_type: StaffTodoCaptureType;
+  target_min: number | null;
+  target_max: number | null;
+  checklist_device_id: string | null;
+  checklist_area_id: string | null;
+  require_corrective_on_deviation: boolean;
+  checklist_device?: {
+    id: string;
+    name: string;
+    area_id: string | null;
+    target_min: number | null;
+    target_max: number | null;
+  } | null;
+  checklist_area?: {
+    id: string;
+    name: string;
+    background_color: string;
+  } | null;
 };
 
 type CompletionRow = {
@@ -89,7 +131,26 @@ const TODO_SELECT = `
   require_defer_reason,
   blocks_shift_end,
   archived_at,
-  updated_at
+  updated_at,
+  recurrence,
+  capture_type,
+  target_min,
+  target_max,
+  checklist_device_id,
+  checklist_area_id,
+  require_corrective_on_deviation,
+  checklist_device:restaurant_checklist_devices (
+    id,
+    name,
+    area_id,
+    target_min,
+    target_max
+  ),
+  checklist_area:restaurant_checklist_areas (
+    id,
+    name,
+    background_color
+  )
 `;
 
 export type { DisplayTodosLiveSignal } from "@/lib/staff/display-todos-live-signal";
@@ -104,13 +165,57 @@ export type DisplayTodoClientItem = DisplayTodoItem & {
   done_for_staff: boolean;
 };
 
+/** Schlanke API-Antwort für Display-UI (Popups, Badge, Checklisten-Modul). */
+export type DisplayTodoClientPayload = {
+  id: string;
+  title: string;
+  description: string | null;
+  priority: TodoRow["priority"];
+  require_defer_reason: boolean;
+  blocks_shift_end: boolean;
+  allow_reopen_on_display: boolean;
+  recurrence: StaffTodoRecurrence | null;
+  capture_type: StaffTodoCaptureType;
+  target_min: number | null;
+  target_max: number | null;
+  require_corrective_on_deviation: boolean;
+  checklist_area: TodoRow["checklist_area"];
+  checklist_device: TodoRow["checklist_device"];
+  status: DisplayTodoItem["status"];
+  done_for_staff: boolean;
+};
+
+export function mapDisplayTodoClientPayload(
+  item: DisplayTodoItem,
+  staffId: string,
+): DisplayTodoClientPayload {
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    priority: item.priority,
+    require_defer_reason: item.require_defer_reason,
+    blocks_shift_end: item.blocks_shift_end,
+    allow_reopen_on_display: item.allow_reopen_on_display,
+    recurrence: item.recurrence,
+    capture_type: item.capture_type ?? "none",
+    target_min: item.target_min,
+    target_max: item.target_max,
+    require_corrective_on_deviation: item.require_corrective_on_deviation,
+    checklist_area: item.checklist_area ?? null,
+    checklist_device: item.checklist_device ?? null,
+    status: item.status,
+    done_for_staff: isStaffTodoDoneForStaff(item, item.completions, staffId),
+  };
+}
+
 export function mapDisplayTodoForClient(
   item: DisplayTodoItem,
   staffId: string,
 ): DisplayTodoClientItem {
   return {
     ...item,
-    done_for_staff: isTodoDoneForStaff(item, item.completions, staffId),
+    done_for_staff: isStaffTodoDoneForStaff(item, item.completions, staffId),
   };
 }
 
@@ -118,6 +223,71 @@ export function isVisibleInDisplayTodoList(item: DisplayTodoClientItem): boolean
   if (item.status === "archived" || item.status === "planned") return false;
   if (!item.done_for_staff) return true;
   return item.allow_reopen_on_display;
+}
+
+function isDisplayTodoOpenForStaff(
+  item: DisplayTodoItem,
+  staffId: string,
+): boolean {
+  return !isTodoDoneForStaff(item, item.completions, staffId);
+}
+
+export function countDisplayTodosForBadge(
+  items: DisplayTodoItem[],
+  staffId: string,
+): {
+  count: number;
+  openItems: DisplayTodoItem[];
+  reopenableDoneItems: DisplayTodoItem[];
+} {
+  const visible = items.filter((t) => {
+    const enriched = {
+      ...t,
+      done_for_staff: isTodoDoneForStaff(t, t.completions, staffId),
+    } as DisplayTodoClientItem;
+    return isVisibleInDisplayTodoList(enriched);
+  });
+  const openItems = visible.filter((t) => isDisplayTodoOpenForStaff(t, staffId));
+  const reopenableDoneItems = visible.filter(
+    (t) =>
+      !isDisplayTodoOpenForStaff(t, staffId) && t.allow_reopen_on_display,
+  );
+  const count =
+    openItems.length > 0 ? openItems.length : reopenableDoneItems.length;
+  return { count, openItems, reopenableDoneItems };
+}
+
+async function assertDisplayTodoAssignedToStaff(
+  admin: SupabaseClient,
+  params: { restaurantId: string; staffId: string; todoId: string },
+  select: string,
+): Promise<
+  | { ok: true; row: TodoRow }
+  | { ok: false; error: string; status: number }
+> {
+  const positionTagId = await loadStaffPositionTagId(admin, params.staffId);
+  const { data: todo } = await admin
+    .from("restaurant_staff_todos")
+    .select(select)
+    .eq("id", params.todoId)
+    .eq("restaurant_id", params.restaurantId)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  if (!todo) {
+    return { ok: false, error: "not_found", status: 404 };
+  }
+
+  const row =
+    select === TODO_SELECT
+      ? normalizeDisplayTodoRow(todo as unknown as Record<string, unknown>)
+      : (todo as unknown as TodoRow);
+
+  if (!todoAssignedToStaff(row, params.staffId, positionTagId)) {
+    return { ok: false, error: "not_assigned", status: 403 };
+  }
+
+  return { ok: true, row };
 }
 
 async function loadStaffPositionTagId(
@@ -153,11 +323,25 @@ async function fetchStaffTodoRows(
     .is("archived_at", null);
 
   if (error) {
-    console.warn("[gwada] display todos fetch", error.message);
-    return [];
+    console.error("[gwada] display todos fetch", error.message);
+    throw new DisplayTodosFetchError(error.message);
   }
 
-  return (data ?? []) as TodoRow[];
+  return ((data ?? []) as Record<string, unknown>[]).map(normalizeDisplayTodoRow);
+}
+
+function normalizeDisplayTodoRow(raw: Record<string, unknown>): TodoRow {
+  const device = raw.checklist_device;
+  const area = raw.checklist_area;
+  return {
+    ...(raw as unknown as TodoRow),
+    checklist_device: Array.isArray(device)
+      ? ((device[0] as TodoRow["checklist_device"]) ?? null)
+      : ((device as TodoRow["checklist_device"]) ?? null),
+    checklist_area: Array.isArray(area)
+      ? ((area[0] as TodoRow["checklist_area"]) ?? null)
+      : ((area as TodoRow["checklist_area"]) ?? null),
+  };
 }
 
 /** Badge + ToDo-Sheet — nur `show_on_display`. */
@@ -232,9 +416,7 @@ function isTodoDoneForStaff(
   completions: RestaurantStaffTodoCompletionRow[],
   staffId: string,
 ): boolean {
-  const active = completions.filter((c) => !c.reopened_at);
-  if (todo.completion_mode === "any_one") return active.length > 0;
-  return active.some((c) => c.staff_id === staffId);
+  return isStaffTodoDoneForStaff(todo, completions, staffId);
 }
 
 function enrichTodo(
@@ -281,16 +463,23 @@ export async function getDisplayTodoBadgeSummary(
   params: { restaurantId: string; staffId: string },
 ): Promise<{ count: number; urgency: StaffTodoDisplayUrgency }> {
   const items = await listDisplayTodosForStaff(admin, params);
-  const open = items.filter(
-    (t) =>
-      !isTodoDoneForStaff(t, t.completions, params.staffId) &&
-      t.status !== "planned" &&
-      t.status !== "archived",
+  const { count, openItems, reopenableDoneItems } = countDisplayTodosForBadge(
+    items,
+    params.staffId,
   );
+  const open = openItems.filter(
+    (t) => t.status !== "planned" && t.status !== "archived",
+  );
+  const urgencySource =
+    open.length > 0
+      ? open
+      : reopenableDoneItems.filter(
+          (t) => t.status !== "planned" && t.status !== "archived",
+        );
   return {
-    count: open.length,
+    count,
     urgency: maxStaffTodoDisplayUrgency(
-      open.map((t) => staffTodoDisplayUrgency(t, t.status)),
+      urgencySource.map((t) => staffTodoDisplayUrgency(t, t.status)),
     ),
   };
 }
@@ -356,7 +545,7 @@ export async function loadDisplayTodosLiveSignal(
   };
 }
 
-export async function clearDeferralsForTrigger(
+async function clearDeferralsForTrigger(
   admin: SupabaseClient,
   params: { staffId: string; trigger: StaffTodoDeferTrigger },
 ): Promise<void> {
@@ -366,6 +555,22 @@ export async function clearDeferralsForTrigger(
     .eq("staff_id", params.staffId)
     .eq("trigger_type", params.trigger)
     .is("cleared_at", null);
+}
+
+export async function fetchStaffTodoDeferReasonDefault(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("restaurant_staff_todo_settings")
+    .select("defer_reason_default")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const text =
+    typeof data?.defer_reason_default === "string"
+      ? data.defer_reason_default.trim()
+      : "";
+  return text || null;
 }
 
 export async function getTodosForDisplayTrigger(
@@ -411,7 +616,12 @@ export async function getTodosForDisplayTrigger(
       if (t.status === "planned" || t.status === "archived") return false;
       if (t.active_deferral?.trigger_type === params.trigger) return false;
       return true;
-    });
+    })
+    .sort(
+      (a, b) =>
+        STAFF_TODO_PRIORITY_RANK[a.priority] -
+        STAFF_TODO_PRIORITY_RANK[b.priority],
+    );
 }
 
 export async function completeDisplayTodo(
@@ -422,18 +632,30 @@ export async function completeDisplayTodo(
     todoId: string;
     completedByStaffId: string;
     completionNote?: string | null;
+    capture?: StaffTodoCapturePayload;
   },
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
-  const { data: todo } = await admin
-    .from("restaurant_staff_todos")
-    .select("id, restaurant_id, title")
-    .eq("id", params.todoId)
-    .eq("restaurant_id", params.restaurantId)
-    .is("archived_at", null)
-    .maybeSingle();
+  const assigned = await assertDisplayTodoAssignedToStaff(
+    admin,
+    {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      todoId: params.todoId,
+    },
+    TODO_SELECT,
+  );
+  if (!assigned.ok) {
+    return assigned;
+  }
 
-  if (!todo) {
-    return { ok: false, error: "not_found", status: 404 };
+  const row = assigned.row;
+  const evaluation = evaluateStaffTodoCapture(row, params.capture ?? {});
+  if (!evaluation.ok) {
+    return {
+      ok: false,
+      error: evaluation.error ?? "capture_invalid",
+      status: 400,
+    };
   }
 
   const now = new Date().toISOString();
@@ -447,6 +669,10 @@ export async function completeDisplayTodo(
         reopened_at: null,
         confirmed_at: now,
         completion_note: params.completionNote?.trim() || null,
+        captured_numeric: evaluation.captured_numeric,
+        captured_text: evaluation.captured_text,
+        within_limits: evaluation.within_limits,
+        corrective_action: evaluation.corrective_action,
       },
       { onConflict: "todo_id,staff_id" },
     );
@@ -460,7 +686,12 @@ export async function completeDisplayTodo(
     todo_id: params.todoId,
     action: "completed" satisfies StaffTodoLogAction,
     actor_staff_id: params.staffId,
-    details: { title: (todo as { title: string }).title },
+    details: {
+      title: row.title,
+      capture_type: row.capture_type,
+      within_limits: evaluation.within_limits,
+      has_deviation: evaluation.has_deviation,
+    },
   });
 
   return { ok: true };
@@ -474,19 +705,20 @@ export async function reopenDisplayTodo(
     todoId: string;
   },
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
-  const { data: todo } = await admin
-    .from("restaurant_staff_todos")
-    .select("id, restaurant_id, title, allow_reopen_on_display")
-    .eq("id", params.todoId)
-    .eq("restaurant_id", params.restaurantId)
-    .is("archived_at", null)
-    .maybeSingle();
-
-  if (!todo) {
-    return { ok: false, error: "not_found", status: 404 };
+  const assigned = await assertDisplayTodoAssignedToStaff(
+    admin,
+    {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      todoId: params.todoId,
+    },
+    "id, restaurant_id, title, allow_reopen_on_display, assignee_type, staff_id, position_tag_id, staff_assignees:restaurant_staff_todo_staff_assignees ( staff_id ), position_assignees:restaurant_staff_todo_position_assignees ( position_tag_id )",
+  );
+  if (!assigned.ok) {
+    return assigned;
   }
 
-  const row = todo as {
+  const row = assigned.row as {
     title: string;
     allow_reopen_on_display: boolean;
   };
@@ -541,19 +773,20 @@ export async function deferDisplayTodo(
     reason?: string | null;
   },
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
-  const { data: todo } = await admin
-    .from("restaurant_staff_todos")
-    .select("id, restaurant_id, title, require_defer_reason")
-    .eq("id", params.todoId)
-    .eq("restaurant_id", params.restaurantId)
-    .is("archived_at", null)
-    .maybeSingle();
-
-  if (!todo) {
-    return { ok: false, error: "not_found", status: 404 };
+  const assigned = await assertDisplayTodoAssignedToStaff(
+    admin,
+    {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      todoId: params.todoId,
+    },
+    "id, restaurant_id, title, require_defer_reason, assignee_type, staff_id, position_tag_id, staff_assignees:restaurant_staff_todo_staff_assignees ( staff_id ), position_assignees:restaurant_staff_todo_position_assignees ( position_tag_id )",
+  );
+  if (!assigned.ok) {
+    return assigned;
   }
 
-  const row = todo as {
+  const row = assigned.row as {
     title: string;
     require_defer_reason: boolean;
   };

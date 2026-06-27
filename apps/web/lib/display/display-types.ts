@@ -3,6 +3,7 @@ export type DisplayModule =
   | "reservations"
   | "recipes"
   | "inventory"
+  | "compliance"
   | "kds";
 
 export type DisplayModuleMeta = {
@@ -31,6 +32,11 @@ export const DISPLAY_MODULES: readonly DisplayModuleMeta[] = [
     id: "inventory",
     label: "Bestand & Bestellung",
     description: "Bestand erfassen und Bestellmengen eingeben",
+  },
+  {
+    id: "compliance",
+    label: "Checklisten",
+    description: "Temperatur, Reinigung und wiederkehrende Erfassungen",
   },
   {
     id: "kds",

@@ -12,6 +12,8 @@ import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
+import { GWADA_PUBLIC_SIGNUP_ENABLED } from "@/lib/auth/public-signup-gate";
 
 export async function sendMagicLinkEmailServer(params: {
   email: string;
@@ -27,6 +29,14 @@ export async function sendMagicLinkEmailServer(params: {
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return { ok: false, error: "admin_unavailable" };
+  }
+
+  if (!GWADA_PUBLIC_SIGNUP_ENABLED) {
+    const existingUserId = await findAuthUserIdByEmailAdmin(admin, email);
+    if (!existingUserId) {
+      // Kein Leak: gleiche Antwort wie bei unbekannter Adresse
+      return { ok: true };
+    }
   }
 
   const platformEmail = await fetchPlatformEmailSmtpConfigAdmin();

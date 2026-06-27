@@ -19,10 +19,11 @@ import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-b
 import { DisplayTimeModule } from "@/components/display/modules/display-time-module";
 import {
   DisplayTimeTodoPopup,
-  useDisplayTimeTodoGate,
-} from "@/components/display/modules/display-time-todo-popup";
+  useDisplayShiftGates,
+} from "@/components/display/modules/display-shift-gates";
 import { DisplayReservationsModule } from "@/components/display/modules/display-reservations-module";
 import { DisplayInventoryModule } from "@/components/display/modules/display-inventory-module";
+import { DisplayComplianceModule } from "@/components/display/modules/display-compliance-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
@@ -76,8 +77,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
     ctx: DisplayContextResponse;
     mods: DisplayModule[];
   } | null>(null);
-  const { preparePinLoginGate, popupProps: pinTodoPopupProps } =
-    useDisplayTimeTodoGate();
+  const { preparePinLoginGate, prepareAndGate, todoPopupProps } =
+    useDisplayShiftGates();
 
   const refreshContext = useCallback(async () => {
     const res = await fetch("/api/display/context", { cache: "no-store" });
@@ -525,6 +526,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
               <DisplayTimeModule
                 initial={context.time_session}
                 onSessionChange={patchTimeSession}
+                prepareAndGate={prepareAndGate}
                 onChanged={() => {
                   void refreshTodoBadge();
                   void refreshTimeSession();
@@ -539,6 +541,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
               <DisplayRecipesModule />
             ) : null}
             {currentModule === "inventory" ? <DisplayInventoryModule /> : null}
+            {currentModule === "compliance" ? <DisplayComplianceModule /> : null}
           </DisplayModuleShell>
       );
     }
@@ -567,7 +570,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
         onExitStart={handleScreenCelebrationExitStart}
         onDone={handleScreenCelebrationDone}
       />
-      <DisplayTimeTodoPopup {...pinTodoPopupProps} />
+      <DisplayTimeTodoPopup {...todoPopupProps} />
     </DisplayAccentRoot>
   );
 }

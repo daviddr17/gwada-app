@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Image from "next/image";
 import { toast } from "sonner";
 import { ImageIcon, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,15 +28,26 @@ import {
   DEFAULT_PLATFORM_APP_NAME,
   type PlatformBrandingAssetKind,
 } from "@/lib/types/platform-app-settings";
+import { platformBrandingPreviewHref } from "@/lib/platform/branding-asset-url";
+import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { cn } from "@/lib/utils";
 
 const ACCEPT_IMAGES =
   "image/png,image/jpeg,image/webp,image/svg+xml,image/x-icon,image/vnd.microsoft.icon";
 
+const ACCEPT_IMAGE_SET = new Set(
+  ACCEPT_IMAGES.split(",").map((value) => value.trim()),
+);
+
+function isAcceptedBrandingFile(file: File): boolean {
+  return ACCEPT_IMAGE_SET.has(file.type);
+}
+
 function BrandingAssetField({
   title,
   description,
   previewUrl,
+  localPreviewUrl,
   onUpload,
   onRemove,
   uploading,
@@ -45,11 +55,77 @@ function BrandingAssetField({
   title: string;
   description: string;
   previewUrl: string | null;
+  localPreviewUrl?: string | null;
   onUpload: (file: File) => void;
   onRemove: () => void;
   uploading: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragDepthRef = useRef(0);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const displayPreviewUrl = localPreviewUrl ?? previewUrl;
+  const hasPreview = Boolean(displayPreviewUrl);
+
+  const pickFile = useCallback(
+    (file: File | undefined) => {
+      if (!file || uploading) return;
+      if (!isAcceptedBrandingFile(file)) {
+        toast.error("Bitte PNG, JPEG, WebP, SVG oder ICO wählen (max. 2 MB).");
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("Die Datei darf maximal 2 MB groß sein.");
+        return;
+      }
+      onUpload(file);
+    },
+    [onUpload, uploading],
+  );
+
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (uploading) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current += 1;
+      if (e.dataTransfer.types.includes("Files")) {
+        setIsDragOver(true);
+      }
+    },
+    [uploading],
+  );
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (uploading) return;
+      if (!e.dataTransfer.types.includes("Files")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    [uploading],
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragDepthRef.current = 0;
+      setIsDragOver(false);
+      if (uploading) return;
+      pickFile(e.dataTransfer.files?.[0]);
+    },
+    [pickFile, uploading],
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-border/50 bg-muted/5 p-3">
@@ -57,66 +133,83 @@ function BrandingAssetField({
         <p className="text-sm font-medium leading-snug">{title}</p>
         <p className="text-xs leading-snug text-muted-foreground">{description}</p>
       </div>
-      <div
-        className={cn(
-          "flex min-h-[4.5rem] items-center justify-center rounded-lg border border-dashed border-border/60 bg-background/60 p-2",
-          previewUrl && "border-solid",
-        )}
-      >
-        {previewUrl ? (
-          <div className="relative flex max-h-12 w-full items-center justify-center">
-            <Image
-              src={previewUrl}
-              alt=""
-              width={120}
-              height={48}
-              unoptimized
-              className="max-h-12 w-auto max-w-full object-contain"
-            />
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-1 text-muted-foreground">
-            <ImageIcon className="size-5 opacity-60" />
-            <span className="text-xs">Noch kein Bild</span>
-          </div>
-        )}
+      <div className="relative">
+        <button
+          type="button"
+          disabled={uploading}
+          aria-label={
+            hasPreview
+              ? `${title}: Bild ersetzen`
+              : `${title}: Bild hochladen`
+          }
+          className={cn(
+            "group relative flex min-h-[5.5rem] w-full cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-border/60 bg-background/60 p-3 text-center transition-colors",
+            hasPreview && "border-solid",
+            !uploading &&
+              "hover:border-accent/40 hover:bg-accent/5 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+            isDragOver && "border-accent bg-accent/10 ring-2 ring-accent/30",
+            uploading && "cursor-wait opacity-80",
+          )}
+          onClick={() => inputRef.current?.click()}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {uploading && localPreviewUrl ? (
+            <div className="relative flex max-h-14 w-full items-center justify-center opacity-70">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={localPreviewUrl}
+                alt=""
+                className="max-h-14 w-auto max-w-full object-contain"
+              />
+            </div>
+          ) : hasPreview ? (
+            <div className="relative flex max-h-14 w-full items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={displayPreviewUrl!}
+                alt=""
+                className="max-h-14 w-auto max-w-full object-contain"
+              />
+              <span className="pointer-events-none absolute inset-x-0 bottom-0 rounded-b-lg bg-background/80 px-2 py-1 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                Klicken zum Ersetzen
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-1.5 text-muted-foreground">
+              <ImageIcon className="size-5 opacity-60" aria-hidden />
+              <span className="max-w-[12rem] text-xs leading-snug">
+                Noch kein Bild. Klicken zum Hochladen.
+              </span>
+            </div>
+          )}
+        </button>
+        {previewUrl && !uploading ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="absolute top-1.5 right-1.5 z-10 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            aria-label={`${title} entfernen`}
+            onClick={onRemove}
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+          </Button>
+        ) : null}
       </div>
       <input
         ref={inputRef}
         type="file"
         accept={ACCEPT_IMAGES}
         className="sr-only"
+        disabled={uploading}
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          pickFile(e.target.files?.[0]);
           e.target.value = "";
-          if (file) onUpload(file);
         }}
       />
-      <div className="flex flex-wrap gap-1.5">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-8 rounded-lg px-2.5 text-xs"
-          disabled={uploading}
-          onClick={() => inputRef.current?.click()}
-        >
-          {previewUrl ? "Ersetzen" : "Hochladen"}
-        </Button>
-        {previewUrl ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 rounded-lg px-2 text-xs text-destructive hover:text-destructive"
-            disabled={uploading}
-            onClick={onRemove}
-          >
-            <Trash2 className="size-3.5" />
-            Entfernen
-          </Button>
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -126,13 +219,34 @@ export function PlatformAppGeneralPanel() {
   const [loading, setLoading] = useState(true);
   const [appName, setAppName] = useState(DEFAULT_PLATFORM_APP_NAME);
   const [savedAppName, setSavedAppName] = useState(DEFAULT_PLATFORM_APP_NAME);
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [logoDarkUrl, setLogoDarkUrl] = useState<string | null>(null);
-  const [faviconUrl, setFaviconUrl] = useState<string | null>(null);
+  const [logoPath, setLogoPath] = useState<string | null>(null);
+  const [logoDarkPath, setLogoDarkPath] = useState<string | null>(null);
+  const [faviconPath, setFaviconPath] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingLogoDark, setUploadingLogoDark] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
+  const [localPreviewByKind, setLocalPreviewByKind] = useState<
+    Partial<Record<PlatformBrandingAssetKind, string>>
+  >({});
+
+  const clearLocalPreview = (kind: PlatformBrandingAssetKind) => {
+    setLocalPreviewByKind((prev) => {
+      const next = { ...prev };
+      const url = next[kind];
+      if (url) URL.revokeObjectURL(url);
+      delete next[kind];
+      return next;
+    });
+  };
+
+  const setLocalPreview = (kind: PlatformBrandingAssetKind, file: File) => {
+    clearLocalPreview(kind);
+    setLocalPreviewByKind((prev) => ({
+      ...prev,
+      [kind]: URL.createObjectURL(file),
+    }));
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,9 +254,9 @@ export function PlatformAppGeneralPanel() {
       const data = await fetchSuperadminPlatformAppSettings();
       setAppName(data.appName);
       setSavedAppName(data.appName);
-      setLogoUrl(data.logoUrl);
-      setLogoDarkUrl(data.logoDarkUrl);
-      setFaviconUrl(data.faviconUrl);
+      setLogoPath(data.logoPath);
+      setLogoDarkPath(data.logoDarkPath);
+      setFaviconPath(data.faviconPath);
       applyBranding(data);
     } catch (e) {
       toast.error(
@@ -209,24 +323,28 @@ export function PlatformAppGeneralPanel() {
   const syncBrandingFromResponse = (
     data: Awaited<ReturnType<typeof fetchSuperadminPlatformAppSettings>>,
   ) => {
-    setLogoUrl(data.logoUrl);
-    setLogoDarkUrl(data.logoDarkUrl);
-    setFaviconUrl(data.faviconUrl);
+    setLogoPath(data.logoPath);
+    setLogoDarkPath(data.logoDarkPath);
+    setFaviconPath(data.faviconPath);
     applyBranding(data);
   };
 
   const handleUpload = async (kind: PlatformBrandingAssetKind, file: File) => {
     uploadBusyByKind[kind](true);
+    setLocalPreview(kind, file);
     try {
-      const data = await uploadSuperadminPlatformBrandingAsset(kind, file);
+      const data = await trackDashboardFileUpload(
+        () => uploadSuperadminPlatformBrandingAsset(kind, file),
+        { successMessage: uploadSuccessLabel[kind] },
+      );
       syncBrandingFromResponse(data);
       await refresh();
-      toast.success(uploadSuccessLabel[kind]);
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Upload fehlgeschlagen.",
       );
     } finally {
+      clearLocalPreview(kind);
       uploadBusyByKind[kind](false);
     }
   };
@@ -234,10 +352,12 @@ export function PlatformAppGeneralPanel() {
   const handleRemove = async (kind: PlatformBrandingAssetKind) => {
     uploadBusyByKind[kind](true);
     try {
-      const data = await removeSuperadminPlatformBrandingAsset(kind);
+      const data = await trackDashboardFileUpload(
+        () => removeSuperadminPlatformBrandingAsset(kind),
+        { successMessage: removeSuccessLabel[kind] },
+      );
       syncBrandingFromResponse(data);
       await refresh();
-      toast.success(removeSuccessLabel[kind]);
     } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Entfernen fehlgeschlagen.",
@@ -292,7 +412,8 @@ export function PlatformAppGeneralPanel() {
             <BrandingAssetField
               title="Logo (Hellmodus)"
               description="Helles Theme: Top-Menü, Startseite, App. PNG, JPEG, WebP oder SVG, max. 2 MB."
-              previewUrl={logoUrl}
+              previewUrl={platformBrandingPreviewHref(logoPath)}
+              localPreviewUrl={localPreviewByKind.logo}
               uploading={uploadingLogo}
               onUpload={(file) => void handleUpload("logo", file)}
               onRemove={() => void handleRemove("logo")}
@@ -300,7 +421,8 @@ export function PlatformAppGeneralPanel() {
             <BrandingAssetField
               title="Logo (Dunkelmodus)"
               description="Dunkles Theme. Ohne eigenes Logo wird das Hellmodus-Logo genutzt."
-              previewUrl={logoDarkUrl}
+              previewUrl={platformBrandingPreviewHref(logoDarkPath)}
+              localPreviewUrl={localPreviewByKind.logo_dark}
               uploading={uploadingLogoDark}
               onUpload={(file) => void handleUpload("logo_dark", file)}
               onRemove={() => void handleRemove("logo_dark")}
@@ -308,7 +430,8 @@ export function PlatformAppGeneralPanel() {
             <BrandingAssetField
               title="Favicon"
               description="Browser-Tab: PNG, ICO oder SVG. In der Topzeile bitte PNG oder SVG."
-              previewUrl={faviconUrl}
+              previewUrl={platformBrandingPreviewHref(faviconPath)}
+              localPreviewUrl={localPreviewByKind.favicon}
               uploading={uploadingFavicon}
               onUpload={(file) => void handleUpload("favicon", file)}
               onRemove={() => void handleRemove("favicon")}

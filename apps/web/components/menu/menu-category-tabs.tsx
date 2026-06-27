@@ -8,6 +8,7 @@ import { isCategoryActive } from "@/lib/menu/item-utils";
 import { scrollCategoryTabIntoView } from "@/lib/menu/category-tabs-scroll";
 import { getAppScrollRoot } from "@/lib/layout/app-scroll-root";
 import { profileDockActiveBgClassName } from "@/lib/public-profile/profile-dock-styles";
+import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
 import { cn } from "@/lib/utils";
 
@@ -231,12 +232,13 @@ export function MenuCategoryTabs({
       <Button
         type="button"
         variant="outline"
-        size="icon-sm"
-        className="shrink-0 rounded-full border-border/60 shadow-none dark:shadow-sm"
+        size="sm"
+        className={moduleManageChipButtonClassName}
         aria-label="Kategorien sortieren und verwalten"
         onClick={() => onOpenManageCategories()}
       >
         <Layers className="size-4" />
+        Kategorien
       </Button>
     </div>
   );

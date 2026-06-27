@@ -30,11 +30,17 @@ export type SearchableSelectOption = {
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
 
-function TagColorStripe({ color }: { color?: string }) {
+function TagColorStripe({
+  color,
+  className,
+}: {
+  color?: string
+  className?: string
+}) {
   if (!color || !HEX_COLOR.test(color)) return null
   return (
     <span
-      className="mr-1.5 h-5 w-1 shrink-0 rounded-full"
+      className={cn("mr-1.5 h-5 w-1 shrink-0 rounded-full", className)}
       style={{ backgroundColor: color }}
       aria-hidden
     />
@@ -419,6 +425,188 @@ export function TagMultiCombobox({
             <Combobox.Empty className="empty:hidden min-h-0 px-4 py-8 text-center text-sm text-muted-foreground">
               {available.length === 0
                 ? "Alle Tags ausgewählt"
+                : "Kein Treffer für diese Suche"}
+            </Combobox.Empty>
+          </Combobox.Popup>
+        </Combobox.Positioner>
+      </Combobox.Portal>
+    </Combobox.Root>
+  )
+}
+
+export type SearchableMultiSelectProps = {
+  options: SearchableSelectOption[]
+  value: string[]
+  onChange: (value: string[]) => void
+  disabled?: boolean
+  className?: string
+  id?: string
+  placeholder?: string
+  searchPlaceholder?: string
+  emptyMessage?: string
+  "aria-label"?: string
+}
+
+function labelForOptionId(id: string, options: SearchableSelectOption[]): string {
+  return options.find((o) => o.value === id)?.label ?? id
+}
+
+/**
+ * Multi-select with chips + search (Mitarbeiter, Positionen, …).
+ */
+export function SearchableMultiSelect({
+  options,
+  value,
+  onChange,
+  disabled,
+  className,
+  id,
+  placeholder = "Auswählen …",
+  searchPlaceholder = "Suchen …",
+  emptyMessage = "Keine Einträge verfügbar.",
+  "aria-label": ariaLabel,
+}: SearchableMultiSelectProps) {
+  const drawerFloatingHost = useDrawerFloatingPortalHost()
+
+  const optionById = React.useMemo(
+    () => new Map(options.map((o) => [o.value, o])),
+    [options],
+  )
+
+  const available = React.useMemo(
+    () =>
+      options.filter((o) => !o.disabled && !value.includes(o.value)).map((o) => o.value),
+    [options, value],
+  )
+
+  const matcher = Combobox.useFilter({
+    sensitivity: "base",
+    multiple: true,
+    value,
+  })
+
+  if (options.length === 0) {
+    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+  }
+
+  return (
+    <Combobox.Root
+      modal={false}
+      multiple
+      value={value}
+      onValueChange={(v) => {
+        if (Array.isArray(v)) onChange(v as string[])
+        else onChange([])
+      }}
+      items={available}
+      itemToStringLabel={(id) => labelForOptionId(id, options)}
+      filter={(id, query, toStr) =>
+        query.trim() === "" ||
+        matcher.contains(id, query, toStr as (item: string) => string)
+      }
+      autoHighlight={true}
+      disabled={disabled}
+    >
+      <Combobox.InputGroup
+        id={id}
+        aria-label={ariaLabel}
+        data-slot="searchable-multi-select"
+        className={cn(
+          "flex min-h-11 w-full min-w-0 touch-manipulation items-center gap-1.5 rounded-2xl border border-border/70 bg-card px-2 py-1.5 shadow-none transition-[border-color,box-shadow] outline-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/45 dark:border-border/80 dark:bg-input/25 dark:shadow-sm",
+          disabled && "pointer-events-none opacity-50",
+          className,
+        )}
+      >
+        <Combobox.Chips className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-1.5">
+          <Combobox.Value>
+            {(selected: string[]) => (
+              <>
+                {selected.map((id) => {
+                  const opt = optionById.get(id)
+                  return (
+                    <Combobox.Chip
+                      key={id}
+                      className="inline-flex max-w-full min-w-0 shrink items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground"
+                    >
+                      <TagColorStripe
+                        color={opt?.leadingColor}
+                        className="mr-1 h-3.5"
+                      />
+                      <span className="min-w-0 truncate">
+                        {opt?.label ?? id}
+                      </span>
+                      <Combobox.ChipRemove
+                        className="rounded-full p-0.5 text-muted-foreground hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10"
+                        aria-label={`${opt?.label ?? id} entfernen`}
+                      />
+                    </Combobox.Chip>
+                  )
+                })}
+                <Combobox.Input
+                  placeholder={
+                    selected.length
+                      ? searchPlaceholder
+                      : placeholder
+                  }
+                  className={cn(
+                    "min-h-8 min-w-0 max-w-full flex-[1_1_7rem] border-0 bg-transparent px-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+                    "truncate",
+                    "data-[popup-open]:overflow-x-auto data-[popup-open]:overflow-y-hidden data-[popup-open]:text-clip",
+                  )}
+                />
+              </>
+            )}
+          </Combobox.Value>
+        </Combobox.Chips>
+        <Combobox.Trigger
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/70"
+          aria-label="Liste öffnen"
+        >
+          <ChevronDownIcon className="size-4" />
+        </Combobox.Trigger>
+      </Combobox.InputGroup>
+
+      <Combobox.Portal container={drawerFloatingHost ?? undefined}>
+        <Combobox.Positioner
+          className="pointer-events-auto isolate z-[320] outline-none"
+          side="bottom"
+          align="start"
+          sideOffset={8}
+          collisionPadding={16}
+          collisionAvoidance={collisionDefaults}
+          sticky
+          positionMethod="fixed"
+        >
+          <Combobox.Popup
+            className={cn(
+              "pointer-events-auto max-h-[min(var(--available-height),22rem)] w-(--anchor-width) max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-none ring-1 ring-black/5 dark:shadow-xl dark:ring-white/10",
+              "data-[side=bottom]:slide-in-from-top-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
+            )}
+          >
+            <Combobox.List className="max-h-60 scroll-py-2 overflow-y-auto overscroll-contain px-1.5 py-2 outline-none">
+              {(id: string) => {
+                const opt = optionById.get(id)
+                if (!opt) return null
+                return (
+                  <Combobox.Item
+                    key={id}
+                    value={id}
+                    disabled={opt.disabled}
+                    className="pointer-events-auto relative flex min-h-11 cursor-default items-center rounded-xl py-2.5 pr-10 pl-3 text-[15px] text-foreground outline-none select-none hover:bg-muted/70 data-highlighted:bg-muted/80 data-selected:bg-accent/12 data-selected:text-foreground sm:min-h-10 sm:text-sm"
+                  >
+                    <OptionLeadingPlatforms platforms={opt.leadingPlatforms} />
+                    <TagColorStripe color={opt.leadingColor} />
+                    <span className="flex-1 font-medium">{opt.label}</span>
+                    <Combobox.ItemIndicator className="pointer-events-none absolute right-2.5 top-1/2 flex size-4 -translate-y-1/2 text-foreground dark:text-accent">
+                      <CheckIcon className="size-4" aria-hidden />
+                    </Combobox.ItemIndicator>
+                  </Combobox.Item>
+                )
+              }}
+            </Combobox.List>
+            <Combobox.Empty className="empty:hidden min-h-0 px-4 py-8 text-center text-sm text-muted-foreground">
+              {available.length === 0
+                ? "Alle ausgewählt"
                 : "Kein Treffer für diese Suche"}
             </Combobox.Empty>
           </Combobox.Popup>

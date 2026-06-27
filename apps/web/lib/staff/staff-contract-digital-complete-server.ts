@@ -17,8 +17,11 @@ import {
   uploadStaffContractSignaturePng,
 } from "@/lib/staff/staff-contract-pdf-finalize.server";
 import { emitStaffContractSignedNotification } from "@/lib/notifications/notification-staff-contract-server";
+import {
+  rejectSelfStaffContract,
+  upsertStaffContractFieldsRow,
+} from "@/lib/staff/staff-contract-row-upsert.server";
 import type { StaffContractBodySnapshot } from "@/lib/types/staff-contract-templates";
-import type { StaffContractPayType } from "@/lib/types/staff";
 import type {
   StaffContractDigitalCompleteInput,
   StaffContractDigitalSignatureInput,
@@ -26,80 +29,21 @@ import type {
 
 export type { StaffContractDigitalSignatureInput };
 
-function isFixedPayType(payType: StaffContractPayType): boolean {
-  return payType === "fixed" || payType === "fixed_weekly";
-}
-
 async function upsertContractRow(
-  admin: SupabaseClient,
+  admin: Parameters<typeof upsertStaffContractFieldsRow>[0],
   input: StaffContractDigitalCompleteInput,
 ): Promise<
   | { ok: true; contractId: string; wasSigned: boolean; wasPending: boolean }
   | { ok: false; error: string; status: number }
 > {
-  const contractRow = {
-    restaurant_id: input.restaurantId,
-    staff_id: input.staffId,
-    valid_from: input.contractFields.valid_from,
-    valid_to: input.contractFields.valid_to,
-    pay_type: input.contractFields.pay_type,
-    hourly_rate_cents:
-      input.contractFields.pay_type === "hourly"
-        ? input.contractFields.hourly_rate_cents
-        : null,
-    fixed_salary_cents: isFixedPayType(input.contractFields.pay_type)
-      ? input.contractFields.fixed_salary_cents
-      : null,
-    currency: input.contractFields.currency ?? "EUR",
-    note: input.contractFields.note,
-    employment_type_id: input.contractFields.employment_type_id,
-    vacation_days_per_year: input.contractFields.vacation_days_per_year,
-    target_weekly_minutes: input.contractFields.target_weekly_minutes,
+  const result = await upsertStaffContractFieldsRow(admin, input);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    contractId: result.contractId,
+    wasSigned: result.wasSigned,
+    wasPending: result.wasPending,
   };
-
-  let contractId = input.contractId ?? null;
-  let wasSigned = false;
-  let wasPending = false;
-
-  if (contractId) {
-    const { data: existing } = await admin
-      .from("restaurant_staff_contracts")
-      .select("id, signed_at, employee_signature_pending")
-      .eq("id", contractId)
-      .eq("restaurant_id", input.restaurantId)
-      .maybeSingle();
-    if (!existing) {
-      return { ok: false, error: "contract_not_found", status: 404 };
-    }
-    wasSigned = Boolean(existing.signed_at);
-    wasPending = Boolean(existing.employee_signature_pending);
-    if (wasSigned && !input.revise) {
-      return { ok: false, error: "already_signed", status: 409 };
-    }
-    const { error: updateError } = await admin
-      .from("restaurant_staff_contracts")
-      .update(contractRow)
-      .eq("id", contractId);
-    if (updateError) {
-      return { ok: false, error: updateError.message, status: 500 };
-    }
-  } else {
-    const { data: inserted, error: insertError } = await admin
-      .from("restaurant_staff_contracts")
-      .insert(contractRow)
-      .select("id")
-      .single();
-    if (insertError || !inserted?.id) {
-      return {
-        ok: false,
-        error: insertError?.message ?? "contract_insert_failed",
-        status: 500,
-      };
-    }
-    contractId = inserted.id as string;
-  }
-
-  return { ok: true, contractId, wasSigned, wasPending };
 }
 
 async function completeEmployerOnlyStep(
@@ -140,9 +84,24 @@ async function completeEmployerOnlyStep(
     };
   }
 
+  if (input.contractId) {
+    const { data: existingSource } = await admin
+      .from("restaurant_staff_contracts")
+      .select("contract_source")
+      .eq("id", input.contractId)
+      .eq("restaurant_id", input.restaurantId)
+      .maybeSingle();
+    if (existingSource?.contract_source === "external") {
+      return { ok: false, error: "external_contract", status: 409 };
+    }
+  }
+
+  const selfContract = rejectSelfStaffContract(staffRow.profile_id, userId);
+  if (selfContract) return selfContract;
+
   const upsert = await upsertContractRow(admin, input);
   if (!upsert.ok) return upsert;
-  const { contractId, wasSigned, wasPending } = upsert;
+  const { contractId, wasPending } = upsert;
 
   const { data: existingContract } = await admin
     .from("restaurant_staff_contracts")
@@ -152,12 +111,11 @@ async function completeEmployerOnlyStep(
   const existingEmployerPath = (
     existingContract?.signature_employer as { signature_storage_path?: string } | null
   )?.signature_storage_path;
-  const isRevise = Boolean(input.revise || wasSigned || wasPending);
   const signVersion = await resolveStaffContractSignatureVersion(
     admin,
     contractId,
     existingEmployerPath,
-    isRevise,
+    false,
   );
 
   const employerPath = await uploadStaffContractSignaturePng(
@@ -201,15 +159,15 @@ async function completeEmployerOnlyStep(
     return { ok: false, error: contractUpdateError.message, status: 500 };
   }
 
-  const logSummary = wasSigned || wasPending
-    ? "Vertrag überarbeitet — wartet auf Unterschrift des Mitarbeiters im Profil"
+  const logSummary = wasPending
+    ? "Arbeitgeber-Unterschrift erneut gesendet — wartet auf Unterschrift des Mitarbeiters im Profil"
     : "Vom Arbeitgeber unterschrieben — wartet auf Unterschrift des Mitarbeiters im Profil";
 
   await insertStaffContractLogEntryServer(userSb, {
     restaurantId: input.restaurantId,
     contractId,
     actorUserId: userId,
-    action: wasSigned || wasPending ? "revised" : "employer_signed",
+    action: "employer_signed",
     summary: logSummary,
     signatureEmployer,
     signatureEmployee: null,
@@ -227,7 +185,7 @@ async function completeEmployerOnlyStep(
     contractTitle: title,
     documentId: null,
     actorUserId: userId,
-    revised: wasSigned || wasPending,
+    revised: false,
     pendingEmployeeSignature: true,
   });
 
@@ -291,9 +249,24 @@ export async function completeStaffContractDigital(
     return { ok: false, error: "staff_not_found", status: 404 };
   }
 
+  if (input.contractId) {
+    const { data: existingSource } = await admin
+      .from("restaurant_staff_contracts")
+      .select("contract_source")
+      .eq("id", input.contractId)
+      .eq("restaurant_id", input.restaurantId)
+      .maybeSingle();
+    if (existingSource?.contract_source === "external") {
+      return { ok: false, error: "external_contract", status: 409 };
+    }
+  }
+
+  const selfContract = rejectSelfStaffContract(staffRow.profile_id, userId);
+  if (selfContract) return selfContract;
+
   const upsert = await upsertContractRow(admin, input);
   if (!upsert.ok) return upsert;
-  const { contractId, wasSigned } = upsert;
+  const { contractId } = upsert;
 
   const { data: existingContract } = await admin
     .from("restaurant_staff_contracts")
@@ -303,12 +276,11 @@ export async function completeStaffContractDigital(
   const existingEmployerPath = (
     existingContract?.signature_employer as { signature_storage_path?: string } | null
   )?.signature_storage_path;
-  const isRevise = Boolean(input.revise || wasSigned);
   const signVersion = await resolveStaffContractSignatureVersion(
     admin,
     contractId,
     existingEmployerPath,
-    isRevise,
+    false,
   );
 
   const employerPath = await uploadStaffContractSignaturePng(
@@ -362,7 +334,7 @@ export async function completeStaffContractDigital(
     signatureEmployee,
     employerPng,
     employeePng,
-    wasSigned,
+    wasSigned: false,
   });
 
   if (!pdfResult.ok) return pdfResult;
@@ -384,17 +356,12 @@ export async function completeStaffContractDigital(
     return { ok: false, error: contractFinalizeError.message, status: 500 };
   }
 
-  const logAction = wasSigned ? "revised" : "signed";
-  const logSummary = wasSigned
-    ? "Vertrag überarbeitet, neu unterschrieben und PDF-Version erstellt"
-    : "Digital unterschrieben und PDF erstellt";
-
   await insertStaffContractLogEntryServer(userSb, {
     restaurantId: input.restaurantId,
     contractId,
     actorUserId: userId,
-    action: logAction,
-    summary: logSummary,
+    action: "signed",
+    summary: "Digital unterschrieben und PDF erstellt",
     signatureEmployer,
     signatureEmployee,
     pdfSha256: pdfResult.pdfSha256,
@@ -408,7 +375,7 @@ export async function completeStaffContractDigital(
     contractTitle: pdfResult.title,
     documentId: pdfResult.documentId,
     actorUserId: userId,
-    revised: wasSigned,
+    revised: false,
     pendingEmployeeSignature: false,
   });
 

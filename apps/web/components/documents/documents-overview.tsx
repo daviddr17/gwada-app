@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Download,
@@ -11,6 +11,7 @@ import {
   Search,
   Tags,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { DocumentProtocolDrawer } from "@/components/documents/document-protocol-drawer";
 import { toast } from "sonner";
@@ -35,14 +36,20 @@ import {
   updateRestaurantDocumentClient,
   uploadRestaurantDocumentClient,
 } from "@/lib/documents/documents-api";
+import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { validateRestaurantDocumentFile } from "@/lib/documents/validate-restaurant-document-file";
+import { RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL } from "@/lib/constants/restaurant-documents";
 import { formatStorageBytes } from "@/lib/documents/format-storage";
 import { WORKSPACE_STORAGE_MODULE_LABELS } from "@/lib/constants/workspace-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
-import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
+import {
+  hasModuleCreate,
+  hasModuleDelete,
+  hasModuleRead,
+} from "@/lib/permissions/module-crud-permissions";
 import type { DocumentStaffOption } from "@/components/documents/document-staff-select";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { staffDisplayName } from "@/lib/types/staff";
@@ -98,12 +105,17 @@ function uploadErrorMessage(code: string | undefined): string {
     case "storage_quota_exceeded":
       return "Speicherlimit erreicht (max. 1 GB pro Restaurant).";
     case "invalid_file":
-      return "Nur PDF, Word, Pages oder CSV (max. 100 MB).";
+      return `Nur ${RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL} (max. 100 MB).`;
     case "invalid_staff":
       return "Der gewählte Mitarbeiter ist ungültig.";
     default:
       return code ?? "Upload fehlgeschlagen.";
   }
+}
+
+function documentTitleFromFileName(fileName: string): string {
+  const base = fileName.replace(/\.[^.]+$/, "").trim();
+  return base || fileName.trim();
 }
 
 function SortHeader({
@@ -172,6 +184,7 @@ export function DocumentsOverview() {
   const { has: hasPermission, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(hasPermission, "documents");
   const canCreate = hasModuleCreate(hasPermission, "documents");
+  const canDelete = hasModuleDelete(hasPermission, "documents");
   const canReadStaff = hasModuleRead(hasPermission, "staff");
   const canEditDocumentNotes = hasPermission("documents.notes.edit");
   const documentTags = useDocumentTagsStorage(restaurantId);
@@ -215,6 +228,9 @@ export function DocumentsOverview() {
     null,
   );
   const [staffMembers, setStaffMembers] = useState<DocumentStaffOption[]>([]);
+  const pageDragDepthRef = useRef(0);
+  const [isPageDragOver, setIsPageDragOver] = useState(false);
+  const [pageUploadBusy, setPageUploadBusy] = useState(false);
 
   const openUploadDrawer = useCallback((file?: File | null) => {
     setFormMode("upload");
@@ -373,27 +389,83 @@ export function DocumentsOverview() {
     setPage(1);
   }, [search, tagFilter]);
 
-  const handlePageFileDrop = useCallback(
-    (file: File) => {
+  const uploadDocumentFile = useCallback(
+    async (file: File) => {
       if (formOpen && formMode === "edit") return;
+      if (!canCreate) {
+        toast.error("Keine Berechtigung zum Hochladen.");
+        return;
+      }
+      if (!restaurantId) return;
       const err = validateRestaurantDocumentFile(file);
       if (err) {
         toast.error(err);
         return;
       }
-      openUploadDrawer(file);
+      setPageUploadBusy(true);
+      try {
+        const { documentId, error } = await trackDashboardFileUpload(
+          () =>
+            uploadRestaurantDocumentClient({
+              restaurantId,
+              file,
+              title: documentTitleFromFileName(file.name),
+            }),
+          {
+            successMessage: "Dokument hochgeladen.",
+            errorMessage: uploadErrorMessage,
+          },
+        );
+        if (documentId) {
+          await reload();
+        }
+      } finally {
+        setPageUploadBusy(false);
+      }
     },
-    [formOpen, formMode, openUploadDrawer],
+    [formOpen, formMode, canCreate, restaurantId, reload],
   );
 
-  const handlePageDragOver = useCallback((e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes("Files")) return;
+  const handlePageFileDrop = useCallback(
+    (file: File) => {
+      void uploadDocumentFile(file);
+    },
+    [uploadDocumentFile],
+  );
+
+  const handlePageDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (!canCreate || (formOpen && formMode === "edit") || pageUploadBusy) return;
+      if (!e.dataTransfer.types.includes("Files")) return;
+      e.preventDefault();
+      pageDragDepthRef.current += 1;
+      setIsPageDragOver(true);
+    },
+    [canCreate, formOpen, formMode, pageUploadBusy],
+  );
+
+  const handlePageDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!canCreate || (formOpen && formMode === "edit") || pageUploadBusy) return;
+      if (!e.dataTransfer.types.includes("Files")) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "copy";
+    },
+    [canCreate, formOpen, formMode, pageUploadBusy],
+  );
+
+  const handlePageDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
+    pageDragDepthRef.current = Math.max(0, pageDragDepthRef.current - 1);
+    if (pageDragDepthRef.current === 0) {
+      setIsPageDragOver(false);
+    }
   }, []);
 
   const handlePageDrop = useCallback(
     (e: React.DragEvent) => {
+      pageDragDepthRef.current = 0;
+      setIsPageDragOver(false);
       if (!e.dataTransfer.types.includes("Files")) return;
       e.preventDefault();
       e.stopPropagation();
@@ -441,20 +513,36 @@ export function DocumentsOverview() {
 
   return (
     <div
-      className="w-full pb-16"
+      className="relative w-full pb-16"
+      onDragEnter={handlePageDragEnter}
       onDragOver={handlePageDragOver}
+      onDragLeave={handlePageDragLeave}
       onDrop={handlePageDrop}
     >
+      {isPageDragOver ? (
+        <div
+          className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-background/50 backdrop-blur-sm"
+          aria-hidden
+        >
+          <div className="rounded-2xl border-2 border-dashed border-accent bg-card/95 px-10 py-8 text-center shadow-lg">
+            <Upload className="mx-auto mb-3 size-10 text-accent" />
+            <p className="text-base font-medium">Datei hier ablegen</p>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL} · max. 100 MB
+            </p>
+          </div>
+        </div>
+      ) : null}
       <div className="-mx-4 mb-4 flex flex-wrap gap-2 px-4 sm:-mx-6 sm:px-6">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          className="rounded-full border-border/60"
+          className={moduleManageChipButtonClassName}
           onClick={() => setManageTagsOpen(true)}
         >
           <Tags className="size-4" />
-          Tags verwalten
+          Tags
         </Button>
       </div>
 
@@ -842,6 +930,23 @@ export function DocumentsOverview() {
           await reload();
           return true;
         }}
+        onDelete={
+          canDelete && editDoc
+            ? async () => {
+                const { error } = await deleteRestaurantDocumentClient({
+                  restaurantId,
+                  documentId: editDoc.id,
+                });
+                if (error) {
+                  toast.error(error);
+                  throw new Error(error);
+                }
+                toast.success("Dokument gelöscht");
+                setEditDoc(null);
+                await reload();
+              }
+            : undefined
+        }
       />
 
       <DocumentProtocolDrawer

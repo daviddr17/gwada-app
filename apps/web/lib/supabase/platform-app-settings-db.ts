@@ -91,10 +91,14 @@ export async function updateSidebarModuleOrder(
   order: SidebarModuleId[],
 ): Promise<{ error: string | null }> {
   const normalized = normalizeSidebarModuleOrder(order);
-  const { error } = await admin
-    .from("platform_app_settings")
-    .update({ sidebar_module_order: normalized })
-    .eq("id", "default");
+  const { error } = await admin.from("platform_app_settings").upsert(
+    {
+      id: "default",
+      app_name: DEFAULT_PLATFORM_APP_NAME,
+      sidebar_module_order: normalized,
+    },
+    { onConflict: "id" },
+  );
 
   return { error: error?.message ?? null };
 }
@@ -108,10 +112,13 @@ export async function updatePlatformAppName(
     return { error: "invalid_app_name" };
   }
 
-  const { error } = await admin
-    .from("platform_app_settings")
-    .update({ app_name: name })
-    .eq("id", "default");
+  const { error } = await admin.from("platform_app_settings").upsert(
+    {
+      id: "default",
+      app_name: name,
+    },
+    { onConflict: "id" },
+  );
 
   return { error: error?.message ?? null };
 }
@@ -121,10 +128,14 @@ export async function updatePlatformBrandingAssetPath(
   field: "logo_path" | "logo_dark_path" | "favicon_path",
   path: string | null,
 ): Promise<{ error: string | null }> {
-  const { error } = await admin
-    .from("platform_app_settings")
-    .update({ [field]: path })
-    .eq("id", "default");
+  const { error } = await admin.from("platform_app_settings").upsert(
+    {
+      id: "default",
+      app_name: DEFAULT_PLATFORM_APP_NAME,
+      [field]: path,
+    },
+    { onConflict: "id" },
+  );
 
   return { error: error?.message ?? null };
 }

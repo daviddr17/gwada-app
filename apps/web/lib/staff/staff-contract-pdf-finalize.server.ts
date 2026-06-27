@@ -15,7 +15,6 @@ import {
   generateStaffContractPdfBuffer,
 } from "@/lib/staff/generate-staff-contract-pdf.server";
 import { resolveStaffContractDocumentTagIdServer } from "@/lib/staff/staff-contract-document-tag-server";
-import { emitStaffContractSignedNotification } from "@/lib/notifications/notification-staff-contract-server";
 import type { StaffContractBodySnapshot } from "@/lib/types/staff-contract-templates";
 import type { StaffContractSignatureSnapshot } from "@/lib/types/staff-contract-templates";
 import type { StaffContractLogAction } from "@/lib/types/staff";

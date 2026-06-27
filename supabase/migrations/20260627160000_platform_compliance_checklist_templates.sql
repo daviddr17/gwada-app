@@ -24,14 +24,13 @@ create table public.platform_compliance_checklist_templates (
     category in (
       'temperature',
       'cleaning',
-      'goods_receipt',
       'hot_hold',
       'cooking',
       'other'
     )
   ),
   constraint platform_compliance_checklist_templates_frequency_check check (
-    frequency in ('daily', 'weekly', 'monthly', 'per_delivery', 'ad_hoc')
+    frequency in ('daily', 'weekly', 'monthly', 'ad_hoc')
   )
 );
 
@@ -119,21 +118,6 @@ begin
     ),
     (
       'DE',
-      'Wareneingang',
-      'Kontrolle bei Anlieferung: Zustand, Kennzeichnung und Temperatur.',
-      'goods_receipt',
-      'per_delivery',
-      '[
-        {"id":"seed-goods-1","label":"Verpackung & Frische in Ordnung","fieldType":"select","options":["OK","Nicht OK"],"required":true},
-        {"id":"seed-goods-2","label":"MHD / Verbrauchsdatum geprüft","fieldType":"select","options":["OK","Nicht OK"],"required":true},
-        {"id":"seed-goods-3","label":"Liefertemperatur (°C)","fieldType":"temperature","maxValue":7,"required":true},
-        {"id":"seed-goods-4","label":"Lieferant / Lieferschein","fieldType":"text","required":false}
-      ]'::jsonb,
-      false,
-      2
-    ),
-    (
-      'DE',
       'Warmhalten / Ausgabe',
       'Heißhalte-Temperaturen bei der Speisenausgabe.',
       'hot_hold',
@@ -142,7 +126,7 @@ begin
         {"id":"seed-hot-1","label":"Ausgabe-Temperatur (°C)","fieldType":"temperature","minValue":65,"required":true}
       ]'::jsonb,
       true,
-      3
+      2
     ),
     (
       'DE',
@@ -155,7 +139,7 @@ begin
         {"id":"seed-cook-2","label":"Kerntemperatur (°C)","fieldType":"temperature","minValue":72,"required":true}
       ]'::jsonb,
       false,
-      4
+      3
     );
 end;
 $$;

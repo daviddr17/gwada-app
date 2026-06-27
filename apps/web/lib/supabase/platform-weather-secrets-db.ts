@@ -30,3 +30,9 @@ export async function fetchPlatformWeatherConfigAdmin(): Promise<{
     apiKey: apiKey || null,
   };
 }
+
+/** Superadmin: Integration aktiv und Visual-Crossing-Key hinterlegt. */
+export async function isPlatformWeatherAvailableAdmin(): Promise<boolean> {
+  const cfg = await fetchPlatformWeatherConfigAdmin();
+  return cfg.enabled && Boolean(cfg.apiKey);
+}

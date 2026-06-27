@@ -1,7 +1,7 @@
 {
-  "title": "Bottom Sheets und Vertrags-Löschen",
-  "body": "- **Bottom Sheets** (Formulare, Visitenkarte, Events …): Scroll-Bereich und Footer teilen sich die Höhe wieder korrekt — kein zusammengedrückter Inhalt mehr, Buttons liegen fest unten\n- **Verträge löschen** funktioniert zuverlässig — Bestätigungsdialog und serverseitiges Aufräumen von PDF, Protokoll und Signaturen",
-  "superadminBody": "- Drawer-Chrome: `min-h-0 overflow-hidden`, `DrawerFormBody`, Footer mit `bg-card`\n- Vertrag delete: ConfirmDialog außerhalb Vaul-Drawer; explizites Löschen von Log, Versionen, Dokumenten (Service-Role)",
+  "title": "Checklisten am Display, Warteliste und Navigation",
+  "body": "- **Display — Checklisten:** Offene Punkte im Footer, Pflicht-Checklisten vor Schichtstart und -ende (Ein-/Ausstempeln, Pause), Erfassung von Temperaturen und Werten direkt am Gerät\n- **Warteliste:** Neue Interessenten tragen sich über die Login-Seite ein — Registrierung ist bis zum Live-Start pausiert, bestehende Google-Anmeldungen funktionieren weiter\n- **Dashboard — Checklisten:** Bereiche und Geräte für HACCP-Einträge, wiederkehrende Aufgaben und Zuweisung an Mitarbeiter oder Positionen\n- **Profil — Display-PIN:** Mitarbeiter können ihre Display-PIN selbst setzen\n- **Verträge:** Externe PDFs importieren und Verträge vorbereiten\n- **Superadmin:** Warteliste, System- und Vorlagen-Navigation über die Top-Leiste, übersichtlichere Seitenleiste",
+  "superadminBody": "- Display: einheitliche `/api/display/todos`, Legacy-Compliance entfernt, Gate vor Schichtaktionen, Badge-Dringlichkeit\n- Warteliste: `platform_waitlist_entries`, `POST /api/public/waitlist`, `GWADA_PUBLIC_SIGNUP_ENABLED=false`\n- DB: Checklist-Bereiche/Geräte, Warteliste, Vertrags-Prepare/External, Display-PIN\n- Superadmin: `SUPERADMIN_SYSTEM_NAV`, Vorlagen nur Top-Subnav, Checklisten-Vorlagen → Vertragsvorlagen",
   "audience": "customers",
-  "version": "2026.06.23"
+  "version": "2026.06.27"
 }

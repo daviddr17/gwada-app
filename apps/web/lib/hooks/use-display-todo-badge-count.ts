@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { GWADA_DISPLAY_TODOS_REFRESH_EVENT } from "@/lib/display/display-todos-live-events";
 import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
 
@@ -23,7 +24,10 @@ export function useDisplayTodoBadgeCount(enabled: boolean): {
         cache: "no-store",
         credentials: "include",
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        toast.error("Checklisten konnten nicht geladen werden.");
+        return;
+      }
       const data = (await res.json()) as {
         badge_count?: number;
         badge_urgency?: StaffTodoDisplayUrgency;

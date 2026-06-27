@@ -17,6 +17,7 @@ const SIDEBAR_MODULE_CRUD_PREFIX: Record<SidebarModuleId, ModuleCrudPrefix | nul
     galerie: null,
     buchfuehrung: "accounting",
     dokumente: "documents",
+    checklisten: null,
     mitarbeiter: "staff",
   };
 
@@ -31,6 +32,11 @@ export function hasSidebarModuleAccess(
   has: (key: RestaurantPermissionKey) => boolean,
   moduleId: SidebarModuleId,
 ): boolean {
+  if (moduleId === "checklisten") {
+    return (
+      hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
+    );
+  }
   const prefix = SIDEBAR_MODULE_CRUD_PREFIX[moduleId];
   if (prefix) {
     return hasModuleRead(has, prefix);

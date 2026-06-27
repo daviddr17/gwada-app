@@ -56,6 +56,43 @@ export async function fetchSuperadminUsers(
   return { rows, error: null };
 }
 
+export type SuperadminWaitlistRow = {
+  id: string;
+  given_name: string;
+  family_name: string;
+  email: string;
+  note: string | null;
+  created_at: string;
+};
+
+export async function fetchSuperadminWaitlist(
+  sb: SupabaseClient,
+): Promise<{ rows: SuperadminWaitlistRow[]; error: string | null }> {
+  const { data, error } = await sb
+    .from("platform_waitlist_entries")
+    .select("id, given_name, family_name, email, note, created_at")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes("schema cache") ||
+      msg.includes("platform_waitlist_entries") ||
+      error.code === "PGRST202" ||
+      error.code === "42P01"
+    ) {
+      return {
+        rows: [],
+        error:
+          "Warteliste ist in der Datenbank noch nicht eingerichtet. Bitte Migration ausführen: pnpm db:tunnel:dev (Terminal 1), dann pnpm db:push (Terminal 2).",
+      };
+    }
+    return { rows: [], error: error.message };
+  }
+
+  return { rows: (data ?? []) as SuperadminWaitlistRow[], error: null };
+}
+
 export async function fetchSuperadminRestaurants(
   sb: SupabaseClient,
 ): Promise<{ rows: SuperadminRestaurantRow[]; error: string | null }> {

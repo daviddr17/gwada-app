@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Filter, Pencil, Plus, Search, Check, ScrollText } from "lucide-react";
 import { toast } from "sonner";
+import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,6 +18,7 @@ import {
 import { StaffTodoFormDrawer } from "@/components/staff/todos/staff-todo-form-drawer";
 import { StaffTodosProtocolDrawer } from "@/components/staff/todos/staff-todos-protocol-drawer";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
+import { ChecklistTaxonomyPanel } from "@/components/checklisten/checklist-taxonomy-panel";
 import {
   fetchStaffTodosForRestaurant,
   staffTodoAssigneeLabel,
@@ -28,6 +30,8 @@ import {
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
+import { useChecklistAreasStorage } from "@/lib/hooks/use-checklist-areas-storage";
+import { useChecklistDevicesStorage } from "@/lib/hooks/use-checklist-devices-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import {
@@ -45,6 +49,13 @@ import {
   staffTodoPriorityBadgeClass,
   staffTodoStatusBadgeClass,
 } from "@/lib/staff/staff-todo-status";
+import {
+  staffTodoCaptureLabel,
+  staffTodoContextLabel,
+  staffTodoLimitsLabel,
+  staffTodoRecurrenceLabel,
+  todoMatchesAreaFilter,
+} from "@/lib/staff/staff-todo-meta";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   moduleSearchFieldWrapClassName,
@@ -91,6 +102,8 @@ export function StaffTodosScreen() {
 
   const positionTagsStorage = useStaffPositionTagsStorage(restaurantId);
   const positionTags = positionTagsStorage.items;
+  const areasStorage = useChecklistAreasStorage(restaurantId);
+  const devicesStorage = useChecklistDevicesStorage(restaurantId);
   const [staffList, setStaffList] = useState<RestaurantStaffRow[]>([]);
   const [todos, setTodos] = useState<RestaurantStaffTodoRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,6 +115,8 @@ export function StaffTodosScreen() {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterAssignee, setFilterAssignee] = useState("all");
+  const [filterAreaId, setFilterAreaId] = useState<string | null>(null);
+  const [filterDeviceId, setFilterDeviceId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<StaffTodosSortKey>("priority");
   const [page, setPage] = useState(1);
 
@@ -121,7 +136,7 @@ export function StaffTodosScreen() {
       fetchStaffForRestaurant(restaurantId),
     ]);
     setLoading(false);
-    if (todoRes.error) toast.error(todoRes.error);
+    if (todoRes.error && !isMissingSchemaError(todoRes.error)) toast.error(todoRes.error);
     else setTodos(todoRes.data);
     if (staffRes.error) toast.error(staffRes.error);
     else setStaffList(staffRes.data);
@@ -172,6 +187,8 @@ export function StaffTodosScreen() {
         if (kind === "staff" && !assignedStaffIds(t).includes(id)) return false;
         if (kind === "tag" && !assignedPositionTagIds(t).includes(id)) return false;
       }
+      if (filterAreaId && !todoMatchesAreaFilter(t, filterAreaId)) return false;
+      if (filterDeviceId && t.checklist_device_id !== filterDeviceId) return false;
       if (q) {
         const hay = [
           t.title,
@@ -210,6 +227,8 @@ export function StaffTodosScreen() {
     filterStatus,
     filterPriority,
     filterAssignee,
+    filterAreaId,
+    filterDeviceId,
     sortKey,
     staffFilterFromUrl,
     staffById,
@@ -224,7 +243,7 @@ export function StaffTodosScreen() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterStatus, filterPriority, filterAssignee, sortKey, staffFilterFromUrl]);
+  }, [search, filterStatus, filterPriority, filterAssignee, filterAreaId, filterDeviceId, sortKey, staffFilterFromUrl]);
 
   const activeFilterCount = countStaffTodosActiveFilters({
     filterStatus,
@@ -235,7 +254,8 @@ export function StaffTodosScreen() {
 
   const handleMarkDone = async (todo: RestaurantStaffTodoRow) => {
     if (!restaurantId || !canUpdate) return;
-    let staffId = assignedStaffIds(todo)[0] ?? todo.staff_id ?? null;
+    let staffId: string | null =
+      assignedStaffIds(todo)[0] ?? todo.staff_id ?? null;
     if (!staffId) {
       const tagIds = assignedPositionTagIds(todo);
       staffId =
@@ -281,6 +301,16 @@ export function StaffTodosScreen() {
             : staffFilterFromUrl}
         </p>
       ) : null}
+
+      <ChecklistTaxonomyPanel
+        areasStorage={areasStorage}
+        devicesStorage={devicesStorage}
+        filterAreaId={filterAreaId}
+        onFilterAreaIdChange={setFilterAreaId}
+        filterDeviceId={filterDeviceId}
+        onFilterDeviceIdChange={setFilterDeviceId}
+        canManage={canUpdate}
+      />
 
       <div className={cn("mb-4", moduleSearchFilterRowClassName)}>
         <div className={moduleSearchFieldWrapClassName}>
@@ -384,6 +414,9 @@ export function StaffTodosScreen() {
                       Status
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
+                      Art
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
                       Fällig
                     </th>
                     {canUpdate ? (
@@ -396,12 +429,20 @@ export function StaffTodosScreen() {
                 <tbody>
                   {paginated.map((todo) => {
                     const status = computeStaffTodoStatus(todo, todo.completions);
+                    const recurrence = staffTodoRecurrenceLabel(todo.recurrence);
+                    const limits = staffTodoLimitsLabel(todo);
+                    const context = staffTodoContextLabel(todo);
                     return (
                       <tr
                         key={todo.id}
                         className="border-b border-border/40 last:border-0"
                       >
-                        <td className="px-4 py-3 font-medium">{todo.title}</td>
+                        <td className="px-4 py-3">
+                          <p className="font-medium">{todo.title}</p>
+                          {context ? (
+                            <p className="text-xs text-muted-foreground">{context}</p>
+                          ) : null}
+                        </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {staffTodoAssigneeLabel(todo)}
                         </td>
@@ -422,7 +463,16 @@ export function StaffTodosScreen() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {formatWhen(todo.display_until)}
+                          <p className="text-sm">{staffTodoCaptureLabel(todo.capture_type)}</p>
+                          {recurrence ? (
+                            <p className="text-xs">{recurrence}</p>
+                          ) : null}
+                          {limits ? (
+                            <p className="text-xs">{limits}</p>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {recurrence ?? formatWhen(todo.display_until)}
                         </td>
                         {canUpdate ? (
                           <td className="px-4 py-3 text-right">
@@ -492,6 +542,8 @@ export function StaffTodosScreen() {
         todo={editTodo}
         staffList={staffList}
         positionTags={positionTags}
+        checklistAreas={areasStorage.items}
+        checklistDevices={devicesStorage.items}
         onSaved={() => void reload()}
       />
     </div>

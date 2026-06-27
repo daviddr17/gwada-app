@@ -28,6 +28,42 @@ export type StaffTodoComputedStatus =
   | "done"
   | "archived";
 
+export const STAFF_TODO_RECURRENCES = [
+  "hourly",
+  "daily",
+  "weekly",
+  "monthly",
+  "ad_hoc",
+] as const;
+
+export type StaffTodoRecurrence = (typeof STAFF_TODO_RECURRENCES)[number];
+
+export const STAFF_TODO_RECURRENCE_LABELS: Record<StaffTodoRecurrence, string> = {
+  hourly: "Stündlich",
+  daily: "Täglich",
+  weekly: "Wöchentlich",
+  monthly: "Monatlich",
+  ad_hoc: "Bei Bedarf",
+};
+
+export const STAFF_TODO_CAPTURE_TYPES = [
+  "none",
+  "boolean",
+  "temperature",
+  "number",
+  "text",
+] as const;
+
+export type StaffTodoCaptureType = (typeof STAFF_TODO_CAPTURE_TYPES)[number];
+
+export const STAFF_TODO_CAPTURE_TYPE_LABELS: Record<StaffTodoCaptureType, string> = {
+  none: "Keine Erfassung",
+  boolean: "Erledigt (Haken)",
+  temperature: "Temperatur (°C)",
+  number: "Zahl",
+  text: "Text",
+};
+
 export type RestaurantStaffTodoRow = {
   id: string;
   restaurant_id: string;
@@ -50,6 +86,13 @@ export type RestaurantStaffTodoRow = {
   require_defer_reason: boolean;
   blocks_shift_end: boolean;
   sort_order: number;
+  recurrence: StaffTodoRecurrence | null;
+  capture_type: StaffTodoCaptureType;
+  target_min: number | null;
+  target_max: number | null;
+  checklist_device_id: string | null;
+  checklist_area_id: string | null;
+  require_corrective_on_deviation: boolean;
   created_by: string | null;
   archived_at: string | null;
   created_at: string;
@@ -65,6 +108,18 @@ export type RestaurantStaffTodoRow = {
     position_tag?: { id: string; name: string } | null;
   }[];
   completions?: RestaurantStaffTodoCompletionRow[];
+  checklist_device?: {
+    id: string;
+    name: string;
+    area_id: string | null;
+    target_min: number | null;
+    target_max: number | null;
+  } | null;
+  checklist_area?: {
+    id: string;
+    name: string;
+    background_color: string;
+  } | null;
 };
 
 export type RestaurantStaffTodoCompletionRow = {
@@ -75,6 +130,10 @@ export type RestaurantStaffTodoCompletionRow = {
   reopened_at: string | null;
   confirmed_at: string | null;
   completion_note: string | null;
+  captured_numeric: number | null;
+  captured_text: string | null;
+  within_limits: boolean | null;
+  corrective_action: string | null;
   created_at: string;
 };
 
@@ -134,4 +193,20 @@ export type StaffTodoUpsertInput = {
   require_defer_reason?: boolean;
   blocks_shift_end?: boolean;
   sort_order?: number;
+  recurrence?: StaffTodoRecurrence | null;
+  capture_type?: StaffTodoCaptureType;
+  target_min?: number | null;
+  target_max?: number | null;
+  checklist_device_id?: string | null;
+  checklist_area_id?: string | null;
+  require_corrective_on_deviation?: boolean;
+};
+
+export type RestaurantStaffTodoSettingsRow = {
+  restaurant_id: string;
+  defer_reason_default: string | null;
+  notify_on_completed: boolean;
+  notify_on_deferred: boolean;
+  created_at: string;
+  updated_at: string;
 };

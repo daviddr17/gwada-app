@@ -537,7 +537,10 @@ async function fetchStaffContractRows(
 
     const { data, error } = await query;
     if (!error) {
-      return { rows: (data ?? []) as Record<string, unknown>[], error: null };
+      return {
+        rows: (data ?? []) as unknown as Record<string, unknown>[],
+        error: null,
+      };
     }
     if (!isMissingStaffContractColumnError(error.message)) {
       return { rows: [], error: error.message };

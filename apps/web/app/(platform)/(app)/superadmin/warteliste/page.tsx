@@ -116,7 +116,6 @@ export default function SuperadminWartelistePage() {
         ]}
         rows={filtered}
         rowKey={(r) => r.id}
-        defaultSort={{ columnId: "created_at", direction: "desc" }}
       />
     </div>
   );

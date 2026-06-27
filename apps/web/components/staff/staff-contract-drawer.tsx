@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Button } from "@/components/ui/button";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import {
@@ -802,7 +803,7 @@ export function StaffContractDrawer({
                   <Label>Unterschrieben am (optional)</Label>
                   <DatePickerField
                     value={externalSignedAt}
-                    onChange={setExternalSignedAt}
+                    onChange={(ymd) => setExternalSignedAt(ymd ?? "")}
                     disabled={formFieldsDisabled}
                   />
                   <p className="text-xs text-muted-foreground">

@@ -334,10 +334,14 @@ export function PlatformAppGeneralPanel() {
     setLocalPreview(kind, file);
     try {
       const data = await trackDashboardFileUpload(
-        () => uploadSuperadminPlatformBrandingAsset(kind, file),
+        () =>
+          uploadSuperadminPlatformBrandingAsset(kind, file).then((settings) => ({
+            error: null as string | null,
+            settings,
+          })),
         { successMessage: uploadSuccessLabel[kind] },
       );
-      syncBrandingFromResponse(data);
+      syncBrandingFromResponse(data.settings);
       await refresh();
     } catch (e) {
       toast.error(
@@ -353,10 +357,14 @@ export function PlatformAppGeneralPanel() {
     uploadBusyByKind[kind](true);
     try {
       const data = await trackDashboardFileUpload(
-        () => removeSuperadminPlatformBrandingAsset(kind),
+        () =>
+          removeSuperadminPlatformBrandingAsset(kind).then((settings) => ({
+            error: null as string | null,
+            settings,
+          })),
         { successMessage: removeSuccessLabel[kind] },
       );
-      syncBrandingFromResponse(data);
+      syncBrandingFromResponse(data.settings);
       await refresh();
     } catch (e) {
       toast.error(

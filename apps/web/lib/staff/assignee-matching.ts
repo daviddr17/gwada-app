@@ -15,6 +15,11 @@ export type PositionAssigneeLink = {
 export type MultiAssigneeSource = {
   staff_id?: string | null;
   position_tag_id?: string | null;
+  staff?: {
+    given_name: string;
+    family_name: string | null;
+  } | null;
+  position_tag?: { id: string; name: string } | null;
   staff_assignees?: StaffAssigneeLink[] | null;
   position_assignees?: PositionAssigneeLink[] | null;
 };

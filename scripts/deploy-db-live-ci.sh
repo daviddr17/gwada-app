@@ -48,6 +48,23 @@ fi
 export SUPABASE_DB_URL="postgresql://postgres:${POSTGRES_PASSWORD}@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres"
 export PGSSLMODE=disable
 
+SUPABASE_CMD="supabase"
+if ! command -v supabase >/dev/null 2>&1; then
+  SUPABASE_CMD="npx supabase"
+fi
+
+echo ""
+echo "=== Live-DB: Migration-History (Drift-Reparatur) ==="
+# Auf Live existiert notification_events oft schon unter älteren Versions-IDs (20260621130000).
+# Ohne Repair blockiert db push bei 20260613170000.
+if ${SUPABASE_CMD} migration list --db-url "${SUPABASE_DB_URL}" 2>/dev/null \
+  | grep -q "20260613170000.*Applied"; then
+  echo "20260613170000 bereits angewendet."
+else
+  echo "Markiere 20260613170000 als angewendet (Schema bereits auf Live)."
+  ${SUPABASE_CMD} migration repair --status applied --db-url "${SUPABASE_DB_URL}" 20260613170000
+fi
+
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="
 bash scripts/db-push-live.sh --yes --include-all "$@"

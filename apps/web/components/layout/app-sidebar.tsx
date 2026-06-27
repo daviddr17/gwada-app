@@ -13,6 +13,7 @@ import {
   Plug,
   ScrollText,
   FileText,
+  Files,
   Settings,
   Settings2,
   Shield,
@@ -30,6 +31,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
@@ -40,6 +44,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { AppSidebarBrandLogo } from "@/components/layout/app-sidebar-brand-logo";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import { SUPERADMIN_VORLAGEN_ROUTES } from "@/lib/navigation/superadmin-vorlagen-routes";
 import {
   SIDEBAR_MODULE_BY_ID,
   type SidebarModuleId,
@@ -256,17 +261,47 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname.startsWith(
-                        "/superadmin/vertragsvorlagen",
-                      )}
-                      tooltip="Vertragsvorlagen"
+                      isActive={pathname.startsWith(SUPERADMIN_VORLAGEN_ROUTES.root)}
+                      tooltip="Vorlagen"
                       render={
-                        <Link href="/superadmin/vertragsvorlagen" prefetch />
+                        <Link href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen} prefetch />
                       }
                     >
-                      <FileText />
-                      <span>Vertragsvorlagen</span>
+                      <Files />
+                      <span>Vorlagen</span>
                     </SidebarMenuButton>
+                    <SidebarMenuSub>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={pathname.startsWith(
+                            SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen,
+                          )}
+                          render={
+                            <Link
+                              href={SUPERADMIN_VORLAGEN_ROUTES.vertragsvorlagen}
+                              prefetch
+                            />
+                          }
+                        >
+                          Vertragsvorlagen
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={pathname.startsWith(
+                            SUPERADMIN_VORLAGEN_ROUTES.checklisten,
+                          )}
+                          render={
+                            <Link
+                              href={SUPERADMIN_VORLAGEN_ROUTES.checklisten}
+                              prefetch
+                            />
+                          }
+                        >
+                          Checklisten-Vorlagen
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
                   </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton

@@ -260,6 +260,8 @@ export type ComplianceChecklistUpsertInput = {
   showOnDisplay?: boolean;
   isActive?: boolean;
   sortOrder?: number;
+  platformTemplateId?: string | null;
+  importedPlatformVersion?: number | null;
   staffIds?: string[];
   positionTagIds?: string[];
   priority?: CompliancePriority;

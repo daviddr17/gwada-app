@@ -270,6 +270,8 @@ export async function upsertComplianceChecklist(
     show_on_pin_login: input.showOnPinLogin ?? false,
     require_defer_reason: input.requireDeferReason ?? false,
     blocks_shift_end: input.blocksShiftEnd ?? false,
+    platform_template_id: input.platformTemplateId ?? null,
+    imported_platform_version: input.importedPlatformVersion ?? null,
   };
 
   let savedId = checklistId ?? null;
@@ -514,13 +516,84 @@ export async function seedDefaultComplianceTemplates(
     return { created: 0, error: null };
   }
 
+  const supabase = createSupabaseBrowserClient();
+  const { data: restaurant } = await supabase
+    .from("restaurants")
+    .select("country")
+    .eq("id", restaurantId)
+    .maybeSingle();
+
+  const { resolveRestaurantCountryCode, mapPlatformItemsForRestaurantImport } =
+    await import("@/lib/compliance/compliance-platform-import");
+
+  const countryCode = resolveRestaurantCountryCode(
+    typeof restaurant?.country === "string" ? restaurant.country : null,
+  );
+
+  const { data: platformRows, error: platformError } = await supabase
+    .from("platform_compliance_checklist_templates")
+    .select("*")
+    .eq("country_code", countryCode)
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("name");
+
+  if (platformError) {
+    return { created: 0, error: platformError.message };
+  }
+
   const { data: devices } = await fetchComplianceDevices(restaurantId);
-  const { buildDefaultComplianceTemplates } = await import(
-    "@/lib/compliance/compliance-utils"
-  );
-  const templates = buildDefaultComplianceTemplates(
-    (devices ?? []).map((d) => d.id),
-  );
+  const deviceIds = (devices ?? []).map((d) => d.id);
+
+  let templates: Array<{
+    name: string;
+    description: string;
+    category: import("@/lib/types/compliance").ComplianceCategory;
+    frequency: import("@/lib/types/compliance").ComplianceFrequency;
+    items: import("@/lib/types/compliance").ComplianceChecklistItem[];
+    showOnDisplay: boolean;
+    platformTemplateId?: string;
+    importedPlatformVersion?: number;
+  }> = [];
+
+  if (platformRows?.length) {
+    templates = platformRows.map((row) => {
+      const platformTemplate = {
+        id: row.id as string,
+        countryCode: row.country_code as string,
+        name: row.name as string,
+        description: (row.description as string | null) ?? null,
+        category: row.category as import("@/lib/types/compliance").ComplianceCategory,
+        frequency: row.frequency as import("@/lib/types/compliance").ComplianceFrequency,
+        items: (row.items ?? []) as import("@/lib/types/compliance").ComplianceChecklistItem[],
+        showOnDisplay: Boolean(row.show_on_display),
+        version: Number(row.version),
+        sortOrder: Number(row.sort_order),
+        isActive: Boolean(row.is_active),
+        createdAt: "",
+        updatedAt: "",
+      };
+      return {
+        name: platformTemplate.name,
+        description: platformTemplate.description ?? "",
+        category: platformTemplate.category,
+        frequency: platformTemplate.frequency,
+        items: mapPlatformItemsForRestaurantImport(platformTemplate, deviceIds),
+        showOnDisplay: platformTemplate.showOnDisplay,
+        platformTemplateId: platformTemplate.id,
+        importedPlatformVersion: platformTemplate.version,
+      };
+    });
+  } else {
+    const { buildDefaultComplianceTemplates } = await import(
+      "@/lib/compliance/compliance-utils"
+    );
+    templates = buildDefaultComplianceTemplates(deviceIds).map((t) => ({
+      ...t,
+      platformTemplateId: undefined,
+      importedPlatformVersion: undefined,
+    }));
+  }
 
   let created = 0;
   for (const [index, template] of templates.entries()) {
@@ -532,6 +605,8 @@ export async function seedDefaultComplianceTemplates(
       items: template.items,
       showOnDisplay: template.showOnDisplay,
       sortOrder: index,
+      platformTemplateId: template.platformTemplateId ?? null,
+      importedPlatformVersion: template.importedPlatformVersion ?? null,
     });
     if (error) return { created, error };
     created += 1;

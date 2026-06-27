@@ -53,17 +53,31 @@ if ! command -v supabase >/dev/null 2>&1; then
   SUPABASE_CMD="npx supabase"
 fi
 
+repair_migration_applied() {
+  local version="$1"
+  if ${SUPABASE_CMD} migration list --db-url "${SUPABASE_DB_URL}" 2>/dev/null \
+    | grep -E "${version}.*Applied"; then
+    return 0
+  fi
+  echo "Repair ${version} → applied (Schema bereits auf Live)"
+  ${SUPABASE_CMD} migration repair --status applied --db-url "${SUPABASE_DB_URL}" "${version}"
+}
+
 echo ""
 echo "=== Live-DB: Migration-History (Drift-Reparatur) ==="
-# Auf Live existiert notification_events oft schon unter älteren Versions-IDs (20260621130000).
-# Ohne Repair blockiert db push bei 20260613170000.
-if ${SUPABASE_CMD} migration list --db-url "${SUPABASE_DB_URL}" 2>/dev/null \
-  | grep -q "20260613170000.*Applied"; then
-  echo "20260613170000 bereits angewendet."
-else
-  echo "Markiere 20260613170000 als angewendet (Schema bereits auf Live)."
-  ${SUPABASE_CMD} migration repair --status applied --db-url "${SUPABASE_DB_URL}" 20260613170000
-fi
+# Live hat oft Schema unter anderen Versions-IDs; History nachziehen bis 20260626100000.
+LIVE_SCHEMA_DRIFT_VERSIONS=(
+  20260613170000
+  20260619120500
+  20260620170000
+  20260620175000
+  20260621150100
+  20260624290000
+  20260624300000
+)
+for version in "${LIVE_SCHEMA_DRIFT_VERSIONS[@]}"; do
+  repair_migration_applied "${version}" || true
+done
 
 echo ""
 echo "=== Live-DB: Migrationen anwenden (nur Schema) ==="

@@ -14,6 +14,8 @@ create table if not exists public.restaurant_reviews_platform_sync (
   primary key (restaurant_id, platform)
 );
 
+drop trigger if exists restaurant_reviews_platform_sync_set_updated_at
+  on public.restaurant_reviews_platform_sync;
 create trigger restaurant_reviews_platform_sync_set_updated_at
   before update on public.restaurant_reviews_platform_sync
   for each row execute function public.set_updated_at();

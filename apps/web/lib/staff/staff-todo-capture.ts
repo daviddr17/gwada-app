@@ -15,23 +15,42 @@ export type StaffTodoCaptureLimits = {
   max: number | null;
 };
 
+/** Display: Temperatur/Zahl auch bei veraltetem boolean + Geräte-Sollwerten. */
+export function resolveEffectiveCaptureType(
+  todo: Pick<
+    RestaurantStaffTodoRow,
+    "capture_type" | "target_min" | "target_max" | "checklist_device"
+  >,
+): StaffTodoCaptureType {
+  const type = todo.capture_type ?? "none";
+  if (type === "temperature" || type === "number" || type === "text") {
+    return type;
+  }
+  const device = todo.checklist_device;
+  const hasNumericLimits =
+    todo.target_min != null ||
+    todo.target_max != null ||
+    device?.target_min != null ||
+    device?.target_max != null;
+  if (hasNumericLimits) return "temperature";
+  return type;
+}
+
 export function resolveStaffTodoCaptureLimits(
   todo: Pick<
     RestaurantStaffTodoRow,
     "capture_type" | "target_min" | "target_max" | "checklist_device"
   >,
 ): StaffTodoCaptureLimits {
-  const device = todo.checklist_device;
-  if (
-    todo.capture_type === "temperature" ||
-    todo.capture_type === "number"
-  ) {
-    return {
-      min: todo.target_min ?? device?.target_min ?? null,
-      max: todo.target_max ?? device?.target_max ?? null,
-    };
+  const effective = resolveEffectiveCaptureType(todo);
+  if (effective !== "temperature" && effective !== "number") {
+    return { min: null, max: null };
   }
-  return { min: null, max: null };
+  const device = todo.checklist_device;
+  return {
+    min: todo.target_min ?? device?.target_min ?? null,
+    max: todo.target_max ?? device?.target_max ?? null,
+  };
 }
 
 function numericWithinLimits(
@@ -41,6 +60,37 @@ function numericWithinLimits(
   if (limits.min != null && value < limits.min) return false;
   if (limits.max != null && value > limits.max) return false;
   return true;
+}
+
+export function staffTodoCaptureLimitsDefined(
+  limits: StaffTodoCaptureLimits,
+): boolean {
+  return limits.min != null || limits.max != null;
+}
+
+export function parseCapturedNumeric(raw: string): number | null {
+  const numericRaw = raw.trim().replace(",", ".");
+  if (numericRaw === "") return null;
+  const n = Number.parseFloat(numericRaw);
+  return Number.isNaN(n) ? null : n;
+}
+
+export function numericCaptureHasDeviation(
+  value: number | null,
+  limits: StaffTodoCaptureLimits,
+): boolean {
+  if (value == null || !staffTodoCaptureLimitsDefined(limits)) return false;
+  return !numericWithinLimits(value, limits);
+}
+
+/** Abweichung vom Sollbereich → Korrekturmaßnahme, wenn Flag gesetzt oder Limits definiert. */
+export function captureRequiresCorrectiveOnDeviation(
+  todo: Pick<RestaurantStaffTodoRow, "require_corrective_on_deviation">,
+  limits: StaffTodoCaptureLimits,
+): boolean {
+  return (
+    todo.require_corrective_on_deviation || staffTodoCaptureLimitsDefined(limits)
+  );
 }
 
 export type StaffTodoCaptureEvaluation = {
@@ -64,7 +114,7 @@ export function evaluateStaffTodoCapture(
   >,
   payload: StaffTodoCapturePayload,
 ): StaffTodoCaptureEvaluation {
-  const captureType = todo.capture_type ?? "none";
+  const captureType = resolveEffectiveCaptureType(todo);
   const limits = resolveStaffTodoCaptureLimits(todo);
   const corrective = payload.corrective_action?.trim() || null;
 
@@ -139,7 +189,11 @@ export function evaluateStaffTodoCapture(
 
   const within = numericWithinLimits(raw, limits);
   const hasDeviation = !within;
-  if (hasDeviation && todo.require_corrective_on_deviation && !corrective) {
+  if (
+    hasDeviation &&
+    captureRequiresCorrectiveOnDeviation(todo, limits) &&
+    !corrective
+  ) {
     return {
       ok: false,
       error: "corrective_action_required",

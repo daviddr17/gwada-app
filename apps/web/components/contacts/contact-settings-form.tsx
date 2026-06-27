@@ -152,7 +152,7 @@ export function ContactSettingsForm() {
         }}
       >
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-3 pt-6">
+          <CardContent className="space-y-3">
             <ContactSettingsToggleRow
               id="auto-create-contacts-reservations"
               label="Kontakte aus Reservierungen"

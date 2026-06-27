@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
+import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
 import {
   fetchSuperadminRestaurants,
@@ -94,11 +94,13 @@ export default function SuperadminRestaurantsPage() {
         onFilterChange={setPublishedFilter}
       />
 
-      <SuperadminDataTable
+      <SuperadminPaginatedDataTable
         loading={loading}
         rows={filtered}
         rowKey={(r) => r.id}
         emptyMessage="Keine Restaurants gefunden."
+        itemLabel="Restaurants"
+        resetPageKey={`${search}\0${publishedFilter}`}
         columns={[
           {
             id: "name",

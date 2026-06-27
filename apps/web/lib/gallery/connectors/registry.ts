@@ -7,6 +7,15 @@ import { gwadaGalleryConnector } from "@/lib/gallery/connectors/gwada-gallery-co
 import { instagramGalleryConnector } from "@/lib/gallery/connectors/instagram-gallery-connector";
 import type { GalleryPlatformConnector } from "@/lib/gallery/connectors/types";
 import type { GalleryConnectorPublicInfo } from "@/lib/types/gallery-connectors";
+import {
+  isFeedConnectorEnabledBySuperadmin,
+  resolveFeedConnectorConnected,
+} from "@/lib/platform-feed/feed-platform-superadmin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  fetchPlatformMessagingFlags,
+  type PlatformMessagingFlags,
+} from "@/lib/supabase/platform-messaging-db";
 
 const CONNECTORS: Record<GalleryPlatform, GalleryPlatformConnector> = {
   gwada: gwadaGalleryConnector,
@@ -29,11 +38,28 @@ export async function getGalleryConnectorPublicInfo(
   restaurantId: string,
 ): Promise<GalleryConnectorPublicInfo[]> {
   const { GALLERY_PLATFORM_LABELS } = await import("@/lib/constants/gallery-platforms");
+  const admin = createSupabaseAdminClient();
+  const flags: PlatformMessagingFlags = admin
+    ? await fetchPlatformMessagingFlags(admin)
+    : {
+        whatsappEnabled: false,
+        emailEnabled: false,
+        facebookEnabled: false,
+        instagramEnabled: false,
+        googleBusinessEnabled: false,
+        lexofficeEnabled: false,
+      };
+
   const platforms = Object.keys(CONNECTORS) as GalleryPlatform[];
   return Promise.all(
     platforms.map(async (key) => {
       const connector = CONNECTORS[key];
-      const connected = await connector.isConnected(restaurantId);
+      const connected = await resolveFeedConnectorConnected(
+        key,
+        restaurantId,
+        connector.isConnected.bind(connector),
+        flags,
+      );
       return {
         key,
         displayName: GALLERY_PLATFORM_LABELS[key],

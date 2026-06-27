@@ -96,6 +96,12 @@
 
   /* Leicht hellgrauer als Page-Background, minimal abgesetzt */
   --app-chrome: color-mix(in oklch, var(--muted) 18%, var(--background));
+  /* Sidebar-Kopf/-Fuß & Top-Header — fest gemischt (nicht opacity, sonst unterschiedlich je Untergrund). */
+  --app-chrome-fixed-zone: color-mix(
+    in oklch,
+    var(--sidebar-accent) 45%,
+    var(--app-chrome)
+  );
 }
 
 .dark {
@@ -130,6 +136,11 @@
   --sidebar-ring: var(--brand-accent);
 
   --app-chrome: color-mix(in oklch, var(--muted) 32%, var(--background));
+  --app-chrome-fixed-zone: color-mix(
+    in oklch,
+    var(--sidebar-accent) 45%,
+    var(--app-chrome)
+  );
 }
 
 @layer base {
@@ -168,6 +179,9 @@
 @layer utilities {
   .bg-app-chrome {
     background-color: var(--app-chrome);
+  }
+  .bg-app-chrome-fixed-zone {
+    background-color: var(--app-chrome-fixed-zone);
   }
   .shadow-card {
     box-shadow: var(--shadow-card);

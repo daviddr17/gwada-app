@@ -11,6 +11,7 @@ import {
   LayoutDashboard,
   LogOut,
   Plug,
+  RefreshCw,
   ScrollText,
   FileText,
   Files,
@@ -20,18 +21,21 @@ import {
   Shield,
   Users,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSkeleton,
   SidebarSeparator,
+  SIDEBAR_LABEL_MOTION,
+  SIDEBAR_COMPACT_BUTTON,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
@@ -59,6 +63,8 @@ import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
+import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import { cn } from "@/lib/utils";
 
 function profileInitials(firstName: string, lastName: string): string {
   const fi = firstName.trim();
@@ -77,6 +83,15 @@ function profileInitials(firstName: string, lastName: string): string {
   return "?";
 }
 
+const SIDEBAR_MODULE_SKELETON_WIDTHS = [
+  "72%",
+  "58%",
+  "65%",
+  "80%",
+  "55%",
+  "68%",
+] as const;
+
 export function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -85,7 +100,8 @@ export function AppSidebar() {
   const { firstName, lastName } = usePersonalProfileNames();
   const { isSuperadmin } = useIsSuperadmin();
   const { order: sidebarModuleOrder } = useSidebarModuleOrder();
-  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const { has, loading: permissionsLoading, error: permissionsError, reload: reloadPermissions } =
+    useRestaurantPermissions();
   const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
   const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
@@ -137,19 +153,31 @@ export function AppSidebar() {
         className="flex h-full w-full flex-col"
         onClickCapture={closeMobileSidebarOnNav}
       >
-      <SidebarHeader className="box-border flex h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] shrink-0 justify-center gap-0 border-b border-border/50 p-2">
+      <SidebarHeader className={cn("box-border flex h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] shrink-0 justify-center gap-0 border-b border-border/50 p-2", appChromeFixedZoneBgClassName)}>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               size="default"
               tooltip={headerTooltip}
               render={<Link href="/workspace/restaurants" prefetch />}
-              className="min-h-0 !h-auto gap-2 overflow-hidden px-2.5 py-1 group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!min-h-8 group-data-[collapsible=icon]:!p-0"
+              className={cn(
+                "!p-0 [--sidebar-menu-icon-col:2rem] grid-cols-[2rem_minmax(0,1fr)] group-data-[sidebar-labels-collapsed]/sidebar-wrapper:grid-cols-[2rem_0fr] ms-[5px]",
+                SIDEBAR_COMPACT_BUTTON,
+              )}
             >
-              <div className="flex aspect-square size-7 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-[0.625rem] font-bold leading-none tracking-tight text-sidebar-primary-foreground group-data-[collapsible=icon]:size-full group-data-[collapsible=icon]:max-h-none group-data-[collapsible=icon]:rounded-full group-data-[collapsible=icon]:text-[0.5625rem]">
+              <div
+                className={cn(
+                  "col-start-1 row-start-1 flex size-8 shrink-0 items-center justify-center place-self-center rounded-lg bg-sidebar-primary text-[0.625rem] font-bold leading-none tracking-tight text-sidebar-primary-foreground group-data-[sidebar-icon-compact]/sidebar-wrapper:rounded-full",
+                )}
+              >
                 {initials}
               </div>
-              <div className="grid min-h-0 min-w-0 flex-1 content-center gap-0 text-left leading-none group-data-[collapsible=icon]:hidden">
+              <div
+                className={cn(
+                  "col-start-2 row-start-1 grid min-h-0 min-w-0 flex-1 content-center gap-0 overflow-hidden text-left leading-none group-data-[sidebar-labels-collapsed]/sidebar-wrapper:hidden",
+                  SIDEBAR_LABEL_MOTION,
+                )}
+              >
                 <span className="truncate font-semibold tracking-tight">
                   {userFullName}
                 </span>
@@ -162,10 +190,7 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2">
-        <SidebarGroup className="min-h-0 flex-1">
-          <SidebarGroupLabel className="text-sidebar-foreground/65">
-            {inSuperadmin ? "Superadmin" : "Module"}
-          </SidebarGroupLabel>
+        <SidebarGroup className="pb-1.5">
           <SidebarGroupContent>
             <SidebarMenu className="gap-1.5">
               {inSuperadmin ? (
@@ -296,35 +321,64 @@ export function AppSidebar() {
                       <span>Dashboard</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {orderedSidebarModules.map((mod) => {
-                    const Icon = mod.icon;
-                    const notificationCount = sidebarModuleNotificationCount(
-                      notificationSummary,
-                      mod.id,
-                    );
-                    return (
-                      <SidebarMenuItem key={mod.id}>
-                        <SidebarMenuButton
-                          isActive={pathname.startsWith(mod.pathPrefix)}
-                          tooltip={mod.tooltip}
-                          render={<AppNavLink href={mod.href} />}
-                        >
-                          <Icon />
-                          <span>
-                            {formatSidebarMenuLabel(mod.label, notificationCount)}
-                          </span>
-                        </SidebarMenuButton>
+                  {permissionsLoading ? (
+                    Array.from({ length: 6 }, (_, i) => (
+                      <SidebarMenuItem key={`perm-skeleton-${i}`}>
+                        <SidebarMenuSkeleton
+                          showIcon
+                          textWidth={SIDEBAR_MODULE_SKELETON_WIDTHS[i]}
+                        />
                       </SidebarMenuItem>
-                    );
-                  })}
+                    ))
+                  ) : permissionsError && orderedSidebarModules.length === 0 ? (
+                    <SidebarMenuItem>
+                      <div className="px-2 py-1">
+                        <p className="mb-2 text-xs text-sidebar-foreground/70">
+                          Module konnten nicht geladen werden.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 w-full justify-center gap-1.5 text-xs"
+                          onClick={() => void reloadPermissions()}
+                        >
+                          <RefreshCw className="size-3.5" aria-hidden />
+                          Erneut versuchen
+                        </Button>
+                      </div>
+                    </SidebarMenuItem>
+                  ) : (
+                    orderedSidebarModules.map((mod) => {
+                      const Icon = mod.icon;
+                      const notificationCount = sidebarModuleNotificationCount(
+                        notificationSummary,
+                        mod.id,
+                      );
+                      return (
+                        <SidebarMenuItem key={mod.id}>
+                          <SidebarMenuButton
+                            isActive={pathname.startsWith(mod.pathPrefix)}
+                            tooltip={mod.tooltip}
+                            render={<AppNavLink href={mod.href} />}
+                          >
+                            <Icon />
+                            <span>
+                              {formatSidebarMenuLabel(mod.label, notificationCount)}
+                            </span>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })
+                  )}
                 </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarSeparator />
-      <SidebarFooter>
+      <SidebarSeparator className="mx-0 w-full" />
+      <SidebarFooter className={cn("shrink-0", appChromeFixedZoneBgClassName)}>
         <SidebarMenu className="gap-1.5">
           {isSuperadmin && !inSuperadmin ? (
             <SidebarMenuItem>

@@ -866,7 +866,7 @@ export function ReservationSettingsForm() {
         }}
       >
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-6 pt-6">
+          <CardContent className="space-y-6">
             <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label

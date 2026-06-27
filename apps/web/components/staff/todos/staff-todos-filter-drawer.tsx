@@ -18,7 +18,7 @@ import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import type { StaffTodoComputedStatus, StaffTodoPriority } from "@/lib/types/staff-todos";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
+import { STAFF_TODO_PRIORITY_LABELS, STAFF_TODO_PRIORITY_COLORS } from "@/lib/types/staff-todos";
 import { STAFF_TODO_STATUS_LABELS } from "@/lib/staff/staff-todo-status";
 
 export type StaffTodosSortKey = "priority" | "due" | "title" | "created";
@@ -62,11 +62,15 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
     .map(([value, label]) => ({ value, label })),
 ];
 
-const PRIORITY_OPTIONS: { value: string; label: string }[] = [
+const PRIORITY_OPTIONS: { value: string; label: string; leadingColor?: string }[] = [
   { value: "all", label: "Alle Prioritäten" },
   ...(
     Object.entries(STAFF_TODO_PRIORITY_LABELS) as [StaffTodoPriority, string][]
-  ).map(([value, label]) => ({ value, label })),
+  ).map(([value, label]) => ({
+    value,
+    label,
+    leadingColor: STAFF_TODO_PRIORITY_COLORS[value],
+  })),
 ];
 
 const SORT_OPTIONS: { value: StaffTodosSortKey; label: string }[] = [

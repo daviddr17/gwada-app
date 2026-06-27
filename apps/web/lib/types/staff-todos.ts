@@ -58,7 +58,7 @@ export type StaffTodoCaptureType = (typeof STAFF_TODO_CAPTURE_TYPES)[number];
 
 export const STAFF_TODO_CAPTURE_TYPE_LABELS: Record<StaffTodoCaptureType, string> = {
   none: "Keine Erfassung",
-  boolean: "Erledigt (Haken)",
+  boolean: "Erledigt",
   temperature: "Temperatur (°C)",
   number: "Zahl",
   text: "Text",
@@ -154,6 +154,13 @@ export const STAFF_TODO_PRIORITY_LABELS: Record<StaffTodoPriority, string> = {
   high: "Hoch",
   medium: "Mittel",
   low: "Niedrig",
+};
+
+/** Chip-/Select-Streifen — rot / orange / grün wie Display-Dringlichkeit. */
+export const STAFF_TODO_PRIORITY_COLORS: Record<StaffTodoPriority, string> = {
+  high: "#ef4444",
+  medium: "#f97316",
+  low: "#22c55e",
 };
 
 export const STAFF_TODO_COMPLETION_MODE_LABELS: Record<

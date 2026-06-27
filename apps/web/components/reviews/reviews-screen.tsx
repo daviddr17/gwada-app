@@ -114,7 +114,10 @@ import {
   resolveCountryIso2FromLabel,
 } from "@/lib/constants/countries";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
-import { PlatformFeedSyncStatusBar } from "@/components/platform-feed/platform-feed-sync-status-bar";
+import {
+  PlatformFeedListMetaRow,
+  platformFeedSyncMetaVisible,
+} from "@/components/platform-feed/platform-feed-sync-status-bar";
 
 const REVIEWS_SYNC_POLL_MS = 5_000;
 const REVIEWS_SYNC_POLL_MAX = 3;
@@ -164,8 +167,8 @@ export function ReviewsScreen() {
   const canRead = hasModuleRead(has, "reviews");
   const {
     loading: connectionsLoading,
-    googleConnected,
-    facebookConnected,
+    googleVisible,
+    facebookVisible,
   } = useReviewPlatformConnections(restaurantId);
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatformFilter>(() =>
     parseReviewPlatformFilter(platformParam),
@@ -297,11 +300,11 @@ export function ReviewsScreen() {
   const isPlatformAvailable = useCallback(
     (p: ReviewPlatform): boolean => {
       if (p === "gwada") return true;
-      if (p === "google") return googleConnected;
-      if (p === "facebook") return facebookConnected;
+      if (p === "google") return googleVisible;
+      if (p === "facebook") return facebookVisible;
       return false;
     },
-    [googleConnected, facebookConnected],
+    [googleVisible, facebookVisible],
   );
 
   const platformViewReady =
@@ -468,7 +471,7 @@ export function ReviewsScreen() {
         })(),
       );
 
-      if (googleConnected) {
+      if (googleVisible) {
         requests.push(
           (async () => {
             const params = new URLSearchParams({ restaurantId, platform: "google" });
@@ -538,7 +541,7 @@ export function ReviewsScreen() {
         );
       }
 
-      if (facebookConnected) {
+      if (facebookVisible) {
         requests.push(
           (async () => {
             const params = new URLSearchParams({ restaurantId, platform: "facebook" });
@@ -583,8 +586,8 @@ export function ReviewsScreen() {
     }
   }, [
     restaurantId,
-    googleConnected,
-    facebookConnected,
+    googleVisible,
+    facebookVisible,
     fetchReviewsJson,
     markLoadedReviewsRead,
   ]);
@@ -825,7 +828,7 @@ export function ReviewsScreen() {
     setReadLocal({});
     setSortKey("created_desc");
     void prefetchFeedRef.current();
-  }, [restaurantId, connectionsLoading, googleConnected, facebookConnected]);
+  }, [restaurantId, connectionsLoading, googleVisible, facebookVisible]);
 
   useEffect(() => {
     if (!restaurantId || !platformViewReady) return;
@@ -1124,8 +1127,8 @@ export function ReviewsScreen() {
       return mergedPagination.totalReviewCount;
     }
     const platforms: ReviewPlatform[] = ["gwada"];
-    if (googleConnected) platforms.push("google");
-    if (facebookConnected) platforms.push("facebook");
+    if (googleVisible) platforms.push("google");
+    if (facebookVisible) platforms.push("facebook");
     let sum = 0;
     let hasAny = false;
     for (const platform of platforms) {
@@ -1140,8 +1143,8 @@ export function ReviewsScreen() {
     platformFilter,
     mergedPagination?.totalReviewCount,
     mergedPlatformTotals,
-    googleConnected,
-    facebookConnected,
+    googleVisible,
+    facebookVisible,
   ]);
 
   const drawerFilterActiveCount = useMemo(
@@ -1215,6 +1218,57 @@ export function ReviewsScreen() {
       readFilter,
     }) || sortKey !== "created_desc";
 
+  const reviewCountSummary = useMemo(() => {
+    if (isGooglePaginated && googlePagination) {
+      if (filtersActive) {
+        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${googlePage}/${googleTotalPages})`;
+      }
+      return `${allReviews.length} auf dieser Seite · insgesamt ${googleLocationSummary?.count ?? googlePagination.totalReviewCount} bei Google`;
+    }
+    if (isFacebookPaginated && facebookPagination) {
+      if (filtersActive) {
+        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${facebookPage}/${facebookTotalPages})`;
+      }
+      return `${allReviews.length} auf dieser Seite · insgesamt ${facebookPagination.totalReviewCount} bei Facebook`;
+    }
+    if (isAllPaginated && mergedPagination) {
+      if (filtersActive) {
+        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${allPage}/${allTotalPages})`;
+      }
+      return `${allReviews.length} auf dieser Seite · insgesamt ${mergedPagination.totalReviewCount} Bewertungen`;
+    }
+    if (filtersActive) {
+      return `${filteredSortedReviews.length} von ${allReviews.length} Bewertungen`;
+    }
+    return `${allReviews.length} Bewertungen`;
+  }, [
+    isGooglePaginated,
+    googlePagination,
+    filtersActive,
+    filteredSortedReviews.length,
+    allReviews.length,
+    googlePage,
+    googleTotalPages,
+    googleLocationSummary?.count,
+    isFacebookPaginated,
+    facebookPagination,
+    facebookPage,
+    facebookTotalPages,
+    isAllPaginated,
+    mergedPagination,
+    allPage,
+    allTotalPages,
+  ]);
+
+  const reviewFeedSync = useMemo(
+    () => ({
+      syncMeta: feedCache.sync,
+      syncing,
+      onSyncNow: () => void syncNow(),
+    }),
+    [feedCache.sync, syncing, syncNow],
+  );
+
   const summaryForCard = useMemo(() => {
     if (isGooglePaginated && !filtersActive && googleLocationSummary) {
       return googleLocationSummary;
@@ -1265,24 +1319,15 @@ export function ReviewsScreen() {
         disabled={connectionsLoading}
       />
 
-      <PlatformFeedSyncStatusBar
-        syncMeta={feedCache.sync}
-        syncing={syncing}
-        onSyncNow={() => void syncNow()}
-        platformLabels={REVIEW_PLATFORM_LABELS}
-      />
-
-      {!connectionsLoading && platformFilter === "google" && !googleConnected ? (
+      {!connectionsLoading && platformFilter === "google" && !googleVisible ? (
         <p className="text-sm text-muted-foreground">
-          Google Business ist nicht verbunden. Unter Einstellungen →
-          Integrationen verknüpfen, dann erscheinen die Bewertungen hier.
+          Google ist für dieses Restaurant nicht verfügbar oder nicht verbunden.
         </p>
       ) : null}
 
-      {!connectionsLoading && platformFilter === "facebook" && !facebookConnected ? (
+      {!connectionsLoading && platformFilter === "facebook" && !facebookVisible ? (
         <p className="text-sm text-muted-foreground">
-          Facebook ist nicht verbunden. Unter Einstellungen → Integrationen
-          verknüpfen, dann erscheinen die Empfehlungen hier.
+          Facebook ist für dieses Restaurant nicht verfügbar oder nicht verbunden.
         </p>
       ) : null}
 
@@ -1439,49 +1484,46 @@ export function ReviewsScreen() {
                   ) : null}
                 </div>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
-                <span>
-                  {isGooglePaginated && googlePagination
-                    ? filtersActive
-                      ? `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${googlePage}/${googleTotalPages})`
-                      : `${allReviews.length} auf dieser Seite · insgesamt ${googleLocationSummary?.count ?? googlePagination.totalReviewCount} bei Google`
-                    : isFacebookPaginated && facebookPagination
-                      ? filtersActive
-                        ? `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${facebookPage}/${facebookTotalPages})`
-                        : `${allReviews.length} auf dieser Seite · insgesamt ${facebookPagination.totalReviewCount} bei Facebook`
-                      : isAllPaginated && mergedPagination
-                        ? filtersActive
-                          ? `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${allPage}/${allTotalPages})`
-                          : `${allReviews.length} auf dieser Seite · insgesamt ${mergedPagination.totalReviewCount} Bewertungen`
-                        : filtersActive
-                          ? `${filteredSortedReviews.length} von ${allReviews.length} Bewertungen`
-                          : `${allReviews.length} Bewertungen`}
-                  {isGooglePaginated && filtersActive ? (
-                    <span className="mt-0.5 block text-xs">
-                      Filter und Sortierung gelten nur für die aktuelle Seite.
-                    </span>
-                  ) : (isAllPaginated || isFacebookPaginated) && filtersActive ? (
-                    <span className="mt-0.5 block text-xs">
-                      Filter und Sortierung gelten nur für die aktuelle Seite.
-                    </span>
-                  ) : null}
-                </span>
-                {filtersActive ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-muted-foreground"
-                    onClick={resetFilters}
-                  >
-                    Filter zurücksetzen
-                  </Button>
-                ) : null}
-              </div>
+              <PlatformFeedListMetaRow
+                summaryPrefix={reviewCountSummary}
+                feedSync={reviewFeedSync}
+                placement="above"
+                className="border-b-0 pb-0"
+                trailing={
+                  filtersActive ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-muted-foreground"
+                      onClick={resetFilters}
+                    >
+                      Filter zurücksetzen
+                    </Button>
+                  ) : null
+                }
+              />
+              {isGooglePaginated && filtersActive ? (
+                <p className="text-xs text-muted-foreground">
+                  Filter und Sortierung gelten nur für die aktuelle Seite.
+                </p>
+              ) : (isAllPaginated || isFacebookPaginated) && filtersActive ? (
+                <p className="text-xs text-muted-foreground">
+                  Filter und Sortierung gelten nur für die aktuelle Seite.
+                </p>
+              ) : null}
             </div>
           ) : null}
 
           {allReviews.length === 0 ? (
+            <>
+              {platformFeedSyncMetaVisible(feedCache.sync) ? (
+                <PlatformFeedListMetaRow
+                  feedSync={reviewFeedSync}
+                  placement="above"
+                  className="border-b-0 pb-0"
+                />
+              ) : null}
             <Card className="border-border/50 shadow-card">
               <CardContent className="p-8 text-center text-sm text-muted-foreground">
                 {platformFilter === REVIEW_FILTER_ALL
@@ -1489,6 +1531,7 @@ export function ReviewsScreen() {
                   : "Noch keine Bewertungen auf dieser Plattform."}
               </CardContent>
             </Card>
+            </>
           ) : filteredSortedReviews.length === 0 ? (
             <Card className="border-border/50 shadow-card">
               <CardContent className="flex flex-col items-center gap-3 p-8 text-center text-sm text-muted-foreground">

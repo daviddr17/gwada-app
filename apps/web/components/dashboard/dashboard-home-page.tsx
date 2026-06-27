@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardWidgetErrorBoundaryWithReset } from "@/components/dashboard/dashboard-widget-error-boundary";
 import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
@@ -85,14 +86,57 @@ function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   }
 }
 
+function DashboardHomeSkeleton() {
+  return (
+    <div className="grid gap-4 pt-2 lg:grid-cols-2" aria-busy="true" aria-label="Dashboard wird geladen">
+      <DashboardWidgetTileSkeleton />
+      <DashboardWidgetTileSkeleton />
+      <DashboardWidgetTileSkeleton />
+      <DashboardWidgetTileSkeleton />
+    </div>
+  );
+}
+
 export function DashboardHomePage() {
-  const { visibility, order } = useDashboardEffectiveWidgetPrefs();
+  const {
+    visibility,
+    order,
+    isReady,
+    permissionsLoading,
+    permissionsError,
+    reloadPermissions,
+  } = useDashboardEffectiveWidgetPrefs();
+
+  const prefsLoading = !isReady || permissionsLoading;
+
+  if (prefsLoading) {
+    return <DashboardHomeSkeleton />;
+  }
 
   const orderedVisible = groupDashboardLayoutSections(
     order.filter((id) => visibility[id]),
   );
 
   const anyWidget = orderedVisible.length > 0;
+
+  if (permissionsError && !anyWidget) {
+    return (
+      <div className="flex min-h-[min(70vh,32rem)] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-16 text-center">
+        <p className="max-w-md text-sm text-muted-foreground sm:text-base">
+          Berechtigungen konnten gerade nicht geladen werden — oft nur kurz nach
+          einem Update. Bitte erneut versuchen.
+        </p>
+        <Button
+          type="button"
+          className="gap-2"
+          onClick={() => void reloadPermissions()}
+        >
+          <RefreshCw className="size-4" aria-hidden />
+          Erneut versuchen
+        </Button>
+      </div>
+    );
+  }
 
   if (!anyWidget) {
     return (

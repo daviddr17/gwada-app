@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,14 @@ import { DisplayTodoCompleteToggle } from "@/components/display/display-todo-com
 import {
   DisplayTodoCaptureFields,
   EMPTY_DISPLAY_TODO_CAPTURE,
-  displayTodoCapturePayloadForComplete,
+  displayTodoCapturePayloadForTodo,
   displayTodoCaptureReadyForComplete,
-  displayTodoShowsCaptureFields,
+  displayTodoShowsCaptureFieldsForTodo,
+  effectiveCaptureTypeForTodo,
   type DisplayTodoCaptureState,
 } from "@/components/display/display-todo-capture-fields";
 import { DisplayTodoContextBadges } from "@/components/display/display-todo-context-badges";
+import { DisplayTodoCapturedValue } from "@/components/display/display-todo-captured-value";
 import type { DisplayTodoClient } from "@/lib/display/display-todo-client";
 import { postDisplayTodoComplete } from "@/lib/display/display-todo-client";
 import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
@@ -32,8 +34,9 @@ import type { StaffTodoDeferTrigger } from "@/lib/types/staff-todos";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import { staffTodoPriorityBadgeClass } from "@/lib/staff/staff-todo-status";
 import {
-  evaluateStaffTodoCapture,
   resolveStaffTodoCaptureLimits,
+  captureRequiresCorrectiveOnDeviation,
+  evaluateStaffTodoCapture,
 } from "@/lib/staff/staff-todo-capture";
 import { displayActionToTrigger } from "@/lib/staff/staff-todo-display-triggers";
 import { dispatchDisplayTodosRefresh } from "@/lib/display/display-todos-live-events";
@@ -84,6 +87,7 @@ export function DisplayTimeTodoPopup({
     EMPTY_DISPLAY_TODO_CAPTURE,
   );
   const [markedDone, setMarkedDone] = useState(false);
+  const captureInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -94,20 +98,25 @@ export function DisplayTimeTodoPopup({
     }
   }, [open, todo?.id, deferReasonDefault]);
 
+  useEffect(() => {
+    if (!open || !todo) return;
+    if (!displayTodoShowsCaptureFieldsForTodo(todo)) return;
+    const t = window.setTimeout(() => captureInputRef.current?.focus(), 120);
+    return () => window.clearTimeout(t);
+  }, [open, todo?.id, todo]);
+
   const limits = useMemo(
     () => (todo ? resolveStaffTodoCaptureLimits(todo) : { min: null, max: null }),
     [todo],
   );
 
-  const captureEvaluation = useMemo(() => {
-    if (!todo || !displayTodoShowsCaptureFields(todo.capture_type)) return null;
-    const payload = displayTodoCapturePayloadForComplete(todo.capture_type, capture);
-    return evaluateStaffTodoCapture(todo, payload);
-  }, [todo, capture]);
+  const effectiveCaptureType = todo
+    ? effectiveCaptureTypeForTodo(todo)
+    : ("none" as const);
 
-  const showCorrective = Boolean(
-    captureEvaluation?.has_deviation && todo?.require_corrective_on_deviation,
-  );
+  const correctiveRequired = todo
+    ? captureRequiresCorrectiveOnDeviation(todo, limits)
+    : false;
 
   if (!todo) return null;
 
@@ -118,6 +127,11 @@ export function DisplayTimeTodoPopup({
     : "Bitte erfassen oder erledigen, bevor Sie fortfahren.";
 
   const canComplete = captureReady(todo, capture);
+  const showCaptureFields = displayTodoShowsCaptureFieldsForTodo(todo);
+  const completedCapturePayload = displayTodoCapturePayloadForTodo(todo, capture);
+  const completedEvaluation = markedDone
+    ? evaluateStaffTodoCapture(todo, completedCapturePayload)
+    : null;
 
   return (
     <Drawer open={open} direction="bottom" dismissible={false} modal>
@@ -126,69 +140,93 @@ export function DisplayTimeTodoPopup({
           <DrawerTitle>{title}</DrawerTitle>
           <DrawerDescription>{description}</DrawerDescription>
         </DrawerHeader>
-        <div className="space-y-4 px-6 pb-6">
-          <div className="rounded-2xl border border-border/50 bg-muted/20 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-lg font-semibold">{todo.title}</p>
-              <Badge
-                variant="outline"
-                className={staffTodoPriorityBadgeClass(todo.priority)}
-              >
-                {STAFF_TODO_PRIORITY_LABELS[todo.priority]}
-              </Badge>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-1">
+            <div className="rounded-2xl border border-border/50 bg-muted/20 p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-semibold">{todo.title}</p>
+                <Badge
+                  variant="outline"
+                  className={staffTodoPriorityBadgeClass(todo.priority)}
+                >
+                  {STAFF_TODO_PRIORITY_LABELS[todo.priority]}
+                </Badge>
+              </div>
+              <DisplayTodoContextBadges todo={todo} className="mt-2" />
+              {todo.description && !showCaptureFields ? (
+                <p className="mt-2 text-sm text-muted-foreground">{todo.description}</p>
+              ) : null}
+              {blocksProceed && trigger === "clock_out" ? (
+                <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
+                  Schichtende ist blockiert, bis diese Checkliste erledigt oder
+                  verschoben wurde.
+                </p>
+              ) : null}
+
+              {showCaptureFields && markedDone ? (
+                <div className="mt-4">
+                  <DisplayTodoCapturedValue
+                    captureType={effectiveCaptureType}
+                    targetMin={todo.target_min}
+                    targetMax={todo.target_max}
+                    checklistDevice={todo.checklist_device}
+                    capturedNumeric={completedCapturePayload.captured_numeric ?? null}
+                    capturedText={completedCapturePayload.captured_text ?? null}
+                    withinLimits={completedEvaluation?.within_limits ?? null}
+                    correctiveAction={completedCapturePayload.corrective_action ?? null}
+                    completionNote={completionNote.trim() || null}
+                  />
+                </div>
+              ) : null}
+
+              {showCaptureFields && !markedDone ? (
+                <div className="mt-4">
+                  <DisplayTodoCaptureFields
+                    captureType={effectiveCaptureType}
+                    limits={limits}
+                    limitsLabel={buildStaffTodoLimitsLabel(todo)}
+                    values={capture}
+                    onChange={setCapture}
+                    correctiveRequired={correctiveRequired}
+                    variant="display"
+                    autoFocus
+                    inputRef={captureInputRef}
+                  />
+                </div>
+              ) : null}
             </div>
-            <DisplayTodoContextBadges todo={todo} className="mt-2" />
-            {todo.description ? (
-              <p className="mt-2 text-sm text-muted-foreground">{todo.description}</p>
+
+            {!markedDone && todo.require_defer_reason ? (
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="defer-reason">
+                  Grund für Verschieben
+                </label>
+                <Input
+                  id="defer-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Kurz begründen …"
+                  className="h-12 rounded-xl"
+                />
+              </div>
             ) : null}
-            {blocksProceed && trigger === "clock_out" ? (
-              <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-400">
-                Schichtende ist blockiert, bis diese Checkliste erledigt oder
-                verschoben wurde.
-              </p>
+
+            {!markedDone ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="todo-completion-note">Notiz bei Erledigung (optional)</Label>
+                <Textarea
+                  id="todo-completion-note"
+                  value={completionNote}
+                  onChange={(e) => setCompletionNote(e.target.value)}
+                  rows={2}
+                  placeholder="Optional …"
+                  className="rounded-xl"
+                />
+              </div>
             ) : null}
           </div>
 
-          {displayTodoShowsCaptureFields(todo.capture_type) ? (
-            <DisplayTodoCaptureFields
-              captureType={todo.capture_type}
-              limits={limits}
-              limitsLabel={buildStaffTodoLimitsLabel(todo)}
-              values={capture}
-              onChange={setCapture}
-              showCorrective={showCorrective}
-              large
-            />
-          ) : null}
-
-          {todo.require_defer_reason ? (
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="defer-reason">
-                Grund für Verschieben
-              </label>
-              <Input
-                id="defer-reason"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Kurz begründen …"
-                className="h-12 rounded-xl"
-              />
-            </div>
-          ) : null}
-
-          <div className="space-y-1.5">
-            <Label htmlFor="todo-completion-note">Notiz bei Erledigung (optional)</Label>
-            <Textarea
-              id="todo-completion-note"
-              value={completionNote}
-              onChange={(e) => setCompletionNote(e.target.value)}
-              rows={2}
-              placeholder="Optional …"
-              className="rounded-xl"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
+          <div className="shrink-0 space-y-3 border-t border-border/20 px-6 py-4">
             <DisplayTodoCompleteToggle
               checked={markedDone}
               allowReopen={todo.allow_reopen_on_display}
@@ -367,8 +405,8 @@ export function useDisplayTimeTodoGate() {
       if (!current) return false;
       setBusy(true);
       try {
-        const capturePayload = displayTodoCapturePayloadForComplete(
-          current.capture_type,
+        const capturePayload = displayTodoCapturePayloadForTodo(
+          current,
           payload.capture,
         );
         const result = await postDisplayTodoComplete(current.id, {

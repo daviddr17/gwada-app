@@ -2,7 +2,14 @@
 
 import type { ReactNode } from "react";
 import { PaginationPageControl } from "@/components/ui/pagination";
-import { formatListRangeSummaryPart } from "@/lib/ui/list-range-count";
+import {
+  joinListMetaSummary,
+  platformFeedSyncMetaVisible,
+  PlatformFeedSyncNowButton,
+  formatPlatformFeedSyncMetaText,
+  type PlatformFeedListSyncProps,
+} from "@/components/platform-feed/platform-feed-sync-status-bar";
+import { formatListPageSummary } from "@/lib/ui/list-range-count";
 import { cn } from "@/lib/utils";
 
 export type ListPaginationProps = {
@@ -22,6 +29,8 @@ export type ListPaginationProps = {
   placement?: "above" | "below";
   /** Text-Zusammenfassung ausblenden (z. B. nur Seitensteuerung). */
   showSummary?: boolean;
+  /** Sync-Status externer Kanäle — nur in der oberen Leiste. */
+  feedSync?: PlatformFeedListSyncProps;
 };
 
 function listPaginationVisible({
@@ -30,10 +39,25 @@ function listPaginationVisible({
   totalCount,
   showSummary,
   itemLabel,
+  feedSync,
+  placement,
 }: Pick<
   ListPaginationProps,
-  "totalPages" | "canNext" | "totalCount" | "showSummary" | "itemLabel"
+  | "totalPages"
+  | "canNext"
+  | "totalCount"
+  | "showSummary"
+  | "itemLabel"
+  | "feedSync"
+  | "placement"
 >) {
+  if (
+    placement === "above" &&
+    feedSync &&
+    platformFeedSyncMetaVisible(feedSync.syncMeta)
+  ) {
+    return true;
+  }
   if (showSummary === false) {
     return totalPages > 1 || canNext;
   }
@@ -68,6 +92,7 @@ export function ListPagination({
   className,
   placement = "below",
   showSummary = true,
+  feedSync,
 }: ListPaginationProps) {
   if (
     !listPaginationVisible({
@@ -76,6 +101,8 @@ export function ListPagination({
       totalCount,
       showSummary,
       itemLabel,
+      feedSync,
+      placement,
     })
   ) {
     return null;
@@ -83,9 +110,33 @@ export function ListPagination({
 
   const rangeSummary =
     showSummary &&
-    formatListRangeSummaryPart({ shown, totalCount, itemLabel });
+    formatListPageSummary({
+      shown,
+      totalCount,
+      itemLabel,
+      page,
+      totalPages,
+    });
+
+  const syncSummary =
+    placement === "above" &&
+    feedSync &&
+    platformFeedSyncMetaVisible(feedSync.syncMeta)
+      ? formatPlatformFeedSyncMetaText(feedSync.syncMeta!)
+      : null;
+
+  const leftSummary = joinListMetaSummary(
+    typeof rangeSummary === "string" ? rangeSummary : null,
+    syncSummary,
+  );
 
   const pageNavVisible = showPageNav({ totalPages, canNext });
+
+  const showSyncButton =
+    placement === "above" &&
+    feedSync &&
+    platformFeedSyncMetaVisible(feedSync.syncMeta) &&
+    (feedSync.syncMeta!.stale || feedSync.syncing);
 
   return (
     <div
@@ -97,24 +148,34 @@ export function ListPagination({
         className,
       )}
     >
-      {rangeSummary ? (
+      {leftSummary ? (
         <p className="min-w-0 text-sm text-muted-foreground tabular-nums">
-          {rangeSummary}
+          {leftSummary}
         </p>
       ) : (
         <span className="min-w-0 flex-1" aria-hidden />
       )}
-      {pageNavVisible ? (
-        <PaginationPageControl
-          page={page}
-          totalPages={Math.max(totalPages, 1)}
-          canPrevious={canPrevious}
-          canNext={canNext}
-          onPrevious={onPrevious}
-          onNext={onNext}
-          busy={busy}
-          className={cn(!rangeSummary && "ml-auto")}
-        />
+      {showSyncButton || pageNavVisible ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {showSyncButton && feedSync ? (
+            <PlatformFeedSyncNowButton
+              syncing={feedSync.syncing}
+              onSyncNow={feedSync.onSyncNow}
+            />
+          ) : null}
+          {pageNavVisible ? (
+            <PaginationPageControl
+              page={page}
+              totalPages={Math.max(totalPages, 1)}
+              canPrevious={canPrevious}
+              canNext={canNext}
+              onPrevious={onPrevious}
+              onNext={onNext}
+              busy={busy}
+              className={cn(!leftSummary && "ml-auto")}
+            />
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

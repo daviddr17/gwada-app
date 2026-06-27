@@ -12,7 +12,7 @@ import {
   readReviewsFeedFromCache,
 } from "@/lib/reviews/reviews-feed-read-server";
 import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
-import { isReviewsPlatformConnected } from "@/lib/reviews/reviews-platform-connected-server";
+import { loadReviewPlatformConnectionState } from "@/lib/reviews/reviews-platform-connected-server";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { compareFeedItemsWithPinFirst } from "@/lib/feed-pin/feed-pin-types";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -37,19 +37,20 @@ export async function loadMergedReviewsFeedPage(params: {
 }> {
   const { restaurantId, sb, pageToken } = params;
 
-  const [gwadaReviews, gwadaTotal, googleConnected, facebookConnected, cachedFeed] =
+  const [gwadaReviews, gwadaTotal, platformState, cachedFeed] =
     await Promise.all([
       loadGwadaReviewsForFeed(sb, restaurantId),
       countGwadaReviews(sb, restaurantId),
-      isReviewsPlatformConnected(restaurantId, "google"),
-      isReviewsPlatformConnected(restaurantId, "facebook"),
+      loadReviewPlatformConnectionState(restaurantId),
       readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook"]),
     ]);
 
-  const googleCached = googleConnected
+  const { googleVisible, facebookVisible } = platformState;
+
+  const googleCached = googleVisible
     ? cachedFeed.reviews.filter((review) => review.platform === "google")
     : [];
-  const facebookCached = facebookConnected
+  const facebookCached = facebookVisible
     ? cachedFeed.reviews.filter((review) => review.platform === "facebook")
     : [];
 
@@ -60,13 +61,13 @@ export async function loadMergedReviewsFeedPage(params: {
   const platformTotals: Partial<Record<ReviewPlatform, number>> = {
     gwada: gwadaTotal,
   };
-  if (googleConnected) {
+  if (googleVisible) {
     platformTotals.google =
       typeof googleMeta.totalReviewCount === "number"
         ? googleMeta.totalReviewCount
         : googleCached.length;
   }
-  if (facebookConnected) {
+  if (facebookVisible) {
     platformTotals.facebook =
       typeof facebookMeta.totalReviewCount === "number"
         ? facebookMeta.totalReviewCount

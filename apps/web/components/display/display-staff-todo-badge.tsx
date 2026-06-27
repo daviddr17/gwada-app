@@ -17,13 +17,15 @@ import { DisplayTodoCompleteToggle } from "@/components/display/display-todo-com
 import {
   DisplayTodoCaptureFields,
   EMPTY_DISPLAY_TODO_CAPTURE,
-  displayTodoCapturePayloadForComplete,
+  displayTodoCapturePayloadForTodo,
   displayTodoCaptureReadyForComplete,
-  displayTodoShowsCaptureFields,
+  displayTodoShowsCaptureFieldsForTodo,
+  effectiveCaptureTypeForTodo,
   buildStaffTodoLimitsLabel,
   type DisplayTodoCaptureState,
 } from "@/components/display/display-todo-capture-fields";
 import { DisplayTodoContextBadges } from "@/components/display/display-todo-context-badges";
+import { DisplayTodoCapturedValue } from "@/components/display/display-todo-captured-value";
 import type { DisplayTodoClient } from "@/lib/display/display-todo-client";
 import { postDisplayTodoComplete } from "@/lib/display/display-todo-client";
 import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
@@ -46,9 +48,9 @@ import {
   displayTodoFooterTriggerClassName,
 } from "@/lib/ui/display-todo-footer-trigger";
 import {
-  evaluateStaffTodoCapture,
   resolveStaffTodoCaptureLimits,
-  staffTodoNeedsCaptureInput,
+  captureRequiresCorrectiveOnDeviation,
+  evaluateStaffTodoCapture,
 } from "@/lib/staff/staff-todo-capture";
 
 type DisplayStaffTodoBadgeProps = {
@@ -85,15 +87,10 @@ function DisplayTodoCard({
   }, [todo.id, todo.done_for_staff]);
 
   const limits = useMemo(() => resolveStaffTodoCaptureLimits(todo), [todo]);
-  const captureEvaluation = useMemo(() => {
-    if (!displayTodoShowsCaptureFields(todo.capture_type)) return null;
-    const payload = displayTodoCapturePayloadForComplete(todo.capture_type, capture);
-    return evaluateStaffTodoCapture(todo, payload);
-  }, [todo, capture]);
+  const effectiveCaptureType = effectiveCaptureTypeForTodo(todo);
+  const showCaptureFields = displayTodoShowsCaptureFieldsForTodo(todo);
+  const correctiveRequired = captureRequiresCorrectiveOnDeviation(todo, limits);
 
-  const showCorrective = Boolean(
-    captureEvaluation?.has_deviation && todo.require_corrective_on_deviation,
-  );
   const canComplete = captureReady(todo, capture);
 
   return (
@@ -113,21 +110,36 @@ function DisplayTodoCard({
         </Badge>
       </div>
       <DisplayTodoContextBadges todo={todo} className="mb-2" />
-      {todo.description ? (
+      {todo.description && !showCaptureFields ? (
         <p className="mb-3 text-sm text-muted-foreground">{todo.description}</p>
       ) : null}
 
-      {staffTodoNeedsCaptureInput(todo.capture_type) && !todo.done_for_staff ? (
+      {todo.done_for_staff ? (
+        <DisplayTodoCapturedValue
+          className="mb-3"
+          captureType={todo.capture_type}
+          targetMin={todo.target_min}
+          targetMax={todo.target_max}
+          checklistDevice={todo.checklist_device}
+          capturedNumeric={todo.captured_numeric}
+          capturedText={todo.captured_text}
+          withinLimits={todo.within_limits}
+          correctiveAction={todo.corrective_action}
+          completionNote={todo.completion_note}
+        />
+      ) : null}
+
+      {!todo.done_for_staff && (showCaptureFields || effectiveCaptureType === "boolean") ? (
         <div className="mb-3 space-y-3">
-          {displayTodoShowsCaptureFields(todo.capture_type) ? (
+          {showCaptureFields ? (
             <DisplayTodoCaptureFields
-              captureType={todo.capture_type}
+              captureType={effectiveCaptureType}
               limits={limits}
               limitsLabel={buildStaffTodoLimitsLabel(todo)}
               values={capture}
               onChange={setCapture}
-              showCorrective={showCorrective}
-              large
+              correctiveRequired={correctiveRequired}
+              variant="display"
             />
           ) : null}
           <div className="space-y-1.5">
@@ -214,10 +226,7 @@ export function DisplayStaffTodoBadge({
   ) => {
     setBusyId(todo.id);
     try {
-      const capturePayload = displayTodoCapturePayloadForComplete(
-        todo.capture_type,
-        capture,
-      );
+      const capturePayload = displayTodoCapturePayloadForTodo(todo, capture);
       const result = await postDisplayTodoComplete(todo.id, {
         completionNote: note,
         capture: capturePayload,
@@ -229,8 +238,17 @@ export function DisplayStaffTodoBadge({
       toast.success("Checkliste erledigt.");
       dispatchDisplayTodosRefresh();
       onChanged?.();
+      const evaluation = evaluateStaffTodoCapture(todo, capturePayload);
       if (todo.allow_reopen_on_display) {
-        patchTodo(todo.id, { done_for_staff: true, status: "done" });
+        patchTodo(todo.id, {
+          done_for_staff: true,
+          status: "done",
+          captured_numeric: capturePayload.captured_numeric ?? null,
+          captured_text: capturePayload.captured_text ?? null,
+          completion_note: note,
+          within_limits: evaluation.within_limits,
+          corrective_action: capturePayload.corrective_action ?? null,
+        });
       } else {
         const next = todos.filter((t) => t.id !== todo.id);
         setTodos(next);
@@ -257,7 +275,13 @@ export function DisplayStaffTodoBadge({
       toast.success("Checkliste wieder geöffnet.");
       dispatchDisplayTodosRefresh();
       onChanged?.();
-      patchTodo(todo.id, { done_for_staff: false, status: "open" });
+      patchTodo(todo.id, { done_for_staff: false, status: "open",
+        captured_numeric: null,
+        captured_text: null,
+        completion_note: null,
+        within_limits: null,
+        corrective_action: null,
+      });
     } finally {
       setBusyId(null);
     }

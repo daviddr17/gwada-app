@@ -603,7 +603,7 @@ export function FloorPlanScreen() {
   return (
     <div className="space-y-6 pb-4">
       <Card className="border-border/50 shadow-card">
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4">
           <DiningAreaTabs
             areas={areas}
             activeAreaId={selectedAreaId}

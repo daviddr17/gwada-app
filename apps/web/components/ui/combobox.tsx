@@ -10,7 +10,7 @@ import { getTagChipVisual } from "@/lib/utils/tag-styles"
 import type { MenuTag, MenuTaxonomyDefinition } from "@/lib/types/menu"
 import { ContactPlatformIcon } from "@/components/contacts/contact-platform-icon"
 import type { ContactCatalogPlatform } from "@/lib/constants/contact-catalog-platforms"
-import { CheckIcon, ChevronDownIcon, Plus } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, Plus, X } from "lucide-react"
 
 const collisionDefaults = {
   side: "flip" as const,
@@ -29,6 +29,26 @@ export type SearchableSelectOption = {
 }
 
 const HEX_COLOR = /^#[0-9A-Fa-f]{6}$/
+
+const multiSelectChipRemoveClassName =
+  "inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10"
+
+function MultiSelectChipRemove({
+  className,
+  "aria-label": ariaLabel,
+}: {
+  className?: string
+  "aria-label": string
+}) {
+  return (
+    <Combobox.ChipRemove
+      className={cn(multiSelectChipRemoveClassName, className)}
+      aria-label={ariaLabel}
+    >
+      <X className="size-3" aria-hidden />
+    </Combobox.ChipRemove>
+  )
+}
 
 function TagColorStripe({
   color,
@@ -362,8 +382,8 @@ export function TagMultiCombobox({
                     style={vis.style}
                   >
                     <span className="min-w-0 truncate">{labelForTagId(t, definitions)}</span>
-                    <Combobox.ChipRemove
-                      className="rounded-full p-0.5 text-foreground/65 hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10"
+                    <MultiSelectChipRemove
+                      className="text-foreground/65"
                       aria-label={`${labelForTagId(t, definitions)} entfernen`}
                     />
                   </Combobox.Chip>
@@ -535,8 +555,7 @@ export function SearchableMultiSelect({
                       <span className="min-w-0 truncate">
                         {opt?.label ?? id}
                       </span>
-                      <Combobox.ChipRemove
-                        className="rounded-full p-0.5 text-muted-foreground hover:bg-black/10 hover:text-foreground dark:hover:bg-white/10"
+                      <MultiSelectChipRemove
                         aria-label={`${opt?.label ?? id} entfernen`}
                       />
                     </Combobox.Chip>

@@ -135,10 +135,10 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   },
   {
     source: "/dashboard/mitarbeiter/todos",
-    destination: "/dashboard/checklisten/todos",
+    destination: "/dashboard/checklisten",
   },
   {
     source: "/dashboard/mitarbeiter/todos/:path*",
-    destination: "/dashboard/checklisten/todos",
+    destination: "/dashboard/checklisten",
   },
 ];

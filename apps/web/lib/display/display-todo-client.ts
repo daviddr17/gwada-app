@@ -34,6 +34,11 @@ export type DisplayTodoClient = {
   } | null;
   status: StaffTodoComputedStatus;
   done_for_staff: boolean;
+  captured_numeric: number | null;
+  captured_text: string | null;
+  completion_note: string | null;
+  within_limits: boolean | null;
+  corrective_action: string | null;
 };
 
 export function isDisplayChecklistTodo(todo: Pick<DisplayTodoClient, "capture_type">): boolean {

@@ -1,14 +1,20 @@
 "use client";
 
+import { useId, type RefObject } from "react";
+import { AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { StaffTodoCaptureType, RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
+import type { RestaurantStaffTodoRow, StaffTodoCaptureType } from "@/lib/types/staff-todos";
 import { staffTodoLimitsLabel } from "@/lib/staff/staff-todo-meta";
 import type { StaffTodoCaptureLimits } from "@/lib/staff/staff-todo-capture";
 import {
   evaluateStaffTodoCapture,
+  numericCaptureHasDeviation,
+  parseCapturedNumeric,
+  resolveEffectiveCaptureType,
   staffTodoNeedsCaptureInput,
+  staffTodoCaptureLimitsDefined,
 } from "@/lib/staff/staff-todo-capture";
 import { cn } from "@/lib/utils";
 
@@ -26,15 +32,40 @@ export const EMPTY_DISPLAY_TODO_CAPTURE: DisplayTodoCaptureState = {
   corrective: "",
 };
 
+export type DisplayTodoCaptureTodoLike = Pick<
+  RestaurantStaffTodoRow,
+  | "capture_type"
+  | "target_min"
+  | "target_max"
+  | "checklist_device"
+  | "require_corrective_on_deviation"
+>;
+
 type DisplayTodoCaptureFieldsProps = {
   captureType: StaffTodoCaptureType;
   limits: StaffTodoCaptureLimits;
   limitsLabel?: string | null;
   values: DisplayTodoCaptureState;
   onChange: (next: DisplayTodoCaptureState) => void;
-  showCorrective: boolean;
+  /** Korrekturmaßnahme bei Abweichung verlangen (typisch: Sollbereich definiert). */
+  correctiveRequired?: boolean;
   large?: boolean;
+  /** Display / Tablet: großes Zahlenfeld, Zifferntastatur. */
+  variant?: "default" | "display";
+  autoFocus?: boolean;
+  inputRef?: RefObject<HTMLInputElement | null>;
 };
+
+function sanitizeNumericInput(raw: string): string {
+  let next = raw.replace(/[^\d,.-]/g, "");
+  const firstSep = next.search(/[,.]/);
+  if (firstSep >= 0) {
+    const head = next.slice(0, firstSep + 1);
+    const tail = next.slice(firstSep + 1).replace(/[,.]/g, "");
+    next = head + tail;
+  }
+  return next;
+}
 
 export function displayTodoCapturePayloadFromState(
   captureType: StaffTodoCaptureType,
@@ -63,21 +94,10 @@ export function displayTodoCapturePayloadForComplete(
   return displayTodoCapturePayloadFromState(captureType, values);
 }
 
-export function displayTodoCaptureReadyForComplete(
-  todo: Pick<
-    RestaurantStaffTodoRow,
-    | "capture_type"
-    | "target_min"
-    | "target_max"
-    | "require_corrective_on_deviation"
-    | "checklist_device"
-  >,
-  values: DisplayTodoCaptureState,
-): boolean {
-  if (todo.capture_type === "boolean") return true;
-  if (!staffTodoNeedsCaptureInput(todo.capture_type)) return true;
-  const payload = displayTodoCapturePayloadFromState(todo.capture_type, values);
-  return evaluateStaffTodoCapture(todo, payload).ok;
+export function effectiveCaptureTypeForTodo(
+  todo: DisplayTodoCaptureTodoLike,
+): StaffTodoCaptureType {
+  return resolveEffectiveCaptureType(todo);
 }
 
 export function displayTodoShowsCaptureFields(
@@ -86,47 +106,164 @@ export function displayTodoShowsCaptureFields(
   return staffTodoNeedsCaptureInput(captureType) && captureType !== "boolean";
 }
 
+export function displayTodoShowsCaptureFieldsForTodo(
+  todo: DisplayTodoCaptureTodoLike,
+): boolean {
+  return displayTodoShowsCaptureFields(resolveEffectiveCaptureType(todo));
+}
+
+export function displayTodoCapturePayloadForTodo(
+  todo: DisplayTodoCaptureTodoLike,
+  values: DisplayTodoCaptureState,
+) {
+  return displayTodoCapturePayloadForComplete(
+    resolveEffectiveCaptureType(todo),
+    values,
+  );
+}
+
+export function displayTodoCaptureReadyForComplete(
+  todo: DisplayTodoCaptureTodoLike,
+  values: DisplayTodoCaptureState,
+): boolean {
+  const captureType = resolveEffectiveCaptureType(todo);
+  if (captureType === "boolean") return true;
+  if (!staffTodoNeedsCaptureInput(captureType)) return true;
+  const payload = displayTodoCapturePayloadFromState(captureType, values);
+  return evaluateStaffTodoCapture(todo, payload).ok;
+}
+
 export function DisplayTodoCaptureFields({
   captureType,
   limits,
   limitsLabel,
   values,
   onChange,
-  showCorrective,
+  correctiveRequired = false,
   large = true,
+  variant = "default",
+  autoFocus = false,
+  inputRef,
 }: DisplayTodoCaptureFieldsProps) {
-  const inputClass = cn(large ? "h-12 rounded-xl text-base md:h-11 md:text-sm" : "rounded-xl");
+  const numericId = useId();
+  const textId = useId();
+  const correctiveId = useId();
+  const isDisplay = variant === "display";
+
+  const inputClass = cn(
+    large ? "h-12 rounded-xl text-base md:h-11 md:text-sm" : "rounded-xl",
+    isDisplay &&
+      "h-16 rounded-2xl border-2 border-accent/35 bg-background text-center text-3xl font-semibold tracking-tight shadow-sm focus-visible:border-accent focus-visible:ring-accent/30 md:h-16 md:text-3xl",
+  );
 
   if (captureType === "none" || captureType === "boolean") return null;
 
+  const parsedNumeric = parseCapturedNumeric(values.numeric);
+  const hasDeviation = numericCaptureHasDeviation(parsedNumeric, limits);
+  const showCorrectiveField = hasDeviation && correctiveRequired;
+
+  const limitsHint =
+    limitsLabel ??
+    (limits.min != null || limits.max != null
+      ? captureType === "temperature"
+        ? limits.min != null && limits.max != null
+          ? `${limits.min} – ${limits.max} °C`
+          : limits.max != null
+            ? `max. ${limits.max} °C`
+            : `min. ${limits.min} °C`
+        : limits.min != null && limits.max != null
+          ? `${limits.min} – ${limits.max}`
+          : limits.max != null
+            ? `max. ${limits.max}`
+            : `min. ${limits.min}`
+      : null);
+
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", isDisplay && "space-y-3")}>
       {captureType === "temperature" || captureType === "number" ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="display-capture-numeric">
-            {captureType === "temperature" ? "Temperatur (°C)" : "Wert"}
+        <div
+          className={cn(
+            "space-y-2",
+            isDisplay &&
+              "rounded-2xl border p-4",
+            isDisplay && hasDeviation
+              ? "border-amber-500/40 bg-amber-500/5"
+              : isDisplay && "border-accent/25 bg-accent/5",
+          )}
+        >
+          <Label
+            htmlFor={numericId}
+            className={cn(
+              isDisplay && "text-base font-semibold text-foreground",
+            )}
+          >
+            {captureType === "temperature" ? "Temperatur messen" : "Wert eintragen"}
           </Label>
-          <Input
-            id="display-capture-numeric"
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={values.numeric}
-            onChange={(e) => onChange({ ...values, numeric: e.target.value })}
-            placeholder={captureType === "temperature" ? "z. B. 4,2" : "Zahl"}
-            className={cn(inputClass, "tabular-nums")}
-          />
-          {limitsLabel ? (
-            <p className="text-xs text-muted-foreground">Soll: {limitsLabel}</p>
-          ) : limits.min != null || limits.max != null ? (
-            <p className="text-xs text-muted-foreground">
-              Soll:{" "}
-              {limits.min != null && limits.max != null
-                ? `${limits.min} – ${limits.max}`
-                : limits.max != null
-                  ? `max. ${limits.max}`
-                  : `min. ${limits.min}`}
-              {captureType === "temperature" ? " °C" : ""}
+          <div className="relative">
+            <Input
+              ref={inputRef}
+              id={numericId}
+              type="text"
+              inputMode={captureType === "temperature" ? "decimal" : "numeric"}
+              autoComplete="off"
+              autoFocus={autoFocus}
+              enterKeyHint="done"
+              value={values.numeric}
+              onChange={(e) =>
+                onChange({
+                  ...values,
+                  numeric: sanitizeNumericInput(e.target.value),
+                })
+              }
+              placeholder={captureType === "temperature" ? "0,0" : "0"}
+              className={cn(
+                inputClass,
+                "tabular-nums",
+                isDisplay && "pr-14",
+                hasDeviation &&
+                  "border-amber-500/50 focus-visible:border-amber-500 focus-visible:ring-amber-500/30",
+              )}
+            />
+            {captureType === "temperature" ? (
+              <span
+                className={cn(
+                  "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+                  isDisplay
+                    ? "right-5 text-xl font-medium"
+                    : "right-3 text-sm",
+                )}
+                aria-hidden
+              >
+                °C
+              </span>
+            ) : null}
+          </div>
+          {limitsHint ? (
+            <p
+              className={cn(
+                "text-muted-foreground",
+                isDisplay ? "text-sm font-medium" : "text-xs",
+              )}
+            >
+              Sollbereich: {limitsHint}
+            </p>
+          ) : null}
+          {hasDeviation && staffTodoCaptureLimitsDefined(limits) ? (
+            <p
+              className={cn(
+                "flex items-start gap-2 font-medium text-amber-800 dark:text-amber-300",
+                isDisplay ? "text-sm" : "text-xs",
+              )}
+              role="alert"
+            >
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+              <span>
+                Außerhalb des Sollbereichs
+                {limitsHint ? ` (${limitsHint})` : ""}.
+                {correctiveRequired
+                  ? " Bitte Korrekturmaßnahme eintragen, bevor Sie erledigen."
+                  : null}
+              </span>
             </p>
           ) : null}
         </div>
@@ -134,28 +271,30 @@ export function DisplayTodoCaptureFields({
 
       {captureType === "text" ? (
         <div className="space-y-1.5">
-          <Label htmlFor="display-capture-text">Eingabe</Label>
+          <Label htmlFor={textId}>Eingabe</Label>
           <Input
-            id="display-capture-text"
+            ref={inputRef}
+            id={textId}
             value={values.text}
             onChange={(e) => onChange({ ...values, text: e.target.value })}
+            autoFocus={autoFocus}
             className={inputClass}
           />
         </div>
       ) : null}
 
-      {showCorrective ? (
+      {showCorrectiveField ? (
         <div className="space-y-1.5">
-          <Label htmlFor="display-capture-corrective">Korrekturmaßnahme *</Label>
+          <Label htmlFor={correctiveId}>Korrekturmaßnahme *</Label>
           <Textarea
-            id="display-capture-corrective"
+            id={correctiveId}
             value={values.corrective}
             onChange={(e) =>
               onChange({ ...values, corrective: e.target.value })
             }
-            rows={2}
+            rows={isDisplay ? 3 : 2}
             className="rounded-xl"
-            placeholder="Was wurde unternommen?"
+            placeholder="Was wurde unternommen? Grund der Abweichung …"
           />
         </div>
       ) : null}
@@ -169,9 +308,12 @@ export function buildStaffTodoLimitsLabel(
       capture_type: StaffTodoCaptureType;
       target_min: number | null;
       target_max: number | null;
+      checklist_device?: RestaurantStaffTodoRow["checklist_device"];
     },
-    "capture_type" | "target_min" | "target_max"
+    "capture_type" | "target_min" | "target_max" | "checklist_device"
   >,
 ): string | null {
-  return staffTodoLimitsLabel(todo);
+  const effective = resolveEffectiveCaptureType(todo);
+  if (effective !== "temperature" && effective !== "number") return null;
+  return staffTodoLimitsLabel({ ...todo, capture_type: effective });
 }

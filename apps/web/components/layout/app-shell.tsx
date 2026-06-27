@@ -2,12 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ArrowLeft, Settings, UserRound } from "lucide-react";
-import { useModuleSubnavBack } from "@/lib/hooks/use-module-subnav-back";
-import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
-import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
-import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
+import { Settings, UserRound } from "lucide-react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
@@ -28,12 +23,11 @@ import {
   AppModuleChromeProvider,
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
+import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import { cn } from "@/lib/utils";
 
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const { chrome } = useAppModuleChrome();
-  const { backHref, onBackNavigate } = useModuleSubnavBack(chrome.subnav?.items);
-  const { tryAcquireNavLock } = useSoftNavLock();
   const showChipRow = Boolean(chrome.subnav?.items.length);
 
   React.useLayoutEffect(() => {
@@ -73,17 +67,20 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
     <SidebarInset className="min-w-0">
       <header
         data-app-chrome-header
-        className="z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50 bg-app-chrome"
+        className={cn(
+          "z-30 flex box-border h-[var(--app-chrome-header-h)] max-h-[var(--app-chrome-header-h)] min-h-[var(--app-chrome-header-h)] min-w-0 shrink-0 overflow-hidden border-b border-border/50",
+          appChromeFixedZoneBgClassName,
+        )}
       >
-        <div className="flex shrink-0 items-center ps-4 pe-2">
+        <div className="flex shrink-0 items-center gap-4 ps-4">
           <SidebarTrigger className="-ms-1 shrink-0" />
+          <Separator
+            orientation="vertical"
+            className="!h-7 shrink-0 self-center bg-border/50 data-vertical:!self-center"
+          />
         </div>
         <div className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex h-full w-max min-w-full items-center gap-2 px-2 pe-4 sm:gap-3 sm:px-4">
-            <Separator
-              orientation="vertical"
-              className="!h-6 shrink-0 self-center data-vertical:!self-center"
-            />
+          <div className="flex h-full w-max min-w-full items-center gap-2 ps-4 pe-4 sm:gap-3 sm:pe-6">
             <div className="flex shrink-0 items-center gap-2">
               {chrome.title ? (
                 <h1 className="whitespace-nowrap text-left text-base font-semibold tracking-tight text-foreground sm:text-lg">
@@ -94,15 +91,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               )}
               <TestEnvironmentChip />
             </div>
-            <div
-              className="min-w-4 flex-1 basis-0 shrink-[2]"
-              aria-hidden
-            />
+            <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
             <AppChromeCenterFavicon />
-            <div
-              className="min-w-4 flex-1 basis-0 shrink-[2]"
-              aria-hidden
-            />
+            <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
             <div className="flex shrink-0 items-center gap-2">
               <AppChromeNotificationBell />
               <AppChromeRestaurantProfileLink />
@@ -133,39 +124,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
       {showChipRow && chrome.subnav ? (
         <div
           data-module-chip-sticky
-          className="z-20 flex min-h-12 w-full shrink-0 items-center gap-2 border-b border-border/50 bg-app-chrome px-4 py-2 sm:px-6"
+          className="z-20 flex min-h-12 w-full shrink-0 items-center border-b border-border/50 bg-app-chrome px-1.5 py-2"
           role="navigation"
         >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-muted-foreground hover:text-foreground"
-            aria-label="Zurück zur letzten Seite"
-            nativeButton={false}
-            render={
-              <Link
-                href={backHref}
-                prefetch={false}
-                scroll={false}
-                onClick={(event) => {
-                  onBackNavigate();
-                  if (assignCrossAppWorkspaceZone(pathname, backHref)) {
-                    event.preventDefault();
-                    return;
-                  }
-                  if (
-                    crossAppModuleNavigation(pathname, backHref) &&
-                    !tryAcquireNavLock(event)
-                  ) {
-                    return;
-                  }
-                }}
-              />
-            }
-          >
-            <ArrowLeft className="size-4" />
-          </Button>
           <ModuleChipNav
             items={chrome.subnav.items}
             aria-label={chrome.subnav.ariaLabel}

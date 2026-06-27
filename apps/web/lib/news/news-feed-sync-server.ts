@@ -9,7 +9,9 @@ import {
 } from "@/lib/news/news-cache-constants";
 import { upsertNewsPlatformCache } from "@/lib/news/news-cache-db";
 import { getNewsConnector } from "@/lib/news/connectors/registry";
+import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const inFlightSync = new Set<string>();
@@ -32,6 +34,12 @@ export async function syncRestaurantNewsPlatform(
   try {
     const connector = getNewsConnector(platform);
     if (!connector.capabilities.canReadFeed) {
+      return { ok: true, count: 0 };
+    }
+
+    const flags = await fetchPlatformMessagingFlags(admin);
+    if (!isFeedConnectorEnabledBySuperadmin(platform, flags)) {
+      await upsertNewsPlatformCache(admin, restaurantId, platform, [], new Date().toISOString(), null);
       return { ok: true, count: 0 };
     }
 

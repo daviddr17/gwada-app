@@ -39,15 +39,17 @@ export function ContactInboxFilterChips({
         <LayoutGrid className="size-4" aria-hidden />
         {INBOX_FILTER_LABELS.all}
       </button>
-      {INBOX_PLATFORM_FILTER_ORDER.map((p) => (
+      {INBOX_PLATFORM_FILTER_ORDER.filter((p) => isPlatformAvailable(p)).map(
+        (p) => (
         <ContactMessagePlatformChip
           key={p}
           platform={p}
           selected={filter === p}
           onSelect={() => onFilterChange(p)}
-          disabled={disabled || !isPlatformAvailable(p)}
+          disabled={disabled}
         />
-      ))}
+      ),
+      )}
     </div>
   );
 }

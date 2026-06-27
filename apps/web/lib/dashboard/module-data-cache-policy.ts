@@ -542,14 +542,14 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
   },
   {
     id: "staffTodos",
-    label: "ToDo-Listen",
+    label: "Checklisten",
     scope: "module",
     appModule: "Mitarbeiter",
     strategy: "stale-while-revalidate",
     staleTimeMs: 30_000,
     description:
       "Todos + Mitarbeiterliste beim Mount; Suche/Filter/Sortierung clientseitig. Deferred Skeleton nur beim Erstload.",
-    loadTriggers: ["Mount /dashboard/checklisten/todos/**"],
+    loadTriggers: ["Mount /dashboard/checklisten/**"],
     invalidateTriggers: [
       "Todo anlegen / bearbeiten / löschen",
       "Status- oder Zuweisungsänderung",

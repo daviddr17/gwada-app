@@ -608,14 +608,6 @@ export function ContactsMessagesScreen() {
     loadingList && !refreshingInbox && conversations.length === 0,
   );
 
-  const showConversationList =
-    !contactParam &&
-    (isUnifiedInboxFilter(inboxFilter) ||
-      (inboxFilter === "whatsapp" && whatsappConnected) ||
-      (inboxFilter === "email" && emailConnected) ||
-      inboxFilter === "facebook" ||
-      inboxFilter === "instagram");
-
   const isInboxFilterAvailable = useCallback(
     (p: InboxPlatformFilter): boolean => {
       if (p === INBOX_FILTER_ALL) return true;
@@ -637,6 +629,9 @@ export function ContactsMessagesScreen() {
       instagramConnected,
     ],
   );
+
+  const showConversationList =
+    !contactParam && isInboxFilterAvailable(inboxFilter);
 
   useEffect(() => {
     if (connectionsLoading || !workspaceReady || !restaurantId) return;

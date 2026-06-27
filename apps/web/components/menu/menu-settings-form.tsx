@@ -105,7 +105,7 @@ export function MenuSettingsForm() {
         }}
       >
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-6 pt-6">
+          <CardContent className="space-y-6">
             <div className="max-w-xl space-y-3">
               <div className="space-y-1">
                 <h3 className="text-sm font-semibold tracking-tight text-foreground">

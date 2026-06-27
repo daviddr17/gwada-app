@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useEffect, useMemo, useState } from "react";
 import {
   Bar,
@@ -25,6 +26,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { KpiCard } from "@/components/ui/kpi-card";
 import {
   type ChartConfig,
   ChartContainer,
@@ -61,37 +63,6 @@ const platformConfig = {
 const statusConfig = {
   count: { label: "Beiträge", color: "var(--chart-4)" },
 } satisfies ChartConfig;
-
-function KpiCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  icon: typeof Newspaper;
-}) {
-  return (
-    <Card className="border-border/50 shadow-card">
-      <CardContent className="flex gap-3 pt-4 pb-4">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-          <Icon className="size-5" aria-hidden />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-muted-foreground">{label}</p>
-          <p className="mt-0.5 text-2xl font-semibold tracking-tight tabular-nums">
-            {value}
-          </p>
-          {hint ? (
-            <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
 
 function ChartEmpty({ message }: { message: string }) {
   return (

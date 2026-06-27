@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
@@ -23,7 +23,6 @@ import {
   GALLERY_PLATFORM_LABELS,
   type GalleryPlatformFilter,
 } from "@/lib/constants/gallery-platforms";
-import type { GalleryCacheablePlatform } from "@/lib/gallery/gallery-cache-constants";
 import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import {
   peekGalleryFeedCache,
@@ -209,6 +208,15 @@ export function GalleryScreen() {
   }, [restaurantId, ready, load]);
 
   useEffect(() => {
+    if (
+      platformFilter !== GALLERY_FILTER_ALL &&
+      !availablePlatforms.has(platformFilter)
+    ) {
+      setPlatformFilter(GALLERY_FILTER_ALL);
+    }
+  }, [platformFilter, availablePlatforms]);
+
+  useEffect(() => {
     setPage(1);
     setCategoryFilter(GALLERY_CATEGORY_ALL);
   }, [platformFilter]);
@@ -308,52 +316,6 @@ export function GalleryScreen() {
 
   return (
     <div className="space-y-4 px-4 pb-8 sm:px-6">
-      {syncMeta?.stale || syncMeta?.lastSyncedAt ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {syncMeta.lastSyncedAt ? (
-              <>
-                Externe Kanäle zuletzt aktualisiert:{" "}
-                {new Date(syncMeta.lastSyncedAt).toLocaleString("de-DE", {
-                  day: "2-digit",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </>
-            ) : (
-              "Externe Kanäle werden synchronisiert …"
-            )}
-            {syncMeta.stale ? " · Aktualisierung läuft …" : null}
-          </p>
-          {syncMeta.stale || syncing ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full border-border/60"
-              disabled={syncing}
-              onClick={() => void syncNow()}
-            >
-              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
-              Jetzt synchronisieren
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {syncMeta?.platformErrors &&
-      Object.keys(syncMeta.platformErrors).length > 0 ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
-          {Object.entries(syncMeta.platformErrors).map(([platform, message]) => (
-            <p key={platform}>
-              {GALLERY_PLATFORM_LABELS[platform as GalleryCacheablePlatform]}:{" "}
-              {message}
-            </p>
-          ))}
-        </div>
-      ) : null}
-
       <GalleryPlatformFilterChips
         value={platformFilter}
         onChange={setPlatformFilter}
@@ -401,6 +363,11 @@ export function GalleryScreen() {
         canNext={currentPage < totalPages}
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        feedSync={{
+          syncMeta,
+          syncing,
+          onSyncNow: () => void syncNow(),
+        }}
       >
         {loading && items.length === 0 ? (
           <div

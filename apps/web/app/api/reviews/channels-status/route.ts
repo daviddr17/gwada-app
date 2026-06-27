@@ -1,7 +1,5 @@
-import { googleBusinessConfigFromJson } from "@/lib/integrations/google-business-oauth";
 import { authorizeReviewsRestaurant } from "@/lib/reviews/route-auth";
-import { fetchRestaurantFacebookIntegration } from "@/lib/supabase/restaurant-facebook-integration-db";
-import { fetchRestaurantOAuthIntegration } from "@/lib/supabase/restaurant-oauth-integration-db";
+import { loadReviewPlatformConnectionState } from "@/lib/reviews/reviews-platform-connected-server";
 
 export const dynamic = "force-dynamic";
 
@@ -14,19 +12,12 @@ export async function GET(req: Request) {
     return Response.json({ error: "forbidden" }, { status: auth.status });
   }
 
-  const googleRow = await fetchRestaurantOAuthIntegration(
-    auth.sb,
-    restaurantId,
-    "google_business",
-    googleBusinessConfigFromJson,
-  );
-  const facebookRow = await fetchRestaurantFacebookIntegration(
-    auth.sb,
-    restaurantId,
-  );
+  const state = await loadReviewPlatformConnectionState(restaurantId);
 
   return Response.json({
-    googleConnected: googleRow?.status === "working",
-    facebookConnected: facebookRow?.status === "working",
+    googleConnected: state.googleConnected,
+    facebookConnected: state.facebookConnected,
+    googleVisible: state.googleVisible,
+    facebookVisible: state.facebookVisible,
   });
 }

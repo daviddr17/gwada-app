@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
+import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
 import {
   fetchSuperadminUsers,
@@ -107,11 +107,13 @@ export default function SuperadminUsersPage() {
         onFilterChange={setLocaleFilter}
       />
 
-      <SuperadminDataTable
+      <SuperadminPaginatedDataTable
         loading={loading}
         rows={filtered}
         rowKey={(r) => r.profile_id}
         emptyMessage="Keine User gefunden."
+        itemLabel="User"
+        resetPageKey={`${search}\0${localeFilter}`}
         columns={[
           {
             id: "email",

@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { DisplayBrandMark } from "@/components/display/display-brand-mark";
 import { displayRestaurantInitials } from "@/lib/display/display-avatar-utils";
 import { Button } from "@/components/ui/button";
@@ -16,14 +15,13 @@ const displayFooterScrollClassName =
 const displayFooterRestaurantLogoClassName =
   "size-5 shrink-0 rounded-full border border-border/60 object-cover object-center";
 
-/** Fußzeile: Restaurant links, Gwada Mitte, Gerät + ToDos rechts, Abmelden sticky. */
+/** Fußzeile: Restaurant links, Gwada Mitte, Gerät rechts, Abmelden sticky. */
 export function DisplayContextFooter({
   restaurantName,
   restaurantAvatarUrl,
   displayName,
   showLogout = false,
   onLogout,
-  todoBadge,
   className,
 }: {
   restaurantName: string;
@@ -31,8 +29,6 @@ export function DisplayContextFooter({
   displayName?: string | null;
   showLogout?: boolean;
   onLogout?: () => void;
-  /** Tappbare ToDo-Badge — z. B. `DisplayStaffTodoBadge`. */
-  todoBadge?: ReactNode;
   className?: string;
 }) {
   const initials = displayRestaurantInitials(restaurantName);
@@ -80,7 +76,6 @@ export function DisplayContextFooter({
           <div className="min-w-[5.5rem] flex-1 shrink-0" aria-hidden />
 
           <div className="flex shrink-0 items-center gap-2">
-            {todoBadge}
             {trimmedDisplay ? (
               <span className="whitespace-nowrap text-xs text-muted-foreground">
                 {trimmedDisplay}

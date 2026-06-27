@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
+import { SuperadminPaginatedDataTable } from "@/components/superadmin/superadmin-paginated-data-table";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
 import {
   fetchSuperadminWaitlist,
@@ -70,9 +70,11 @@ export default function SuperadminWartelistePage() {
         searchPlaceholder="Name, E-Mail oder Notiz …"
       />
 
-      <SuperadminDataTable
+      <SuperadminPaginatedDataTable
         loading={loading}
         emptyMessage="Noch keine Einträge auf der Warteliste."
+        itemLabel="Einträge"
+        resetPageKey={search}
         columns={[
           {
             id: "created_at",

@@ -3,8 +3,8 @@ import "server-only";
 import type { EventsPlatformConnector } from "@/lib/events/connectors/types";
 import { buildEventAnnouncementBody } from "@/lib/events/format-events-display-date";
 import { resolveNewsWhatsappChannelIds } from "@/lib/news/resolve-whatsapp-channel-ids";
+import { isRestaurantWhatsappChannelConfigured } from "@/lib/news/whatsapp-channel-connected";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const CAPABILITIES = {
   canReadFeed: false,
@@ -20,15 +20,7 @@ export const whatsappChannelEventsAnnouncementConnector: EventsPlatformConnector
   displayName: "WhatsApp Kanal",
   capabilities: CAPABILITIES,
   async isConnected(restaurantId) {
-    const admin = createSupabaseAdminClient();
-    if (!admin) return false;
-    const { data } = await admin
-      .from("restaurant_integrations")
-      .select("status")
-      .eq("restaurant_id", restaurantId)
-      .eq("integration_key", "whatsapp")
-      .maybeSingle();
-    return data?.status === "working";
+    return isRestaurantWhatsappChannelConfigured(restaurantId);
   },
   async fetchFeed() {
     return { items: [] };

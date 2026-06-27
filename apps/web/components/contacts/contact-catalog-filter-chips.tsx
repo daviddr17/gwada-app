@@ -40,15 +40,17 @@ export function ContactCatalogFilterChips({
         <LayoutGrid className="size-4" aria-hidden />
         {CONTACT_CATALOG_FILTER_LABELS.all}
       </button>
-      {CONTACT_CATALOG_PLATFORM_ORDER.map((p) => (
+      {CONTACT_CATALOG_PLATFORM_ORDER.filter((p) => isPlatformAvailable(p)).map(
+        (p) => (
         <ContactPlatformChip
           key={p}
           platform={p}
           selected={filter === p}
           onSelect={() => onFilterChange(p)}
-          disabled={disabled || !isPlatformAvailable(p)}
+          disabled={disabled}
         />
-      ))}
+      ),
+      )}
     </div>
   );
 }

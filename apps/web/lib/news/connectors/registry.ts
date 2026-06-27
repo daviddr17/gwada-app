@@ -14,6 +14,15 @@ import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
 import { fetchWithTimeout } from "@/lib/news/fetch-with-timeout";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import {
+  isFeedConnectorEnabledBySuperadmin,
+  resolveFeedConnectorConnected,
+} from "@/lib/platform-feed/feed-platform-superadmin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  fetchPlatformMessagingFlags,
+  type PlatformMessagingFlags,
+} from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const CONNECTOR_FETCH_TIMEOUT_MS = 8_000;
@@ -33,11 +42,28 @@ export function getNewsConnector(platform: NewsPlatform): NewsPlatformConnector 
 export async function getNewsConnectorPublicInfo(
   restaurantId: string,
 ): Promise<NewsConnectorPublicInfo[]> {
+  const admin = createSupabaseAdminClient();
+  const flags: PlatformMessagingFlags = admin
+    ? await fetchPlatformMessagingFlags(admin)
+    : {
+        whatsappEnabled: false,
+        emailEnabled: false,
+        facebookEnabled: false,
+        instagramEnabled: false,
+        googleBusinessEnabled: false,
+        lexofficeEnabled: false,
+      };
+
   const platforms = Object.keys(CONNECTORS) as NewsPlatform[];
   return Promise.all(
     platforms.map(async (key) => {
       const connector = CONNECTORS[key];
-      const connected = await connector.isConnected(restaurantId);
+      const connected = await resolveFeedConnectorConnected(
+        key,
+        restaurantId,
+        connector.isConnected.bind(connector),
+        flags,
+      );
       return {
         key,
         displayName: NEWS_PLATFORM_LABELS[key],
@@ -54,19 +80,29 @@ export async function fetchUnifiedNewsFeed(
   sb: SupabaseClient,
   platforms?: NewsPlatform[],
 ): Promise<UnifiedNewsItem[]> {
+  const admin = createSupabaseAdminClient();
+  const flags = admin
+    ? await fetchPlatformMessagingFlags(admin)
+    : {
+        whatsappEnabled: false,
+        emailEnabled: false,
+        facebookEnabled: false,
+        instagramEnabled: false,
+        googleBusinessEnabled: false,
+        lexofficeEnabled: false,
+      };
+
   const keys = platforms ?? (Object.keys(CONNECTORS) as NewsPlatform[]);
   const batches = await Promise.all(
     keys.map(async (key) => {
       const connector = CONNECTORS[key];
       if (!connector.capabilities.canReadFeed) return [] as UnifiedNewsItem[];
-      const connected =
-        key === "gwada"
-          ? true
-          : await fetchWithTimeout(
-              connector.isConnected(restaurantId),
-              false,
-              CONNECTOR_FETCH_TIMEOUT_MS,
-            );
+      const connected = await resolveFeedConnectorConnected(
+        key,
+        restaurantId,
+        connector.isConnected.bind(connector),
+        flags,
+      );
       if (!connected) return [] as UnifiedNewsItem[];
       const result = await fetchWithTimeout(
         connector.fetchFeed(restaurantId, sb),

@@ -437,7 +437,15 @@ export function DisplayScreen({ slug }: { slug: string }) {
     if (!activeModule && modules.length > 1) {
       content = (
         <div className={displayChromeShellClassName}>
-          <DisplayChromeHeader>
+          <DisplayChromeHeader
+            trailing={
+              <DisplayStaffTodoBadge
+                count={todoBadgeCount}
+                urgency={todoBadgeUrgency}
+                onChanged={() => void refreshTodoBadge()}
+              />
+            }
+          >
             <DisplayStaffLine
               staff={session.staff}
               suffix={timeStatusSuffix}
@@ -485,13 +493,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
             displayName={context.display?.name}
             showLogout={!locked}
             onLogout={requestLogout}
-            todoBadge={
-              <DisplayStaffTodoBadge
-                count={todoBadgeCount}
-                urgency={todoBadgeUrgency}
-                onChanged={() => void refreshTodoBadge()}
-              />
-            }
           />
         </div>
       );

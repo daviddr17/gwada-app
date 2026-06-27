@@ -20,7 +20,6 @@ function ChecklistenLayoutInner({ children }: { children: React.ReactNode }) {
   const subnavItems = useMemo(() => {
     return CHECKLISTEN_NAV.filter((item) => {
       if (item.href === CHECKLISTEN_ROUTES.root) return true;
-      if (item.href === CHECKLISTEN_ROUTES.todos) return canReadTodos;
       return canReadTodos || canReadCompliance;
     });
   }, [canReadTodos, canReadCompliance]);

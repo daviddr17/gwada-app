@@ -23,7 +23,7 @@ const TODO_SELECT_LEGACY = `
     given_name,
     family_name
   ),
-  position_tag:restaurant_staff_position_tags (
+  position_tag:restaurant_staff_position_tags!restaurant_staff_todos_position_tag_id_fkey (
     id,
     name
   ),
@@ -37,7 +37,7 @@ const TODO_SELECT_LEGACY = `
   ),
   position_assignees:restaurant_staff_todo_position_assignees (
     position_tag_id,
-    position_tag:restaurant_staff_position_tags (
+    position_tag:restaurant_staff_position_tags!restaurant_staff_todo_position_assignees_position_tag_id_fkey (
       id,
       name
     )
@@ -61,7 +61,7 @@ const TODO_SELECT = `
     given_name,
     family_name
   ),
-  position_tag:restaurant_staff_position_tags (
+  position_tag:restaurant_staff_position_tags!restaurant_staff_todos_position_tag_id_fkey (
     id,
     name
   ),
@@ -75,7 +75,7 @@ const TODO_SELECT = `
   ),
   position_assignees:restaurant_staff_todo_position_assignees (
     position_tag_id,
-    position_tag:restaurant_staff_position_tags (
+    position_tag:restaurant_staff_position_tags!restaurant_staff_todo_position_assignees_position_tag_id_fkey (
       id,
       name
     )
@@ -251,7 +251,13 @@ export async function upsertStaffTodo(
     checklist_device_id: input.checklist_device_id ?? null,
     checklist_area_id: input.checklist_area_id ?? null,
     require_corrective_on_deviation:
-      input.require_corrective_on_deviation ?? false,
+      input.require_corrective_on_deviation ??
+      (input.target_min != null ||
+      input.target_max != null ||
+      input.capture_type === "temperature" ||
+      input.capture_type === "number"
+        ? true
+        : false),
   };
 
   let savedId = todoId ?? null;

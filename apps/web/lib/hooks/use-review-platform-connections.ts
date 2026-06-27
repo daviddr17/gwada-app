@@ -6,6 +6,8 @@ export type ReviewPlatformConnections = {
   loading: boolean;
   googleConnected: boolean;
   facebookConnected: boolean;
+  googleVisible: boolean;
+  facebookVisible: boolean;
   refresh: () => void;
 };
 
@@ -15,11 +17,15 @@ export function useReviewPlatformConnections(
   const [loading, setLoading] = useState(true);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [facebookConnected, setFacebookConnected] = useState(false);
+  const [googleVisible, setGoogleVisible] = useState(false);
+  const [facebookVisible, setFacebookVisible] = useState(false);
 
   const load = useCallback(async () => {
     if (!restaurantId) {
       setGoogleConnected(false);
       setFacebookConnected(false);
+      setGoogleVisible(false);
+      setFacebookVisible(false);
       setLoading(true);
       return;
     }
@@ -31,10 +37,14 @@ export function useReviewPlatformConnections(
       const body = (await res.json()) as {
         googleConnected?: boolean;
         facebookConnected?: boolean;
+        googleVisible?: boolean;
+        facebookVisible?: boolean;
       };
       if (res.ok) {
         setGoogleConnected(Boolean(body.googleConnected));
         setFacebookConnected(Boolean(body.facebookConnected));
+        setGoogleVisible(Boolean(body.googleVisible));
+        setFacebookVisible(Boolean(body.facebookVisible));
       }
     } catch {
       /* ignore */
@@ -50,6 +60,8 @@ export function useReviewPlatformConnections(
     loading,
     googleConnected,
     facebookConnected,
+    googleVisible,
+    facebookVisible,
     refresh: load,
   };
 }

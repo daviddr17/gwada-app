@@ -95,6 +95,11 @@ type CompletionRow = {
   staff_id: string;
   completed_at: string;
   reopened_at: string | null;
+  completion_note: string | null;
+  captured_numeric: number | null;
+  captured_text: string | null;
+  within_limits: boolean | null;
+  corrective_action: string | null;
 };
 
 type DeferralRow = {
@@ -183,12 +188,23 @@ export type DisplayTodoClientPayload = {
   checklist_device: TodoRow["checklist_device"];
   status: DisplayTodoItem["status"];
   done_for_staff: boolean;
+  captured_numeric: number | null;
+  captured_text: string | null;
+  completion_note: string | null;
+  within_limits: boolean | null;
+  corrective_action: string | null;
 };
 
 export function mapDisplayTodoClientPayload(
   item: DisplayTodoItem,
   staffId: string,
 ): DisplayTodoClientPayload {
+  const done_for_staff = isStaffTodoDoneForStaff(item, item.completions, staffId);
+  const activeCompletion = activeCompletionForDisplayStaff(
+    item,
+    item.completions,
+    staffId,
+  );
   return {
     id: item.id,
     title: item.title,
@@ -205,8 +221,26 @@ export function mapDisplayTodoClientPayload(
     checklist_area: item.checklist_area ?? null,
     checklist_device: item.checklist_device ?? null,
     status: item.status,
-    done_for_staff: isStaffTodoDoneForStaff(item, item.completions, staffId),
+    done_for_staff,
+    captured_numeric: activeCompletion?.captured_numeric ?? null,
+    captured_text: activeCompletion?.captured_text ?? null,
+    completion_note: activeCompletion?.completion_note ?? null,
+    within_limits: activeCompletion?.within_limits ?? null,
+    corrective_action: activeCompletion?.corrective_action ?? null,
   };
+}
+
+function activeCompletionForDisplayStaff(
+  todo: Pick<TodoRow, "completion_mode">,
+  completions: readonly RestaurantStaffTodoCompletionRow[],
+  staffId: string,
+): RestaurantStaffTodoCompletionRow | null {
+  const active = completions.filter((c) => !c.reopened_at);
+  if (active.length === 0) return null;
+  if (todo.completion_mode === "each_assignee") {
+    return active.find((c) => c.staff_id === staffId) ?? null;
+  }
+  return active.find((c) => c.staff_id === staffId) ?? active[0] ?? null;
 }
 
 export function mapDisplayTodoForClient(
@@ -252,8 +286,9 @@ export function countDisplayTodosForBadge(
     (t) =>
       !isDisplayTodoOpenForStaff(t, staffId) && t.allow_reopen_on_display,
   );
-  const count =
-    openItems.length > 0 ? openItems.length : reopenableDoneItems.length;
+  const count = openItems.filter(
+    (t) => t.status !== "planned" && t.status !== "archived",
+  ).length;
   return { count, openItems, reopenableDoneItems };
 }
 
@@ -379,7 +414,9 @@ async function loadCompletionsForTodos(
   if (todoIds.length === 0) return new Map();
   const { data } = await admin
     .from("restaurant_staff_todo_completions")
-    .select("todo_id, staff_id, completed_at, reopened_at")
+    .select(
+      "todo_id, staff_id, completed_at, reopened_at, completion_note, captured_numeric, captured_text, within_limits, corrective_action",
+    )
     .in("todo_id", todoIds);
 
   const map = new Map<string, CompletionRow[]>();

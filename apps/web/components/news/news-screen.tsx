@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, List, Plus, RefreshCw, Search } from "lucide-react";
+import { LayoutGrid, List, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -314,6 +314,15 @@ export function NewsScreen() {
     [pathname],
   );
 
+  useEffect(() => {
+    if (
+      platformFilter !== NEWS_FILTER_ALL &&
+      !availablePlatforms.has(platformFilter)
+    ) {
+      setPlatformFilter(NEWS_FILTER_ALL);
+    }
+  }, [platformFilter, availablePlatforms, setPlatformFilter]);
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -324,51 +333,6 @@ export function NewsScreen() {
         onChange={setPlatformFilter}
         availablePlatforms={availablePlatforms}
       />
-
-      {syncMeta?.stale || syncMeta?.lastSyncedAt ? (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {syncMeta.lastSyncedAt ? (
-              <>
-                Externe Kanäle zuletzt aktualisiert:{" "}
-                {new Date(syncMeta.lastSyncedAt).toLocaleString("de-DE", {
-                  day: "2-digit",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </>
-            ) : (
-              "Externe Kanäle werden synchronisiert …"
-            )}
-            {syncMeta.stale ? " · Aktualisierung läuft …" : null}
-          </p>
-          {syncMeta.stale || syncing ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="rounded-full border-border/60"
-              disabled={syncing}
-              onClick={() => void syncNow()}
-            >
-              <RefreshCw className={syncing ? "size-4 animate-spin" : "size-4"} />
-              Jetzt synchronisieren
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {syncMeta?.platformErrors &&
-      Object.keys(syncMeta.platformErrors).length > 0 ? (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
-          {Object.entries(syncMeta.platformErrors).map(([platform, message]) => (
-            <p key={platform}>
-              {NEWS_PLATFORM_LABELS[platform as NewsCacheablePlatform]}: {message}
-            </p>
-          ))}
-        </div>
-      ) : null}
 
       <NewsStoriesRow
         storyRings={storyRings}
@@ -443,13 +407,17 @@ export function NewsScreen() {
           canNext={currentPage < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          feedSync={{
+            syncMeta,
+            syncing,
+            onSyncNow: () => void syncNow(),
+          }}
         >
           {filtered.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              {platformFilter !== NEWS_FILTER_ALL &&
+              {              platformFilter !== NEWS_FILTER_ALL &&
               isNewsCacheablePlatform(platformFilter) &&
-              syncMeta?.platformItemCounts?.[platformFilter] === 0 &&
-              !syncMeta?.platformErrors?.[platformFilter]
+              syncMeta?.platformItemCounts?.[platformFilter] === 0
                 ? `${NEWS_PLATFORM_LABELS[platformFilter]}: Sync erfolgreich, aber keine Beiträge im Konto — unter Einstellungen → Integrationen prüfen oder „Jetzt synchronisieren“.`
                 : "Noch keine News in dieser Ansicht."}
             </p>

@@ -40,13 +40,13 @@ export function ReviewInboxFilterChips({
         <LayoutGrid className="size-4" aria-hidden />
         {REVIEW_FILTER_LABELS.all}
       </button>
-      {REVIEW_PLATFORM_ORDER.map((p) => (
+      {REVIEW_PLATFORM_ORDER.filter((p) => isPlatformAvailable(p)).map((p) => (
         <ReviewPlatformChip
           key={p}
           platform={p}
           selected={filter === p}
           onSelect={() => onFilterChange(p)}
-          disabled={disabled || !isPlatformAvailable(p)}
+          disabled={disabled}
         />
       ))}
     </div>

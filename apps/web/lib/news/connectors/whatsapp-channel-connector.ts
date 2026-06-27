@@ -2,10 +2,10 @@ import "server-only";
 
 import type { NewsPlatformConnector } from "@/lib/news/connectors/types";
 import { resolveNewsWhatsappChannelIds } from "@/lib/news/resolve-whatsapp-channel-ids";
+import { isRestaurantWhatsappChannelConfigured } from "@/lib/news/whatsapp-channel-connected";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { fetchWahaChannelMessages } from "@/lib/waha/waha-channels";
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
-import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 const CAPABILITIES = {
   canReadFeed: true,
@@ -25,15 +25,7 @@ export const whatsappChannelNewsConnector: NewsPlatformConnector = {
   displayName: "WhatsApp Kanal",
   capabilities: CAPABILITIES,
   async isConnected(restaurantId) {
-    const admin = createSupabaseAdminClient();
-    if (!admin) return false;
-    const { data } = await admin
-      .from("restaurant_integrations")
-      .select("status")
-      .eq("restaurant_id", restaurantId)
-      .eq("integration_key", "whatsapp")
-      .maybeSingle();
-    return data?.status === "working";
+    return isRestaurantWhatsappChannelConfigured(restaurantId);
   },
   async fetchFeed(restaurantId, sb) {
     const channelIds = await resolveNewsWhatsappChannelIds(restaurantId, sb, null);

@@ -76,7 +76,8 @@ export function ModuleChipNav({
                 >
                   <SidebarMenuButton
                     disabled
-                    className="pointer-events-none whitespace-nowrap opacity-50"
+                    layout="text"
+                    className="pointer-events-none opacity-50"
                   >
                     <span>{item.label}</span>
                   </SidebarMenuButton>
@@ -87,7 +88,7 @@ export function ModuleChipNav({
               <SidebarMenuItem key={item.href} className="w-auto shrink-0">
                 <SidebarMenuButton
                   isActive={active}
-                  className="whitespace-nowrap"
+                  layout="text"
                   render={<Link href={item.href} prefetch={false} scroll={false} />}
                 >
                   <span>{item.label}</span>

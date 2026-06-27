@@ -23,7 +23,8 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 export function useDashboardEffectiveWidgetPrefs() {
   const mounted = useClientMounted();
   const prefs = useDashboardWidgetPreferences();
-  const { has, loading: permissionsLoading } = useRestaurantPermissions();
+  const { has, loading: permissionsLoading, error: permissionsError, reload: reloadPermissions } =
+    useRestaurantPermissions();
   const { available: weatherAvailable, loading: weatherLoading } =
     usePlatformWeatherAvailable();
 
@@ -91,6 +92,8 @@ export function useDashboardEffectiveWidgetPrefs() {
     permittedWidgetIds,
     permittedShortcutIds,
     permissionsLoading,
+    permissionsError,
+    reloadPermissions,
     weatherAvailable,
     weatherLoading,
   };

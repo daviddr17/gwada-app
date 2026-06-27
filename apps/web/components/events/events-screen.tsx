@@ -9,7 +9,6 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
-import { PlatformFeedSyncStatusBar } from "@/components/platform-feed/platform-feed-sync-status-bar";
 import { EventsComposeDrawer } from "@/components/events/events-compose-drawer";
 import { EventsDetailDrawer } from "@/components/events/events-detail-drawer";
 import { EventsFeedSkeleton } from "@/components/events/events-feed-skeleton";
@@ -17,7 +16,6 @@ import { EventsListView } from "@/components/events/events-feed-views";
 import { EventsPlatformFilterChips } from "@/components/events/events-platform-filter-chips";
 import {
   EVENTS_FILTER_ALL,
-  EVENTS_PLATFORM_LABELS,
   isEventsCacheablePlatform,
   type EventsCacheablePlatform,
   type EventsPlatformFilter,
@@ -192,13 +190,6 @@ export function EventsScreen() {
         availablePlatforms={availablePlatforms}
       />
 
-      <PlatformFeedSyncStatusBar
-        syncMeta={syncMeta}
-        syncing={syncing}
-        onSyncNow={() => void syncNow()}
-        platformLabels={EVENTS_PLATFORM_LABELS}
-      />
-
       {canManage ? (
         <Button
           type="button"
@@ -226,6 +217,11 @@ export function EventsScreen() {
           canNext={currentPage < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          feedSync={{
+            syncMeta,
+            syncing,
+            onSyncNow: () => void syncNow(),
+          }}
         >
           {paginatedItems.length === 0 && !loading ? (
             <p className="py-8 text-center text-sm text-muted-foreground">

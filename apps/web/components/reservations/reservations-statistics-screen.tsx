@@ -13,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
+import { KpiCard } from "@/components/ui/kpi-card";
 import {
   Card,
   CardContent,
@@ -55,30 +56,6 @@ const monthConfig = {
 const statusConfig = {
   count: { label: "Anzahl", color: "var(--chart-3)" },
 } satisfies ChartConfig;
-
-function KpiCard({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <Card className="border-border/50 shadow-card">
-      <CardContent className="pt-4 pb-4">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">
-          {value}
-        </p>
-        {hint ? (
-          <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-        ) : null}
-      </CardContent>
-    </Card>
-  );
-}
 
 export function ReservationsStatisticsScreen() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =

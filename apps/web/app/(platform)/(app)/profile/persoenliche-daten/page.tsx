@@ -194,7 +194,7 @@ export default function ProfilePersoenlicheDatenPage() {
         <ProfileDocumentsSummaryCard />
 
         <Card className="border-border/50 shadow-card">
-          <CardContent className="space-y-4 pt-6">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="profile-email">E-Mail</Label>
               <Input

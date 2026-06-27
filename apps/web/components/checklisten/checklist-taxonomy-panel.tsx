@@ -24,6 +24,8 @@ type ChecklistTaxonomyPanelProps = {
   filterDeviceId: string | null;
   onFilterDeviceIdChange: (id: string | null) => void;
   canManage: boolean;
+  /** KPI-Zeile: Chips und Verwaltung inline statt eigener Blöcke. */
+  layout?: "stacked" | "inline";
 };
 
 function FilterPill({
@@ -65,6 +67,7 @@ export function ChecklistTaxonomyPanel({
   filterDeviceId,
   onFilterDeviceIdChange,
   canManage,
+  layout = "stacked",
 }: ChecklistTaxonomyPanelProps) {
   const [manageAreasOpen, setManageAreasOpen] = useState(false);
   const [areaSheet, setAreaSheet] = useState<{
@@ -102,84 +105,87 @@ export function ChecklistTaxonomyPanel({
   const showAreaFilters = activeAreas.length > 0;
   const showDeviceFilters = activeDevices.length > 0;
 
-  return (
-    <div className="mb-4 space-y-3">
-      {canManage ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={moduleManageChipButtonClassName}
-            onClick={() => setManageAreasOpen(true)}
-          >
-            <LayoutGrid className="size-4" />
-            Bereiche
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={moduleManageChipButtonClassName}
-            onClick={() => setManageDevicesOpen(true)}
-          >
-            <Refrigerator className="size-4" />
-            Geräte
-          </Button>
-        </div>
-      ) : null}
+  const manageButtons = canManage ? (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={moduleManageChipButtonClassName}
+        onClick={() => setManageAreasOpen(true)}
+      >
+        <LayoutGrid className="size-4" />
+        Bereiche
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={moduleManageChipButtonClassName}
+        onClick={() => setManageDevicesOpen(true)}
+      >
+        <Refrigerator className="size-4" />
+        Geräte
+      </Button>
+    </>
+  ) : null;
 
-      {showAreaFilters ? (
-        <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <FilterPill
-            label="Alle Bereiche"
-            active={filterAreaId == null}
-            onClick={() => onFilterAreaIdChange(null)}
-          />
-          {activeAreas.map((a) => (
-            <FilterPill
-              key={a.id}
-              label={a.name}
-              active={filterAreaId === a.id}
-              leading={
-                <span
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: a.backgroundColor }}
-                  aria-hidden
-                />
-              }
-              onClick={() =>
-                onFilterAreaIdChange(filterAreaId === a.id ? null : a.id)
-              }
+  const areaFilterPills = showAreaFilters ? (
+    <>
+      <FilterPill
+        label="Alle Bereiche"
+        active={filterAreaId == null}
+        onClick={() => onFilterAreaIdChange(null)}
+      />
+      {activeAreas.map((a) => (
+        <FilterPill
+          key={a.id}
+          label={a.name}
+          active={filterAreaId === a.id}
+          leading={
+            <span
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: a.backgroundColor }}
+              aria-hidden
             />
-          ))}
-        </div>
-      ) : null}
+          }
+          onClick={() =>
+            onFilterAreaIdChange(filterAreaId === a.id ? null : a.id)
+          }
+        />
+      ))}
+    </>
+  ) : null;
 
-      {showDeviceFilters ? (
-        <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <FilterPill
-            label="Alle Geräte"
-            active={filterDeviceId == null}
-            onClick={() => onFilterDeviceIdChange(null)}
-          />
-          {activeDevices.map((d) => (
-            <FilterPill
-              key={d.id}
-              label={d.name}
-              active={filterDeviceId === d.id}
-              leading={<Refrigerator className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />}
-              onClick={() =>
-                onFilterDeviceIdChange(filterDeviceId === d.id ? null : d.id)
-              }
+  const deviceFilterPills = showDeviceFilters ? (
+    <>
+      <FilterPill
+        label="Alle Geräte"
+        active={filterDeviceId == null}
+        onClick={() => onFilterDeviceIdChange(null)}
+      />
+      {activeDevices.map((d) => (
+        <FilterPill
+          key={d.id}
+          label={d.name}
+          active={filterDeviceId === d.id}
+          leading={
+            <Refrigerator
+              className="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden
             />
-          ))}
-        </div>
-      ) : null}
+          }
+          onClick={() =>
+            onFilterDeviceIdChange(filterDeviceId === d.id ? null : d.id)
+          }
+        />
+      ))}
+    </>
+  ) : null;
 
-      {canManage ? (
-        <>
-          <CategoriesManageDrawer
+  const drawers = canManage ? (
+    <>
+      <CategoriesManageDrawer
             open={manageAreasOpen}
             onOpenChange={setManageAreasOpen}
             categories={areaManageItems}
@@ -307,9 +313,52 @@ export function ChecklistTaxonomyPanel({
                 ? async (id) => devicesStorage.remove(id)
                 : undefined
             }
-          />
-        </>
+      />
+    </>
+  ) : null;
+
+  if (layout === "inline") {
+    const hasManage = canManage;
+    const hasFilters = showAreaFilters || showDeviceFilters;
+    if (!hasManage && !hasFilters) return drawers;
+
+    return (
+      <>
+        <div className="space-y-2">
+          {hasManage ? (
+            <div className="flex flex-wrap items-center gap-2">{manageButtons}</div>
+          ) : null}
+          {hasFilters ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {areaFilterPills}
+              {deviceFilterPills}
+            </div>
+          ) : null}
+        </div>
+        {drawers}
+      </>
+    );
+  }
+
+  return (
+    <div className="mb-4 space-y-3">
+      {manageButtons ? (
+        <div className="flex flex-wrap gap-2">{manageButtons}</div>
       ) : null}
+
+      {showAreaFilters ? (
+        <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {areaFilterPills}
+        </div>
+      ) : null}
+
+      {showDeviceFilters ? (
+        <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {deviceFilterPills}
+        </div>
+      ) : null}
+
+      {drawers}
     </div>
   );
 }

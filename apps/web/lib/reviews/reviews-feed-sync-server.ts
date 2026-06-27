@@ -14,7 +14,8 @@ import {
 import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
 import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
 import { GOOGLE_REVIEWS_PAGE_SIZE } from "@/lib/reviews/google-reviews-pagination";
-import { isReviewsPlatformConnected } from "@/lib/reviews/reviews-platform-connected-server";
+import { isReviewsPlatformConnected, isReviewsCacheablePlatformEnabledBySuperadmin } from "@/lib/reviews/reviews-platform-connected-server";
+import { fetchReviewPlatformMessagingFlags } from "@/lib/reviews/reviews-platform-availability-server";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -86,8 +87,14 @@ export async function syncRestaurantReviewsPlatform(
   inFlightSync.add(lockKey);
 
   try {
-    const connected = await isReviewsPlatformConnected(restaurantId, platform);
     const syncedAt = new Date().toISOString();
+    const flags = await fetchReviewPlatformMessagingFlags(admin);
+    if (!isReviewsCacheablePlatformEnabledBySuperadmin(platform, flags)) {
+      await upsertReviewsPlatformCache(admin, restaurantId, platform, [], syncedAt, null, {});
+      return { ok: true, count: 0 };
+    }
+
+    const connected = await isReviewsPlatformConnected(restaurantId, platform);
 
     if (!connected) {
       await upsertReviewsPlatformCache(

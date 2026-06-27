@@ -421,7 +421,7 @@ export function ContactsOverview() {
   return (
     <>
       <Card className="border-border/50 shadow-card">
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4">
           {lexoffice.platformEnabled ? (
             <ContactCatalogFilterChips
               filter={platformFilter}

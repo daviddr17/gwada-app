@@ -11,6 +11,15 @@ import type { EventsPlatformConnector } from "@/lib/events/connectors/types";
 import type { EventsConnectorPublicInfo } from "@/lib/types/events-connectors";
 import { sortEventsByStartAt } from "@/lib/events/format-events-display-date";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
+import {
+  isFeedConnectorEnabledBySuperadmin,
+  resolveFeedConnectorConnected,
+} from "@/lib/platform-feed/feed-platform-superadmin";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  fetchPlatformMessagingFlags,
+  type PlatformMessagingFlags,
+} from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const CONNECTORS: Record<EventsPlatform, EventsPlatformConnector> = {
@@ -28,11 +37,28 @@ export function getEventsConnector(platform: EventsPlatform): EventsPlatformConn
 export async function getEventsConnectorPublicInfo(
   restaurantId: string,
 ): Promise<EventsConnectorPublicInfo[]> {
+  const admin = createSupabaseAdminClient();
+  const flags: PlatformMessagingFlags = admin
+    ? await fetchPlatformMessagingFlags(admin)
+    : {
+        whatsappEnabled: false,
+        emailEnabled: false,
+        facebookEnabled: false,
+        instagramEnabled: false,
+        googleBusinessEnabled: false,
+        lexofficeEnabled: false,
+      };
+
   const platforms = Object.keys(CONNECTORS) as EventsPlatform[];
   return Promise.all(
     platforms.map(async (key) => {
       const connector = CONNECTORS[key];
-      const connected = await connector.isConnected(restaurantId);
+      const connected = await resolveFeedConnectorConnected(
+        key,
+        restaurantId,
+        connector.isConnected.bind(connector),
+        flags,
+      );
       return {
         key,
         displayName: EVENTS_PLATFORM_LABELS[key],
@@ -49,13 +75,29 @@ export async function fetchUnifiedEventsFeed(
   sb: SupabaseClient,
   platforms?: EventsPlatform[],
 ): Promise<UnifiedEventItem[]> {
+  const admin = createSupabaseAdminClient();
+  const flags = admin
+    ? await fetchPlatformMessagingFlags(admin)
+    : {
+        whatsappEnabled: false,
+        emailEnabled: false,
+        facebookEnabled: false,
+        instagramEnabled: false,
+        googleBusinessEnabled: false,
+        lexofficeEnabled: false,
+      };
+
   const keys = platforms ?? (Object.keys(CONNECTORS) as EventsPlatform[]);
   const batches = await Promise.all(
     keys.map(async (key) => {
       const connector = CONNECTORS[key];
       if (!connector.capabilities.canReadFeed) return [] as UnifiedEventItem[];
-      const connected =
-        key === "gwada" ? true : await connector.isConnected(restaurantId);
+      const connected = await resolveFeedConnectorConnected(
+        key,
+        restaurantId,
+        connector.isConnected.bind(connector),
+        flags,
+      );
       if (!connected) return [] as UnifiedEventItem[];
       const result = await connector.fetchFeed(restaurantId, sb);
       if ("error" in result) {

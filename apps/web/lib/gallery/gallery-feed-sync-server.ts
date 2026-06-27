@@ -9,7 +9,9 @@ import {
 } from "@/lib/gallery/gallery-cache-constants";
 import { upsertGalleryPlatformCache } from "@/lib/gallery/gallery-cache-db";
 import { getGalleryConnector } from "@/lib/gallery/connectors/registry";
+import { isFeedConnectorEnabledBySuperadmin } from "@/lib/platform-feed/feed-platform-superadmin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const inFlightSync = new Set<string>();
@@ -30,6 +32,12 @@ export async function syncRestaurantGalleryPlatform(
   try {
     const connector = getGalleryConnector(platform);
     if (!connector.capabilities.canReadGallery) return { ok: true, count: 0 };
+
+    const flags = await fetchPlatformMessagingFlags(admin);
+    if (!isFeedConnectorEnabledBySuperadmin(platform, flags)) {
+      await upsertGalleryPlatformCache(admin, restaurantId, platform, [], new Date().toISOString(), null);
+      return { ok: true, count: 0 };
+    }
 
     const connected = await connector.isConnected(restaurantId);
     const syncedAt = new Date().toISOString();

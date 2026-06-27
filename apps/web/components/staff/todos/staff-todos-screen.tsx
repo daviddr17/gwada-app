@@ -19,6 +19,7 @@ import { StaffTodoFormDrawer } from "@/components/staff/todos/staff-todo-form-dr
 import { StaffTodosProtocolDrawer } from "@/components/staff/todos/staff-todos-protocol-drawer";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
 import { ChecklistTaxonomyPanel } from "@/components/checklisten/checklist-taxonomy-panel";
+import { ChecklistenTodosOverviewSection } from "@/components/checklisten/checklisten-todos-overview-section";
 import {
   fetchStaffTodosForRestaurant,
   staffTodoAssigneeLabel,
@@ -29,6 +30,10 @@ import {
 } from "@/lib/supabase/staff-todos-db";
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import {
+  fetchComplianceRecords,
+  fetchComplianceSettings,
+} from "@/lib/supabase/compliance-db";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { useChecklistAreasStorage } from "@/lib/hooks/use-checklist-areas-storage";
 import { useChecklistDevicesStorage } from "@/lib/hooks/use-checklist-devices-storage";
@@ -79,6 +84,13 @@ import type { RestaurantStaffRow } from "@/lib/types/staff";
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
+function isToday(iso: string): boolean {
+  const d = new Date(iso);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  return !Number.isNaN(d.getTime()) && d >= start;
+}
+
 function formatWhen(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("de-DE", {
@@ -97,6 +109,7 @@ export function StaffTodosScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "staff_todos");
+  const canReadCompliance = hasModuleRead(has, "compliance");
   const canCreate = hasModuleCreate(has, "staff_todos");
   const canUpdate = hasModuleUpdate(has, "staff_todos");
 
@@ -107,6 +120,8 @@ export function StaffTodosScreen() {
   const [staffList, setStaffList] = useState<RestaurantStaffRow[]>([]);
   const [todos, setTodos] = useState<RestaurantStaffTodoRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [capturesToday, setCapturesToday] = useState(0);
+  const [showDueReminders, setShowDueReminders] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
 
   const [search, setSearch] = useState("");
@@ -131,16 +146,37 @@ export function StaffTodosScreen() {
       return;
     }
     setLoading(true);
-    const [todoRes, staffRes] = await Promise.all([
+    const [todoRes, staffRes, recordsRes, settingsRes] = await Promise.all([
       fetchStaffTodosForRestaurant(restaurantId),
       fetchStaffForRestaurant(restaurantId),
+      canReadCompliance
+        ? fetchComplianceRecords(restaurantId, { limit: 500 })
+        : Promise.resolve({ data: [], error: null }),
+      fetchComplianceSettings(restaurantId),
     ]);
     setLoading(false);
     if (todoRes.error && !isMissingSchemaError(todoRes.error)) toast.error(todoRes.error);
     else setTodos(todoRes.data);
     if (staffRes.error) toast.error(staffRes.error);
     else setStaffList(staffRes.data);
-  }, [restaurantId, canRead]);
+
+    let todayCaptures = 0;
+    for (const todo of todoRes.data) {
+      for (const c of todo.completions ?? []) {
+        if (c.completed_at && !c.reopened_at && isToday(c.completed_at)) {
+          todayCaptures += 1;
+        }
+      }
+    }
+    if (canReadCompliance && !recordsRes.error) {
+      todayCaptures += recordsRes.data.filter((r) => isToday(r.performed_at)).length;
+    }
+    setCapturesToday(todayCaptures);
+
+    if (!settingsRes.error) {
+      setShowDueReminders(settingsRes.data?.show_due_reminders ?? true);
+    }
+  }, [restaurantId, canRead, canReadCompliance]);
 
   useEffect(() => {
     void reload();
@@ -286,7 +322,7 @@ export function StaffTodosScreen() {
   };
 
   if (!permissionsLoading && !canRead) {
-    return <ModuleAccessDenied label="ToDo-Listen" />;
+    return <ModuleAccessDenied label="Checklisten" />;
   }
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
@@ -302,14 +338,25 @@ export function StaffTodosScreen() {
         </p>
       ) : null}
 
-      <ChecklistTaxonomyPanel
-        areasStorage={areasStorage}
-        devicesStorage={devicesStorage}
-        filterAreaId={filterAreaId}
-        onFilterAreaIdChange={setFilterAreaId}
-        filterDeviceId={filterDeviceId}
-        onFilterDeviceIdChange={setFilterDeviceId}
-        canManage={canUpdate}
+      <ChecklistenTodosOverviewSection
+        loading={loading}
+        todos={todos}
+        capturesToday={capturesToday}
+        showDueReminders={showDueReminders}
+        canReadTodos={canRead}
+        canReadCompliance={canReadCompliance}
+        taxonomySlot={
+          <ChecklistTaxonomyPanel
+            layout="inline"
+            areasStorage={areasStorage}
+            devicesStorage={devicesStorage}
+            filterAreaId={filterAreaId}
+            onFilterAreaIdChange={setFilterAreaId}
+            filterDeviceId={filterDeviceId}
+            onFilterDeviceIdChange={setFilterDeviceId}
+            canManage={canUpdate}
+          />
+        }
       />
 
       <div className={cn("mb-4", moduleSearchFilterRowClassName)}>
@@ -544,6 +591,9 @@ export function StaffTodosScreen() {
         positionTags={positionTags}
         checklistAreas={areasStorage.items}
         checklistDevices={devicesStorage.items}
+        canManageChecklistTaxonomy={canUpdate}
+        onAddChecklistArea={areasStorage.add}
+        onUpsertChecklistDevice={devicesStorage.upsert}
         onSaved={() => void reload()}
       />
     </div>

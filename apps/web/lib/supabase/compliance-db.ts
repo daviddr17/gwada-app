@@ -490,21 +490,22 @@ export async function fetchComplianceSettings(
 export async function upsertComplianceSettings(
   restaurantId: string,
   input: {
-    requireCorrectiveOnDeviation: boolean;
+    /** Standard für neue Temperatur-ToDos — wirkt nicht rückwirkend auf bestehende ToDos. */
+    requireCorrectiveOnDeviation?: boolean;
     showDueReminders?: boolean;
   },
 ): Promise<{ error: string | null }> {
   const supabase = createSupabaseBrowserClient();
-  const { error } = await supabase.from("restaurant_compliance_settings").upsert(
-    {
-      restaurant_id: restaurantId,
-      require_corrective_on_deviation: input.requireCorrectiveOnDeviation,
-      ...(input.showDueReminders !== undefined
-        ? { show_due_reminders: input.showDueReminders }
-        : {}),
-    },
-    { onConflict: "restaurant_id" },
-  );
+  const row: Record<string, unknown> = { restaurant_id: restaurantId };
+  if (input.requireCorrectiveOnDeviation !== undefined) {
+    row.require_corrective_on_deviation = input.requireCorrectiveOnDeviation;
+  }
+  if (input.showDueReminders !== undefined) {
+    row.show_due_reminders = input.showDueReminders;
+  }
+  const { error } = await supabase
+    .from("restaurant_compliance_settings")
+    .upsert(row, { onConflict: "restaurant_id" });
   return { error: mapError(error) };
 }
 

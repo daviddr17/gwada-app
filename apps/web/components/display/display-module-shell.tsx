@@ -68,6 +68,14 @@ export function DisplayModuleShell({
   const activeMeta = modules.find((m) => m.id === activeModule);
   const activeLabel = activeMeta?.label ?? activeModule;
 
+  const todoBadge = (
+    <DisplayStaffTodoBadge
+      count={todoBadgeCount ?? 0}
+      urgency={todoBadgeUrgency}
+      onChanged={onTodoChanged}
+    />
+  );
+
   const moduleTrailing =
     canSwitch && modules.length > 1 ? (
       <Select
@@ -107,7 +115,7 @@ export function DisplayModuleShell({
 
   return (
     <div className={displayChromeShellClassName}>
-      <DisplayChromeHeader trailing={moduleTrailing}>
+      <DisplayChromeHeader trailing={<>{todoBadge}{moduleTrailing}</>}>
         <DisplayStaffLine
           staff={staff}
           suffix={staffSuffix}
@@ -136,13 +144,6 @@ export function DisplayModuleShell({
         displayName={displayName}
         showLogout={!locked}
         onLogout={onLogout}
-        todoBadge={
-          <DisplayStaffTodoBadge
-            count={todoBadgeCount ?? 0}
-            urgency={todoBadgeUrgency}
-            onChanged={onTodoChanged}
-          />
-        }
       />
     </div>
   );

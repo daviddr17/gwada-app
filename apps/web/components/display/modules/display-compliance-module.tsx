@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   DisplayTodoCaptureFields,
   EMPTY_DISPLAY_TODO_CAPTURE,
-  displayTodoCapturePayloadForComplete,
-  displayTodoShowsCaptureFields,
+  displayTodoCapturePayloadForTodo,
+  displayTodoShowsCaptureFieldsForTodo,
+  effectiveCaptureTypeForTodo,
   buildStaffTodoLimitsLabel,
   type DisplayTodoCaptureState,
 } from "@/components/display/display-todo-capture-fields";
@@ -27,6 +28,7 @@ import { staffTodoCaptureLabel, staffTodoRecurrenceLabel } from "@/lib/staff/sta
 import {
   evaluateStaffTodoCapture,
   resolveStaffTodoCaptureLimits,
+  captureRequiresCorrectiveOnDeviation,
 } from "@/lib/staff/staff-todo-capture";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -83,15 +85,9 @@ export function DisplayComplianceModule() {
     [active],
   );
 
-  const captureEvaluation = useMemo(() => {
-    if (!active) return null;
-    const payload = displayTodoCapturePayloadForComplete(active.capture_type, capture);
-    return evaluateStaffTodoCapture(active, payload);
-  }, [active, capture]);
-
-  const showCorrective = Boolean(
-    captureEvaluation?.has_deviation && active?.require_corrective_on_deviation,
-  );
+  const correctiveRequired = active
+    ? captureRequiresCorrectiveOnDeviation(active, limits)
+    : false;
 
   const openTodo = (todo: DisplayTodoClient) => {
     setActive(todo);
@@ -101,10 +97,7 @@ export function DisplayComplianceModule() {
 
   const save = async () => {
     if (!active) return;
-    const capturePayload = displayTodoCapturePayloadForComplete(
-      active.capture_type,
-      capture,
-    );
+    const capturePayload = displayTodoCapturePayloadForTodo(active, capture);
     const evaluation = evaluateStaffTodoCapture(active, capturePayload);
     if (!evaluation.ok) {
       toast.error(displayTodoErrorMessage(evaluation.error));
@@ -164,15 +157,15 @@ export function DisplayComplianceModule() {
           <DisplayTodoContextBadges todo={active} className="mt-2" />
         </div>
         <DisplayTodoCaptureFields
-          captureType={active.capture_type}
+          captureType={effectiveCaptureTypeForTodo(active)}
           limits={limits}
           limitsLabel={buildStaffTodoLimitsLabel(active)}
           values={capture}
           onChange={setCapture}
-          showCorrective={showCorrective}
-          large
+          correctiveRequired={correctiveRequired}
+          variant="display"
         />
-        {active.capture_type === "boolean" ? (
+        {effectiveCaptureTypeForTodo(active) === "boolean" ? (
           <p className="text-sm text-muted-foreground">
             Mit „Eintrag speichern“ bestätigen Sie, dass der Punkt erledigt ist.
           </p>

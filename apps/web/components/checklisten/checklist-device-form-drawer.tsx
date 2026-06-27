@@ -28,7 +28,7 @@ type ChecklistDeviceFormDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   device: RestaurantChecklistDeviceRow | null;
-  areas: ChecklistAreaDefinition[];
+  areas: readonly ChecklistAreaDefinition[];
   onSave: (
     input: ChecklistDeviceUpsertInput,
     deviceId?: string | null,

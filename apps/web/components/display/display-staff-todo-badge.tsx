@@ -243,11 +243,11 @@ export function DisplayStaffTodoBadge({
         patchTodo(todo.id, {
           done_for_staff: true,
           status: "done",
-          captured_numeric: capturePayload.captured_numeric ?? null,
-          captured_text: capturePayload.captured_text ?? null,
+          captured_numeric: evaluation.captured_numeric,
+          captured_text: evaluation.captured_text,
           completion_note: note,
           within_limits: evaluation.within_limits,
-          corrective_action: capturePayload.corrective_action ?? null,
+          corrective_action: evaluation.corrective_action,
         });
       } else {
         const next = todos.filter((t) => t.id !== todo.id);

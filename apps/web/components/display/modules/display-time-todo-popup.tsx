@@ -170,10 +170,10 @@ export function DisplayTimeTodoPopup({
                     targetMin={todo.target_min}
                     targetMax={todo.target_max}
                     checklistDevice={todo.checklist_device}
-                    capturedNumeric={completedCapturePayload.captured_numeric ?? null}
-                    capturedText={completedCapturePayload.captured_text ?? null}
+                    capturedNumeric={completedEvaluation?.captured_numeric ?? null}
+                    capturedText={completedEvaluation?.captured_text ?? null}
                     withinLimits={completedEvaluation?.within_limits ?? null}
-                    correctiveAction={completedCapturePayload.corrective_action ?? null}
+                    correctiveAction={completedEvaluation?.corrective_action ?? null}
                     completionNote={completionNote.trim() || null}
                   />
                 </div>

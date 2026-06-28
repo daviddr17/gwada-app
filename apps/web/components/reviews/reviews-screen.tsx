@@ -94,7 +94,6 @@ import {
 import {
   markAllReviewsReadClient,
   markReviewReadBatchClient,
-  markReviewUnreadClient,
 } from "@/lib/reviews/fetch-review-read-client";
 import type { ReviewReadFilter } from "@/lib/reviews/review-read-state";
 import { reviewReadLookupKey } from "@/lib/reviews/review-read-state";
@@ -1058,28 +1057,6 @@ export function ReviewsScreen() {
     [readLocal],
   );
 
-  const markReviewUnread = useCallback(
-    async (review: UnifiedReview) => {
-      if (!restaurantId || reviewIsUnread(review)) return;
-      const key = reviewReadLookupKey(review.platform, review.id);
-      setReadLocal((prev) => ({ ...prev, [key]: true }));
-      const { ok, error } = await markReviewUnreadClient({
-        restaurantId,
-        platform: review.platform,
-        reviewId: review.id,
-      });
-      if (!ok) {
-        setReadLocal((prev) => {
-          const next = { ...prev };
-          delete next[key];
-          return next;
-        });
-        toast.error(error ?? "Konnte nicht als ungelesen markieren.");
-      }
-    },
-    [restaurantId, reviewIsUnread],
-  );
-
   const reviewsWithReadState = useMemo(
     () =>
       allReviews.map((review) => ({
@@ -1174,7 +1151,6 @@ export function ReviewsScreen() {
         isUnread: review.isUnread,
         visibilityBusy: visibilityBusyKey === busyKey,
         pinBusy: pinBusyKey === busyKey,
-        onMarkUnread: () => void markReviewUnread(review),
         onProtocol:
           review.platform === "gwada"
             ? () => setProtocolReview(review)
@@ -1201,7 +1177,6 @@ export function ReviewsScreen() {
     [
       visibilityBusyKey,
       pinBusyKey,
-      markReviewUnread,
       openReservationDrawer,
       toggleReviewVisibility,
       toggleReviewPin,

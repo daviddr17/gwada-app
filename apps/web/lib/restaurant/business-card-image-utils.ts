@@ -91,6 +91,24 @@ export function coverImageRect(
   return { sx, sy, sWidth, sHeight };
 }
 
+/** Contain: ganzes Bild sichtbar, zentriert (wie object-contain). */
+export function containImageRect(
+  imgW: number,
+  imgH: number,
+  boxW: number,
+  boxH: number,
+): { dx: number; dy: number; dw: number; dh: number } {
+  const scale = Math.min(boxW / imgW, boxH / imgH);
+  const dw = imgW * scale;
+  const dh = imgH * scale;
+  return {
+    dx: (boxW - dw) / 2,
+    dy: (boxH - dh) / 2,
+    dw,
+    dh,
+  };
+}
+
 export async function cropImageToDataUrl(
   source: LoadedCardImage,
   boxW: number,
@@ -134,6 +152,51 @@ export async function cropImageToDataUrl(
       });
     };
     img.onerror = () => reject(new Error("crop_failed"));
+    img.src = source.dataUrl;
+  });
+}
+
+export async function containImageToDataUrl(
+  source: LoadedCardImage,
+  boxW: number,
+  boxH: number,
+  opts?: { background?: string },
+): Promise<LoadedCardImage> {
+  const { dx, dy, dw, dh } = containImageRect(
+    source.width,
+    source.height,
+    boxW,
+    boxH,
+  );
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(boxW));
+      canvas.height = Math.max(1, Math.round(boxH));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("canvas_unavailable"));
+        return;
+      }
+      if (opts?.background) {
+        ctx.fillStyle = opts.background;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      ctx.drawImage(img, dx, dy, dw, dh);
+      const usePng = source.format === "PNG";
+      const dataUrl = usePng
+        ? canvas.toDataURL("image/png")
+        : canvas.toDataURL("image/jpeg", 0.92);
+      resolve({
+        dataUrl,
+        format: usePng ? "PNG" : "JPEG",
+        width: canvas.width,
+        height: canvas.height,
+      });
+    };
+    img.onerror = () => reject(new Error("contain_failed"));
     img.src = source.dataUrl;
   });
 }

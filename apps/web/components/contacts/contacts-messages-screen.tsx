@@ -26,10 +26,18 @@ import {
   contactInboxConversationRowClassName,
   contactInboxConversationRowOpenButtonClassName,
 } from "@/components/contacts/contact-inbox-conversation-row-classes";
+import {
+  inboxUnreadAvatarClassName,
+  inboxUnreadCountBadgeClassName,
+  inboxUnreadDotClassName,
+  inboxUnreadHintLabel,
+  inboxUnreadRowBackgroundClassName,
+} from "@/lib/contact-messages/inbox-unread-hint-ui";
 import { ContactThreadHeaderAvatar } from "@/components/contacts/contact-thread-header-avatar";
 import { ContactConversationsReadFilter } from "@/components/contacts/contact-conversations-read-filter";
 import { ContactConversationsSearchBar } from "@/components/contacts/contact-conversations-search-bar";
 import { toast } from "sonner";
+import { ContactMessageProtocolDrawer } from "@/components/contacts/contact-message-protocol-drawer";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { InboxThreadAssignContactSheet } from "@/components/contacts/inbox-thread-assign-contact-sheet";
 import {
@@ -304,6 +312,7 @@ export function ContactsMessagesScreen() {
     useWorkspaceRestaurantUuid();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "contacts");
+  const canViewMessageProtocol = has("contacts.messages.protocol");
   const { profile } = useRestaurantProfile();
   const defaultCountryIso2 = useMemo(
     () => resolveCountryIso2FromLabel(profile.country),
@@ -365,6 +374,9 @@ export function ContactsMessagesScreen() {
     string | null
   >(null);
   const [contactDrawerOpen, setContactDrawerOpen] = useState(false);
+  const [messageProtocolId, setMessageProtocolId] = useState<string | null>(
+    null,
+  );
   const [editContactId, setEditContactId] = useState<string | null>(null);
   const [contactCreateDraft, setContactCreateDraft] =
     useState<ContactCreateDraft | null>(null);
@@ -807,6 +819,7 @@ export function ContactsMessagesScreen() {
         unread_count: unreadCount,
         whatsapp_unread_count: isUnread ? unreadCount : 0,
         email_unread_count: isUnread ? unreadCount : 0,
+        unread_hint: isUnread ? ("channel" as const) : null,
       };
       setConversations((prev) =>
         prev.map((c) =>
@@ -823,6 +836,7 @@ export function ContactsMessagesScreen() {
   const markConversationRead = useCallback(
     async (conversationKey: string) => {
       if (!restaurantId) return;
+      patchConversationReadState(conversationKey, false, 0);
       const result = isLinkedContactId(conversationKey)
         ? await markUnifiedInboxConversationReadClient({
             restaurantId,
@@ -840,10 +854,10 @@ export function ContactsMessagesScreen() {
                 : metaPlatformFromPseudoContactId(conversationKey) ?? "gwada",
           });
       if (!result.ok && result.error) {
+        patchConversationReadState(conversationKey, true, 1);
         toast.error(contactInboxMarkReadErrorMessage(result.error));
         return;
       }
-      patchConversationReadState(conversationKey, false, 0);
       if (
         isEmailPseudoContactId(conversationKey) ||
         inboxFilter === "email" ||
@@ -2373,6 +2387,8 @@ export function ContactsMessagesScreen() {
               onReservationOpen={(id) => void openReservationFromMessage(id)}
               wahaReactions={wahaReactionsConfig}
               metaReactions={metaReactionsConfig}
+              canViewProtocol={canViewMessageProtocol}
+              onOpenProtocol={setMessageProtocolId}
             />
           </div>
         </ContactInboxThreadOverlay>
@@ -2464,12 +2480,14 @@ export function ContactsMessagesScreen() {
                 {paginatedConversations.map((c) => {
                   const listName = wahaConversationDisplayName(c);
                   const unread = c.is_unread;
+                  const unreadHint = c.unread_hint ?? null;
+                  const hintLabel = inboxUnreadHintLabel(unreadHint);
                   return (
                   <li
                     key={c.contact_id}
                     className={cn(
                       contactInboxConversationRowClassName,
-                      unread && "bg-accent/[0.04]",
+                      inboxUnreadRowBackgroundClassName(unread, unreadHint),
                     )}
                   >
                     <button
@@ -2481,16 +2499,17 @@ export function ContactsMessagesScreen() {
                     <div
                       className={cn(
                         "relative z-10 flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold pointer-events-none",
-                        unread
-                          ? "bg-accent/25 text-accent"
-                          : "bg-accent/15 text-accent",
+                        inboxUnreadAvatarClassName(unread, unreadHint),
                       )}
                       aria-hidden
                     >
                       {listName.slice(0, 1).toUpperCase()}
                       {unread ? (
                         <span
-                          className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-card"
+                          className={cn(
+                            "absolute -right-0.5 -top-0.5 size-2.5 rounded-full",
+                            inboxUnreadDotClassName(unreadHint),
+                          )}
                           aria-hidden
                         />
                       ) : null}
@@ -2534,16 +2553,21 @@ export function ContactsMessagesScreen() {
                             variant="meta"
                           />
                           {unread && c.unread_count > 0 ? (
-                            <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-accent-foreground">
+                            <span
+                              className={inboxUnreadCountBadgeClassName(unreadHint)}
+                              title={hintLabel ?? undefined}
+                            >
                               {c.unread_count > 99 ? "99+" : c.unread_count}
                             </span>
                           ) : null}
                           <span
                             className={cn(
                               "text-[10px] tabular-nums",
-                              unread
+                              unread && unreadHint !== "gwada_only"
                                 ? "font-medium text-accent"
-                                : "text-muted-foreground",
+                                : unread
+                                  ? "font-medium text-muted-foreground"
+                                  : "text-muted-foreground",
                             )}
                           >
                             {formatWhen(c.last_at)}
@@ -2656,6 +2680,11 @@ export function ContactsMessagesScreen() {
                             </span>
                           )}
                         </p>
+                        {hintLabel ? (
+                          <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                            {hintLabel}
+                          </p>
+                        ) : null}
                         {c.has_reservation_link && c.last_reservation_id ? (
                           <Badge
                             variant="outline"
@@ -2701,6 +2730,15 @@ export function ContactsMessagesScreen() {
           setReservationForDrawer(null);
           if (contactParam) void loadThread();
         }}
+      />
+
+      <ContactMessageProtocolDrawer
+        open={messageProtocolId !== null}
+        onOpenChange={(open) => {
+          if (!open) setMessageProtocolId(null);
+        }}
+        restaurantId={restaurantId}
+        messageId={messageProtocolId}
       />
 
       <ContactEditDrawer

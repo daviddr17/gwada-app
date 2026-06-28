@@ -110,7 +110,11 @@ async function buildMessagesModule(
     subtitle: row.preview,
     href: row.href,
     at: row.lastAt,
-    meta: { contactId: row.contactId, platform: row.platform },
+    meta: {
+      contactId: row.contactId,
+      platform: row.platform,
+      ...(row.unreadHint ? { unreadHint: row.unreadHint } : {}),
+    },
   }));
 
   return {
@@ -139,14 +143,13 @@ async function buildReviewsModule(
     .map((r) => ({
       id: r.id,
       title: r.authorName?.trim() || "Bewertung",
-      subtitle:
-        r.commentPreview ??
-        `${"★".repeat(Math.round(r.rating))}${"☆".repeat(5 - Math.round(r.rating))}`,
+      subtitle: r.commentPreview ?? null,
       href: r.href,
       at: r.createdAt,
       meta: {
         platform: r.platform,
         reviewId: r.id,
+        rating: String(r.rating),
         ...(r.contactId ? { contactId: r.contactId } : {}),
       },
     }));

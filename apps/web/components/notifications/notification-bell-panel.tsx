@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { Check, CheckCheck, Settings } from "lucide-react";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
+import {
+  parseReviewNotificationRating,
+  ReviewRatingStars,
+} from "@/components/reviews/review-rating-stars";
 import { Button } from "@/components/ui/button";
 import {
   CONTACT_MESSAGE_PLATFORM_LABELS,
@@ -12,6 +16,7 @@ import { NOTIFICATION_MODULES } from "@/lib/notifications/notification-modules";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import { inboxUnreadHintLabel } from "@/lib/contact-messages/inbox-unread-hint-ui";
 import { cn } from "@/lib/utils";
 
 function formatNotificationWhen(iso: string): string {
@@ -112,6 +117,14 @@ export function NotificationBellPanel({
                       ? item.meta.platform
                       : null;
                   const fromContact = isLinkedContactId(item.meta?.contactId ?? "");
+                  const reviewRating =
+                    mod.id === "reviews"
+                      ? parseReviewNotificationRating(item.meta?.rating)
+                      : null;
+                  const gwadaOnlyHint =
+                    mod.id === "messages" && item.meta?.unreadHint === "gwada_only"
+                      ? inboxUnreadHintLabel("gwada_only")
+                      : null;
 
                   return (
                   <li key={`${mod.id}:${item.id}`}>
@@ -119,7 +132,9 @@ export function NotificationBellPanel({
                       className={cn(
                         "group flex items-stretch gap-1 rounded-xl",
                         fromContact
-                          ? "border border-accent/15 bg-accent/10 hover:bg-accent/15"
+                          ? gwadaOnlyHint
+                            ? "border border-border/50 bg-muted/25 hover:bg-muted/35"
+                            : "border border-accent/15 bg-accent/10 hover:bg-accent/15"
                           : "hover:bg-muted/50",
                       )}
                     >
@@ -154,12 +169,22 @@ export function NotificationBellPanel({
                           </span>
                         ) : null}
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium leading-snug text-foreground">
-                            {item.title}
-                          </p>
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <p className="min-w-0 truncate text-sm font-medium leading-snug text-foreground">
+                              {item.title}
+                            </p>
+                            {reviewRating != null ? (
+                              <ReviewRatingStars rating={reviewRating} size="xs" />
+                            ) : null}
+                          </div>
                           {item.subtitle ? (
                             <p className="line-clamp-2 text-xs text-muted-foreground">
                               {item.subtitle}
+                            </p>
+                          ) : null}
+                          {gwadaOnlyHint ? (
+                            <p className="mt-0.5 text-[10px] text-muted-foreground/90">
+                              {gwadaOnlyHint}
                             </p>
                           ) : null}
                         </div>

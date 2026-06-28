@@ -1,23 +1,32 @@
 import { openingHoursWeekdayRows } from "@/lib/opening-hours/embed-display-utils";
 import { WEEKDAY_LABEL_DE } from "@/lib/constants/restaurant-profile";
+import type {
+  BusinessCardElementType,
+  BusinessCardOptions,
+} from "@/lib/restaurant/business-card-design";
 import type { DayHours, RestaurantProfile, Weekday } from "@/lib/types/restaurant";
 
+export {
+  BUSINESS_CARD_FORMATS,
+  BUSINESS_CARD_FORMAT_OPTIONS,
+  businessCardFormatAspect,
+  businessCardFormatById,
+  businessCardOptionsFromDesign,
+  createDefaultBusinessCardDesign,
+  defaultBusinessCardColors,
+  loadStoredBusinessCardDesign,
+  saveStoredBusinessCardDesign,
+  type BusinessCardDesign,
+  type BusinessCardFormatId,
+} from "@/lib/restaurant/business-card-design";
+
+/** Legacy-Default EU 85×55 — Prefer `businessCardFormatById`. */
 export const BUSINESS_CARD_WIDTH_MM = 85;
 export const BUSINESS_CARD_HEIGHT_MM = 55;
 export const BUSINESS_CARD_ASPECT = BUSINESS_CARD_WIDTH_MM / BUSINESS_CARD_HEIGHT_MM;
 
-/** Max Öffnungszeiten-Zeilen auf der Rückseite (Preview + PDF). */
+/** Max Öffnungszeiten-Zeilen auf der Karte (Preview + PDF). */
 export const BUSINESS_CARD_MAX_HOUR_ROWS = 4;
-
-export type BusinessCardOptions = {
-  showCover: boolean;
-  showLogo: boolean;
-  showAddress: boolean;
-  showPhone: boolean;
-  showWebsite: boolean;
-  showOpeningHours: boolean;
-  showGwadaFooter: boolean;
-};
 
 export const DEFAULT_BUSINESS_CARD_OPTIONS: BusinessCardOptions = {
   showCover: true,
@@ -27,7 +36,11 @@ export const DEFAULT_BUSINESS_CARD_OPTIONS: BusinessCardOptions = {
   showWebsite: true,
   showOpeningHours: true,
   showGwadaFooter: true,
+  showGwadaFavicon: false,
+  showQrCode: false,
 };
+
+export type { BusinessCardOptions };
 
 export type BusinessCardContent = {
   name: string;
@@ -123,4 +136,43 @@ export function buildBusinessCardContent(
 export function businessCardPdfFileName(slug: string): string {
   const safe = slug.trim().replace(/[^\w.-]+/g, "-").replace(/^-+|-+$/g, "");
   return `Visitenkarte-${safe || "restaurant"}.pdf`;
+}
+
+/** Hinweis, wenn Stammdaten für ein Inhalts-Element fehlen — dann keine Seiten-Auswahl. */
+export function businessCardElementMissingDataHint(
+  type: BusinessCardElementType,
+  profile: RestaurantProfile,
+  opts: { hasCoverImage: boolean },
+): string | null {
+  switch (type) {
+    case "address": {
+      const hasAddress = [
+        profile.street,
+        profile.postalCode,
+        profile.city,
+        profile.country,
+      ].some((part) => Boolean(part?.trim()));
+      return hasAddress ? null : "Anschrift in Stammdaten hinterlegen.";
+    }
+    case "phone":
+      return profile.phone?.trim()
+        ? null
+        : "Telefonnummer in Stammdaten hinterlegen.";
+    case "website":
+      return profile.website?.trim()
+        ? null
+        : "Website in Stammdaten hinterlegen.";
+    case "cover":
+      return opts.hasCoverImage ? null : "Titelbild in Stammdaten hochladen.";
+    case "qrCode":
+      return profile.website?.trim()
+        ? null
+        : "Website in Stammdaten hinterlegen.";
+    case "openingHours":
+      return compactOpeningHourRows(profile.weeklyHours).length > 0
+        ? null
+        : "Öffnungszeiten in Stammdaten hinterlegen.";
+    default:
+      return null;
+  }
 }

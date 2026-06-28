@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Filter, Pencil, Plus, Search, Check, ScrollText, RotateCcw } from "lucide-react";
+import { Filter, Pencil, Plus, Search, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import {
 } from "@/components/staff/todos/staff-todos-filter-drawer";
 import { StaffTodoFormDrawer } from "@/components/staff/todos/staff-todo-form-drawer";
 import { StaffTodoDetailDrawer } from "@/components/staff/todos/staff-todo-detail-drawer";
-import { StaffTodosProtocolDrawer } from "@/components/staff/todos/staff-todos-protocol-drawer";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
 import { ChecklistTaxonomyPanel } from "@/components/checklisten/checklist-taxonomy-panel";
 import { ChecklistenTodosOverviewSection } from "@/components/checklisten/checklisten-todos-overview-section";
@@ -140,7 +139,6 @@ export function StaffTodosScreen() {
 
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [protocolOpen, setProtocolOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterPriority, setFilterPriority] = useState("all");
   const [filterAssignee, setFilterAssignee] = useState("all");
@@ -523,16 +521,6 @@ export function StaffTodosScreen() {
             className={moduleSearchInputClassName}
           />
         </div>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-lg"
-          className={moduleSearchFilterButtonClassName}
-          onClick={() => setProtocolOpen(true)}
-          aria-label="ToDo-Protokoll"
-        >
-          <ScrollText className="size-4" />
-        </Button>
         <div className={moduleSearchFilterButtonWrapClassName}>
           <Button
             type="button"
@@ -784,12 +772,6 @@ export function StaffTodosScreen() {
         filterDeviceId={filterDeviceId}
         onFilterDeviceIdChange={setFilterDeviceId}
         deviceOptions={deviceFilterOptions}
-      />
-
-      <StaffTodosProtocolDrawer
-        open={protocolOpen}
-        onOpenChange={setProtocolOpen}
-        restaurantId={restaurantId}
       />
 
       <StaffTodoDetailDrawer

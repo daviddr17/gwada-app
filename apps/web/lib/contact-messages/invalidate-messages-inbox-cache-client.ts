@@ -25,6 +25,7 @@ export function invalidateMessagesInboxAfterMarkRead(params: {
       unread_count: 0,
       whatsapp_unread_count: 0,
       email_unread_count: 0,
+      unread_hint: null,
     });
     deleteContactThreadCacheEntry(restaurantId, contactId!);
   }

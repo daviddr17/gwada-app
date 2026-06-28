@@ -6,7 +6,7 @@ export const GWADA_UNIFIED_INBOX_CACHE_UPDATED_EVENT =
   "gwada:unified-inbox-cache-updated";
 
 /** Erhöhen, wenn Listen-Format wechselt (z. B. DB-only statt Live-Merge). */
-export const UNIFIED_INBOX_CACHE_VERSION = 3;
+export const UNIFIED_INBOX_CACHE_VERSION = 4;
 
 const SESSION_KEY_PREFIX = `gwada:unified-inbox:v${UNIFIED_INBOX_CACHE_VERSION}:`;
 /** Überlebt Soft-Nav und Seiten-Reload in derselben Browser-Session. */
@@ -93,7 +93,7 @@ export function peekUnifiedInboxCacheAgeMs(restaurantId: string): number | null 
 
 export type UnifiedInboxReadStatePatch = Pick<
   ContactConversationPreview,
-  "is_unread" | "unread_count"
+  "is_unread" | "unread_count" | "unread_hint"
 > & {
   whatsapp_unread_count?: number;
   email_unread_count?: number;
@@ -126,6 +126,7 @@ export function markAllUnifiedInboxCacheRead(restaurantId: string): void {
     unread_count: 0,
     whatsapp_unread_count: 0,
     email_unread_count: 0,
+    unread_hint: null,
   }));
 
   setUnifiedInboxCache(restaurantId, conversations);

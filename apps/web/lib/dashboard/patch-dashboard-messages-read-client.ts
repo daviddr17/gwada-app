@@ -13,6 +13,7 @@ export function patchConversationsReadState(
       unread_count: 0,
       whatsapp_unread_count: 0,
       email_unread_count: 0,
+      unread_hint: null,
     }));
   }
 
@@ -27,6 +28,7 @@ export function patchConversationsReadState(
           unread_count: 0,
           whatsapp_unread_count: 0,
           email_unread_count: 0,
+          unread_hint: null,
         }
       : c,
   );

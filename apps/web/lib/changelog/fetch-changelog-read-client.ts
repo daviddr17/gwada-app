@@ -1,8 +1,12 @@
-import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
+import {
+  dispatchNotificationModuleCleared,
+  dispatchNotificationsRefresh,
+} from "@/lib/notifications/notification-events";
 
 export async function markAllChangelogReadClient(
   restaurantId: string,
 ): Promise<{ ok: boolean; error: string | null }> {
+  dispatchNotificationModuleCleared(restaurantId, "changelog");
   try {
     const res = await fetch("/api/changelog/read-all", {
       method: "POST",

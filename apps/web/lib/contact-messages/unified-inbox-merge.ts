@@ -7,6 +7,7 @@ import {
   metaPlatformFromPseudoContactId,
 } from "@/lib/contact-messages/meta-pseudo-contact";
 import { isWahaPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import { pickConversationUnreadHint } from "@/lib/contact-messages/conversation-read-state";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 
 function pickNewer(
@@ -50,6 +51,10 @@ function mergePreviewFields(
       newer.whatsapp_unread_count ?? 0,
       older.whatsapp_unread_count ?? 0,
     ),
+    unread_hint: pickConversationUnreadHint([
+      newer.unread_hint,
+      older.unread_hint,
+    ]),
   };
 }
 

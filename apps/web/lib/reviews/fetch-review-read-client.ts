@@ -1,5 +1,8 @@
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
-import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
+import {
+  dispatchNotificationModuleCleared,
+  dispatchNotificationsRefresh,
+} from "@/lib/notifications/notification-events";
 
 export async function markReviewReadClient(params: {
   restaurantId: string;
@@ -47,6 +50,7 @@ export async function markReviewUnreadClient(params: {
 export async function markAllReviewsReadClient(
   restaurantId: string,
 ): Promise<{ ok: boolean; error: string | null }> {
+  dispatchNotificationModuleCleared(restaurantId, "reviews");
   try {
     const res = await fetch("/api/reviews/read-all", {
       method: "POST",

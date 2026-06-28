@@ -1,10 +1,20 @@
 import {
-  BUSINESS_CARD_HEIGHT_MM,
-  BUSINESS_CARD_WIDTH_MM,
-  type BusinessCardContent,
-  type BusinessCardOptions,
-} from "@/lib/restaurant/business-card-layout";
+  activeDecorationsForSide,
+  activeElementsForSide,
+  BUSINESS_CARD_LOGO_IMAGE_INSET_PCT,
+  BUSINESS_CARD_LOGO_INNER_SCALE,
+  businessCardFormatById,
+  businessCardFontSizePt,
+  businessCardOptionsFromDesign,
+  type BusinessCardDecoration,
+  type BusinessCardDesign,
+  type BusinessCardElement,
+  type BusinessCardRect,
+} from "@/lib/restaurant/business-card-design";
+import type { BusinessCardContent } from "@/lib/restaurant/business-card-layout";
+import { isBusinessCardImageDecoration } from "@/lib/restaurant/business-card-shape-decoration";
 import {
+  containImageToDataUrl,
   cropImageToDataUrl,
   loadImageForPdf,
   type LoadedCardImage,
@@ -14,8 +24,7 @@ import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 
 export type BusinessCardPdfInput = {
   content: BusinessCardContent;
-  options: BusinessCardOptions;
-  accentHex: string;
+  design: BusinessCardDesign;
   coverUrl?: string | null;
   logoUrl?: string | null;
 };
@@ -40,211 +49,297 @@ function restaurantInitials(name: string): string {
   return name.trim().slice(0, 2).toLocaleUpperCase("de-DE") || "?";
 }
 
-function drawFrontSide(
-  doc: import("jspdf").jsPDF,
-  content: BusinessCardContent,
-  accent: [number, number, number],
-) {
-  const w = BUSINESS_CARD_WIDTH_MM;
-  const h = BUSINESS_CARD_HEIGHT_MM;
-  const margin = 7;
-  const contentW = w - margin * 2;
-
-  doc.setFillColor(252, 252, 253);
-  doc.rect(0, 0, w, h, "F");
-
-  let y = margin + 2;
-
-  doc.setTextColor(18, 18, 20);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  const nameLines = doc.splitTextToSize(content.name, contentW) as string[];
-  for (const line of nameLines.slice(0, 2)) {
-    doc.text(line, margin, y);
-    y += 5.2;
-  }
-
-  doc.setFillColor(accent[0], accent[1], accent[2]);
-  doc.rect(margin, y + 0.5, 18, 0.6, "F");
-  y += 5;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(48, 48, 54);
-
-  for (const line of content.addressLines) {
-    doc.text(line, margin, y);
-    y += 3.6;
-  }
-
-  if (content.phone) {
-    doc.text(content.phone, margin, y);
-    y += 3.6;
-  }
-
-  if (content.websiteLabel) {
-    doc.setTextColor(accent[0], accent[1], accent[2]);
-    doc.text(content.websiteLabel, margin, y);
-    doc.setTextColor(48, 48, 54);
-  }
+function rectToMm(
+  rect: BusinessCardRect,
+  cardW: number,
+  cardH: number,
+): { x: number; y: number; w: number; h: number } {
+  return {
+    x: (rect.x / 100) * cardW,
+    y: (rect.y / 100) * cardH,
+    w: (rect.w / 100) * cardW,
+    h: (rect.h / 100) * cardH,
+  };
 }
 
-function drawCoverStrip(
-  doc: import("jspdf").jsPDF,
-  cover: LoadedCardImage,
-  stripH: number,
-) {
-  const w = BUSINESS_CARD_WIDTH_MM;
-  doc.addImage(cover.dataUrl, cover.format, 0, 0, w, stripH, undefined, "FAST");
-}
+const PDF_PX_PER_MM = 24;
 
-function drawLogo(
+function drawLogoInRect(
   doc: import("jspdf").jsPDF,
   logo: LoadedCardImage | null,
   accent: [number, number, number],
   initials: string,
-  cx: number,
-  cy: number,
-  radius: number,
+  initialsFontPt: number,
+  box: { x: number; y: number; w: number; h: number },
 ) {
+  const size = Math.min(box.w, box.h) * BUSINESS_CARD_LOGO_INNER_SCALE;
+  const cx = box.x + box.w / 2;
+  const cy = box.y + box.h / 2;
+  const radius = size / 2 - 0.5;
+  const ringRadius = radius + 0.45;
+  const innerSide = size * (1 - (2 * BUSINESS_CARD_LOGO_IMAGE_INSET_PCT) / 100);
+
   doc.setFillColor(255, 255, 255);
-  doc.circle(cx, cy, radius + 0.8, "F");
+  doc.circle(cx, cy, ringRadius, "F");
   doc.setDrawColor(accent[0], accent[1], accent[2]);
-  doc.setLineWidth(0.3);
-  doc.circle(cx, cy, radius + 0.8, "S");
+  doc.setLineWidth(0.25);
+  doc.circle(cx, cy, ringRadius, "S");
 
   if (logo) {
     doc.addImage(
       logo.dataUrl,
       logo.format,
-      cx - radius,
-      cy - radius,
-      radius * 2,
-      radius * 2,
+      cx - innerSide / 2,
+      cy - innerSide / 2,
+      innerSide,
+      innerSide,
       undefined,
-      "FAST",
+      "SLOW",
     );
   } else {
     doc.setFillColor(accent[0], accent[1], accent[2]);
     doc.circle(cx, cy, radius, "F");
     doc.setTextColor(255, 255, 255);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text(initials.slice(0, 2).toUpperCase(), cx, cy + 1, {
+    doc.setFontSize(initialsFontPt);
+    doc.text(initials.slice(0, 2).toUpperCase(), cx, cy + initialsFontPt * 0.04, {
       align: "center",
     });
   }
 }
 
-function drawHours(
+function drawElement(
   doc: import("jspdf").jsPDF,
-  rows: BusinessCardContent["hourRows"],
-  startY: number,
-  maxY: number,
-  accent: [number, number, number],
-): number {
-  if (!rows.length) return startY;
-
-  const margin = 7;
-  const w = BUSINESS_CARD_WIDTH_MM;
-  const contentW = w - margin * 2;
-  let y = startY;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.2);
-  doc.setTextColor(accent[0], accent[1], accent[2]);
-  doc.text("Öffnungszeiten", margin, y);
-  y += 3.5;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.8);
-  doc.setTextColor(55, 55, 60);
-
-  const lineH = 3.1;
-  for (const row of rows) {
-    if (y + lineH > maxY) break;
-    doc.setFont("helvetica", "bold");
-    doc.text(row.label, margin, y);
-    doc.setFont("helvetica", "normal");
-    const valueLines = doc.splitTextToSize(row.value, contentW - 14) as string[];
-    doc.text(valueLines[0] ?? row.value, margin + 13, y);
-    y += lineH;
-  }
-
-  return y;
-}
-
-function drawBackSide(
-  doc: import("jspdf").jsPDF,
+  element: BusinessCardElement,
   content: BusinessCardContent,
-  options: BusinessCardOptions,
+  design: BusinessCardDesign,
   accent: [number, number, number],
+  textRgb: [number, number, number],
+  mutedRgb: [number, number, number],
+  cardW: number,
+  cardH: number,
   cover: LoadedCardImage | null,
   logo: LoadedCardImage | null,
 ) {
-  const w = BUSINESS_CARD_WIDTH_MM;
-  const h = BUSINESS_CARD_HEIGHT_MM;
-  const margin = 7;
-  const footerReserve = options.showGwadaFooter ? 6 : 2;
-  const maxContentY = h - footerReserve;
+  const box = rectToMm(element.rect, cardW, cardH);
+  const padX = Math.min(box.w * 0.04, 1.2);
+  const fontPt = (factor: number) =>
+    businessCardFontSizePt(element.rect, factor, design.formatId);
 
-  doc.setFillColor(252, 252, 253);
-  doc.rect(0, 0, w, h, "F");
-
-  let y = margin;
-
-  const showCoverStrip = options.showCover && cover !== null;
-  if (showCoverStrip && cover) {
-    const stripH = 12;
-    drawCoverStrip(doc, cover, stripH);
-    y = stripH + 4;
+  switch (element.type) {
+    case "name": {
+      doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(fontPt(0.42));
+      const lines = doc.splitTextToSize(content.name, box.w - padX * 2) as string[];
+      let y = box.y + fontPt(0.42) * 0.95;
+      for (const line of lines.slice(0, 2)) {
+        doc.text(line, box.x + padX, y);
+        y += fontPt(0.42) * 0.38;
+      }
+      doc.setFillColor(accent[0], accent[1], accent[2]);
+      doc.rect(box.x + padX, y, box.w * 0.28, 0.5, "F");
+      break;
+    }
+    case "address": {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(fontPt(0.28));
+      doc.setTextColor(mutedRgb[0], mutedRgb[1], mutedRgb[2]);
+      let y = box.y + fontPt(0.28);
+      for (const line of content.addressLines) {
+        doc.text(line, box.x + padX, y);
+        y += fontPt(0.28) * 0.95;
+      }
+      break;
+    }
+    case "phone":
+      if (content.phone) {
+        doc.setFont("helvetica", "normal");
+        const fs = fontPt(0.32);
+        doc.setFontSize(fs);
+        doc.setTextColor(mutedRgb[0], mutedRgb[1], mutedRgb[2]);
+        const dims = doc.getTextDimensions(content.phone);
+        doc.text(
+          content.phone,
+          box.x + padX,
+          box.y + (box.h + dims.h) / 2,
+        );
+      }
+      break;
+    case "website":
+      if (content.websiteLabel) {
+        doc.setFont("helvetica", "normal");
+        const fs = fontPt(0.32);
+        doc.setFontSize(fs);
+        doc.setTextColor(accent[0], accent[1], accent[2]);
+        const dims = doc.getTextDimensions(content.websiteLabel);
+        doc.text(
+          content.websiteLabel,
+          box.x + padX,
+          box.y + (box.h + dims.h) / 2,
+        );
+      }
+      break;
+    case "cover":
+      if (cover) {
+        doc.addImage(
+          cover.dataUrl,
+          cover.format,
+          box.x,
+          box.y,
+          box.w,
+          box.h,
+          undefined,
+          "SLOW",
+        );
+        doc.setFillColor(accent[0], accent[1], accent[2]);
+        doc.rect(box.x, box.y + box.h - 0.4, box.w, 0.4, "F");
+      }
+      break;
+    case "logo":
+      drawLogoInRect(
+        doc,
+        logo,
+        accent,
+        restaurantInitials(content.name),
+        fontPt(0.35),
+        box,
+      );
+      break;
+    case "openingHours": {
+      if (!content.hourRows.length) break;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(fontPt(0.22));
+      doc.setTextColor(accent[0], accent[1], accent[2]);
+      doc.text("ÖFFNUNGSZEITEN", box.x + padX, box.y + fontPt(0.22));
+      let y = box.y + fontPt(0.22) + 1.2;
+      const lineH = fontPt(0.2) * 0.95;
+      doc.setFontSize(fontPt(0.2));
+      doc.setFont("helvetica", "bold");
+      let maxLabelWidth = 0;
+      for (const row of content.hourRows) {
+        maxLabelWidth = Math.max(maxLabelWidth, doc.getTextWidth(row.label));
+      }
+      const valueX = box.x + padX + maxLabelWidth + 1.2;
+      for (const row of content.hourRows) {
+        if (y > box.y + box.h - 1) break;
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(mutedRgb[0], mutedRgb[1], mutedRgb[2]);
+        doc.text(row.label, box.x + padX, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(textRgb[0], textRgb[1], textRgb[2]);
+        doc.text(row.value, valueX, y);
+        y += lineH;
+      }
+      break;
+    }
+    case "gwadaFooter": {
+      doc.setDrawColor(220, 220, 224);
+      doc.setLineWidth(0.1);
+      doc.line(box.x, box.y + 0.5, box.x + box.w, box.y + 0.5);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(fontPt(0.45));
+      doc.setTextColor(mutedRgb[0], mutedRgb[1], mutedRgb[2]);
+      doc.text("ERSTELLT MIT GWADA", box.x + box.w / 2, box.y + fontPt(0.45) + 1.2, {
+        align: "center",
+      });
+      break;
+    }
+    default:
+      break;
   }
+}
 
-  if (options.showLogo) {
-    const logoRadius = showCoverStrip ? 8 : 10;
-    const logoCy = showCoverStrip ? y + logoRadius : h * 0.32;
-    drawLogo(
+
+function drawDecoration(
+  doc: import("jspdf").jsPDF,
+  decoration: BusinessCardDecoration,
+  cardW: number,
+  cardH: number,
+) {
+  if (!isBusinessCardImageDecoration(decoration) || !decoration.dataUrl) return;
+  const box = rectToMm(decoration.rect, cardW, cardH);
+  doc.addImage(
+    decoration.dataUrl,
+    decoration.format,
+    box.x,
+    box.y,
+    box.w,
+    box.h,
+    undefined,
+    "SLOW",
+  );
+}
+
+function drawLayoutSide(
+  doc: import("jspdf").jsPDF,
+  side: "front" | "back",
+  input: {
+    content: BusinessCardContent;
+    design: BusinessCardDesign;
+    accent: [number, number, number];
+    textRgb: [number, number, number];
+    mutedRgb: [number, number, number];
+    bgRgb: [number, number, number];
+    cardW: number;
+    cardH: number;
+    cover: LoadedCardImage | null;
+    logo: LoadedCardImage | null;
+  },
+) {
+  const { cardW, cardH, bgRgb } = input;
+  doc.setFillColor(bgRgb[0], bgRgb[1], bgRgb[2]);
+  doc.rect(0, 0, cardW, cardH, "F");
+
+  const options = businessCardOptionsFromDesign(input.design);
+  const elements = activeElementsForSide(input.design, side);
+
+  for (const element of elements) {
+    if (element.type === "cover" && (!options.showCover || !input.cover)) continue;
+    if (element.type === "logo" && !options.showLogo) continue;
+    if (element.type === "address" && !contentHasAddress(input.content)) continue;
+    if (element.type === "phone" && !input.content.phone) continue;
+    if (element.type === "website" && !input.content.websiteLabel) continue;
+    if (element.type === "openingHours" && input.content.hourRows.length === 0) continue;
+
+    drawElement(
       doc,
-      logo,
-      accent,
-      restaurantInitials(content.name),
-      w / 2,
-      logoCy,
-      logoRadius,
+      element,
+      input.content,
+      input.design,
+      input.accent,
+      input.textRgb,
+      input.mutedRgb,
+      cardW,
+      cardH,
+      input.cover,
+      input.logo,
     );
-    y = logoCy + logoRadius + 4;
-  } else if (!showCoverStrip) {
-    y = margin + 2;
   }
 
-  if (content.hourRows.length > 0) {
-    const hoursStartY = options.showLogo
-      ? y
-      : showCoverStrip
-        ? y
-        : margin + 2;
-    drawHours(doc, content.hourRows, hoursStartY, maxContentY, accent);
+  for (const decoration of activeDecorationsForSide(input.design, side)) {
+    drawDecoration(doc, decoration, cardW, cardH);
   }
+}
 
-  if (options.showGwadaFooter) {
-    const footerY = h - 3.5;
-    doc.setDrawColor(230, 230, 234);
-    doc.setLineWidth(0.12);
-    doc.line(margin, footerY - 2.5, w - margin, footerY - 2.5);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.8);
-    doc.setTextColor(140, 140, 148);
-    doc.text("Erstellt mit Gwada", w / 2, footerY, { align: "center" });
-  }
+function contentHasAddress(content: BusinessCardContent): boolean {
+  return content.addressLines.length > 0;
 }
 
 export async function generateBusinessCardPdf(
   input: BusinessCardPdfInput,
 ): Promise<Blob> {
   const { jsPDF } = await import("jspdf");
-  const accent = hexToRgb(input.accentHex);
-  const { content, options } = input;
+  const format = businessCardFormatById(input.design.formatId);
+  const cardW = format.widthMm;
+  const cardH = format.heightMm;
 
+  const accent = hexToRgb(input.design.colors.accent);
+  const textRgb = hexToRgb(input.design.colors.text);
+  const mutedRgb = hexToRgb(input.design.colors.muted);
+  const bgRgb = hexToRgb(input.design.colors.background);
+
+  const options = businessCardOptionsFromDesign(input.design);
   const hasCoverImage = Boolean(input.coverUrl?.trim());
   const effectiveShowCover = options.showCover && hasCoverImage;
 
@@ -255,28 +350,60 @@ export async function generateBusinessCardPdf(
     ? await loadImageForPdf(input.logoUrl)
     : null;
 
-  const pxPerMm = 12;
+  const pxPerMm = PDF_PX_PER_MM;
+  const coverElement = input.design.elements.find((e) => e.type === "cover");
+  const coverRect = coverElement?.enabled
+    ? rectToMm(coverElement.rect, cardW, cardH)
+    : { w: cardW, h: 12 };
+
   const cover =
     coverSource &&
     (await cropImageToDataUrl(
       coverSource,
-      BUSINESS_CARD_WIDTH_MM * pxPerMm,
-      12 * pxPerMm,
+      coverRect.w * pxPerMm,
+      coverRect.h * pxPerMm,
     ));
+
+  const logoElement = input.design.elements.find((e) => e.type === "logo");
+  const logoRect = logoElement?.enabled
+    ? rectToMm(logoElement.rect, cardW, cardH)
+    : { w: 20, h: 20 };
+  const logoSizeMm = Math.min(logoRect.w, logoRect.h) * BUSINESS_CARD_LOGO_INNER_SCALE;
+  const logoImageMm =
+    logoSizeMm * (1 - (2 * BUSINESS_CARD_LOGO_IMAGE_INSET_PCT) / 100);
+  const logoPx = Math.max(96, Math.round(logoImageMm * pxPerMm));
+
   const logo =
     logoSource &&
-    (await cropImageToDataUrl(logoSource, 20 * pxPerMm, 20 * pxPerMm));
+    (await containImageToDataUrl(logoSource, logoPx, logoPx, {
+      background: "#ffffff",
+    }));
 
   const doc = new jsPDF({
-    orientation: "landscape",
+    orientation: cardW >= cardH ? "landscape" : "portrait",
     unit: "mm",
-    format: [BUSINESS_CARD_WIDTH_MM, BUSINESS_CARD_HEIGHT_MM],
+    format: [cardW, cardH],
   });
 
-  drawFrontSide(doc, content, accent);
+  const drawCtx = {
+    content: input.content,
+    design: input.design,
+    accent,
+    textRgb,
+    mutedRgb,
+    bgRgb,
+    cardW,
+    cardH,
+    cover: effectiveShowCover ? cover : null,
+    logo,
+  };
 
-  doc.addPage([BUSINESS_CARD_WIDTH_MM, BUSINESS_CARD_HEIGHT_MM], "landscape");
-  drawBackSide(doc, content, { ...options, showCover: effectiveShowCover }, accent, cover, logo);
+  drawLayoutSide(doc, "front", drawCtx);
+  doc.addPage([cardW, cardH], cardW >= cardH ? "landscape" : "portrait");
+  drawLayoutSide(doc, "back", drawCtx);
 
   return doc.output("blob");
 }
+
+/** @deprecated — nur für Abwärtskompatibilität in Tests */
+export type LegacyBusinessCardPdfInput = BusinessCardPdfInput;

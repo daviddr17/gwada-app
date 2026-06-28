@@ -4,6 +4,7 @@ import type {
   ContactMessagePlatform,
 } from "@/lib/constants/contact-message-platforms";
 import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
+import type { ConversationUnreadHint } from "@/lib/contact-messages/conversation-read-state";
 import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
 import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -85,6 +86,8 @@ export type ContactConversationPreview = {
   email_unread_count?: number;
   /** Live-WAHA-Unread (vor Merge, für verknüpfte Kontakte). */
   whatsapp_unread_count?: number;
+  /** Kanal neu vs. extern gelesen, in Gwada für diesen Nutzer noch offen. */
+  unread_hint?: ConversationUnreadHint | null;
 };
 
 const MESSAGE_SELECT = `

@@ -15,9 +15,11 @@ import {
 import { notificationSummaryWithMessagesFromConversations } from "@/lib/notifications/patch-notification-messages-from-inbox-cache";
 import {
   GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
+  GWADA_NOTIFICATIONS_MODULE_CLEARED_EVENT,
   GWADA_NOTIFICATIONS_REFRESH_EVENT,
   dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
+import { patchNotificationSummaryClearModule } from "@/lib/notifications/patch-notification-summary-module";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
 import { patchNotificationSummaryFromNotificationPayload } from "@/lib/contact-messages/patch-inbox-from-message-row";
@@ -32,8 +34,8 @@ import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
-const MESSAGES_REFRESH_DEBOUNCE_MS = 15_000;
-const NOTIFICATIONS_FULL_REFRESH_DEBOUNCE_MS = 2_000;
+const MESSAGES_REFRESH_DEBOUNCE_MS = 500;
+const NOTIFICATIONS_FULL_REFRESH_DEBOUNCE_MS = 400;
 
 export function useNotificationSummary() {
   const queryClient = useQueryClient();
@@ -171,7 +173,27 @@ export function useNotificationSummary() {
       patchMessagesFromInboxCache();
     };
 
+    const onModuleCleared = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          restaurantId?: string;
+          moduleId?: NotificationModuleId;
+        }>
+      ).detail;
+      if (detail?.restaurantId !== restaurantId || !detail.moduleId) return;
+      livePatchAtRef.current = Date.now();
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        return patchNotificationSummaryClearModule(prev, detail.moduleId!);
+      });
+    };
+
     window.addEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
+    window.addEventListener(
+      GWADA_NOTIFICATIONS_MODULE_CLEARED_EVENT,
+      onModuleCleared,
+    );
     window.addEventListener(
       GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
       onMessageLive,
@@ -194,6 +216,10 @@ export function useNotificationSummary() {
         window.clearTimeout(fullRefreshDebounceRef.current);
       }
       window.removeEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
+      window.removeEventListener(
+        GWADA_NOTIFICATIONS_MODULE_CLEARED_EVENT,
+        onModuleCleared,
+      );
       window.removeEventListener(
         GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
         onMessageLive,

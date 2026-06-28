@@ -1,25 +1,49 @@
+import {
+  DISPLAY_CELEBRATION_EXIT_MS,
+  DISPLAY_CELEBRATION_EXIT_REDUCED_MS,
+  DISPLAY_CELEBRATION_HOLD_MS,
+  DISPLAY_CELEBRATION_HOLD_REDUCED_MS,
+} from "@/lib/ui/motion-presets";
+
+export type DashboardUploadPhase = "idle" | "uploading" | "success";
+
 export type DashboardUploadState = {
-  active: boolean;
+  phase: DashboardUploadPhase;
   progress: number;
   message: string;
+  successMessage: string;
+  /** @deprecated Nutze `phase !== "idle"`. */
+  active: boolean;
 };
 
 type UploadStateListener = (state: DashboardUploadState) => void;
 
+type FinishUploadOptions = {
+  success: boolean;
+  successMessage?: string;
+};
+
 let activeUploadCount = 0;
-let visible = false;
+let phase: DashboardUploadPhase = "idle";
 let progress = 0;
 let message = "Wird hochgeladen …";
+let successMessage = "";
 let progressTimer: ReturnType<typeof setInterval> | null = null;
-let settleTimer: ReturnType<typeof setTimeout> | null = null;
 let overlayStartedAt = 0;
 
 const MIN_OVERLAY_VISIBLE_MS = 700;
+const UPLOAD_FAIL_DISMISS_MS = 280;
 
 const listeners = new Set<UploadStateListener>();
 
 function currentState(): DashboardUploadState {
-  return { active: visible, progress, message };
+  return {
+    phase,
+    progress,
+    message,
+    successMessage,
+    active: phase !== "idle",
+  };
 }
 
 function notifyState() {
@@ -36,11 +60,8 @@ function clearProgressTimer() {
   }
 }
 
-function clearSettleTimer() {
-  if (settleTimer) {
-    clearTimeout(settleTimer);
-    settleTimer = null;
-  }
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function startProgressSimulation() {
@@ -57,30 +78,62 @@ function startProgressSimulation() {
 }
 
 function beginUploadOverlay() {
-  clearSettleTimer();
   overlayStartedAt = Date.now();
-  visible = true;
+  phase = "uploading";
+  successMessage = "";
   startProgressSimulation();
   notifyState();
 }
 
-async function finishUploadOverlay() {
+function resetUploadOverlay() {
+  clearProgressTimer();
+  phase = "idle";
+  progress = 0;
+  successMessage = "";
+  message = "Wird hochgeladen …";
+  notifyState();
+}
+
+async function finishUploadOverlay(options: FinishUploadOptions) {
   const elapsed = Date.now() - overlayStartedAt;
   const remaining = MIN_OVERLAY_VISIBLE_MS - elapsed;
   if (remaining > 0) {
-    await new Promise((resolve) => setTimeout(resolve, remaining));
+    await sleep(remaining);
   }
 
   clearProgressTimer();
+
+  const celebrate =
+    options.success && Boolean(options.successMessage?.trim());
+
+  if (!celebrate) {
+    if (options.success) {
+      progress = 100;
+      notifyState();
+      await sleep(UPLOAD_FAIL_DISMISS_MS);
+    }
+    resetUploadOverlay();
+    return;
+  }
+
   progress = 100;
+  successMessage = options.successMessage!.trim();
+  phase = "success";
   notifyState();
 
-  clearSettleTimer();
-  settleTimer = setTimeout(() => {
-    visible = false;
-    progress = 0;
-    notifyState();
-  }, 420);
+  const reduceMotion =
+    typeof window !== "undefined" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const holdMs = reduceMotion
+    ? DISPLAY_CELEBRATION_HOLD_REDUCED_MS
+    : DISPLAY_CELEBRATION_HOLD_MS;
+  const exitMs = reduceMotion
+    ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS
+    : DISPLAY_CELEBRATION_EXIT_MS;
+
+  await sleep(holdMs + exitMs);
+  resetUploadOverlay();
 }
 
 export function subscribeDashboardUploadState(
@@ -94,13 +147,19 @@ export function subscribeDashboardUploadState(
 }
 
 /** @deprecated Prefer subscribeDashboardUploadState */
-export function subscribeDashboardUploadActive(listener: (active: boolean) => void): () => void {
+export function subscribeDashboardUploadActive(
+  listener: (active: boolean) => void,
+): () => void {
   return subscribeDashboardUploadState((state) => listener(state.active));
 }
 
 export async function withDashboardUploadTracking<T>(
   task: () => Promise<T>,
-  options?: { message?: string },
+  options?: {
+    message?: string;
+    successMessage?: string;
+    isSuccess?: (result: T) => boolean;
+  },
 ): Promise<T> {
   const wasIdle = activeUploadCount === 0;
   if (wasIdle && options?.message?.trim()) {
@@ -111,13 +170,23 @@ export async function withDashboardUploadTracking<T>(
     beginUploadOverlay();
   }
 
+  let succeeded = true;
   try {
-    return await task();
+    const result = await task();
+    if (options?.isSuccess) {
+      succeeded = options.isSuccess(result);
+    }
+    return result;
+  } catch (error) {
+    succeeded = false;
+    throw error;
   } finally {
     activeUploadCount = Math.max(0, activeUploadCount - 1);
-    if (activeUploadCount === 0 && visible) {
-      await finishUploadOverlay();
-      message = "Wird hochgeladen …";
+    if (activeUploadCount === 0 && phase !== "idle") {
+      await finishUploadOverlay({
+        success: succeeded,
+        successMessage: options?.successMessage,
+      });
     }
   }
 }

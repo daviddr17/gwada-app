@@ -2,6 +2,7 @@ import {
   computeConversationUnread,
   conversationReadLookupKey,
   conversationExternalUnreadCount,
+  pickConversationUnreadHint,
   type ConversationReadRow,
   type ConversationUnreadInput,
 } from "@/lib/contact-messages/conversation-read-state";
@@ -72,7 +73,7 @@ function enrichOneConversation(
           ),
           conversation: gwadaChannelConversationInput(c),
         })
-      : { unread_count: 0, is_unread: false };
+      : { unread_count: 0, is_unread: false, unread_hint: null };
     const unreadWa = computeConversationUnread({
       read: rWa,
       conversation: {
@@ -95,12 +96,17 @@ function enrichOneConversation(
       unreadWa.unread_count,
       unreadEm.unread_count,
     );
-    /** IMAP/WAHA-Zähler sind maßgeblich — kein Gwada-Fallback mit is_unread bei count 0. */
     const is_unread = unread_count > 0;
+    const unread_hint = pickConversationUnreadHint([
+      unreadGwada.unread_hint,
+      unreadWa.unread_hint,
+      unreadEm.unread_hint,
+    ]);
     return {
       ...c,
       unread_count,
       is_unread,
+      unread_hint,
       whatsapp_unread_count: unreadWa.unread_count,
       email_unread_count: unreadEm.unread_count,
     };
@@ -119,11 +125,11 @@ function enrichOneConversation(
           ),
         };
 
-  const { unread_count, is_unread } = computeConversationUnread({
+  const { unread_count, is_unread, unread_hint } = computeConversationUnread({
     read,
     conversation,
   });
-  return { ...c, unread_count, is_unread };
+  return { ...c, unread_count, is_unread, unread_hint };
 }
 
 export async function enrichUnifiedInboxReadStateServer(

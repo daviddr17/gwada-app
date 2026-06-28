@@ -44,6 +44,8 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
   onReservationOpen,
   wahaReactions,
   metaReactions,
+  canViewProtocol,
+  onOpenProtocol,
 }: {
   messages: ContactMessageRow[];
   /** Wechsel der Konversation → wieder unten starten. */
@@ -57,6 +59,8 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
   onReservationOpen?: (reservationId: string) => void;
   wahaReactions?: ContactMessageWahaReactionsConfig;
   metaReactions?: ContactMessageMetaReactionsConfig;
+  canViewProtocol?: boolean;
+  onOpenProtocol?: (messageId: string) => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -307,6 +311,8 @@ export const ContactMessageChatViewport = memo(function ContactMessageChatViewpo
             onReservationOpen={onReservationOpen}
             wahaReactions={wahaReactions}
             metaReactions={metaReactions}
+            canViewProtocol={canViewProtocol}
+            onOpenProtocol={onOpenProtocol}
           />
         </div>
       ) : null}

@@ -16,7 +16,7 @@ export function mergeUnreadIntoConversations(
     const read = reads.get(
       conversationReadLookupKey(c.contact_id, platform),
     );
-    const { unread_count, is_unread } = computeConversationUnread({
+    const { unread_count, is_unread, unread_hint } = computeConversationUnread({
       read,
       conversation: conversationUnreadInput(c, platform),
     });
@@ -24,6 +24,7 @@ export function mergeUnreadIntoConversations(
       ...c,
       unread_count,
       is_unread,
+      unread_hint,
     };
   });
 }

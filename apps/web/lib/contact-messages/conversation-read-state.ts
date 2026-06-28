@@ -14,6 +14,22 @@ export type ConversationUnreadInput = {
   external_unread_count?: number | null;
 };
 
+export type ConversationUnreadHint = "channel" | "gwada_only";
+
+export type ConversationUnreadResult = {
+  unread_count: number;
+  is_unread: boolean;
+  unread_hint: ConversationUnreadHint | null;
+};
+
+export function pickConversationUnreadHint(
+  hints: Array<ConversationUnreadHint | null | undefined>,
+): ConversationUnreadHint | null {
+  if (hints.some((h) => h === "channel")) return "channel";
+  if (hints.some((h) => h === "gwada_only")) return "gwada_only";
+  return null;
+}
+
 /** IMAP-/WAHA-Spiegel in `contact_messages` — Unread kommt von externer Quelle. */
 export function isExternalInboxMirrorSource(
   externalSourceId: string | null | undefined,
@@ -42,16 +58,41 @@ export function isConversationMarkedUnread(row: ConversationReadRow | undefined)
 export function computeConversationUnread(params: {
   read?: ConversationReadRow;
   conversation: ConversationUnreadInput;
-}): { unread_count: number; is_unread: boolean } {
-  /** IMAP / WAHA: externe Quelle ist maßgeblich (auch wenn 0 = gelesen). */
+}): ConversationUnreadResult {
+  /** IMAP / WAHA: externer Kanal + persönlicher Gwada-Stand pro Mitarbeiter. */
   if (params.conversation.external_unread_count != null) {
     const external = Math.max(0, params.conversation.external_unread_count);
-    if (isConversationMarkedUnread(params.read) && external === 0) {
-      return { unread_count: 1, is_unread: true };
+    if (external > 0) {
+      return {
+        unread_count: external,
+        is_unread: true,
+        unread_hint: "channel",
+      };
     }
-    return { unread_count: external, is_unread: external > 0 };
+
+    const personal = computePersonalGwadaUnread(params);
+    if (personal.is_unread) {
+      return {
+        unread_count: personal.unread_count,
+        is_unread: true,
+        unread_hint: "gwada_only",
+      };
+    }
+
+    return { unread_count: 0, is_unread: false, unread_hint: null };
   }
 
+  const personal = computePersonalGwadaUnread(params);
+  return {
+    ...personal,
+    unread_hint: personal.is_unread ? "channel" : null,
+  };
+}
+
+function computePersonalGwadaUnread(params: {
+  read?: ConversationReadRow;
+  conversation: ConversationUnreadInput;
+}): { unread_count: number; is_unread: boolean } {
   if (isConversationMarkedUnread(params.read)) {
     const base =
       params.conversation.inbound_count && params.conversation.inbound_count > 0

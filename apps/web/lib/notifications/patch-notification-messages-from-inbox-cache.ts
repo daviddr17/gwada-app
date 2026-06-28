@@ -35,7 +35,11 @@ export function notificationSummaryWithMessagesFromConversations(
       subtitle: row.preview,
       href: row.href,
       at: row.lastAt,
-      meta: { contactId: row.contactId, platform: row.platform },
+      meta: {
+        contactId: row.contactId,
+        platform: row.platform,
+        ...(row.unreadHint ? { unreadHint: row.unreadHint } : {}),
+      },
     })),
   };
 

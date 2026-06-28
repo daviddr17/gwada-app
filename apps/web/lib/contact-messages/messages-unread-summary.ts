@@ -14,6 +14,7 @@ export type DashboardMessageUnreadRow = {
   href: string;
   unreadCount: number;
   platform: ContactMessagePlatform;
+  unreadHint?: "channel" | "gwada_only" | null;
 };
 
 export type MessagesUnreadSummary = {
@@ -56,6 +57,7 @@ export function deriveMessagesUnreadSummaryFromConversations(
       href: dashboardMessageThreadHref(c.contact_id),
       unreadCount: c.unread_count,
       platform: conversationNotificationPlatform(c),
+      unreadHint: c.unread_hint ?? null,
     }));
 
   return {

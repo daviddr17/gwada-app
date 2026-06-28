@@ -53,6 +53,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "display.module_switch",
   "pos.kasse.manage",
   "pos.kasse.export",
+  "contacts.messages.protocol",
 ] as const;
 
 export type RestaurantPermissionKey =
@@ -206,6 +207,13 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       description:
         "Bestehende protokollierte Notizen ändern; ohne diese Berechtigung nur hinzufügen.",
       group: "dokumente",
+    },
+    {
+      key: "contacts.messages.protocol",
+      label: "Nachrichten-Protokoll",
+      description:
+        "Pro Nachricht einsehen, wer sie erstellt, gelesen oder extern bearbeitet hat.",
+      group: "module",
     },
     {
       key: "display.manage",

@@ -63,6 +63,7 @@ export function patchInboxConversationsFromInboundMessage(
         message_count: existing.message_count + 1,
         unread_count: existing.unread_count + 1,
         is_unread: true,
+        unread_hint: "channel",
         whatsapp_unread_count:
           msgPlatform === "whatsapp" ? nextWaUnread : existing.whatsapp_unread_count,
         email_unread_count:
@@ -85,6 +86,7 @@ export function patchInboxConversationsFromInboundMessage(
         message_count: 1,
         unread_count: 1,
         is_unread: true,
+        unread_hint: "channel",
         whatsapp_unread_count: msgPlatform === "whatsapp" ? 1 : undefined,
         email_unread_count: msgPlatform === "email" ? 1 : undefined,
         has_reservation_link: Boolean(message.reservation_id),

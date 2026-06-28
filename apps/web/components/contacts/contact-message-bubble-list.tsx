@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ScrollText } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ContactMessagePlatformIcon } from "@/components/contacts/contact-message-platform-chip";
 import { WhatsAppMessageAckMarks } from "@/components/contacts/whatsapp-message-ack-marks";
 import {
@@ -76,6 +77,8 @@ export const ContactMessageBubbleList = memo(function ContactMessageBubbleList({
   onReservationOpen,
   wahaReactions,
   metaReactions,
+  canViewProtocol = false,
+  onOpenProtocol,
 }: {
   messages: ContactMessageRow[];
   className?: string;
@@ -85,6 +88,8 @@ export const ContactMessageBubbleList = memo(function ContactMessageBubbleList({
   wahaReactions?: ContactMessageWahaReactionsConfig;
   /** Messenger / Instagram: Reactions anzeigen und setzen. */
   metaReactions?: ContactMessageMetaReactionsConfig;
+  canViewProtocol?: boolean;
+  onOpenProtocol?: (messageId: string) => void;
 }) {
   const [openReactionMessageId, setOpenReactionMessageId] = useState<
     string | null
@@ -166,6 +171,8 @@ export const ContactMessageBubbleList = memo(function ContactMessageBubbleList({
               setOpenReactionMessageId(open ? reactionMessageId : null)
             }
             onReservationOpen={onReservationOpen}
+            canViewProtocol={canViewProtocol}
+            onOpenProtocol={onOpenProtocol}
           />
         );
       })}
@@ -188,6 +195,8 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
   pickerOpen,
   onPickerOpenChange,
   onReservationOpen,
+  canViewProtocol,
+  onOpenProtocol,
 }: {
   primary: ContactMessageRow;
   platforms: ContactMessagePlatform[];
@@ -203,6 +212,8 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
   onReservationOpen?: (reservationId: string) => void;
+  canViewProtocol?: boolean;
+  onOpenProtocol?: (messageId: string) => void;
 }) {
   const longPress = useMessageReactionLongPress(() => onPickerOpenChange(true));
   const isEmail = messageDisplayPlatform(primary) === "email";
@@ -357,6 +368,18 @@ const MessageBubbleRow = memo(function MessageBubbleRow({
             ack={primary.waha_ack}
             outbound={outbound}
           />
+        ) : null}
+        {canViewProtocol && onOpenProtocol ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 rounded-full text-muted-foreground hover:text-foreground"
+            aria-label="Nachrichtenprotokoll"
+            onClick={() => onOpenProtocol(primary.id)}
+          >
+            <ScrollText className="size-3.5" />
+          </Button>
         ) : null}
         {primary.reservation_id ? (
           onReservationOpen ? (

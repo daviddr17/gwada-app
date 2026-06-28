@@ -38,7 +38,6 @@ export type ReviewCardActions = {
   showPlatform?: boolean;
   variant?: "grid" | "list";
   visibilityBusy?: boolean;
-  onMarkUnread?: () => void;
   onReply?: () => void;
   onProtocol?: () => void;
   onOpenContact?: () => void;
@@ -149,7 +148,6 @@ export function ReviewCard({
   showPlatform = false,
   variant = "grid",
   visibilityBusy = false,
-  onMarkUnread,
   onReply,
   onProtocol,
   onOpenContact,
@@ -313,17 +311,6 @@ export function ReviewCard({
           )}
           <div className="flex shrink-0 items-center gap-1">
             <span className="text-xs text-muted-foreground">{date}</span>
-            {!isUnread && onMarkUnread ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-[10px] text-muted-foreground"
-                onClick={onMarkUnread}
-              >
-                Ungelesen
-              </Button>
-            ) : null}
           </div>
         </div>
       </CardHeader>

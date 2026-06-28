@@ -19,6 +19,8 @@ type DisplayTodoCapturedValueProps = {
   correctiveAction?: string | null;
   completionNote?: string | null;
   className?: string;
+  /** Ohne eigenen Kasten — z. B. im Display-Erfassungs-Panel. */
+  plain?: boolean;
 };
 
 export function DisplayTodoCapturedValue({
@@ -32,6 +34,7 @@ export function DisplayTodoCapturedValue({
   correctiveAction,
   completionNote,
   className,
+  plain = false,
 }: DisplayTodoCapturedValueProps) {
   const effectiveType = resolveEffectiveCaptureType({
     capture_type: captureType,
@@ -60,7 +63,9 @@ export function DisplayTodoCapturedValue({
   return (
     <div
       className={cn(
-        "space-y-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5",
+        !plain &&
+          "space-y-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5",
+        plain && "space-y-1.5",
         className,
       )}
     >

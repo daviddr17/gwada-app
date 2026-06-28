@@ -8,6 +8,7 @@ import type {
 } from "@/lib/types/accounting";
 import { accountingSourceDisplayLabel } from "@/lib/accounting/accounting-source";
 import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 
 const KIND_LABELS: Record<string, string> = {
   expense: "Ausgabe",
@@ -91,7 +92,7 @@ export function AccountingVoucherDetailsView({
         <div className="overflow-x-auto rounded-xl border border-border/50">
           <table className="w-full min-w-[320px] text-sm">
             <thead>
-              <tr className="border-b border-border/50 bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+              <tr className={moduleDataTableHeadRowMutedClassName}>
                 <th className="px-3 py-2">Position</th>
                 <th className="px-3 py-2">Betrag</th>
                 <th className="px-3 py-2">Steuer</th>

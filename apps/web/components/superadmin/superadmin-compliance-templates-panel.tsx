@@ -9,9 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -79,18 +77,10 @@ export function SuperadminComplianceTemplatesPanel() {
   return (
     <>
       <Card className="border-border/50 shadow-card">
-        <CardHeader className="flex flex-col gap-4">
-          <div className="min-w-0">
-            <CardTitle className="text-xl">Bibliothek</CardTitle>
-            <CardDescription>
-              HACCP-Checklistenvorlagen pro Land — Restaurants importieren Kopien
-              unter Checklisten → Vorlagen.
-            </CardDescription>
-          </div>
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Land</Label>
-              <Select
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Land</Label>
+            <Select
                 value={countryCode}
                 items={Object.fromEntries(
                   countryOptions.map((c) => [c.iso2, c.name_de]),
@@ -112,30 +102,29 @@ export function SuperadminComplianceTemplatesPanel() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-9 shrink-0 rounded-full border-border/60"
-                aria-label="Aktualisieren"
-                onClick={() => void load()}
-              >
-                <RefreshCw className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                className={cn(modulePrimaryAddButtonClassName, "flex-1 sm:flex-none")}
-                onClick={() => {
-                  setEditTemplateId(null);
-                  setEditorOpen(true);
-                }}
-              >
-                <Plus className="size-4" />
-                Neue Vorlage
-              </Button>
-            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="size-9 shrink-0 rounded-full border-border/60"
+              aria-label="Aktualisieren"
+              onClick={() => void load()}
+            >
+              <RefreshCw className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              className={cn(modulePrimaryAddButtonClassName, "flex-1 sm:flex-none")}
+              onClick={() => {
+                setEditTemplateId(null);
+                setEditorOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              Neue Vorlage
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

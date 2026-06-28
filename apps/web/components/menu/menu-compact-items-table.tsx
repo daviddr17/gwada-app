@@ -5,6 +5,7 @@ import { MenuItemCompactRow } from "@/components/menu/menu-item-compact-row";
 import { SortableDragOverlay } from "@/components/ui/sortable-drag-overlay";
 import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
 import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 
 type MenuCompactItemsTableProps = {
   items: MenuItem[];
@@ -44,7 +45,7 @@ export function MenuCompactItemsTable({
     <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
       <table className="w-full min-w-[320px] text-sm">
         <thead>
-          <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <tr className={moduleDataTableHeadRowMutedClassName}>
             {sortable && (
               <th className="w-9 px-1 py-2" aria-hidden />
             )}

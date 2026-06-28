@@ -318,23 +318,11 @@ export function ChecklistTaxonomyPanel({
   ) : null;
 
   if (layout === "inline") {
-    const hasManage = canManage;
-    const hasFilters = showAreaFilters || showDeviceFilters;
-    if (!hasManage && !hasFilters) return drawers;
+    if (!canManage) return drawers;
 
     return (
       <>
-        <div className="space-y-2">
-          {hasManage ? (
-            <div className="flex flex-wrap items-center gap-2">{manageButtons}</div>
-          ) : null}
-          {hasFilters ? (
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {areaFilterPills}
-              {deviceFilterPills}
-            </div>
-          ) : null}
-        </div>
+        <div className="flex flex-wrap items-center gap-2">{manageButtons}</div>
         {drawers}
       </>
     );

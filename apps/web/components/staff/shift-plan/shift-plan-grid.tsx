@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { moduleDataTableHeadLabelClassName } from "@/lib/ui/module-data-table";
 import type {
   RestaurantStaffContractRow,
   RestaurantStaffRow,
@@ -486,7 +487,8 @@ function ShiftPlanGroupGrid({
           <tr className="border-b border-border/50 bg-card">
             <th
               className={cn(
-                "sticky left-0 z-10 align-top overflow-hidden border-r border-border/40 bg-card px-3 py-2 text-left text-xs font-medium text-muted-foreground shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
+                "sticky left-0 z-10 align-top overflow-hidden border-r border-border/40 bg-card px-3 py-2 text-left shadow-[4px_0_10px_-4px_rgba(0,0,0,0.12)] dark:shadow-[4px_0_10px_-4px_rgba(0,0,0,0.45)]",
+                moduleDataTableHeadLabelClassName,
                 shiftPlanStaffColumnClassName,
               )}
             >
@@ -514,7 +516,8 @@ function ShiftPlanGroupGrid({
                 <th
                   key={key}
                   className={cn(
-                    "align-top bg-card px-2 py-2 text-center text-xs font-medium text-muted-foreground",
+                    "align-top bg-card px-2 py-2 text-center",
+                    moduleDataTableHeadLabelClassName,
                     shiftPlanDayColumnClassName,
                   )}
                 >

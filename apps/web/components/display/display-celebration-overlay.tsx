@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Coffee, Hand, LogIn, LogOut, Pause } from "lucide-react";
+import { CheckCircle2, Coffee, Hand, LogIn, LogOut, Pause, TimerReset } from "lucide-react";
 import {
   DISPLAY_CELEBRATION_EXIT_MS,
   DISPLAY_CELEBRATION_EXIT_REDUCED_MS,
@@ -23,7 +23,11 @@ export type DisplayTimeCelebrationAction =
 export type DisplayCelebrationVariant =
   | DisplayTimeCelebrationAction
   | "pin_welcome"
-  | "sign_out";
+  | "sign_out"
+  | "todo_complete"
+  | "todo_defer";
+
+export type DisplayTodoGateCelebrationVariant = "todo_complete" | "todo_defer";
 
 type CelebrationMeta = {
   label: string;
@@ -68,6 +72,18 @@ const CELEBRATION_META: Record<DisplayCelebrationVariant, CelebrationMeta> = {
     sublabel: "Bis zum nächsten Mal",
     color: "#64748b",
     Icon: LogOut,
+  },
+  todo_complete: {
+    label: "Erledigt",
+    sublabel: "Gut dokumentiert",
+    color: "#22c55e",
+    Icon: CheckCircle2,
+  },
+  todo_defer: {
+    label: "Verschoben",
+    sublabel: "Beim nächsten Mal",
+    color: "#64748b",
+    Icon: TimerReset,
   },
 };
 
@@ -416,6 +432,25 @@ export function DisplayCelebrationOverlay({
       ) : null}
     </AnimatePresence>,
     document.body,
+  );
+}
+
+/** Checklisten-Gate (PIN / Schicht) — gleiche Celebration wie Zeiterfassung. */
+export function DisplayTodoGateCelebration({
+  variant,
+  onExitStart,
+  onDone,
+}: {
+  variant: DisplayTodoGateCelebrationVariant | null;
+  onExitStart?: () => void;
+  onDone?: () => void;
+}) {
+  return (
+    <DisplayCelebrationOverlay
+      variant={variant}
+      onExitStart={onExitStart}
+      onDone={onDone}
+    />
   );
 }
 

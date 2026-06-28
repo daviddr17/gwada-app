@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { computeVoucherItemTaxAmount } from "@/lib/accounting/compute-voucher-totals";
 import type { AccountingVoucherItem } from "@/lib/types/accounting";
 import { accountingFormControlClassName } from "@/lib/ui/accounting-form-styles";
+import { cn } from "@/lib/utils";
+import { moduleDataTableHeadLabelClassName } from "@/lib/ui/module-data-table";
 
 export function createEmptyVoucherItem(): AccountingVoucherItem {
   return {
@@ -60,7 +62,12 @@ export function AccountingVoucherItemsEditor({
 
   return (
     <div className="space-y-2">
-      <div className="hidden text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_2.5rem] sm:gap-2">
+      <div
+        className={cn(
+          "hidden sm:grid sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_2.5rem] sm:gap-2",
+          moduleDataTableHeadLabelClassName,
+        )}
+      >
         <span>Bezeichnung</span>
         <span>Kategorie</span>
         <span>Betrag</span>

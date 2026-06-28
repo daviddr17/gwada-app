@@ -5,6 +5,11 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { SuperadminDataTableSkeleton } from "@/components/superadmin/superadmin-data-table-skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { cn } from "@/lib/utils";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadRowMutedClassName,
+  moduleDataTableHeadSortButtonCn,
+} from "@/lib/ui/module-data-table";
 
 export type SuperadminColumn<T> = {
   id: string;
@@ -121,20 +126,17 @@ export function SuperadminDataTable<T>({
     <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-card">
       <table className="w-full min-w-[640px] border-collapse text-left text-sm">
         <thead>
-          <tr className="border-b border-border/50 bg-muted/30">
+          <tr className={moduleDataTableHeadRowMutedClassName}>
             {columns.map((col) => (
               <th
                 key={col.id}
                 scope="col"
-                className={cn(
-                  "px-4 py-3 font-medium text-muted-foreground",
-                  col.className,
-                )}
+                className={cn(moduleDataTableHeadCellClassName, col.className)}
               >
                 <button
                   type="button"
                   onClick={() => toggleSort(col.id)}
-                  className="inline-flex items-center gap-1 rounded-md px-0.5 py-0.5 text-left hover:bg-muted/60"
+                  className={moduleDataTableHeadSortButtonCn(sortKey === col.id, "normal-case")}
                 >
                   {col.header}
                   {sortKey === col.id ? (

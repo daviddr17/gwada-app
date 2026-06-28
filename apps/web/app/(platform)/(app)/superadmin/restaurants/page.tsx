@@ -73,12 +73,9 @@ export default function SuperadminRestaurantsPage() {
 
   return (
     <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Restaurants</h2>
-        <p className="text-sm text-muted-foreground">
-          Alle Restaurants in der Plattform mit Owner und Teamgröße.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Alle Restaurants in der Plattform mit Owner und Teamgröße.
+      </p>
 
       <SuperadminSearchToolbar
         search={search}

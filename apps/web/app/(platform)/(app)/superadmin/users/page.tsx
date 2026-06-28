@@ -90,12 +90,9 @@ export default function SuperadminUsersPage() {
 
   return (
     <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">User</h2>
-        <p className="text-sm text-muted-foreground">
-          Alle registrierten Konten mit Profil- und Anmeldeinformationen.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Alle registrierten Konten mit Profil- und Anmeldeinformationen.
+      </p>
 
       <SuperadminSearchToolbar
         search={search}

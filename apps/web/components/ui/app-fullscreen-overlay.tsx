@@ -6,12 +6,14 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { FullscreenOverlayFloatingPortalContext } from "@/lib/contexts/fullscreen-overlay-floating-portal";
 import { cn } from "@/lib/utils";
+import { APP_LAYER_Z_INDEX, appLayerFloatingInFullscreenOverlayZClassName } from "@/lib/ui/app-layer-z-index";
 
 const APP_FULLSCREEN_OVERLAY_OPEN_MS = 300;
 const APP_FULLSCREEN_OVERLAY_CLOSE_MS = 260;
 
-export const APP_FULLSCREEN_OVERLAY_Z_INDEX = 200;
+export const APP_FULLSCREEN_OVERLAY_Z_INDEX = APP_LAYER_Z_INDEX.fullscreenOverlay;
 
 /** Scroll-Bereich in Vollbild-Overlays — Touch-Scroll ohne vorherigen Input-Fokus (iPad). */
 export const appFullscreenOverlayScrollClassName =
@@ -44,6 +46,8 @@ export function AppFullscreenOverlay({
 }: AppFullscreenOverlayProps) {
   const [mounted, setMounted] = useState(open);
   const [presented, setPresented] = useState(false);
+  const [floatingPortalHost, setFloatingPortalHost] =
+    useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -93,40 +97,50 @@ export function AppFullscreenOverlay({
     : APP_FULLSCREEN_OVERLAY_CLOSE_MS;
 
   return createPortal(
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={ariaLabel}
-      className={cn(
-        "fixed inset-0 flex flex-col overscroll-none bg-background touch-manipulation",
-        className,
-      )}
-      style={{
-        zIndex: APP_FULLSCREEN_OVERLAY_Z_INDEX,
-        transform: presented
-          ? "translate3d(0, 0, 0)"
-          : "translate3d(0, 100%, 0)",
-        transition: motionReduced
-          ? "none"
-          : `transform ${transitionMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
-        willChange: motionReduced ? undefined : "transform",
-        backfaceVisibility: "hidden",
-      }}
-    >
-      <header className="sticky top-0 z-10 shrink-0 border-b border-border/50 bg-background/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
-        {header}
-      </header>
+    <FullscreenOverlayFloatingPortalContext.Provider value={floatingPortalHost}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={ariaLabel}
+        className={cn(
+          "fixed inset-0 flex flex-col overscroll-none bg-background touch-manipulation",
+          className,
+        )}
+        style={{
+          zIndex: APP_FULLSCREEN_OVERLAY_Z_INDEX,
+          transform: presented ? undefined : "translate3d(0, 100%, 0)",
+          transition: motionReduced
+            ? "none"
+            : presented
+              ? `transform ${transitionMs}ms cubic-bezier(0.22, 1, 0.36, 1)`
+              : `transform ${transitionMs}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+          willChange: motionReduced || presented ? undefined : "transform",
+        }}
+      >
+        <header className="sticky top-0 z-20 shrink-0 border-b border-border/50 bg-background/95 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
+          {header}
+        </header>
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {children}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          {children}
+        </div>
+
+        {footer ? (
+          <footer className="sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
+            {footer}
+          </footer>
+        ) : null}
+
+        <div
+          ref={setFloatingPortalHost}
+          className={cn(
+            "pointer-events-none fixed inset-0",
+            appLayerFloatingInFullscreenOverlayZClassName,
+          )}
+          aria-hidden
+        />
       </div>
-
-      {footer ? (
-        <footer className="sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
-          {footer}
-        </footer>
-      ) : null}
-    </div>,
+    </FullscreenOverlayFloatingPortalContext.Provider>,
     document.body,
   );
 }

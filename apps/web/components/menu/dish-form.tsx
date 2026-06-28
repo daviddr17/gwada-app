@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { cn } from "@/lib/utils";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   SearchableSelect,
@@ -387,7 +388,7 @@ export function DishForm({
               <div className="overflow-x-auto rounded-lg border border-border/50 bg-muted/10">
                 <table className="w-full min-w-[260px] table-fixed text-sm">
                   <thead>
-                    <tr className="border-b border-border/50 bg-muted/40 text-left text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                    <tr className={moduleDataTableHeadRowMutedClassName}>
                       <th className="w-[55%] px-2 py-1.5 font-medium">Zutat</th>
                       <th className="w-[22%] px-1 py-1.5 font-medium">Einheit</th>
                       <th className="w-[18%] px-1 py-1.5 font-medium">Menge</th>

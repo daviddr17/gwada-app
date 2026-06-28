@@ -23,7 +23,7 @@ import {
   postDisplayTodoComplete,
 } from "@/lib/display/display-todo-client";
 import { displayTodoErrorMessage } from "@/lib/display/display-todo-errors";
-import { GWADA_DISPLAY_TODOS_REFRESH_EVENT, dispatchDisplayTodosRefresh } from "@/lib/display/display-todos-live-events";
+import { GWADA_DISPLAY_TODOS_REFRESH_EVENT, dispatchDisplayTodoBadgeSnapshot } from "@/lib/display/display-todos-live-events";
 import { staffTodoCaptureLabel, staffTodoRecurrenceLabel } from "@/lib/staff/staff-todo-meta";
 import {
   evaluateStaffTodoCapture,
@@ -120,7 +120,10 @@ export function DisplayComplianceModule() {
           : "Eintrag gespeichert.",
       );
       setActive(null);
-      dispatchDisplayTodosRefresh();
+      dispatchDisplayTodoBadgeSnapshot({
+        badge_count: result.badge_count,
+        badge_urgency: result.badge_urgency,
+      });
       void reload();
     } catch {
       toast.error("Speichern fehlgeschlagen");

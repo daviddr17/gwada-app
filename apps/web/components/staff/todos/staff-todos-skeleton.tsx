@@ -1,10 +1,13 @@
 "use client";
 
-import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ModuleDataTableSkeletonFrame,
+} from "@/lib/ui/module-data-table-skeleton";
 
 export function StaffTodosTableSkeleton() {
   return (
-    <SkeletonCardFrame className="overflow-hidden border-border/50 shadow-card">
+    <ModuleDataTableSkeletonFrame aria-label="ToDos werden geladen">
       <div className="space-y-0">
         {Array.from({ length: 6 }).map((_, i) => (
           <div
@@ -19,13 +22,13 @@ export function StaffTodosTableSkeleton() {
           </div>
         ))}
       </div>
-    </SkeletonCardFrame>
+    </ModuleDataTableSkeletonFrame>
   );
 }
 
 export function StaffTodosProtocolTableSkeleton() {
   return (
-    <SkeletonCardFrame className="overflow-hidden border-border/50 shadow-card">
+    <ModuleDataTableSkeletonFrame aria-label="Protokoll wird geladen">
       <div className="space-y-0">
         {Array.from({ length: 8 }).map((_, i) => (
           <div
@@ -39,6 +42,6 @@ export function StaffTodosProtocolTableSkeleton() {
           </div>
         ))}
       </div>
-    </SkeletonCardFrame>
+    </ModuleDataTableSkeletonFrame>
   );
 }

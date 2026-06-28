@@ -17,6 +17,8 @@ import { DisplayTodoCompleteToggle } from "@/components/display/display-todo-com
 import {
   DisplayTodoCaptureFields,
   EMPTY_DISPLAY_TODO_CAPTURE,
+  displayTodoCapturePanelClassName,
+  DisplayTodoCapturePanelFooter,
   displayTodoCapturePayloadForTodo,
   displayTodoCaptureReadyForComplete,
   displayTodoShowsCaptureFieldsForTodo,
@@ -37,7 +39,11 @@ import {
   STAFF_TODO_STATUS_LABELS,
 } from "@/lib/staff/staff-todo-status";
 import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
-import { GWADA_DISPLAY_TODOS_REFRESH_EVENT, dispatchDisplayTodosRefresh } from "@/lib/display/display-todos-live-events";
+import {
+  GWADA_DISPLAY_TODOS_REFRESH_EVENT,
+  dispatchDisplayTodoBadgeSnapshot,
+  dispatchDisplayTodosRefresh,
+} from "@/lib/display/display-todos-live-events";
 import {
   DISPLAY_CHECKLIST_FOOTER_LABEL,
   DISPLAY_CHECKLIST_OPEN_LABEL,
@@ -52,6 +58,7 @@ import {
   captureRequiresCorrectiveOnDeviation,
   evaluateStaffTodoCapture,
 } from "@/lib/staff/staff-todo-capture";
+import { cn } from "@/lib/utils";
 
 type DisplayStaffTodoBadgeProps = {
   count: number;
@@ -93,6 +100,18 @@ function DisplayTodoCard({
 
   const canComplete = captureReady(todo, capture);
 
+  const completeToggle = (
+    <DisplayTodoCompleteToggle
+      embedded={showCaptureFields || effectiveCaptureType === "boolean"}
+      checked={todo.done_for_staff}
+      allowReopen={todo.allow_reopen_on_display}
+      busy={busy}
+      disabled={disabled || (!canComplete && !todo.done_for_staff)}
+      onMarkComplete={() => void onComplete(capture, note.trim() || null)}
+      onMarkIncomplete={() => void onReopen()}
+    />
+  );
+
   return (
     <div className="rounded-2xl border border-border/50 bg-muted/15 p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -114,19 +133,27 @@ function DisplayTodoCard({
         <p className="mb-3 text-sm text-muted-foreground">{todo.description}</p>
       ) : null}
 
-      {todo.done_for_staff ? (
-        <DisplayTodoCapturedValue
-          className="mb-3"
-          captureType={todo.capture_type}
-          targetMin={todo.target_min}
-          targetMax={todo.target_max}
-          checklistDevice={todo.checklist_device}
-          capturedNumeric={todo.captured_numeric}
-          capturedText={todo.captured_text}
-          withinLimits={todo.within_limits}
-          correctiveAction={todo.corrective_action}
-          completionNote={todo.completion_note}
-        />
+      {todo.done_for_staff && showCaptureFields ? (
+        <div
+          className={cn(
+            "mb-3",
+            displayTodoCapturePanelClassName({ done: true }),
+          )}
+        >
+          <DisplayTodoCapturedValue
+            plain
+            captureType={todo.capture_type}
+            targetMin={todo.target_min}
+            targetMax={todo.target_max}
+            checklistDevice={todo.checklist_device}
+            capturedNumeric={todo.captured_numeric}
+            capturedText={todo.captured_text}
+            withinLimits={todo.within_limits}
+            correctiveAction={todo.corrective_action}
+            completionNote={todo.completion_note}
+          />
+          <DisplayTodoCapturePanelFooter>{completeToggle}</DisplayTodoCapturePanelFooter>
+        </div>
       ) : null}
 
       {!todo.done_for_staff && (showCaptureFields || effectiveCaptureType === "boolean") ? (
@@ -140,8 +167,17 @@ function DisplayTodoCard({
               onChange={setCapture}
               correctiveRequired={correctiveRequired}
               variant="display"
+              panelFooter={completeToggle}
             />
-          ) : null}
+          ) : (
+            <div
+              className={displayTodoCapturePanelClassName({
+                done: todo.done_for_staff,
+              })}
+            >
+              {completeToggle}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor={`todo-note-${todo.id}`}>Notiz (optional)</Label>
             <Textarea
@@ -155,16 +191,37 @@ function DisplayTodoCard({
         </div>
       ) : null}
 
-      <DisplayTodoCompleteToggle
-        checked={todo.done_for_staff}
-        allowReopen={todo.allow_reopen_on_display}
-        busy={busy}
-        disabled={disabled || (!canComplete && !todo.done_for_staff)}
-        onMarkComplete={() =>
-          void onComplete(capture, note.trim() || null)
-        }
-        onMarkIncomplete={() => void onReopen()}
-      />
+      {todo.done_for_staff && !showCaptureFields && effectiveCaptureType === "boolean" ? (
+        <div
+          className={cn("mb-3", displayTodoCapturePanelClassName({ done: true }))}
+        >
+          {completeToggle}
+        </div>
+      ) : null}
+
+      {!todo.done_for_staff && !showCaptureFields && effectiveCaptureType !== "boolean" ? (
+        completeToggle
+      ) : null}
+
+      {todo.done_for_staff &&
+      !showCaptureFields &&
+      effectiveCaptureType !== "boolean" ? (
+        <>
+          <DisplayTodoCapturedValue
+            className="mb-3"
+            captureType={todo.capture_type}
+            targetMin={todo.target_min}
+            targetMax={todo.target_max}
+            checklistDevice={todo.checklist_device}
+            capturedNumeric={todo.captured_numeric}
+            capturedText={todo.captured_text}
+            withinLimits={todo.within_limits}
+            correctiveAction={todo.corrective_action}
+            completionNote={todo.completion_note}
+          />
+          {completeToggle}
+        </>
+      ) : null}
     </div>
   );
 }
@@ -236,7 +293,11 @@ export function DisplayStaffTodoBadge({
         return;
       }
       toast.success("Checkliste erledigt.");
-      dispatchDisplayTodosRefresh();
+      dispatchDisplayTodoBadgeSnapshot({
+        badge_count: result.badge_count,
+        badge_urgency: result.badge_urgency,
+        guardRefresh: true,
+      });
       onChanged?.();
       const evaluation = evaluateStaffTodoCapture(todo, capturePayload);
       if (todo.allow_reopen_on_display) {

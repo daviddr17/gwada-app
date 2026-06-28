@@ -12,7 +12,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { usePlatformAppBrandingOptional } from "@/lib/contexts/platform-app-branding-context";
 import {
@@ -64,7 +63,6 @@ export function SuperadminUsersExportScreen() {
     <>
       <Card className="border-border/50 shadow-card">
         <CardHeader>
-          <CardTitle>Export</CardTitle>
           <CardDescription>
             Alle User als CSV oder PDF — inkl. Profil, Sprache und Anmeldung.
           </CardDescription>

@@ -31,6 +31,8 @@ export type ListPaginationProps = {
   showSummary?: boolean;
   /** Sync-Status externer Kanäle — nur in der oberen Leiste. */
   feedSync?: PlatformFeedListSyncProps;
+  /** Rechts in der Leiste (z. B. Vollbild-Toggle) — bei `above` üblich. */
+  trailing?: ReactNode;
 };
 
 function listPaginationVisible({
@@ -41,6 +43,7 @@ function listPaginationVisible({
   itemLabel,
   feedSync,
   placement,
+  trailing,
 }: Pick<
   ListPaginationProps,
   | "totalPages"
@@ -50,7 +53,11 @@ function listPaginationVisible({
   | "itemLabel"
   | "feedSync"
   | "placement"
+  | "trailing"
 >) {
+  if (trailing && placement === "above") {
+    return true;
+  }
   if (
     placement === "above" &&
     feedSync &&
@@ -93,6 +100,7 @@ export function ListPagination({
   placement = "below",
   showSummary = true,
   feedSync,
+  trailing,
 }: ListPaginationProps) {
   if (
     !listPaginationVisible({
@@ -103,6 +111,7 @@ export function ListPagination({
       itemLabel,
       feedSync,
       placement,
+      trailing,
     })
   ) {
     return null;
@@ -138,6 +147,8 @@ export function ListPagination({
     platformFeedSyncMetaVisible(feedSync.syncMeta) &&
     (feedSync.syncMeta!.stale || feedSync.syncing);
 
+  const rightControlsVisible = showSyncButton || pageNavVisible || trailing;
+
   return (
     <div
       className={cn(
@@ -155,8 +166,9 @@ export function ListPagination({
       ) : (
         <span className="min-w-0 flex-1" aria-hidden />
       )}
-      {showSyncButton || pageNavVisible ? (
-        <div className="flex flex-wrap items-center gap-2">
+      {rightControlsVisible ? (
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {trailing}
           {showSyncButton && feedSync ? (
             <PlatformFeedSyncNowButton
               syncing={feedSync.syncing}
@@ -172,7 +184,7 @@ export function ListPagination({
               onPrevious={onPrevious}
               onNext={onNext}
               busy={busy}
-              className={cn(!leftSummary && "ml-auto")}
+              className={cn(!leftSummary && !trailing && "ml-auto")}
             />
           ) : null}
         </div>
@@ -186,11 +198,14 @@ export function ListPaginationSurround({
   children,
   classNameAbove,
   classNameBelow,
+  paginationTrailingAbove,
   ...paginationProps
 }: ListPaginationProps & {
   children: ReactNode;
   classNameAbove?: string;
   classNameBelow?: string;
+  /** Rechts in der oberen Pagination-Zeile (z. B. Tabellen-Vollbild). */
+  paginationTrailingAbove?: ReactNode;
 }) {
   const pageNavVisible = showPageNav({
     totalPages: paginationProps.totalPages,
@@ -204,6 +219,7 @@ export function ListPaginationSurround({
         placement="above"
         showSummary
         className={classNameAbove}
+        trailing={paginationTrailingAbove}
       />
       {children}
       <ListPagination

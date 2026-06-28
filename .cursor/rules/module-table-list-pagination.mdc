@@ -11,10 +11,38 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 
 1. Toolbar (Suche, Filter-Icon / Bottom Sheet)
 2. Primär-Button „Neu …“ (`modulePrimaryAddButtonFullWidthClassName`)
-3. **`ListPaginationSurround`** um Tabelle/Liste:
-   - **Oben:** eine kompakte Zeile `{x}/{y} {Label} · Seite {page}/{totalPages}` + Vor/Zurück
-   - Tabelle (nur **aktuelle Seite** rendern)
-   - **Unten:** dieselbe Zeile `{x}/{y} {Label} · Seite {page}/{totalPages}` + Vor/Zurück
+3. **`ModulePaginatedDataTable`** um die Tabelle (nicht umgekehrt):
+   - **Oben:** `{x}/{y} {Label} · Seite {page}/{totalPages}` + Vor/Zurück — **außerhalb** der Tabellenhülle (Seitenhintergrund)
+   - **Mitte:** `moduleDataTableShellClassName` + Tabelle (thead bündig oben, Chrome-Kopf)
+   - **Unten:** dieselbe Pagination-Zeile außerhalb
+
+## Tabellen-Chrome (Pflicht)
+
+- **`ModulePaginatedDataTable`** aus `@/lib/ui/module-paginated-data-table` — erzwingt die Checklisten-Reihenfolge; **Vollbild-Toggle** (Maximize-Icon rechts in der oberen x/y-Zeile) ist standardmäßig aktiv (`tableFullscreen={false}` zum Abschalten). Vollbild = `z-200`; Drawer/Dialog darüber = `z-210` (`lib/ui/app-layer-z-index.ts`)
+- **`ModuleDataTableFrame`** — gleiche Hülle ohne Pagination (Protokoll ohne x/y)
+- **`moduleDataTableHeadRowClassName`** am `<thead><tr>` — Chrome-Hintergrund wie Sidebar/Header
+- **Verboten:** `moduleDataTableShellClassName` **um** `ListPaginationSurround` — erzeugt weißen Balken mit Anzahl **in** der Karte
+
+```tsx
+<ModulePaginatedDataTable
+  shown={paginatedRows.length}
+  totalCount={totalCount}
+  itemLabel="Dokumente"
+  page={currentPage}
+  totalPages={totalPages}
+  canPrevious={currentPage > 1}
+  canNext={currentPage < totalPages}
+  onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+  onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+>
+  <table className="w-full text-sm">
+    <thead>
+      <tr className={moduleDataTableHeadRowClassName}>{/* … */}</tr>
+    </thead>
+    <tbody>{/* nur aktuelle Seite */}</tbody>
+  </table>
+</ModulePaginatedDataTable>
+```
 
 ## Anzahl + Seite (eine Zeile oben)
 
@@ -24,31 +52,7 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 - **Kein** separates `ListRangeCount` über dem Button, wenn `ListPaginationSurround` paginiert
 
 ```tsx
-<ListPaginationSurround
-  shown={paginatedRows.length}
-  totalCount={totalCount}
-  itemLabel="Dokumente"
-  page={currentPage}
-  totalPages={totalPages}
-  /* … */
->
-```
-
-- **`ListRangeCount`** nur ohne Pagination (z. B. Speisekarte nach Filter, Verträge).
-- Format dort: **`x/y Label`** (nicht „x von y“).
-
-## Pagination (Technik)
-
-- `@/components/ui/list-pagination` — **`ListPaginationSurround`** (bevorzugt) oder zwei **`ListPagination`** mit gleichen Props (`placement="above"` / `"below"`)
-- Hilfen aus `@/lib/constants/list-pagination`: `LIST_PAGE_SIZE_DEFAULT`, `totalPagesFromCount`, `clampListPage`
-- Bei **Filter- oder Suchwechsel**: `setPage(1)`
-- `itemLabel` in `ListPagination` = gleiches Wort wie in der Anzahl-Zeile
-- Oben und unten **identische** Seitenanzeige und Vor/Zurück-Buttons — Nutzer müssen nicht erst ans Listenende scrollen
-
-```tsx
-<ListPaginationSurround
-  classNameAbove="px-4 pt-4"
-  classNameBelow="px-4 pb-4"
+<ModulePaginatedDataTable
   page={currentPage}
   totalPages={totalPages}
   shown={paginatedRows.length}
@@ -59,9 +63,20 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
   onPrevious={() => setPage((p) => Math.max(1, p - 1))}
   onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
 >
-  <div className="overflow-x-auto">{/* Tabelle */}</div>
-</ListPaginationSurround>
+  <table>{/* … */}</table>
+</ModulePaginatedDataTable>
 ```
+
+## Pagination (Technik)
+
+- Bevorzugt **`ModulePaginatedDataTable`**; sonst `ListPaginationSurround` mit `moduleListPaginationAboveClassName` / `Below` und Shell **als Kind**
+- Hilfen aus `@/lib/constants/list-pagination`: `LIST_PAGE_SIZE_DEFAULT`, `totalPagesFromCount`, `clampListPage`
+- Bei **Filter- oder Suchwechsel**: `setPage(1)`
+- `itemLabel` in `ListPagination` = gleiches Wort wie in der Anzahl-Zeile
+- Oben und unten **identische** Seitenanzeige und Vor/Zurück-Buttons — Nutzer müssen nicht erst ans Listenende scrollen
+
+- **`ListRangeCount`** nur ohne Pagination (z. B. Speisekarte nach Filter, Verträge).
+- Format dort: **`x/y Label`** (nicht „x von y“).
 
 ## Ausnahmen (bewusst anders)
 
@@ -75,15 +90,13 @@ Paginierte **Tabellen-Listen** in App-Modulen (Dokumente, Zutaten, Buchhaltung, 
 
 ## Referenz
 
-- `components/documents/documents-overview.tsx`
-- `components/inventory/inventory-screen.tsx`
-- `components/accounting/accounting-vouchers-screen.tsx` (Server-Pagination — x = `rows.length`, y = `listMeta.totalCount`)
-- `components/contacts/contacts-overview.tsx`
-- `components/staff/staff-overview-screen.tsx` + `staff-overview-table.tsx`
-- `components/news/news-screen.tsx`, `components/embed/embed-news-widget.tsx`
+- `components/staff/todos/staff-todos-screen.tsx` (Checklisten — Referenz-Chrome)
+- `lib/ui/module-paginated-data-table.tsx`
+- `lib/ui/module-data-table.ts`
 
 ## Anti-Pattern
 
+- **`moduleDataTableShellClassName` außen, Pagination innen** — weißer x/y-Balken in der Karte
 - **`ListRangeCount` über Button** und unterschiedliche Texte oben/unten in `ListPagination`
 - Alle gefilterten Zeilen rendern und nur optisch paginieren
 - Format „x von y“ statt **`x/y`**

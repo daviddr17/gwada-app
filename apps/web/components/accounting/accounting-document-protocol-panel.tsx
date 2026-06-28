@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { DocumentsProtocolTableSkeleton } from "@/components/documents/documents-protocol-table-skeleton";
-import { TableCellTruncateTooltip } from "@/components/documents/table-cell-truncate-tooltip";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { fetchAccountingDocumentLog } from "@/lib/accounting/accounting-api";
 import type {
@@ -14,6 +14,7 @@ import {
   formatAccountingDocumentLogActorLabel,
   formatAccountingDocumentLogSummary,
 } from "@/lib/types/accounting-document-log";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
@@ -86,7 +87,7 @@ export function AccountingDocumentProtocolPanel({
         <div className="overflow-x-auto rounded-xl border border-border/50">
           <table className="w-full min-w-[640px] table-fixed text-left text-xs sm:text-sm">
             <thead>
-              <tr className="border-b border-border/60 bg-muted/40 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+              <tr className={moduleDataTableHeadRowMutedClassName}>
                 <th className="whitespace-nowrap px-2 py-2 sm:px-3">Datum</th>
                 <th className="min-w-[7rem] px-2 py-2 sm:px-3">Nutzer</th>
                 <th className="min-w-[6rem] px-2 py-2 sm:px-3">Aktion</th>

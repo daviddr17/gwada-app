@@ -11,6 +11,8 @@ import {
   accountingFormControlClassName,
   accountingFormSelectClassName,
 } from "@/lib/ui/accounting-form-styles";
+import { cn } from "@/lib/utils";
+import { moduleDataTableHeadLabelClassName } from "@/lib/ui/module-data-table";
 
 export type CashTaxLineDraft = AccountingCashEntryTaxLineInput & {
   clientId: string;
@@ -80,7 +82,12 @@ export function AccountingCashTaxLinesEditor({
 
   return (
     <div className="space-y-3">
-      <div className="hidden text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem] sm:gap-2">
+      <div
+        className={cn(
+          "hidden sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2.5rem] sm:gap-2",
+          moduleDataTableHeadLabelClassName,
+        )}
+      >
         <span>Betrag (brutto)</span>
         <span>Steuersatz</span>
         <span />

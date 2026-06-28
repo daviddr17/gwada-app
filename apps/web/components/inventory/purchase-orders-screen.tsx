@@ -31,6 +31,7 @@ import {
   moduleSearchFilterButtonWrapClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
 import { cn } from "@/lib/utils";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 
 const scopeItems = {
   active: "Aktive Bestellungen",
@@ -502,7 +503,7 @@ export function PurchaseOrdersScreen() {
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[920px] text-sm">
                         <thead>
-                          <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          <tr className={moduleDataTableHeadRowMutedClassName}>
                             <th className="min-w-[12rem] px-3 py-2.5">Zutat</th>
                             <th className="min-w-[8rem] px-3 py-2.5 normal-case">
                               Marke

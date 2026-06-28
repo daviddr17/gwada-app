@@ -1,35 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Filter, ScrollText, Search } from "lucide-react";
+import { Filter, ScrollText, Search } from "lucide-react";
 import { toast } from "sonner";
-import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ComplianceRecordDetailDrawer } from "@/components/compliance/compliance-record-detail-drawer";
 import {
   ChecklistProtocolFilterDrawer,
   countChecklistProtocolActiveFilters,
 } from "@/components/checklisten/checklist-protocol-filter-drawer";
 import {
-  buildChecklistProtocolEntries,
-  filterChecklistProtocolEntries,
+  CHECKLIST_PROTOCOL_DEFAULT_KIND,
+  CHECKLIST_PROTOCOL_DEFAULT_PERIOD,
   type ChecklistProtocolDeviationFilter,
   type ChecklistProtocolEntry,
   type ChecklistProtocolKindFilter,
   type ChecklistProtocolPeriodFilter,
   type ChecklistProtocolSortKey,
 } from "@/lib/checklisten/checklist-protocol-entries";
-import {
-  fetchComplianceLogEntries,
-  fetchComplianceRecords,
-} from "@/lib/supabase/compliance-db";
-import {
-  fetchStaffTodoCompletionsForProtocol,
-  fetchStaffTodoLogEntriesForProtocol,
-} from "@/lib/supabase/staff-todos-db";
+import { fetchChecklistProtocolPage } from "@/lib/checklisten/checklist-protocol-client";
 import { useChecklistAreasStorage } from "@/lib/hooks/use-checklist-areas-storage";
 import { useChecklistDevicesStorage } from "@/lib/hooks/use-checklist-devices-storage";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -41,7 +32,6 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import type { RestaurantComplianceRecordRow } from "@/lib/types/compliance";
 import {
   moduleSearchFilterActiveBadgeClassName,
   moduleSearchFilterButtonClassName,
@@ -51,84 +41,110 @@ import {
   moduleSearchInputClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
 import { cn } from "@/lib/utils";
-
-const whenFmt = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+import {
+  moduleDataTableHeadCellCompactClassName,
+  moduleDataTableHeadRowCompactClassName,
+} from "@/lib/ui/module-data-table";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
+import {
+  createRestaurantDateTimeFormatter,
+  DEFAULT_RESTAURANT_TIMEZONE,
+} from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantIanaTimezone } from "@/lib/supabase/restaurant-timezone-db";
 
 export function ChecklistProtocolScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canReadTodos = hasModuleRead(has, "staff_todos");
-  const canReadCompliance = hasModuleRead(has, "compliance");
-  const canAccess = canReadTodos || canReadCompliance;
 
   const areasStorage = useChecklistAreasStorage(restaurantId);
   const devicesStorage = useChecklistDevicesStorage(restaurantId);
 
-  const [entries, setEntries] = useState<ChecklistProtocolEntry[]>([]);
-  const [complianceRecords, setComplianceRecords] = useState<
-    RestaurantComplianceRecordRow[]
-  >([]);
+  const [rows, setRows] = useState<ChecklistProtocolEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
 
   const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [filterKind, setFilterKind] = useState<ChecklistProtocolKindFilter>("all");
-  const [filterPeriod, setFilterPeriod] = useState<ChecklistProtocolPeriodFilter>("all");
+  const [filterKind, setFilterKind] = useState<ChecklistProtocolKindFilter>(
+    CHECKLIST_PROTOCOL_DEFAULT_KIND,
+  );
+  const [filterPeriod, setFilterPeriod] = useState<ChecklistProtocolPeriodFilter>(
+    CHECKLIST_PROTOCOL_DEFAULT_PERIOD,
+  );
   const [filterAreaId, setFilterAreaId] = useState("all");
   const [filterDeviceId, setFilterDeviceId] = useState("all");
   const [filterDeviation, setFilterDeviation] =
     useState<ChecklistProtocolDeviationFilter>("all");
   const [sortKey, setSortKey] = useState<ChecklistProtocolSortKey>("newest");
-  const [detailRecord, setDetailRecord] = useState<RestaurantComplianceRecordRow | null>(
-    null,
+  const [restaurantTimezone, setRestaurantTimezone] = useState(
+    DEFAULT_RESTAURANT_TIMEZONE,
   );
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchDebounced(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [
+    searchDebounced,
+    filterKind,
+    filterPeriod,
+    filterAreaId,
+    filterDeviceId,
+    filterDeviation,
+    sortKey,
+  ]);
+
   const reload = useCallback(async () => {
-    if (!restaurantId || !canAccess) return;
+    if (!restaurantId || !canReadTodos) return;
     setLoading(true);
-
-    const [completions, todoLogs, records, complianceLogs] = await Promise.all([
-      canReadTodos
-        ? fetchStaffTodoCompletionsForProtocol(restaurantId)
-        : Promise.resolve({ data: [], error: null }),
-      canReadTodos
-        ? fetchStaffTodoLogEntriesForProtocol(restaurantId)
-        : Promise.resolve({ data: [], error: null }),
-      canReadCompliance
-        ? fetchComplianceRecords(restaurantId, { limit: 500 })
-        : Promise.resolve({ data: [], error: null }),
-      canReadCompliance
-        ? fetchComplianceLogEntries(restaurantId)
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-
-    setLoading(false);
-
-    const errors = [
-      completions.error,
-      todoLogs.error,
-      records.error,
-      complianceLogs.error,
-    ].filter((e): e is string => Boolean(e) && !isMissingSchemaError(e));
-    if (errors.length > 0) toast.error(errors[0]!);
-
-    setComplianceRecords(records.data);
-    setEntries(
-      buildChecklistProtocolEntries({
-        todoCompletions: completions.data,
-        todoLogs: todoLogs.data,
-        complianceRecords: records.data,
-        complianceLogs: complianceLogs.data,
-      }),
-    );
-  }, [restaurantId, canAccess, canReadTodos, canReadCompliance]);
+    try {
+      const timezone = await fetchRestaurantIanaTimezone(restaurantId);
+      setRestaurantTimezone(timezone);
+      const result = await fetchChecklistProtocolPage({
+        restaurantId,
+        page,
+        search: searchDebounced,
+        kind: filterKind,
+        period: filterPeriod,
+        areaId: filterAreaId,
+        deviceId: filterDeviceId,
+        deviation: filterDeviation,
+        sortKey,
+        timeZone: timezone,
+      });
+      setRows(result.items);
+      setPage(result.page);
+      setTotalCount(result.totalCount);
+      setTotalPages(result.totalPages);
+    } catch {
+      toast.error("Protokoll konnte nicht geladen werden.");
+      setRows([]);
+      setTotalCount(0);
+      setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    restaurantId,
+    canReadTodos,
+    page,
+    searchDebounced,
+    filterKind,
+    filterPeriod,
+    filterAreaId,
+    filterDeviceId,
+    filterDeviation,
+    sortKey,
+  ]);
 
   useEffect(() => {
     void reload();
@@ -143,30 +159,12 @@ export function ChecklistProtocolScreen() {
     sortKey,
   });
 
-  const filtered = useMemo(
-    () =>
-      filterChecklistProtocolEntries(entries, {
-        search,
-        kind: filterKind,
-        period: filterPeriod,
-        areaId: filterAreaId,
-        deviceId: filterDeviceId,
-        deviation: filterDeviation,
-        sortKey,
-      }),
-    [
-      entries,
-      search,
-      filterKind,
-      filterPeriod,
-      filterAreaId,
-      filterDeviceId,
-      filterDeviation,
-      sortKey,
-    ],
+  const whenFmt = useMemo(
+    () => createRestaurantDateTimeFormatter(restaurantTimezone),
+    [restaurantTimezone],
   );
 
-  if (!permissionsLoading && !canAccess) {
+  if (!permissionsLoading && !canReadTodos) {
     return <ModuleAccessDenied label="Checklisten" />;
   }
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
@@ -174,11 +172,6 @@ export function ChecklistProtocolScreen() {
 
   return (
     <div className="w-full pb-16">
-      <p className="mb-4 text-sm text-muted-foreground">
-        Erfassungen am Display und im Dashboard sowie Änderungen an Aufgaben,
-        Bereichen und Geräten — filterbar nach Zeit, Bereich und Gerät.
-      </p>
-
       <div className={cn("mb-4 space-y-3")}>
         <div className={moduleSearchFilterRowClassName}>
           <div className={moduleSearchFieldWrapClassName}>
@@ -190,7 +183,7 @@ export function ChecklistProtocolScreen() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Aufgabe, Nutzer, Details …"
+              placeholder="Aufgabe, Wert, Nutzer …"
               className={moduleSearchInputClassName}
               aria-label="Protokoll durchsuchen"
             />
@@ -216,41 +209,51 @@ export function ChecklistProtocolScreen() {
             ) : null}
           </div>
         </div>
-        {filtered.length > 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {filtered.length} Eintrag{filtered.length === 1 ? "" : "e"}
-          </p>
-        ) : null}
       </div>
 
+      {loading && !showSkeleton ? (
+        <div className="min-h-[22rem]" aria-busy="true" />
+      ) : null}
       {showSkeleton ? (
-        <p className="text-sm text-muted-foreground">Lade Protokoll …</p>
-      ) : filtered.length === 0 ? (
+        <div className="min-h-[22rem]" aria-busy="true" aria-label="Protokoll wird geladen" />
+      ) : totalCount === 0 ? (
         <Card className="border-border/50 shadow-card">
           <CardContent className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
             <ScrollText className="size-8 opacity-40" aria-hidden />
-            {entries.length === 0
-              ? "Noch keine Protokolleinträge."
-              : "Keine Treffer für Suche oder Filter."}
+            {searchDebounced.trim() ||
+            filterActiveCount > 0 ||
+            filterPeriod !== CHECKLIST_PROTOCOL_DEFAULT_PERIOD
+              ? "Keine Treffer für Suche oder Filter."
+              : "Noch keine Protokolleinträge."}
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border/50">
+        <ModulePaginatedDataTable
+          page={page}
+          totalPages={totalPages}
+          shown={rows.length}
+          totalCount={totalCount}
+          itemLabel="Einträge"
+          fullscreenTitle="Protokoll"
+          canPrevious={page > 1}
+          canNext={page < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
           <table className="w-full min-w-[880px] text-sm">
             <thead>
-              <tr className="border-b border-border/50 bg-muted/30 text-left text-xs text-muted-foreground">
-                <th className="px-3 py-2.5 font-medium">Zeit</th>
-                <th className="px-3 py-2.5 font-medium">Typ</th>
-                <th className="px-3 py-2.5 font-medium">Aufgabe</th>
-                <th className="px-3 py-2.5 font-medium">Bereich</th>
-                <th className="px-3 py-2.5 font-medium">Gerät</th>
-                <th className="px-3 py-2.5 font-medium">Details</th>
-                <th className="px-3 py-2.5 font-medium">Wer</th>
-                <th className="px-3 py-2.5 font-medium" aria-label="Aktionen" />
+              <tr className={moduleDataTableHeadRowCompactClassName}>
+                <th className={moduleDataTableHeadCellCompactClassName}>Zeit</th>
+                <th className={moduleDataTableHeadCellCompactClassName}>Typ</th>
+                <th className={moduleDataTableHeadCellCompactClassName}>Aufgabe</th>
+                <th className={moduleDataTableHeadCellCompactClassName}>Bereich</th>
+                <th className={moduleDataTableHeadCellCompactClassName}>Gerät</th>
+                <th className={moduleDataTableHeadCellCompactClassName}>Wert</th>
+                <th className={moduleDataTableHeadCellCompactClassName}>Nutzer</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((e) => (
+              {rows.map((e) => (
                 <tr key={e.id} className="border-b border-border/30 last:border-0">
                   <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">
                     {whenFmt.format(new Date(e.at))}
@@ -268,12 +271,12 @@ export function ChecklistProtocolScreen() {
                       </Badge>
                     ) : null}
                   </td>
-                  <td className="max-w-[10rem] truncate px-3 py-2.5 font-medium">
-                    {e.title}
+                  <td className="max-w-[10rem] px-3 py-2.5 font-medium">
+                    <TableCellTruncateTooltip text={e.title} />
                   </td>
-                  <td className="px-3 py-2.5">
+                  <td className="max-w-[8rem] px-3 py-2.5">
                     {e.areaName ? (
-                      <span className="inline-flex max-w-[8rem] items-center gap-1.5 truncate">
+                      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
                         {e.areaColor ? (
                           <span
                             className="size-2 shrink-0 rounded-full"
@@ -281,43 +284,26 @@ export function ChecklistProtocolScreen() {
                             aria-hidden
                           />
                         ) : null}
-                        <span className="truncate">{e.areaName}</span>
+                        <TableCellTruncateTooltip text={e.areaName} />
                       </span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
-                  <td className="max-w-[8rem] truncate px-3 py-2.5">
-                    {e.deviceName ?? "—"}
+                  <td className="max-w-[8rem] px-3 py-2.5">
+                    <TableCellTruncateTooltip text={e.deviceName ?? "—"} />
                   </td>
-                  <td className="max-w-xs truncate px-3 py-2.5 text-muted-foreground">
-                    {e.details || "—"}
+                  <td className="max-w-xs px-3 py-2.5 text-muted-foreground">
+                    <TableCellTruncateTooltip text={e.value || "—"} />
                   </td>
-                  <td className="px-3 py-2.5 whitespace-nowrap">{e.actor}</td>
-                  <td className="px-3 py-2.5">
-                    {e.legacyRecordId ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="rounded-full"
-                        aria-label="Details"
-                        onClick={() => {
-                          const record = complianceRecords.find(
-                            (r) => r.id === e.legacyRecordId,
-                          );
-                          if (record) setDetailRecord(record);
-                        }}
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                    ) : null}
+                  <td className="max-w-[9rem] px-3 py-2.5">
+                    <TableCellTruncateTooltip text={e.actor} />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ModulePaginatedDataTable>
       )}
 
       <ChecklistProtocolFilterDrawer
@@ -337,14 +323,6 @@ export function ChecklistProtocolScreen() {
         onSortKeyChange={setSortKey}
         areas={areasStorage.items}
         devices={devicesStorage.items}
-      />
-
-      <ComplianceRecordDetailDrawer
-        open={detailRecord != null}
-        onOpenChange={(open) => {
-          if (!open) setDetailRecord(null);
-        }}
-        record={detailRecord}
       />
     </div>
   );

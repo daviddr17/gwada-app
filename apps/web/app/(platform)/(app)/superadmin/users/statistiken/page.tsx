@@ -31,13 +31,10 @@ export default function SuperadminUsersStatistikenPage() {
 
   return (
     <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Statistiken</h2>
-        <p className="text-sm text-muted-foreground">
-          Registrierungen, Aktivität und Verteilungen aller User — Stand aus
-          der Live-Datenbank.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Registrierungen, Aktivität und Verteilungen aller User — Stand aus
+        der Live-Datenbank.
+      </p>
 
       {showSkeleton ? (
         <SuperadminStatsSkeleton />

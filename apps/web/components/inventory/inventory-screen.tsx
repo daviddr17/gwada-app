@@ -2,8 +2,6 @@
 
 import type { LucideIcon } from "lucide-react";
 import {
-  ArrowDown,
-  ArrowUp,
   Factory,
   Filter,
   Layers,
@@ -34,7 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   Select,
   SelectContent,
@@ -77,6 +75,19 @@ import type {
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleDataTableHeadCellDenseClassName,
+  moduleDataTableHeadLabelClassName,
+  moduleDataTableHeadRowSortableClassName,
+  moduleTableFullscreenChromeInsetDenseClassName,
+} from "@/lib/ui/module-data-table";
+import { ModuleTableSortHeader } from "@/lib/ui/module-table-sort-header";
+import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
+import {
+  ModuleTableActionsCell,
+  ModuleTableIconActionButton,
+  ModuleTableIconActionsColumnHeader,
+} from "@/lib/ui/module-table-icon-tooltip";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -857,38 +868,6 @@ export function InventoryScreen() {
     [updateIngredient],
   );
 
-  const SortHead = ({
-    k,
-    children,
-    className,
-    title,
-  }: {
-    k: SortKey;
-    children: React.ReactNode;
-    className?: string;
-    title?: string;
-  }) => (
-    <th
-      className={cn("px-2 py-2 font-medium", className)}
-      title={title}
-    >
-      <button
-        type="button"
-        onClick={() => toggleSort(k)}
-        className="inline-flex items-center gap-1 rounded-md px-1 py-0.5 text-left hover:bg-muted/60"
-      >
-        {children}
-        {sortKey === k ? (
-          sortDir === "asc" ? (
-            <ArrowUp className="size-3.5 shrink-0 opacity-70" />
-          ) : (
-            <ArrowDown className="size-3.5 shrink-0 opacity-70" />
-          )
-        ) : null}
-      </button>
-    </th>
-  );
-
   const filterActiveCount = useMemo(
     () =>
       countInventoryActiveFilters({
@@ -1022,69 +1001,110 @@ export function InventoryScreen() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
-        <ListPaginationSurround
-          classNameAbove="px-4 pt-4"
-          classNameBelow="px-4 pb-4"
-          page={currentPage}
-          totalPages={totalPages}
-          shown={paginatedRows.length}
-          totalCount={totalCount}
-          itemLabel="Zutaten"
-          canPrevious={currentPage > 1}
-          canNext={currentPage < totalPages}
-          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-        >
-        <div className="overflow-x-auto">
+      <ModulePaginatedDataTable
+        page={currentPage}
+        totalPages={totalPages}
+        shown={paginatedRows.length}
+        totalCount={totalCount}
+        itemLabel="Zutaten"
+        fullscreenChromeInsetClassName={
+          moduleTableFullscreenChromeInsetDenseClassName
+        }
+        canPrevious={currentPage > 1}
+        canNext={currentPage < totalPages}
+        onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+        onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+      >
         <table className="w-full min-w-[1260px] text-sm">
           <thead>
-            <tr className="border-b border-border/60 bg-muted/40 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              <SortHead k="name" className="min-w-[10rem]">
-                Name
-              </SortHead>
-              <SortHead k="currentStock" className="w-28">
-                Bestand
-              </SortHead>
-              <SortHead
-                k="lowStockThreshold"
-                className="w-24"
-                title="Benachrichtigung wenn Bestand ≤ Schwelle (0 = nur bei leerem Bestand)"
+            <tr className={moduleDataTableHeadRowSortableClassName}>
+              <ModuleTableSortHeader
+                label="Name"
+                sortKey="name"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                stickyIdentityColumn
+                className="min-w-[10rem] px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Bestand"
+                sortKey="currentStock"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="w-28 px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Schwelle"
+                sortKey="lowStockThreshold"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="w-24 px-2 py-2"
+                ariaLabel="Schwelle sortieren — Benachrichtigung wenn Bestand ≤ Schwelle"
+              />
+              <ModuleTableSortHeader
+                label="Einheit"
+                sortKey="unit"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="w-20 px-2 py-2"
+              />
+              <th
+                className={cn(
+                  moduleDataTableHeadCellDenseClassName,
+                  "min-w-[9.5rem] normal-case",
+                )}
               >
-                Schwelle
-              </SortHead>
-              <SortHead k="unit" className="w-20">
-                Einheit
-              </SortHead>
-              <th className="min-w-[9.5rem] px-2 py-2 text-left text-xs font-medium tracking-wide text-muted-foreground normal-case">
-                Bestellung
+                <span className={moduleDataTableHeadLabelClassName}>
+                  Bestellung
+                </span>
               </th>
-              <SortHead k="supplierId" className="min-w-[8rem]">
-                Lieferant
-              </SortHead>
-              <SortHead k="categoryId" className="min-w-[8rem]">
-                Kategorie
-              </SortHead>
-              <SortHead k="productionSiteId" className="min-w-[8rem]">
-                Produktion
-              </SortHead>
-              <SortHead k="brandId" className="min-w-[8rem]">
-                Marke
-              </SortHead>
-              <th className="w-12 px-1 py-2 text-center" title="In Speisen">
-                <UtensilsCrossed className="mx-auto size-3.5 opacity-70" aria-hidden />
-              </th>
-              <th className="w-12 px-1 py-2 text-center" title="Bestandsprotokoll">
-                <ScrollText className="mx-auto size-3.5 opacity-70" aria-hidden />
-              </th>
-              <th className="w-12 px-2 py-2" aria-label="Löschen" />
+              <ModuleTableSortHeader
+                label="Lieferant"
+                sortKey="supplierId"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[8rem] px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Kategorie"
+                sortKey="categoryId"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[8rem] px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Produktion"
+                sortKey="productionSiteId"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[8rem] px-2 py-2"
+              />
+              <ModuleTableSortHeader
+                label="Marke"
+                sortKey="brandId"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[8rem] px-2 py-2"
+              />
+              <ModuleTableIconActionsColumnHeader
+                dense
+                className="min-w-[7.5rem] w-[7.5rem]"
+              />
             </tr>
           </thead>
           <tbody>
             {filteredSorted.length === 0 ? (
               <tr>
                 <td
-                  colSpan={12}
+                  colSpan={10}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   Keine Zutaten für die aktuelle Suche oder Filter.
@@ -1103,9 +1123,12 @@ export function InventoryScreen() {
                 return (
                 <tr
                   key={row.id}
-                  className="border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
+                  className="group/tr border-b border-border/40 transition-colors last:border-0 hover:bg-muted/60"
                 >
-                  <td className="px-2 py-1.5 align-middle">
+                  <ModuleTableStickyBodyCell
+                    tone="muted-hover-60"
+                    className="px-2 py-1.5 align-middle"
+                  >
                     <input
                       value={row.name}
                       onChange={(e) =>
@@ -1113,7 +1136,7 @@ export function InventoryScreen() {
                       }
                       className={inputCellClass}
                     />
-                  </td>
+                  </ModuleTableStickyBodyCell>
                   <td className="px-2 py-1.5 align-middle">
                     <InventoryStockInputCell
                       ingredientId={row.id}
@@ -1191,55 +1214,40 @@ export function InventoryScreen() {
                       items={brands.items}
                     />
                   </td>
-                  <td className="px-1 py-1.5 align-middle text-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
+                  <ModuleTableActionsCell dense>
+                    <ModuleTableIconActionButton
+                      label="Speisen mit dieser Zutat"
                       className="text-muted-foreground hover:text-foreground"
-                      aria-label="Speisen mit dieser Zutat"
                       onClick={() =>
                         setUsageDrawer({ id: row.id, name: row.name })
                       }
                     >
                       <UtensilsCrossed className="size-4" />
-                    </Button>
-                  </td>
-                  <td className="px-1 py-1.5 align-middle text-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
+                    </ModuleTableIconActionButton>
+                    <ModuleTableIconActionButton
+                      label={`Bestandsprotokoll ${row.name}`}
                       className="text-muted-foreground hover:text-foreground"
-                      aria-label={`Bestandsprotokoll ${row.name}`}
                       onClick={() => setStockProtocolIngredientId(row.id)}
                     >
                       <ScrollText className="size-4" />
-                    </Button>
-                  </td>
-                  <td className="px-1 py-1.5 align-middle text-center">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
+                    </ModuleTableIconActionButton>
+                    <ModuleTableIconActionButton
+                      label="Zutat löschen"
                       className="text-muted-foreground hover:text-destructive"
-                      aria-label="Zutat entfernen"
                       onClick={() =>
                         setIngredientDelete({ id: row.id, name: row.name })
                       }
                     >
                       <Trash2 className="size-4" />
-                    </Button>
-                  </td>
+                    </ModuleTableIconActionButton>
+                  </ModuleTableActionsCell>
                 </tr>
                 );
               })
             )}
           </tbody>
         </table>
-        </div>
-        </ListPaginationSurround>
-      </div>
+      </ModulePaginatedDataTable>
         </div>
       )}
 

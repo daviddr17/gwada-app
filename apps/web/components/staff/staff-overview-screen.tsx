@@ -302,8 +302,6 @@ export function StaffOverviewScreen() {
         </Button>
       </div>
 
-      <Card className="border-border/50 shadow-card">
-        <CardContent className="p-0">
           {loading && !showSkeleton ? (
             <div className="min-h-[22rem]" aria-busy="true" />
           ) : null}
@@ -321,8 +319,6 @@ export function StaffOverviewScreen() {
               }}
             />
           )}
-        </CardContent>
-      </Card>
 
       <StaffFormDrawer
         open={formOpen}

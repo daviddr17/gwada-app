@@ -3,9 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pencil, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -14,6 +13,17 @@ import {
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
 import { cn } from "@/lib/utils";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadRowClassName,
+  moduleDataTableHeadSortButtonCn,
+} from "@/lib/ui/module-data-table";
+import {
+  ModuleTableActionsCell,
+  ModuleTableIconActionButton,
+  ModuleTableIconActionsColumnHeader,
+} from "@/lib/ui/module-table-icon-tooltip";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 
 type StaffSortKey =
   | "lastName"
@@ -59,10 +69,7 @@ function SortHeader({
   return (
     <button
       type="button"
-      className={cn(
-        "inline-flex items-center gap-1 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase transition-colors hover:text-foreground",
-        className,
-      )}
+      className={cn(moduleDataTableHeadSortButtonCn(active), "uppercase tracking-wide", className)}
       onClick={() => onSort(sortKey)}
     >
       {label}
@@ -183,9 +190,7 @@ export function StaffOverviewTable({
           />
         </div>
       </div>
-      <ListPaginationSurround
-        classNameAbove="px-4 pt-4"
-        classNameBelow="px-4 pb-4"
+      <ModulePaginatedDataTable
         page={currentPage}
         totalPages={totalPages}
         shown={paginatedRows.length}
@@ -196,11 +201,10 @@ export function StaffOverviewTable({
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
       >
-        <div className="overflow-x-auto">
           <table className="w-full min-w-[52rem] text-left text-sm">
           <thead>
-            <tr className="border-b border-border/60 bg-muted/40">
-              <th className="min-w-[7rem] px-4 py-3">
+            <tr className={moduleDataTableHeadRowClassName}>
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
                 <SortHeader
                   label="Nachname"
                   sortKey="lastName"
@@ -209,7 +213,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="min-w-[7rem] px-4 py-3">
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
                 <SortHeader
                   label="Vorname"
                   sortKey="firstName"
@@ -218,7 +222,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="min-w-[8rem] px-4 py-3">
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[8rem]")}>
                 <SortHeader
                   label="Position"
                   sortKey="position"
@@ -227,7 +231,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="min-w-[9rem] px-4 py-3">
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[9rem]")}>
                 <SortHeader
                   label="Kontakt"
                   sortKey="contact"
@@ -236,7 +240,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="min-w-[6rem] px-4 py-3">
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[6rem]")}>
                 <SortHeader
                   label="Status"
                   sortKey="status"
@@ -245,7 +249,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="min-w-[5rem] px-4 py-3">
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[5rem]")}>
                 <SortHeader
                   label="App"
                   sortKey="app"
@@ -254,7 +258,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="min-w-[6.5rem] px-4 py-3">
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[6.5rem]")}>
                 <SortHeader
                   label="Angelegt"
                   sortKey="createdAt"
@@ -263,7 +267,7 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className="w-12 px-4 py-3" />
+              <ModuleTableIconActionsColumnHeader />
             </tr>
           </thead>
           <tbody>
@@ -296,8 +300,8 @@ export function StaffOverviewTable({
                       "—"
                     )}
                   </td>
-                  <td className="max-w-[12rem] truncate px-4 py-3 text-muted-foreground">
-                    {row.email ?? row.phone ?? "—"}
+                  <td className="max-w-[12rem] px-4 py-3 text-muted-foreground">
+                    <TableCellTruncateTooltip text={row.email ?? row.phone ?? "—"} />
                   </td>
                   <td className="px-4 py-3">
                     {row.is_active ? (
@@ -319,20 +323,17 @@ export function StaffOverviewTable({
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">
                     {formatStaffCreatedAt(row.created_at)}
                   </td>
-                  <td className="px-4 py-3">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="Bearbeiten"
+                  <ModuleTableActionsCell>
+                    <ModuleTableIconActionButton
+                      label="Bearbeiten"
                       onClick={(e) => {
                         e.stopPropagation();
                         onEdit(row);
                       }}
                     >
                       <Pencil className="size-4" />
-                    </Button>
-                  </td>
+                    </ModuleTableIconActionButton>
+                  </ModuleTableActionsCell>
                 </tr>
               );
             })}
@@ -345,8 +346,7 @@ export function StaffOverviewTable({
               : "Keine Treffer für die Suche."}
           </p>
         ) : null}
-        </div>
-      </ListPaginationSurround>
+      </ModulePaginatedDataTable>
     </>
   );
 }

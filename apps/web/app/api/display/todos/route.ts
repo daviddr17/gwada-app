@@ -15,6 +15,7 @@ import {
   fetchStaffTodoDeferReasonDefault,
   isVisibleInDisplayTodoList,
   listDisplayTodosForStaff,
+  loadDisplayRestaurantTimezone,
   mapDisplayTodoClientPayload,
   mapDisplayTodoForClient,
   countDisplayTodosForBadge,
@@ -74,13 +75,18 @@ export async function GET(request: Request) {
       restaurantId: access.restaurantId,
       staffId: access.staffId,
     });
+    const timeZone = await loadDisplayRestaurantTimezone(
+      admin,
+      access.restaurantId,
+    );
     const clientTodos = items
-      .map((t) => mapDisplayTodoForClient(t, access.staffId))
+      .map((t) => mapDisplayTodoForClient(t, access.staffId, timeZone))
       .filter(isVisibleInDisplayTodoList)
-      .map((t) => mapDisplayTodoClientPayload(t, access.staffId));
+      .map((t) => mapDisplayTodoClientPayload(t, access.staffId, timeZone));
     const { count: badge_count } = countDisplayTodosForBadge(
       items,
       access.staffId,
+      timeZone,
     );
 
     return NextResponse.json({ todos: clientTodos, badge_count });
@@ -170,7 +176,16 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    return NextResponse.json({ ok: true });
+    const badge = await getDisplayTodoBadgeSummary(admin, {
+      restaurantId: access.restaurantId,
+      staffId: access.staffId,
+    });
+    return NextResponse.json({
+      ok: true,
+      todo_done_for_staff: result.todo_done_for_staff,
+      badge_count: badge.count,
+      badge_urgency: badge.urgency,
+    });
   }
 
   if (body.action === "reopen") {
@@ -196,7 +211,15 @@ export async function POST(request: Request) {
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    return NextResponse.json({ ok: true });
+    const badge = await getDisplayTodoBadgeSummary(admin, {
+      restaurantId: access.restaurantId,
+      staffId: access.staffId,
+    });
+    return NextResponse.json({
+      ok: true,
+      badge_count: badge.count,
+      badge_urgency: badge.urgency,
+    });
   }
 
   if (body.action === "prepare_pin_login") {

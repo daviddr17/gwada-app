@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import type { GwadaReviewProtocolEvent } from "@/lib/reviews/gwada-review-protocol-types";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
@@ -54,7 +56,7 @@ export function GwadaReviewProtocolTable({
     <div className="overflow-x-auto rounded-lg border border-border/50">
       <table className="w-full min-w-[720px] table-fixed text-left text-xs sm:text-sm">
         <thead>
-          <tr className="border-b border-border/60 bg-muted/40 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+          <tr className={moduleDataTableHeadRowMutedClassName}>
             <th className="whitespace-nowrap px-2 py-2 sm:px-3">Datum</th>
             <th className="min-w-[6rem] px-2 py-2 sm:px-3">Art</th>
             <th className="min-w-[7rem] px-2 py-2 sm:px-3">Nutzer</th>
@@ -68,14 +70,18 @@ export function GwadaReviewProtocolTable({
                 {formatWhen(e.at)}
               </td>
               <td className="px-2 py-2.5 sm:px-3">{eventKindLabel(e.kind)}</td>
-              <td className="px-2 py-2.5 text-muted-foreground sm:px-3">
-                {e.actorName ?? "—"}
+              <td className="max-w-[7rem] px-2 py-2.5 text-muted-foreground sm:px-3">
+                <TableCellTruncateTooltip text={e.actorName ?? "—"} />
               </td>
               <td className="px-2 py-2.5 sm:px-3">
-                <div className="space-y-0.5">
-                  <p className="font-medium text-foreground">{e.title}</p>
+                <div className="min-w-0 space-y-0.5">
+                  <p className="font-medium text-foreground">
+                    <TableCellTruncateTooltip text={e.title} />
+                  </p>
                   {e.description ? (
-                    <p className="text-muted-foreground">{e.description}</p>
+                    <p className="text-muted-foreground">
+                      <TableCellTruncateTooltip text={e.description} />
+                    </p>
                   ) : null}
                   {e.href && e.hrefLabel ? (
                     <Link

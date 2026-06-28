@@ -10,27 +10,32 @@ import {
   DashboardCompactMetricPillSkeleton,
 } from "@/components/dashboard/dashboard-compact-list";
 import {
-  assignedPositionTagIds,
-  assignedStaffIds,
-} from "@/lib/supabase/staff-todos-db";
-import {
   computeStaffTodoStatus,
   staffTodoPriorityBadgeClass,
   STAFF_TODO_STATUS_LABELS,
 } from "@/lib/staff/staff-todo-status";
+import { staffTodoAssigneeCount } from "@/lib/staff/staff-todo-completion-display";
 import { staffTodoRecurrenceLabel } from "@/lib/staff/staff-todo-meta";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import type { RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import { cn } from "@/lib/utils";
 
 function assigneeCount(todo: RestaurantStaffTodoRow): number {
-  const staff = assignedStaffIds(todo).length;
-  const positions = assignedPositionTagIds(todo).length;
-  return Math.max(1, staff + positions);
+  return staffTodoAssigneeCount(todo);
 }
 
-function todoSortWeight(todo: RestaurantStaffTodoRow): number {
-  const status = computeStaffTodoStatus(todo, todo.completions, assigneeCount(todo));
+function todoSortWeight(
+  todo: RestaurantStaffTodoRow,
+  timeZone: string,
+): number {
+  const status = computeStaffTodoStatus(
+    todo,
+    todo.completions,
+    assigneeCount(todo),
+    new Date(),
+    timeZone,
+  );
   const priorityWeight =
     todo.priority === "high" ? 0 : todo.priority === "medium" ? 1 : 2;
   const statusWeight =
@@ -45,6 +50,9 @@ export type ChecklistenTodosOverviewSectionProps = {
   showDueReminders: boolean;
   canReadTodos: boolean;
   canReadCompliance: boolean;
+  restaurantTimezone?: string;
+  canUpdateTodos?: boolean;
+  onTodoClick?: (todo: RestaurantStaffTodoRow) => void;
   /** Bereichs-/Geräte-Chips — eigene Zeile über der KPI-Zusammenfassung. */
   taxonomySlot?: ReactNode;
 };
@@ -56,20 +64,39 @@ export function ChecklistenTodosOverviewSection({
   showDueReminders,
   canReadTodos,
   canReadCompliance,
+  restaurantTimezone = DEFAULT_RESTAURANT_TIMEZONE,
+  canUpdateTodos = false,
+  onTodoClick,
   taxonomySlot,
 }: ChecklistenTodosOverviewSectionProps) {
   const openTodos = todos.filter((t) => {
-    const status = computeStaffTodoStatus(t, t.completions, assigneeCount(t));
+    const status = computeStaffTodoStatus(
+      t,
+      t.completions,
+      assigneeCount(t),
+      new Date(),
+      restaurantTimezone,
+    );
     return status !== "done" && status !== "archived" && status !== "planned";
   });
 
   const overdueTodos = openTodos.filter(
     (t) =>
-      computeStaffTodoStatus(t, t.completions, assigneeCount(t)) === "overdue",
+      computeStaffTodoStatus(
+        t,
+        t.completions,
+        assigneeCount(t),
+        new Date(),
+        restaurantTimezone,
+      ) === "overdue",
   );
 
   const attentionTodos = [...openTodos]
-    .sort((a, b) => todoSortWeight(a) - todoSortWeight(b))
+    .sort(
+      (a, b) =>
+        todoSortWeight(a, restaurantTimezone) -
+        todoSortWeight(b, restaurantTimezone),
+    )
     .slice(0, 6);
 
   const showSummary =
@@ -142,12 +169,16 @@ export function ChecklistenTodosOverviewSection({
                 todo,
                 todo.completions,
                 assigneeCount(todo),
+                new Date(),
+                restaurantTimezone,
               );
               const recurrence = staffTodoRecurrenceLabel(todo.recurrence);
               return (
-                <div
+                <button
                   key={todo.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-2"
+                  type="button"
+                  className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-2 text-left transition-colors hover:bg-background/90"
+                  onClick={() => onTodoClick?.(todo)}
                 >
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{todo.title}</p>
@@ -171,7 +202,10 @@ export function ChecklistenTodosOverviewSection({
                   >
                     {STAFF_TODO_PRIORITY_LABELS[todo.priority]}
                   </Badge>
-                </div>
+                  {canUpdateTodos ? (
+                    <span className="text-xs text-muted-foreground">Details</span>
+                  ) : null}
+                </button>
               );
             })}
           </CardContent>

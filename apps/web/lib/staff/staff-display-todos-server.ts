@@ -18,11 +18,33 @@ import {
   triggerShowColumn,
 } from "@/lib/staff/staff-todo-display-triggers";
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
+function displayTodoAssigneeCount(todo: TodoRow): number {
+  const staff =
+    (todo.staff_assignees ?? []).length > 0
+      ? (todo.staff_assignees ?? []).length
+      : todo.staff_id
+        ? 1
+        : 0;
+  const positions =
+    (todo.position_assignees ?? []).length > 0
+      ? (todo.position_assignees ?? []).length
+      : todo.position_tag_id
+        ? 1
+        : 0;
+  return Math.max(1, staff + positions);
+}
 import {
   evaluateStaffTodoCapture,
   type StaffTodoCapturePayload,
 } from "@/lib/staff/staff-todo-capture";
-import { isStaffTodoDoneForStaff } from "@/lib/staff/staff-todo-due";
+import {
+  loadStaffTodoCompletionsByTodoId,
+} from "@/lib/staff/staff-todos-status-load";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
+import {
+  isStaffTodoDoneForStaff,
+  staffTodoPeriodStartIsoForStorage,
+} from "@/lib/staff/staff-todo-due";
 import type {
   StaffTodoCaptureType,
   StaffTodoRecurrence,
@@ -198,8 +220,15 @@ export type DisplayTodoClientPayload = {
 export function mapDisplayTodoClientPayload(
   item: DisplayTodoItem,
   staffId: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): DisplayTodoClientPayload {
-  const done_for_staff = isStaffTodoDoneForStaff(item, item.completions, staffId);
+  const done_for_staff = isStaffTodoDoneForStaff(
+    item,
+    item.completions,
+    staffId,
+    new Date(),
+    timeZone,
+  );
   const activeCompletion = activeCompletionForDisplayStaff(
     item,
     item.completions,
@@ -246,10 +275,17 @@ function activeCompletionForDisplayStaff(
 export function mapDisplayTodoForClient(
   item: DisplayTodoItem,
   staffId: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): DisplayTodoClientItem {
   return {
     ...item,
-    done_for_staff: isStaffTodoDoneForStaff(item, item.completions, staffId),
+    done_for_staff: isStaffTodoDoneForStaff(
+      item,
+      item.completions,
+      staffId,
+      new Date(),
+      timeZone,
+    ),
   };
 }
 
@@ -262,13 +298,20 @@ export function isVisibleInDisplayTodoList(item: DisplayTodoClientItem): boolean
 function isDisplayTodoOpenForStaff(
   item: DisplayTodoItem,
   staffId: string,
+  timeZone: string,
 ): boolean {
-  return !isTodoDoneForStaff(item, item.completions, staffId);
+  return !isTodoDoneForStaff(
+    item,
+    item.completions,
+    staffId,
+    timeZone,
+  );
 }
 
 export function countDisplayTodosForBadge(
   items: DisplayTodoItem[],
   staffId: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): {
   count: number;
   openItems: DisplayTodoItem[];
@@ -277,14 +320,22 @@ export function countDisplayTodosForBadge(
   const visible = items.filter((t) => {
     const enriched = {
       ...t,
-      done_for_staff: isTodoDoneForStaff(t, t.completions, staffId),
+      done_for_staff: isTodoDoneForStaff(
+        t,
+        t.completions,
+        staffId,
+        timeZone,
+      ),
     } as DisplayTodoClientItem;
     return isVisibleInDisplayTodoList(enriched);
   });
-  const openItems = visible.filter((t) => isDisplayTodoOpenForStaff(t, staffId));
+  const openItems = visible.filter((t) =>
+    isDisplayTodoOpenForStaff(t, staffId, timeZone),
+  );
   const reopenableDoneItems = visible.filter(
     (t) =>
-      !isDisplayTodoOpenForStaff(t, staffId) && t.allow_reopen_on_display,
+      !isDisplayTodoOpenForStaff(t, staffId, timeZone) &&
+      t.allow_reopen_on_display,
   );
   const count = openItems.filter(
     (t) => t.status !== "planned" && t.status !== "archived",
@@ -407,25 +458,38 @@ async function fetchTriggerTodos(
   );
 }
 
+export async function loadDisplayRestaurantTimezone(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<string> {
+  return loadRestaurantTimezone(admin, restaurantId);
+}
+
+async function loadRestaurantTimezone(
+  admin: SupabaseClient,
+  restaurantId: string,
+): Promise<string> {
+  const { data } = await admin
+    .from("restaurants")
+    .select("timezone")
+    .eq("id", restaurantId)
+    .maybeSingle();
+  const tz =
+    typeof (data as { timezone?: string } | null)?.timezone === "string"
+      ? (data as { timezone: string }).timezone.trim()
+      : "";
+  return tz || DEFAULT_RESTAURANT_TIMEZONE;
+}
+
 async function loadCompletionsForTodos(
   admin: SupabaseClient,
-  todoIds: string[],
+  restaurantId: string,
+  todos: Pick<TodoRow, "id" | "recurrence">[],
+  timeZone: string,
 ): Promise<Map<string, CompletionRow[]>> {
-  if (todoIds.length === 0) return new Map();
-  const { data } = await admin
-    .from("restaurant_staff_todo_completions")
-    .select(
-      "todo_id, staff_id, completed_at, reopened_at, completion_note, captured_numeric, captured_text, within_limits, corrective_action",
-    )
-    .in("todo_id", todoIds);
-
-  const map = new Map<string, CompletionRow[]>();
-  for (const row of (data ?? []) as CompletionRow[]) {
-    const list = map.get(row.todo_id) ?? [];
-    list.push(row);
-    map.set(row.todo_id, list);
-  }
-  return map;
+  return loadStaffTodoCompletionsByTodoId(admin, restaurantId, todos, {
+    timeZone,
+  });
 }
 
 async function loadActiveDeferrals(
@@ -452,20 +516,34 @@ function isTodoDoneForStaff(
   todo: TodoRow,
   completions: RestaurantStaffTodoCompletionRow[],
   staffId: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): boolean {
-  return isStaffTodoDoneForStaff(todo, completions, staffId);
+  return isStaffTodoDoneForStaff(
+    todo,
+    completions,
+    staffId,
+    new Date(),
+    timeZone,
+  );
 }
 
 function enrichTodo(
   todo: TodoRow,
   completions: RestaurantStaffTodoCompletionRow[],
   deferral: DeferralRow | null,
+  timeZone: string,
 ): DisplayTodoItem {
   return {
     ...todo,
     completions,
     active_deferral: deferral,
-    status: computeStaffTodoStatus(todo, completions),
+    status: computeStaffTodoStatus(
+      todo,
+      completions,
+      displayTodoAssigneeCount(todo),
+      new Date(),
+      timeZone,
+    ),
   };
 }
 
@@ -473,17 +551,20 @@ export async function listDisplayTodosForStaff(
   admin: SupabaseClient,
   params: { restaurantId: string; staffId: string },
 ): Promise<DisplayTodoItem[]> {
-  const positionTagId = await loadStaffPositionTagId(admin, params.staffId);
+  const [positionTagId, timeZone] = await Promise.all([
+    loadStaffPositionTagId(admin, params.staffId),
+    loadRestaurantTimezone(admin, params.restaurantId),
+  ]);
   const todos = await fetchAssignableTodos(
     admin,
     params.restaurantId,
     params.staffId,
     positionTagId,
   );
-  const ids = todos.map((t) => t.id);
+  const todoIds = todos.map((t) => t.id);
   const [completionsMap, deferralsMap] = await Promise.all([
-    loadCompletionsForTodos(admin, ids),
-    loadActiveDeferrals(admin, params.staffId, ids),
+    loadCompletionsForTodos(admin, params.restaurantId, todos, timeZone),
+    loadActiveDeferrals(admin, params.staffId, todoIds),
   ]);
 
   return todos.map((t) =>
@@ -491,6 +572,7 @@ export async function listDisplayTodosForStaff(
       t,
       (completionsMap.get(t.id) ?? []) as RestaurantStaffTodoCompletionRow[],
       deferralsMap.get(t.id) ?? null,
+      timeZone,
     ),
   );
 }
@@ -499,10 +581,15 @@ export async function getDisplayTodoBadgeSummary(
   admin: SupabaseClient,
   params: { restaurantId: string; staffId: string },
 ): Promise<{ count: number; urgency: StaffTodoDisplayUrgency }> {
+  const [, timeZone] = await Promise.all([
+    loadStaffPositionTagId(admin, params.staffId),
+    loadRestaurantTimezone(admin, params.restaurantId),
+  ]);
   const items = await listDisplayTodosForStaff(admin, params);
   const { count, openItems, reopenableDoneItems } = countDisplayTodosForBadge(
     items,
     params.staffId,
+    timeZone,
   );
   const open = openItems.filter(
     (t) => t.status !== "planned" && t.status !== "archived",
@@ -535,51 +622,21 @@ export async function loadDisplayTodosLiveSignal(
   params: { restaurantId: string; staffId: string },
 ): Promise<DisplayTodosLiveSignal> {
   const summary = await getDisplayTodoBadgeSummary(admin, params);
-  const positionTagId = await loadStaffPositionTagId(admin, params.staffId);
-  const todos = await fetchAssignableTodos(
-    admin,
-    params.restaurantId,
-    params.staffId,
-    positionTagId,
-  );
-
-  let maxMs = 0;
-  const bump = (iso: string | null | undefined) => {
-    if (!iso) return;
-    const t = new Date(iso).getTime();
-    if (!Number.isNaN(t) && t > maxMs) maxMs = t;
-  };
-
-  for (const t of todos) bump(t.updated_at);
-
-  const ids = todos.map((t) => t.id);
-  if (ids.length > 0) {
-    const [{ data: completions }, { data: deferrals }] = await Promise.all([
-      admin
-        .from("restaurant_staff_todo_completions")
-        .select("completed_at, reopened_at")
-        .in("todo_id", ids)
-        .eq("staff_id", params.staffId),
-      admin
-        .from("restaurant_staff_todo_deferrals")
-        .select("deferred_at, cleared_at")
-        .in("todo_id", ids)
-        .eq("staff_id", params.staffId),
-    ]);
-    for (const row of completions ?? []) {
-      bump(row.completed_at);
-      bump(row.reopened_at);
-    }
-    for (const row of deferrals ?? []) {
-      bump(row.deferred_at);
-      bump(row.cleared_at);
-    }
-  }
-
-  const minuteBucket = Math.floor(Date.now() / 60_000);
   return {
-    revision: `${summary.count}|${summary.urgency}|${maxMs}|${minuteBucket}`,
+    revision: `${summary.count}|${summary.urgency}`,
   };
+}
+
+async function clearDeferralsForTodo(
+  admin: SupabaseClient,
+  params: { staffId: string; todoId: string },
+): Promise<void> {
+  await admin
+    .from("restaurant_staff_todo_deferrals")
+    .update({ cleared_at: new Date().toISOString() })
+    .eq("staff_id", params.staffId)
+    .eq("todo_id", params.todoId)
+    .is("cleared_at", null);
 }
 
 async function clearDeferralsForTrigger(
@@ -634,9 +691,10 @@ export async function getTodosForDisplayTrigger(
     positionTagId,
     params.trigger,
   );
+  const timeZone = await loadRestaurantTimezone(admin, params.restaurantId);
   const ids = todos.map((t) => t.id);
   const [completionsMap, deferralsMap] = await Promise.all([
-    loadCompletionsForTodos(admin, ids),
+    loadCompletionsForTodos(admin, params.restaurantId, todos, timeZone),
     loadActiveDeferrals(admin, params.staffId, ids),
   ]);
 
@@ -646,10 +704,20 @@ export async function getTodosForDisplayTrigger(
         t,
         (completionsMap.get(t.id) ?? []) as RestaurantStaffTodoCompletionRow[],
         deferralsMap.get(t.id) ?? null,
+        timeZone,
       ),
     )
     .filter((t) => {
-      if (isTodoDoneForStaff(t, t.completions, params.staffId)) return false;
+      if (
+        isTodoDoneForStaff(
+          t,
+          t.completions,
+          params.staffId,
+          timeZone,
+        )
+      ) {
+        return false;
+      }
       if (t.status === "planned" || t.status === "archived") return false;
       if (t.active_deferral?.trigger_type === params.trigger) return false;
       return true;
@@ -671,7 +739,10 @@ export async function completeDisplayTodo(
     completionNote?: string | null;
     capture?: StaffTodoCapturePayload;
   },
-): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+): Promise<
+  | { ok: true; todo_done_for_staff: boolean }
+  | { ok: false; error: string; status: number }
+> {
   const assigned = await assertDisplayTodoAssignedToStaff(
     admin,
     {
@@ -695,13 +766,44 @@ export async function completeDisplayTodo(
     };
   }
 
+  const timeZone = await loadRestaurantTimezone(admin, params.restaurantId);
+  const periodStart = staffTodoPeriodStartIsoForStorage(
+    row.recurrence,
+    new Date(),
+    timeZone,
+  );
+  const { data: existingRow } = await admin
+    .from("restaurant_staff_todo_completions")
+    .select("todo_id, staff_id, period_start, completed_at, reopened_at")
+    .eq("todo_id", params.todoId)
+    .eq("staff_id", params.completedByStaffId)
+    .eq("period_start", periodStart)
+    .maybeSingle();
+
+  const wasAlreadyDone =
+    existingRow &&
+    !existingRow.reopened_at &&
+    existingRow.completed_at &&
+    isStaffTodoDoneForStaff(
+      row,
+      [existingRow as RestaurantStaffTodoCompletionRow],
+      params.completedByStaffId,
+      new Date(),
+      timeZone,
+    );
+
+  if (wasAlreadyDone) {
+    return { ok: true, todo_done_for_staff: true };
+  }
+
   const now = new Date().toISOString();
-  const { error: compErr } = await admin
+  const { data: savedRow, error: upsertErr } = await admin
     .from("restaurant_staff_todo_completions")
     .upsert(
       {
         todo_id: params.todoId,
         staff_id: params.completedByStaffId,
+        period_start: periodStart,
         completed_at: now,
         reopened_at: null,
         confirmed_at: now,
@@ -711,27 +813,64 @@ export async function completeDisplayTodo(
         within_limits: evaluation.within_limits,
         corrective_action: evaluation.corrective_action,
       },
-      { onConflict: "todo_id,staff_id" },
-    );
+      { onConflict: "todo_id,staff_id,period_start" },
+    )
+    .select("todo_id, staff_id, period_start, completed_at, reopened_at")
+    .single();
 
-  if (compErr) {
-    return { ok: false, error: compErr.message, status: 500 };
+  if (upsertErr || !savedRow?.completed_at) {
+    console.error("[display] todo completion upsert failed", upsertErr);
+    return {
+      ok: false,
+      error: upsertErr?.code ?? "completion_save_failed",
+      status: 500,
+    };
   }
 
-  await admin.from("restaurant_staff_todo_log_entries").insert({
+  const activeRow = savedRow;
+
+  await clearDeferralsForTodo(admin, {
+    staffId: params.completedByStaffId,
+    todoId: params.todoId,
+  });
+
+  if (activeRow.reopened_at) {
+    console.warn("[display] todo completion saved but still reopened", {
+      todoId: params.todoId,
+      staffId: params.completedByStaffId,
+      completed_at: activeRow.completed_at,
+    });
+  }
+
+  const { error: logErr } = await admin.from("restaurant_staff_todo_log_entries").insert({
     restaurant_id: params.restaurantId,
     todo_id: params.todoId,
     action: "completed" satisfies StaffTodoLogAction,
-    actor_staff_id: params.staffId,
+    actor_staff_id: params.completedByStaffId,
     details: {
-      title: row.title,
       capture_type: row.capture_type,
+      captured_numeric: evaluation.captured_numeric,
+      captured_text: evaluation.captured_text,
       within_limits: evaluation.within_limits,
       has_deviation: evaluation.has_deviation,
+      corrective_action: evaluation.corrective_action,
+      period_start: periodStart,
     },
   });
 
-  return { ok: true };
+  if (logErr) {
+    console.error("[display] todo completion log failed", logErr);
+  }
+
+  const todoDoneForStaff = isStaffTodoDoneForStaff(
+    row,
+    [activeRow as RestaurantStaffTodoCompletionRow],
+    params.completedByStaffId,
+    new Date(),
+    timeZone,
+  );
+
+  return { ok: true, todo_done_for_staff: todoDoneForStaff };
 }
 
 export async function reopenDisplayTodo(
@@ -749,7 +888,7 @@ export async function reopenDisplayTodo(
       staffId: params.staffId,
       todoId: params.todoId,
     },
-    "id, restaurant_id, title, allow_reopen_on_display, assignee_type, staff_id, position_tag_id, staff_assignees:restaurant_staff_todo_staff_assignees ( staff_id ), position_assignees:restaurant_staff_todo_position_assignees ( position_tag_id )",
+    "id, restaurant_id, title, allow_reopen_on_display, recurrence, assignee_type, staff_id, position_tag_id, staff_assignees:restaurant_staff_todo_staff_assignees ( staff_id ), position_assignees:restaurant_staff_todo_position_assignees ( position_tag_id )",
   );
   if (!assigned.ok) {
     return assigned;
@@ -758,18 +897,26 @@ export async function reopenDisplayTodo(
   const row = assigned.row as {
     title: string;
     allow_reopen_on_display: boolean;
+    recurrence: StaffTodoRecurrence | null;
   };
 
   if (!row.allow_reopen_on_display) {
     return { ok: false, error: "reopen_not_allowed", status: 403 };
   }
 
+  const timeZone = await loadRestaurantTimezone(admin, params.restaurantId);
+  const periodStart = staffTodoPeriodStartIsoForStorage(
+    row.recurrence,
+    new Date(),
+    timeZone,
+  );
   const now = new Date().toISOString();
   const { data: completion, error: loadErr } = await admin
     .from("restaurant_staff_todo_completions")
     .select("id, reopened_at")
     .eq("todo_id", params.todoId)
     .eq("staff_id", params.staffId)
+    .eq("period_start", periodStart)
     .is("reopened_at", null)
     .maybeSingle();
 

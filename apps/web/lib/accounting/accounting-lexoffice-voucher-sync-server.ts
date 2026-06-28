@@ -358,7 +358,7 @@ export async function syncLexofficeBookkeepingVouchers(
   for (const item of list.items) {
     const existing = existingByExternalId.get(item.id);
     const isNew = !existing;
-    const { payload, detailFetched } = await buildVoucherPayload(
+    const { payload } = await buildVoucherPayload(
       params.restaurantId,
       item,
       existing,
@@ -437,20 +437,6 @@ export async function syncLexofficeBookkeepingVouchers(
         );
       } else {
         updated += 1;
-        if (detailFetched && existing) {
-          await insertAccountingDocumentLog(sb, {
-            restaurantId: params.restaurantId,
-            documentKind: "voucher",
-            documentId: existing.id,
-            actorUserId,
-            action: "synced",
-            details: {
-              source: "lexoffice",
-              voucherNumber: item.voucherNumber,
-              summary: "Belegdetails aus Lexware aktualisiert",
-            },
-          });
-        }
       }
     }
   }

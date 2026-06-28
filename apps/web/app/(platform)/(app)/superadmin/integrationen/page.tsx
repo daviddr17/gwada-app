@@ -150,8 +150,7 @@ function SuperadminIntegrationsContent() {
   return (
     <div className="space-y-6 pt-2">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">Integrationen</h2>
+        <div className="space-y-1">
           <p className="text-sm text-muted-foreground">
             OAuth, WhatsApp (WAHA), Wetter-API und E-Mail — Zugangsdaten nur für
             Superadmins, Versand und API-Calls nur serverseitig.

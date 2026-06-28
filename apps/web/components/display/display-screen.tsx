@@ -72,7 +72,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const [lockPinError, setLockPinError] = useState<string | null>(null);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastActivityRef = useRef<number>(Date.now());
-  const pendingPinTodoGateRef = useRef(false);
+  const pinLoginGatePreparingRef = useRef(false);
+  const sessionRestoreGatePreparedRef = useRef(false);
   const pendingPinSessionRef = useRef<{
     ctx: DisplayContextResponse;
     mods: DisplayModule[];
@@ -156,12 +157,33 @@ export function DisplayScreen({ slug }: { slug: string }) {
   ) : null;
 
   useEffect(() => {
-    if (!pendingPinTodoGateRef.current || !context?.session) return;
-    pendingPinTodoGateRef.current = false;
-    void preparePinLoginGate().then(() => {
-      void refreshTodoBadge();
-    });
-  }, [context?.session, preparePinLoginGate, refreshTodoBadge]);
+    if (!context?.session) {
+      sessionRestoreGatePreparedRef.current = false;
+      return;
+    }
+    if (locked || loading) return;
+    if (sessionRestoreGatePreparedRef.current) return;
+    if (todoPopupProps.open || todoPopupProps.gateCelebration) return;
+    if (screenCelebration) return;
+    if (pinLoginGatePreparingRef.current) return;
+
+    sessionRestoreGatePreparedRef.current = true;
+    pinLoginGatePreparingRef.current = true;
+    void preparePinLoginGate()
+      .finally(() => {
+        pinLoginGatePreparingRef.current = false;
+        void refreshTodoBadge();
+      });
+  }, [
+    context?.session,
+    locked,
+    loading,
+    screenCelebration,
+    todoPopupProps.open,
+    todoPopupProps.gateCelebration,
+    preparePinLoginGate,
+    refreshTodoBadge,
+  ]);
 
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -214,11 +236,17 @@ export function DisplayScreen({ slug }: { slug: string }) {
       pendingPinSessionRef.current = null;
       if (!pending) return;
 
-      pendingPinTodoGateRef.current = true;
       const { ctx, mods } = pending;
       setContext(ctx);
       setActiveModule(mods.length === 1 ? mods[0]! : null);
       setLocked(false);
+      sessionRestoreGatePreparedRef.current = true;
+      pinLoginGatePreparingRef.current = true;
+      void preparePinLoginGate()
+        .finally(() => {
+          pinLoginGatePreparingRef.current = false;
+          void refreshTodoBadge();
+        });
       window.setTimeout(() => {
         syncDisplayTodosLiveAfterPin();
         if (mods.includes("reservations")) {
@@ -226,7 +254,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
         }
       }, 0);
     }
-  }, [performLogout]);
+  }, [performLogout, preparePinLoginGate, refreshTodoBadge]);
 
   const handleScreenCelebrationDone = useCallback(() => {
     setScreenCelebration(null);

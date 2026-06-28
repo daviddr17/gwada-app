@@ -10,6 +10,7 @@ import {
   Hourglass,
   LayoutDashboard,
   LogOut,
+  Palette,
   Plug,
   RefreshCw,
   ScrollText,
@@ -306,6 +307,16 @@ export function AppSidebar() {
                           pendingChangelogCount,
                         )}
                       </span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      isActive={pathname.startsWith("/superadmin/design")}
+                      tooltip="Design"
+                      render={<Link href="/superadmin/design" prefetch />}
+                    >
+                      <Palette />
+                      <span>Design</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 </>

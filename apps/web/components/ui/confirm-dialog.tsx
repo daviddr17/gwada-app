@@ -58,7 +58,7 @@ export function ConfirmDialog({
       disablePointerDismissal={pending}
     >
       {/*
-        Vaul/Radix-Drawer (z-50) + ggf. transform erzeugen eigene Stacking-Kontexte.
+        Vaul/Base-UI-Drawer (z-210) + ggf. transform erzeugen eigene Stacking-Kontexte.
         Portal-Wrapper: fullscreen fixed + sehr hoher z-index + isolate, damit
         Backdrop/Popup garantiert über dem Bottom-Sheet liegen und Klicks nicht
         „durchfallen“.

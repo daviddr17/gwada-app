@@ -2,20 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Filter, Pencil, Plus, Search, Check, ScrollText } from "lucide-react";
+import { Filter, Pencil, Plus, Search, Check, ScrollText, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   StaffTodosFilterDrawer,
   countStaffTodosActiveFilters,
-  type StaffTodosSortKey,
 } from "@/components/staff/todos/staff-todos-filter-drawer";
 import { StaffTodoFormDrawer } from "@/components/staff/todos/staff-todo-form-drawer";
+import { StaffTodoDetailDrawer } from "@/components/staff/todos/staff-todo-detail-drawer";
 import { StaffTodosProtocolDrawer } from "@/components/staff/todos/staff-todos-protocol-drawer";
 import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
 import { ChecklistTaxonomyPanel } from "@/components/checklisten/checklist-taxonomy-panel";
@@ -27,6 +27,7 @@ import {
   assignedPositionTagIds,
   completeStaffTodoForStaff,
   insertStaffTodoLogEntry,
+  reopenStaffTodo,
 } from "@/lib/supabase/staff-todos-db";
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
@@ -50,18 +51,45 @@ import type { RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
 import { STAFF_TODO_PRIORITY_LABELS } from "@/lib/types/staff-todos";
 import {
   computeStaffTodoStatus,
-  STAFF_TODO_STATUS_LABELS,
   staffTodoPriorityBadgeClass,
   staffTodoStatusBadgeClass,
 } from "@/lib/staff/staff-todo-status";
 import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatRestaurantDateTime,
+  isSameRestaurantCalendarDay,
+} from "@/lib/restaurant/restaurant-timezone";
+import {
+  formatStaffTodoStatusLabel,
+  staffTodoAssigneeCount,
+  staffTodoCanReopen,
+} from "@/lib/staff/staff-todo-completion-display";
+import {
+  staffTodoAreaLabel,
   staffTodoCaptureLabel,
-  staffTodoContextLabel,
+  staffTodoDeviceLabel,
   staffTodoLimitsLabel,
   staffTodoRecurrenceLabel,
   todoMatchesAreaFilter,
 } from "@/lib/staff/staff-todo-meta";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleDataTableHeadRowClassName,
+} from "@/lib/ui/module-data-table";
+import { ModuleTableSortHeader, ModuleTableStaticColumnHeader } from "@/lib/ui/module-table-sort-header";
+import {
+  ModuleTableActionsCell,
+  ModuleTableIconActionButton,
+  ModuleTableIconActionsColumnHeader,
+} from "@/lib/ui/module-table-icon-tooltip";
+import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
+import {
+  defaultStaffTodosSortDir,
+  STAFF_TODO_STATUS_SORT_ORDER,
+  type StaffTodosSortDir,
+  type StaffTodosSortKey,
+} from "@/lib/staff/staff-todos-sort";
 import {
   moduleSearchFieldWrapClassName,
   moduleSearchFilterActiveBadgeClassName,
@@ -84,22 +112,8 @@ import type { RestaurantStaffRow } from "@/lib/types/staff";
 
 const PRIORITY_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-function isToday(iso: string): boolean {
-  const d = new Date(iso);
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return !Number.isNaN(d.getTime()) && d >= start;
-}
-
-function formatWhen(iso: string | null): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatWhen(iso: string | null, timeZone: string): string {
+  return formatRestaurantDateTime(iso, timeZone);
 }
 
 export function StaffTodosScreen() {
@@ -133,10 +147,17 @@ export function StaffTodosScreen() {
   const [filterAreaId, setFilterAreaId] = useState<string | null>(null);
   const [filterDeviceId, setFilterDeviceId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<StaffTodosSortKey>("priority");
+  const [sortDir, setSortDir] = useState<StaffTodosSortDir>("desc");
   const [page, setPage] = useState(1);
+  const [restaurantTimezone, setRestaurantTimezone] = useState(
+    DEFAULT_RESTAURANT_TIMEZONE,
+  );
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editTodo, setEditTodo] = useState<RestaurantStaffTodoRow | null>(null);
+  const [detailTodo, setDetailTodo] = useState<RestaurantStaffTodoRow | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
 
   const reload = useCallback(async () => {
     if (!restaurantId || !canRead) {
@@ -156,20 +177,29 @@ export function StaffTodosScreen() {
     ]);
     setLoading(false);
     if (todoRes.error && !isMissingSchemaError(todoRes.error)) toast.error(todoRes.error);
-    else setTodos(todoRes.data);
+    else {
+      setTodos(todoRes.data);
+      setRestaurantTimezone(todoRes.restaurantTimezone);
+    }
     if (staffRes.error) toast.error(staffRes.error);
     else setStaffList(staffRes.data);
 
     let todayCaptures = 0;
     for (const todo of todoRes.data) {
       for (const c of todo.completions ?? []) {
-        if (c.completed_at && !c.reopened_at && isToday(c.completed_at)) {
+        if (
+          c.completed_at &&
+          !c.reopened_at &&
+          isSameRestaurantCalendarDay(c.completed_at, new Date(), todoRes.restaurantTimezone)
+        ) {
           todayCaptures += 1;
         }
       }
     }
     if (canReadCompliance && !recordsRes.error) {
-      todayCaptures += recordsRes.data.filter((r) => isToday(r.performed_at)).length;
+      todayCaptures += recordsRes.data.filter((r) =>
+        isSameRestaurantCalendarDay(r.performed_at, new Date(), todoRes.restaurantTimezone),
+      ).length;
     }
     setCapturesToday(todayCaptures);
 
@@ -181,6 +211,20 @@ export function StaffTodosScreen() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [reload]);
+
+  useEffect(() => {
+    if (!detailTodo) return;
+    const fresh = todos.find((t) => t.id === detailTodo.id);
+    if (fresh) setDetailTodo(fresh);
+  }, [todos, detailTodo?.id]);
 
   const staffById = useMemo(
     () => new Map(staffList.map((s) => [s.id, s])),
@@ -201,6 +245,31 @@ export function StaffTodosScreen() {
     return opts;
   }, [staffList, positionTags]);
 
+  const areaFilterOptions = useMemo(() => {
+    const opts = [{ value: "all", label: "Alle Bereiche" }];
+    for (const a of areasStorage.items.filter((x) => x.active)) {
+      opts.push({ value: a.id, label: a.name });
+    }
+    return opts;
+  }, [areasStorage.items]);
+
+  const deviceFilterOptions = useMemo(() => {
+    const opts = [{ value: "all", label: "Alle Geräte" }];
+    for (const d of devicesStorage.items.filter((x) => x.is_active)) {
+      opts.push({ value: d.id, label: d.name });
+    }
+    return opts;
+  }, [devicesStorage.items]);
+
+  const toggleSort = useCallback((key: StaffTodosSortKey) => {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir(defaultStaffTodosSortDir(key));
+      return;
+    }
+    setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+  }, [sortKey]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     let rows = todos;
@@ -215,7 +284,13 @@ export function StaffTodosScreen() {
     }
 
     rows = rows.filter((t) => {
-      const status = computeStaffTodoStatus(t, t.completions);
+      const status = computeStaffTodoStatus(
+        t,
+        t.completions,
+        staffTodoAssigneeCount(t),
+        new Date(),
+        restaurantTimezone,
+      );
       if (filterStatus !== "all" && status !== filterStatus) return false;
       if (filterPriority !== "all" && t.priority !== filterPriority) return false;
       if (filterAssignee !== "all") {
@@ -230,6 +305,8 @@ export function StaffTodosScreen() {
           t.title,
           t.description ?? "",
           staffTodoAssigneeLabel(t),
+          staffTodoAreaLabel(t) ?? "",
+          staffTodoDeviceLabel(t) ?? "",
         ]
           .join(" ")
           .toLowerCase();
@@ -238,22 +315,52 @@ export function StaffTodosScreen() {
       return true;
     });
 
+    const dir = sortDir === "asc" ? 1 : -1;
     const sorted = [...rows].sort((a, b) => {
-      if (sortKey === "title") return a.title.localeCompare(b.title, "de");
-      if (sortKey === "created") {
-        return (
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
+      switch (sortKey) {
+        case "title":
+          return a.title.localeCompare(b.title, "de") * dir;
+        case "assignee":
+          return (
+            staffTodoAssigneeLabel(a).localeCompare(staffTodoAssigneeLabel(b), "de") *
+            dir
+          );
+        case "priority": {
+          const pa = PRIORITY_ORDER[a.priority] ?? 9;
+          const pb = PRIORITY_ORDER[b.priority] ?? 9;
+          if (pa !== pb) return (pa - pb) * dir;
+          return a.title.localeCompare(b.title, "de") * dir;
+        }
+        case "status": {
+          const sa = STAFF_TODO_STATUS_SORT_ORDER[
+            computeStaffTodoStatus(
+              a,
+              a.completions,
+              staffTodoAssigneeCount(a),
+              new Date(),
+              restaurantTimezone,
+            )
+          ];
+          const sb = STAFF_TODO_STATUS_SORT_ORDER[
+            computeStaffTodoStatus(
+              b,
+              b.completions,
+              staffTodoAssigneeCount(b),
+              new Date(),
+              restaurantTimezone,
+            )
+          ];
+          if (sa !== sb) return (sa - sb) * dir;
+          return a.title.localeCompare(b.title, "de") * dir;
+        }
+        case "due": {
+          const au = a.display_until ? new Date(a.display_until).getTime() : Infinity;
+          const bu = b.display_until ? new Date(b.display_until).getTime() : Infinity;
+          return (au - bu) * dir;
+        }
+        default:
+          return 0;
       }
-      if (sortKey === "due") {
-        const au = a.display_until ? new Date(a.display_until).getTime() : Infinity;
-        const bu = b.display_until ? new Date(b.display_until).getTime() : Infinity;
-        return au - bu;
-      }
-      const pa = PRIORITY_ORDER[a.priority] ?? 9;
-      const pb = PRIORITY_ORDER[b.priority] ?? 9;
-      if (pa !== pb) return pa - pb;
-      return a.title.localeCompare(b.title, "de");
     });
 
     return sorted;
@@ -266,8 +373,10 @@ export function StaffTodosScreen() {
     filterAreaId,
     filterDeviceId,
     sortKey,
+    sortDir,
     staffFilterFromUrl,
     staffById,
+    restaurantTimezone,
   ]);
 
   const totalPages = totalPagesFromCount(filtered.length, LIST_PAGE_SIZE_DEFAULT);
@@ -279,17 +388,29 @@ export function StaffTodosScreen() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterStatus, filterPriority, filterAssignee, filterAreaId, filterDeviceId, sortKey, staffFilterFromUrl]);
+  }, [
+    search,
+    filterStatus,
+    filterPriority,
+    filterAssignee,
+    filterAreaId,
+    filterDeviceId,
+    sortKey,
+    sortDir,
+    staffFilterFromUrl,
+  ]);
 
   const activeFilterCount = countStaffTodosActiveFilters({
     filterStatus,
     filterPriority,
     filterAssignee,
-    sortKey,
+    filterAreaId,
+    filterDeviceId,
   });
 
   const handleMarkDone = async (todo: RestaurantStaffTodoRow) => {
-    if (!restaurantId || !canUpdate) return;
+    if (!restaurantId || !canUpdate || actionBusy) return;
+    setActionBusy(true);
     let staffId: string | null =
       assignedStaffIds(todo)[0] ?? todo.staff_id ?? null;
     if (!staffId) {
@@ -303,11 +424,16 @@ export function StaffTodosScreen() {
         )?.id ?? null;
     }
     if (!staffId) {
+      setActionBusy(false);
       toast.error("Kein Mitarbeiter für die Erledigung gefunden.");
       return;
     }
-    const { error } = await completeStaffTodoForStaff(todo.id, staffId);
+    const { error } = await completeStaffTodoForStaff(todo.id, staffId, {
+      recurrence: todo.recurrence,
+      timeZone: restaurantTimezone,
+    });
     if (error) {
+      setActionBusy(false);
       toast.error(error);
       return;
     }
@@ -317,8 +443,31 @@ export function StaffTodosScreen() {
       action: "completed_by_manager",
       details: { title: todo.title },
     });
+    setActionBusy(false);
     toast.success("ToDo als erledigt markiert.");
     void reload();
+  };
+
+  const handleReopen = async (todo: RestaurantStaffTodoRow) => {
+    if (!restaurantId || !canUpdate || actionBusy) return;
+    setActionBusy(true);
+    const { error } = await reopenStaffTodo(restaurantId, todo.id, {
+      recurrence: todo.recurrence,
+      timeZone: restaurantTimezone,
+      todoTitle: todo.title,
+    });
+    setActionBusy(false);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.success("ToDo wieder geöffnet.");
+    void reload();
+  };
+
+  const openTodoDetail = (todo: RestaurantStaffTodoRow) => {
+    setDetailTodo(todo);
+    setDetailOpen(true);
   };
 
   if (!permissionsLoading && !canRead) {
@@ -345,17 +494,22 @@ export function StaffTodosScreen() {
         showDueReminders={showDueReminders}
         canReadTodos={canRead}
         canReadCompliance={canReadCompliance}
+        restaurantTimezone={restaurantTimezone}
+        canUpdateTodos={canUpdate}
+        onTodoClick={openTodoDetail}
         taxonomySlot={
-          <ChecklistTaxonomyPanel
-            layout="inline"
-            areasStorage={areasStorage}
-            devicesStorage={devicesStorage}
-            filterAreaId={filterAreaId}
-            onFilterAreaIdChange={setFilterAreaId}
-            filterDeviceId={filterDeviceId}
-            onFilterDeviceIdChange={setFilterDeviceId}
-            canManage={canUpdate}
-          />
+          canUpdate ? (
+            <ChecklistTaxonomyPanel
+              layout="inline"
+              areasStorage={areasStorage}
+              devicesStorage={devicesStorage}
+              filterAreaId={filterAreaId}
+              onFilterAreaIdChange={setFilterAreaId}
+              filterDeviceId={filterDeviceId}
+              onFilterDeviceIdChange={setFilterDeviceId}
+              canManage={canUpdate}
+            />
+          ) : undefined
         }
       />
 
@@ -430,9 +584,7 @@ export function StaffTodosScreen() {
           </CardContent>
         </Card>
       ) : (
-        <ListPaginationSurround
-          classNameAbove="px-0 pt-0"
-          classNameBelow="px-0 pb-0"
+        <ModulePaginatedDataTable
           shown={paginated.length}
           totalCount={filtered.length}
           itemLabel="ToDos"
@@ -443,52 +595,106 @@ export function StaffTodosScreen() {
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
         >
-          <Card className="overflow-hidden border-border/50 shadow-card">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-[880px] text-sm">
                 <thead>
-                  <tr className="border-b border-border/50 bg-muted/30">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Titel
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Zuordnung
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Priorität
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Art
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                      Fällig
-                    </th>
+                  <tr className={moduleDataTableHeadRowClassName}>
+                    <ModuleTableSortHeader
+                      label="Titel"
+                      sortKey="title"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                      stickyIdentityColumn
+                    />
+                    <ModuleTableStaticColumnHeader label="Bereich" />
+                    <ModuleTableStaticColumnHeader label="Gerät" />
+                    <ModuleTableSortHeader
+                      label="Zuordnung"
+                      sortKey="assignee"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <ModuleTableSortHeader
+                      label="Priorität"
+                      sortKey="priority"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <ModuleTableSortHeader
+                      label="Status"
+                      sortKey="status"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <ModuleTableStaticColumnHeader label="Art" />
+                    <ModuleTableSortHeader
+                      label="Fällig"
+                      sortKey="due"
+                      activeKey={sortKey}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
                     {canUpdate ? (
-                      <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground">
-                        Aktion
-                      </th>
+                      <ModuleTableIconActionsColumnHeader />
                     ) : null}
                   </tr>
                 </thead>
                 <tbody>
                   {paginated.map((todo) => {
-                    const status = computeStaffTodoStatus(todo, todo.completions);
+                    const assigneeCount = staffTodoAssigneeCount(todo);
+                    const status = computeStaffTodoStatus(
+                      todo,
+                      todo.completions,
+                      assigneeCount,
+                      new Date(),
+                      restaurantTimezone,
+                    );
+                    const statusLabel = formatStaffTodoStatusLabel(
+                      todo,
+                      restaurantTimezone,
+                      staffById,
+                    );
                     const recurrence = staffTodoRecurrenceLabel(todo.recurrence);
                     const limits = staffTodoLimitsLabel(todo);
-                    const context = staffTodoContextLabel(todo);
+                    const areaLabel = staffTodoAreaLabel(todo);
+                    const deviceLabel = staffTodoDeviceLabel(todo);
+                    const showReopen = canUpdate && staffTodoCanReopen(todo, restaurantTimezone);
                     return (
                       <tr
                         key={todo.id}
-                        className="border-b border-border/40 last:border-0"
+                        className="group/tr cursor-pointer border-b border-border/40 last:border-0 hover:bg-muted/20"
+                        onClick={() => openTodoDetail(todo)}
                       >
-                        <td className="px-4 py-3">
+                        <ModuleTableStickyBodyCell
+                          tone="muted-hover-20"
+                          className="px-4 py-3"
+                        >
                           <p className="font-medium">{todo.title}</p>
-                          {context ? (
-                            <p className="text-xs text-muted-foreground">{context}</p>
-                          ) : null}
+                        </ModuleTableStickyBodyCell>
+                        <td className="max-w-[8rem] px-4 py-3 text-muted-foreground">
+                          {areaLabel ? (
+                            <span className="inline-flex min-w-0 max-w-full items-center gap-1.5">
+                              {todo.checklist_area?.background_color ? (
+                                <span
+                                  className="size-2 shrink-0 rounded-full"
+                                  style={{
+                                    backgroundColor:
+                                      todo.checklist_area.background_color,
+                                  }}
+                                  aria-hidden
+                                />
+                              ) : null}
+                              <TableCellTruncateTooltip text={areaLabel} />
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="max-w-[8rem] px-4 py-3 text-muted-foreground">
+                          <TableCellTruncateTooltip text={deviceLabel ?? "—"} />
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {staffTodoAssigneeLabel(todo)}
@@ -506,60 +712,60 @@ export function StaffTodosScreen() {
                             variant="outline"
                             className={staffTodoStatusBadgeClass(status)}
                           >
-                            {STAFF_TODO_STATUS_LABELS[status]}
+                            {statusLabel}
                           </Badge>
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           <p className="text-sm">{staffTodoCaptureLabel(todo.capture_type)}</p>
-                          {recurrence ? (
-                            <p className="text-xs">{recurrence}</p>
-                          ) : null}
                           {limits ? (
                             <p className="text-xs">{limits}</p>
                           ) : null}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {recurrence ?? formatWhen(todo.display_until)}
+                          {recurrence ?? formatWhen(todo.display_until, restaurantTimezone)}
                         </td>
                         {canUpdate ? (
-                          <td className="px-4 py-3 text-right">
-                            <div className="flex justify-end gap-1">
+                          <ModuleTableActionsCell
+                            onClick={(e) => e.stopPropagation()}
+                          >
                               {status !== "done" && status !== "archived" ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon-sm"
+                                <ModuleTableIconActionButton
+                                  label="Als erledigt markieren"
                                   className="rounded-full"
-                                  aria-label="Als erledigt markieren"
+                                  disabled={actionBusy}
                                   onClick={() => void handleMarkDone(todo)}
                                 >
                                   <Check className="size-4" />
-                                </Button>
+                                </ModuleTableIconActionButton>
                               ) : null}
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
+                              {showReopen ? (
+                                <ModuleTableIconActionButton
+                                  label="Nicht erledigt"
+                                  className="rounded-full"
+                                  disabled={actionBusy}
+                                  onClick={() => void handleReopen(todo)}
+                                >
+                                  <RotateCcw className="size-4" />
+                                </ModuleTableIconActionButton>
+                              ) : null}
+                              <ModuleTableIconActionButton
+                                label="Bearbeiten"
                                 className="rounded-full"
-                                aria-label="Bearbeiten"
                                 onClick={() => {
                                   setEditTodo(todo);
                                   setDrawerOpen(true);
                                 }}
                               >
                                 <Pencil className="size-4" />
-                              </Button>
-                            </div>
-                          </td>
+                              </ModuleTableIconActionButton>
+                          </ModuleTableActionsCell>
                         ) : null}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-          </Card>
-        </ListPaginationSurround>
+        </ModulePaginatedDataTable>
       )}
 
       <StaffTodosFilterDrawer
@@ -572,14 +778,38 @@ export function StaffTodosScreen() {
         filterAssignee={filterAssignee}
         onFilterAssigneeChange={setFilterAssignee}
         assigneeOptions={assigneeFilterOptions}
-        sortKey={sortKey}
-        onSortKeyChange={setSortKey}
+        filterAreaId={filterAreaId}
+        onFilterAreaIdChange={setFilterAreaId}
+        areaOptions={areaFilterOptions}
+        filterDeviceId={filterDeviceId}
+        onFilterDeviceIdChange={setFilterDeviceId}
+        deviceOptions={deviceFilterOptions}
       />
 
       <StaffTodosProtocolDrawer
         open={protocolOpen}
         onOpenChange={setProtocolOpen}
         restaurantId={restaurantId}
+      />
+
+      <StaffTodoDetailDrawer
+        open={detailOpen}
+        onOpenChange={(open) => {
+          setDetailOpen(open);
+          if (!open) setDetailTodo(null);
+        }}
+        todo={detailTodo}
+        restaurantTimezone={restaurantTimezone}
+        staffList={staffList}
+        canUpdate={canUpdate}
+        busy={actionBusy}
+        onMarkDone={handleMarkDone}
+        onReopen={handleReopen}
+        onEdit={(todo) => {
+          setDetailOpen(false);
+          setEditTodo(todo);
+          setDrawerOpen(true);
+        }}
       />
 
       <StaffTodoFormDrawer

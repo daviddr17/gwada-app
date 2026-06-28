@@ -16,6 +16,7 @@ import {
   STAFF_TODO_STATUS_LABELS,
   staffTodoStatusBadgeClass,
 } from "@/lib/staff/staff-todo-status";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import type { RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 
@@ -37,15 +38,20 @@ export function StaffTodoProfileSection({
   const router = useRouter();
   const [todos, setTodos] = useState<RestaurantStaffTodoRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [restaurantTimezone, setRestaurantTimezone] = useState(
+    DEFAULT_RESTAURANT_TIMEZONE,
+  );
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await fetchStaffTodosForRestaurant(restaurantId);
+    const { data, error, restaurantTimezone: tz } =
+      await fetchStaffTodosForRestaurant(restaurantId);
     setLoading(false);
     if (error) {
       toast.error(error);
       return;
     }
+    setRestaurantTimezone(tz);
     setTodos(data.filter((t) => todoMatchesStaff(t, staff)));
   }, [restaurantId, staff]);
 
@@ -54,7 +60,13 @@ export function StaffTodoProfileSection({
   }, [reload]);
 
   const openTodos = todos.filter((t) => {
-    const status = computeStaffTodoStatus(t, t.completions);
+    const status = computeStaffTodoStatus(
+      t,
+      t.completions,
+      1,
+      new Date(),
+      restaurantTimezone,
+    );
     return status !== "done" && status !== "archived";
   });
 
@@ -80,7 +92,13 @@ export function StaffTodoProfileSection({
       ) : (
         <ul className="space-y-1.5">
           {preview.map((todo) => {
-            const status = computeStaffTodoStatus(todo, todo.completions);
+            const status = computeStaffTodoStatus(
+              todo,
+              todo.completions,
+              1,
+              new Date(),
+              restaurantTimezone,
+            );
             return (
               <li
                 key={todo.id}

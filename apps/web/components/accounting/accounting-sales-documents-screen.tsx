@@ -19,7 +19,8 @@ import { AccountingStatusBadge } from "@/components/accounting/accounting-status
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
 import {
   createAccountingInvoice,
   createAccountingQuotation,
@@ -65,6 +66,9 @@ import {
   isAccountingCorrectionVariant,
 } from "@/lib/accounting/accounting-corrections";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleDataTableHeadRowClassName,
+} from "@/lib/ui/module-data-table";
 import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -400,26 +404,21 @@ export function AccountingSalesDocumentsScreen({
           }
         />
       ) : (
-        <Card className="border-border/50 py-0 shadow-card">
-          <CardContent className="p-0">
-            <ListPaginationSurround
-              classNameAbove="px-4 pt-4"
-              classNameBelow="px-4 pb-4"
-              page={listMeta.page}
-              totalPages={listMeta.totalPages}
-              shown={rows.length}
-              totalCount={listMeta.totalCount}
-              itemLabel={listCountLabel}
-              canPrevious={listMeta.page > 1}
-              canNext={listMeta.page < listMeta.totalPages}
-              busy={loading}
-              onPrevious={() => setPage(listMeta.page - 1)}
-              onNext={() => setPage(listMeta.page + 1)}
-            >
-            <div className="overflow-x-auto">
+        <ModulePaginatedDataTable
+          page={listMeta.page}
+          totalPages={listMeta.totalPages}
+          shown={rows.length}
+          totalCount={listMeta.totalCount}
+          itemLabel={listCountLabel}
+          canPrevious={listMeta.page > 1}
+          canNext={listMeta.page < listMeta.totalPages}
+          busy={loading}
+          onPrevious={() => setPage(listMeta.page - 1)}
+          onNext={() => setPage(listMeta.page + 1)}
+        >
               <table className="w-full min-w-[640px] text-sm">
                 <thead>
-                  <tr className="border-b border-border/60 bg-muted/40 text-left">
+                  <tr className={moduleDataTableHeadRowClassName}>
                     <AccountingTableSortHeader
                       label=""
                       ariaLabel="Quelle sortieren"
@@ -430,11 +429,12 @@ export function AccountingSalesDocumentsScreen({
                       className="w-12 px-2"
                     />
                     <AccountingTableSortHeader
-                      label="Nummer"
-                      sortKey="voucher_number"
+                      label="Empfänger"
+                      sortKey="recipient"
                       activeKey={sortKey}
                       dir={sortDir}
                       onSort={toggleSort}
+                      stickyIdentityColumn
                     />
                     <AccountingTableSortHeader
                       label="Datum"
@@ -444,8 +444,8 @@ export function AccountingSalesDocumentsScreen({
                       onSort={toggleSort}
                     />
                     <AccountingTableSortHeader
-                      label="Empfänger"
-                      sortKey="recipient"
+                      label="Nummer"
+                      sortKey="voucher_number"
                       activeKey={sortKey}
                       dir={sortDir}
                       onSort={toggleSort}
@@ -484,7 +484,7 @@ export function AccountingSalesDocumentsScreen({
                       return (
                         <tr
                           key={row.id}
-                          className="cursor-pointer border-b border-border/40 hover:bg-muted/20"
+                          className="group/tr cursor-pointer border-b border-border/40 hover:bg-muted/20"
                           onClick={() => {
                             setSheetRow(row);
                             setSheetOpen(true);
@@ -492,6 +492,17 @@ export function AccountingSalesDocumentsScreen({
                         >
                           <td className="w-12 px-2 py-3">
                             <AccountingSourceIcon source={row.source} />
+                          </td>
+                          <ModuleTableStickyBodyCell
+                            tone="muted-hover-20"
+                            className="px-4 py-3"
+                          >
+                            {recipient}
+                          </ModuleTableStickyBodyCell>
+                          <td className="px-4 py-3 tabular-nums">
+                            {new Date(row.voucher_date).toLocaleDateString(
+                              "de-DE",
+                            )}
                           </td>
                           <td className="px-4 py-3 font-medium">
                             <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -506,12 +517,6 @@ export function AccountingSalesDocumentsScreen({
                               ) : null}
                             </span>
                           </td>
-                          <td className="px-4 py-3 tabular-nums">
-                            {new Date(row.voucher_date).toLocaleDateString(
-                              "de-DE",
-                            )}
-                          </td>
-                          <td className="px-4 py-3">{recipient}</td>
                           <td className="px-4 py-3 tabular-nums">
                             {formatMoney(
                               row.totals?.totalGross ?? 0,
@@ -565,10 +570,7 @@ export function AccountingSalesDocumentsScreen({
                   )}
                 </tbody>
               </table>
-            </div>
-            </ListPaginationSurround>
-          </CardContent>
-        </Card>
+        </ModulePaginatedDataTable>
       )}
         </>
       )}

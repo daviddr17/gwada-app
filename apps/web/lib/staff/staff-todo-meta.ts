@@ -30,6 +30,34 @@ export function staffTodoLimitsLabel(
   return null;
 }
 
+export function staffTodoAreaLabel(
+  todo: Pick<
+    RestaurantStaffTodoRow,
+    "checklist_area" | "checklist_area_id"
+  >,
+  areaName?: string | null,
+): string | null {
+  return (
+    todo.checklist_area?.name ??
+    areaName ??
+    (todo.checklist_area_id ? "Bereich" : null)
+  );
+}
+
+export function staffTodoDeviceLabel(
+  todo: Pick<
+    RestaurantStaffTodoRow,
+    "checklist_device" | "checklist_device_id"
+  >,
+  deviceName?: string | null,
+): string | null {
+  return (
+    todo.checklist_device?.name ??
+    deviceName ??
+    (todo.checklist_device_id ? "Gerät" : null)
+  );
+}
+
 export function staffTodoContextLabel(
   todo: Pick<
     RestaurantStaffTodoRow,
@@ -39,14 +67,8 @@ export function staffTodoContextLabel(
   deviceName?: string | null,
 ): string | null {
   const parts: string[] = [];
-  const area =
-    todo.checklist_area?.name ??
-    areaName ??
-    (todo.checklist_area_id ? "Bereich" : null);
-  const device =
-    todo.checklist_device?.name ??
-    deviceName ??
-    (todo.checklist_device_id ? "Gerät" : null);
+  const area = staffTodoAreaLabel(todo, areaName);
+  const device = staffTodoDeviceLabel(todo, deviceName);
   if (area) parts.push(area);
   if (device) parts.push(device);
   return parts.length ? parts.join(" · ") : null;

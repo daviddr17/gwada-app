@@ -1,7 +1,12 @@
 "use client";
 
 import type { ComponentProps } from "react";
-import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ModuleDataTableBodySkeleton,
+  ModuleDataTableHeadSkeleton,
+  ModuleDataTableSkeletonFrame,
+} from "@/lib/ui/module-data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 const TABLE_COLS = 8;
@@ -19,10 +24,13 @@ export function StaffOverviewDayStatsSkeleton({
       {...props}
     >
       {Array.from({ length: 4 }).map((_, i) => (
-        <SkeletonCardFrame key={i} className="space-y-2 px-4 py-3 shadow-none">
+        <div
+          key={i}
+          className="space-y-2 rounded-xl border border-border/50 bg-card px-4 py-3"
+        >
           <Skeleton className="h-3 w-12" />
           <Skeleton className="h-8 w-16" />
-        </SkeletonCardFrame>
+        </div>
       ))}
     </div>
   );
@@ -33,10 +41,9 @@ export function StaffOverviewTableSkeleton({
   ...props
 }: ComponentProps<"div">) {
   return (
-    <div
-      aria-busy
+    <ModuleDataTableSkeletonFrame
       aria-label="Mitarbeiter werden geladen"
-      className={cn("pointer-events-none", className)}
+      className={className}
       {...props}
     >
       <div className="border-b border-border/50 px-4 py-3">
@@ -44,31 +51,13 @@ export function StaffOverviewTableSkeleton({
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[52rem] text-sm">
-          <thead>
-            <tr className="border-b border-border/60 bg-muted/40">
-              {Array.from({ length: TABLE_COLS }).map((_, i) => (
-                <th key={i} className="px-4 py-3">
-                  <Skeleton className="h-3.5 max-w-[5.5rem] rounded-md" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: TABLE_ROWS }).map((_, row) => (
-              <tr
-                key={row}
-                className="border-b border-border/40 last:border-0"
-              >
-                {Array.from({ length: TABLE_COLS }).map((_, col) => (
-                  <td key={col} className="px-4 py-3">
-                    <Skeleton className="h-5 w-full min-w-[2.5rem] rounded-md" />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+          <ModuleDataTableHeadSkeleton columnCount={TABLE_COLS} />
+          <ModuleDataTableBodySkeleton
+            columnCount={TABLE_COLS}
+            rowCount={TABLE_ROWS}
+          />
         </table>
       </div>
-    </div>
+    </ModuleDataTableSkeletonFrame>
   );
 }

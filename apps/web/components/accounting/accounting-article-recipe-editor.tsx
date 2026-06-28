@@ -8,6 +8,7 @@ import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import type { AccountingArticleRecipeLine } from "@/lib/types/accounting";
 import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/inventory";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 
 export type AccountingArticleRecipeDraftLine = {
   ingredientId: string;
@@ -107,7 +108,7 @@ export function AccountingArticleRecipeEditor({
         <div className="overflow-x-auto rounded-lg border border-border/50 bg-muted/10">
           <table className="w-full min-w-[260px] table-fixed text-sm">
             <thead>
-              <tr className="border-b border-border/50 bg-muted/40 text-left text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+              <tr className={moduleDataTableHeadRowMutedClassName}>
                 <th className="w-[55%] px-2 py-1.5 font-medium">Zutat</th>
                 <th className="w-[22%] px-1 py-1.5 font-medium">Einheit</th>
                 <th className="w-[18%] px-1 py-1.5 font-medium">Menge</th>

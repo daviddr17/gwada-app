@@ -18,7 +18,7 @@ import { AccountingVoucherSheet } from "@/components/accounting/accounting-vouch
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   createAccountingVoucher,
   fetchAccountingCatalog,
@@ -60,6 +60,12 @@ import {
 import { formatVoucherTaxRatesSummary } from "@/lib/accounting/voucher-display";
 import { ACCOUNTING_VOUCHER_ALLOWED_LABEL } from "@/lib/accounting/validate-voucher-file";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadLabelClassName,
+  moduleDataTableHeadRowClassName,
+} from "@/lib/ui/module-data-table";
+import { cn } from "@/lib/utils";
 import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -389,26 +395,21 @@ export function AccountingVouchersScreen() {
           ariaLabel="Belege werden geladen"
         />
       ) : (
-        <Card className="border-border/50 py-0 shadow-card">
-          <CardContent className="p-0">
-            <ListPaginationSurround
-              classNameAbove="px-4 pt-4"
-              classNameBelow="px-4 pb-4"
-              page={listMeta.page}
-              totalPages={listMeta.totalPages}
-              shown={rows.length}
-              totalCount={listMeta.totalCount}
-              itemLabel={listCountLabel}
-              canPrevious={listMeta.page > 1}
-              canNext={listMeta.page < listMeta.totalPages}
-              busy={loading}
-              onPrevious={() => setPage(listMeta.page - 1)}
-              onNext={() => setPage(listMeta.page + 1)}
-            >
-            <div className="overflow-x-auto">
+        <ModulePaginatedDataTable
+          page={listMeta.page}
+          totalPages={listMeta.totalPages}
+          shown={rows.length}
+          totalCount={listMeta.totalCount}
+          itemLabel={listCountLabel}
+          canPrevious={listMeta.page > 1}
+          canNext={listMeta.page < listMeta.totalPages}
+          busy={loading}
+          onPrevious={() => setPage(listMeta.page - 1)}
+          onNext={() => setPage(listMeta.page + 1)}
+        >
               <table className="w-full min-w-[860px] text-sm">
                 <thead>
-                  <tr className="border-b border-border/60 bg-muted/40 text-left">
+                  <tr className={moduleDataTableHeadRowClassName}>
                     <AccountingTableSortHeader
                       label=""
                       ariaLabel="Quelle sortieren"
@@ -453,8 +454,16 @@ export function AccountingVouchersScreen() {
                       dir={sortDir}
                       onSort={toggleSort}
                     />
-                    <th className="px-4 py-2 font-medium">Steuer</th>
-                    <th className="px-4 py-2 font-medium">Steuersätze</th>
+                    <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                      <span className={moduleDataTableHeadLabelClassName}>
+                        Steuer
+                      </span>
+                    </th>
+                    <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                      <span className={moduleDataTableHeadLabelClassName}>
+                        Steuersätze
+                      </span>
+                    </th>
                     <AccountingTableSortHeader
                       label="Status"
                       sortKey="status"
@@ -560,10 +569,7 @@ export function AccountingVouchersScreen() {
                   )}
                 </tbody>
               </table>
-            </div>
-            </ListPaginationSurround>
-          </CardContent>
-        </Card>
+        </ModulePaginatedDataTable>
       )}
         </>
       )}

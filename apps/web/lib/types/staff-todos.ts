@@ -126,6 +126,7 @@ export type RestaurantStaffTodoCompletionRow = {
   id: string;
   todo_id: string;
   staff_id: string;
+  period_start: string;
   completed_at: string;
   reopened_at: string | null;
   confirmed_at: string | null;
@@ -135,6 +136,11 @@ export type RestaurantStaffTodoCompletionRow = {
   within_limits: boolean | null;
   corrective_action: string | null;
   created_at: string;
+  staff?: {
+    id: string;
+    given_name: string;
+    family_name: string | null;
+  } | null;
 };
 
 export type RestaurantStaffTodoLogEntry = {
@@ -148,6 +154,11 @@ export type RestaurantStaffTodoLogEntry = {
   created_at: string;
   todo?: { id: string; title: string } | null;
   actor_profile?: { id: string; display_name: string | null } | null;
+  actor_staff?: {
+    id: string;
+    given_name: string;
+    family_name: string | null;
+  } | null;
 };
 
 export const STAFF_TODO_PRIORITY_LABELS: Record<StaffTodoPriority, string> = {

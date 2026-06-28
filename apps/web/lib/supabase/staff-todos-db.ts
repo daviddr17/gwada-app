@@ -1,5 +1,22 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  clampListPage,
+  clampListPageSize,
+  listPageRange,
+  LIST_PAGE_SIZE_DEFAULT,
+  parseListPageParam,
+  totalPagesFromCount,
+  type PaginatedListResult,
+} from "@/lib/constants/list-pagination";
 import { isMissingSchemaError } from "@/lib/supabase/schema-error";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  loadStaffTodoCompletionsByTodoId,
+} from "@/lib/staff/staff-todos-status-load";
+import { staffTodoPeriodStartIsoForStorage } from "@/lib/staff/staff-todo-due";
+import type { StaffTodoRecurrence } from "@/lib/types/staff-todos";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantIanaTimezone } from "@/lib/supabase/restaurant-timezone-db";
 import { staffDisplayName } from "@/lib/types/staff";
 import {
   assignedStaffIds,
@@ -9,6 +26,7 @@ import {
   isAssignedToStaffMember,
 } from "@/lib/staff/assignee-matching";
 import type {
+  RestaurantStaffTodoCompletionRow,
   RestaurantStaffTodoLogEntry,
   RestaurantStaffTodoRow,
   RestaurantStaffTodoSettingsRow,
@@ -42,15 +60,12 @@ const TODO_SELECT_LEGACY = `
       name
     )
   ),
-  completions:restaurant_staff_todo_completions (
-    id,
-    todo_id,
-    staff_id,
-    completed_at,
-    reopened_at,
-    confirmed_at,
-    completion_note,
-    created_at
+  position_assignees:restaurant_staff_todo_position_assignees (
+    position_tag_id,
+    position_tag:restaurant_staff_position_tags!restaurant_staff_todo_position_assignees_position_tag_id_fkey (
+      id,
+      name
+    )
   )
 `;
 
@@ -80,20 +95,6 @@ const TODO_SELECT = `
       name
     )
   ),
-  completions:restaurant_staff_todo_completions (
-    id,
-    todo_id,
-    staff_id,
-    completed_at,
-    reopened_at,
-    confirmed_at,
-    completion_note,
-    captured_numeric,
-    captured_text,
-    within_limits,
-    corrective_action,
-    created_at
-  ),
   checklist_device:restaurant_checklist_devices (
     id,
     name,
@@ -108,14 +109,82 @@ const TODO_SELECT = `
   )
 `;
 
+const TODO_COMPLETION_SELECT = `
+  id,
+  todo_id,
+  staff_id,
+  period_start,
+  completed_at,
+  reopened_at,
+  confirmed_at,
+  completion_note,
+  captured_numeric,
+  captured_text,
+  within_limits,
+  corrective_action,
+  created_at,
+  staff:restaurant_staff (
+    id,
+    given_name,
+    family_name
+  )
+`;
+
+const TODO_COMPLETION_SELECT_LEGACY = `
+  id,
+  todo_id,
+  staff_id,
+  period_start,
+  completed_at,
+  reopened_at,
+  confirmed_at,
+  completion_note,
+  created_at,
+  staff:restaurant_staff (
+    id,
+    given_name,
+    family_name
+  )
+`;
+
 const LOG_SELECT = `
   *,
   todo:restaurant_staff_todos ( id, title ),
   actor_profile:profiles!restaurant_staff_todo_log_entries_actor_user_id_fkey (
     id,
     display_name
+  ),
+  actor_staff:restaurant_staff!restaurant_staff_todo_log_entries_actor_staff_id_fkey (
+    id,
+    given_name,
+    family_name
   )
 `;
+
+type StaffTodoLogActorStaff = {
+  id: string;
+  given_name: string;
+  family_name: string | null;
+};
+
+function normalizeStaffTodoLogActorStaff(
+  raw: unknown,
+): StaffTodoLogActorStaff | null {
+  if (!raw) return null;
+  if (Array.isArray(raw)) {
+    return (raw[0] as StaffTodoLogActorStaff | undefined) ?? null;
+  }
+  return raw as StaffTodoLogActorStaff;
+}
+
+function normalizeStaffTodoLogEntry<T extends RestaurantStaffTodoLogEntry>(
+  row: T & { actor_staff?: unknown },
+): T {
+  return {
+    ...row,
+    actor_staff: normalizeStaffTodoLogActorStaff(row.actor_staff),
+  };
+}
 
 function mapTodoError(error: { message: string } | null): string | null {
   if (!error) return null;
@@ -160,39 +229,83 @@ async function syncStaffTodoAssignees(
   return { error: null };
 }
 
+async function fetchRestaurantTimezone(
+  _supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  restaurantId: string,
+): Promise<string> {
+  return fetchRestaurantIanaTimezone(restaurantId);
+}
+
+async function attachRecentStaffTodoCompletions(
+  supabase: ReturnType<typeof createSupabaseBrowserClient>,
+  restaurantId: string,
+  rows: RestaurantStaffTodoRow[],
+  useLegacyFields: boolean,
+  restaurantTimezone: string,
+): Promise<RestaurantStaffTodoRow[]> {
+  if (rows.length === 0) return rows;
+
+  const todos = rows.map((r) => ({ id: r.id, recurrence: r.recurrence }));
+  const byTodo = await loadStaffTodoCompletionsByTodoId(
+    supabase,
+    restaurantId,
+    todos,
+    { useLegacyFields, timeZone: restaurantTimezone },
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    completions: byTodo.get(row.id) ?? [],
+  }));
+}
+
+export type FetchStaffTodosResult = {
+  data: RestaurantStaffTodoRow[];
+  error: string | null;
+  restaurantTimezone: string;
+};
+
 export async function fetchStaffTodosForRestaurant(
   restaurantId: string,
   options?: { includeArchived?: boolean; staffId?: string | null },
-): Promise<{ data: RestaurantStaffTodoRow[]; error: string | null }> {
+): Promise<FetchStaffTodosResult> {
   const supabase = createSupabaseBrowserClient();
-  let query = supabase
-    .from("restaurant_staff_todos")
-    .select(TODO_SELECT)
-    .eq("restaurant_id", restaurantId)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: false });
+  const [restaurantTimezone, todosResult] = await Promise.all([
+    fetchRestaurantTimezone(supabase, restaurantId),
+    (async () => {
+      let query = supabase
+        .from("restaurant_staff_todos")
+        .select(TODO_SELECT)
+        .eq("restaurant_id", restaurantId)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false });
 
-  if (!options?.includeArchived) {
-    query = query.is("archived_at", null);
-  }
+      if (!options?.includeArchived) {
+        query = query.is("archived_at", null);
+      }
 
-  let { data, error } = await query;
-  if (error && isMissingSchemaError(error.message)) {
-    let legacyQuery = supabase
-      .from("restaurant_staff_todos")
-      .select(TODO_SELECT_LEGACY)
-      .eq("restaurant_id", restaurantId)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: false });
-    if (!options?.includeArchived) {
-      legacyQuery = legacyQuery.is("archived_at", null);
-    }
-    const legacy = await legacyQuery;
-    data = legacy.data;
-    error = legacy.error;
-  }
+      let { data, error } = await query;
+      let useLegacyFields = false;
+      if (error && isMissingSchemaError(error.message)) {
+        let legacyQuery = supabase
+          .from("restaurant_staff_todos")
+          .select(TODO_SELECT_LEGACY)
+          .eq("restaurant_id", restaurantId)
+          .order("sort_order", { ascending: true })
+          .order("created_at", { ascending: false });
+        if (!options?.includeArchived) {
+          legacyQuery = legacyQuery.is("archived_at", null);
+        }
+        const legacy = await legacyQuery;
+        data = legacy.data;
+        error = legacy.error;
+        useLegacyFields = true;
+      }
+      return { data, error, useLegacyFields };
+    })(),
+  ]);
 
-  let rows = (data ?? []) as RestaurantStaffTodoRow[];
+  let rows = (todosResult.data ?? []) as RestaurantStaffTodoRow[];
 
   if (options?.staffId) {
     const { data: staffRow } = await supabase
@@ -209,7 +322,19 @@ export async function fetchStaffTodosForRestaurant(
     );
   }
 
-  return { data: rows, error: mapTodoError(error) };
+  rows = await attachRecentStaffTodoCompletions(
+    supabase,
+    restaurantId,
+    rows,
+    todosResult.useLegacyFields,
+    restaurantTimezone,
+  );
+
+  return {
+    data: rows,
+    error: mapTodoError(todosResult.error),
+    restaurantTimezone,
+  };
 }
 
 export async function upsertStaffTodo(
@@ -320,19 +445,67 @@ export async function archiveStaffTodo(
 export async function completeStaffTodoForStaff(
   todoId: string,
   staffId: string,
+  options: {
+    recurrence: StaffTodoRecurrence | null;
+    timeZone?: string;
+  },
 ): Promise<{ error: string | null }> {
   const supabase = createSupabaseBrowserClient();
+  const timeZone = options.timeZone ?? DEFAULT_RESTAURANT_TIMEZONE;
+  const periodStart = staffTodoPeriodStartIsoForStorage(
+    options.recurrence,
+    new Date(),
+    timeZone,
+  );
+  const now = new Date().toISOString();
   const { error } = await supabase.from("restaurant_staff_todo_completions").upsert(
     {
       todo_id: todoId,
       staff_id: staffId,
-      completed_at: new Date().toISOString(),
+      period_start: periodStart,
+      completed_at: now,
       reopened_at: null,
-      confirmed_at: new Date().toISOString(),
+      confirmed_at: now,
     },
-    { onConflict: "todo_id,staff_id" },
+    { onConflict: "todo_id,staff_id,period_start" },
   );
   return { error: mapTodoError(error) };
+}
+
+export async function reopenStaffTodo(
+  restaurantId: string,
+  todoId: string,
+  options: {
+    recurrence: StaffTodoRecurrence | null;
+    timeZone?: string;
+    todoTitle?: string;
+  },
+): Promise<{ error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  const timeZone = options.timeZone ?? DEFAULT_RESTAURANT_TIMEZONE;
+  const periodStart = staffTodoPeriodStartIsoForStorage(
+    options.recurrence,
+    new Date(),
+    timeZone,
+  );
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("restaurant_staff_todo_completions")
+    .update({ reopened_at: now })
+    .eq("todo_id", todoId)
+    .eq("period_start", periodStart)
+    .is("reopened_at", null);
+
+  if (error) {
+    return { error: mapTodoError(error) };
+  }
+
+  return insertStaffTodoLogEntry({
+    restaurantId,
+    todoId,
+    action: "reopened",
+    details: { title: options.todoTitle },
+  });
 }
 
 export async function insertStaffTodoLogEntry(input: {
@@ -366,7 +539,9 @@ export async function fetchStaffTodoLogEntries(
     .order("created_at", { ascending: false })
     .limit(500);
   return {
-    data: (data ?? []) as RestaurantStaffTodoLogEntry[],
+    data: (data ?? []).map((row) =>
+      normalizeStaffTodoLogEntry(row as RestaurantStaffTodoLogEntry),
+    ),
     error: mapTodoError(error),
   };
 }
@@ -376,6 +551,7 @@ const PROTOCOL_LOG_SELECT = `
   todo:restaurant_staff_todos (
     id,
     title,
+    capture_type,
     checklist_area_id,
     checklist_device_id,
     checklist_device:restaurant_checklist_devices ( id, name ),
@@ -384,6 +560,11 @@ const PROTOCOL_LOG_SELECT = `
   actor_profile:profiles!restaurant_staff_todo_log_entries_actor_user_id_fkey (
     id,
     display_name
+  ),
+  actor_staff:restaurant_staff!restaurant_staff_todo_log_entries_actor_staff_id_fkey (
+    id,
+    given_name,
+    family_name
   )
 `;
 
@@ -391,10 +572,16 @@ export type StaffTodoLogEntryForProtocol = RestaurantStaffTodoLogEntry & {
   todo?: {
     id: string;
     title: string;
+    capture_type?: RestaurantStaffTodoRow["capture_type"];
     checklist_area_id: string | null;
     checklist_device_id: string | null;
     checklist_device?: { id: string; name: string } | null;
     checklist_area?: { id: string; name: string; background_color: string } | null;
+  } | null;
+  actor_staff?: {
+    id: string;
+    given_name: string;
+    family_name: string | null;
   } | null;
 };
 
@@ -418,7 +605,9 @@ export async function fetchStaffTodoLogEntriesForProtocol(
   }
 
   return {
-    data: (data ?? []) as StaffTodoLogEntryForProtocol[],
+    data: (data ?? []).map((row) =>
+      normalizeStaffTodoLogEntry(row as StaffTodoLogEntryForProtocol),
+    ),
     error: mapTodoError(error),
   };
 }
@@ -490,10 +679,9 @@ export async function fetchStaffTodoCompletionsForProtocol(
     .limit(500);
 
   if (error && isMissingSchemaError(error.message)) {
-    const { data: todos, error: todoError } = await fetchStaffTodosForRestaurant(
-      restaurantId,
-    );
-    if (todoError) return { data: [], error: todoError };
+    const todoRes = await fetchStaffTodosForRestaurant(restaurantId);
+    if (todoRes.error) return { data: [], error: todoRes.error };
+    const todos = todoRes.data;
     const fallback: StaffTodoCompletionForProtocol[] = [];
     for (const todo of todos) {
       for (const c of todo.completions ?? []) {
@@ -534,6 +722,227 @@ export async function fetchStaffTodoCompletionsForProtocol(
   };
 }
 
+function escapeProtocolIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
+
+export type StaffTodoProtocolPageFilters = {
+  page?: number;
+  pageSize?: number;
+  sinceIso?: string | null;
+  areaId?: string;
+  deviceId?: string;
+  deviation?: "all" | "deviation" | "ok";
+  sortKey?: "newest" | "oldest";
+  search?: string;
+};
+
+export async function listStaffTodoCompletionsProtocolPage(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  filters: StaffTodoProtocolPageFilters = {},
+): Promise<PaginatedListResult<StaffTodoCompletionForProtocol>> {
+  const pageSize = clampListPageSize(filters.pageSize ?? LIST_PAGE_SIZE_DEFAULT);
+  const requestedPage = parseListPageParam(
+    filters.page != null ? String(filters.page) : "1",
+  );
+  const ascending = filters.sortKey === "oldest";
+  const search = filters.search?.trim() ?? "";
+
+  const buildQuery = (page: number) => {
+    const { from, to } = listPageRange(page, pageSize);
+    let q = supabase
+      .from("restaurant_staff_todo_completions")
+      .select(PROTOCOL_COMPLETION_SELECT, { count: "exact" })
+      .eq("todo.restaurant_id", restaurantId)
+      .not("completed_at", "is", null)
+      .order("completed_at", { ascending })
+      .range(from, to);
+
+    if (filters.sinceIso) {
+      q = q.gte("completed_at", filters.sinceIso);
+    }
+    if (filters.areaId && filters.areaId !== "all") {
+      q = q.eq("todo.checklist_area_id", filters.areaId);
+    }
+    if (filters.deviceId && filters.deviceId !== "all") {
+      q = q.eq("todo.checklist_device_id", filters.deviceId);
+    }
+    if (filters.deviation === "deviation") {
+      q = q.eq("within_limits", false);
+    } else if (filters.deviation === "ok") {
+      q = q.or("within_limits.is.null,within_limits.eq.true");
+    }
+    if (search) {
+      const pattern = `%${escapeProtocolIlikePattern(search)}%`;
+      q = q.or(
+        `todo.title.ilike.${pattern},captured_text.ilike.${pattern},completion_note.ilike.${pattern}`,
+      );
+    }
+    return q;
+  };
+
+  let page = requestedPage;
+  let { data, error, count } = await buildQuery(page);
+  const totalCount = count ?? 0;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  page = clampListPage(page, totalPages);
+
+  if (page !== requestedPage) {
+    ({ data, error, count } = await buildQuery(page));
+  }
+
+  if (error) {
+    throw new Error(mapTodoError(error) ?? error.message);
+  }
+
+  return {
+    items: (data ?? []) as unknown as StaffTodoCompletionForProtocol[],
+    page,
+    pageSize,
+    totalCount: count ?? totalCount,
+    totalPages,
+  };
+}
+
+/** Erfassungs-Protokoll — append-only Log (completed / completed_by_manager). */
+export async function listStaffTodoCaptureLogsProtocolPage(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  filters: StaffTodoProtocolPageFilters = {},
+): Promise<PaginatedListResult<StaffTodoLogEntryForProtocol>> {
+  const pageSize = clampListPageSize(filters.pageSize ?? LIST_PAGE_SIZE_DEFAULT);
+  const requestedPage = parseListPageParam(
+    filters.page != null ? String(filters.page) : "1",
+  );
+  const ascending = filters.sortKey === "oldest";
+  const search = filters.search?.trim() ?? "";
+
+  const buildQuery = (page: number) => {
+    const { from, to } = listPageRange(page, pageSize);
+    let q = supabase
+      .from("restaurant_staff_todo_log_entries")
+      .select(PROTOCOL_LOG_SELECT, { count: "exact" })
+      .eq("restaurant_id", restaurantId)
+      .in("action", ["completed", "completed_by_manager"])
+      .order("created_at", { ascending })
+      .range(from, to);
+
+    if (filters.sinceIso) {
+      q = q.gte("created_at", filters.sinceIso);
+    }
+    if (filters.areaId && filters.areaId !== "all") {
+      q = q.eq("todo.checklist_area_id", filters.areaId);
+    }
+    if (filters.deviceId && filters.deviceId !== "all") {
+      q = q.eq("todo.checklist_device_id", filters.deviceId);
+    }
+    if (filters.deviation === "deviation") {
+      q = q.or(
+        "details->>has_deviation.eq.true,details->>within_limits.eq.false",
+      );
+    } else if (filters.deviation === "ok") {
+      q = q.or(
+        "details->>within_limits.is.null,details->>within_limits.eq.true",
+      );
+    }
+    if (search) {
+      const pattern = `%${escapeProtocolIlikePattern(search)}%`;
+      q = q.or(
+        `todo.title.ilike.${pattern},details->>captured_text.ilike.${pattern},details->>corrective_action.ilike.${pattern}`,
+      );
+    }
+    return q;
+  };
+
+  let page = requestedPage;
+  let { data, error, count } = await buildQuery(page);
+  const totalCount = count ?? 0;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  page = clampListPage(page, totalPages);
+
+  if (page !== requestedPage) {
+    ({ data, error, count } = await buildQuery(page));
+  }
+
+  if (error) {
+    throw new Error(mapTodoError(error) ?? error.message);
+  }
+
+  return {
+    items: (data ?? []).map((row) =>
+      normalizeStaffTodoLogEntry(row as StaffTodoLogEntryForProtocol),
+    ),
+    page,
+    pageSize,
+    totalCount: count ?? totalCount,
+    totalPages,
+  };
+}
+
+export async function listStaffTodoLogsProtocolPage(
+  supabase: SupabaseClient,
+  restaurantId: string,
+  filters: StaffTodoProtocolPageFilters = {},
+): Promise<PaginatedListResult<StaffTodoLogEntryForProtocol>> {
+  const pageSize = clampListPageSize(filters.pageSize ?? LIST_PAGE_SIZE_DEFAULT);
+  const requestedPage = parseListPageParam(
+    filters.page != null ? String(filters.page) : "1",
+  );
+  const ascending = filters.sortKey === "oldest";
+  const search = filters.search?.trim() ?? "";
+
+  const buildQuery = (page: number) => {
+    const { from, to } = listPageRange(page, pageSize);
+    let q = supabase
+      .from("restaurant_staff_todo_log_entries")
+      .select(PROTOCOL_LOG_SELECT, { count: "exact" })
+      .eq("restaurant_id", restaurantId)
+      .not("action", "in", '("completed","completed_by_manager")')
+      .order("created_at", { ascending })
+      .range(from, to);
+
+    if (filters.sinceIso) {
+      q = q.gte("created_at", filters.sinceIso);
+    }
+    if (filters.areaId && filters.areaId !== "all") {
+      q = q.eq("todo.checklist_area_id", filters.areaId);
+    }
+    if (filters.deviceId && filters.deviceId !== "all") {
+      q = q.eq("todo.checklist_device_id", filters.deviceId);
+    }
+    if (search) {
+      const pattern = `%${escapeProtocolIlikePattern(search)}%`;
+      q = q.or(`todo.title.ilike.${pattern},details->>reason.ilike.${pattern}`);
+    }
+    return q;
+  };
+
+  let page = requestedPage;
+  let { data, error, count } = await buildQuery(page);
+  const totalCount = count ?? 0;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  page = clampListPage(page, totalPages);
+
+  if (page !== requestedPage) {
+    ({ data, error, count } = await buildQuery(page));
+  }
+
+  if (error) {
+    throw new Error(mapTodoError(error) ?? error.message);
+  }
+
+  return {
+    items: (data ?? []).map((row) =>
+      normalizeStaffTodoLogEntry(row as StaffTodoLogEntryForProtocol),
+    ),
+    page,
+    pageSize,
+    totalCount: count ?? totalCount,
+    totalPages,
+  };
+}
+
 export function staffTodoAssigneeLabel(todo: RestaurantStaffTodoRow): string {
   return formatAssigneeLabels(todo, (s) =>
     staffDisplayName({
@@ -545,8 +954,26 @@ export function staffTodoAssigneeLabel(todo: RestaurantStaffTodoRow): string {
 
 export { assignedStaffIds, assignedPositionTagIds };
 
-export function resolveStaffTodoLogActorLabel(entry: RestaurantStaffTodoLogEntry): string {
-  return entry.actor_profile?.display_name?.trim() || "Unbekannt";
+export function resolveStaffTodoLogActorLabel(
+  entry: Pick<
+    RestaurantStaffTodoLogEntry,
+    "actor_profile" | "actor_staff_id"
+  > & {
+    actor_staff?: {
+      given_name: string;
+      family_name: string | null;
+    } | null;
+  },
+): string {
+  const profileName = entry.actor_profile?.display_name?.trim();
+  if (profileName) return profileName;
+  if (entry.actor_staff) {
+    return staffDisplayName({
+      given_name: entry.actor_staff.given_name,
+      family_name: entry.actor_staff.family_name ?? "",
+    });
+  }
+  return "Unbekannt";
 }
 
 export function formatStaffTodoLogDetails(entry: RestaurantStaffTodoLogEntry): string {

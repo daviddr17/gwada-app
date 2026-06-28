@@ -1,15 +1,10 @@
 import type {
   RestaurantStaffTodoCompletionRow,
-  RestaurantStaffTodoRow,
   StaffTodoComputedStatus,
+  RestaurantStaffTodoRow,
 } from "@/lib/types/staff-todos";
-
-function activeCompletions(
-  completions: readonly RestaurantStaffTodoCompletionRow[] | undefined,
-): RestaurantStaffTodoCompletionRow[] {
-  if (!completions?.length) return [];
-  return completions.filter((c) => !c.reopened_at);
-}
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
+import { activeCompletionsInCurrentPeriod } from "@/lib/staff/staff-todo-due";
 
 export function computeStaffTodoStatus(
   todo: Pick<
@@ -18,20 +13,28 @@ export function computeStaffTodoStatus(
     | "display_from"
     | "display_until"
     | "completion_mode"
-    | "assignee_type"
+    | "recurrence"
   >,
   completions: readonly RestaurantStaffTodoCompletionRow[] | undefined,
   assigneeCount = 1,
+  ref: Date = new Date(),
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): StaffTodoComputedStatus {
   if (todo.archived_at) return "archived";
 
-  const now = Date.now();
+  const now = ref.getTime();
   if (todo.display_from) {
     const from = new Date(todo.display_from).getTime();
     if (!Number.isNaN(from) && from > now) return "planned";
   }
 
-  const done = activeCompletions(completions);
+  const done = activeCompletionsInCurrentPeriod(
+    todo,
+    completions ?? [],
+    ref,
+    timeZone,
+  );
+
   if (todo.completion_mode === "any_one") {
     if (done.length > 0) return "done";
   } else if (done.length >= Math.max(1, assigneeCount)) {

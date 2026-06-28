@@ -1,4 +1,13 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  clampListPage,
+  clampListPageSize,
+  listPageRange,
+  LIST_PAGE_SIZE_DEFAULT,
+  parseListPageParam,
+  totalPagesFromCount,
+  type PaginatedListResult,
+} from "@/lib/constants/list-pagination";
 import { RESTAURANT_DOCUMENTS_QUOTA_BYTES } from "@/lib/constants/restaurant-documents";
 import { RESTAURANT_WORKSPACE_QUOTA_BYTES } from "@/lib/constants/workspace-storage";
 import type {
@@ -212,6 +221,75 @@ export async function fetchDocumentLogEntries(
   const { data, error } = await q;
   if (error) return { data: [], error: error.message };
   return { data: (data ?? []).map((r) => mapLogRow(r as Record<string, unknown>)), error: null };
+}
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[%_\\]/g, "\\$&");
+}
+
+export async function fetchDocumentLogEntriesPaginated(
+  restaurantId: string,
+  options?: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    documentId?: string | null;
+  },
+): Promise<PaginatedListResult<RestaurantDocumentLogEntry>> {
+  const supabase = createSupabaseBrowserClient();
+  const pageSize = clampListPageSize(options?.pageSize ?? LIST_PAGE_SIZE_DEFAULT);
+  const requestedPage = parseListPageParam(
+    options?.page != null ? String(options.page) : "1",
+  );
+  const search = options?.search?.trim() ?? "";
+
+  const buildQuery = (page: number) => {
+    const { from, to } = listPageRange(page, pageSize);
+    let q = supabase
+      .from("restaurant_document_log_entries")
+      .select(LOG_SELECT, { count: "exact" })
+      .eq("restaurant_id", restaurantId)
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    if (options?.documentId) {
+      q = q.eq("document_id", options.documentId);
+    }
+    if (search) {
+      const pattern = `%${escapeIlikePattern(search)}%`;
+      q = q.or(
+        `document_title.ilike.${pattern},file_name.ilike.${pattern}`,
+      );
+    }
+    return q;
+  };
+
+  let page = requestedPage;
+  let { data, error, count } = await buildQuery(page);
+  const totalCount = count ?? 0;
+  const totalPages = totalPagesFromCount(totalCount, pageSize);
+  page = clampListPage(page, totalPages);
+
+  if (page !== requestedPage) {
+    ({ data, error, count } = await buildQuery(page));
+  }
+
+  if (error) {
+    return {
+      items: [],
+      page: 1,
+      pageSize,
+      totalCount: 0,
+      totalPages: 1,
+    };
+  }
+
+  return {
+    items: (data ?? []).map((r) => mapLogRow(r as Record<string, unknown>)),
+    page,
+    pageSize,
+    totalCount: count ?? totalCount,
+    totalPages,
+  };
 }
 
 export function resolveDocumentLogEntryActorLabel(

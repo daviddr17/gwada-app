@@ -360,7 +360,7 @@ export async function syncLexofficeSalesDocuments(
   for (const item of list.items) {
     const existing = existingByExternalId.get(item.id);
     const isNew = !existing;
-    const { payload, detailFetched } = await buildSalesDocumentPayload(
+    const { payload } = await buildSalesDocumentPayload(
       params.restaurantId,
       params.kind,
       item,
@@ -471,20 +471,6 @@ export async function syncLexofficeSalesDocuments(
             (payload.totals as AccountingTotals | null | undefined) ??
             existing!.totals,
         });
-        if (detailFetched && existing) {
-          await insertAccountingDocumentLog(sb, {
-            restaurantId: params.restaurantId,
-            documentKind: params.kind,
-            documentId: existing.id,
-            actorUserId,
-            action: "synced",
-            details: {
-              source: "lexoffice",
-              voucherNumber: item.voucherNumber,
-              summary: "Positionen und Details aus Lexware aktualisiert",
-            },
-          });
-        }
       }
     }
   }

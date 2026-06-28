@@ -26,6 +26,10 @@ import {
   type UserNotificationPushHistoryRow,
 } from "@/lib/notifications/user-notification-push-history";
 import { cn } from "@/lib/utils";
+import {
+  moduleDataTableHeadCellCompactClassName,
+  moduleDataTableHeadRowMutedClassName,
+} from "@/lib/ui/module-data-table";
 
 function PushHistoryTable({
   rows,
@@ -38,11 +42,11 @@ function PushHistoryTable({
     <div className={cn("overflow-x-auto", className)}>
       <table className="w-full min-w-[36rem] border-collapse text-sm">
         <thead>
-          <tr className="border-b border-border/50 text-left text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            <th className="px-2 py-2 font-medium">Datum</th>
-            <th className="px-2 py-2 font-medium">Ereignis</th>
-            <th className="px-2 py-2 font-medium">Kanal</th>
-            <th className="px-2 py-2 font-medium">Inhalt</th>
+          <tr className={moduleDataTableHeadRowMutedClassName}>
+            <th className={moduleDataTableHeadCellCompactClassName}>Datum</th>
+            <th className={moduleDataTableHeadCellCompactClassName}>Ereignis</th>
+            <th className={moduleDataTableHeadCellCompactClassName}>Kanal</th>
+            <th className={moduleDataTableHeadCellCompactClassName}>Inhalt</th>
           </tr>
         </thead>
         <tbody>

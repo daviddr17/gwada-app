@@ -5,8 +5,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { CalendarDays, MessageSquare, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleDataTableHeadLabelClassName,
+  moduleDataTableHeadRowClassName,
+  moduleDataTableHeadSortButtonCn,
+  moduleTableFullscreenChromeInsetDenseClassName,
+} from "@/lib/ui/module-data-table";
+import {
+  ModuleTableActionsCell,
+  ModuleTableIconActionButton,
+  ModuleTableIconActionsColumnHeader,
+} from "@/lib/ui/module-table-icon-tooltip";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -93,10 +104,7 @@ function SortHeader({
   return (
     <button
       type="button"
-      className={cn(
-        "inline-flex items-center gap-1 text-left text-xs font-medium tracking-wide text-muted-foreground hover:text-foreground transition-colors normal-case",
-        className,
-      )}
+      className={cn(moduleDataTableHeadSortButtonCn(active), "normal-case", className)}
       onClick={() => onSort(sortKey)}
     >
       {label}
@@ -459,26 +467,25 @@ export function ContactsOverview() {
             </p>
           ) : null}
 
-          <div className="overflow-hidden rounded-xl border border-border/50">
-            <ListPaginationSurround
-              classNameAbove="px-4 pt-4"
-              classNameBelow="px-4 pb-4"
-              page={currentPage}
-              totalPages={totalPages}
-              shown={paginatedRows.length}
-              totalCount={totalCount}
-              itemLabel="Kontakte"
-              canPrevious={currentPage > 1}
-              canNext={currentPage < totalPages}
-              onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-              onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-            >
-            <div className="overflow-x-auto">
+          <ModulePaginatedDataTable
+            page={currentPage}
+            totalPages={totalPages}
+            shown={paginatedRows.length}
+            totalCount={totalCount}
+            itemLabel="Kontakte"
+            fullscreenChromeInsetClassName={
+              moduleTableFullscreenChromeInsetDenseClassName
+            }
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
             <table className="w-full min-w-[64rem] text-sm">
               <thead>
-                <tr className="border-b border-border/50 bg-muted/30">
+                <tr className={moduleDataTableHeadRowClassName}>
                   <th className="w-16 px-2 py-2 text-left">
-                    <span className="text-xs font-medium tracking-wide text-muted-foreground">
+                    <span className={moduleDataTableHeadLabelClassName}>
                       Quelle
                     </span>
                   </th>
@@ -545,31 +552,17 @@ export function ContactsOverview() {
                       onSort={toggleSort}
                     />
                   </th>
-                  <th
-                    className="w-14 px-1 py-2 text-center"
-                    title="Reservierungen"
-                  >
-                    <CalendarDays
-                      className="mx-auto size-3.5 opacity-70"
-                      aria-hidden
-                    />
-                  </th>
-                  <th
-                    className="w-14 px-1 py-2 text-center"
-                    title="Nachrichten"
-                  >
-                    <MessageSquare
-                      className="mx-auto size-3.5 opacity-70"
-                      aria-hidden
-                    />
-                  </th>
+                  <ModuleTableIconActionsColumnHeader
+                    dense
+                    className="min-w-[5.5rem] w-[5.5rem]"
+                  />
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={9}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       Laden …
@@ -578,7 +571,7 @@ export function ContactsOverview() {
                 ) : filteredSorted.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={9}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       {search.trim()
@@ -627,20 +620,20 @@ export function ContactsOverview() {
                         <td className="px-2 py-2 align-middle text-xs text-muted-foreground hidden xl:table-cell whitespace-nowrap">
                           {formatWhen(r.last_interaction_at)}
                         </td>
-                        <td
-                          className="px-1 py-2 align-middle text-center"
+                        <ModuleTableActionsCell
+                          dense
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
+                          <ModuleTableIconActionButton
+                            label={
+                              r.reservation_count === 0
+                                ? "Keine Reservierungen"
+                                : `${r.reservation_count} Reservierung(en)`
+                            }
                             className={cn(
                               "relative text-muted-foreground hover:text-foreground",
-                              r.reservation_count === 0 &&
-                                "opacity-40 pointer-events-none",
+                              r.reservation_count === 0 && "opacity-40",
                             )}
-                            aria-label={`${r.reservation_count} Reservierung(en)`}
                             disabled={
                               r.reservation_count === 0 ||
                               (linksLoading &&
@@ -656,22 +649,17 @@ export function ContactsOverview() {
                                   : r.reservation_count}
                               </span>
                             ) : null}
-                          </Button>
-                        </td>
-                        <td
-                          className="px-1 py-2 align-middle text-center"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
+                          </ModuleTableIconActionButton>
+                          <ModuleTableIconActionButton
+                            label={
+                              r.message_count === 0
+                                ? "Keine Nachrichten"
+                                : `${r.message_count} Nachricht(en)`
+                            }
                             className={cn(
                               "relative text-muted-foreground hover:text-foreground",
-                              r.message_count === 0 &&
-                                "opacity-40 pointer-events-none",
+                              r.message_count === 0 && "opacity-40",
                             )}
-                            aria-label={`${r.message_count} Nachricht(en)`}
                             disabled={r.message_count === 0}
                             onClick={(e) => openMessagesLink(r, e)}
                           >
@@ -683,17 +671,15 @@ export function ContactsOverview() {
                                   : r.message_count}
                               </span>
                             ) : null}
-                          </Button>
-                        </td>
+                          </ModuleTableIconActionButton>
+                        </ModuleTableActionsCell>
                       </tr>
                     );
                   })
                 )}
               </tbody>
             </table>
-            </div>
-            </ListPaginationSurround>
-          </div>
+          </ModulePaginatedDataTable>
         </CardContent>
       </Card>
 

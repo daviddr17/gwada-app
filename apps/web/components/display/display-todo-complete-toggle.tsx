@@ -14,6 +14,7 @@ export function DisplayTodoCompleteToggle({
   onMarkIncomplete,
   className,
   label = "Erledigt",
+  embedded = false,
 }: {
   checked?: boolean;
   allowReopen?: boolean;
@@ -23,6 +24,7 @@ export function DisplayTodoCompleteToggle({
   onMarkIncomplete?: () => void;
   className?: string;
   label?: string;
+  embedded?: boolean;
 }) {
   const lockedAfterComplete = checked && !allowReopen;
 
@@ -30,7 +32,9 @@ export function DisplayTodoCompleteToggle({
     <div
       className={cn(
         "flex items-center justify-between gap-4 rounded-xl border border-border/50 bg-card/80 px-4 py-3.5",
-        checked && "border-emerald-500/35 bg-emerald-500/5",
+        checked && !embedded && "border-emerald-500/35 bg-emerald-500/5",
+        embedded && "rounded-none border-0 bg-transparent px-0 py-0 shadow-none",
+        embedded && checked && "bg-transparent",
         className,
       )}
     >

@@ -1,13 +1,13 @@
 "use client";
 
-import { useId, type RefObject } from "react";
-import { AlertTriangle } from "lucide-react";
+import { useId, type ReactNode, type RefObject } from "react";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { RestaurantStaffTodoRow, StaffTodoCaptureType } from "@/lib/types/staff-todos";
 import { staffTodoLimitsLabel } from "@/lib/staff/staff-todo-meta";
-import type { StaffTodoCaptureLimits } from "@/lib/staff/staff-todo-capture";
+import type { StaffTodoCaptureLimits, StaffTodoCapturePayload } from "@/lib/staff/staff-todo-capture";
 import {
   evaluateStaffTodoCapture,
   numericCaptureHasDeviation,
@@ -54,7 +54,76 @@ type DisplayTodoCaptureFieldsProps = {
   variant?: "default" | "display";
   autoFocus?: boolean;
   inputRef?: RefObject<HTMLInputElement | null>;
+  /** Display-Panel: z. B. Erledigt-Switch unten im gleichen Kasten. */
+  panelFooter?: ReactNode;
+  /** Erledigt-Toggle aktiv — gesamter Kasten grün (Display). */
+  panelDone?: boolean;
 };
+
+/** Display-Erfassung: Panel-Ampel (Option A) — Input bleibt neutral. */
+export type DisplayTodoCaptureInputStatus = "empty" | "valid" | "deviation";
+
+export function displayTodoCaptureNumericStatus(
+  parsedNumeric: number | null,
+  limits: StaffTodoCaptureLimits,
+): DisplayTodoCaptureInputStatus {
+  if (parsedNumeric == null) return "empty";
+  if (numericCaptureHasDeviation(parsedNumeric, limits)) return "deviation";
+  return "valid";
+}
+
+export function displayTodoCaptureTextStatus(text: string): DisplayTodoCaptureInputStatus {
+  return text.trim() ? "valid" : "empty";
+}
+
+/** Display-Panel: neutral → grün (Soll) → gelb (Abweichung) → kräftig grün (Erledigt). */
+export type DisplayTodoCapturePanelStatus = "empty" | "valid" | "deviation" | "done";
+
+export function displayTodoCapturePanelClassName(options?: {
+  status?: DisplayTodoCaptureInputStatus;
+  done?: boolean;
+}): string {
+  const status: DisplayTodoCapturePanelStatus = options?.done
+    ? "done"
+    : (options?.status ?? "empty");
+  return cn(
+    "space-y-3 rounded-2xl border p-4 transition-colors",
+    status === "empty" && "border-border/50 bg-muted/15",
+    status === "valid" && "border-emerald-500/40 bg-emerald-500/[0.08]",
+    status === "deviation" && "border-amber-500/45 bg-amber-500/[0.08]",
+    status === "done" && "border-emerald-500/50 bg-emerald-500/[0.12]",
+  );
+}
+
+/** Display-Input: neutral — Semantik steckt im Panel, nicht in Branding-Ring/Accent. */
+export function displayTodoCaptureDisplayInputClassName(baseClass?: string): string {
+  return cn(
+    baseClass,
+    "border-border/55 bg-background/95 shadow-none",
+    "focus-visible:border-foreground/25 focus-visible:ring-0 focus-visible:ring-offset-0",
+  );
+}
+
+export function displayTodoCaptureInputClassName(
+  status: DisplayTodoCaptureInputStatus,
+  options?: { display?: boolean; baseClass?: string },
+): string {
+  const { display = false, baseClass = "" } = options ?? {};
+  if (display) {
+    return displayTodoCaptureDisplayInputClassName(baseClass);
+  }
+  return cn(
+    baseClass,
+    status === "deviation" &&
+      "border-amber-500/50 focus-visible:border-amber-500 focus-visible:ring-amber-500/30",
+  );
+}
+
+function DisplayTodoCapturePanelFooter({ children }: { children: ReactNode }) {
+  return <div className="border-t border-border/40 pt-3">{children}</div>;
+}
+
+export { DisplayTodoCapturePanelFooter };
 
 function sanitizeNumericInput(raw: string): string {
   let next = raw.replace(/[^\d,.-]/g, "");
@@ -70,17 +139,20 @@ function sanitizeNumericInput(raw: string): string {
 export function displayTodoCapturePayloadFromState(
   captureType: StaffTodoCaptureType,
   values: DisplayTodoCaptureState,
-) {
+): StaffTodoCapturePayload {
   const numericRaw = values.numeric.trim().replace(",", ".");
   const numeric =
     numericRaw === "" ? null : Number.parseFloat(numericRaw);
-  return {
+  const payload: StaffTodoCapturePayload = {
     captured_numeric:
       numeric != null && !Number.isNaN(numeric) ? numeric : null,
     captured_text: values.text.trim() || null,
-    captured_boolean: values.boolean,
     corrective_action: values.corrective.trim() || null,
   };
+  if (captureType === "boolean") {
+    payload.captured_boolean = values.boolean;
+  }
+  return payload;
 }
 
 /** Boolean-Erfassung läuft über den Erledigt-Schalter — kein separates Feld. */
@@ -144,6 +216,8 @@ export function DisplayTodoCaptureFields({
   variant = "default",
   autoFocus = false,
   inputRef,
+  panelFooter,
+  panelDone = false,
 }: DisplayTodoCaptureFieldsProps) {
   const numericId = useId();
   const textId = useId();
@@ -153,13 +227,15 @@ export function DisplayTodoCaptureFields({
   const inputClass = cn(
     large ? "h-12 rounded-xl text-base md:h-11 md:text-sm" : "rounded-xl",
     isDisplay &&
-      "h-16 rounded-2xl border-2 border-accent/35 bg-background text-center text-3xl font-semibold tracking-tight shadow-sm focus-visible:border-accent focus-visible:ring-accent/30 md:h-16 md:text-3xl",
+      "h-16 rounded-2xl border-2 bg-background text-center text-3xl font-semibold tracking-tight shadow-sm md:h-16 md:text-3xl",
   );
 
   if (captureType === "none" || captureType === "boolean") return null;
 
   const parsedNumeric = parseCapturedNumeric(values.numeric);
   const hasDeviation = numericCaptureHasDeviation(parsedNumeric, limits);
+  const numericStatus = displayTodoCaptureNumericStatus(parsedNumeric, limits);
+  const textStatus = displayTodoCaptureTextStatus(values.text);
   const showCorrectiveField = hasDeviation && correctiveRequired;
 
   const limitsHint =
@@ -182,108 +258,173 @@ export function DisplayTodoCaptureFields({
     <div className={cn("space-y-4", isDisplay && "space-y-3")}>
       {captureType === "temperature" || captureType === "number" ? (
         <div
-          className={cn(
-            "space-y-2",
-            isDisplay &&
-              "rounded-2xl border p-4",
-            isDisplay && hasDeviation
-              ? "border-amber-500/40 bg-amber-500/5"
-              : isDisplay && "border-accent/25 bg-accent/5",
-          )}
-        >
-          <Label
-            htmlFor={numericId}
-            className={cn(
-              isDisplay && "text-base font-semibold text-foreground",
-            )}
-          >
-            {captureType === "temperature" ? "Temperatur messen" : "Wert eintragen"}
-          </Label>
-          <div className="relative">
-            <Input
-              ref={inputRef}
-              id={numericId}
-              type="text"
-              inputMode={captureType === "temperature" ? "decimal" : "numeric"}
-              autoComplete="off"
-              autoFocus={autoFocus}
-              enterKeyHint="done"
-              value={values.numeric}
-              onChange={(e) =>
-                onChange({
-                  ...values,
-                  numeric: sanitizeNumericInput(e.target.value),
+          className={
+            isDisplay
+              ? displayTodoCapturePanelClassName({
+                  done: panelDone,
+                  status: panelDone ? undefined : numericStatus,
                 })
-              }
-              placeholder={captureType === "temperature" ? "0,0" : "0"}
+              : "space-y-2"
+          }
+        >
+          <div className="space-y-2">
+            <Label
+              htmlFor={numericId}
               className={cn(
-                inputClass,
-                "tabular-nums",
-                isDisplay && "pr-14",
-                hasDeviation &&
-                  "border-amber-500/50 focus-visible:border-amber-500 focus-visible:ring-amber-500/30",
+                isDisplay && "text-base font-semibold text-foreground",
               )}
-            />
-            {captureType === "temperature" ? (
-              <span
-                className={cn(
-                  "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
-                  isDisplay
-                    ? "right-5 text-xl font-medium"
-                    : "right-3 text-sm",
+            >
+              {captureType === "temperature" ? "Temperatur messen" : "Wert eintragen"}
+            </Label>
+            <div className="relative">
+              <Input
+                ref={inputRef}
+                id={numericId}
+                type="text"
+                inputMode={captureType === "temperature" ? "decimal" : "numeric"}
+                autoComplete="off"
+                autoFocus={autoFocus}
+                enterKeyHint="done"
+                value={values.numeric}
+                onChange={(e) =>
+                  onChange({
+                    ...values,
+                    numeric: sanitizeNumericInput(e.target.value),
+                  })
+                }
+                placeholder={captureType === "temperature" ? "0,0" : "0"}
+                className={displayTodoCaptureInputClassName(
+                  isDisplay ? numericStatus : hasDeviation ? "deviation" : "empty",
+                  { display: isDisplay, baseClass: cn(inputClass, "tabular-nums", isDisplay && "pr-14") },
                 )}
-                aria-hidden
+              />
+              {captureType === "temperature" ? (
+                <span
+                  className={cn(
+                    "pointer-events-none absolute top-1/2 -translate-y-1/2 text-muted-foreground",
+                    isDisplay
+                      ? "right-5 text-xl font-medium"
+                      : "right-3 text-sm",
+                  )}
+                  aria-hidden
+                >
+                  °C
+                </span>
+              ) : null}
+            </div>
+            {limitsHint ? (
+              <p
+                className={cn(
+                  "text-muted-foreground",
+                  isDisplay ? "text-sm font-medium" : "text-xs",
+                )}
               >
-                °C
-              </span>
+                Sollbereich: {limitsHint}
+              </p>
+            ) : null}
+            {isDisplay && numericStatus === "valid" ? (
+              <p
+                className={cn(
+                  "flex items-start gap-2 font-medium text-emerald-700 dark:text-emerald-400",
+                  isDisplay ? "text-sm" : "text-xs",
+                )}
+              >
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>
+                  {staffTodoCaptureLimitsDefined(limits)
+                    ? `Im Sollbereich${limitsHint ? ` (${limitsHint})` : ""}`
+                    : "Wert erfasst"}
+                </span>
+              </p>
+            ) : null}
+            {hasDeviation && staffTodoCaptureLimitsDefined(limits) ? (
+              <p
+                className={cn(
+                  "flex items-start gap-2 font-medium text-amber-800 dark:text-amber-300",
+                  isDisplay ? "text-sm" : "text-xs",
+                )}
+                role="alert"
+              >
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span>
+                  Außerhalb des Sollbereichs
+                  {limitsHint ? ` (${limitsHint})` : ""}.
+                  {correctiveRequired
+                    ? " Bitte Korrekturmaßnahme eintragen, bevor Sie erledigen."
+                    : null}
+                </span>
+              </p>
             ) : null}
           </div>
-          {limitsHint ? (
-            <p
-              className={cn(
-                "text-muted-foreground",
-                isDisplay ? "text-sm font-medium" : "text-xs",
-              )}
-            >
-              Sollbereich: {limitsHint}
-            </p>
+          {showCorrectiveField && isDisplay ? (
+            <div className="space-y-1.5">
+              <Label htmlFor={correctiveId}>Korrekturmaßnahme *</Label>
+              <Textarea
+                id={correctiveId}
+                value={values.corrective}
+                onChange={(e) =>
+                  onChange({ ...values, corrective: e.target.value })
+                }
+                rows={3}
+                className="rounded-xl"
+                placeholder="Was wurde unternommen? Grund der Abweichung …"
+              />
+            </div>
           ) : null}
-          {hasDeviation && staffTodoCaptureLimitsDefined(limits) ? (
-            <p
-              className={cn(
-                "flex items-start gap-2 font-medium text-amber-800 dark:text-amber-300",
-                isDisplay ? "text-sm" : "text-xs",
-              )}
-              role="alert"
-            >
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-              <span>
-                Außerhalb des Sollbereichs
-                {limitsHint ? ` (${limitsHint})` : ""}.
-                {correctiveRequired
-                  ? " Bitte Korrekturmaßnahme eintragen, bevor Sie erledigen."
-                  : null}
-              </span>
-            </p>
+          {isDisplay && panelFooter ? (
+            <DisplayTodoCapturePanelFooter>{panelFooter}</DisplayTodoCapturePanelFooter>
           ) : null}
         </div>
       ) : null}
 
       {captureType === "text" ? (
-        <div className="space-y-1.5">
-          <Label htmlFor={textId}>Eingabe</Label>
-          <Input
-            ref={inputRef}
-            id={textId}
-            value={values.text}
-            onChange={(e) => onChange({ ...values, text: e.target.value })}
-            autoFocus={autoFocus}
-            className={inputClass}
-          />
-        </div>
+        isDisplay ? (
+          <div
+            className={displayTodoCapturePanelClassName({
+              done: panelDone,
+              status: panelDone ? undefined : textStatus,
+            })}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor={textId}>Eingabe</Label>
+              <Input
+                ref={inputRef}
+                id={textId}
+                value={values.text}
+                onChange={(e) => onChange({ ...values, text: e.target.value })}
+                autoFocus={autoFocus}
+                className={displayTodoCaptureInputClassName(textStatus, {
+                  display: true,
+                  baseClass: inputClass,
+                })}
+              />
+              {textStatus === "valid" ? (
+                <p className="flex items-start gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>Eingabe erfasst</span>
+                </p>
+              ) : null}
+            </div>
+            {panelFooter ? (
+              <DisplayTodoCapturePanelFooter>{panelFooter}</DisplayTodoCapturePanelFooter>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Label htmlFor={textId}>Eingabe</Label>
+            <Input
+              ref={inputRef}
+              id={textId}
+              value={values.text}
+              onChange={(e) => onChange({ ...values, text: e.target.value })}
+              autoFocus={autoFocus}
+              className={inputClass}
+            />
+          </div>
+        )
       ) : null}
 
-      {showCorrectiveField ? (
+      {showCorrectiveField && !(isDisplay && (captureType === "temperature" || captureType === "number")) ? (
         <div className="space-y-1.5">
           <Label htmlFor={correctiveId}>Korrekturmaßnahme *</Label>
           <Textarea

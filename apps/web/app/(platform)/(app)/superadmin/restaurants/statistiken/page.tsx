@@ -31,12 +31,9 @@ export default function SuperadminRestaurantsStatistikenPage() {
 
   return (
     <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Statistiken</h2>
-        <p className="text-sm text-muted-foreground">
-          Wachstum, Veröffentlichungsstatus und Teamgrößen aller Restaurants.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Wachstum, Veröffentlichungsstatus und Teamgrößen aller Restaurants.
+      </p>
 
       {showSkeleton ? (
         <SuperadminStatsSkeleton />

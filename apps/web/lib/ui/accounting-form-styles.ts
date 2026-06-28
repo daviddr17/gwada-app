@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { moduleDataTableHeadLabelClassName } from "@/lib/ui/module-data-table";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
 /** Einheitliche Höhe für Buchführungs-Formulare (Inputs, Selects, DatePicker). */
@@ -22,5 +23,7 @@ export const accountingFormGridClassName =
 export const accountingLineItemGridClassName =
   "grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.9fr)]";
 
-export const accountingLineItemHeaderClassName =
-  "hidden text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.9fr)] sm:gap-2 sm:ps-10";
+export const accountingLineItemHeaderClassName = cn(
+  "hidden sm:grid sm:grid-cols-[minmax(0,1.4fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.9fr)] sm:gap-2 sm:ps-10",
+  moduleDataTableHeadLabelClassName,
+);

@@ -22,12 +22,12 @@ import {
   DocumentsOverviewStorageSkeleton,
   DocumentsOverviewTableSkeleton,
 } from "@/components/documents/documents-overview-skeleton";
-import { TableCellTruncateTooltip } from "@/components/documents/table-cell-truncate-tooltip";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
 import {
@@ -37,6 +37,7 @@ import {
   uploadRestaurantDocumentClient,
 } from "@/lib/documents/documents-api";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
+import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { validateRestaurantDocumentFile } from "@/lib/documents/validate-restaurant-document-file";
 import { RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL } from "@/lib/constants/restaurant-documents";
@@ -65,7 +66,21 @@ import type {
   DocumentTagDefinition,
   RestaurantDocumentRow,
 } from "@/lib/types/documents";
-import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleTableStickyHeadCellClassName,
+  ModuleTableStickyBodyCell,
+  useModuleTableHorizontalScroll,
+} from "@/lib/ui/module-table-sticky-column";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadRowClassName,
+  moduleDataTableHeadSortButtonCn,
+} from "@/lib/ui/module-data-table";
+import {
+  ModuleTableIconActionButton,
+  ModuleTableIconActionsColumnHeader,
+  ModuleTableActionsCell,
+} from "@/lib/ui/module-table-icon-tooltip";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -118,6 +133,37 @@ function documentTitleFromFileName(fileName: string): string {
   return base || fileName.trim();
 }
 
+function DocumentTitleColumnHead({
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+}: {
+  sortKey: SortKey;
+  activeKey: SortKey | null;
+  dir: SortDir;
+  onSort: (key: SortKey) => void;
+}) {
+  const canScrollX = useModuleTableHorizontalScroll();
+
+  return (
+    <th
+      className={moduleTableStickyHeadCellClassName(
+        canScrollX,
+        cn(moduleDataTableHeadCellClassName, "min-w-[10rem]"),
+      )}
+    >
+      <SortHeader
+        label="Titel"
+        sortKey={sortKey}
+        activeKey={activeKey}
+        dir={dir}
+        onSort={onSort}
+      />
+    </th>
+  );
+}
+
 function SortHeader({
   label,
   sortKey,
@@ -137,10 +183,7 @@ function SortHeader({
   return (
     <button
       type="button"
-      className={cn(
-        "inline-flex items-center gap-1 text-left text-xs font-medium tracking-wide text-muted-foreground hover:text-foreground transition-colors normal-case",
-        className,
-      )}
+      className={cn(moduleDataTableHeadSortButtonCn(active), "normal-case", className)}
       onClick={() => onSort(sortKey)}
     >
       {label}
@@ -655,34 +698,27 @@ export function DocumentsOverview() {
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-border/50 shadow-card overflow-hidden">
-          <ListPaginationSurround
-            classNameAbove="px-4 pt-4"
-            classNameBelow="px-4 pb-4"
-            page={currentPage}
-            totalPages={totalPages}
-            shown={paginatedRows.length}
-            totalCount={totalCount}
-            itemLabel="Dokumente"
-            canPrevious={currentPage > 1}
-            canNext={currentPage < totalPages}
-            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
-            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-          <div className="overflow-x-auto">
+        <ModulePaginatedDataTable
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginatedRows.length}
+          totalCount={totalCount}
+          itemLabel="Dokumente"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
             <table className="w-full min-w-[52rem] text-sm">
               <thead>
-                <tr className="border-b border-border/50 bg-muted/30">
-                  <th className="min-w-[10rem] px-4 py-3 text-left font-medium">
-                    <SortHeader
-                      label="Titel"
-                      sortKey="title"
-                      activeKey={sortKey}
-                      dir={sortDir}
-                      onSort={toggleSort}
-                    />
-                  </th>
-                  <th className="min-w-[11rem] max-w-[14rem] px-4 py-3 text-left font-medium">
+                <tr className={moduleDataTableHeadRowClassName}>
+                  <DocumentTitleColumnHead
+                    sortKey="title"
+                    activeKey={sortKey}
+                    dir={sortDir}
+                    onSort={toggleSort}
+                  />
+                  <th className={cn(moduleDataTableHeadCellClassName, "min-w-[11rem] max-w-[14rem]")}>
                     <SortHeader
                       label="Datei"
                       sortKey="file_name"
@@ -691,7 +727,7 @@ export function DocumentsOverview() {
                       onSort={toggleSort}
                     />
                   </th>
-                  <th className="min-w-[7rem] px-4 py-3 text-left font-medium">
+                  <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
                     <SortHeader
                       label="Tag"
                       sortKey="tag"
@@ -700,16 +736,16 @@ export function DocumentsOverview() {
                       onSort={toggleSort}
                     />
                   </th>
-                  <th className="min-w-[8rem] px-4 py-3 text-left font-medium">
+                  <th className={cn(moduleDataTableHeadCellClassName, "min-w-[8rem]")}>
                     <SortHeader
-                      label="Hochgeladen von"
+                      label="Nutzer"
                       sortKey="uploader"
                       activeKey={sortKey}
                       dir={sortDir}
                       onSort={toggleSort}
                     />
                   </th>
-                  <th className="min-w-[5.5rem] px-4 py-3 text-left font-medium">
+                  <th className={cn(moduleDataTableHeadCellClassName, "min-w-[5.5rem]")}>
                     <SortHeader
                       label="Größe"
                       sortKey="size"
@@ -718,7 +754,7 @@ export function DocumentsOverview() {
                       onSort={toggleSort}
                     />
                   </th>
-                  <th className="min-w-[9.5rem] px-4 py-3 text-left font-medium">
+                  <th className={cn(moduleDataTableHeadCellClassName, "min-w-[9.5rem]")}>
                     <SortHeader
                       label="Hochgeladen"
                       sortKey="created_at"
@@ -727,20 +763,24 @@ export function DocumentsOverview() {
                       onSort={toggleSort}
                     />
                   </th>
-                  <th className="w-[9.25rem] min-w-[9.25rem] shrink-0 px-2 py-3 text-right font-medium">
-                    <span className="sr-only">Aktionen</span>
-                  </th>
+                  <ModuleTableIconActionsColumnHeader />
                 </tr>
               </thead>
               <tbody>
                 {paginatedRows.map((row) => (
                   <tr
                     key={row.id}
-                    className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                    className="group/tr border-b border-border/40 last:border-0 hover:bg-muted/20"
                   >
-                    <td className="max-w-[14rem] truncate px-4 py-3 font-medium">
-                      {row.title}
-                    </td>
+                    <ModuleTableStickyBodyCell
+                      tone="muted-hover-20"
+                      className="max-w-[14rem] px-4 py-3"
+                    >
+                      <TableCellTruncateTooltip
+                        text={row.title}
+                        className="font-medium"
+                      />
+                    </ModuleTableStickyBodyCell>
                     <td className="max-w-[14rem] px-4 py-3 text-muted-foreground">
                       <TableCellTruncateTooltip text={row.file_name} />
                     </td>
@@ -750,11 +790,13 @@ export function DocumentsOverview() {
                         definitions={tagDefinitionsForChips}
                       />
                     </td>
-                    <td className="max-w-[10rem] truncate px-4 py-3 text-muted-foreground">
-                      {formatDocumentUploaderLabel(
-                        row.uploaded_by,
-                        uploaderNames,
-                      )}
+                    <td className="max-w-[10rem] px-4 py-3 text-muted-foreground">
+                      <TableCellTruncateTooltip
+                        text={formatDocumentUploaderLabel(
+                          row.uploaded_by,
+                          uploaderNames,
+                        )}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 tabular-nums text-muted-foreground">
                       {formatStorageBytes(row.size_bytes)}
@@ -762,13 +804,9 @@ export function DocumentsOverview() {
                     <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
                       {formatWhen(row.created_at)}
                     </td>
-                    <td className="w-[9.25rem] min-w-[9.25rem] shrink-0 px-2 py-3">
-                      <div className="flex shrink-0 justify-end gap-0.5">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Herunterladen"
+                    <ModuleTableActionsCell>
+                        <ModuleTableIconActionButton
+                          label="Herunterladen"
                           onClick={() => {
                             window.open(
                               restaurantDocumentDownloadUrl({
@@ -781,21 +819,15 @@ export function DocumentsOverview() {
                           }}
                         >
                           <Download className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label={`Protokoll ${row.title}`}
+                        </ModuleTableIconActionButton>
+                        <ModuleTableIconActionButton
+                          label={`Protokoll ${row.title}`}
                           onClick={() => setProtocolDoc(row)}
                         >
                           <ScrollText className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Bearbeiten"
+                        </ModuleTableIconActionButton>
+                        <ModuleTableIconActionButton
+                          label="Bearbeiten"
                           onClick={() => {
                             setFormMode("edit");
                             setEditDoc(row);
@@ -803,25 +835,20 @@ export function DocumentsOverview() {
                           }}
                         >
                           <Pencil className="size-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="Löschen"
+                        </ModuleTableIconActionButton>
+                        <ModuleTableIconActionButton
+                          label="Löschen"
+                          className="text-destructive hover:text-destructive"
                           onClick={() => setDeleteTarget(row)}
                         >
-                          <Trash2 className="size-4 text-destructive" />
-                        </Button>
-                      </div>
-                    </td>
+                          <Trash2 className="size-4" />
+                        </ModuleTableIconActionButton>
+                    </ModuleTableActionsCell>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-          </ListPaginationSurround>
-        </Card>
+        </ModulePaginatedDataTable>
       )}
 
       <CategoriesManageDrawer

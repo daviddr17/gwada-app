@@ -57,12 +57,9 @@ export default function SuperadminWartelistePage() {
 
   return (
     <div className="space-y-6 pt-2">
-      <div>
-        <h2 className="text-lg font-semibold tracking-tight">Warteliste</h2>
-        <p className="text-sm text-muted-foreground">
-          Anmeldungen über die öffentliche Warteliste (vor dem Live-Start).
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        Anmeldungen über die öffentliche Warteliste (vor dem Live-Start).
+      </p>
 
       <SuperadminSearchToolbar
         search={search}

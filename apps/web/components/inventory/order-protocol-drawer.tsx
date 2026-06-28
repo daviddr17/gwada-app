@@ -16,6 +16,7 @@ import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names"
 import { protocolDeltaWrapClass } from "@/components/inventory/protocol-menge-colors";
 import type { PurchaseOrder, PurchaseOrderLogEntry } from "@/lib/types/purchase-order";
 import { resolveLogEntryUserLabel, resolveProtocolCreatorLabel } from "@/lib/types/purchase-order";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 
 const df = new Intl.DateTimeFormat("de-DE", {
   dateStyle: "medium",
@@ -161,9 +162,9 @@ export function OrderProtocolDrawer({
             <div className="overflow-x-auto rounded-lg border border-border/50">
               <table className="w-full min-w-[720px] text-left text-xs sm:text-sm">
                 <thead>
-                  <tr className="border-b border-border/60 bg-muted/40 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
+                  <tr className={moduleDataTableHeadRowMutedClassName}>
                     <th className="whitespace-nowrap px-2 py-2 sm:px-3">Datum</th>
-                    <th className="min-w-[7rem] px-2 py-2 sm:px-3">User</th>
+                    <th className="min-w-[7rem] px-2 py-2 sm:px-3">Nutzer</th>
                     <th className="min-w-[8rem] px-2 py-2 sm:px-3">Name Zutat</th>
                     <th className="min-w-[6.5rem] px-2 py-2 sm:px-3">Mengenänderung</th>
                     <th className="min-w-[7rem] px-2 py-2 sm:px-3">Aktion</th>

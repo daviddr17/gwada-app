@@ -24,6 +24,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { germanFiskalyProvisionError } from "@/lib/pos/fiskaly-error-messages";
 import type { RestaurantFiscalOverview } from "@/lib/pos/restaurant-fiscal-overview-types";
 import { cn } from "@/lib/utils";
+import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
 import { RestaurantFiscalPanelSkeleton } from "@/components/settings/restaurant-fiscal-panel-skeleton";
 
 function provisionStatusBadge(overview: RestaurantFiscalOverview) {
@@ -443,13 +444,13 @@ export function RestaurantFiscalPanel() {
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] border-collapse text-sm">
                 <thead>
-                  <tr className="border-b border-border/50 text-left text-xs text-muted-foreground">
-                    <th className="px-4 py-2 font-medium sm:px-0">Bestellung</th>
-                    <th className="px-4 py-2 font-medium">Signiert</th>
-                    <th className="px-4 py-2 font-medium">Zähler</th>
-                    <th className="px-4 py-2 font-medium">Transaktions-ID</th>
-                    <th className="px-4 py-2 font-medium">Signatur</th>
-                    <th className="px-4 py-2 font-medium">Beleg</th>
+                  <tr className={moduleDataTableHeadRowMutedClassName}>
+                    <th className="px-4 py-2 sm:px-0">Bestellung</th>
+                    <th className="px-4 py-2">Signiert</th>
+                    <th className="px-4 py-2">Zähler</th>
+                    <th className="px-4 py-2">Transaktions-ID</th>
+                    <th className="px-4 py-2">Signatur</th>
+                    <th className="px-4 py-2">Beleg</th>
                   </tr>
                 </thead>
                 <tbody>

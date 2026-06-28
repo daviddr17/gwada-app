@@ -9,9 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
@@ -93,17 +91,9 @@ export function SuperadminContractTemplatesPanel() {
   return (
     <>
       <Card className="border-border/50 shadow-card">
-        <CardHeader className="flex flex-col gap-4">
-          <div className="min-w-0">
-            <CardTitle className="text-xl">Bibliothek</CardTitle>
-            <CardDescription>
-              Mustertexte pro Land — Restaurants importieren eine Kopie in ihre
-              Beschäftigungsverhältnisse.
-            </CardDescription>
-          </div>
-          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Land</Label>
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Land</Label>
               <Select
                 value={countryCode}
                 items={Object.fromEntries(
@@ -126,9 +116,9 @@ export function SuperadminContractTemplatesPanel() {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
                 type="button"
                 variant="outline"
                 size="icon"
@@ -146,7 +136,6 @@ export function SuperadminContractTemplatesPanel() {
                 <Plus className="size-4" />
                 Neue Vorlage
               </Button>
-            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

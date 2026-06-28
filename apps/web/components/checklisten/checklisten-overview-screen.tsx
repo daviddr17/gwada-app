@@ -11,19 +11,13 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { fetchStaffTodosForRestaurant } from "@/lib/supabase/staff-todos-db";
+import { DEFAULT_RESTAURANT_TIMEZONE, isSameRestaurantCalendarDay } from "@/lib/restaurant/restaurant-timezone";
 import {
   fetchComplianceRecords,
   fetchComplianceSettings,
 } from "@/lib/supabase/compliance-db";
 import { isMissingSchemaError } from "@/lib/supabase/schema-error";
 import type { RestaurantStaffTodoRow } from "@/lib/types/staff-todos";
-
-function isToday(iso: string): boolean {
-  const d = new Date(iso);
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  return !Number.isNaN(d.getTime()) && d >= start;
-}
 
 export function ChecklistenOverviewScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -35,6 +29,9 @@ export function ChecklistenOverviewScreen() {
   const [todos, setTodos] = useState<RestaurantStaffTodoRow[]>([]);
   const [capturesToday, setCapturesToday] = useState(0);
   const [showDueReminders, setShowDueReminders] = useState(true);
+  const [restaurantTimezone, setRestaurantTimezone] = useState(
+    DEFAULT_RESTAURANT_TIMEZONE,
+  );
 
   const reload = useCallback(async () => {
     if (!restaurantId) return;
@@ -43,7 +40,11 @@ export function ChecklistenOverviewScreen() {
     const [todoRes, recordsRes, settingsRes] = await Promise.all([
         canReadTodos
           ? fetchStaffTodosForRestaurant(restaurantId)
-          : Promise.resolve({ data: [], error: null }),
+          : Promise.resolve({
+              data: [],
+              error: null,
+              restaurantTimezone: DEFAULT_RESTAURANT_TIMEZONE,
+            }),
         canReadCompliance
           ? fetchComplianceRecords(restaurantId, { limit: 500 })
           : Promise.resolve({ data: [], error: null }),
@@ -56,22 +57,30 @@ export function ChecklistenOverviewScreen() {
 
     if (!todoRes.error || isMissingSchemaError(todoRes.error)) {
       setTodos(todoRes.data);
+      setRestaurantTimezone(todoRes.restaurantTimezone);
     } else {
       setTodos([]);
     }
 
     let todayCaptures = 0;
+    const tz = todoRes.restaurantTimezone ?? DEFAULT_RESTAURANT_TIMEZONE;
     if (canReadTodos) {
       for (const todo of todoRes.data) {
         for (const c of todo.completions ?? []) {
-          if (c.completed_at && !c.reopened_at && isToday(c.completed_at)) {
+          if (
+            c.completed_at &&
+            !c.reopened_at &&
+            isSameRestaurantCalendarDay(c.completed_at, new Date(), tz)
+          ) {
             todayCaptures += 1;
           }
         }
       }
     }
     if (canReadCompliance && !recordsRes.error) {
-      todayCaptures += recordsRes.data.filter((r) => isToday(r.performed_at)).length;
+      todayCaptures += recordsRes.data.filter((r) =>
+        isSameRestaurantCalendarDay(r.performed_at, new Date(), tz),
+      ).length;
     }
     setCapturesToday(todayCaptures);
 
@@ -82,6 +91,14 @@ export function ChecklistenOverviewScreen() {
 
   useEffect(() => {
     void reload();
+  }, [reload]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void reload();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [reload]);
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
@@ -96,6 +113,7 @@ export function ChecklistenOverviewScreen() {
         showDueReminders={showDueReminders}
         canReadTodos={canReadTodos}
         canReadCompliance={canReadCompliance}
+        restaurantTimezone={restaurantTimezone}
       />
 
       {!loading && canReadTodos && todos.length === 0 ? (

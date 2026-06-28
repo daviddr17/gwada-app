@@ -34,6 +34,7 @@ import {
 import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
 
 type ProfileJoin = {
   given_name: string | null;
@@ -199,12 +200,12 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
   const teamTable = (
     <table className="w-full border-collapse text-sm">
       <thead>
-        <tr className="border-b border-border text-left text-muted-foreground">
-          <th className="py-3 pr-4 font-medium">Name</th>
-          <th className="py-3 pr-4 font-medium">Rolle</th>
-          <th className="w-[120px] py-3 text-center font-medium">Aktiv</th>
+        <tr className={moduleDataTableHeadRowClassName}>
+          <th className="py-3 pr-4">Name</th>
+          <th className="py-3 pr-4">Rolle</th>
+          <th className="w-[120px] py-3 text-center">Aktiv</th>
           {canManage ? (
-            <th className="w-[140px] py-3 text-right font-medium">Zugang</th>
+            <th className="w-[140px] py-3 text-right">Zugang</th>
           ) : null}
         </tr>
       </thead>

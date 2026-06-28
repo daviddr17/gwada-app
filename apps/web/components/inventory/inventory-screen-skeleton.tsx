@@ -2,6 +2,11 @@
 
 import type { ComponentProps } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  ModuleDataTableBodySkeleton,
+  ModuleDataTableHeadSkeleton,
+  ModuleDataTableSkeletonFrame,
+} from "@/lib/ui/module-data-table-skeleton";
 import { cn } from "@/lib/utils";
 
 const COLS = 11;
@@ -45,33 +50,22 @@ export function InventoryScreenSkeleton({
         <Skeleton className="h-12 w-36 rounded-full" />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-none dark:shadow-sm">
+      <ModuleDataTableSkeletonFrame>
         <table className="w-full min-w-[1180px] text-sm">
-          <thead>
-            <tr className="border-b border-border/60 bg-muted/40">
-              {Array.from({ length: COLS }).map((_, i) => (
-                <th key={i} className="px-2 py-2">
-                  <Skeleton className="mx-auto h-3.5 max-w-[4.5rem] rounded-md" />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: 8 }).map((_, row) => (
-              <tr
-                key={row}
-                className="border-b border-border/40 last:border-0"
-              >
-                {Array.from({ length: COLS }).map((_, col) => (
-                  <td key={col} className="px-2 py-1.5 align-middle">
-                    <Skeleton className="h-9 w-full min-w-[2.5rem] rounded-xl" />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+          <ModuleDataTableHeadSkeleton
+            columnCount={COLS}
+            cellClassName="px-2 py-2"
+          />
+          <ModuleDataTableBodySkeleton
+            columnCount={COLS}
+            rowCount={8}
+            cellClassName="px-2 py-1.5 align-middle"
+            renderCell={() => (
+              <Skeleton className="h-9 w-full min-w-[2.5rem] rounded-xl" />
+            )}
+          />
         </table>
-      </div>
+      </ModuleDataTableSkeletonFrame>
     </div>
   );
 }

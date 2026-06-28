@@ -13,7 +13,7 @@ export const CHECKLISTEN_NAV = [
   {
     href: CHECKLISTEN_ROUTES.root,
     label: "Übersicht",
-    matchMode: "prefix" as const,
+    matchMode: "exact" as const,
     activeWhen: [CHECKLISTEN_ROUTES.root, CHECKLISTEN_ROUTES.todos],
   },
   {

@@ -7,6 +7,11 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
+import {
+  APP_LAYER_Z_INDEX,
+  appLayerFullscreenOverlayZClassName,
+  appLayerStackedSurfaceZClassName,
+} from "@/lib/ui/app-layer-z-index";
 
 /** Öffnen: weicher Landeanflug — nicht zu lang. */
 const THREAD_OVERLAY_OPEN_MS = 300;
@@ -18,9 +23,11 @@ export const CONTACT_INBOX_THREAD_OVERLAY_MS = THREAD_OVERLAY_CLOSE_MS;
 const THREAD_OVERLAY_OPEN_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 const THREAD_OVERLAY_CLOSE_EASING = "cubic-bezier(0.4, 0, 0.82, 0.38)";
 
-/** Vollbild-Chat-Overlay — Sheets darüber brauchen höheren z-index. */
-export const CONTACT_INBOX_THREAD_OVERLAY_Z_INDEX = 200;
-export const CONTACT_INBOX_STACKED_SHEET_Z_INDEX = 210;
+/** Vollbild-Chat-Overlay — Sheets darüber nutzen `stackedSurface`. */
+export const CONTACT_INBOX_THREAD_OVERLAY_Z_INDEX =
+  APP_LAYER_Z_INDEX.fullscreenOverlay;
+export const CONTACT_INBOX_STACKED_SHEET_Z_INDEX =
+  APP_LAYER_Z_INDEX.stackedSurface;
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
@@ -108,7 +115,8 @@ export function ContactInboxThreadOverlay({
       aria-modal="true"
       aria-label={ariaLabel}
       className={cn(
-        "fixed inset-0 z-[200] flex flex-col bg-background",
+        "fixed inset-0 flex flex-col bg-background",
+        appLayerFullscreenOverlayZClassName,
         className,
       )}
       style={{

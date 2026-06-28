@@ -39,6 +39,10 @@ export const drawerChromeSizeClassNames = {
   info: cn(drawerH520_88, "max-w-lg overflow-hidden"),
   /** Export / kurze Aktion. */
   export: cn(drawerH420_88, "max-w-lg overflow-hidden"),
+  /** Display Schicht-Gate / PIN-Checkliste — inhaltshoch, max. Höhe. */
+  displayGate: cn(
+    "h-auto max-h-[min(92dvh,640px)] min-h-0 max-w-lg overflow-hidden",
+  ),
   /** Kompakte Statistik-Sheets. */
   compact: cn(drawerH560_85, "max-w-lg overflow-hidden"),
   /** Breites Protokoll (Dokumente, Bewertungen). */

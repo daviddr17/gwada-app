@@ -26,16 +26,18 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { RestaurantStaffTodoLogEntry } from "@/lib/types/staff-todos";
 import { STAFF_TODO_LOG_ACTION_LABELS } from "@/lib/types/staff-todos";
 import { moduleSearchInputClassName } from "@/lib/ui/module-search-filter-toolbar";
-
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import {
+  moduleDataTableHeadCellCompactClassName,
+  moduleDataTableHeadRowCompactClassName,
+  moduleDataTableDrawerShellClassName,
+} from "@/lib/ui/module-data-table";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatRestaurantDateTime,
+} from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantIanaTimezone } from "@/lib/supabase/restaurant-timezone-db";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
+import { cn } from "@/lib/utils";
 
 type StaffTodosProtocolDrawerProps = {
   open: boolean;
@@ -50,16 +52,23 @@ export function StaffTodosProtocolDrawer({
 }: StaffTodosProtocolDrawerProps) {
   const [entries, setEntries] = useState<RestaurantStaffTodoLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [restaurantTimezone, setRestaurantTimezone] = useState(
+    DEFAULT_RESTAURANT_TIMEZONE,
+  );
   const showSkeleton = useDeferredSkeleton(loading);
   const [search, setSearch] = useState("");
 
   const reload = useCallback(async () => {
     if (!restaurantId) return;
     setLoading(true);
-    const { data, error } = await fetchStaffTodoLogEntries(restaurantId);
+    const [timezone, logRes] = await Promise.all([
+      fetchRestaurantIanaTimezone(restaurantId),
+      fetchStaffTodoLogEntries(restaurantId),
+    ]);
+    setRestaurantTimezone(timezone);
     setLoading(false);
-    if (error) setEntries([]);
-    else setEntries(data);
+    if (logRes.error) setEntries([]);
+    else setEntries(logRes.data);
   }, [restaurantId]);
 
   useEffect(() => {
@@ -129,17 +138,26 @@ export function StaffTodosProtocolDrawer({
                   : "Keine Treffer für die Suche."}
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-border/50">
+              <div className={moduleDataTableDrawerShellClassName}>
+                <div className="overflow-x-auto">
                 <table className="w-full min-w-[720px] table-fixed text-left text-xs sm:text-sm">
                   <thead>
-                    <tr className="border-b border-border/60 bg-muted/40 text-[11px] font-medium uppercase tracking-wide text-muted-foreground sm:text-xs">
-                      <th className="whitespace-nowrap px-2 py-2 sm:px-3">
+                    <tr className={moduleDataTableHeadRowCompactClassName}>
+                      <th className={cn(moduleDataTableHeadCellCompactClassName, "whitespace-nowrap")}>
                         Datum
                       </th>
-                      <th className="min-w-[7rem] px-2 py-2 sm:px-3">Nutzer</th>
-                      <th className="min-w-[8rem] px-2 py-2 sm:px-3">ToDo</th>
-                      <th className="min-w-[6rem] px-2 py-2 sm:px-3">Aktion</th>
-                      <th className="min-w-[10rem] px-2 py-2 sm:px-3">Details</th>
+                      <th className={cn(moduleDataTableHeadCellCompactClassName, "min-w-[7rem]")}>
+                        Nutzer
+                      </th>
+                      <th className={cn(moduleDataTableHeadCellCompactClassName, "min-w-[8rem]")}>
+                        ToDo
+                      </th>
+                      <th className={cn(moduleDataTableHeadCellCompactClassName, "min-w-[6rem]")}>
+                        Aktion
+                      </th>
+                      <th className={cn(moduleDataTableHeadCellCompactClassName, "min-w-[10rem]")}>
+                        Details
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -149,24 +167,29 @@ export function StaffTodosProtocolDrawer({
                         className="border-b border-border/40 last:border-0"
                       >
                         <td className="whitespace-nowrap px-2 py-2 text-muted-foreground sm:px-3 sm:py-3">
-                          {formatWhen(e.created_at)}
+                          {formatRestaurantDateTime(e.created_at, restaurantTimezone)}
                         </td>
-                        <td className="px-2 py-2 sm:px-3 sm:py-3">
-                          {resolveStaffTodoLogActorLabel(e)}
+                        <td className="max-w-[7rem] px-2 py-2 sm:px-3 sm:py-3">
+                          <TableCellTruncateTooltip
+                            text={resolveStaffTodoLogActorLabel(e)}
+                          />
                         </td>
-                        <td className="px-2 py-2 sm:px-3 sm:py-3">
-                          {e.todo?.title ?? "—"}
+                        <td className="max-w-[8rem] px-2 py-2 sm:px-3 sm:py-3">
+                          <TableCellTruncateTooltip text={e.todo?.title ?? "—"} />
                         </td>
                         <td className="px-2 py-2 sm:px-3 sm:py-3">
                           {STAFF_TODO_LOG_ACTION_LABELS[e.action]}
                         </td>
-                        <td className="px-2 py-2 text-muted-foreground sm:px-3 sm:py-3">
-                          {formatStaffTodoLogDetails(e)}
+                        <td className="max-w-[10rem] px-2 py-2 text-muted-foreground sm:px-3 sm:py-3">
+                          <TableCellTruncateTooltip
+                            text={formatStaffTodoLogDetails(e)}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
               </div>
             )}
           </DrawerFormSection>

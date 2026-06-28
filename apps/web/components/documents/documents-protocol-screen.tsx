@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
-import { TableCellTruncateTooltip } from "@/components/documents/table-cell-truncate-tooltip";
+import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 import { DocumentsProtocolTableSkeleton } from "@/components/documents/documents-protocol-table-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  fetchDocumentLogEntries,
+  fetchDocumentLogEntriesPaginated,
   resolveDocumentLogEntryActorLabel,
 } from "@/lib/supabase/documents-db";
 import type { RestaurantDocumentLogEntry } from "@/lib/types/document-log";
@@ -22,6 +22,11 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadRowMutedClassName,
+} from "@/lib/ui/module-data-table";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
@@ -41,45 +46,43 @@ function formatWhen(iso: string) {
 
 export function DocumentsProtocolScreen() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const [entries, setEntries] = useState<RestaurantDocumentLogEntry[]>([]);
+  const [rows, setRows] = useState<RestaurantDocumentLogEntry[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   const [search, setSearch] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchDebounced(search), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchDebounced]);
 
   const reload = useCallback(async () => {
     if (!restaurantId) return;
     setLoading(true);
-    const { data, error } = await fetchDocumentLogEntries(restaurantId);
+    const result = await fetchDocumentLogEntriesPaginated(restaurantId, {
+      page,
+      search: searchDebounced,
+    });
     setLoading(false);
-    if (error) toast.error(error);
-    else setEntries(data);
-  }, [restaurantId]);
+    setRows(result.items);
+    setPage(result.page);
+    setTotalCount(result.totalCount);
+    setTotalPages(result.totalPages);
+  }, [restaurantId, page, searchDebounced]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter((e) => {
-      const actor = resolveDocumentLogEntryActorLabel(e).toLowerCase();
-      const title = e.document_title.toLowerCase();
-      const file = (e.file_name ?? "").toLowerCase();
-      const action = documentLogActionLabel(e.action).toLowerCase();
-      const details = formatDocumentLogDetailsSummary(
-        e.details,
-        e.action,
-      ).toLowerCase();
-      return (
-        actor.includes(q) ||
-        title.includes(q) ||
-        file.includes(q) ||
-        action.includes(q) ||
-        details.includes(q)
-      );
-    });
-  }, [entries, search]);
+  const hasSearch = searchDebounced.trim().length > 0;
 
   if (!workspaceReady) {
     return <WorkspaceRestaurantResolvePlaceholder />;
@@ -90,11 +93,6 @@ export function DocumentsProtocolScreen() {
 
   return (
     <div className="w-full pb-16">
-      <p className="mb-4 text-sm text-muted-foreground">
-        Uploads und Änderungen aller Dokumente in diesem Restaurant — wer hat
-        wann was hochgeladen oder bearbeitet.
-      </p>
-
       <div className="relative mb-4 max-w-xl">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -110,85 +108,75 @@ export function DocumentsProtocolScreen() {
       ) : null}
       {showSkeleton ? (
         <DocumentsProtocolTableSkeleton />
-      ) : filtered.length === 0 ? (
+      ) : totalCount === 0 ? (
         <Card className="border-border/50 shadow-card">
           <CardContent className="py-12 text-center text-sm text-muted-foreground">
-            {entries.length === 0
-              ? "Noch keine Protokolleinträge."
-              : "Keine Treffer für die Suche."}
+            {hasSearch
+              ? "Keine Treffer für die Suche."
+              : "Noch keine Protokolleinträge."}
           </CardContent>
         </Card>
       ) : (
-        <Card className="overflow-hidden border-border/50 shadow-card">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px] text-sm">
-              <thead>
-                <tr className="border-b border-border/50 bg-muted/30">
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                    Datum
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                    Nutzer
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                    Dokument
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                    Datei
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                    Aktion
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">
-                    Details
-                  </th>
+        <ModulePaginatedDataTable
+          page={page}
+          totalPages={totalPages}
+          shown={rows.length}
+          totalCount={totalCount}
+          itemLabel="Einträge"
+          fullscreenTitle="Protokoll"
+          canPrevious={page > 1}
+          canNext={page < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        >
+          <table className="w-full min-w-[800px] text-sm">
+            <thead>
+              <tr className={moduleDataTableHeadRowMutedClassName}>
+                <th className={moduleDataTableHeadCellClassName}>Datum</th>
+                <th className={moduleDataTableHeadCellClassName}>Nutzer</th>
+                <th className={moduleDataTableHeadCellClassName}>Dokument</th>
+                <th className={moduleDataTableHeadCellClassName}>Datei</th>
+                <th className={moduleDataTableHeadCellClassName}>Aktion</th>
+                <th className={moduleDataTableHeadCellClassName}>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((e) => (
+                <tr
+                  key={e.id}
+                  className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+                >
+                  <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
+                    {formatWhen(e.created_at)}
+                  </td>
+                  <td className="max-w-[9rem] whitespace-nowrap px-4 py-3">
+                    <TableCellTruncateTooltip
+                      text={resolveDocumentLogEntryActorLabel(e)}
+                    />
+                  </td>
+                  <td className="max-w-[12rem] px-4 py-3 font-medium">
+                    <TableCellTruncateTooltip text={e.document_title} />
+                  </td>
+                  <td className="max-w-[10rem] px-4 py-3 text-muted-foreground">
+                    <TableCellTruncateTooltip text={e.file_name ?? "—"} />
+                  </td>
+                  <td className="px-4 py-3">{documentLogActionLabel(e.action)}</td>
+                  <td className="max-w-[16rem] px-4 py-3 text-muted-foreground">
+                    {e.action === "updated" ||
+                    e.action === "note_added" ||
+                    e.action === "note_updated" ? (
+                      <TableCellTruncateTooltip
+                        text={formatDocumentLogDetailsSummary(e.details, e.action)}
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map((e) => (
-                  <tr
-                    key={e.id}
-                    className="border-b border-border/40 last:border-0 hover:bg-muted/20"
-                  >
-                    <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                      {formatWhen(e.created_at)}
-                    </td>
-                    <td className="max-w-[9rem] whitespace-nowrap px-4 py-3">
-                      <TableCellTruncateTooltip
-                        text={resolveDocumentLogEntryActorLabel(e)}
-                      />
-                    </td>
-                    <td className="max-w-[12rem] truncate px-4 py-3 font-medium">
-                      {e.document_title}
-                    </td>
-                    <td className="max-w-[10rem] px-4 py-3 text-muted-foreground">
-                      <TableCellTruncateTooltip
-                        text={e.file_name ?? "—"}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      {documentLogActionLabel(e.action)}
-                    </td>
-                    <td className="max-w-[16rem] px-4 py-3 text-muted-foreground">
-                      {e.action === "updated" ||
-                      e.action === "note_added" ||
-                      e.action === "note_updated" ? (
-                        <TableCellTruncateTooltip
-                          text={formatDocumentLogDetailsSummary(
-                            e.details,
-                            e.action,
-                          )}
-                        />
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+              ))}
+            </tbody>
+          </table>
+        </ModulePaginatedDataTable>
       )}
     </div>
   );

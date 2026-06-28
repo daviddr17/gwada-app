@@ -12,7 +12,7 @@ import { AccountingListTableSkeleton } from "@/components/accounting/accounting-
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   createAccountingCashEntry,
   deleteAccountingCashEntry,
@@ -46,6 +46,11 @@ import type {
   AccountingCashEntryRow,
 } from "@/lib/types/accounting-cash-book";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadLabelClassName,
+  moduleDataTableHeadRowClassName,
+} from "@/lib/ui/module-data-table";
 import { cn } from "@/lib/utils";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -273,9 +278,7 @@ export function AccountingCashBookScreen() {
       {showSkeleton ? (
         <AccountingListTableSkeleton columnCount={7} minTableWidth="880px" />
       ) : (
-        <ListPaginationSurround
-          classNameAbove="px-4 pt-4"
-          classNameBelow="px-4 pb-4"
+        <ModulePaginatedDataTable
           page={page}
           totalPages={totalPages}
           shown={entries.length}
@@ -286,17 +289,32 @@ export function AccountingCashBookScreen() {
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
         >
-          <div className="overflow-x-auto">
             <table className="w-full min-w-[880px] text-sm">
               <thead>
-                <tr className="border-b border-border/60 bg-muted/40">
-                  <th className="px-4 py-2 text-left font-medium">Datum</th>
-                  <th className="px-4 py-2 text-left font-medium">Richtung</th>
-                  <th className="px-4 py-2 text-left font-medium">Art</th>
-                  <th className="px-4 py-2 text-right font-medium">Betrag</th>
-                  <th className="px-4 py-2 text-right font-medium">MwSt.</th>
-                  <th className="px-4 py-2 text-left font-medium">Beleg</th>
-                  <th className="px-4 py-2 text-left font-medium">Notiz</th>
+                <tr className={moduleDataTableHeadRowClassName}>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                    <span className={moduleDataTableHeadLabelClassName}>Datum</span>
+                  </th>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                    <span className={moduleDataTableHeadLabelClassName}>
+                      Richtung
+                    </span>
+                  </th>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                    <span className={moduleDataTableHeadLabelClassName}>Art</span>
+                  </th>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2 text-right")}>
+                    <span className={moduleDataTableHeadLabelClassName}>Betrag</span>
+                  </th>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2 text-right")}>
+                    <span className={moduleDataTableHeadLabelClassName}>MwSt.</span>
+                  </th>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                    <span className={moduleDataTableHeadLabelClassName}>Beleg</span>
+                  </th>
+                  <th className={cn(moduleDataTableHeadCellClassName, "py-2")}>
+                    <span className={moduleDataTableHeadLabelClassName}>Notiz</span>
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -382,8 +400,7 @@ export function AccountingCashBookScreen() {
                 )}
               </tbody>
             </table>
-          </div>
-        </ListPaginationSurround>
+        </ModulePaginatedDataTable>
       )}
 
       <AccountingCashEntryDrawer

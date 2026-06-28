@@ -111,7 +111,7 @@ export function downloadComplianceRecordsCsv(
   });
 }
 
-const PROTOCOL_HEADERS = ["Zeit", "Aktion", "Details", "Wer"] as const;
+const PROTOCOL_HEADERS = ["Zeit", "Aktion", "Details", "Nutzer"] as const;
 
 export function buildComplianceProtocolExportRows(
   entries: RestaurantComplianceLogEntry[],

@@ -87,3 +87,5 @@ drop index if exists public.restaurant_staff_todo_completions_todo_staff_complet
 create index restaurant_staff_todo_completions_todo_staff_period_idx
   on public.restaurant_staff_todo_completions (todo_id, staff_id, period_start desc)
   where reopened_at is null;
+
+notify pgrst, 'reload schema';

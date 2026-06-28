@@ -25,6 +25,8 @@ import type {
   ChecklistProtocolSortKey,
 } from "@/lib/checklisten/checklist-protocol-entries";
 import {
+  CHECKLIST_PROTOCOL_DEFAULT_KIND,
+  CHECKLIST_PROTOCOL_DEFAULT_PERIOD,
   CHECKLIST_PROTOCOL_DEVIATION_OPTIONS,
   CHECKLIST_PROTOCOL_KIND_OPTIONS,
   CHECKLIST_PROTOCOL_PERIOD_OPTIONS,
@@ -94,8 +96,8 @@ export function ChecklistProtocolFilterDrawer({
   );
 
   const reset = () => {
-    onFilterKindChange("all");
-    onFilterPeriodChange("all");
+    onFilterKindChange(CHECKLIST_PROTOCOL_DEFAULT_KIND);
+    onFilterPeriodChange(CHECKLIST_PROTOCOL_DEFAULT_PERIOD);
     onFilterAreaIdChange("all");
     onFilterDeviceIdChange("all");
     onFilterDeviationChange("all");

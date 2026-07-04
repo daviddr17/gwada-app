@@ -51,14 +51,17 @@ export function sumStaffWorkHoursForDay(
   staffId: string,
   now: Date = new Date(),
 ): number {
-  let ms = 0;
+  let workMs = 0;
+  let breakMs = 0;
   for (const e of entries) {
-    if (e.staff_id !== staffId || e.entry_type !== "work") continue;
+    if (e.staff_id !== staffId) continue;
     const startMs = new Date(e.starts_at).getTime();
     const endMs = e.is_open ? now.getTime() : new Date(e.ends_at).getTime();
-    ms += Math.max(0, endMs - startMs);
+    const ms = Math.max(0, endMs - startMs);
+    if (e.entry_type === "work") workMs += ms;
+    else if (e.entry_type === "break") breakMs += ms;
   }
-  return ms / 3_600_000;
+  return Math.max(0, workMs - breakMs) / 3_600_000;
 }
 
 export type StaffDayWageLine = {

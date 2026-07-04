@@ -286,7 +286,7 @@ export function StaffWorkHoursView({
                   className="h-4 self-center"
                 />
                 <span>
-                  Arbeitszeit:{" "}
+                  Netto-Arbeitszeit:{" "}
                   <span className="font-medium tabular-nums">
                     {summary.netWorkH.toFixed(1)} h
                   </span>

@@ -204,7 +204,7 @@ export function StaffExportScreen() {
                 className="h-4 self-center"
               />
               <span>
-                Arbeitszeit:{" "}
+                Netto-Arbeitszeit:{" "}
                 <span className="font-medium tabular-nums">
                   {formatHoursDe(summary.netWorkH)}
                 </span>

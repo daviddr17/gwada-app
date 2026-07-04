@@ -120,14 +120,23 @@ function workHoursByWeek(
   entries: RestaurantStaffWorkEntryRow[],
   now: Date,
 ): Map<string, number> {
-  const byWeek = new Map<string, number>();
+  const workByWeek = new Map<string, number>();
+  const breakByWeek = new Map<string, number>();
   for (const e of entries) {
-    if (e.entry_type !== "work") continue;
+    if (e.entry_type !== "work" && e.entry_type !== "break") continue;
     const start = new Date(e.starts_at);
     const endMs = e.is_open ? now.getTime() : new Date(e.ends_at).getTime();
     const hours = Math.max(0, endMs - start.getTime()) / 3_600_000;
     const weekStart = localDayKey(startOfWeekMonday(start));
-    byWeek.set(weekStart, (byWeek.get(weekStart) ?? 0) + hours);
+    if (e.entry_type === "work") {
+      workByWeek.set(weekStart, (workByWeek.get(weekStart) ?? 0) + hours);
+    } else {
+      breakByWeek.set(weekStart, (breakByWeek.get(weekStart) ?? 0) + hours);
+    }
+  }
+  const byWeek = new Map<string, number>();
+  for (const [weekStart, workH] of workByWeek) {
+    byWeek.set(weekStart, Math.max(0, workH - (breakByWeek.get(weekStart) ?? 0)));
   }
   return byWeek;
 }

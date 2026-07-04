@@ -1,9 +1,13 @@
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 
 export type StaffWorkHoursSummary = {
+  /** Summe Arbeitszeit-Einträge (Bubble: „eingeloggt“). */
   loggedH: number;
   breakH: number;
+  /** Zahlbare Netto-Arbeitszeit: eingeloggt − Pause. */
   netWorkH: number;
+  /** Anwesenheit brutto (Arbeit + Pause), nur zur Einordnung. */
+  presenceH: number;
   vacationDays: number;
 };
 
@@ -22,10 +26,11 @@ export function summarizeStaffWorkEntries(
     else if (e.entry_type === "break") breakMs += ms;
     else if (e.entry_type === "vacation") vacationDays += 1;
   }
-  const loggedH = (workMs + breakMs) / 3_600_000;
+  const loggedH = workMs / 3_600_000;
   const breakH = breakMs / 3_600_000;
+  const presenceH = (workMs + breakMs) / 3_600_000;
   const netWorkH = Math.max(0, loggedH - breakH);
-  return { loggedH, breakH, netWorkH, vacationDays };
+  return { loggedH, breakH, netWorkH, presenceH, vacationDays };
 }
 
 export function entryDurationHours(e: RestaurantStaffWorkEntryRow): number {
@@ -44,7 +49,7 @@ export function formatStaffWorkHoursSummaryLine(
   return [
     `Eingeloggt ${formatHoursDe(summary.loggedH)}`,
     `Pause ${formatHoursDe(summary.breakH)}`,
-    `Arbeitszeit ${formatHoursDe(summary.netWorkH)}`,
+    `Netto-Arbeitszeit ${formatHoursDe(summary.netWorkH)}`,
     `Urlaub ${summary.vacationDays} Eintrag${summary.vacationDays === 1 ? "" : "e"}`,
   ].join(" · ");
 }

@@ -5,11 +5,10 @@ import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { CheckCircle2, Coffee, Hand, LogIn, LogOut, Pause, TimerReset } from "lucide-react";
 import {
-  DISPLAY_CELEBRATION_EXIT_MS,
-  DISPLAY_CELEBRATION_EXIT_REDUCED_MS,
+  DISPLAY_CELEBRATION_ENTER_MS,
+  DISPLAY_CELEBRATION_ENTER_REDUCED_MS,
   DISPLAY_CELEBRATION_HOLD_MS,
   DISPLAY_CELEBRATION_HOLD_REDUCED_MS,
-  MOTION_EASE_IN_OUT,
   MOTION_EASE_OUT,
 } from "@/lib/ui/motion-presets";
 import { cn } from "@/lib/utils";
@@ -109,10 +108,15 @@ export function DisplayCelebrationOverlay({
   const holdMs = reduceMotion
     ? DISPLAY_CELEBRATION_HOLD_REDUCED_MS
     : DISPLAY_CELEBRATION_HOLD_MS;
-  const exitMs = reduceMotion
-    ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS
-    : DISPLAY_CELEBRATION_EXIT_MS;
-  const exitSec = exitMs / 1000;
+  const fadeMs = reduceMotion
+    ? DISPLAY_CELEBRATION_ENTER_REDUCED_MS
+    : DISPLAY_CELEBRATION_ENTER_MS;
+  const fadeSec = fadeMs / 1000;
+  const fadeEase = MOTION_EASE_OUT;
+  const fadeTransition = {
+    duration: fadeSec,
+    ease: fadeEase,
+  } as const;
 
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -161,9 +165,6 @@ export function DisplayCelebrationOverlay({
   const label = meta?.label ?? "";
   const sublabelText = renderSublabel ?? meta?.sublabel;
 
-  const enterEase = MOTION_EASE_OUT;
-  const exitEase = MOTION_EASE_IN_OUT;
-
   if (!mounted) return null;
 
   return createPortal(
@@ -179,15 +180,12 @@ export function DisplayCelebrationOverlay({
         <motion.div
           key={renderVariant}
           className="pointer-events-none fixed inset-0 z-[40] flex items-center justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{
-            opacity: 0,
-            scale: reduceMotion ? 1 : 0.985,
-          }}
+          initial={{ opacity: 0, scale: reduceMotion ? 1 : 0.985 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: reduceMotion ? 1 : 0.985 }}
           transition={{
-            opacity: { duration: exitSec, ease: exitEase },
-            scale: { duration: exitSec, ease: exitEase },
+            opacity: fadeTransition,
+            scale: fadeTransition,
           }}
           aria-live="polite"
           aria-label={label}
@@ -197,10 +195,7 @@ export function DisplayCelebrationOverlay({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{
-              duration: exitSec,
-              ease: exitEase,
-            }}
+            transition={fadeTransition}
           />
 
           <motion.div
@@ -210,11 +205,8 @@ export function DisplayCelebrationOverlay({
             }}
             initial={{ scale: 0.4, opacity: 0 }}
             animate={{ scale: 1.35, opacity: 0.55 }}
-            exit={{ scale: 1.15, opacity: 0 }}
-            transition={{
-              duration: reduceMotion ? 0.12 : exitSec * 1.15,
-              ease: exitEase,
-            }}
+            exit={{ scale: 0.4, opacity: 0 }}
+            transition={fadeTransition}
           />
 
           {!reduceMotion
@@ -230,7 +222,7 @@ export function DisplayCelebrationOverlay({
                   transition={{
                     duration: 0.95,
                     delay,
-                    ease: enterEase,
+                    ease: fadeEase,
                   }}
                 />
               ))
@@ -255,7 +247,7 @@ export function DisplayCelebrationOverlay({
                     transition={{
                       duration: 0.72,
                       delay: 0.08 + index * 0.025,
-                      ease: enterEase,
+                      ease: fadeEase,
                     }}
                   />
                 );
@@ -280,9 +272,9 @@ export function DisplayCelebrationOverlay({
               },
               exit: {
                 opacity: 0,
-                y: reduceMotion ? 0 : -10,
-                scale: reduceMotion ? 1 : 0.94,
-                transition: { duration: exitSec, ease: exitEase },
+                y: reduceMotion ? 0 : 12,
+                scale: reduceMotion ? 1 : 0.92,
+                transition: fadeTransition,
               },
             }}
             initial="initial"
@@ -303,9 +295,9 @@ export function DisplayCelebrationOverlay({
                     transition: { duration: reduceMotion ? 0.1 : 0.38, delay: 0.04 },
                   },
                   exit: {
-                    scale: 0.92,
+                    scale: 0.75,
                     opacity: 0,
-                    transition: { duration: exitSec, ease: exitEase },
+                    transition: fadeTransition,
                   },
                 }}
                 initial="initial"
@@ -331,9 +323,10 @@ export function DisplayCelebrationOverlay({
                       : { type: "spring", stiffness: 420, damping: 24, delay: 0.02 },
                   },
                   exit: {
-                    scale: reduceMotion ? 1 : 0.9,
+                    scale: reduceMotion ? 1 : 0.55,
+                    rotate: reduceMotion ? 0 : -6,
                     opacity: 0,
-                    transition: { duration: exitSec, ease: exitEase },
+                    transition: fadeTransition,
                   },
                 }}
                 initial="initial"
@@ -354,9 +347,9 @@ export function DisplayCelebrationOverlay({
                         : { type: "spring", stiffness: 480, damping: 26, delay: 0.08 },
                     },
                     exit: {
-                      scale: 0.85,
+                      scale: reduceMotion ? 1 : 0.6,
                       opacity: 0,
-                      transition: { duration: exitSec * 0.9, ease: exitEase },
+                      transition: fadeTransition,
                     },
                   }}
                   initial="initial"
@@ -384,13 +377,16 @@ export function DisplayCelebrationOverlay({
                     transition: {
                       duration: reduceMotion ? 0.1 : 0.36,
                       delay: reduceMotion ? 0 : 0.14,
-                      ease: enterEase,
+                      ease: fadeEase,
                     },
                   },
                   exit: {
                     opacity: 0,
-                    y: reduceMotion ? 0 : -4,
-                    transition: { duration: exitSec, ease: exitEase },
+                    y: reduceMotion ? 0 : 6,
+                    transition: {
+                      ...fadeTransition,
+                      delay: reduceMotion ? 0 : sublabelText ? 0.08 : 0,
+                    },
                   },
                 }}
                 initial="initial"
@@ -410,13 +406,13 @@ export function DisplayCelebrationOverlay({
                       transition: {
                         duration: reduceMotion ? 0.1 : 0.36,
                         delay: reduceMotion ? 0 : 0.22,
-                        ease: enterEase,
+                        ease: fadeEase,
                       },
                     },
                     exit: {
                       opacity: 0,
-                      y: reduceMotion ? 0 : -3,
-                      transition: { duration: exitSec, ease: exitEase },
+                      y: reduceMotion ? 0 : 4,
+                      transition: fadeTransition,
                     },
                   }}
                   initial="initial"

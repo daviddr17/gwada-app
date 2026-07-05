@@ -60,6 +60,14 @@ export const GWADA_EMBED_WIDGETS: Record<
       `embed/events/${encodeURIComponent(normalizedSlug(slug))}`,
     available: true,
   },
+  gallery: {
+    id: "gallery",
+    title: "Galerie",
+    defaultMinHeightPx: 520,
+    embedPath: (slug) =>
+      `embed/gallery/${encodeURIComponent(normalizedSlug(slug))}`,
+    available: true,
+  },
   opening_hours: {
     id: "opening_hours",
     title: "Öffnungszeiten",

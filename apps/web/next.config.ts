@@ -109,6 +109,19 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: "/display/sw.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Service-Worker-Allowed",
+            value: "/display/",
+          },
+        ],
+      },
+      {
         source: "/embed/v1/gwada.js",
         headers: [
           {

@@ -87,6 +87,8 @@ if (secret) {
 console.log("GOTRUE_EXTERNAL_GOOGLE_ENABLED=true");
 console.log(`GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID=${clientId}`);
 console.log("\n# Google Cloud Console — autorisierte Redirect-URI:");
-const site = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "http://127.0.0.1:3000";
-console.log(`${site.replace(/\/+$/, "")}/api/auth/google/callback`);
+const site =
+  process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/+$/, "") ||
+  "https://gwada.app";
+console.log(`${site}/api/auth/google/callback`);
 console.log("\n# Lokal zusätzlich in supabase/config.toml: [auth.external.google] enabled = true");

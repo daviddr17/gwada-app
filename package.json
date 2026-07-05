@@ -25,6 +25,8 @@
     "staff:eas-env:preview-lan": "node scripts/staff-eas-env-preview-lan.mjs",
     "staff:eas-env:production": "node scripts/staff-eas-env-production.mjs",
     "staff:verify:live": "node scripts/verify-live-staff-backend.mjs",
+    "smoke:production": "node scripts/smoke-production-cutover.mjs",
+    "refresh:waha:live": "dotenv -e .env.production -- node scripts/refresh-waha-webhooks-live.mjs",
     "staff:build:ios:preview-lan": "cd apps/staff && pnpm dlx eas-cli@latest build --platform ios --profile preview-lan",
     "staff:build:ios:production": "cd apps/staff && pnpm dlx eas-cli@latest build --platform ios --profile production",
     "staff:submit:ios:preview-lan": "cd apps/staff && pnpm dlx eas-cli@latest submit --platform ios --profile preview-lan --latest",

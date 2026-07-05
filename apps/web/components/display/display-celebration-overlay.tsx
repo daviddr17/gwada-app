@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { CheckCircle2, Coffee, Hand, LogIn, LogOut, Pause, TimerReset } from "lucide-react";
+import { CheckCircle2, Coffee, Hand, LogIn, LogOut, TimerReset } from "lucide-react";
 import {
   DISPLAY_CELEBRATION_ENTER_MS,
   DISPLAY_CELEBRATION_ENTER_REDUCED_MS,
@@ -43,10 +43,10 @@ const CELEBRATION_META: Record<DisplayCelebrationVariant, CelebrationMeta> = {
     Icon: LogIn,
   },
   start_break: {
-    label: "Pause läuft",
-    sublabel: "Erhol dich gut",
+    label: "Bis gleich",
+    sublabel: "Schöne Pause",
     color: "#3b82f6",
-    Icon: Pause,
+    Icon: Coffee,
   },
   end_break: {
     label: "Willkommen zurück",

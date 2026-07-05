@@ -127,7 +127,7 @@ export function DisplayTimeModule({
   onChanged: () => void;
   /** Live-Sync für Kopfzeile o. Ä. */
   onSessionChange?: (state: TimeState) => void;
-  /** Nach erfolgreichem Ausstempeln (nach Celebration) Display-Session beenden. */
+  /** Nach Ausstempeln oder Pausenstart (nach Celebration) Display-Session beenden. */
   onClockOutSuccess?: () => void;
   prepareAndGate: DisplayPrepareAndGate;
 }) {
@@ -252,7 +252,7 @@ export function DisplayTimeModule({
           } else {
             void refresh();
             pendingCelebrationSyncRef.current = true;
-            if (action === "clock_out") {
+            if (action === "clock_out" || action === "start_break") {
               pendingClockOutLogoutRef.current = true;
             }
           }

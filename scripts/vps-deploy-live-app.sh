@@ -160,7 +160,10 @@ fi
 
 ENSURE_TRAEFIK="${BUILD_DIR}/scripts/vps-ensure-coolify-traefik-fqdn.sh"
 if [[ -f "${ENSURE_TRAEFIK}" ]]; then
-  bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"
+  DEPLOY_FQDN="${APP_ORIGIN#https://}"
+  DEPLOY_FQDN="${DEPLOY_FQDN#http://}"
+  DEPLOY_FQDN="${DEPLOY_FQDN%%/*}"
+  COOLIFY_FQDN="${DEPLOY_FQDN}" bash "${ENSURE_TRAEFIK}" "${COMPOSE_DIR}" "${COOLIFY_APP_ID}"
 else
   cd "${COMPOSE_DIR}"
   docker compose up -d --force-recreate --remove-orphans

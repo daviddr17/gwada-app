@@ -60,7 +60,11 @@ patch_env_file() {
     | grep -v '^GWADA_COOLIFY_APP_UUID=' \
     | grep -v '^GWADA_COOLIFY_API_URL=' \
     | grep -v '^COOLIFY_API_TOKEN=' \
+    | grep -v '^COOLIFY_FQDN=' \
     | grep -v '^GITHUB_DEPLOY_TOKEN=' > "${f}.tmp" || true
+  fqdn="${origin#https://}"
+  fqdn="${fqdn#http://}"
+  fqdn="${fqdn%%/*}"
   {
     cat "${f}.tmp" 2>/dev/null || true
     echo "NEXT_PUBLIC_SUPABASE_PROXY=true"
@@ -76,6 +80,7 @@ patch_env_file() {
     fi
     echo "GWADA_PLANNED_PRODUCTION_URL=${origin}"
     echo "GWADA_LEGACY_BUBBLE_URL=https://old.gwada.app"
+    echo "COOLIFY_FQDN=${fqdn}"
     echo "GWADA_COOLIFY_APP_UUID=${coolify_app_uuid}"
     echo "GWADA_COOLIFY_API_URL=${coolify_api_url}"
     if [[ -n "${coolify_api_token}" ]]; then

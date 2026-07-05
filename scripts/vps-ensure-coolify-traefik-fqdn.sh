@@ -20,10 +20,13 @@ fi
 
 FQDN="${COOLIFY_FQDN:-}"
 if [[ -z "${FQDN}" && -f "${COMPOSE_DIR}/.env" ]]; then
-  FQDN="$(grep -E '^COOLIFY_FQDN=' "${COMPOSE_DIR}/.env" | head -1 | cut -d= -f2- | tr -d "\"'")"
+  site_url="$(grep -E '^NEXT_PUBLIC_SITE_URL=' "${COMPOSE_DIR}/.env" | head -1 | sed -E 's#^NEXT_PUBLIC_SITE_URL=https?://##' | tr -d "\"'")"
+  if [[ -n "${site_url}" ]]; then
+    FQDN="${site_url%%/*}"
+  fi
 fi
 if [[ -z "${FQDN}" && -f "${COMPOSE_DIR}/.env" ]]; then
-  FQDN="$(grep -E '^NEXT_PUBLIC_SITE_URL=' "${COMPOSE_DIR}/.env" | head -1 | sed -E 's#^NEXT_PUBLIC_SITE_URL=https?://##' | tr -d "\"'")"
+  FQDN="$(grep -E '^COOLIFY_FQDN=' "${COMPOSE_DIR}/.env" | head -1 | cut -d= -f2- | tr -d "\"'")"
 fi
 FQDN="${FQDN:-gwada.app}"
 

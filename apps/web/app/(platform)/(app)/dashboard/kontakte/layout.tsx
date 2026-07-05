@@ -2,7 +2,6 @@
 
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
-import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-inbox-background-sync-mount";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
 const MESSAGES_MODULE_NAV: readonly ModuleSubnavItem[] = [
@@ -39,7 +38,6 @@ export default function KontakteLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <>
-      <UnifiedInboxBackgroundSyncMount />
       <RegisterModuleChrome
         title="Nachrichten"
         subnavAriaLabel="Nachrichten-Bereiche"

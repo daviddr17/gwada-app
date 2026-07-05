@@ -20,6 +20,44 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
 
 const PERMISSIONS_RETRY_DELAYS_MS = [800, 1600, 3200] as const;
+const PERMISSIONS_SESSION_CACHE_KEY = "gwada-restaurant-permissions-v1";
+
+function permissionsCacheKey(restaurantId: string, userId: string): string {
+  return `${userId}:${restaurantId}`;
+}
+
+function readPermissionsSessionCache(
+  restaurantId: string,
+  userId: string,
+): Set<string> | null {
+  if (typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(PERMISSIONS_SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, string[]>;
+    const keys = parsed[permissionsCacheKey(restaurantId, userId)];
+    if (!Array.isArray(keys) || keys.length === 0) return null;
+    return new Set(keys);
+  } catch {
+    return null;
+  }
+}
+
+function writePermissionsSessionCache(
+  restaurantId: string,
+  userId: string,
+  keys: Set<string>,
+): void {
+  if (typeof sessionStorage === "undefined") return;
+  try {
+    const raw = sessionStorage.getItem(PERMISSIONS_SESSION_CACHE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+    parsed[permissionsCacheKey(restaurantId, userId)] = [...keys];
+    sessionStorage.setItem(PERMISSIONS_SESSION_CACHE_KEY, JSON.stringify(parsed));
+  } catch {
+    /* ignore */
+  }
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
@@ -50,12 +88,30 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const reloadGeneration = useRef(0);
+  const hydratedCacheRef = useRef(false);
+
+  useEffect(() => {
+    if (!authReady || !workspaceReady || !user || !restaurantId) return;
+    if (hydratedCacheRef.current) return;
+    const cached = readPermissionsSessionCache(restaurantId, user.id);
+    if (cached) {
+      hydratedCacheRef.current = true;
+      setPermissions(cached);
+      setLoading(false);
+    }
+  }, [authReady, workspaceReady, user, restaurantId]);
 
   const reload = useCallback(async () => {
     if (!workspaceReady || !authReady) return;
 
     const generation = ++reloadGeneration.current;
-    setLoading(true);
+    const hadCached =
+      user != null &&
+      restaurantId != null &&
+      Boolean(readPermissionsSessionCache(restaurantId, user.id));
+    if (!hadCached) {
+      setLoading(true);
+    }
     setError(null);
 
     if (generation !== reloadGeneration.current) return;
@@ -110,6 +166,7 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
         setPermissions(keys);
         setError(null);
         setLoading(false);
+        writePermissionsSessionCache(restaurantId, user.id, keys);
         return;
       }
 
@@ -130,7 +187,10 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
   }, [reload]);
 
   useEffect(() => {
-    const onChange = () => void reload();
+    const onChange = () => {
+      hydratedCacheRef.current = false;
+      void reload();
+    };
     window.addEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onChange);
     return () =>
       window.removeEventListener(GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT, onChange);

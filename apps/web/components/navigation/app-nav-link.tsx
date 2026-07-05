@@ -33,7 +33,7 @@ export const AppNavLink = forwardRef<
     children,
     className,
     onClick,
-    prefetch = false,
+    prefetch = true,
     "aria-label": ariaLabel,
   },
   ref,

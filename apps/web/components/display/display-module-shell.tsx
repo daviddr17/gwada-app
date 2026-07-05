@@ -52,7 +52,7 @@ export function DisplayModuleShell({
   /** z. B. Zeiterfassungsstatus neben Name/Position. */
   staffSuffix?: ReactNode;
   modules: DisplayModuleMeta[];
-  activeModule: DisplayModule;
+  activeModule: DisplayModule | null;
   canSwitch: boolean;
   onModuleChange: (mod: DisplayModule) => void;
   onLogout: () => void;
@@ -65,8 +65,10 @@ export function DisplayModuleShell({
   lockError?: string | null;
   children: ReactNode;
 }) {
-  const activeMeta = modules.find((m) => m.id === activeModule);
-  const activeLabel = activeMeta?.label ?? activeModule;
+  const activeMeta = activeModule
+    ? modules.find((m) => m.id === activeModule)
+    : undefined;
+  const activeLabel = activeMeta?.label ?? activeModule ?? "Modul";
 
   const todoBadge = (
     <DisplayStaffTodoBadge
@@ -79,7 +81,7 @@ export function DisplayModuleShell({
   const moduleTrailing =
     canSwitch && modules.length > 1 ? (
       <Select
-        value={activeModule}
+        value={activeModule ?? undefined}
         onValueChange={(v) => onModuleChange(v as DisplayModule)}
       >
         <SelectTrigger

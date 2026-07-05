@@ -29,6 +29,7 @@
     "smoke:production": "node scripts/smoke-production-cutover.mjs",
     "refresh:waha:live": "dotenv -e .env.production -- node scripts/refresh-waha-webhooks-live.mjs",
     "staff:sync:eas:production": "gh workflow run sync-staff-eas-env-live.yml --ref main",
+    "staff:provision:expo:token": "node scripts/provision-expo-ci-token.mjs",
     "staff:build:ios:preview-lan": "cd apps/staff && pnpm dlx eas-cli@latest build --platform ios --profile preview-lan",
     "staff:build:ios:production": "cd apps/staff && pnpm dlx eas-cli@latest build --platform ios --profile production",
     "staff:submit:ios:preview-lan": "cd apps/staff && pnpm dlx eas-cli@latest submit --platform ios --profile preview-lan --latest",

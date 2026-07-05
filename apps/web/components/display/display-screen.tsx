@@ -78,6 +78,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     ctx: DisplayContextResponse;
     mods: DisplayModule[];
   } | null>(null);
+  const pinLoginGatePendingRef = useRef(false);
   const { preparePinLoginGate, prepareAndGate, todoPopupProps } =
     useDisplayShiftGates();
 
@@ -149,6 +150,14 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const { count: todoBadgeCount, urgency: todoBadgeUrgency, refresh: refreshTodoBadge } =
     useDisplayTodoBadgeCount(todosLiveEnabled);
 
+  const runPinLoginGate = useCallback(() => {
+    pinLoginGatePreparingRef.current = true;
+    void preparePinLoginGate().finally(() => {
+      pinLoginGatePreparingRef.current = false;
+      void refreshTodoBadge();
+    });
+  }, [preparePinLoginGate, refreshTodoBadge]);
+
   const sessionActive = Boolean(context?.session);
   const { state: timeSession, refresh: refreshTimeSession, patch: patchTimeSession } =
     useDisplayTimeSession(sessionActive, context?.time_session ?? null);
@@ -168,12 +177,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     if (pinLoginGatePreparingRef.current) return;
 
     sessionRestoreGatePreparedRef.current = true;
-    pinLoginGatePreparingRef.current = true;
-    void preparePinLoginGate()
-      .finally(() => {
-        pinLoginGatePreparingRef.current = false;
-        void refreshTodoBadge();
-      });
+    runPinLoginGate();
   }, [
     context?.session,
     locked,
@@ -181,8 +185,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     screenCelebration,
     todoPopupProps.open,
     todoPopupProps.gateCelebration,
-    preparePinLoginGate,
-    refreshTodoBadge,
+    runPinLoginGate,
   ]);
 
   const resetIdleTimer = useCallback(() => {
@@ -238,15 +241,14 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
       const { ctx, mods } = pending;
       setContext(ctx);
-      setActiveModule(mods.length === 1 ? mods[0]! : null);
+      setActiveModule(
+        mods.length === 1 || !ctx.session?.can_switch_modules
+          ? (mods[0] ?? null)
+          : null,
+      );
       setLocked(false);
       sessionRestoreGatePreparedRef.current = true;
-      pinLoginGatePreparingRef.current = true;
-      void preparePinLoginGate()
-        .finally(() => {
-          pinLoginGatePreparingRef.current = false;
-          void refreshTodoBadge();
-        });
+      pinLoginGatePendingRef.current = true;
       window.setTimeout(() => {
         syncDisplayTodosLiveAfterPin();
         if (mods.includes("reservations")) {
@@ -254,12 +256,16 @@ export function DisplayScreen({ slug }: { slug: string }) {
         }
       }, 0);
     }
-  }, [performLogout, preparePinLoginGate, refreshTodoBadge]);
+  }, [performLogout]);
 
   const handleScreenCelebrationDone = useCallback(() => {
+    if (pinLoginGatePendingRef.current) {
+      pinLoginGatePendingRef.current = false;
+      runPinLoginGate();
+    }
     setScreenCelebration(null);
     setScreenCelebrationSublabel(undefined);
-  }, []);
+  }, [runPinLoginGate]);
 
   const submitPin = async (pinValue: string) => {
     setPinBusy(true);
@@ -462,7 +468,38 @@ export function DisplayScreen({ slug }: { slug: string }) {
     const modules = session.modules;
     const moduleMeta = DISPLAY_MODULES.filter((m) => modules.includes(m.id));
 
-    if (!activeModule && modules.length > 1) {
+    if (modules.length === 0) {
+      content = (
+        <div className={displayChromeShellClassName}>
+          <DisplayChromeHeader>
+            <DisplayStaffLine
+              staff={session.staff}
+              suffix={timeStatusSuffix}
+              className="min-w-0 text-sm"
+            />
+          </DisplayChromeHeader>
+          <main
+            className={cn(
+              displayChromeMainClassName,
+              "flex flex-col items-center justify-center gap-4 p-8 text-center",
+            )}
+          >
+            <h1 className="text-2xl font-semibold">Keine Display-Module</h1>
+            <p className="max-w-md text-muted-foreground">
+              Für diesen Mitarbeiter sind am Display keine Module freigeschaltet.
+              Bitte Berechtigungen in den Einstellungen prüfen.
+            </p>
+          </main>
+          <DisplayContextFooter
+            restaurantName={context.restaurant?.name ?? ""}
+            restaurantAvatarUrl={context.restaurant?.avatar_url}
+            displayName={context.display?.name}
+            showLogout={!locked}
+            onLogout={requestLogout}
+          />
+        </div>
+      );
+    } else if (!activeModule && modules.length > 1) {
       content = (
         <div className={displayChromeShellClassName}>
           <DisplayChromeHeader
@@ -525,8 +562,23 @@ export function DisplayScreen({ slug }: { slug: string }) {
         </div>
       );
     } else {
-      const currentModule = activeModule ?? modules[0]!;
+      const currentModule = activeModule ?? modules[0] ?? null;
 
+      if (!currentModule) {
+        content = (
+          <div className={displayChromeShellClassName}>
+            <DisplayChromeHeader />
+            <main
+              className={cn(
+                displayChromeMainClassName,
+                "flex items-center justify-center p-8 text-center text-muted-foreground",
+              )}
+            >
+              Modul konnte nicht geladen werden.
+            </main>
+          </div>
+        );
+      } else {
       content = (
         <DisplayModuleShell
             restaurantName={context.restaurant?.name ?? ""}
@@ -573,6 +625,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             {currentModule === "compliance" ? <DisplayComplianceModule /> : null}
           </DisplayModuleShell>
       );
+      }
     }
   }
 

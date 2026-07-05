@@ -25,9 +25,9 @@ export function DisplayModuleIcon({
   module,
   className,
 }: {
-  module: DisplayModule;
+  module: DisplayModule | null | undefined;
   className?: string;
 }) {
-  const Icon = MODULE_ICONS[module];
+  const Icon = module ? MODULE_ICONS[module] : Clock;
   return <Icon className={cn("shrink-0", className)} aria-hidden />;
 }

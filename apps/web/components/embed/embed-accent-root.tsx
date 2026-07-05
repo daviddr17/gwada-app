@@ -31,9 +31,9 @@ export function EmbedAccentRoot({
 
   return (
     <div
+      data-embed-text-theme={textTheme}
       className={cn(
         "min-h-0 w-full min-w-0 bg-transparent text-foreground antialiased",
-        textTheme === "light" && "dark",
       )}
     >
       <div className="flex w-full min-w-0 flex-col">

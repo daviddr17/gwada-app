@@ -1,4 +1,4 @@
-# Production-Image für Coolify / VPS (git-SHA als Tag, Monorepo apps/web).
+# Production-Image für Coolify / VPS (Build in GHA → ghcr.io, VPS pull-only).
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -41,6 +41,7 @@ ENV SUPABASE_UPSTREAM_URL=$SUPABASE_UPSTREAM_URL
 ENV GWADA_BUILD_SHA=$GWADA_BUILD_SHA
 
 WORKDIR /app/apps/web
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN pnpm build
 
 FROM base AS runner

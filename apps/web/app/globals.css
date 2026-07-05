@@ -157,9 +157,24 @@
   /* Embed-iframes: Host-Hintergrund durchscheinen lassen (gwada.js / Vorschau). */
   html:has([data-gwada-embed-route]) {
     @apply bg-transparent;
+    /* iOS Safari: kein dunkles iframe-Canvas bei System-Dark-Mode */
+    color-scheme: light;
   }
   html:has([data-gwada-embed-route]) body {
     @apply bg-transparent;
+  }
+
+  /*
+   * Helle Schrift auf dunklem Host — nur Typografie, keine Dark-Mode-Flächen.
+   * (Nicht Tailwind-.dark — das würde bg-card/bg-input und den iframe füllen.)
+   */
+  [data-gwada-embed-route][data-embed-text-theme="light"],
+  [data-gwada-embed-route] [data-embed-text-theme="light"] {
+    --foreground: oklch(0.985 0.002 90);
+    --muted-foreground: oklch(0.78 0.01 90);
+    --border: oklch(1 0 0 / 0.22);
+    --input: oklch(1 0 0 / 0.18);
+    --ring: color-mix(in oklch, var(--accent) 72%, white);
   }
 
   @media (prefers-reduced-motion: no-preference) {

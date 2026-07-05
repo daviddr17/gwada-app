@@ -21,5 +21,17 @@ if [[ -f "${GWADA_SSH_IDENTITY}" ]]; then
 fi
 
 gwada_ssh() {
-  ssh "${GWADA_SSH[@]}" "$@"
+  local max_attempts="${GWADA_SSH_MAX_ATTEMPTS:-5}"
+  local attempt=1
+  while (( attempt <= max_attempts )); do
+    if ssh "${GWADA_SSH[@]}" "$@"; then
+      return 0
+    fi
+    if (( attempt < max_attempts )); then
+      echo "SSH fehlgeschlagen (Versuch ${attempt}/${max_attempts}), erneut in 12s …" >&2
+      sleep 12
+    fi
+    attempt=$((attempt + 1))
+  done
+  return 1
 }

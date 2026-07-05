@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stellt Traefik-Router für COOLIFY_FQDN (z. B. new.gwada.app) in der Coolify-Compose sicher.
+# Stellt Traefik-Router für COOLIFY_FQDN (z. B. gwada.app) in der Coolify-Compose sicher.
 # Ohne https-Router liefert Traefik nur catchall → „no available server“ (503).
 set -euo pipefail
 
@@ -25,7 +25,7 @@ fi
 if [[ -z "${FQDN}" && -f "${COMPOSE_DIR}/.env" ]]; then
   FQDN="$(grep -E '^NEXT_PUBLIC_SITE_URL=' "${COMPOSE_DIR}/.env" | head -1 | sed -E 's#^NEXT_PUBLIC_SITE_URL=https?://##' | tr -d "\"'")"
 fi
-FQDN="${FQDN:-new.gwada.app}"
+FQDN="${FQDN:-gwada.app}"
 
 python3 - "${COMPOSE_FILE}" "${FQDN}" "${APP_ID}" <<'PY'
 import pathlib

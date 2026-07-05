@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Smoke-Checks für Kellner-App gegen Live (Contabo / new.gwada.app).
+ * Smoke-Checks für Kellner-App gegen Live (Contabo / gwada.app).
  * Usage: pnpm staff:verify:live
  *
  * Optional: GWADA_TEST_EMAIL, GWADA_TEST_PASSWORD, GWADA_TEST_RESTAURANT_ID
@@ -8,7 +8,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchLivePublicEnv } from "./fetch-live-public-env.mjs";
 
-const LIVE_ORIGIN = "https://new.gwada.app";
+const LIVE_ORIGIN = "https://gwada.app";
 const email = process.env.GWADA_TEST_EMAIL ?? "fadih32@gmail.com";
 const password = process.env.GWADA_TEST_PASSWORD ?? "GwadaLiveProvision2026!";
 const restaurantId =

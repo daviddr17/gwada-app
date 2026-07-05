@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  CRON_BASE_URL: https://new.gwada.app
+  CRON_BASE_URL: https://gwada.app
 
 jobs:
   notification-deliver:

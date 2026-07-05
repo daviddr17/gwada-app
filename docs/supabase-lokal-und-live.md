@@ -1,5 +1,7 @@
 # Supabase: lokal entwickeln, Live nur Schema
 
+**Production-App:** `https://gwada.app/sb` (Browser-Proxy) — siehe [gwada-app-domains.md](./gwada-app-domains.md).
+
 Deine Live-Instanz läuft **selbst auf dem VPS** (`http://95.111.229.250:8001`) — das ist **kein** Supabase-Cloud-Projekt.  
 `supabase link` (mit `supabase login`) ist nur für **supabase.com**-Projekte. Für den VPS nutzt du **`supabase db push --db-url`**.
 

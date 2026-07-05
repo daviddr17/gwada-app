@@ -84,8 +84,8 @@ function inferDeploymentPhase(
   if (!appUrl) return "development";
   try {
     const host = new URL(appUrl).hostname.toLowerCase();
-    if (host === "new.gwada.app" || host.startsWith("new.")) return "staging";
     if (host === "gwada.app" || host === "www.gwada.app") return "production";
+    if (host === "new.gwada.app" || host.startsWith("new.")) return "staging";
     if (host === "127.0.0.1" || host === "localhost") return "development";
     return "staging";
   } catch {

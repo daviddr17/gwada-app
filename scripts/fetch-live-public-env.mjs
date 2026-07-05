@@ -4,7 +4,7 @@
  * Nur publishable Keys — kein Service-Role.
  */
 export async function fetchLivePublicEnv(
-  origin = process.env.GWADA_LIVE_ORIGIN ?? "https://new.gwada.app",
+  origin = process.env.GWADA_LIVE_ORIGIN ?? "https://gwada.app",
 ) {
   const base = origin.replace(/\/+$/, "");
   const res = await fetch(`${base}/login`, { cache: "no-store" });

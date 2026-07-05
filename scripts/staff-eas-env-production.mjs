@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Schreibt EAS Environment `production` für Gwada Staff (Live / Contabo).
- * Quelle: .env.production (NEXT_PUBLIC_*) oder öffentliche Live-Env von new.gwada.app.
+ * Quelle: .env.production (NEXT_PUBLIC_*) oder öffentliche Live-Env von gwada.app.
  *
  * Usage: pnpm staff:eas-env:production
  */
@@ -14,7 +14,7 @@ import { fetchLivePublicEnv } from "./fetch-live-public-env.mjs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PROD_ENV = resolve(ROOT, ".env.production");
 const STAFF_DIR = resolve(ROOT, "apps/staff");
-const LIVE_ORIGIN = "https://new.gwada.app";
+const LIVE_ORIGIN = "https://gwada.app";
 
 const EXPO_VARS = [
   "EXPO_PUBLIC_SUPABASE_URL",
@@ -56,10 +56,10 @@ async function main() {
 
   if (
     !values.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-    !values.EXPO_PUBLIC_SUPABASE_URL.includes("new.gwada.app")
+    !values.EXPO_PUBLIC_SUPABASE_URL.includes("gwada.app")
   ) {
     console.log(
-      "→ Live-Public-Env von new.gwada.app (publishable Key, wie im Browser) …",
+      "→ Live-Public-Env von gwada.app (publishable Key, wie im Browser) …",
     );
     const live = await fetchLivePublicEnv(LIVE_ORIGIN);
     values = {

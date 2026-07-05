@@ -149,7 +149,7 @@ Diese Endpunkte implementiert Gwada in `apps/web/app/api/pos/` (JWT via Supabase
 
 ### Gwada-Anpassung
 - Secrets in `platform_integrations.config` (Superadmin)
-- Webhook: `https://new.gwada.app/api/pos/mollie/webhook`
+- Webhook: `https://gwada.app/api/pos/mollie/webhook`
 - Pro Restaurant oder plattformweit — **Entscheidung offen** (empfohlen: pro Restaurant in `restaurant_integrations`)
 
 ### Fiskaly (Loyaro)

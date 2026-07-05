@@ -5,7 +5,7 @@ set -euo pipefail
 
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 SSH_USER="${LIVE_SSH_USER:-root}"
-STAGING_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
+STAGING_ORIGIN="${APP_ORIGIN:-https://gwada.app}"
 
 # shellcheck source=scripts/gwada-ssh-lib.sh
 source "$(dirname "$0")/gwada-ssh-lib.sh"

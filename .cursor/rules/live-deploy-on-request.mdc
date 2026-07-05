@@ -53,7 +53,7 @@ gh workflow run deploy-live-app.yml --ref main
 gh run watch --workflow=deploy-live-app.yml --exit-status
 ```
 
-Verifikation: `curl -s https://new.gwada.app/api/build-info` (`sha` = kurzer Commit-Hash).
+Verifikation: `curl -s https://gwada.app/api/build-info` (`sha` = kurzer Commit-Hash).
 
 ## 3. Kurz bestätigen (Pflicht)
 

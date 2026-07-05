@@ -7,11 +7,12 @@ import {
 import {
   senderPhoneDistinctFromName,
 } from "@/lib/notifications/message-notification-sender";
+import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
 function absoluteAppUrl(path: string): string {
   const base =
-    getPublicSiteUrl()?.replace(/\/$/, "") ?? "https://new.gwada.app";
+    getPublicSiteUrl()?.replace(/\/$/, "") ?? GWADA_PRODUCTION_ORIGIN;
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
 

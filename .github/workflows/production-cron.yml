@@ -23,7 +23,7 @@ on:
           - accounting-lexoffice-sync
 
 env:
-  CRON_BASE_URL: https://new.gwada.app
+  CRON_BASE_URL: https://gwada.app
 
 jobs:
   news-feed-sync:

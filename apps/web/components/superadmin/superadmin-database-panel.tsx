@@ -130,7 +130,7 @@ function deploymentPhaseLabel(
 ): string {
   switch (phase) {
     case "staging":
-      return "Staging (new.gwada.app)";
+      return "Legacy (new.gwada.app → Redirect)";
     case "production":
       return "Production (gwada.app)";
     default:
@@ -626,7 +626,7 @@ export function SuperadminDatabasePanel() {
           <CardHeader>
             <CardTitle className="text-base">VPS (Contabo)</CardTitle>
             <SectionIntro
-              what="Der physische Server unter new.gwada.app."
+              what="Der physische Server unter gwada.app (Contabo VPS)."
               does="Hier laufen die Next.js-App (Docker), Supabase und Traefik. GitHub Actions verbindet sich per SSH und tauscht Container aus."
             />
           </CardHeader>

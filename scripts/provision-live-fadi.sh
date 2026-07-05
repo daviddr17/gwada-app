@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-LIVE_APP_ORIGIN="${LIVE_APP_ORIGIN:-https://new.gwada.app}"
+LIVE_APP_ORIGIN="${LIVE_APP_ORIGIN:-https://gwada.app}"
 FADI_EMAIL="${FADI_EMAIL:-fadih32@gmail.com}"
 
 if [[ -f .env.production ]]; then

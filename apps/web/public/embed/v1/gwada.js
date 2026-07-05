@@ -3,7 +3,7 @@
  *
  * Host-Seite:
  *   <div data-gwada-widget="reservation" data-gwada-slug="mein-restaurant"></div>
- *   <script async src="https://new.gwada.app/embed/v1/gwada.js"></script>
+ *   <script async src="https://gwada.app/embed/v1/gwada.js"></script>
  */
 (function (global) {
   "use strict";

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Bubble (gwada.app) → Supabase (new.gwada.app) für Restaurant zurschlagd.
+ * Bubble (old.gwada.app) → Supabase (gwada.app) für Restaurant zurschlagd.
  *
  * Usage:
  *   BUBBLE_API_TOKEN=… dotenv -e .env.production -- node scripts/migrate-bubble-zurschlagd.mjs
@@ -20,7 +20,7 @@ const BUBBLE_TOKEN = process.env.BUBBLE_API_TOKEN?.trim();
 const ADMIN_EMAIL = (process.env.GWADA_ADMIN_EMAIL ?? "dreyer@techlion.de").trim().toLowerCase();
 const RESTAURANT_SLUG = "zurschlagd";
 const BUBBLE_RESTAURANT_ID = "1612048001800x290697041559945200";
-const BUBBLE_BASE = "https://gwada.app/api/1.1/obj";
+const BUBBLE_BASE = "https://old.gwada.app/api/1.1/obj";
 const RESERVATION_DURATION_MIN = 120;
 
 const TIME_TYPE_MAP = {

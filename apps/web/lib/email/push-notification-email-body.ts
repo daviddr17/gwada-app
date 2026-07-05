@@ -1,3 +1,4 @@
+import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { escapeHtml, escapeHtmlAttr } from "@/lib/email/escape-html";
 import { getPublicSiteUrl } from "@/lib/public-env";
 
@@ -23,7 +24,7 @@ function platformIconAbsoluteUrl(platformCode: string): string | null {
   const path = PLATFORM_ICON_PATH[platformCode.toLowerCase()];
   if (!path) return null;
   const base =
-    getPublicSiteUrl()?.replace(/\/$/, "") ?? "https://new.gwada.app";
+    getPublicSiteUrl()?.replace(/\/$/, "") ?? GWADA_PRODUCTION_ORIGIN;
   return `${base}${path}`;
 }
 

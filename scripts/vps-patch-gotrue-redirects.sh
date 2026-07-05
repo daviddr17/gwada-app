@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# GoTrue Redirect-URLs für new.gwada.app (+ gwada.app für späteren Cutover).
+# GoTrue Redirect-URLs für gwada.app (Production) + legacy new.gwada.app.
 set -euo pipefail
 
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
@@ -8,20 +8,15 @@ SSH_USER="${LIVE_SSH_USER:-root}"
 # shellcheck source=scripts/gwada-ssh-lib.sh
 source "$(dirname "$0")/gwada-ssh-lib.sh"
 
-STAGING_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
-PRODUCTION_ORIGIN="${GWADA_PLANNED_PRODUCTION_URL:-https://gwada.app}"
+PRODUCTION_ORIGIN="${APP_ORIGIN:-https://gwada.app}"
+LEGACY_STAGING_ORIGIN="${GWADA_LEGACY_STAGING_ORIGIN:-https://new.gwada.app}"
 
-CALLBACKS=(
-  "${STAGING_ORIGIN}/auth/callback"
-  "${PRODUCTION_ORIGIN}/auth/callback"
-)
-
-gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${STAGING_ORIGIN}" "${PRODUCTION_ORIGIN}" <<'REMOTE'
+gwada_ssh "${SSH_USER}@${VPS}" bash -s -- "${PRODUCTION_ORIGIN}" "${LEGACY_STAGING_ORIGIN}" <<'REMOTE'
 set -euo pipefail
-staging="$1"
-production="$2"
+production="$1"
+legacy="$2"
 
-allow_list="${staging}/auth/callback,${production}/auth/callback,${staging},${production}"
+allow_list="${production}/auth/callback,${legacy}/auth/callback,${production},${legacy}"
 
 echo "  Suche Auth/GoTrue-Container…"
 auth_names="$(docker ps --format '{{.Names}}' | grep -iE 'auth|gotrue' || true)"
@@ -37,7 +32,6 @@ while IFS= read -r c; do
   [[ -z "$c" ]] && continue
   echo "  Patch ${c}…"
 
-  # Compose-Env in Coolify-Supabase-Stacks (docker update unterstützt keine -e Env-Flags)
   for dir in /data/coolify/services/* /data/coolify/applications/*; do
     [[ -d "$dir" ]] || continue
     env_file="${dir}/.env"
@@ -48,9 +42,9 @@ while IFS= read -r c; do
         echo "GOTRUE_URI_ALLOW_LIST=${allow_list}" >> "$env_file"
       fi
       if grep -q '^GOTRUE_SITE_URL=' "$env_file" 2>/dev/null; then
-        sed -i "s|^GOTRUE_SITE_URL=.*|GOTRUE_SITE_URL=${staging}|" "$env_file"
+        sed -i "s|^GOTRUE_SITE_URL=.*|GOTRUE_SITE_URL=${production}|" "$env_file"
       else
-        echo "GOTRUE_SITE_URL=${staging}" >> "$env_file"
+        echo "GOTRUE_SITE_URL=${production}" >> "$env_file"
       fi
       echo "    .env aktualisiert: ${env_file}"
     fi

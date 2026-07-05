@@ -16,11 +16,11 @@ cd "$ROOT"
 # shellcheck source=scripts/gwada-ssh-lib.sh
 source "${ROOT}/scripts/gwada-ssh-lib.sh"
 
-APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
+APP_ORIGIN="${APP_ORIGIN:-https://gwada.app}"
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 SSH_USER="${LIVE_SSH_USER:-root}"
 VPS_IP="${VPS}"
-DOMAIN="${DOMAIN:-new.gwada.app}"
+DOMAIN="${DOMAIN:-gwada.app}"
 SKIP_FIREWALL=0
 DRY_RUN=0
 

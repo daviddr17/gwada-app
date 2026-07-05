@@ -3,7 +3,7 @@
 # Voraussetzung: ssh-copy-id root@95.111.229.250
 set -euo pipefail
 
-APP_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
+APP_ORIGIN="${APP_ORIGIN:-https://gwada.app}"
 SUPABASE_UPSTREAM="${SUPABASE_UPSTREAM:-http://supabase-kong-oogd5syyxiqb1k4g0wy1u9n8:8000}"
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 COOLIFY_UI="${GWADA_COOLIFY_DASHBOARD_URL:-http://${VPS}:8000}"
@@ -74,7 +74,8 @@ patch_env_file() {
     if [[ -n "${studio_url}" ]]; then
       echo "GWADA_SUPABASE_STUDIO_URL=${studio_url}"
     fi
-    echo "GWADA_PLANNED_PRODUCTION_URL=https://gwada.app"
+    echo "GWADA_PLANNED_PRODUCTION_URL=${origin}"
+    echo "GWADA_LEGACY_BUBBLE_URL=https://old.gwada.app"
     echo "GWADA_COOLIFY_APP_UUID=${coolify_app_uuid}"
     echo "GWADA_COOLIFY_API_URL=${coolify_api_url}"
     if [[ -n "${coolify_api_token}" ]]; then

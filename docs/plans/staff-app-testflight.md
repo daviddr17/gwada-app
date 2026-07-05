@@ -10,7 +10,7 @@
 | Profil | Zweck | API / Supabase | ATS (HTTP) |
 |--------|-------|----------------|------------|
 | `preview-lan` | iPhone im **gleichen WLAN** wie dein Mac | `http://<Mac-LAN-IP>:54321` + `:3000` | `NSAllowsLocalNetworking` |
-| `production` | Live / Teampartner überall | `https://new.gwada.app` + Live-Supabase | HTTPS, kein Extra |
+| `production` | Live / Teampartner überall | `https://gwada.app` + Live-Supabase | HTTPS, kein Extra |
 
 URLs landen in `staff-env.generated.ts` (beim **Build** oder **EAS Update**). Zusätzlich: **preview-lan** kann die Mac-IP **in der App** überschreiben (SecureStore) — schnellster Weg bei DHCP.
 
@@ -169,12 +169,12 @@ Falls Login fehlt: `pnpm provision:live:fadi` (braucht `SUPABASE_DB_URL` in `.en
 pnpm staff:eas-env:production
 ```
 
-Liest `NEXT_PUBLIC_*` aus `.env.production` oder holt den publishable Key von `https://new.gwada.app/login` (`data-gwada-public-env`). URLs:
+Liest `NEXT_PUBLIC_*` aus `.env.production` oder holt den publishable Key von `https://gwada.app/login` (`data-gwada-public-env`). URLs:
 
 | Variable | Wert |
 |----------|------|
-| `EXPO_PUBLIC_GWADA_API_URL` | `https://new.gwada.app` |
-| `EXPO_PUBLIC_SUPABASE_URL` | `https://new.gwada.app/sb` |
+| `EXPO_PUBLIC_GWADA_API_URL` | `https://gwada.app` |
+| `EXPO_PUBLIC_SUPABASE_URL` | `https://gwada.app/sb` |
 | `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Live publishable Key |
 
 Build + Submit:

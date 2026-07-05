@@ -7,7 +7,7 @@ cd "${ROOT}"
 
 VPS="${LIVE_VPS_HOST:-95.111.229.250}"
 SSH_USER="${LIVE_SSH_USER:-root}"
-STAGING_ORIGIN="${APP_ORIGIN:-https://new.gwada.app}"
+STAGING_ORIGIN="${APP_ORIGIN:-https://gwada.app}"
 
 # shellcheck source=scripts/gwada-ssh-lib.sh
 source "$(dirname "$0")/gwada-ssh-lib.sh"
@@ -95,8 +95,8 @@ while IFS= read -r c; do
   docker restart "${c}" >/dev/null 2>&1 && echo "    ✓ restart ${c}" || echo "    ⚠ restart ${c} fehlgeschlagen" >&2
 done <<< "${auth_names}"
 
-echo "  Fertig. Prüfe: curl -s https://new.gwada.app/sb/auth/v1/settings (google: true)"
+echo "  Fertig. Prüfe: curl -s https://gwada.app/sb/auth/v1/settings (google: true)"
 REMOTE
 
 echo ""
-echo "✓ GoTrue-Sync ausgeführt. Bitte testen: https://new.gwada.app/login → Mit Google anmelden"
+echo "✓ GoTrue-Sync ausgeführt. Bitte testen: https://gwada.app/login → Mit Google anmelden"

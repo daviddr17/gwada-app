@@ -23,7 +23,7 @@ Wenn der Nutzer ausdrücklich will, dass Änderungen **live gehen**, **auf Git d
    - `gh workflow run deploy-live-app.yml --ref main` und `gh run watch --workflow=deploy-live-app.yml --exit-status` (oder Nutzer startet Superadmin **App deployen**)
 9. Nach Erfolg kurz bestätigen (siehe `live-app-deploy.mdc`):
    - **DB:** Migrationen / `deploy-live-db`-Run
-   - **App:** Branch + Commit-Hash; `curl https://new.gwada.app/api/build-info` — `sha` soll Commit entsprechen
+   - **App:** Branch + Commit-Hash; `curl https://gwada.app/api/build-info` — `sha` soll Commit entsprechen
 10. Bei Push-Fehlern (Auth, Reject): Fehler melden, Nutzer um Login/Token bitten — nicht force-pushen.
 
 Trigger-Beispiele: „jetzt live“, „alles auf git deployen“, „push to github“, „deployen“.

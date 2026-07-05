@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Live-App deployen (einheitlich)
 
-**Autoritativer Weg** für `new.gwada.app` — Details: `docs/coolify-live-deploy.md`.
+**Autoritativer Weg** für `gwada.app` — Details: `docs/coolify-live-deploy.md`.
 
 ## Volles Live-Deploy (Nutzer sagt „live“, „deployen“, „push live“)
 
@@ -16,7 +16,7 @@ alwaysApply: true
 | **1. Code** | Commit → `git push origin main` (nur GitHub, **kein** Auto-Live) |
 | **2. Live-DB** | Superadmin **DB deployen** oder `gh workflow run deploy-live-db.yml` + `gh run watch` |
 | **3. Live-App** | Superadmin **App deployen** oder `gh workflow run deploy-live-app.yml` + `gh run watch` |
-| **4. Prüfen** | `curl -s https://new.gwada.app/api/build-info` — `sha` = Commit |
+| **4. Prüfen** | `curl -s https://gwada.app/api/build-info` — `sha` = Commit |
 
 Nur App ohne Schema: selten; nur wenn der Nutzer **ausdrücklich** „ohne DB“ / „nur Code“ sagt.
 

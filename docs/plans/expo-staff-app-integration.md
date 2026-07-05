@@ -115,7 +115,7 @@ gwada-app/
 
 **Beachten:**
 
-- Mobile ruft `https://new.gwada.app/api/pos/...` mit Supabase-JWT im `Authorization`-Header
+- Mobile ruft `https://gwada.app/api/pos/...` mit Supabase-JWT im `Authorization`-Header
 - Keine Secrets in `EXPO_PUBLIC_*`
 - Offline-Zahlung: Queue lokal, Sync über API wenn online (später)
 

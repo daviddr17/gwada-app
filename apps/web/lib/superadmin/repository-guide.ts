@@ -50,7 +50,7 @@ export function buildRepositoryGuide(input: {
         path: "docs/supabase-lokal-und-live.md",
       },
       {
-        label: "Staging new.gwada.app",
+        label: "Production gwada.app",
         path: "docs/new-gwada-app-staging.md",
       },
       {

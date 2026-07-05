@@ -33,5 +33,5 @@ jobs:
 
       - name: Hinweis Verifikation
         run: |
-          echo "Nach dem Sync: https://new.gwada.app/sb/auth/v1/settings → \"google\": true"
-          echo "Dann Login testen: https://new.gwada.app/login"
+          echo "Nach dem Sync: https://gwada.app/sb/auth/v1/settings → \"google\": true"
+          echo "Dann Login testen: https://gwada.app/login"

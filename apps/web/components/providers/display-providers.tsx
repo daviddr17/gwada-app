@@ -1,6 +1,7 @@
 "use client";
 
-import { EmbedProviders } from "@/components/providers/embed-providers";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { PlatformAppBrandingProvider } from "@/lib/contexts/platform-app-branding-context";
 import type { PlatformAppBranding } from "@/lib/types/platform-app-settings";
 
@@ -13,10 +14,17 @@ export function DisplayProviders({
   initialBranding?: PlatformAppBranding | null;
 }) {
   return (
-    <EmbedProviders>
-      <PlatformAppBrandingProvider initialBranding={initialBranding}>
-        {children}
-      </PlatformAppBrandingProvider>
-    </EmbedProviders>
+    <ThemeProvider
+      attribute="class"
+      defaultTheme="light"
+      enableSystem={false}
+      disableTransitionOnChange
+    >
+      <TooltipProvider>
+        <PlatformAppBrandingProvider initialBranding={initialBranding}>
+          {children}
+        </PlatformAppBrandingProvider>
+      </TooltipProvider>
+    </ThemeProvider>
   );
 }

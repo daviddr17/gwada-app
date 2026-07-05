@@ -81,8 +81,9 @@
     "deploy:app:live": "bash scripts/deploy-app-live.sh",
     "deploy:app:live:dry-run": "bash scripts/deploy-app-live.sh --dry-run",
     "deploy:app:live:verify": "curl -fsSL https://gwada.app/api/build-info",
-    "deploy:domain:cutover": "bash scripts/vps-cutover-production-domain.sh",
-    "deploy:domain:redirect-new": "bash scripts/vps-traefik-redirect-new-to-gwada.sh"
+    "deploy:domain:cutover": "bash scripts/deploy-domain-cutover.sh",
+    "deploy:domain:redirect-new": "bash scripts/vps-traefik-redirect-new-to-gwada.sh",
+    "deploy:domain:cutover:full": "bash scripts/deploy-domain-cutover.sh --redirect-new",
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",

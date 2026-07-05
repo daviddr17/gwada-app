@@ -287,7 +287,7 @@ Gwada portiert diese Logik nach **Next.js API Routes** + **Supabase** (kein Nest
 | Thema | Stand |
 |-------|-------|
 | **Ansatz** | Neubau + Salvage (Loyaro als Referenz) |
-| **Mollie** | ⏸️ **Zurückgestellt** — Option C (Hybrid); Webhook braucht öffentliche Domain (`new.gwada.app`), nicht localhost |
+| **Mollie** | ⏸️ **Zurückgestellt** — Option C (Hybrid); Webhook braucht öffentliche Domain (`gwada.app`), nicht localhost |
 | **Fiskaly TEST** | ✅ Credentials vorhanden |
 | **Apple / Bundle ID** | ⏳ wird später angelegt (Dev: Simulator / Expo Go) |
 | **Package Manager** | ✅ **pnpm** (Workspaces, Lockfile `pnpm-lock.yaml`) |

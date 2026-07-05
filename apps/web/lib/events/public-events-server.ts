@@ -18,6 +18,7 @@ import {
   filterPlatformsForEventsEmbed,
   normalizeEventsEmbedPlatforms,
 } from "@/lib/events/events-embed-platforms";
+import { splitEmbedEventsByUpcoming } from "@/lib/events/events-embed-upcoming";
 import { EVENTS_FEED_PAGE_SIZE } from "@/lib/events/events-feed-pagination";
 import { readEventsFeedFromCache } from "@/lib/events/events-feed-read-server";
 import { triggerEventsFeedSyncIfStale } from "@/lib/events/events-feed-sync-server";
@@ -34,7 +35,10 @@ export type PublicEmbedEvents = {
   accentHex: string;
   viewMode: "grid" | "list";
   connectedPlatforms: EventsPlatform[];
+  /** Kommende Events (inkl. 24h-Grace). */
   items: UnifiedEventItem[];
+  /** Vergangene Events für optionalen Toggle in der Einbindung. */
+  pastItems: UnifiedEventItem[];
   showAllPlatformFilter: boolean;
 };
 
@@ -80,10 +84,9 @@ async function loadPublicEmbedEventsUncached(
     embedPlatforms,
   );
 
-  const now = Date.now();
-  const upcoming = feed.items.filter((item) => new Date(item.startAt).getTime() >= now - 24 * 60 * 60 * 1000);
+  const embedFiltered = filterItemsForEventsEmbed(feed.items, embedPlatforms);
+  const { upcoming, past } = splitEmbedEventsByUpcoming(embedFiltered);
   const maxItems = Number(settings?.embed_max_items ?? 24);
-  const filtered = filterItemsForEventsEmbed(upcoming, embedPlatforms).slice(0, maxItems);
 
   return {
     data: {
@@ -96,7 +99,8 @@ async function loadPublicEmbedEventsUncached(
       })(),
       viewMode: settings?.default_embed_view === "grid" ? "grid" : "list",
       connectedPlatforms,
-      items: filtered,
+      items: upcoming.slice(0, maxItems),
+      pastItems: past.slice(0, maxItems),
       showAllPlatformFilter: settings?.embed_show_all_filter !== false,
     },
   };

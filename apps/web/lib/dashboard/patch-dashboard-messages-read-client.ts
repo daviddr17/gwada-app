@@ -37,9 +37,14 @@ export function patchConversationsReadState(
 export function patchMessagesUnreadSummary(
   summary: MessagesUnreadSummary,
   params: { contactId?: string | null; all?: boolean },
+  sourceConversations?: ContactConversationPreview[] | null,
 ): MessagesUnreadSummary {
+  const baseConversations =
+    summary.inboxConversations.length > 0
+      ? summary.inboxConversations
+      : (sourceConversations ?? summary.inboxConversations);
   const inboxConversations = patchConversationsReadState(
-    summary.inboxConversations,
+    baseConversations,
     params,
   );
   return deriveMessagesUnreadSummaryFromConversations(inboxConversations);

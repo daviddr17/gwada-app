@@ -5,7 +5,9 @@ import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { EventsListView } from "@/components/events/events-feed-views";
 import { EventsPlatformFilterChips } from "@/components/events/events-platform-filter-chips";
+import { Label } from "@/components/ui/label";
 import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { Switch } from "@/components/ui/switch";
 import {
   EVENTS_FILTER_ALL,
   type EventsPlatformFilter,
@@ -22,6 +24,7 @@ export type EmbedEventsWidgetProps = {
   viewMode: "grid" | "list";
   connectedPlatforms: PublicEmbedEvents["connectedPlatforms"];
   items: PublicEmbedEvents["items"];
+  pastItems?: PublicEmbedEvents["pastItems"];
   variant?: "embed" | "profileSheet";
   showAllPlatformFilter?: boolean;
 };
@@ -31,6 +34,7 @@ export function EmbedEventsWidget({
   textTheme = "dark",
   connectedPlatforms,
   items,
+  pastItems = [],
   variant = "embed",
   showAllPlatformFilter = true,
 }: EmbedEventsWidgetProps) {
@@ -46,6 +50,7 @@ export function EmbedEventsWidget({
   const [platformFilter, setPlatformFilterState] = useState<EventsPlatformFilter>(() =>
     showAllChip ? EVENTS_FILTER_ALL : fallbackPlatformFilter,
   );
+  const [showPastEvents, setShowPastEvents] = useState(false);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -76,11 +81,31 @@ export function EmbedEventsWidget({
     return platformFilter;
   }, [platformFilter, availablePlatforms, showAllChip, fallbackPlatformFilter]);
 
+  const filterByPlatform = useCallback(
+    (list: PublicEmbedEvents["items"]) => {
+      const base = list.filter((item) => availablePlatforms.has(item.platform));
+      if (resolvedFilter === EVENTS_FILTER_ALL) return base;
+      return base.filter((item) => item.platform === resolvedFilter);
+    },
+    [availablePlatforms, resolvedFilter],
+  );
+
+  const visibleUpcoming = useMemo(
+    () => filterByPlatform(items),
+    [items, filterByPlatform],
+  );
+
+  const visiblePast = useMemo(
+    () => filterByPlatform(pastItems),
+    [pastItems, filterByPlatform],
+  );
+
+  const hasPastEvents = visiblePast.length > 0;
+
   const visibleItems = useMemo(() => {
-    const base = items.filter((item) => availablePlatforms.has(item.platform));
-    if (resolvedFilter === EVENTS_FILTER_ALL) return base;
-    return base.filter((item) => item.platform === resolvedFilter);
-  }, [items, availablePlatforms, resolvedFilter]);
+    if (!showPastEvents) return visibleUpcoming;
+    return [...visibleUpcoming, ...visiblePast];
+  }, [visibleUpcoming, visiblePast, showPastEvents]);
 
   const setPlatformFilter = useCallback(
     (next: EventsPlatformFilter) => {
@@ -102,11 +127,21 @@ export function EmbedEventsWidget({
   const resizeDeps = useMemo(
     () => [
       resolvedFilter,
+      showPastEvents,
       displayItems.length,
       clientPagination.page,
       clientPagination.totalCount,
+      hasPastEvents,
+      displayItems.map((i) => `${i.id}:${i.title.length}:${i.coverUrl ?? ""}`).join("|"),
     ],
-    [resolvedFilter, displayItems.length, clientPagination],
+    [
+      resolvedFilter,
+      showPastEvents,
+      displayItems,
+      clientPagination.page,
+      clientPagination.totalCount,
+      hasPastEvents,
+    ],
   );
 
   const paddingClass =
@@ -128,6 +163,34 @@ export function EmbedEventsWidget({
               availablePlatforms={availablePlatforms}
               showAllChip={showAllChip}
             />
+          </div>
+        ) : null}
+
+        {hasPastEvents ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-border/50 bg-muted/30 px-3 py-1.5">
+              <Label
+                htmlFor="embed-show-past-events"
+                className="cursor-pointer text-xs text-muted-foreground"
+              >
+                Vergangene anzeigen
+              </Label>
+              <Switch
+                id="embed-show-past-events"
+                checked={showPastEvents}
+                onCheckedChange={(checked) => {
+                  setShowPastEvents(checked === true);
+                  setPage(1);
+                }}
+                size="sm"
+              />
+            </div>
+            {!showPastEvents ? (
+              <p className="text-xs text-muted-foreground">
+                {visiblePast.length} vergangene{" "}
+                {visiblePast.length === 1 ? "Event" : "Events"} ausgeblendet.
+              </p>
+            ) : null}
           </div>
         ) : null}
 

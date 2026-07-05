@@ -52,7 +52,7 @@ export default async function EmbedEventsPage({
     );
   }
 
-  const { accentHex, viewMode, connectedPlatforms, items, showAllPlatformFilter } =
+  const { accentHex, viewMode, connectedPlatforms, items, pastItems, showAllPlatformFilter } =
     result.data;
 
   return (
@@ -61,6 +61,7 @@ export default async function EmbedEventsPage({
       viewMode={viewMode}
       connectedPlatforms={connectedPlatforms}
       items={items}
+      pastItems={pastItems}
       showAllPlatformFilter={showAllPlatformFilter}
       textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
     />

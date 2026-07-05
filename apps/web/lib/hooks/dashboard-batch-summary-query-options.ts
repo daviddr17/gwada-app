@@ -1,5 +1,7 @@
 "use client";
 
+import { deriveMessagesUnreadSummaryFromConversations } from "@/lib/contact-messages/messages-unread-summary";
+import { peekUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import type { DashboardBatchWidgetId } from "@/lib/dashboard/dashboard-batch-widgets";
 import {
   peekDashboardBatchSummaryCache,
@@ -30,14 +32,38 @@ export async function fetchDashboardBatchQueryData(
   return payload;
 }
 
+function batchSummaryWithMessagesFromInboxCache(
+  payload: DashboardBatchQueryData,
+  restaurantId: string,
+): DashboardBatchQueryData {
+  const conversations = peekUnifiedInboxCache(restaurantId);
+  if (!conversations || !payload.data.messages) return payload;
+  return {
+    ...payload,
+    data: {
+      ...payload.data,
+      messages: deriveMessagesUnreadSummaryFromConversations(conversations),
+    },
+  };
+}
+
 export function dashboardBatchSummaryQueryOptions(
   restaurantId: string,
   widgets: readonly DashboardBatchWidgetId[],
 ) {
   return {
     queryKey: queryKeys.dashboard.summary(restaurantId, widgets),
-    queryFn: async (): Promise<DashboardBatchQueryData> =>
-      fetchDashboardBatchQueryData(restaurantId, widgets),
+    queryFn: async (): Promise<DashboardBatchQueryData> => {
+      const payload = await fetchDashboardBatchQueryData(restaurantId, widgets);
+      const reconciled = batchSummaryWithMessagesFromInboxCache(
+        payload,
+        restaurantId,
+      );
+      if (reconciled !== payload) {
+        writeDashboardBatchSummaryCache(restaurantId, widgets, reconciled);
+      }
+      return reconciled;
+    },
     staleTime: DASHBOARD_SUMMARY_STALE_MS,
     gcTime: DASHBOARD_SUMMARY_GC_MS,
     refetchInterval: () =>
@@ -49,8 +75,12 @@ export function dashboardBatchSummaryQueryOptions(
     placeholderData: (
       previousData: DashboardBatchQueryData | undefined,
     ): DashboardBatchQueryData | undefined => {
-      if (previousData) return previousData;
-      return peekDashboardBatchSummaryCache(restaurantId, widgets) ?? undefined;
+      const base =
+        previousData ??
+        peekDashboardBatchSummaryCache(restaurantId, widgets) ??
+        undefined;
+      if (!base) return undefined;
+      return batchSummaryWithMessagesFromInboxCache(base, restaurantId);
     },
   };
 }

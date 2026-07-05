@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Pencil, Search } from "lucide-react";
+import { Filter, Pencil, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  countStaffOverviewActiveFilters,
+  StaffOverviewFilterDrawer,
+  type StaffOverviewStatusFilter,
+} from "@/components/staff/staff-overview-filter-drawer";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   clampListPage,
@@ -96,6 +102,8 @@ export function StaffOverviewTable({
   onEdit,
 }: StaffOverviewTableProps) {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StaffOverviewStatusFilter>("active");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<StaffSortKey>("lastName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -112,7 +120,15 @@ export function StaffOverviewTable({
   const filteredSorted = useMemo(() => {
     let list = [...rows];
     const q = search.trim().toLowerCase();
-    if (q) {
+    const searching = q.length > 0;
+
+    if (!searching) {
+      if (statusFilter === "active") {
+        list = list.filter((r) => r.is_active);
+      } else if (statusFilter === "inactive") {
+        list = list.filter((r) => !r.is_active);
+      }
+    } else {
       list = list.filter((r) => {
         const hay = [
           r.family_name,
@@ -126,6 +142,7 @@ export function StaffOverviewTable({
         return hay.includes(q);
       });
     }
+
     const dir = sortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
       switch (sortKey) {
@@ -161,7 +178,9 @@ export function StaffOverviewTable({
       }
     });
     return list;
-  }, [rows, search, sortKey, sortDir]);
+  }, [rows, search, statusFilter, sortKey, sortDir]);
+
+  const activeFilterCount = countStaffOverviewActiveFilters({ statusFilter });
 
   const totalCount = filteredSorted.length;
   const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
@@ -174,22 +193,51 @@ export function StaffOverviewTable({
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [search, statusFilter]);
 
   return (
     <>
       <div className="border-b border-border/50 px-4 py-3">
-        <div className="relative max-w-md">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Nachname, Vorname, E-Mail, Telefon, Position …"
-            className="h-10 rounded-xl pl-9"
-            aria-label="Mitarbeiter durchsuchen"
-          />
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-0 flex-1 max-w-md">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Nachname, Vorname, E-Mail, Telefon, Position …"
+              className="h-10 rounded-xl pl-9"
+              aria-label="Mitarbeiter durchsuchen"
+            />
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            className="relative shrink-0 rounded-full border-border/60"
+            aria-label="Filter"
+            onClick={() => setFilterOpen(true)}
+          >
+            <Filter className="size-4" />
+            {activeFilterCount > 0 ? (
+              <Badge
+                variant="default"
+                className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full p-0 text-[10px]"
+              >
+                {activeFilterCount}
+              </Badge>
+            ) : null}
+          </Button>
         </div>
       </div>
+      <StaffOverviewFilterDrawer
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        statusFilter={statusFilter}
+        onStatusFilterChange={(value) => {
+          setStatusFilter(value);
+          setPage(1);
+        }}
+      />
       <ModulePaginatedDataTable
         page={currentPage}
         totalPages={totalPages}
@@ -343,7 +391,11 @@ export function StaffOverviewTable({
           <p className="py-8 text-center text-sm text-muted-foreground">
             {rows.length === 0
               ? "Noch keine Mitarbeiter angelegt."
-              : "Keine Treffer für die Suche."}
+              : search.trim()
+                ? "Keine Treffer für die Suche."
+                : statusFilter === "inactive"
+                  ? "Keine inaktiven Mitarbeiter."
+                  : "Keine Mitarbeiter für den aktiven Filter."}
           </p>
         ) : null}
       </ModulePaginatedDataTable>

@@ -124,10 +124,14 @@ export function useDashboardMessagesStats() {
       ) {
         setSummary((prev) => {
           if (!prev) return prev;
-          return patchMessagesUnreadSummary(prev, {
-            contactId: detail.contactId,
-            all: detail.all,
-          });
+          return patchMessagesUnreadSummary(
+            prev,
+            {
+              contactId: detail.contactId,
+              all: detail.all,
+            },
+            peekUnifiedInboxCache(restaurantId),
+          );
         });
         hasDataRef.current = true;
         setError(null);

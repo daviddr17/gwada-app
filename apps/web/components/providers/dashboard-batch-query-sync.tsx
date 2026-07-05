@@ -61,10 +61,14 @@ export function DashboardBatchQuerySync() {
 
       queryClient.setQueryData<DashboardBatchQueryData>(summaryKey, (old) => {
         if (!old?.data?.messages) return old;
-        const nextMessages = patchMessagesUnreadSummary(old.data.messages, {
-          contactId: detail.contactId,
-          all: detail.all,
-        });
+        const nextMessages = patchMessagesUnreadSummary(
+          old.data.messages,
+          {
+            contactId: detail.contactId,
+            all: detail.all,
+          },
+          peekUnifiedInboxCache(restaurantId),
+        );
         const nextPayload = {
           ...old,
           data: { ...old.data, messages: nextMessages },
@@ -104,6 +108,9 @@ export function DashboardBatchQuerySync() {
         return nextPayload;
       });
     };
+
+    // Nach Soft-Nav von /kontakte/nachrichten: stale localStorage-Batch mit frischem Inbox-Cache abgleichen.
+    patchMessagesFromInboxCache();
 
     const onInboxCache = (event: Event) => {
       const detail = (event as CustomEvent<{ restaurantId?: string }>).detail;

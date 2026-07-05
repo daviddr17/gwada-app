@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
+import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { GalleryHighlightViewer } from "@/components/gallery/gallery-highlight-viewer";
 import { GalleryHighlightsRow } from "@/components/gallery/gallery-highlights-row";
 import { GalleryMasonryGrid } from "@/components/gallery/gallery-masonry-grid";
@@ -56,6 +57,11 @@ export function EmbedGalleryWidget({
     return filtered.slice(from, from + GALLERY_FEED_PAGE_SIZE);
   }, [filtered, currentPage]);
 
+  const resizeDeps = useMemo(
+    () => [platformFilter, currentPage, paginated.length, filtered.length, highlightOpen],
+    [platformFilter, currentPage, paginated.length, filtered.length, highlightOpen],
+  );
+
   const content = (
     <>
       <GalleryPlatformFilterChips
@@ -101,6 +107,7 @@ export function EmbedGalleryWidget({
 
   return (
     <EmbedAccentRoot accentHex={data.accentHex} textTheme={textTheme}>
+      <EmbedResizeReporter widget="gallery" deps={resizeDeps} />
       <div className={cn("min-h-[480px] p-4")}>{content}</div>
     </EmbedAccentRoot>
   );

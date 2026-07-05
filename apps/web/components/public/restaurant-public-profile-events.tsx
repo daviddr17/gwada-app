@@ -15,6 +15,7 @@ export function RestaurantPublicProfileEvents({
       viewMode={events.viewMode}
       connectedPlatforms={events.connectedPlatforms}
       items={events.items}
+      pastItems={events.pastItems}
       showAllPlatformFilter={events.showAllPlatformFilter}
     />
   );

@@ -27,6 +27,8 @@ function readEmbedContext(): {
     widgetRaw === "menu" ||
     widgetRaw === "reviews" ||
     widgetRaw === "news" ||
+    widgetRaw === "events" ||
+    widgetRaw === "gallery" ||
     widgetRaw === "opening_hours" ||
     widgetRaw === "contact" ||
     widgetRaw === "reservation"

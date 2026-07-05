@@ -4,6 +4,7 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -119,6 +120,15 @@ export function NewsScreen() {
     },
     [],
   );
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekNewsFeedCache(restaurantId, NEWS_FILTER_ALL);
+    if (!cached) return;
+    setItems(cached.items);
+    setSyncMeta(cached.sync);
+    setLoading(false);
+  }, [restaurantId]);
 
   const load = useCallback(
     async (options?: { silent?: boolean }) => {

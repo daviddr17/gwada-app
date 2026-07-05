@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
 import { createDisplayReservation } from "@/lib/display/display-reservation-mutations-server";
-import { loadDisplayReservationsDay } from "@/lib/display/display-reservations-server";
+import {
+  loadDisplayReservationRowById,
+  loadDisplayReservationsDay,
+} from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(request: Request) {
@@ -126,10 +129,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
+  const reservation = await loadDisplayReservationRowById(
+    access.restaurantId,
+    result.id,
+  );
+
   return NextResponse.json({
     ok: true,
     id: result.id,
     reservation_number: result.reservation_number,
     guest_pin: result.guest_pin,
+    reservation,
   });
 }

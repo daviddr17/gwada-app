@@ -75,6 +75,10 @@ import {
   whatsappDispatchUserMessage,
 } from "@/lib/reservations/trigger-whatsapp-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
+import {
+  dispatchDashboardReservationCreateLivePatch,
+  dispatchDashboardReservationUpdateLivePatch,
+} from "@/lib/dashboard/dispatch-dashboard-reservation-save-live-client";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import {
   deleteReservation,
@@ -520,6 +524,7 @@ export function ReservationEditDrawer({
       initialStatusCodeRef.current = newStatusCode;
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
+      dispatchDashboardReservationUpdateLivePatch(reservation.restaurant_id);
       onSaved();
       return;
     }
@@ -554,6 +559,21 @@ export function ReservationEditDrawer({
       }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
+      if (created) {
+        const status = statuses.find((s) => s.id === payload.status_id);
+        dispatchDashboardReservationCreateLivePatch({
+          restaurantId: createFor.restaurantId,
+          insert: {
+            id: created.id,
+            starts_at: payload.starts_at,
+            guest_first_name: payload.guest_first_name,
+            guest_last_name: payload.guest_last_name,
+            party_size: payload.party_size,
+            statusCode: status?.code ?? "pending",
+            statusName: status?.name ?? "Unbestätigt",
+          },
+        });
+      }
       onSaved();
     }
   };

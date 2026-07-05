@@ -618,3 +618,23 @@ export async function updateDisplayOrderQuantity(params: {
 
   return { ok: false, error: "invalid_state" };
 }
+
+export async function loadDisplayInventoryLiveRevision(
+  restaurantId: string,
+): Promise<{ revision: string }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { revision: "" };
+
+  const { fetchTableLatestUpdatedAt, composeDisplayLiveRevision } = await import(
+    "@/lib/display/display-module-live-revision"
+  );
+
+  const [ingredients, orders] = await Promise.all([
+    fetchTableLatestUpdatedAt(admin, "inventory_ingredients", restaurantId),
+    fetchTableLatestUpdatedAt(admin, "inventory_purchase_orders", restaurantId),
+  ]);
+
+  return {
+    revision: composeDisplayLiveRevision([ingredients, orders]),
+  };
+}

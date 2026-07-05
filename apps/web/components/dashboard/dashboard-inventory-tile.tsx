@@ -11,7 +11,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 
 export function DashboardInventoryTile() {
   const { summary, loading, error, ready } = useDashboardInventoryStats();
-  const showSkeleton = useDeferredSkeleton(!ready || loading);
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
 
   const emptyStock = summary?.emptyStock ?? 0;
   const openOrders = summary?.openOrders ?? 0;

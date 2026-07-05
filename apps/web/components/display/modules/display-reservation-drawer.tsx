@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
@@ -89,7 +90,7 @@ export function DisplayReservationDrawer({
   defaultDwellMinutes: number;
   bookingTimeStepMinutes: number;
   nextReservationNumber: number | null;
-  onCreated: () => void;
+  onCreated: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const step = normalizeBookingTimeStepMinutes(bookingTimeStepMinutes);
   const [countries, setCountries] = useState<CountryReference[]>(
@@ -233,6 +234,7 @@ export function DisplayReservationDrawer({
         error?: string;
         reservation_number?: number;
         guest_pin?: string;
+        reservation?: DisplayReservationRow;
       };
       if (!res.ok) {
         toast.error(
@@ -248,7 +250,7 @@ export function DisplayReservationDrawer({
           : "Reservierung angelegt.",
       );
       onOpenChange(false);
-      onCreated();
+      onCreated(data.reservation ?? null);
     } catch {
       toast.error("Speichern fehlgeschlagen.");
     } finally {

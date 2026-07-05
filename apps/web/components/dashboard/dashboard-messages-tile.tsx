@@ -10,6 +10,7 @@ import {
 } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { dashboardMessagesInboxHref } from "@/lib/contact-messages/messages-unread-summary";
 
 function formatMessageWhen(iso: string): string {
@@ -34,7 +35,8 @@ function formatMessageWhen(iso: string): string {
 }
 
 export function DashboardMessagesTile() {
-  const { summary, error, loading } = useDashboardMessagesStats();
+  const { summary, error, loading, ready } = useDashboardMessagesStats();
+  const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const total = summary?.total_unread ?? 0;
 
   return (
@@ -50,8 +52,8 @@ export function DashboardMessagesTile() {
       }
       href="/dashboard/kontakte/nachrichten?platform=all"
       linkLabel="Zu Nachrichten"
-      ready
-      loading={loading}
+      ready={ready}
+      loading={showSkeleton}
       error={error}
     >
       {summary ? (

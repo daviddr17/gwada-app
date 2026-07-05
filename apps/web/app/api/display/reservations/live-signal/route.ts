@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
-import { loadDisplayReservationsLiveSignal } from "@/lib/display/display-reservations-server";
+import { loadDisplayReservationsLiveSnapshot } from "@/lib/display/display-reservations-server";
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -10,6 +10,6 @@ export async function GET() {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  const signal = await loadDisplayReservationsLiveSignal(access.restaurantId);
-  return NextResponse.json(signal);
+  const snapshot = await loadDisplayReservationsLiveSnapshot(access.restaurantId);
+  return NextResponse.json(snapshot);
 }

@@ -18,6 +18,7 @@ import { subscribeRestaurantTableInserts } from "@/lib/supabase/restaurant-table
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 const RECONCILE_REFRESH_DEBOUNCE_MS = 15_000;
+const SINGLE_MESSAGE_RECONCILE_MS = 400;
 const WAHA_METADATA_REFRESH_DEBOUNCE_MS = 2_000;
 const REALTIME_READY_TIMEOUT_MS = 12_000;
 const INSERT_BURST_WINDOW_MS = 600;
@@ -48,12 +49,12 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
     messagesLiveRef.current = false;
     signalsLiveRef.current = false;
 
-    const scheduleReconcile = () => {
+    const scheduleReconcile = (delayMs = RECONCILE_REFRESH_DEBOUNCE_MS) => {
       if (reconcileRef.current) clearTimeout(reconcileRef.current);
       reconcileRef.current = setTimeout(() => {
         reconcileRef.current = null;
-        dispatchDashboardMessagesRefresh();
-      }, RECONCILE_REFRESH_DEBOUNCE_MS);
+        dispatchDashboardMessagesRefresh({ restaurantId });
+      }, delayMs);
     };
 
     const scheduleWahaMetadataRefresh = () => {
@@ -90,6 +91,8 @@ export function useInboxLiveNotifications(options?: { enabled?: boolean }) {
         }
         if (count === 1) {
           maybeShowToast();
+          scheduleReconcile(SINGLE_MESSAGE_RECONCILE_MS);
+          return;
         }
         scheduleReconcile();
       }, INSERT_BURST_WINDOW_MS);

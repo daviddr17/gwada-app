@@ -100,7 +100,7 @@ function buildMessage(input: {
 
   if (input.syncState === "deploying") {
     if (input.github.appDeployWorkflow.activeRun) {
-      return "GitHub Actions deployt gerade die App auf den VPS.";
+      return "GitHub Actions baut das Image und deployt es auf den VPS (Build → ghcr.io → pull).";
     }
     if (input.github.dbDeployWorkflow.activeRun) {
       return "GitHub Actions wendet gerade DB-Migrationen auf live an.";

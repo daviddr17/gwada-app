@@ -17,6 +17,7 @@ import type {
   DisplayInventoryIngredientRow,
   DisplayInventoryPayload,
 } from "@/lib/display/display-inventory-server";
+import { GWADA_DISPLAY_INVENTORY_REFRESH_EVENT } from "@/lib/display/display-inventory-live-events";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
@@ -379,23 +380,35 @@ export function DisplayInventoryModule() {
     else inputRefs.current.delete(id);
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const res = await fetch("/api/display/inventory", { cache: "no-store" });
       if (!res.ok) {
-        toast.error("Bestand konnte nicht geladen werden.");
+        if (!opts?.silent) {
+          toast.error("Bestand konnte nicht geladen werden.");
+        }
         return;
       }
       const payload = (await res.json()) as DisplayInventoryPayload;
       setData(payload);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const onRefresh = () => {
+      void load({ silent: true });
+    };
+    window.addEventListener(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT, onRefresh);
+    return () => {
+      window.removeEventListener(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT, onRefresh);
+    };
   }, [load]);
 
   const filtered = useMemo(() => {

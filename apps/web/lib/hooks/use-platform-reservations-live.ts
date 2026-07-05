@@ -1,7 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
-import { dispatchDashboardReservationsRefresh } from "@/lib/dashboard/dashboard-live-events";
+import {
+  dispatchDashboardReservationsLiveInsert,
+  dispatchDashboardReservationsLiveUpdate,
+} from "@/lib/dashboard/dashboard-live-events";
+import {
+  reservationLiveInsertFromRecord,
+} from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import type { ReservationLiveToastFields } from "@/lib/reservations/reservation-live-toast";
 import {
   reservationLiveToastFromRecord,
@@ -14,14 +20,14 @@ import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-poll
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { subscribeRestaurantTableInserts } from "@/lib/supabase/restaurant-table-realtime";
+import { subscribeRestaurantTableChanges } from "@/lib/supabase/restaurant-table-realtime";
 
 const PLATFORM_POLL_MS = 60_000;
 const REALTIME_READY_TIMEOUT_MS = 12_000;
+const UPDATE_PATCH_DEBOUNCE_MS = 500;
 
 /**
- * Neue Reservierungen: Realtime; bei Ausfall oder `/sb`-Proxy Polling (60 s).
- * Display: {@link useDisplayReservationsLive}.
+ * Reservierungen: Realtime INSERT + UPDATE; bei Ausfall oder `/sb`-Proxy Polling (60 s).
  */
 export function usePlatformReservationsLive() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
@@ -31,6 +37,7 @@ export function usePlatformReservationsLive() {
   const lastSignalRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
   const realtimeSubscribedRef = useRef(false);
+  const updateDebounceRef = useRef<number | null>(null);
   const sbRef = useRef(createSupabaseBrowserClient());
   const polling = useVisibleIntervalPolling(PLATFORM_POLL_MS);
 
@@ -45,8 +52,22 @@ export function usePlatformReservationsLive() {
     Boolean(restaurantId) &&
     isUuidRestaurantId(restaurantId!);
 
+  const scheduleUpdatePatch = useCallback(() => {
+    if (!restaurantId) return;
+    if (updateDebounceRef.current) {
+      window.clearTimeout(updateDebounceRef.current);
+    }
+    updateDebounceRef.current = window.setTimeout(() => {
+      updateDebounceRef.current = null;
+      dispatchDashboardReservationsLiveUpdate({ restaurantId });
+    }, UPDATE_PATCH_DEBOUNCE_MS);
+  }, [restaurantId]);
+
   const notifyNewReservation = useCallback(
-    (row: ReservationLiveToastFields | null) => {
+    (
+      row: ReservationLiveToastFields | null,
+      raw?: Record<string, unknown>,
+    ) => {
       if (!toastRef.current) {
         toastRef.current = true;
         showNewReservationToast(row);
@@ -54,9 +75,16 @@ export function usePlatformReservationsLive() {
           toastRef.current = false;
         }, 2_000);
       }
-      dispatchDashboardReservationsRefresh();
+      if (restaurantId && raw) {
+        const insert = reservationLiveInsertFromRecord(raw);
+        if (insert) {
+          dispatchDashboardReservationsLiveInsert({ restaurantId, insert });
+          return;
+        }
+      }
+      scheduleUpdatePatch();
     },
-    [],
+    [restaurantId, scheduleUpdatePatch],
   );
 
   const handleLiveSignal = useCallback(
@@ -69,7 +97,7 @@ export function usePlatformReservationsLive() {
         return;
       }
       if (lastSignalRef.current && latest !== lastSignalRef.current) {
-        notifyNewReservation(signal.latest);
+        notifyNewReservation(signal.latest, undefined);
       }
       lastSignalRef.current = latest;
     },
@@ -112,10 +140,11 @@ export function usePlatformReservationsLive() {
       if (!realtimeSubscribedRef.current) enablePolling();
     }, REALTIME_READY_TIMEOUT_MS);
 
-    const teardownRealtime = subscribeRestaurantTableInserts(sbRef.current, {
+    const teardownRealtime = subscribeRestaurantTableChanges(sbRef.current, {
       channelName: `platform-reservations-live:${restaurantId}`,
       table: "reservations",
       restaurantId,
+      events: ["INSERT", "UPDATE"],
       onStatus: (status) => {
         if (status === "SUBSCRIBED") {
           realtimeSubscribedRef.current = true;
@@ -124,13 +153,20 @@ export function usePlatformReservationsLive() {
           enablePolling();
         }
       },
-      onInsert: (payload) => {
-        notifyNewReservation(reservationLiveToastFromRecord(payload.new));
+      onChange: ({ eventType, new: row }) => {
+        if (eventType === "INSERT") {
+          notifyNewReservation(reservationLiveToastFromRecord(row), row);
+          return;
+        }
+        scheduleUpdatePatch();
       },
     });
 
     return () => {
       window.clearTimeout(readyTimeout);
+      if (updateDebounceRef.current) {
+        window.clearTimeout(updateDebounceRef.current);
+      }
       disablePolling();
       teardownRealtime();
     };
@@ -139,6 +175,7 @@ export function usePlatformReservationsLive() {
     restaurantId,
     handleLiveSignal,
     notifyNewReservation,
+    scheduleUpdatePatch,
     polling.start,
     polling.stop,
   ]);

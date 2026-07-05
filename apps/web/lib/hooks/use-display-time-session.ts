@@ -6,6 +6,7 @@ import {
   type DisplayTimeSessionState,
 } from "@/lib/display/display-time-status";
 import type { DisplayContextResponse } from "@/lib/display/display-types";
+import { GWADA_DISPLAY_TIME_REFRESH_EVENT } from "@/lib/display/display-time-live-events";
 
 export function useDisplayTimeSession(
   enabled: boolean,
@@ -49,8 +50,15 @@ export function useDisplayTimeSession(
   useEffect(() => {
     if (!enabled) return;
     void refresh();
-    const id = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(id);
+    const fallbackId = setInterval(() => void refresh(), 90_000);
+    const onLiveRefresh = () => {
+      void refresh();
+    };
+    window.addEventListener(GWADA_DISPLAY_TIME_REFRESH_EVENT, onLiveRefresh);
+    return () => {
+      clearInterval(fallbackId);
+      window.removeEventListener(GWADA_DISPLAY_TIME_REFRESH_EVENT, onLiveRefresh);
+    };
   }, [enabled, refresh]);
 
   return { state, refresh, patch };

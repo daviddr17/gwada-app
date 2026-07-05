@@ -36,13 +36,21 @@ import {
 } from "@/lib/display/display-device-storage";
 import { syncDisplayReservationsLiveAfterPin } from "@/lib/display/display-reservations-live-events";
 import { syncDisplayTodosLiveAfterPin } from "@/lib/display/display-todos-live-events";
+import {
+  getAutoDisplayModule,
+  resolveDisplayActiveModule,
+  shouldShowDisplayModulePicker,
+} from "@/lib/display/display-module-navigation";
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
 import {
   displayChromeMainClassName,
   displayChromeContentWrapClassName,
   displayChromeShellClassName,
 } from "@/lib/ui/display-chrome";
+import { useDisplayInventoryLive } from "@/lib/hooks/use-display-inventory-live";
+import { useDisplayRecipesLive } from "@/lib/hooks/use-display-recipes-live";
 import { useDisplayReservationsLive } from "@/lib/hooks/use-display-reservations-live";
+import { useDisplayTimeLive } from "@/lib/hooks/use-display-time-live";
 import { useDisplayTimeSession } from "@/lib/hooks/use-display-time-session";
 import { useDisplayTodoBadgeCount } from "@/lib/hooks/use-display-todo-badge-count";
 import { useDisplayTodosLive } from "@/lib/hooks/use-display-todos-live";
@@ -123,19 +131,43 @@ export function DisplayScreen({ slug }: { slug: string }) {
       setActiveModule(null);
       return;
     }
-    const mods = context.session.modules;
-    if (mods.length === 0) {
+    const session = context.session;
+    if (session.modules.length === 0) {
       setActiveModule(null);
       return;
     }
-    if (mods.length === 1 || !context.session.can_switch_modules) {
-      setActiveModule(mods[0]!);
+    const auto = getAutoDisplayModule(session);
+    if (auto) {
+      setActiveModule(auto);
       return;
     }
-    if (activeModule && !mods.includes(activeModule)) {
+    if (activeModule && !session.modules.includes(activeModule)) {
       setActiveModule(null);
     }
   }, [context?.session, activeModule]);
+
+  const syncLiveAfterPin = useCallback((mods: DisplayModule[]) => {
+    window.setTimeout(() => {
+      syncDisplayTodosLiveAfterPin();
+      if (mods.includes("reservations")) {
+        syncDisplayReservationsLiveAfterPin();
+      }
+    }, 0);
+  }, []);
+
+  const finishPinLogin = useCallback(
+    (ctx: DisplayContextResponse) => {
+      const session = ctx.session;
+      if (!session) return;
+
+      setContext(ctx);
+      setActiveModule(getAutoDisplayModule(session));
+      setLocked(false);
+      sessionRestoreGatePreparedRef.current = true;
+      syncLiveAfterPin(session.modules);
+    },
+    [syncLiveAfterPin],
+  );
 
   const reservationsLiveEnabled = Boolean(
     context?.session &&
@@ -143,6 +175,27 @@ export function DisplayScreen({ slug }: { slug: string }) {
       context.session.modules.includes("reservations"),
   );
   useDisplayReservationsLive(reservationsLiveEnabled);
+
+  const inventoryLiveEnabled = Boolean(
+    context?.session &&
+      !locked &&
+      context.session.modules.includes("inventory"),
+  );
+  useDisplayInventoryLive(inventoryLiveEnabled);
+
+  const recipesLiveEnabled = Boolean(
+    context?.session &&
+      !locked &&
+      context.session.modules.includes("recipes"),
+  );
+  useDisplayRecipesLive(recipesLiveEnabled);
+
+  const timeLiveEnabled = Boolean(
+    context?.session &&
+      !locked &&
+      context.session.modules.includes("time"),
+  );
+  useDisplayTimeLive(timeLiveEnabled);
 
   const todosLiveEnabled = Boolean(context?.session && !locked);
   useDisplayTodosLive(todosLiveEnabled);
@@ -237,26 +290,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
     if (variant === "pin_welcome") {
       const pending = pendingPinSessionRef.current;
       pendingPinSessionRef.current = null;
-      if (!pending) return;
-
-      const { ctx, mods } = pending;
-      setContext(ctx);
-      setActiveModule(
-        mods.length === 1 || !ctx.session?.can_switch_modules
-          ? (mods[0] ?? null)
-          : null,
-      );
-      setLocked(false);
-      sessionRestoreGatePreparedRef.current = true;
+      if (!pending?.ctx.session) return;
+      finishPinLogin(pending.ctx);
       pinLoginGatePendingRef.current = true;
-      window.setTimeout(() => {
-        syncDisplayTodosLiveAfterPin();
-        if (mods.includes("reservations")) {
-          syncDisplayReservationsLiveAfterPin();
-        }
-      }, 0);
     }
-  }, [performLogout]);
+  }, [finishPinLogin, performLogout]);
 
   const handleScreenCelebrationDone = useCallback(() => {
     if (pinLoginGatePendingRef.current) {
@@ -281,9 +319,14 @@ export function DisplayScreen({ slug }: { slug: string }) {
       }
       setPin("");
       const ctx = result.context;
-      const mods = ctx.session?.modules ?? [];
-      pendingPinSessionRef.current = { ctx, mods };
-      const givenName = ctx.session?.staff.given_name?.trim();
+      const session = ctx.session;
+      if (!session) {
+        setPinError("Anmeldung fehlgeschlagen.");
+        return;
+      }
+
+      pendingPinSessionRef.current = { ctx, mods: session.modules };
+      const givenName = session.staff.given_name?.trim();
       setScreenCelebrationSublabel(
         givenName ? `${givenName}!` : undefined,
       );
@@ -499,7 +542,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
           />
         </div>
       );
-    } else if (!activeModule && modules.length > 1) {
+    } else if (shouldShowDisplayModulePicker(session) && !activeModule) {
       content = (
         <div className={displayChromeShellClassName}>
           <DisplayChromeHeader
@@ -562,7 +605,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
         </div>
       );
     } else {
-      const currentModule = activeModule ?? modules[0] ?? null;
+      const currentModule = resolveDisplayActiveModule(session, activeModule);
 
       if (!currentModule) {
         content = (
@@ -588,7 +631,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             staffSuffix={timeStatusSuffix}
             modules={moduleMeta}
             activeModule={currentModule}
-            canSwitch={session.can_switch_modules && modules.length > 1}
+            canSwitch={shouldShowDisplayModulePicker(session)}
             onModuleChange={setActiveModule}
             onLogout={requestLogout}
             todoBadgeCount={todoBadgeCount}

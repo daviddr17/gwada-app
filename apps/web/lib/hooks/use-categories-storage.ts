@@ -15,6 +15,7 @@ import {
   peekMenuCategoriesCache,
 } from "@/lib/menu/menu-categories-query";
 import { toastStorageError } from "@/lib/persist-notify";
+import { dispatchDashboardMenuLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-menu-live-patch-from-cache";
 import { invalidateMenuQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
 import { toastDatabaseUnavailable } from "@/lib/supabase/db-toast";
@@ -108,6 +109,7 @@ export function useCategoriesStorage() {
   const afterCategoryMutation = useCallback(() => {
     if (restaurantId) {
       invalidateMenuQueries(queryClient, restaurantId);
+      dispatchDashboardMenuLivePatchFromCache(restaurantId);
     }
   }, [queryClient, restaurantId]);
 

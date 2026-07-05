@@ -11,6 +11,7 @@ import {
 } from "@/components/display/display-celebration-overlay";
 import type { DisplayPrepareAndGate } from "@/components/display/modules/display-shift-gates";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import { GWADA_DISPLAY_TIME_REFRESH_EVENT } from "@/lib/display/display-time-live-events";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import {
   displayTimeActionButtonOutlineClassName,
@@ -189,8 +190,15 @@ export function DisplayTimeModule({
 
   useEffect(() => {
     void refresh();
-    const id = setInterval(() => void refresh(), 30_000);
-    return () => clearInterval(id);
+    const fallbackId = setInterval(() => void refresh(), 90_000);
+    const onLiveRefresh = () => {
+      void refresh();
+    };
+    window.addEventListener(GWADA_DISPLAY_TIME_REFRESH_EVENT, onLiveRefresh);
+    return () => {
+      clearInterval(fallbackId);
+      window.removeEventListener(GWADA_DISPLAY_TIME_REFRESH_EVENT, onLiveRefresh);
+    };
   }, [refresh]);
 
   const runTimeAction = useCallback(
@@ -242,6 +250,7 @@ export function DisplayTimeModule({
             setState(snapshot);
             void refresh();
           } else {
+            void refresh();
             pendingCelebrationSyncRef.current = true;
             if (action === "clock_out") {
               pendingClockOutLogoutRef.current = true;

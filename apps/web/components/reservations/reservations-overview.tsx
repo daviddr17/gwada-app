@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -66,6 +66,18 @@ import { ReservationsFilterDrawer } from "@/components/reservations/reservations
 import { ReservationsOverviewPeriodStats } from "@/components/reservations/reservations-overview-period-stats";
 import { ReservationsOverviewSkeleton } from "@/components/reservations/reservations-overview-skeleton";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import {
+  GWADA_DASHBOARD_RESERVATIONS_LIVE_INSERT_EVENT,
+  type DashboardReservationsLiveInsertDetail,
+} from "@/lib/dashboard/dashboard-live-events";
+import {
+  peekReservationsMonthCache,
+  writeReservationsMonthCache,
+} from "@/lib/reservations/reservations-month-client-cache";
+import {
+  reservationInsertInMonthRange,
+} from "@/lib/dashboard/patch-dashboard-reservations-live-client";
+import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -234,6 +246,23 @@ export function ReservationsOverview() {
   const showInitialLoadSkeleton = useDeferredSkeleton(
     dbOk && loading && rows.length === 0,
   );
+
+  useLayoutEffect(() => {
+    if (!workspaceRestaurantId || unconfirmedMode) return;
+    const cached = peekReservationsMonthCache(workspaceRestaurantId, {
+      rangeStartIso,
+      rangeEndExclusiveIso,
+    });
+    if (cached) {
+      setRows(cached.rows);
+      setLoading(false);
+    }
+  }, [
+    workspaceRestaurantId,
+    unconfirmedMode,
+    rangeStartIso,
+    rangeEndExclusiveIso,
+  ]);
 
   useEffect(() => {
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
@@ -421,7 +450,18 @@ export function ReservationsOverview() {
       return;
     }
     let cancelled = false;
-    setLoading(true);
+    const monthRange = {
+      rangeStartIso,
+      rangeEndExclusiveIso,
+    };
+    const cached = unconfirmedMode
+      ? null
+      : peekReservationsMonthCache(workspaceRestaurantId, monthRange);
+    if (!cached) setLoading(true);
+    else {
+      setRows(cached.rows);
+      setLoading(false);
+    }
     setLoadError(null);
     void (async () => {
       const { data, error } = unconfirmedMode
@@ -439,6 +479,9 @@ export function ReservationsOverview() {
         return;
       }
       setRows(data);
+      if (!unconfirmedMode) {
+        writeReservationsMonthCache(workspaceRestaurantId, monthRange, data);
+      }
     })();
     return () => {
       cancelled = true;
@@ -450,6 +493,65 @@ export function ReservationsOverview() {
     rangeStartIso,
     rangeEndExclusiveIso,
     reloadNonce,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceRestaurantId || unconfirmedMode) return;
+
+    const monthRange = {
+      rangeStartIso,
+      rangeEndExclusiveIso,
+    };
+
+    const onLiveInsert = (event: Event) => {
+      const detail = (event as CustomEvent<DashboardReservationsLiveInsertDetail>)
+        .detail;
+      if (!detail || detail.restaurantId !== workspaceRestaurantId) return;
+      if (!reservationInsertInMonthRange(detail.insert.starts_at, monthRange)) {
+        return;
+      }
+
+      const stubRow = mapRawToReservationListRow({
+        id: detail.insert.id,
+        starts_at: detail.insert.starts_at,
+        guest_first_name: detail.insert.guest_first_name,
+        guest_last_name: detail.insert.guest_last_name,
+        party_size: detail.insert.party_size,
+        reservation_statuses: {
+          code: detail.insert.statusCode,
+          name: detail.insert.statusName,
+          id: "",
+          color_hex: "#eab308",
+        },
+      });
+
+      setRows((prev) => {
+        if (prev.some((r) => r.id === detail.insert.id)) return prev;
+        const next = [...prev, stubRow].sort(
+          (a, b) =>
+            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+        );
+        writeReservationsMonthCache(workspaceRestaurantId, monthRange, next);
+        return next;
+      });
+      setLoading(false);
+    };
+
+    window.addEventListener(
+      GWADA_DASHBOARD_RESERVATIONS_LIVE_INSERT_EVENT,
+      onLiveInsert,
+    );
+    return () => {
+      window.removeEventListener(
+        GWADA_DASHBOARD_RESERVATIONS_LIVE_INSERT_EVENT,
+        onLiveInsert,
+      );
+    };
+  }, [
+    workspaceRestaurantId,
+    unconfirmedMode,
+    rangeStartIso,
+    rangeEndExclusiveIso,
   ]);
 
   useEffect(() => {

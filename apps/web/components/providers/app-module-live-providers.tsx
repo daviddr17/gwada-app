@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { AppDashboardWidgetsLive } from "@/components/providers/app-dashboard-widgets-live";
 import { AppNotificationBellLive } from "@/components/providers/app-notification-bell-live";
 import { AppReservationsLive } from "@/components/providers/app-reservations-live";
 import { AppStaffLive } from "@/components/providers/app-staff-live";
@@ -34,6 +35,7 @@ export function AppModuleLiveProviders() {
       <AppNotificationBellLive />
       <AppReservationsLive />
       <AppStaffLive />
+      <AppDashboardWidgetsLive />
     </>
   );
 }

@@ -15,6 +15,7 @@ import {
   fetchIngredientsForRestaurant,
   peekIngredientsCache,
 } from "@/lib/inventory/ingredients-query";
+import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
 import { toastStorageError } from "@/lib/persist-notify";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -307,6 +308,7 @@ export function useIngredientsStorage() {
     (options?: { stockChanged?: boolean }) => {
       if (restaurantId) {
         invalidateInventoryQueries(queryClient, restaurantId, options);
+        dispatchDashboardInventoryLivePatchFromCache(restaurantId);
       }
     },
     [queryClient, restaurantId],
@@ -413,6 +415,9 @@ export function useIngredientsStorage() {
               failSave();
               resolve(false);
               return;
+            }
+            if (restaurantId) {
+              dispatchDashboardInventoryLivePatchFromCache(restaurantId);
             }
             if (toastKind === "add") {
               toast.success("Zutat angelegt");

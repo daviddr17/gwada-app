@@ -312,16 +312,138 @@ export async function loadDisplayReservationDetail(
   };
 }
 
-/** Letzter Insert-Zeitstempel für Display-Live-Polling (Service-Role). */
-export async function loadDisplayReservationsLiveSignal(
+/** Letzter Insert + Display-Zeile für Live-Polling (Service-Role). */
+export async function loadDisplayReservationsLiveSnapshot(
   restaurantId: string,
-): Promise<{ latestCreatedAt: string | null }> {
+): Promise<{
+  revision: string;
+  latestCreatedAt: string | null;
+  latestUpdatedAt: string | null;
+  latest: DisplayReservationRow | null;
+}> {
   const admin = createSupabaseAdminClient();
-  if (!admin) return { latestCreatedAt: null };
+  if (!admin) {
+    return {
+      revision: "",
+      latestCreatedAt: null,
+      latestUpdatedAt: null,
+      latest: null,
+    };
+  }
+
   const { fetchReservationsLiveSignal } = await import(
     "@/lib/reservations/reservations-live-signal"
   );
-  return fetchReservationsLiveSignal(admin, restaurantId);
+  const { fetchTableLatestUpdatedAt, composeDisplayLiveRevision } = await import(
+    "@/lib/display/display-module-live-revision"
+  );
+
+  const [signal, latestUpdatedAt] = await Promise.all([
+    fetchReservationsLiveSignal(admin, restaurantId),
+    fetchTableLatestUpdatedAt(admin, "reservations", restaurantId),
+  ]);
+
+  const latestCreatedAt = signal.latestCreatedAt;
+  const revision = composeDisplayLiveRevision([
+    latestCreatedAt,
+    latestUpdatedAt,
+  ]);
+
+  if (!latestCreatedAt) {
+    return {
+      revision,
+      latestCreatedAt: null,
+      latestUpdatedAt,
+      latest: null,
+    };
+  }
+
+  const { data, error } = await admin
+    .from("reservations")
+    .select(
+      `
+        id,
+        reservation_number,
+        contact_id,
+        guest_first_name,
+        guest_last_name,
+        guest_phone,
+        guest_email,
+        party_size,
+        starts_at,
+        ends_at,
+        notes,
+        status_id,
+        dining_table_id,
+        created_at,
+        ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
+        dining_tables ( id, table_number, table_name )
+      `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    return {
+      revision,
+      latestCreatedAt,
+      latestUpdatedAt,
+      latest: null,
+    };
+  }
+
+  return {
+    revision,
+    latestCreatedAt,
+    latestUpdatedAt,
+    latest: mapReservationRow(data as Record<string, unknown>),
+  };
+}
+
+/** @deprecated Alias — nutze {@link loadDisplayReservationsLiveSnapshot}. */
+export async function loadDisplayReservationsLiveSignal(
+  restaurantId: string,
+): Promise<{ latestCreatedAt: string | null }> {
+  const snapshot = await loadDisplayReservationsLiveSnapshot(restaurantId);
+  return { latestCreatedAt: snapshot.latestCreatedAt };
+}
+
+export async function loadDisplayReservationRowById(
+  restaurantId: string,
+  reservationId: string,
+): Promise<DisplayReservationRow | null> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin
+    .from("reservations")
+    .select(
+      `
+        id,
+        reservation_number,
+        contact_id,
+        guest_first_name,
+        guest_last_name,
+        guest_phone,
+        guest_email,
+        party_size,
+        starts_at,
+        ends_at,
+        notes,
+        status_id,
+        dining_table_id,
+        ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
+        dining_tables ( id, table_number, table_name )
+      `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("id", reservationId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return mapReservationRow(data as Record<string, unknown>);
 }
 
 export { WEEKDAY_ORDER };

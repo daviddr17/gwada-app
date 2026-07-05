@@ -225,7 +225,7 @@ export function SuperadminDatabasePanel() {
     const { ok, error } = await triggerSuperadminLiveAppDeploy();
     if (ok) {
       toast.success(
-        "App-Deploy gestartet — GitHub Actions baut jetzt auf dem VPS.",
+        "App-Deploy gestartet — GitHub Actions baut das Image und pullt es auf den VPS.",
       );
       void load(true);
     } else {
@@ -528,8 +528,9 @@ export function SuperadminDatabasePanel() {
             <p className="text-xs text-muted-foreground">
               Für Deploy-Button und Branch-Liste{" "}
               <span className="font-mono">GITHUB_DEPLOY_TOKEN</span> in der
-              App-Env setzen (Contents read + Actions read/write). SSH-Deploy
-              zusätzlich als GitHub Secrets:{" "}
+              App-Env setzen (repo, workflow,{" "}
+              <span className="font-mono">read:packages</span> für GHCR-Pull).
+              SSH-Deploy zusätzlich als GitHub Secrets:{" "}
               <span className="font-mono">LIVE_SSH_KEY</span>,{" "}
               <span className="font-mono">LIVE_VPS_HOST</span>.
             </p>
@@ -627,7 +628,7 @@ export function SuperadminDatabasePanel() {
             <CardTitle className="text-base">VPS (Contabo)</CardTitle>
             <SectionIntro
               what="Der physische Server unter gwada.app (Contabo VPS)."
-              does="Hier laufen die Next.js-App (Docker), Supabase und Traefik. GitHub Actions verbindet sich per SSH und tauscht Container aus."
+              does="Hier laufen die Next.js-App (Docker), Supabase und Traefik. GitHub Actions baut das Image in der Cloud, der VPS pullt es per SSH und startet den Container neu."
             />
           </CardHeader>
           <CardContent>
@@ -701,7 +702,7 @@ export function SuperadminDatabasePanel() {
             <CardTitle className="text-base">Coolify</CardTitle>
             <SectionIntro
               what="Docker-Panel auf dem VPS — nur noch Infrastruktur."
-              does="Coolify hostet ggf. Env-Variablen und den Supabase-Docker-Stack. App-Deploys laufen nicht mehr über Coolify, sondern über GitHub Actions."
+              does="Coolify hostet ggf. Env-Variablen und den Supabase-Docker-Stack. App-Deploys: GitHub Actions → ghcr.io → VPS pull (kein Build auf dem Server)."
             />
           </CardHeader>
           <CardContent>

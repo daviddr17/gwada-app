@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/layout/app-shell";
+import { AppDashboardLivePatchMount } from "@/components/providers/app-dashboard-live-patch-mount";
 import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
 import { AppModuleWarmPrefetchMount } from "@/components/providers/app-module-warm-prefetch-mount";
 import { AuthCookieCleanupMount } from "@/components/providers/auth-cookie-cleanup-mount";
@@ -35,6 +36,7 @@ export default function AppLayout({
                       <DashboardBatchPrefetchMount />
                       <AppModuleWarmPrefetchMount />
                       <UnifiedInboxBackgroundSyncMount />
+                      <AppDashboardLivePatchMount />
                       <ProfilePresenceHeartbeat />
                       <AppModuleLiveProviders />
                       <AppShell>{children}</AppShell>

@@ -15,6 +15,7 @@ import {
   peekMenuItemsCache,
 } from "@/lib/menu/menu-items-query";
 import { normalizeMenuItem } from "@/lib/menu/item-utils";
+import { dispatchDashboardMenuLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-menu-live-patch-from-cache";
 import { toastStorageError } from "@/lib/persist-notify";
 import { invalidateMenuQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -84,6 +85,7 @@ export function useMenuStorage() {
   const afterMenuMutation = useCallback(() => {
     if (restaurantId) {
       invalidateMenuQueries(queryClient, restaurantId);
+      dispatchDashboardMenuLivePatchFromCache(restaurantId);
     }
   }, [queryClient, restaurantId]);
 

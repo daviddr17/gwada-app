@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Download,
@@ -42,6 +42,10 @@ import { trackDashboardFileUpload } from "@/lib/uploads/dashboard-file-upload";
 import { validateRestaurantDocumentFile } from "@/lib/documents/validate-restaurant-document-file";
 import { RESTAURANT_DOCUMENT_ALLOWED_EXTENSIONS_LABEL } from "@/lib/constants/restaurant-documents";
 import { formatStorageBytes } from "@/lib/documents/format-storage";
+import {
+  peekDocumentsListCache,
+  writeDocumentsListCache,
+} from "@/lib/documents/documents-list-client-cache";
 import { WORKSPACE_STORAGE_MODULE_LABELS } from "@/lib/constants/workspace-storage";
 import { useDocumentTagsStorage } from "@/lib/hooks/use-document-tags-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -242,7 +246,7 @@ export function DocumentsOverview() {
     accountingBytes: 0,
   });
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
 
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState(ALL_TAGS_FILTER);
@@ -320,9 +324,27 @@ export function DocumentsOverview() {
     [documentTags.items],
   );
 
+  const applyCachedDocuments = useCallback(
+    (cached: ReturnType<typeof peekDocumentsListCache>) => {
+      if (!cached) return;
+      setRows(cached.rows);
+      setUsage(cached.usage);
+      setLoading(false);
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    applyCachedDocuments(peekDocumentsListCache(restaurantId));
+  }, [restaurantId, applyCachedDocuments]);
+
   const reload = useCallback(async () => {
     if (!restaurantId) return;
-    setLoading(true);
+    const cached = peekDocumentsListCache(restaurantId);
+    if (cached) applyCachedDocuments(cached);
+    else setLoading(true);
+
     const [docs, storage] = await Promise.all([
       fetchDocumentsForRestaurant(restaurantId),
       fetchDocumentsStorageUsage(restaurantId),
@@ -339,7 +361,13 @@ export function DocumentsOverview() {
       setUploaderNames(names);
     }
     if (!storage.error) setUsage(storage.data);
-  }, [restaurantId]);
+    if (!docs.error && !storage.error) {
+      writeDocumentsListCache(restaurantId, {
+        rows: docs.data,
+        usage: storage.data,
+      });
+    }
+  }, [restaurantId, applyCachedDocuments]);
 
   useEffect(() => {
     void reload();

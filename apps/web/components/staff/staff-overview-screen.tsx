@@ -1,7 +1,7 @@
 "use client";
 
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +40,10 @@ import type {
   StaffLivePresenceRow,
 } from "@/lib/types/staff";
 import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
+import {
+  peekStaffListCache,
+  writeStaffListCache,
+} from "@/lib/staff/staff-list-client-cache";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
@@ -60,7 +64,7 @@ export function StaffOverviewScreen() {
   const positionTags = useStaffPositionTagsStorage(restaurantId);
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
   const [dayDate, setDayDate] = useState(() => {
     const n = new Date();
     return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
@@ -84,14 +88,43 @@ export function StaffOverviewScreen() {
     initial?: { id: string; name: string; active: boolean; backgroundColor: string };
   } | null>(null);
 
+  const applyCachedStaff = useCallback(
+    (cached: ReturnType<typeof peekStaffListCache>) => {
+      if (!cached) return;
+      setRows(cached.rows);
+      setContracts(cached.contracts);
+      setLoading(false);
+    },
+    [],
+  );
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    applyCachedStaff(peekStaffListCache(restaurantId));
+  }, [restaurantId, applyCachedStaff]);
+
   const reload = useCallback(async () => {
     if (!restaurantId) return;
-    setLoading(true);
-    const { data, error } = await fetchStaffForRestaurant(restaurantId);
+    const cached = peekStaffListCache(restaurantId);
+    if (cached) applyCachedStaff(cached);
+    else setLoading(true);
+
+    const [staffRes, contractsRes] = await Promise.all([
+      fetchStaffForRestaurant(restaurantId),
+      fetchStaffContractsForRestaurant(restaurantId),
+    ]);
     setLoading(false);
-    if (error) toast.error(error);
-    else setRows(data);
-  }, [restaurantId]);
+    if (staffRes.error) toast.error(staffRes.error);
+    else setRows(staffRes.data);
+    if (contractsRes.error) toast.error(contractsRes.error);
+    else setContracts(contractsRes.data);
+    if (!staffRes.error && !contractsRes.error) {
+      writeStaffListCache(restaurantId, {
+        rows: staffRes.data,
+        contracts: contractsRes.data,
+      });
+    }
+  }, [restaurantId, applyCachedStaff]);
 
   useEffect(() => {
     void reload();
@@ -107,17 +140,6 @@ export function StaffOverviewScreen() {
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [searchParams, router, pathname]);
-
-  const reloadContracts = useCallback(async () => {
-    if (!restaurantId) return;
-    const { data, error } = await fetchStaffContractsForRestaurant(restaurantId);
-    if (error) toast.error(error);
-    else setContracts(data);
-  }, [restaurantId]);
-
-  useEffect(() => {
-    void reloadContracts();
-  }, [reloadContracts]);
 
   const reloadDayStats = useCallback(async () => {
     if (!restaurantId || !dayDate) return;

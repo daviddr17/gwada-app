@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
   dispatchDisplayTodoBadgeSnapshot,
+  dispatchDisplayTodosRefresh,
   GWADA_DISPLAY_TODOS_BADGE_SNAPSHOT_EVENT,
   GWADA_DISPLAY_TODOS_LIVE_SYNC_EVENT,
   type DisplayTodoBadgeSnapshot,
@@ -11,6 +12,7 @@ import type { DisplayTodosLiveSignal } from "@/lib/staff/display-todos-live-sign
 import { parseDisplayTodosLiveRevision } from "@/lib/staff/display-todos-live-signal";
 
 const DISPLAY_TODOS_POLL_MS = 15_000;
+const TODOS_LIST_RECONCILE_MS = 2_500;
 
 /**
  * Display ohne Supabase-User-Session: Polling auf live-signal (15 s).
@@ -19,25 +21,40 @@ const DISPLAY_TODOS_POLL_MS = 15_000;
 export function useDisplayTodosLive(enabled: boolean) {
   const lastRevisionRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
+  const listReconcileRef = useRef<number | null>(null);
 
-  const handleLiveSignal = useCallback((signal: DisplayTodosLiveSignal) => {
-    const { revision } = signal;
-    if (!revision) return;
-
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      lastRevisionRef.current = revision;
-      return;
+  const scheduleListRefresh = useCallback(() => {
+    if (listReconcileRef.current) {
+      window.clearTimeout(listReconcileRef.current);
     }
-
-    if (lastRevisionRef.current !== revision) {
-      lastRevisionRef.current = revision;
-      const snapshot = parseDisplayTodosLiveRevision(revision);
-      if (snapshot) {
-        dispatchDisplayTodoBadgeSnapshot(snapshot);
-      }
-    }
+    listReconcileRef.current = window.setTimeout(() => {
+      listReconcileRef.current = null;
+      dispatchDisplayTodosRefresh();
+    }, TODOS_LIST_RECONCILE_MS);
   }, []);
+
+  const handleLiveSignal = useCallback(
+    (signal: DisplayTodosLiveSignal) => {
+      const { revision } = signal;
+      if (!revision) return;
+
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        lastRevisionRef.current = revision;
+        return;
+      }
+
+      if (lastRevisionRef.current !== revision) {
+        lastRevisionRef.current = revision;
+        const snapshot = parseDisplayTodosLiveRevision(revision);
+        if (snapshot) {
+          dispatchDisplayTodoBadgeSnapshot(snapshot);
+        }
+        scheduleListRefresh();
+      }
+    },
+    [scheduleListRefresh],
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -92,6 +109,10 @@ export function useDisplayTodosLive(enabled: boolean) {
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      if (listReconcileRef.current) {
+        window.clearTimeout(listReconcileRef.current);
+        listReconcileRef.current = null;
+      }
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener(GWADA_DISPLAY_TODOS_LIVE_SYNC_EVENT, onPinSync);
       window.removeEventListener(

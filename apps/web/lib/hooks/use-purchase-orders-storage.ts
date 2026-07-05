@@ -13,6 +13,7 @@ import {
   fetchPurchaseOrdersForRestaurant,
   peekPurchaseOrdersCache,
 } from "@/lib/inventory/purchase-orders-query";
+import { dispatchDashboardInventoryLivePatchFromCache } from "@/lib/dashboard/dispatch-dashboard-inventory-live-patch-from-cache";
 import { invalidateInventoryQueries } from "@/lib/query/module-query-invalidation";
 import { queryKeys } from "@/lib/query/query-keys";
 import {
@@ -315,6 +316,7 @@ export function usePurchaseOrdersStorage() {
   const afterOrdersMutation = useCallback(() => {
     if (restaurantId) {
       invalidateInventoryQueries(queryClient, restaurantId);
+      dispatchDashboardInventoryLivePatchFromCache(restaurantId);
     }
   }, [queryClient, restaurantId]);
 
@@ -396,6 +398,9 @@ export function usePurchaseOrdersStorage() {
         return false;
       }
       setLocalOrders(next);
+      if (restaurantId) {
+        dispatchDashboardInventoryLivePatchFromCache(restaurantId);
+      }
       return true;
     },
     [afterOrdersMutation, failSave, queryClient, restaurantId, useDbInventory],

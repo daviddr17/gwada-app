@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Filter, Pencil, Plus, Search, Check, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
@@ -30,6 +30,14 @@ import {
 } from "@/lib/supabase/staff-todos-db";
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import {
+  peekStaffListCache,
+  writeStaffListCache,
+} from "@/lib/staff/staff-list-client-cache";
+import {
+  peekStaffTodosCache,
+  writeStaffTodosCache,
+} from "@/lib/staff/staff-todos-client-cache";
 import {
   fetchComplianceRecords,
   fetchComplianceSettings,
@@ -135,7 +143,7 @@ export function StaffTodosScreen() {
   const [loading, setLoading] = useState(true);
   const [capturesToday, setCapturesToday] = useState(0);
   const [showDueReminders, setShowDueReminders] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading);
+  const showSkeleton = useDeferredSkeleton(loading && todos.length === 0);
 
   const [search, setSearch] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
@@ -157,6 +165,18 @@ export function StaffTodosScreen() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
 
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const staffCached = peekStaffListCache(restaurantId);
+    if (staffCached) setStaffList(staffCached.rows);
+    const todosCached = peekStaffTodosCache(restaurantId);
+    if (todosCached) {
+      setTodos(todosCached.todos);
+      setRestaurantTimezone(todosCached.restaurantTimezone);
+      setLoading(false);
+    }
+  }, [restaurantId]);
+
   const reload = useCallback(async () => {
     if (!restaurantId || !canRead) {
       setTodos([]);
@@ -164,7 +184,17 @@ export function StaffTodosScreen() {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    const todosCached = peekStaffTodosCache(restaurantId);
+    const staffCached = peekStaffListCache(restaurantId);
+    if (todosCached) {
+      setTodos(todosCached.todos);
+      setRestaurantTimezone(todosCached.restaurantTimezone);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    if (staffCached) setStaffList(staffCached.rows);
+
     const [todoRes, staffRes, recordsRes, settingsRes] = await Promise.all([
       fetchStaffTodosForRestaurant(restaurantId),
       fetchStaffForRestaurant(restaurantId),
@@ -181,6 +211,19 @@ export function StaffTodosScreen() {
     }
     if (staffRes.error) toast.error(staffRes.error);
     else setStaffList(staffRes.data);
+    if (!todoRes.error) {
+      writeStaffTodosCache(restaurantId, {
+        todos: todoRes.data,
+        restaurantTimezone: todoRes.restaurantTimezone,
+      });
+    }
+    if (!staffRes.error) {
+      const staffCachedAfter = peekStaffListCache(restaurantId);
+      writeStaffListCache(restaurantId, {
+        rows: staffRes.data,
+        contracts: staffCachedAfter?.contracts ?? [],
+      });
+    }
 
     let todayCaptures = 0;
     for (const todo of todoRes.data) {

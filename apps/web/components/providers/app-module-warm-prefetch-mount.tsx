@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { prefetchAppModuleQueryCaches } from "@/lib/hooks/app-module-query-prefetch";
+import { warmAppModuleCaches } from "@/lib/hooks/app-module-warm-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -43,7 +43,7 @@ export function AppModuleWarmPrefetchMount() {
 
     const startTimer = window.setTimeout(() => {
       runWhenIdle(() => {
-        prefetchAppModuleQueryCaches(queryClient, restaurantId);
+        warmAppModuleCaches(queryClient, restaurantId);
       });
 
       runWhenIdle(() => {

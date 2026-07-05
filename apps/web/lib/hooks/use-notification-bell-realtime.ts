@@ -1,16 +1,24 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import {
   GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
   dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
+import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
+import {
+  isReservationNotificationModule,
+  patchNotificationSummaryFromReservationEvent,
+} from "@/lib/notifications/patch-notification-reservation-live-client";
+import type { NotificationSummary } from "@/lib/notifications/notification-types";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { subscribeRestaurantTableInserts } from "@/lib/supabase/restaurant-table-realtime";
 import { NOTIFICATION_SUMMARY_REFETCH_MS } from "@/lib/query/dashboard-query-policy";
+import { queryKeys } from "@/lib/query/query-keys";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 const REALTIME_READY_TIMEOUT_MS = 12_000;
@@ -28,6 +36,7 @@ export function isNotificationBellRealtimeActive(): boolean {
  * Nachrichten: Badge über Inbox-Cache (contact_messages Realtime) — kein doppelter Refetch.
  */
 export function useNotificationBellRealtime() {
+  const queryClient = useQueryClient();
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const sbRef = useRef(createSupabaseBrowserClient());
   const polling = useVisibleIntervalPolling(NOTIFICATION_SUMMARY_REFETCH_MS);
@@ -92,6 +101,7 @@ export function useNotificationBellRealtime() {
       onInsert: (payload) => {
         const row = payload.new as {
           module?: string;
+          reference_id?: string;
           payload?: Record<string, unknown>;
         };
         if (row.module === "messages" && row.payload) {
@@ -103,6 +113,28 @@ export function useNotificationBellRealtime() {
               },
             }),
           );
+          return;
+        }
+        if (
+          row.module &&
+          typeof row.reference_id === "string" &&
+          row.payload &&
+          isReservationNotificationModule(row.module)
+        ) {
+          const referenceId = row.reference_id;
+          const eventPayload = row.payload;
+          const summaryKey = queryKeys.notifications.summary(restaurantId);
+          queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+            if (!prev) {
+              void queryClient.prefetchQuery({ queryKey: summaryKey });
+              return prev;
+            }
+            return patchNotificationSummaryFromReservationEvent(prev, {
+              module: row.module as NotificationModuleId,
+              referenceId,
+              payload: eventPayload,
+            });
+          });
           return;
         }
         refreshBell();
@@ -119,5 +151,5 @@ export function useNotificationBellRealtime() {
       polling.stop();
       teardown();
     };
-  }, [ready, restaurantId, polling.start, polling.stop]);
+  }, [queryClient, ready, restaurantId, polling.start, polling.stop]);
 }

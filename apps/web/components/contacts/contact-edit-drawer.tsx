@@ -45,6 +45,7 @@ import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { settingsAccentSaveButtonClassName } from "@/components/settings/settings-sticky-save-bar";
 import type { ContactCreateDraft } from "@/lib/contact-messages/draft-from-waha-chat";
 import { isInvalidContactEmailValue } from "@/lib/contacts/contact-identity-conflict";
+import { dispatchDashboardWidgetLiveFetch } from "@/lib/dashboard/dashboard-widgets-live-events";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { cn } from "@/lib/utils";
@@ -499,6 +500,9 @@ export function ContactEditDrawer({
         }
 
         savedSnapshotRef.current = currentSnapshot;
+        dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+          immediate: true,
+        });
         onSaved?.({ contactId, created: false });
         onOpenChange(false);
         return;
@@ -532,6 +536,9 @@ export function ContactEditDrawer({
               ? "Kontakt in Gwada und Lexware angelegt."
               : "Kontakt in Gwada angelegt und mit Lexware verknüpft.",
           );
+          dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+            immediate: true,
+          });
           onSaved?.({ contactId: data.contactId, created: true });
           onOpenChange(false);
         }
@@ -543,6 +550,9 @@ export function ContactEditDrawer({
       if (error) toast.error(error.message);
       else if (created?.id) {
         toast.success("Kontakt angelegt.");
+        dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+          immediate: true,
+        });
         onSaved?.({ contactId: created.id, created: true });
         onOpenChange(false);
       }

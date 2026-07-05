@@ -43,7 +43,15 @@ import type { DayHours, DateHoursException, Weekday } from "@/lib/types/restaura
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT } from "@/lib/display/display-reservations-live-events";
+import {
+  GWADA_DISPLAY_RESERVATIONS_LIVE_INSERT_EVENT,
+  GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
+  type DisplayReservationsLiveInsertDetail,
+} from "@/lib/display/display-reservations-live-events";
+import {
+  displayReservationOnDay,
+  patchDisplayDayFromReservationInsert,
+} from "@/lib/display/patch-display-reservations-live-client";
 
 type ReservationStatus = {
   id: string;
@@ -181,7 +189,20 @@ export function DisplayReservationsModule() {
 
   const loadInFlightRef = useRef(false);
   const lastSilentLoadAtRef = useRef(0);
-  const SILENT_LOAD_GAP_MS = 2_000;
+  const SILENT_LOAD_GAP_MS = 800;
+
+  const applyOptimisticReservation = useCallback(
+    (row: DisplayReservationRow) => {
+      if (!displayReservationOnDay(row, selectedDayYmd)) return;
+      setPayload((prev) => {
+        if (!prev) return prev;
+        const patched = patchDisplayDayFromReservationInsert(prev, row);
+        return { ...prev, ...patched };
+      });
+      setLoading(false);
+    },
+    [selectedDayYmd],
+  );
 
   const loadFromLive = useCallback(() => {
     const now = Date.now();
@@ -201,17 +222,33 @@ export function DisplayReservationsModule() {
   useEffect(() => {
     void load({ silent: hadLoadedRef.current });
     hadLoadedRef.current = true;
+
+    const onLiveInsert = (event: Event) => {
+      const detail = (event as CustomEvent<DisplayReservationsLiveInsertDetail>)
+        .detail;
+      if (!detail?.row) return;
+      applyOptimisticReservation(detail.row);
+    };
+
     window.addEventListener(
       GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
       loadFromLive,
+    );
+    window.addEventListener(
+      GWADA_DISPLAY_RESERVATIONS_LIVE_INSERT_EVENT,
+      onLiveInsert,
     );
     return () => {
       window.removeEventListener(
         GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
         loadFromLive,
       );
+      window.removeEventListener(
+        GWADA_DISPLAY_RESERVATIONS_LIVE_INSERT_EVENT,
+        onLiveInsert,
+      );
     };
-  }, [load, loadFromLive]);
+  }, [load, loadFromLive, applyOptimisticReservation]);
 
   const reservations = payload?.reservations ?? [];
   const statuses = payload?.statuses ?? [];
@@ -1012,7 +1049,10 @@ export function DisplayReservationsModule() {
         defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
         bookingTimeStepMinutes={bookingStep}
         nextReservationNumber={payload?.next_reservation_number ?? null}
-        onCreated={() => void load({ silent: true })}
+        onCreated={(row) => {
+          if (row) applyOptimisticReservation(row);
+          else void load({ silent: true });
+        }}
       />
 
       <DisplayReservationMessageSheet

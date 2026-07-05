@@ -12,6 +12,8 @@ import {
 } from "@/lib/reservations/auto-table-assignment";
 import type { DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { updateReservationDiningTable } from "@/lib/supabase/reservations-db";
+import { dispatchDashboardReservationUpdateLivePatch } from "@/lib/dashboard/dispatch-dashboard-reservation-save-live-client";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +36,7 @@ export function AutoAssignTablesButton({
 }: AutoAssignTablesButtonProps) {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const { restaurantId } = useWorkspaceRestaurantUuid();
 
   const preview = useMemo(
     () => previewAutoTableAssignments(reservations, tables),
@@ -87,6 +90,9 @@ export function AutoAssignTablesButton({
       toast.success(
         `${updated} Tischzuordnung${updated === 1 ? "" : "en"} aktualisiert.`,
       );
+      if (restaurantId) {
+        dispatchDashboardReservationUpdateLivePatch(restaurantId);
+      }
       onDone?.();
     } catch {
       toast.error("Automatische Verteilung fehlgeschlagen.");

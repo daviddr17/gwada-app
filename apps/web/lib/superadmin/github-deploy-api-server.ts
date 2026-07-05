@@ -115,7 +115,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
       latestRun: null,
       activeRun: null,
       message:
-        "GITHUB_DEPLOY_TOKEN in der App-Env setzen (repo + workflow scope).",
+        "GITHUB_DEPLOY_TOKEN in der App-Env setzen (repo, workflow, read:packages).",
     };
   }
 

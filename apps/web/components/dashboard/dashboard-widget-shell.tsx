@@ -115,7 +115,7 @@ export function DashboardWidgetShell({
                 : "h-9 shrink-0 gap-1 rounded-xl"
             }
             aria-label={linkLabel}
-            render={<AppNavLink href={href} prefetch={false} />}
+            render={<AppNavLink href={href} prefetch />}
           >
             {isCompact ? (
               <ChevronRight className="size-4" aria-hidden />

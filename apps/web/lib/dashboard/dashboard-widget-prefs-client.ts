@@ -167,8 +167,9 @@ export async function resolveDashboardWidgetUserAndRestaurant(): Promise<{
   }
   const supabase = createSupabaseBrowserClient();
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
   const restaurantId = await getWorkspaceRestaurantId();
   return { profileId: user?.id ?? null, restaurantId };
 }

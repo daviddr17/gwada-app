@@ -8,7 +8,10 @@ import {
   appendAuthEntryCookieCleanup,
   stripBloatedCookiesFromCookieHeader,
 } from "@/lib/cookies/bloated-request-cookies";
-import { logDashboardRscRequest } from "@/lib/observability/rsc-soft-nav-log";
+import {
+  isAppRscRequest,
+  logDashboardRscRequest,
+} from "@/lib/observability/rsc-soft-nav-log";
 import { isPublicRestaurantProfilePath } from "@/lib/restaurant/reserved-restaurant-slugs";
 import { isSuperadminAppPath } from "@/lib/superadmin/superadmin-session";
 
@@ -106,9 +109,11 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // RSC-Soft-Nav: Session aus JWT (lokal) — kein Roundtrip zu auth/v1/user pro Klick.
+  // Volle Document-Loads: getUser() zur Server-Validierung.
+  const user = isAppRscRequest(request)
+    ? (await supabase.auth.getSession()).data.session?.user ?? null
+    : (await supabase.auth.getUser()).data.user ?? null;
 
   if (isPublicPath(pathname)) {
     if (pathname.startsWith("/login") && user) {

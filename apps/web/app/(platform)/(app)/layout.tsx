@@ -8,7 +8,10 @@ import { ProfilePresenceHeartbeat } from "@/components/providers/profile-presenc
 import { WorkspaceShellProviders } from "@/components/providers/workspace-shell-providers";
 import { AccentColorProvider } from "@/lib/contexts/accent-color-context";
 import { DashboardWidgetPreferencesProvider } from "@/lib/contexts/dashboard-widget-preferences-context";
+import { RestaurantPermissionsProvider } from "@/lib/contexts/restaurant-permissions-context";
 import { RestaurantProfileProvider } from "@/lib/contexts/restaurant-profile-context";
+import { WorkspaceAuthSessionProvider } from "@/lib/contexts/workspace-auth-session-context";
+import { WorkspaceRestaurantProvider } from "@/lib/contexts/workspace-restaurant-context";
 import "../../app-calendar.css";
 
 export default function AppLayout({
@@ -19,19 +22,25 @@ export default function AppLayout({
   return (
     <WorkspaceShellProviders>
       <QueryProvider>
-        <RestaurantProfileProvider>
-          <DashboardWidgetPreferencesProvider>
-            <AccentColorProvider>
-              <SoftNavLockProvider>
-                <AuthCookieCleanupMount />
-                <DashboardBatchPrefetchMount />
-                <ProfilePresenceHeartbeat />
-                <AppModuleLiveProviders />
-                <AppShell>{children}</AppShell>
-              </SoftNavLockProvider>
-            </AccentColorProvider>
-          </DashboardWidgetPreferencesProvider>
-        </RestaurantProfileProvider>
+        <WorkspaceAuthSessionProvider>
+          <WorkspaceRestaurantProvider>
+            <RestaurantPermissionsProvider>
+              <RestaurantProfileProvider>
+                <DashboardWidgetPreferencesProvider>
+                  <AccentColorProvider>
+                    <SoftNavLockProvider>
+                      <AuthCookieCleanupMount />
+                      <DashboardBatchPrefetchMount />
+                      <ProfilePresenceHeartbeat />
+                      <AppModuleLiveProviders />
+                      <AppShell>{children}</AppShell>
+                    </SoftNavLockProvider>
+                  </AccentColorProvider>
+                </DashboardWidgetPreferencesProvider>
+              </RestaurantProfileProvider>
+            </RestaurantPermissionsProvider>
+          </WorkspaceRestaurantProvider>
+        </WorkspaceAuthSessionProvider>
       </QueryProvider>
     </WorkspaceShellProviders>
   );

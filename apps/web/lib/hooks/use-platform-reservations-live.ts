@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { dispatchDashboardReservationsRefresh } from "@/lib/dashboard/dashboard-live-events";
 import type { ReservationLiveToastFields } from "@/lib/reservations/reservation-live-toast";
 import {
@@ -8,6 +8,7 @@ import {
   showNewReservationToast,
 } from "@/lib/reservations/reservation-live-toast";
 import type { ReservationsLiveSignal } from "@/lib/reservations/reservations-live-signal";
+import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
@@ -24,8 +25,8 @@ const REALTIME_READY_TIMEOUT_MS = 12_000;
  */
 export function usePlatformReservationsLive() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
-  const [authReady, setAuthReady] = useState(false);
-  const hasUserRef = useRef(false);
+  const { user, ready: authReady } = useWorkspaceAuthSession();
+  const hasUserRef = useRef(Boolean(user));
   const toastRef = useRef(false);
   const lastSignalRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
@@ -34,19 +35,8 @@ export function usePlatformReservationsLive() {
   const polling = useVisibleIntervalPolling(PLATFORM_POLL_MS);
 
   useEffect(() => {
-    const sb = sbRef.current;
-    const {
-      data: { subscription },
-    } = sb.auth.onAuthStateChange((_event, session) => {
-      hasUserRef.current = Boolean(session?.user);
-      setAuthReady(true);
-    });
-    void sb.auth.getUser().then(({ data: { user } }) => {
-      hasUserRef.current = Boolean(user);
-      setAuthReady(true);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+    hasUserRef.current = Boolean(user);
+  }, [user]);
 
   const canReceive =
     authReady &&

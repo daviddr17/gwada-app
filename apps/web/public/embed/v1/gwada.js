@@ -54,6 +54,22 @@
       },
       available: true,
     },
+    events: {
+      title: "Events",
+      minHeight: 520,
+      path: function (slug) {
+        return "/embed/events/" + encodeURIComponent(slug);
+      },
+      available: true,
+    },
+    gallery: {
+      title: "Galerie",
+      minHeight: 520,
+      path: function (slug) {
+        return "/embed/gallery/" + encodeURIComponent(slug);
+      },
+      available: true,
+    },
     opening_hours: {
       title: "Öffnungszeiten",
       minHeight: 420,
@@ -73,21 +89,40 @@
   };
 
   var embedOrigin = null;
+  var CANONICAL_EMBED_ORIGIN = "https://gwada.app";
+  var EMBED_ORIGIN_ALIASES = {
+    "https://gwada.app": true,
+    "https://new.gwada.app": true,
+  };
   var iframesById = Object.create(null);
   var pendingHeights = Object.create(null);
   var heightTimers = Object.create(null);
+
+  function normalizeEmbedOrigin(origin) {
+    if (!origin) return null;
+    if (EMBED_ORIGIN_ALIASES[origin]) return CANONICAL_EMBED_ORIGIN;
+    return origin;
+  }
+
+  function isAllowedEmbedMessageOrigin(origin) {
+    if (!origin || !embedOrigin) return false;
+    if (origin === embedOrigin) return true;
+    return Boolean(
+      EMBED_ORIGIN_ALIASES[origin] && EMBED_ORIGIN_ALIASES[embedOrigin],
+    );
+  }
 
   function scriptOrigin() {
     var current = document.currentScript;
     if (current && current.src) {
       try {
-        return new URL(current.src).origin;
+        return normalizeEmbedOrigin(new URL(current.src).origin);
       } catch (_e) {}
     }
     var nodes = document.querySelectorAll('script[src*="/embed/v1/gwada.js"]');
     for (var i = nodes.length - 1; i >= 0; i--) {
       try {
-        return new URL(nodes[i].src).origin;
+        return normalizeEmbedOrigin(new URL(nodes[i].src).origin);
       } catch (_e2) {}
     }
     return null;
@@ -246,10 +281,7 @@
     container.appendChild(footer);
   }
 
-  function applyHeight(embedId, height, immediate) {
-    var frame = embedId
-      ? iframesById[embedId] || document.getElementById(embedId)
-      : null;
+  function applyHeightToFrame(frame, height, immediate) {
     if (!frame || frame.tagName !== "IFRAME") return;
     var px = Math.ceil(height);
     if (px <= 0) return;
@@ -266,6 +298,43 @@
     frame.style.minHeight = "0";
     frame.dataset.gwadaHeight = String(px);
     postFrameViewport(frame);
+  }
+
+  function applyHeight(embedId, height, immediate) {
+    var frame = embedId
+      ? iframesById[embedId] || document.getElementById(embedId)
+      : null;
+    applyHeightToFrame(frame, height, immediate);
+  }
+
+  function findIframeByContentWindow(source) {
+    if (!source) return null;
+    for (var id in iframesById) {
+      if (
+        Object.prototype.hasOwnProperty.call(iframesById, id) &&
+        iframesById[id].contentWindow === source
+      ) {
+        return iframesById[id];
+      }
+    }
+    var frames = document.getElementsByTagName("iframe");
+    for (var i = 0; i < frames.length; i++) {
+      if (frames[i].contentWindow === source) return frames[i];
+    }
+    return null;
+  }
+
+  function scheduleHeightFromEvent(event, height) {
+    var data = event.data;
+    if (data && data.embedId) {
+      scheduleHeight(data.embedId, height);
+      return;
+    }
+    var frame = findIframeByContentWindow(event.source);
+    if (!frame) return;
+    if (!frame.id) frame.id = randomId();
+    if (!iframesById[frame.id]) iframesById[frame.id] = frame;
+    scheduleHeight(frame.id, height);
   }
 
   function scheduleHeight(embedId, height) {
@@ -321,17 +390,17 @@
   }
 
   function onMessage(event) {
-    if (!embedOrigin || event.origin !== embedOrigin) return;
+    if (!isAllowedEmbedMessageOrigin(event.origin)) return;
     var data = event.data;
     if (!data || typeof data !== "object") return;
 
     if (data.type === MSG && data.version === VERSION) {
-      scheduleHeight(data.embedId, data.height);
+      scheduleHeightFromEvent(event, data.height);
       return;
     }
 
     if (data.type === MSG_LEGACY) {
-      scheduleHeight(data.embedId, data.height);
+      scheduleHeightFromEvent(event, data.height);
       return;
     }
 

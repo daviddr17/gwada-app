@@ -112,3 +112,11 @@ export function buildOpeningHoursEmbedSnippet(
 ): GwadaEmbedSnippet {
   return buildGwadaEmbedSnippet({ widget: "opening_hours", slug, origin });
 }
+
+/** Galerie-Widget — Fotowand auf der Restaurant-Website. */
+export function buildGalleryEmbedSnippet(
+  slug: string,
+  origin?: string,
+): GwadaEmbedSnippet {
+  return buildGwadaEmbedSnippet({ widget: "gallery", slug, origin });
+}

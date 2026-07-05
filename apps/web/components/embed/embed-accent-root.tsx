@@ -36,7 +36,7 @@ export function EmbedAccentRoot({
         textTheme === "light" && "dark",
       )}
     >
-      <div id="gwada-embed-root" className="flex w-full min-w-0 flex-col">
+      <div className="flex w-full min-w-0 flex-col">
         {children}
         {showBrandFooter ? <EmbedGwadaFooter /> : null}
       </div>

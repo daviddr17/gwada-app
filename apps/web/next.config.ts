@@ -135,6 +135,19 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/embed/v1/gwada-resize.js",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+          {
+            key: "Access-Control-Allow-Origin",
+            value: "*",
+          },
+        ],
+      },
+      {
         source: "/embed/:path*",
         headers: [
           {

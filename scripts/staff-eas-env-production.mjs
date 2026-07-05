@@ -51,6 +51,31 @@ function resolveStaffProductionValues(fileEnv) {
 }
 
 async function main() {
+  if (!process.env.EXPO_TOKEN?.trim()) {
+    const whoami = (() => {
+      try {
+        execSync("pnpm dlx eas-cli@latest whoami", {
+          cwd: STAFF_DIR,
+          stdio: "pipe",
+          encoding: "utf8",
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    })();
+    if (!whoami) {
+      console.error(
+        "EAS nicht angemeldet. Einmalig:\n" +
+          "  1. https://expo.dev/accounts/atfadi17/settings/access-tokens → Token erstellen\n" +
+          "  2. gh secret set EXPO_TOKEN --body \"<token>\"\n" +
+          "  3. gh workflow run sync-staff-eas-env-live.yml --ref main\n" +
+          "Oder lokal: eas login && pnpm staff:eas-env:production",
+      );
+      process.exit(1);
+    }
+  }
+
   const fileEnv = loadEnvFile(PROD_ENV);
   let values = resolveStaffProductionValues(fileEnv);
 

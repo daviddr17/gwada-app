@@ -36,7 +36,10 @@ jobs:
           node-version: "22"
           package-manager-cache: false
 
-      - name: Install pnpm deps (supabase-js)
+      - name: Install pnpm
+        run: bash scripts/ensure-pnpm.sh
+
+      - name: Install deps (supabase-js)
         run: pnpm install --frozen-lockfile
 
       - name: Resolve date and dry_run

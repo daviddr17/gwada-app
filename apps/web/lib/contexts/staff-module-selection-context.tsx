@@ -4,7 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import {
-  pickDefaultActiveStaffId,
+  pickStoredActiveStaffId,
   staffSelectOptionLabel,
 } from "@/lib/staff/staff-select-options";
 
@@ -68,7 +68,7 @@ export function StaffModuleSelectionProvider({
     } catch {
       /* ignore */
     }
-    const fallback = pickDefaultActiveStaffId(staffList, stored);
+    const fallback = pickStoredActiveStaffId(staffList, stored);
     if (fallback) setSelectedStaffId(fallback);
   }, [needsStaffPicker, selectedStaffId, staffList, setSelectedStaffId]);
 
@@ -76,8 +76,7 @@ export function StaffModuleSelectionProvider({
     if (!needsStaffPicker || !selectedStaffId || staffList.length === 0) return;
     const selected = staffList.find((s) => s.id === selectedStaffId);
     if (selected && !selected.is_active) {
-      const activeId = pickDefaultActiveStaffId(staffList);
-      setSelectedStaffId(activeId);
+      setSelectedStaffId(null);
     }
   }, [
     needsStaffPicker,

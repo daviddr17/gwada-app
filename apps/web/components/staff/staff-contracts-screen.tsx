@@ -26,7 +26,7 @@ import {
 } from "@/lib/staff/staff-contract-period";
 import { staffEmploymentTypeLabel } from "@/lib/staff/staff-employment-type-label";
 import { formatStaffContractPaySummary } from "@/lib/staff/staff-contract-pay";
-import { staffDisplayName } from "@/lib/types/staff";
+import { staffFamilyFirstDisplayName } from "@/lib/types/staff";
 import { StaffContractTemplatesListDrawer } from "@/components/staff/staff-contract-templates-list-drawer";
 import { StaffContractPdfDownloadButton } from "@/components/staff/staff-contract-pdf-download-button";
 import { StaffContractStatusBadge } from "@/components/staff/staff-contract-status-badge";
@@ -177,7 +177,7 @@ export function StaffContractsScreen() {
             "Verträge von "
           )}
           <span className="font-medium text-foreground">
-            {staffDisplayName(selectedStaff)}
+            {staffFamilyFirstDisplayName(selectedStaff)}
           </span>
         </p>
         <Button
@@ -270,7 +270,7 @@ export function StaffContractsScreen() {
         }}
         restaurantId={restaurantId}
         staff={selectedStaff}
-        staffName={staffDisplayName(selectedStaff)}
+        staffName={staffFamilyFirstDisplayName(selectedStaff)}
         restaurant={restaurantProfile}
         contract={editContract}
         existingContracts={contracts}

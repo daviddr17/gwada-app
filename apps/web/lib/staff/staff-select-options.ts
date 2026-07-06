@@ -1,6 +1,6 @@
 import type { SearchableSelectOption } from "@/components/ui/combobox";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
-import { staffDisplayName } from "@/lib/types/staff";
+import { staffFamilyFirstDisplayName } from "@/lib/types/staff";
 
 export type BuildStaffSelectOptionsParams = {
   /** Default true — dropdowns list only active staff. */
@@ -15,7 +15,7 @@ export function staffSelectOptionLabel(
   row: RestaurantStaffRow,
   showInactiveSuffix = true,
 ): string {
-  const name = staffDisplayName(row);
+  const name = staffFamilyFirstDisplayName(row);
   if (showInactiveSuffix && !row.is_active) return `${name} (inaktiv)`;
   return name;
 }
@@ -48,14 +48,21 @@ export function buildStaffSearchableSelectOptions(
   }));
 }
 
-/** Prefer stored/active selection; never fall back to an inactive employee. */
+/** Nur gespeicherte Auswahl wiederherstellen — kein Fallback auf ersten Mitarbeiter. */
+export function pickStoredActiveStaffId(
+  staffList: readonly RestaurantStaffRow[],
+  preferredId?: string | null,
+): string | null {
+  if (!preferredId) return null;
+  const preferred = staffList.find((s) => s.id === preferredId);
+  if (preferred?.is_active) return preferredId;
+  return null;
+}
+
+/** @deprecated Kein Auto-Fallback mehr — {@link pickStoredActiveStaffId} nutzen. */
 export function pickDefaultActiveStaffId(
   staffList: readonly RestaurantStaffRow[],
   preferredId?: string | null,
 ): string | null {
-  if (preferredId) {
-    const preferred = staffList.find((s) => s.id === preferredId);
-    if (preferred?.is_active) return preferredId;
-  }
-  return staffList.find((s) => s.is_active)?.id ?? null;
+  return pickStoredActiveStaffId(staffList, preferredId);
 }

@@ -270,6 +270,17 @@ export function staffDisplayName(row: {
   return [row.given_name, row.family_name].filter(Boolean).join(" ").trim();
 }
 
+/** Dropdown / Listen sortiert nach Nachname — Anzeige „Nachname, Vorname“. */
+export function staffFamilyFirstDisplayName(row: {
+  given_name: string;
+  family_name: string;
+}): string {
+  const family = row.family_name?.trim() ?? "";
+  const given = row.given_name?.trim() ?? "";
+  if (family && given) return `${family}, ${given}`;
+  return family || given;
+}
+
 export const STAFF_WORK_ENTRY_LABELS: Record<StaffWorkEntryType, string> = {
   work: "Arbeitszeit",
   break: "Pause",

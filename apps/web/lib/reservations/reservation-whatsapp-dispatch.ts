@@ -1,3 +1,4 @@
+import { ensureRestaurantReservationSettings } from "@/lib/reservations/reservation-settings-server";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
 import {
   buildWhatsappMessage,
@@ -154,6 +155,7 @@ export async function fetchReservationWhatsappSettings(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<ReservationWhatsappSettings | null> {
+  await ensureRestaurantReservationSettings(sb, restaurantId);
   const { data, error } = await sb
     .from("restaurant_reservation_settings")
     .select(SETTINGS_SELECT)

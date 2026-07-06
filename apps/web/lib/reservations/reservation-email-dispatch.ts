@@ -1,3 +1,4 @@
+import { ensureRestaurantReservationSettings } from "@/lib/reservations/reservation-settings-server";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
 import {
   buildEmailMessage,
@@ -232,6 +233,7 @@ export async function fetchReservationEmailSettings(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<ReservationEmailSettings | null> {
+  await ensureRestaurantReservationSettings(sb, restaurantId);
   const { data, error } = await sb
     .from("restaurant_reservation_settings")
     .select(SETTINGS_SELECT)

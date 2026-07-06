@@ -12,10 +12,19 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { Plus } from "lucide-react";
+import { Plus, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 import { DataExportSheet } from "@/components/export/data-export-sheet";
 import { Button } from "@/components/ui/button";
+import {
+  AppFullscreenOverlay,
+  appFullscreenOverlayScrollClassName,
+} from "@/components/ui/app-fullscreen-overlay";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ShiftPlanCopyDialog } from "@/components/staff/shift-plan/shift-plan-copy-dialog";
 import { ShiftPlanGrid, ShiftPlanMonthView } from "@/components/staff/shift-plan/shift-plan-grid";
@@ -79,6 +88,7 @@ import {
 } from "@/lib/staff/shift-plan-absence";
 import { computeShiftPlanPeriodSummary } from "@/lib/staff/shift-plan-period-summary";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { moduleTableFullscreenToggleButtonClassName } from "@/lib/ui/module-paginated-data-table";
 import { cn } from "@/lib/utils";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -130,6 +140,7 @@ export function StaffShiftPlanScreen({
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [copyOpen, setCopyOpen] = useState(false);
+  const [planFullscreen, setPlanFullscreen] = useState(false);
   const [staffDrawerOpen, setStaffDrawerOpen] = useState(false);
   const [editStaffMember, setEditStaffMember] =
     useState<RestaurantStaffRow | null>(null);
@@ -635,6 +646,8 @@ export function StaffShiftPlanScreen({
     [templates],
   );
 
+  const closePlanFullscreen = useCallback(() => setPlanFullscreen(false), []);
+
   const activeDragShift =
     activeDragId?.startsWith("shift-")
       ? shifts.find((s) => `shift-${s.id}` === activeDragId) ?? null
@@ -662,51 +675,144 @@ export function StaffShiftPlanScreen({
 
   const editable = !personalMode;
   const referenceDay = days[0] ?? anchor;
+  const periodTitle = formatViewTitleDe(anchor, view);
+
+  const shiftPlanToolbar = (showExpandFullscreen: boolean) =>
+    !personalMode ? (
+      <ShiftPlanToolbar
+        view={view}
+        onViewChange={setView}
+        anchor={anchor}
+        onPrev={() => setAnchor((a) => navigateAnchor(a, view, -1))}
+        onNext={() => setAnchor((a) => navigateAnchor(a, view, 1))}
+        onToday={() => setAnchor(new Date())}
+        positionFilter={positionFilter}
+        onPositionFilterChange={setPositionFilter}
+        positionTags={positionTags.items}
+        staffFilter={staffFilter}
+        onStaffFilterChange={setStaffFilter}
+        staffOptions={staffOptions}
+        sortKey={sortKey}
+        onSortKeyChange={setSortKey}
+        onCopy={() => setCopyOpen(true)}
+        onExport={() => setExportOpen(true)}
+        onSettings={() => setSettingsOpen(true)}
+        onExpandFullscreen={
+          showExpandFullscreen ? () => setPlanFullscreen(true) : undefined
+        }
+      />
+    ) : (
+      <ShiftPlanToolbar
+        view={view}
+        onViewChange={setView}
+        anchor={anchor}
+        onPrev={() => setAnchor((a) => navigateAnchor(a, view, -1))}
+        onNext={() => setAnchor((a) => navigateAnchor(a, view, 1))}
+        onToday={() => setAnchor(new Date())}
+        positionFilter="all"
+        onPositionFilterChange={() => {}}
+        positionTags={[]}
+        staffFilter="all"
+        onStaffFilterChange={() => {}}
+        staffOptions={[]}
+        sortKey={sortKey}
+        onSortKeyChange={setSortKey}
+        onCopy={() => {}}
+        onExport={() => setExportOpen(true)}
+        onSettings={() => {}}
+        management={false}
+        onExpandFullscreen={
+          showExpandFullscreen ? () => setPlanFullscreen(true) : undefined
+        }
+      />
+    );
+
+  const shiftPlanBody = (
+    <div
+      className={cn(
+        "space-y-4 transition-opacity duration-200 ease-out",
+        rangeFetching && "pointer-events-none opacity-60",
+      )}
+      aria-busy={rangeFetching}
+    >
+      <div className="space-y-2">
+        <ShiftPlanPeriodSummaryBar summary={periodSummary} />
+        {editable ? (
+          <>
+            <Button
+              type="button"
+              size="lg"
+              className={modulePrimaryAddButtonFullWidthClassName}
+              onClick={() => openNew()}
+            >
+              <Plus className="size-4" />
+              Schicht
+            </Button>
+            <ShiftPlanSearchField value={search} onChange={setSearch} />
+          </>
+        ) : null}
+      </div>
+
+      {editable ? (
+        <ShiftPlanTemplatePalette
+          templates={templates}
+          referenceDay={referenceDay}
+          onCreateTemplate={openCreateTemplate}
+          onEditTemplate={openEditTemplate}
+        />
+      ) : null}
+
+      {view === "month" ? (
+        <ShiftPlanMonthView
+          days={days}
+          staffRows={filteredStaff}
+          positionTags={positionTags.items}
+          shifts={visibleShifts}
+          absenceEntries={visibleAbsences}
+          holidaysByDate={holidaysByDate}
+          weatherByDate={weatherByDate}
+          contracts={contracts}
+          targetSummaryDays={targetSummaryDays}
+          viewMode={view}
+          onAddShift={openNew}
+          onEditShift={openEdit}
+          onDeleteShift={openDeleteShift}
+          onDeleteAbsence={openDeleteAbsence}
+          onStaffClick={editable ? openStaffMember : undefined}
+          editable={editable}
+        />
+      ) : (
+        <ShiftPlanGrid
+          days={days}
+          staffRows={filteredStaff}
+          positionTags={positionTags.items}
+          shifts={visibleShifts}
+          absenceEntries={visibleAbsences}
+          holidaysByDate={holidaysByDate}
+          weatherByDate={weatherByDate}
+          contracts={contracts}
+          targetSummaryDays={targetSummaryDays}
+          viewMode={view}
+          hoursSummaryDayKeys={
+            view === "week" ? anchorWeekDays.map(localDayKey) : undefined
+          }
+          onPrevWeek={() => setAnchor((a) => navigateAnchor(a, view, -1))}
+          onNextWeek={() => setAnchor((a) => navigateAnchor(a, view, 1))}
+          periodNav={view === "week" ? "week" : "day"}
+          onAddShift={openNew}
+          onEditShift={openEdit}
+          onDeleteShift={openDeleteShift}
+          onDeleteAbsence={openDeleteAbsence}
+          onStaffClick={editable ? openStaffMember : undefined}
+          editable={editable}
+        />
+      )}
+    </div>
+  );
 
   return (
     <div className="space-y-4">
-      {!personalMode ? (
-        <ShiftPlanToolbar
-          view={view}
-          onViewChange={setView}
-          anchor={anchor}
-          onPrev={() => setAnchor((a) => navigateAnchor(a, view, -1))}
-          onNext={() => setAnchor((a) => navigateAnchor(a, view, 1))}
-          onToday={() => setAnchor(new Date())}
-          positionFilter={positionFilter}
-          onPositionFilterChange={setPositionFilter}
-          positionTags={positionTags.items}
-          staffFilter={staffFilter}
-          onStaffFilterChange={setStaffFilter}
-          staffOptions={staffOptions}
-          sortKey={sortKey}
-          onSortKeyChange={setSortKey}
-          onCopy={() => setCopyOpen(true)}
-          onExport={() => setExportOpen(true)}
-          onSettings={() => setSettingsOpen(true)}
-        />
-      ) : (
-        <ShiftPlanToolbar
-          view={view}
-          onViewChange={setView}
-          anchor={anchor}
-          onPrev={() => setAnchor((a) => navigateAnchor(a, view, -1))}
-          onNext={() => setAnchor((a) => navigateAnchor(a, view, 1))}
-          onToday={() => setAnchor(new Date())}
-          positionFilter="all"
-          onPositionFilterChange={() => {}}
-          positionTags={[]}
-          staffFilter="all"
-          onStaffFilterChange={() => {}}
-          staffOptions={[]}
-          sortKey={sortKey}
-          onSortKeyChange={setSortKey}
-          onCopy={() => {}}
-          onExport={() => setExportOpen(true)}
-          onSettings={() => {}}
-          management={false}
-        />
-      )}
+      {!planFullscreen ? shiftPlanToolbar(true) : null}
 
       <DndContext
         sensors={sensors}
@@ -714,87 +820,51 @@ export function StaffShiftPlanScreen({
         onDragStart={handleDragStart}
         onDragEnd={(e) => void handleDragEnd(e)}
       >
-        <div
-          className={cn(
-            "space-y-4 transition-opacity duration-200 ease-out",
-            rangeFetching && "pointer-events-none opacity-60",
-          )}
-          aria-busy={rangeFetching}
+        {!planFullscreen ? shiftPlanBody : null}
+
+        <AppFullscreenOverlay
+          open={planFullscreen}
+          onClose={closePlanFullscreen}
+          aria-label="Schichtplan"
+          header={
+            <div className="flex flex-col gap-3 px-4 py-3">
+              <div className="flex w-full items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    Schichtplan
+                  </p>
+                  <p className="truncate text-sm text-muted-foreground tabular-nums">
+                    {periodTitle}
+                  </p>
+                </div>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className={moduleTableFullscreenToggleButtonClassName}
+                        onClick={closePlanFullscreen}
+                        aria-label="Vollbild schließen"
+                      />
+                    }
+                  >
+                    <Minimize2 className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Vollbild schließen</TooltipContent>
+                </Tooltip>
+              </div>
+              {shiftPlanToolbar(false)}
+            </div>
+          }
         >
-          <div className="space-y-2">
-            <ShiftPlanPeriodSummaryBar summary={periodSummary} />
-            {editable ? (
-              <>
-                <Button
-                  type="button"
-                  size="lg"
-                  className={modulePrimaryAddButtonFullWidthClassName}
-                  onClick={() => openNew()}
-                >
-                  <Plus className="size-4" />
-                  Schicht
-                </Button>
-                <ShiftPlanSearchField value={search} onChange={setSearch} />
-              </>
-            ) : null}
-          </div>
-
-          {editable ? (
-            <ShiftPlanTemplatePalette
-              templates={templates}
-              referenceDay={referenceDay}
-              onCreateTemplate={openCreateTemplate}
-              onEditTemplate={openEditTemplate}
-            />
+          {planFullscreen ? (
+            <div className={cn(appFullscreenOverlayScrollClassName, "px-4 pb-4")}>
+              {shiftPlanBody}
+            </div>
           ) : null}
-
-          {view === "month" ? (
-            <ShiftPlanMonthView
-              days={days}
-              staffRows={filteredStaff}
-              positionTags={positionTags.items}
-              shifts={visibleShifts}
-              absenceEntries={visibleAbsences}
-              holidaysByDate={holidaysByDate}
-              weatherByDate={weatherByDate}
-              contracts={contracts}
-              targetSummaryDays={targetSummaryDays}
-              viewMode={view}
-              onAddShift={openNew}
-              onEditShift={openEdit}
-              onDeleteShift={openDeleteShift}
-              onDeleteAbsence={openDeleteAbsence}
-              onStaffClick={editable ? openStaffMember : undefined}
-              editable={editable}
-            />
-          ) : (
-            <ShiftPlanGrid
-              days={days}
-              staffRows={filteredStaff}
-              positionTags={positionTags.items}
-              shifts={visibleShifts}
-              absenceEntries={visibleAbsences}
-              holidaysByDate={holidaysByDate}
-              weatherByDate={weatherByDate}
-              contracts={contracts}
-              targetSummaryDays={targetSummaryDays}
-              viewMode={view}
-              hoursSummaryDayKeys={
-                view === "week" ? anchorWeekDays.map(localDayKey) : undefined
-              }
-              onPrevWeek={() => setAnchor((a) => navigateAnchor(a, view, -1))}
-              onNextWeek={() => setAnchor((a) => navigateAnchor(a, view, 1))}
-              periodNav={view === "week" ? "week" : "day"}
-              onAddShift={openNew}
-              onEditShift={openEdit}
-              onDeleteShift={openDeleteShift}
-              onDeleteAbsence={openDeleteAbsence}
-              onStaffClick={editable ? openStaffMember : undefined}
-              editable={editable}
-            />
-          )}
-
-        </div>
+        </AppFullscreenOverlay>
 
         <DragOverlay dropAnimation={null}>
           {activeDragShift ? (

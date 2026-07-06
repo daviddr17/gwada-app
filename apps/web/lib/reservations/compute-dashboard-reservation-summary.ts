@@ -18,8 +18,13 @@ export type DashboardReservationSummary = {
   weekReservations: number;
   weekGuests: number;
   avgPartySizeWeek: number | null;
-  recent: DashboardReservationRecent[];
+  /** Unbestätigte Reservierungen (Widget-Tab Standard). */
+  unconfirmedList: DashboardReservationRecent[];
+  /** Heutige Reservierungen (Widget-Tab „Heute“). */
+  todayList: DashboardReservationRecent[];
 };
+
+const DASHBOARD_RESERVATION_LIST_LIMIT = 4;
 
 function statusCode(row: ReservationListRow): string {
   return row.reservation_statuses?.code ?? "";
@@ -37,6 +42,33 @@ function dayKeyFromIso(iso: string): string {
 function countsTowardGuestTotals(row: ReservationListRow): boolean {
   const code = statusCode(row);
   return code !== "cancelled" && code !== "declined" && code !== "no_show";
+}
+
+function toRecentRow(row: ReservationListRow): DashboardReservationRecent {
+  const guestLabel =
+    `${row.guest_first_name} ${row.guest_last_name}`.trim() || "Gast";
+  return {
+    id: row.id,
+    guestLabel,
+    startsAt: row.starts_at,
+    partySize: row.party_size,
+    statusName: row.reservation_statuses?.name ?? "—",
+    href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
+    unconfirmed: isUnconfirmedReservation(row),
+  };
+}
+
+function buildRecentList(
+  rows: ReservationListRow[],
+  limit = DASHBOARD_RESERVATION_LIST_LIMIT,
+): DashboardReservationRecent[] {
+  return [...rows]
+    .sort(
+      (a, b) =>
+        new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+    )
+    .slice(0, limit)
+    .map(toRecentRow);
 }
 
 export function computeDashboardReservationSummary(
@@ -69,28 +101,17 @@ export function computeDashboardReservationSummary(
       ? Math.round((weekGuests / weekReservations) * 10) / 10
       : null;
 
-  const nowMs = today.getTime();
-  const recent = [...upcomingRows]
-    .filter(countsTowardGuestTotals)
-    .filter((row) => new Date(row.starts_at).getTime() >= nowMs)
-    .sort(
-      (a, b) =>
-        new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-    )
-    .slice(0, 4)
-    .map((row) => {
-      const guestLabel =
-        `${row.guest_first_name} ${row.guest_last_name}`.trim() || "Gast";
-      return {
-        id: row.id,
-        guestLabel,
-        startsAt: row.starts_at,
-        partySize: row.party_size,
-        statusName: row.reservation_statuses?.name ?? "—",
-        href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
-        unconfirmed: isUnconfirmedReservation(row),
-      };
-    });
+  const unconfirmedList = buildRecentList(
+    upcomingRows.filter(isUnconfirmedReservation),
+  );
+
+  const todayList = buildRecentList(
+    weekRows.filter(
+      (row) =>
+        countsTowardGuestTotals(row) &&
+        dayKeyFromIso(row.starts_at) === todayKey,
+    ),
+  );
 
   return {
     unconfirmedCount,
@@ -99,6 +120,7 @@ export function computeDashboardReservationSummary(
     weekReservations,
     weekGuests,
     avgPartySizeWeek,
-    recent,
+    unconfirmedList,
+    todayList,
   };
 }

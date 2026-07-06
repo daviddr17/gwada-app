@@ -130,23 +130,41 @@ export function patchDashboardReservationSummaryFromInsert(
   }
 
   const nowMs = today.getTime();
-  if (counts && new Date(insert.starts_at).getTime() >= nowMs) {
-    const guestLabel =
-      `${insert.guest_first_name ?? ""} ${insert.guest_last_name ?? ""}`.trim() ||
-      "Gast";
-    const recentEntry = {
-      id: insert.id,
-      guestLabel,
-      startsAt: insert.starts_at,
-      partySize: insert.party_size,
-      statusName: insert.statusName,
-      href: `/dashboard/reservierungen/uebersicht?reservation=${insert.id}`,
-      unconfirmed: isUnconfirmedReservation(rowLike),
-    };
-    const withoutDup = next.recent.filter((r) => r.id !== insert.id);
+  const guestLabel =
+    `${insert.guest_first_name ?? ""} ${insert.guest_last_name ?? ""}`.trim() ||
+    "Gast";
+  const recentEntry = {
+    id: insert.id,
+    guestLabel,
+    startsAt: insert.starts_at,
+    partySize: insert.party_size,
+    statusName: insert.statusName,
+    href: `/dashboard/reservierungen/uebersicht?reservation=${insert.id}`,
+    unconfirmed: isUnconfirmedReservation(rowLike),
+  };
+
+  if (isUnconfirmedReservation(rowLike)) {
+    const withoutDup = next.unconfirmedList.filter((r) => r.id !== insert.id);
     next = {
       ...next,
-      recent: [recentEntry, ...withoutDup]
+      unconfirmedList: [recentEntry, ...withoutDup]
+        .sort(
+          (a, b) =>
+            new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+        )
+        .slice(0, 4),
+    };
+  }
+
+  if (
+    counts &&
+    inWeek &&
+    dayKeyFromIso(insert.starts_at) === todayKey
+  ) {
+    const withoutDup = next.todayList.filter((r) => r.id !== insert.id);
+    next = {
+      ...next,
+      todayList: [recentEntry, ...withoutDup]
         .sort(
           (a, b) =>
             new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),

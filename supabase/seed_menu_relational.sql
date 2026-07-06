@@ -11,12 +11,17 @@ begin
     return;
   end if;
 
-  insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active) values
-    ('b1000000-0000-4000-8000-000000000001', rid, 'Vorspeisen', 0, true),
-    ('b1000000-0000-4000-8000-000000000002', rid, 'Hauptgerichte', 1, true),
-    ('b1000000-0000-4000-8000-000000000003', rid, 'Beilagen', 2, true),
-    ('b1000000-0000-4000-8000-000000000004', rid, 'Desserts', 3, true),
-    ('b1000000-0000-4000-8000-000000000005', rid, 'Getränke', 4, true)
+  insert into public.menu_main_categories (id, restaurant_id, name, sort_order, is_active) values
+    ('a1000000-0000-4000-8000-000000000001', rid, 'Speisen', 0, true),
+    ('a1000000-0000-4000-8000-000000000002', rid, 'Getränke', 1, true)
+  on conflict (id) do nothing;
+
+  insert into public.menu_categories (id, restaurant_id, name, sort_order, is_active, main_category_id) values
+    ('b1000000-0000-4000-8000-000000000001', rid, 'Vorspeisen', 0, true, 'a1000000-0000-4000-8000-000000000001'),
+    ('b1000000-0000-4000-8000-000000000002', rid, 'Hauptgerichte', 1, true, 'a1000000-0000-4000-8000-000000000001'),
+    ('b1000000-0000-4000-8000-000000000003', rid, 'Beilagen', 2, true, 'a1000000-0000-4000-8000-000000000001'),
+    ('b1000000-0000-4000-8000-000000000004', rid, 'Desserts', 3, true, 'a1000000-0000-4000-8000-000000000001'),
+    ('b1000000-0000-4000-8000-000000000005', rid, 'Getränke', 4, true, 'a1000000-0000-4000-8000-000000000002')
   on conflict (id) do nothing;
 
   insert into public.menu_tags (id, restaurant_id, name, background_color, sort_order, is_active) values

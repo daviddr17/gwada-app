@@ -18,6 +18,7 @@ export type RestaurantRealtimeTable =
   | "inventory_purchase_orders"
   | "menu_items"
   | "menu_categories"
+  | "menu_main_categories"
   | "contacts"
   | "restaurant_integrations";
 

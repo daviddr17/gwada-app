@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CATEGORY_STORAGE_KEY } from "@/lib/constants/categories";
+import { CATEGORY_STORAGE_KEY, DEFAULT_CATEGORIES } from "@/lib/constants/categories";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import {
   getModuleCacheGcTime,
@@ -38,6 +38,8 @@ function normalizeCategory(c: MenuCategoryDefinition): MenuCategoryDefinition {
   return {
     ...c,
     active: c.active !== false,
+    mainCategoryId:
+      c.mainCategoryId ?? DEFAULT_CATEGORIES[0]?.mainCategoryId ?? "",
   };
 }
 
@@ -45,6 +47,9 @@ function isValidCategoryLoose(x: unknown): x is MenuCategoryDefinition {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
   if (typeof o.id !== "string" || typeof o.name !== "string" || !o.name.trim()) {
+    return false;
+  }
+  if (typeof o.mainCategoryId !== "string" && o.mainCategoryId !== undefined) {
     return false;
   }
   if (o.active !== undefined && typeof o.active !== "boolean") return false;
@@ -158,6 +163,7 @@ export function useCategoriesStorage() {
     async (
       name: string,
       active = true,
+      mainCategoryId?: string,
     ): Promise<{ id: string; name: string } | null> => {
       const trimmed = name.trim();
       if (!trimmed) return null;
@@ -167,7 +173,19 @@ export function useCategoriesStorage() {
           failSave();
           return null;
         }
-        const ins = await insertMenuCategory(rid, trimmed, active);
+        const resolvedMainId =
+          mainCategoryId ??
+          categories.find((c) => c.mainCategoryId)?.mainCategoryId;
+        if (!resolvedMainId) {
+          failSave();
+          return null;
+        }
+        const ins = await insertMenuCategory(
+          rid,
+          trimmed,
+          active,
+          resolvedMainId,
+        );
         if (!ins) {
           failSave();
           return null;
@@ -176,6 +194,7 @@ export function useCategoriesStorage() {
           id: ins.id,
           name: trimmed,
           active: active !== false,
+          mainCategoryId: resolvedMainId,
         };
         patchCategoriesCache((prev) => [...prev, normalizeCategory(row)]);
         afterCategoryMutation();
@@ -186,7 +205,15 @@ export function useCategoriesStorage() {
         setLocalCategories((prev) => {
           const rollback = prev;
           const id = crypto.randomUUID();
-          const next = [...prev, { id, name: trimmed, active }];
+          const resolvedMainId =
+            mainCategoryId ??
+            prev.find((c) => c.mainCategoryId)?.mainCategoryId ??
+            DEFAULT_CATEGORIES[0]?.mainCategoryId ??
+            crypto.randomUUID();
+          const next = [
+            ...prev,
+            { id, name: trimmed, active, mainCategoryId: resolvedMainId },
+          ];
           const cleaned = next.map(normalizeCategory);
           const ok = mirrorWorkspaceJsonLocal(CATEGORY_STORAGE_KEY, cleaned);
           if (!ok) {
@@ -201,16 +228,24 @@ export function useCategoriesStorage() {
         });
       });
     },
-    [afterCategoryMutation, failSave, patchCategoriesCache, useDbMenu],
+    [afterCategoryMutation, categories, failSave, patchCategoriesCache, useDbMenu],
   );
 
   const updateCategory = useCallback(
-    (id: string, updates: { name?: string; active?: boolean }) => {
+    (
+      id: string,
+      updates: {
+        name?: string;
+        active?: boolean;
+        mainCategoryId?: string;
+      },
+    ) => {
       if (useDbMenu) {
         void (async () => {
           const ok = await updateMenuCategoryRow(id, {
             name: updates.name,
             active: updates.active,
+            mainCategoryId: updates.mainCategoryId,
           });
           if (!ok) {
             failSave();

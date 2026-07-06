@@ -28,6 +28,7 @@ type WidgetSubscription = {
 const WIDGET_SUBSCRIPTIONS: WidgetSubscription[] = [
   { widget: "menu", table: "menu_items" },
   { widget: "menu", table: "menu_categories" },
+  { widget: "menu", table: "menu_main_categories" },
   { widget: "contacts", table: "contacts" },
   { widget: "inventory", table: "inventory_ingredients" },
   { widget: "inventory", table: "inventory_purchase_orders" },

@@ -17,9 +17,11 @@ import {
 import {
   insertMenuCategory,
   insertMenuItemRelational,
+  insertMenuMainCategory,
   insertMenuTaxonomyRow,
   loadMenuCategoriesRelational,
   loadMenuItemsRelational,
+  loadMenuMainCategoriesRelational,
   loadMenuTaxonomyRelational,
 } from "@/lib/supabase/menu-db";
 import {
@@ -30,7 +32,7 @@ import {
 } from "@/lib/supabase/inventory-db";
 import { upsertUserRestaurantDashboardWidgets } from "@/lib/supabase/user-restaurant-dashboard-widgets";
 import { readLegacyRestaurantAppStatePayload } from "@/lib/supabase/legacy-restaurant-app-state";
-import type { MenuCategoryDefinition, MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
+import type { MenuCategoryDefinition, MenuItem, MenuMainCategoryDefinition, MenuTaxonomyDefinition } from "@/lib/types/menu";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { PurchaseOrder, PurchaseOrdersPersistenceV1 } from "@/lib/types/purchase-order";
 
@@ -57,12 +59,35 @@ export async function migrateMenuItemsFromLegacyAppStateIfEmpty(
   }
 }
 
+export async function migrateMenuMainCategoriesIfEmpty(
+  restaurantId: string,
+  fallback: MenuMainCategoryDefinition[],
+): Promise<void> {
+  const existing = await loadMenuMainCategoriesRelational(restaurantId);
+  if (existing && existing.length > 0) return;
+
+  for (const row of fallback) {
+    if (typeof row.name !== "string") continue;
+    await insertMenuMainCategory(restaurantId, row.name, row.active !== false);
+  }
+}
+
 export async function migrateMenuCategoriesFromLegacyAppStateIfEmpty(
   restaurantId: string,
   fallback: MenuCategoryDefinition[],
 ): Promise<void> {
-  const existing = await loadMenuCategoriesRelational();
+  const existing = await loadMenuCategoriesRelational(restaurantId);
   if (existing && existing.length > 0) return;
+
+  const mainRows = await loadMenuMainCategoriesRelational(restaurantId);
+  const defaultMainId =
+    mainRows?.find((m) => m.name === "Speisen")?.id ??
+    mainRows?.[0]?.id ??
+    fallback[0]?.mainCategoryId;
+  const beverageMainId =
+    mainRows?.find((m) => m.name === "Getränke")?.id ??
+    mainRows?.[1]?.id ??
+    defaultMainId;
 
   const legacyRaw = await readLegacyRestaurantAppStatePayload(CATEGORY_STORAGE_KEY);
   const legacy =
@@ -72,7 +97,21 @@ export async function migrateMenuCategoriesFromLegacyAppStateIfEmpty(
 
   for (const cat of legacy) {
     if (typeof cat.id !== "string" || typeof cat.name !== "string") continue;
-    await insertMenuCategory(restaurantId, cat.name, cat.active !== false);
+    const nameLower = cat.name.trim().toLowerCase();
+    const mainCategoryId =
+      cat.mainCategoryId ??
+      (nameLower.includes("getränk") ||
+      nameLower.includes("drink") ||
+      nameLower === "boissons"
+        ? beverageMainId
+        : defaultMainId);
+    if (!mainCategoryId) continue;
+    await insertMenuCategory(
+      restaurantId,
+      cat.name,
+      cat.active !== false,
+      mainCategoryId,
+    );
   }
 }
 

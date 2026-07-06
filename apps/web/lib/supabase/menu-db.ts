@@ -6,6 +6,7 @@ import {
 import type {
   MenuCategoryDefinition,
   MenuItem,
+  MenuMainCategoryDefinition,
   MenuTaxonomyDefinition,
 } from "@/lib/types/menu";
 
@@ -55,6 +56,111 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
   };
 }
 
+export async function loadMenuMainCategoriesRelational(
+  restaurantId?: string | null,
+): Promise<MenuMainCategoryDefinition[] | null> {
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+  if (!rid) return null;
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("menu_main_categories")
+    .select("id,name,is_active,sort_order")
+    .eq("restaurant_id", rid)
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.warn("[gwada] menu_main_categories", error.message);
+    return null;
+  }
+  if (!data?.length) return [];
+  return data.map((r) => ({
+    id: r.id as string,
+    name: r.name as string,
+    active: r.is_active as boolean,
+  }));
+}
+
+export async function insertMenuMainCategory(
+  restaurantId: string,
+  name: string,
+  active: boolean,
+): Promise<{ id: string } | null> {
+  const supabase = createSupabaseBrowserClient();
+  const { data: last } = await supabase
+    .from("menu_main_categories")
+    .select("sort_order")
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const sortOrder = (last?.sort_order ?? -1) + 1;
+  const { data, error } = await supabase
+    .from("menu_main_categories")
+    .insert({
+      restaurant_id: restaurantId,
+      name,
+      is_active: active,
+      sort_order: sortOrder,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    console.warn("[gwada] insert menu_main_categories", error?.message);
+    return null;
+  }
+  return { id: data.id as string };
+}
+
+export async function updateMenuMainCategoryRow(
+  id: string,
+  updates: { name?: string; active?: boolean },
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const patch: Record<string, unknown> = {};
+  if (updates.name !== undefined) patch.name = updates.name.trim();
+  if (updates.active !== undefined) patch.is_active = updates.active;
+  if (Object.keys(patch).length === 0) return true;
+  const { error } = await supabase
+    .from("menu_main_categories")
+    .update(patch)
+    .eq("id", id);
+  if (error) {
+    console.warn("[gwada] update menu_main_categories", error.message);
+    return false;
+  }
+  return true;
+}
+
+export async function reorderMenuMainCategoryRows(
+  orderedIds: string[],
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from("menu_main_categories")
+      .update({ sort_order: i })
+      .eq("id", orderedIds[i]);
+    if (error) {
+      console.warn("[gwada] reorder menu_main_categories", error.message);
+      return false;
+    }
+  }
+  return true;
+}
+
+export async function deleteMenuMainCategory(
+  id: string,
+): Promise<"ok" | "in_use" | "error"> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("menu_main_categories")
+    .delete()
+    .eq("id", id);
+  if (!error) return "ok";
+  if (error.code === "23503") return "in_use";
+  console.warn("[gwada] delete menu_main_categories", error.message);
+  return "error";
+}
+
 export async function loadMenuCategoriesRelational(
   restaurantId?: string | null,
 ): Promise<
@@ -65,7 +171,7 @@ export async function loadMenuCategoriesRelational(
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase
     .from("menu_categories")
-    .select("id,name,is_active,sort_order")
+    .select("id,name,is_active,sort_order,main_category_id")
     .eq("restaurant_id", rid)
     .order("sort_order", { ascending: true });
   if (error) {
@@ -77,6 +183,7 @@ export async function loadMenuCategoriesRelational(
     id: r.id as string,
     name: r.name as string,
     active: r.is_active as boolean,
+    mainCategoryId: r.main_category_id as string,
   }));
 }
 
@@ -84,6 +191,7 @@ export async function insertMenuCategory(
   restaurantId: string,
   name: string,
   active: boolean,
+  mainCategoryId: string,
 ): Promise<{ id: string } | null> {
   const supabase = createSupabaseBrowserClient();
   const { data: last } = await supabase
@@ -101,6 +209,7 @@ export async function insertMenuCategory(
       name,
       is_active: active,
       sort_order: sortOrder,
+      main_category_id: mainCategoryId,
     })
     .select("id")
     .single();
@@ -113,12 +222,15 @@ export async function insertMenuCategory(
 
 export async function updateMenuCategoryRow(
   id: string,
-  updates: { name?: string; active?: boolean },
+  updates: { name?: string; active?: boolean; mainCategoryId?: string },
 ): Promise<boolean> {
   const supabase = createSupabaseBrowserClient();
   const patch: Record<string, unknown> = {};
   if (updates.name !== undefined) patch.name = updates.name.trim();
   if (updates.active !== undefined) patch.is_active = updates.active;
+  if (updates.mainCategoryId !== undefined) {
+    patch.main_category_id = updates.mainCategoryId;
+  }
   if (Object.keys(patch).length === 0) return true;
   const { error } = await supabase.from("menu_categories").update(patch).eq("id", id);
   if (error) {

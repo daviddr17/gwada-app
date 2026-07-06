@@ -867,6 +867,7 @@ function ProfileAppContent({
               restaurantName={menu.name}
               accentHex={menu.accentHex}
               currencyCode={menu.currencyCode}
+              mainCategories={menu.mainCategories}
               categories={menu.categories}
               items={menu.items}
               tagDefinitions={menu.tagDefinitions}

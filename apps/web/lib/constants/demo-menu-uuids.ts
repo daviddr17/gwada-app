@@ -2,6 +2,11 @@
  * Stable UUIDs for demo restaurant menu seed (Postgres seed.sql + local mock fallback).
  * Keep in sync with `supabase/seed.sql` menu section.
  */
+export const DEMO_MENU_MAIN_CATEGORY_IDS = {
+  food: "a1000000-0000-4000-8000-000000000001",
+  beverage: "a1000000-0000-4000-8000-000000000002",
+} as const;
+
 export const DEMO_MENU_CATEGORY_IDS = {
   starters: "b1000000-0000-4000-8000-000000000001",
   mains: "b1000000-0000-4000-8000-000000000002",

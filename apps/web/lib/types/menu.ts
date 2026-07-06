@@ -13,9 +13,21 @@ export type MenuTag = string;
 /** Kategorie-ID (Standard-IDs wie `starters` oder UUID für neue). */
 export type MenuCategoryId = string;
 
+/** Hauptkategorie-ID (Speisen, Getränke, …). */
+export type MenuMainCategoryId = string;
+
+export interface MenuMainCategoryDefinition {
+  id: MenuMainCategoryId;
+  name: string;
+  /** false = in der Leiste ausgeblendet. Standard: aktiv. */
+  active?: boolean;
+}
+
 export interface MenuCategoryDefinition {
   id: MenuCategoryId;
   name: string;
+  /** Zugehörige Hauptkategorie (Speisen / Getränke / …). */
+  mainCategoryId?: MenuMainCategoryId;
   /** false = in der Karte ausgeblendet (Redaktion). Standard: aktiv. */
   active?: boolean;
 }

@@ -16,7 +16,7 @@ export async function loadDashboardMenuSummaryServer(
       .eq("restaurant_id", restaurantId),
     sb
       .from("menu_categories")
-      .select("id, name, is_active")
+      .select("id, name, is_active, main_category_id")
       .eq("restaurant_id", restaurantId)
       .order("sort_order", { ascending: true }),
   ]);
@@ -25,6 +25,7 @@ export async function loadDashboardMenuSummaryServer(
     id: r.id as string,
     name: r.name as string,
     active: (r.is_active as boolean) !== false,
+    mainCategoryId: r.main_category_id as string,
   }));
 
   const items: MenuItem[] = (itemRows ?? []).map((r) => ({

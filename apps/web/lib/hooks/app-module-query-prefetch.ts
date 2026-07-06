@@ -10,6 +10,10 @@ import {
   peekMenuCategoriesCache,
 } from "@/lib/menu/menu-categories-query";
 import {
+  fetchMenuMainCategoriesForRestaurant,
+  peekMenuMainCategoriesCache,
+} from "@/lib/menu/menu-main-categories-query";
+import {
   fetchMenuItemsForRestaurant,
   peekMenuItemsCache,
 } from "@/lib/menu/menu-items-query";
@@ -38,6 +42,15 @@ export function menuItemsPrefetchOptions(restaurantId: string) {
   return {
     queryKey: queryKeys.menu.items(restaurantId),
     queryFn: fetchMenuItemsForRestaurant,
+    staleTime: getModuleCacheStaleTime("menuModule") ?? 60_000,
+    gcTime: getModuleCacheGcTime("menuModule") ?? 5 * 60_000,
+  };
+}
+
+export function menuMainCategoriesPrefetchOptions(restaurantId: string) {
+  return {
+    queryKey: queryKeys.menu.mainCategories(restaurantId),
+    queryFn: fetchMenuMainCategoriesForRestaurant,
     staleTime: getModuleCacheStaleTime("menuModule") ?? 60_000,
     gcTime: getModuleCacheGcTime("menuModule") ?? 5 * 60_000,
   };
@@ -82,6 +95,7 @@ export function prefetchAppModuleQueryCaches(
   restaurantId: string,
 ): void {
   void queryClient.prefetchQuery(menuItemsPrefetchOptions(restaurantId));
+  void queryClient.prefetchQuery(menuMainCategoriesPrefetchOptions(restaurantId));
   void queryClient.prefetchQuery(menuCategoriesPrefetchOptions(restaurantId));
   void queryClient.prefetchQuery(inventoryIngredientsPrefetchOptions(restaurantId));
   void queryClient.prefetchQuery(notificationSummaryPrefetchOptions(restaurantId));
@@ -91,6 +105,7 @@ export function peekAppModuleWarmCachesReady(restaurantId: string): boolean {
   const monthRange = currentMonthReservationRange();
   return Boolean(
     peekMenuItemsCache()?.length ||
+      peekMenuMainCategoriesCache()?.length ||
       peekMenuCategoriesCache()?.length ||
       peekUnifiedInboxCache(restaurantId)?.length ||
       peekEventsFeedCache(restaurantId)?.items.length ||

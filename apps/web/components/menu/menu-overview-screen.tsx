@@ -561,17 +561,6 @@ export function MenuOverviewScreen() {
           <div className="flex items-center gap-1 rounded-full border border-border/50 bg-muted/35 p-1">
             <Button
               type="button"
-              variant={showCards ? "secondary" : "ghost"}
-              size="icon-sm"
-              className="rounded-full"
-              aria-pressed={showCards}
-              aria-label="Karten mit Bild"
-              onClick={() => setViewMode("cards")}
-            >
-              <LayoutGrid className="size-4" />
-            </Button>
-            <Button
-              type="button"
               variant={!showCards ? "secondary" : "ghost"}
               size="icon-sm"
               className="rounded-full"
@@ -580,6 +569,17 @@ export function MenuOverviewScreen() {
               onClick={() => setViewMode("compact")}
             >
               <Table2 className="size-4" />
+            </Button>
+            <Button
+              type="button"
+              variant={showCards ? "secondary" : "ghost"}
+              size="icon-sm"
+              className="rounded-full"
+              aria-pressed={showCards}
+              aria-label="Karten mit Bild"
+              onClick={() => setViewMode("cards")}
+            >
+              <LayoutGrid className="size-4" />
             </Button>
           </div>
           <div className="relative shrink-0">

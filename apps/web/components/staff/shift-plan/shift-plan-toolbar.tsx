@@ -7,6 +7,7 @@ import {
   Copy,
   Download,
   Filter,
+  Maximize2,
   Settings2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,12 @@ import {
   ShiftPlanFilterDrawer,
 } from "@/components/staff/shift-plan/shift-plan-filter-drawer";
 import { cn } from "@/lib/utils";
+import { moduleTableFullscreenToggleButtonClassName } from "@/lib/ui/module-paginated-data-table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   type ShiftScheduleSortKey,
   type ShiftScheduleViewMode,
@@ -42,6 +49,7 @@ type ShiftPlanToolbarProps = {
   onExport: () => void;
   onSettings: () => void;
   management?: boolean;
+  onExpandFullscreen?: () => void;
 };
 
 export function ShiftPlanToolbar({
@@ -63,6 +71,7 @@ export function ShiftPlanToolbar({
   onExport,
   onSettings,
   management = true,
+  onExpandFullscreen,
 }: ShiftPlanToolbarProps) {
   const [filterOpen, setFilterOpen] = useState(false);
 
@@ -161,6 +170,25 @@ export function ShiftPlanToolbar({
           >
             <Download className="size-4" />
           </Button>
+          {onExpandFullscreen ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className={moduleTableFullscreenToggleButtonClassName}
+                    onClick={onExpandFullscreen}
+                    aria-label="Schichtplan im Vollbild anzeigen"
+                  />
+                }
+              >
+                <Maximize2 className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent side="top">Vollbild</TooltipContent>
+            </Tooltip>
+          ) : null}
         </div>
       </div>
 

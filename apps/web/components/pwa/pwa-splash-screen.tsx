@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import type { PwaSplashAppId } from "@/lib/pwa/pwa-splash-state";
 import {
   PWA_SPLASH_LOGO_PX,
   PWA_SPLASH_EXIT_EASE,
@@ -10,20 +11,27 @@ import {
 export type PwaSplashPhase = "hold" | "spin" | "exit" | "done";
 
 type PwaSplashScreenProps = {
+  app: PwaSplashAppId;
   iconSrc: string;
   phase: PwaSplashPhase;
   className?: string;
 };
 
 /** Vollbild-Splash — gleiche Logo-Größe in allen Phasen (kein Sprung beim Drehen). */
-export function PwaSplashScreen({ iconSrc, phase, className }: PwaSplashScreenProps) {
+export function PwaSplashScreen({
+  app,
+  iconSrc,
+  phase,
+  className,
+}: PwaSplashScreenProps) {
   if (phase === "done") return null;
 
   return (
     <div
+      data-pwa-splash-app={app}
       className={cn(
-        "dashboard-pwa-splash fixed inset-0 z-[99999] flex items-center justify-center",
-        phase === "exit" && "dashboard-pwa-splash--exit",
+        "pwa-splash fixed inset-0 z-[99999] flex items-center justify-center",
+        phase === "exit" && "pwa-splash--exit",
         className,
       )}
       style={
@@ -37,8 +45,8 @@ export function PwaSplashScreen({ iconSrc, phase, className }: PwaSplashScreenPr
     >
       <div
         className={cn(
-          "dashboard-pwa-splash__logo-wrap flex items-center justify-center",
-          phase === "spin" && "dashboard-pwa-splash--spin",
+          "pwa-splash__logo-wrap flex items-center justify-center",
+          phase === "spin" && "pwa-splash--spin",
         )}
         style={{ width: PWA_SPLASH_LOGO_PX, height: PWA_SPLASH_LOGO_PX }}
       >
@@ -51,7 +59,7 @@ export function PwaSplashScreen({ iconSrc, phase, className }: PwaSplashScreenPr
           decoding="sync"
           fetchPriority="high"
           draggable={false}
-          className="dashboard-pwa-splash__logo size-full object-contain select-none"
+          className="pwa-splash__logo size-full object-contain select-none"
         />
       </div>
     </div>

@@ -7,12 +7,19 @@ export function isStandalonePwaClient(): boolean {
   );
 }
 
-export const DASHBOARD_PWA_SPLASH_DONE_ATTR = "data-dashboard-pwa-splash";
+export {
+  clearPwaSplashDone as clearDashboardPwaSplashDone,
+  markPwaSplashDone as markDashboardPwaSplashDone,
+  pwaSplashDoneAttr,
+} from "@/lib/pwa/pwa-splash-state";
 
-export function markDashboardPwaSplashDone(): void {
-  document.documentElement.setAttribute(DASHBOARD_PWA_SPLASH_DONE_ATTR, "done");
+export const DASHBOARD_PWA_SPLASH_DONE_ATTR = "data-dashboard-pwa-splash";
+export const DISPLAY_PWA_SPLASH_DONE_ATTR = "data-display-pwa-splash";
+
+export function markDisplayPwaSplashDone(): void {
+  document.documentElement.setAttribute(DISPLAY_PWA_SPLASH_DONE_ATTR, "done");
 }
 
-export function clearDashboardPwaSplashDone(): void {
-  document.documentElement.removeAttribute(DASHBOARD_PWA_SPLASH_DONE_ATTR);
+export function clearDisplayPwaSplashDone(): void {
+  document.documentElement.removeAttribute(DISPLAY_PWA_SPLASH_DONE_ATTR);
 }

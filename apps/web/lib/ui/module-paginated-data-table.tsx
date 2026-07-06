@@ -210,7 +210,10 @@ export function ModulePaginatedDataTable({
           <ModuleTableHorizontalScrollRegion
             className={moduleTableFullscreenBodyScrollClassName}
           >
-            <div className={moduleDataTableFullscreenShellClassName}>
+            <div
+              className={moduleDataTableFullscreenShellClassName}
+              data-module-table-fullscreen
+            >
               {children}
             </div>
           </ModuleTableHorizontalScrollRegion>
@@ -350,7 +353,12 @@ export function ModuleDataTableFrame({
           <ModuleTableHorizontalScrollRegion
             className={moduleTableFullscreenBodyScrollClassName}
           >
-            <div className={moduleDataTableFullscreenShellClassName}>{children}</div>
+            <div
+              className={moduleDataTableFullscreenShellClassName}
+              data-module-table-fullscreen
+            >
+              {children}
+            </div>
           </ModuleTableHorizontalScrollRegion>
         ) : null}
       </AppFullscreenOverlay>

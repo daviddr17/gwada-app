@@ -1,7 +1,7 @@
 {
-  "title": "Heute: leere Aufmerksamkeit",
-  "body": "- **Dashboard → Heute:** Unter **Aufmerksamkeit** steht **Keine Auffälligkeiten**, wenn dort nichts ansteht",
-  "superadminBody": "- **UI:** `dashboard-heute-tile.tsx` — Leerzustand unabhängig von Modul-Kombination\n- **Keine Migration**",
+  "title": "Speisekarte: Tabellenansicht Standard",
+  "body": "- **Speisekarte:** Beim Öffnen standardmäßig **kompakte Tabelle** — Karten mit Bild weiterhin per Umschalter oben links",
+  "superadminBody": "- **Default:** `useMenuViewMode` → `compact`; gespeicherte Präferenz unverändert\n- **Keine Migration**",
   "audience": "customers",
-  "version": "2026.07.06.6"
+  "version": "2026.07.06.7"
 }

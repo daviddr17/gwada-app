@@ -36,6 +36,7 @@ import {
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
 import { ReservationChangeRequestPanel } from "@/components/reservations/reservation-change-request-panel";
 import { ReservationCreatedHint } from "@/components/reservations/reservation-created-hint";
+import { ReservationProtocolSection } from "@/components/reservations/reservation-protocol-section";
 import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
 import {
   Select,
@@ -95,6 +96,11 @@ import {
   type TableAssignmentCheck,
 } from "@/lib/reservations/reservation-table-conflicts";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
+import {
+  logReservationCreateFromBrowser,
+  logReservationDeleteFromBrowser,
+  logReservationUpdateFromBrowser,
+} from "@/lib/reservations/reservation-log-client";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
@@ -180,6 +186,7 @@ export function ReservationEditDrawer({
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
   const [guestMessage, setGuestMessage] = useState("");
+  const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
 
   /** Wenn ein Modal (Löschen / Tisch teilen) offen ist, unterdrückt Vaul fälschlich `onOpenChange(false)` — außer nach explizitem Schließen. */
   const allowDrawerCloseRef = useRef(false);
@@ -503,6 +510,13 @@ export function ReservationEditDrawer({
         toast.error(error.message);
         return;
       }
+      void logReservationUpdateFromBrowser({
+        reservation,
+        payload,
+        statuses,
+        tables,
+      });
+      setProtocolRefreshKey((k) => k + 1);
       toast.success("Reservierung gespeichert.");
       const dispatchEvent = reservationStatusDispatchEvent(
         initialStatusCodeRef.current,
@@ -542,6 +556,18 @@ export function ReservationEditDrawer({
       if (error) {
         toast.error(error.message);
         return;
+      }
+      if (created) {
+        void logReservationCreateFromBrowser({
+          restaurantId: createFor.restaurantId,
+          reservationId: created.id,
+          reservationNumber: created.reservation_number,
+          guestFirstName: payload.guest_first_name,
+          guestLastName: payload.guest_last_name,
+          payload,
+          statuses,
+          tables,
+        });
       }
       toast.success(
         created
@@ -619,6 +645,7 @@ export function ReservationEditDrawer({
       toast.error(error.message);
       return;
     }
+    void logReservationDeleteFromBrowser(reservation);
     toast.success("Reservierung gelöscht.");
     allowDrawerCloseRef.current = true;
     setConfirmDeleteOpen(false);
@@ -699,7 +726,10 @@ export function ReservationEditDrawer({
                 <ReservationChangeRequestPanel
                   reservation={reservation}
                   restaurantId={reservation.restaurant_id}
-                  onResolved={onSaved}
+                  onResolved={() => {
+                    setProtocolRefreshKey((k) => k + 1);
+                    onSaved();
+                  }}
                 />
               ) : null}
               <DrawerFormSection title="Termin & Status">
@@ -947,6 +977,16 @@ export function ReservationEditDrawer({
                   defaultSendWhatsapp={notifyWhatsapp}
                   defaultSendEmail={notifyEmail}
                 />
+                </DrawerFormSection>
+              ) : null}
+
+              {isEdit && reservation ? (
+                <DrawerFormSection title="Protokoll">
+                  <ReservationProtocolSection
+                    restaurantId={reservation.restaurant_id}
+                    reservationId={reservation.id}
+                    refreshKey={protocolRefreshKey}
+                  />
                 </DrawerFormSection>
               ) : null}
 

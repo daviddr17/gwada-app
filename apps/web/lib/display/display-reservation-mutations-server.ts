@@ -1,11 +1,21 @@
 import "server-only";
 
 import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
+import {
+  buildReservationLogChanges,
+  buildReservationLogDetails,
+  reservationSnapshotFromPayload,
+} from "@/lib/reservations/reservation-log-build";
+import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
+import { formatDiningTableLabel } from "@/lib/supabase/dining-floor-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  formatReservationGuestLabel,
+} from "@/lib/types/reservation-log";
 
 export type DisplayCreateReservationInput = {
   guest_first_name: string;
@@ -58,6 +68,49 @@ export async function createDisplayReservation(
     return { ok: false, error: error?.message ?? "create_failed" };
   }
 
+  const guestFirst = input.guest_first_name.trim() || "Gast";
+  const guestLast = input.guest_last_name.trim();
+  const { data: statusRow } = await admin
+    .from("reservation_statuses")
+    .select("name")
+    .eq("id", input.status_id)
+    .maybeSingle();
+  let tableLabel = "Kein Tisch";
+  if (input.dining_table_id) {
+    const { data: tableRow } = await admin
+      .from("dining_tables")
+      .select("table_number, table_name")
+      .eq("id", input.dining_table_id)
+      .maybeSingle();
+    if (tableRow) {
+      tableLabel = formatDiningTableLabel({
+        table_number: tableRow.table_number as number,
+        table_name: (tableRow.table_name as string | null) ?? null,
+      });
+    }
+  }
+  const after = reservationSnapshotFromPayload(
+    input,
+    (statusRow?.name as string | undefined) ?? "—",
+    tableLabel,
+  );
+  await insertReservationLogEntry(admin, {
+    restaurantId,
+    reservationId: data.id as string,
+    actorUserId: null,
+    action: "created",
+    reservationNumber: data.reservation_number as number,
+    guestLabel: formatReservationGuestLabel(
+      data.reservation_number as number,
+      guestFirst,
+      guestLast,
+    ),
+    details: buildReservationLogDetails(
+      buildReservationLogChanges(null, after),
+      { actorSource: "display", summary: "Über Display angelegt" },
+    ),
+  });
+
   const guestMessage = input.guest_message?.trim();
   const contactId = (data.contact_id as string | null) ?? null;
   if (guestMessage && contactId) {
@@ -103,9 +156,12 @@ export async function updateDisplayReservationStatus(
       `
       id,
       restaurant_id,
+      reservation_number,
+      guest_first_name,
+      guest_last_name,
       notify_email,
       notify_whatsapp,
-      ${RESERVATION_STATUS_EMBED} ( code )
+      ${RESERVATION_STATUS_EMBED} ( code, name )
     `,
     )
     .eq("id", reservationId)
@@ -117,19 +173,25 @@ export async function updateDisplayReservationStatus(
 
   const statusRaw = (reservation as Record<string, unknown>).reservation_statuses;
   const statusOne = Array.isArray(statusRaw) ? statusRaw[0] : statusRaw;
-  const previousCode =
-    statusOne && typeof statusOne === "object" && "code" in statusOne
-      ? String((statusOne as { code: string }).code)
-      : null;
+  const previousName =
+    statusOne && typeof statusOne === "object" && "name" in statusOne
+      ? String((statusOne as { name: string }).name)
+      : "—";
 
   const { data: newStatus } = await admin
     .from("reservation_statuses")
-    .select("code")
+    .select("code, name")
     .eq("id", statusId)
     .maybeSingle();
 
   const newCode = (newStatus?.code as string | undefined) ?? "";
-  const dispatchEvent = reservationStatusDispatchEvent(previousCode, newCode);
+  const newName = (newStatus?.name as string | undefined) ?? "—";
+  const dispatchEvent = reservationStatusDispatchEvent(
+    statusOne && typeof statusOne === "object" && "code" in statusOne
+      ? String((statusOne as { code: string }).code)
+      : null,
+    newCode,
+  );
 
   const { error } = await admin
     .from("reservations")
@@ -138,6 +200,25 @@ export async function updateDisplayReservationStatus(
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  if (previousName !== newName) {
+    await insertReservationLogEntry(admin, {
+      restaurantId,
+      reservationId,
+      actorUserId: null,
+      action: "updated",
+      reservationNumber: reservation.reservation_number as number,
+      guestLabel: formatReservationGuestLabel(
+        reservation.reservation_number as number,
+        reservation.guest_first_name as string,
+        reservation.guest_last_name as string,
+      ),
+      details: buildReservationLogDetails([], {
+        actorSource: "display",
+        summary: `Status: „${previousName}“ → „${newName}“`,
+      }),
+    });
   }
 
   if (dispatchEvent && reservation.notify_whatsapp) {
@@ -182,9 +263,20 @@ export async function updateDisplayReservation(
       `
       id,
       restaurant_id,
+      reservation_number,
+      guest_first_name,
+      guest_last_name,
+      guest_phone,
+      guest_email,
+      party_size,
+      starts_at,
+      ends_at,
+      dwell_minutes,
+      dining_table_id,
       notify_email,
       notify_whatsapp,
-      ${RESERVATION_STATUS_EMBED} ( code )
+      terms_accepted,
+      ${RESERVATION_STATUS_EMBED} ( code, name )
     `,
     )
     .eq("id", reservationId)
@@ -200,14 +292,19 @@ export async function updateDisplayReservation(
     statusOne && typeof statusOne === "object" && "code" in statusOne
       ? String((statusOne as { code: string }).code)
       : null;
+  const previousStatusName =
+    statusOne && typeof statusOne === "object" && "name" in statusOne
+      ? String((statusOne as { name: string }).name)
+      : "—";
 
   const { data: newStatus } = await admin
     .from("reservation_statuses")
-    .select("code")
+    .select("code, name")
     .eq("id", input.status_id)
     .maybeSingle();
 
   const newCode = (newStatus?.code as string | undefined) ?? "";
+  const newStatusName = (newStatus?.name as string | undefined) ?? "—";
   if (
     input.dining_table_id &&
     newCode !== "confirmed" &&
@@ -215,6 +312,35 @@ export async function updateDisplayReservation(
   ) {
     return { ok: false, error: "table_requires_confirmed" };
   }
+
+  const beforeTableId = (reservation.dining_table_id as string | null) ?? null;
+  const beforeTableLabel = await resolveTableLabel(admin, beforeTableId);
+  const afterTableLabel = await resolveTableLabel(admin, input.dining_table_id);
+
+  const before = reservationSnapshotFromPayload(
+    {
+      guest_first_name: reservation.guest_first_name as string,
+      guest_last_name: reservation.guest_last_name as string,
+      guest_phone: (reservation.guest_phone as string | null) ?? null,
+      guest_email: (reservation.guest_email as string | null) ?? null,
+      party_size: reservation.party_size as number,
+      starts_at: reservation.starts_at as string,
+      ends_at: reservation.ends_at as string,
+      status_id: input.status_id,
+      dining_table_id: beforeTableId,
+      dwell_minutes: (reservation.dwell_minutes as number | null) ?? null,
+      notify_email: Boolean(reservation.notify_email),
+      notify_whatsapp: Boolean(reservation.notify_whatsapp),
+      terms_accepted: Boolean(reservation.terms_accepted),
+    },
+    previousStatusName,
+    beforeTableLabel,
+  );
+  const after = reservationSnapshotFromPayload(
+    input,
+    newStatusName,
+    afterTableLabel,
+  );
 
   const dispatchEvent = reservationStatusDispatchEvent(previousCode, newCode);
 
@@ -239,6 +365,23 @@ export async function updateDisplayReservation(
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  const changes = buildReservationLogChanges(before, after);
+  if (changes.length > 0) {
+    await insertReservationLogEntry(admin, {
+      restaurantId,
+      reservationId,
+      actorUserId: null,
+      action: "updated",
+      reservationNumber: reservation.reservation_number as number,
+      guestLabel: formatReservationGuestLabel(
+        reservation.reservation_number as number,
+        input.guest_first_name,
+        input.guest_last_name,
+      ),
+      details: buildReservationLogDetails(changes, { actorSource: "display" }),
+    });
   }
 
   const notifyWhatsapp = input.notify_whatsapp;
@@ -266,13 +409,21 @@ export async function updateDisplayReservationTable(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: reservation } = await admin
     .from("reservations")
-    .select("id, restaurant_id, status_id")
+    .select(
+      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name, dining_table_id, status_id",
+    )
     .eq("id", reservationId)
     .maybeSingle();
 
   if (!reservation || reservation.restaurant_id !== restaurantId) {
     return { ok: false, error: "not_found" };
   }
+
+  const beforeTableLabel = await resolveTableLabel(
+    admin,
+    (reservation.dining_table_id as string | null) ?? null,
+  );
+  const afterTableLabel = await resolveTableLabel(admin, diningTableId);
 
   const { data: statusRow } = await admin
     .from("reservation_statuses")
@@ -297,7 +448,43 @@ export async function updateDisplayReservationTable(
     return { ok: false, error: error.message };
   }
 
+  if (beforeTableLabel !== afterTableLabel) {
+    await insertReservationLogEntry(admin, {
+      restaurantId,
+      reservationId,
+      actorUserId: null,
+      action: "updated",
+      reservationNumber: reservation.reservation_number as number,
+      guestLabel: formatReservationGuestLabel(
+        reservation.reservation_number as number,
+        reservation.guest_first_name as string,
+        reservation.guest_last_name as string,
+      ),
+      details: buildReservationLogDetails([], {
+        actorSource: "display",
+        summary: `Tisch: „${beforeTableLabel}“ → „${afterTableLabel}“`,
+      }),
+    });
+  }
+
   return { ok: true };
+}
+
+async function resolveTableLabel(
+  admin: SupabaseClient,
+  tableId: string | null,
+): Promise<string> {
+  if (!tableId) return "Kein Tisch";
+  const { data: tableRow } = await admin
+    .from("dining_tables")
+    .select("table_number, table_name")
+    .eq("id", tableId)
+    .maybeSingle();
+  if (!tableRow) return "—";
+  return formatDiningTableLabel({
+    table_number: tableRow.table_number as number,
+    table_name: (tableRow.table_name as string | null) ?? null,
+  });
 }
 
 export async function applyDisplayAutoTableAssignments(

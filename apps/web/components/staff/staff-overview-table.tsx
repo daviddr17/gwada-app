@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import {
   countStaffOverviewActiveFilters,
   StaffOverviewFilterDrawer,
-  type StaffOverviewStatusFilter,
+  STAFF_OVERVIEW_FILTER_DEFAULTS,
+  type StaffOverviewFilterState,
 } from "@/components/staff/staff-overview-filter-drawer";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
@@ -16,8 +17,14 @@ import {
   LIST_PAGE_SIZE_DEFAULT,
   totalPagesFromCount,
 } from "@/lib/constants/list-pagination";
-import type { RestaurantStaffRow } from "@/lib/types/staff";
+import type {
+  RestaurantStaffContractRow,
+  RestaurantStaffRow,
+  StaffEmploymentTypeDefinition,
+  StaffPositionTagDefinition,
+} from "@/lib/types/staff";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
+import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
 import { cn } from "@/lib/utils";
 import {
   moduleDataTableHeadCellClassName,
@@ -30,6 +37,14 @@ import {
   ModuleTableIconActionsColumnHeader,
 } from "@/lib/ui/module-table-icon-tooltip";
 import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
+import {
+  moduleSearchFieldWrapClassName,
+  moduleSearchFilterActiveBadgeClassName,
+  moduleSearchFilterButtonClassName,
+  moduleSearchFilterButtonWrapClassName,
+  moduleSearchFilterRowClassName,
+  moduleSearchInputClassName,
+} from "@/lib/ui/module-search-filter-toolbar";
 
 type StaffSortKey =
   | "lastName"
@@ -88,10 +103,87 @@ function SortHeader({
   );
 }
 
+function applyStaffOverviewFilters(
+  rows: RestaurantStaffRow[],
+  filters: StaffOverviewFilterState,
+  workingIds: Set<string>,
+  breakIds: Set<string>,
+  contracts: RestaurantStaffContractRow[],
+  dayDate: string,
+  search: string,
+): RestaurantStaffRow[] {
+  let list = [...rows];
+
+  if (filters.statusFilter === "active") {
+    list = list.filter((r) => r.is_active);
+  } else if (filters.statusFilter === "inactive") {
+    list = list.filter((r) => !r.is_active);
+  }
+
+  if (filters.positionFilter === "__none__") {
+    list = list.filter((r) => !r.position_tag_id);
+  } else if (filters.positionFilter !== "all") {
+    list = list.filter((r) => r.position_tag_id === filters.positionFilter);
+  }
+
+  if (filters.appFilter === "linked") {
+    list = list.filter((r) => Boolean(r.profile_id));
+  } else if (filters.appFilter === "unlinked") {
+    list = list.filter((r) => !r.profile_id);
+  }
+
+  if (filters.presenceFilter === "working") {
+    list = list.filter((r) => workingIds.has(r.id));
+  } else if (filters.presenceFilter === "on_break") {
+    list = list.filter((r) => breakIds.has(r.id));
+  } else if (filters.presenceFilter === "off") {
+    list = list.filter((r) => !workingIds.has(r.id) && !breakIds.has(r.id));
+  }
+
+  if (filters.roleFilter === "__none__") {
+    list = list.filter((r) => !r.restaurant_position_id);
+  } else if (filters.roleFilter !== "all") {
+    list = list.filter((r) => r.restaurant_position_id === filters.roleFilter);
+  }
+
+  if (filters.employmentFilter !== "all") {
+    list = list.filter((r) => {
+      const contract = findStaffContractForDay(contracts, r.id, dayDate);
+      if (filters.employmentFilter === "__none__") {
+        return !contract?.employment_type_id;
+      }
+      return contract?.employment_type_id === filters.employmentFilter;
+    });
+  }
+
+  const q = search.trim().toLowerCase();
+  if (q) {
+    list = list.filter((r) => {
+      const hay = [
+        r.family_name,
+        r.given_name,
+        r.email ?? "",
+        r.phone ?? "",
+        r.position_tag?.name ?? "",
+        r.restaurant_position?.name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  return list;
+}
+
 type StaffOverviewTableProps = {
   rows: RestaurantStaffRow[];
   workingIds: Set<string>;
   breakIds: Set<string>;
+  positionTags: StaffPositionTagDefinition[];
+  contracts: RestaurantStaffContractRow[];
+  employmentTypes: StaffEmploymentTypeDefinition[];
+  dayDate: string;
   onEdit: (row: RestaurantStaffRow) => void;
 };
 
@@ -99,14 +191,37 @@ export function StaffOverviewTable({
   rows,
   workingIds,
   breakIds,
+  positionTags,
+  contracts,
+  employmentTypes,
+  dayDate,
   onEdit,
 }: StaffOverviewTableProps) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StaffOverviewStatusFilter>("active");
+  const [filters, setFilters] = useState<StaffOverviewFilterState>(
+    STAFF_OVERVIEW_FILTER_DEFAULTS,
+  );
   const [filterOpen, setFilterOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<StaffSortKey>("lastName");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const roleOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const row of rows) {
+      if (row.restaurant_position) {
+        byId.set(row.restaurant_position.id, row.restaurant_position.name);
+      }
+    }
+    const options = [...byId.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+    return [
+      { value: "all", label: "Alle Rollen" },
+      ...options,
+      { value: "__none__", label: "Ohne Rolle" },
+    ];
+  }, [rows]);
 
   const toggleSort = (key: StaffSortKey) => {
     if (sortKey !== key) {
@@ -118,30 +233,15 @@ export function StaffOverviewTable({
   };
 
   const filteredSorted = useMemo(() => {
-    let list = [...rows];
-    const q = search.trim().toLowerCase();
-    const searching = q.length > 0;
-
-    if (!searching) {
-      if (statusFilter === "active") {
-        list = list.filter((r) => r.is_active);
-      } else if (statusFilter === "inactive") {
-        list = list.filter((r) => !r.is_active);
-      }
-    } else {
-      list = list.filter((r) => {
-        const hay = [
-          r.family_name,
-          r.given_name,
-          r.email ?? "",
-          r.phone ?? "",
-          r.position_tag?.name ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        return hay.includes(q);
-      });
-    }
+    const list = applyStaffOverviewFilters(
+      rows,
+      filters,
+      workingIds,
+      breakIds,
+      contracts,
+      dayDate,
+      search,
+    );
 
     const dir = sortDir === "asc" ? 1 : -1;
     list.sort((a, b) => {
@@ -178,9 +278,19 @@ export function StaffOverviewTable({
       }
     });
     return list;
-  }, [rows, search, statusFilter, sortKey, sortDir]);
+  }, [
+    rows,
+    search,
+    filters,
+    sortKey,
+    sortDir,
+    workingIds,
+    breakIds,
+    contracts,
+    dayDate,
+  ]);
 
-  const activeFilterCount = countStaffOverviewActiveFilters({ statusFilter });
+  const activeFilterCount = countStaffOverviewActiveFilters(filters);
 
   const totalCount = filteredSorted.length;
   const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
@@ -193,51 +303,63 @@ export function StaffOverviewTable({
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter]);
+  }, [search, filters]);
+
+  const emptyMessage = useMemo(() => {
+    if (rows.length === 0) return "Noch keine Mitarbeiter angelegt.";
+    if (search.trim()) return "Keine Treffer für die Suche.";
+    if (activeFilterCount > 0) return "Keine Mitarbeiter für die aktiven Filter.";
+    return "Keine Mitarbeiter.";
+  }, [rows.length, search, activeFilterCount]);
 
   return (
     <>
-      <div className="border-b border-border/50 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <div className="relative min-w-0 flex-1 max-w-md">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Nachname, Vorname, E-Mail, Telefon, Position …"
-              className="h-10 rounded-xl pl-9"
-              aria-label="Mitarbeiter durchsuchen"
-            />
-          </div>
+      <div className={cn("mb-4", moduleSearchFilterRowClassName)}>
+        <div className={moduleSearchFieldWrapClassName}>
+          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Nachname, Vorname, E-Mail, Telefon, Position …"
+            className={moduleSearchInputClassName}
+            aria-label="Mitarbeiter durchsuchen"
+          />
+        </div>
+        <div className={moduleSearchFilterButtonWrapClassName}>
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
-            className="relative shrink-0 rounded-full border-border/60"
+            size="icon-lg"
+            className={moduleSearchFilterButtonClassName}
             aria-label="Filter"
             onClick={() => setFilterOpen(true)}
           >
             <Filter className="size-4" />
-            {activeFilterCount > 0 ? (
-              <Badge
-                variant="default"
-                className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full p-0 text-[10px]"
-              >
-                {activeFilterCount}
-              </Badge>
-            ) : null}
           </Button>
+          {activeFilterCount > 0 ? (
+            <Badge
+              variant="secondary"
+              className={moduleSearchFilterActiveBadgeClassName}
+            >
+              {activeFilterCount}
+            </Badge>
+          ) : null}
         </div>
       </div>
+
       <StaffOverviewFilterDrawer
         open={filterOpen}
         onOpenChange={setFilterOpen}
-        statusFilter={statusFilter}
-        onStatusFilterChange={(value) => {
-          setStatusFilter(value);
+        filters={filters}
+        onFiltersChange={(patch) => {
+          setFilters((prev) => ({ ...prev, ...patch }));
           setPage(1);
         }}
+        positionTags={positionTags}
+        roleOptions={roleOptions}
+        employmentTypes={employmentTypes}
       />
+
       <ModulePaginatedDataTable
         page={currentPage}
         totalPages={totalPages}
@@ -249,7 +371,7 @@ export function StaffOverviewTable({
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
       >
-          <table className="w-full min-w-[52rem] text-left text-sm">
+        <table className="w-full min-w-[52rem] text-left text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowClassName}>
               <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
@@ -388,15 +510,7 @@ export function StaffOverviewTable({
           </tbody>
         </table>
         {filteredSorted.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            {rows.length === 0
-              ? "Noch keine Mitarbeiter angelegt."
-              : search.trim()
-                ? "Keine Treffer für die Suche."
-                : statusFilter === "inactive"
-                  ? "Keine inaktiven Mitarbeiter."
-                  : "Keine Mitarbeiter für den aktiven Filter."}
-          </p>
+          <p className="py-8 text-center text-sm text-muted-foreground">{emptyMessage}</p>
         ) : null}
       </ModulePaginatedDataTable>
     </>

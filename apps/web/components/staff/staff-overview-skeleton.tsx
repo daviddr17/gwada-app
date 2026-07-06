@@ -41,23 +41,19 @@ export function StaffOverviewTableSkeleton({
   ...props
 }: ComponentProps<"div">) {
   return (
-    <ModuleDataTableSkeletonFrame
-      aria-label="Mitarbeiter werden geladen"
-      className={className}
-      {...props}
-    >
-      <div className="border-b border-border/50 px-4 py-3">
-        <Skeleton className="h-10 max-w-md rounded-xl" />
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[52rem] text-sm">
-          <ModuleDataTableHeadSkeleton columnCount={TABLE_COLS} />
-          <ModuleDataTableBodySkeleton
-            columnCount={TABLE_COLS}
-            rowCount={TABLE_ROWS}
-          />
-        </table>
-      </div>
-    </ModuleDataTableSkeletonFrame>
+    <div className={cn("space-y-4", className)} {...props}>
+      <Skeleton className="h-11 w-full rounded-2xl" aria-hidden />
+      <ModuleDataTableSkeletonFrame aria-label="Mitarbeiter werden geladen">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[52rem] text-sm">
+            <ModuleDataTableHeadSkeleton columnCount={TABLE_COLS} />
+            <ModuleDataTableBodySkeleton
+              columnCount={TABLE_COLS}
+              rowCount={TABLE_ROWS}
+            />
+          </table>
+        </div>
+      </ModuleDataTableSkeletonFrame>
+    </div>
   );
 }

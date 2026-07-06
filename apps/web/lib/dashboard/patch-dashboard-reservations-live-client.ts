@@ -22,6 +22,9 @@ const DEFAULT_PENDING_STATUS: ReservationStatusJoin = {
   color_hex: "#eab308",
 };
 
+const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 4;
+const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
+
 function localDayKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
@@ -129,7 +132,6 @@ export function patchDashboardReservationSummaryFromInsert(
     };
   }
 
-  const nowMs = today.getTime();
   const guestLabel =
     `${insert.guest_first_name ?? ""} ${insert.guest_last_name ?? ""}`.trim() ||
     "Gast";
@@ -152,15 +154,11 @@ export function patchDashboardReservationSummaryFromInsert(
           (a, b) =>
             new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
         )
-        .slice(0, 4),
+        .slice(0, DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT),
     };
   }
 
-  if (
-    counts &&
-    inWeek &&
-    dayKeyFromIso(insert.starts_at) === todayKey
-  ) {
+  if (counts && inWeek && dayKeyFromIso(insert.starts_at) === todayKey) {
     const withoutDup = next.todayList.filter((r) => r.id !== insert.id);
     next = {
       ...next,
@@ -169,7 +167,7 @@ export function patchDashboardReservationSummaryFromInsert(
           (a, b) =>
             new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
         )
-        .slice(0, 4),
+        .slice(0, DASHBOARD_RESERVATION_TODAY_LIMIT),
     };
   }
 

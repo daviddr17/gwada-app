@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
-import { visibleDashboardBatchWidgets } from "@/lib/dashboard/dashboard-batch-widgets";
+import { resolveDashboardBatchWidgetIds } from "@/lib/dashboard/dashboard-heute-batch-deps";
 import {
   effectiveDashboardShortcutVisibility,
   effectiveDashboardWidgetVisibility,
@@ -62,8 +62,8 @@ export function useDashboardEffectiveWidgetPrefs() {
   );
 
   const batchWidgets = useMemo(
-    () => visibleDashboardBatchWidgets(visibility),
-    [visibility],
+    () => resolveDashboardBatchWidgetIds(visibility, has, accessOptions),
+    [visibility, has, accessOptions],
   );
 
   const permittedWidgetIds = useMemo(

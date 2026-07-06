@@ -20,11 +20,12 @@ export type DashboardReservationSummary = {
   avgPartySizeWeek: number | null;
   /** Unbestätigte Reservierungen (Widget-Tab Standard). */
   unconfirmedList: DashboardReservationRecent[];
-  /** Heutige Reservierungen (Widget-Tab „Heute“). */
+  /** Heutige Reservierungen (Widget-Tab „Heute“, Heute-Widget). */
   todayList: DashboardReservationRecent[];
 };
 
-const DASHBOARD_RESERVATION_LIST_LIMIT = 4;
+const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 4;
+const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
 
 function statusCode(row: ReservationListRow): string {
   return row.reservation_statuses?.code ?? "";
@@ -60,7 +61,7 @@ function toRecentRow(row: ReservationListRow): DashboardReservationRecent {
 
 function buildRecentList(
   rows: ReservationListRow[],
-  limit = DASHBOARD_RESERVATION_LIST_LIMIT,
+  limit: number,
 ): DashboardReservationRecent[] {
   return [...rows]
     .sort(
@@ -103,6 +104,7 @@ export function computeDashboardReservationSummary(
 
   const unconfirmedList = buildRecentList(
     upcomingRows.filter(isUnconfirmedReservation),
+    DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT,
   );
 
   const todayList = buildRecentList(
@@ -111,6 +113,7 @@ export function computeDashboardReservationSummary(
         countsTowardGuestTotals(row) &&
         dayKeyFromIso(row.starts_at) === todayKey,
     ),
+    DASHBOARD_RESERVATION_TODAY_LIMIT,
   );
 
   return {

@@ -261,6 +261,14 @@ export function DashboardHeuteTile() {
     (inventory.summary?.emptyStock ?? 0) > 0 ||
     (inventory.summary?.openOrders ?? 0) > 0;
 
+  const canShowAufmerksamkeit =
+    can.reservations || can.messages || can.staff;
+
+  const hasAufmerksamkeitContent =
+    (can.reservations && unconfirmedRecent.length > 0) ||
+    (can.messages && (messages.summary?.unread.length ?? 0) > 0) ||
+    (can.staff && workingStaff.length > 0);
+
   const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${todayYmd()}`;
   const staffHoursLabel = staff.summary
     ? formatDashboardStaffTodayWorkLabel(staff.summary.todayWorkHours)
@@ -454,24 +462,13 @@ export function DashboardHeuteTile() {
                 </ul>
               ) : null}
 
-              {!can.reservations &&
-              !can.messages &&
-              !can.staff &&
-              !can.inventory ? (
-                <p className="text-[11px] text-muted-foreground">
+              {!canShowAufmerksamkeit ? (
+                <p className="px-0.5 text-[11px] text-muted-foreground">
                   Keine Berechtigung für Tagesmodule.
                 </p>
-              ) : null}
-
-              {can.reservations &&
-              can.messages &&
-              can.staff &&
-              unconfirmedRecent.length === 0 &&
-              (messages.summary?.unread.length ?? 0) === 0 &&
-              workingStaff.length === 0 &&
-              !inventoryAlerts ? (
-                <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                  Alles ruhig — keine offenen Punkte.
+              ) : !hasAufmerksamkeitContent ? (
+                <p className="px-0.5 text-[11px] text-muted-foreground">
+                  Keine Auffälligkeiten
                 </p>
               ) : null}
             </div>

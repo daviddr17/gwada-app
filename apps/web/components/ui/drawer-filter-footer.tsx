@@ -31,7 +31,10 @@ export function DrawerFilterFooter({
   className,
 }: DrawerFilterFooterProps) {
   return (
-    <div className={cn(drawerFormFooterShellClassName(contentPadding), className)}>
+    <div
+      data-vaul-no-drag
+      className={cn(drawerFormFooterShellClassName(contentPadding), className)}
+    >
       <div className={drawerFormFooterActionsRowClassName}>
         <Button
           type="button"

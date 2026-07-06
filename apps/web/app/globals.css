@@ -204,6 +204,28 @@
   .shadow-elevated {
     box-shadow: var(--shadow-elevated);
   }
+
+  /**
+   * Vaul default is 500ms — feels sluggish on filter sheets and blocks drag-to-dismiss
+   * briefly after open. Keep in sync with TRANSITIONS.DURATION in vaul if upgrading.
+   */
+  [data-vaul-drawer][data-vaul-snap-points="false"],
+  [data-vaul-overlay][data-vaul-snap-points="false"] {
+    animation-duration: 0.28s !important;
+  }
+
+  [data-vaul-drawer] {
+    transition-duration: 0.28s !important;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    [data-vaul-drawer],
+    [data-vaul-overlay] {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
   .tap-scale {
     @apply transition-transform duration-200 active:scale-[0.98];
   }

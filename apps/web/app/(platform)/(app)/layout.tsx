@@ -23,13 +23,13 @@ import {
   DASHBOARD_PWA_MANIFEST_PATH,
   dashboardPwaIconPath,
 } from "@/lib/dashboard/dashboard-pwa-config";
+import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import "../../app-calendar.css";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const branding = await getCachedRootLayoutBranding();
-  const appName = branding.appName.trim() || "gwada";
-  const dashboardAppName = `${appName} - Dashboard`;
+  await getCachedRootLayoutBranding();
+  const dashboardAppName = PWA_APP_LABEL_DASHBOARD;
 
   return {
     manifest: DASHBOARD_PWA_MANIFEST_PATH,

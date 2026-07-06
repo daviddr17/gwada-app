@@ -5,9 +5,13 @@ import { usePathname } from "next/navigation";
 import {
   DISPLAY_PWA_SCOPE,
   DISPLAY_PWA_SW_PATH,
+  displayPwaIconPath,
   displayPwaManifestPath,
   normalizeDisplayPwaRestaurantSlug,
 } from "@/lib/display/display-pwa-config";
+import { PWA_APP_LABEL_DISPLAY } from "@/lib/pwa/pwa-app-labels";
+import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
+import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 
 function displaySlugFromPathname(pathname: string): string | null {
   const match = /^\/display\/([^/]+)\/?$/.exec(pathname);
@@ -17,6 +21,11 @@ function displaySlugFromPathname(pathname: string): string | null {
 /** Registriert den Display-Service-Worker (nur unter /display). */
 export function DisplayPwaSetup() {
   const pathname = usePathname();
+
+  useEffect(() => {
+    syncAppleWebAppTitle(PWA_APP_LABEL_DISPLAY);
+    syncAppleTouchIcon(displayPwaIconPath(180));
+  }, []);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;

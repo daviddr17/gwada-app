@@ -6,6 +6,8 @@ import {
   displayPwaManifestId,
   displayPwaStartUrl,
 } from "@/lib/display/display-pwa-config";
+import { PWA_APP_LABEL_DISPLAY } from "@/lib/pwa/pwa-app-labels";
+import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 
 export type DisplayWebAppManifest = {
   id: string;
@@ -31,12 +33,11 @@ export type BuildDisplayPwaManifestOptions = {
 };
 
 export function buildDisplayPwaManifest(
-  branding: PlatformAppBranding,
+  _branding: PlatformAppBranding,
   options?: BuildDisplayPwaManifestOptions,
 ): DisplayWebAppManifest {
-  const appName = branding.appName.trim() || "gwada";
   const startUrl = displayPwaStartUrl(options?.slug);
-  const displayAppName = `${appName} - Display`;
+  const displayAppName = PWA_APP_LABEL_DISPLAY;
   const icons = DISPLAY_PWA_ICON_SIZES.flatMap((size) => {
     const src = displayPwaIconPath(size);
     const entry = {
@@ -64,7 +65,7 @@ export function buildDisplayPwaManifest(
     display: "standalone",
     orientation: "any",
     background_color: "#ffffff",
-    theme_color: "#0f172a",
+    theme_color: DEFAULT_ACCENT_HEX,
     icons,
   };
 }

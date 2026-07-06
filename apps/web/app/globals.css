@@ -419,11 +419,11 @@
 }
 
 /**
- * PWA-Splash (Dashboard + Display) — nur Standalone, bis data-*-pwa-splash="done".
+ * PWA-Splash (Dashboard + Display) — Sichtbarkeit steuert PwaSplashGate (nur Standalone).
  * Hintergrund = Manifest/viewport (kein Flackern nach OS-Splash).
  */
 .pwa-splash {
-  display: none;
+  display: flex;
   background: #ffffff;
   -webkit-user-select: none;
   user-select: none;
@@ -434,18 +434,6 @@
 @media (prefers-color-scheme: dark) {
   .pwa-splash {
     background: #0a0a0a;
-  }
-}
-
-@media (display-mode: standalone) {
-  html:not([data-dashboard-pwa-splash="done"])
-    .pwa-splash[data-pwa-splash-app="dashboard"] {
-    display: flex;
-  }
-
-  html:not([data-display-pwa-splash="done"])
-    .pwa-splash[data-pwa-splash-app="display"] {
-    display: flex;
   }
 }
 

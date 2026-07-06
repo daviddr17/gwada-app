@@ -8,23 +8,24 @@ import {
   DISPLAY_PWA_MANIFEST_PATH,
   displayPwaIconPath,
 } from "@/lib/display/display-pwa-config";
+import { PWA_APP_LABEL_DISPLAY } from "@/lib/pwa/pwa-app-labels";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const branding = await getCachedRootLayoutBranding();
-  const appName = branding.appName.trim() || "gwada";
+  await getCachedRootLayoutBranding();
+  const displayAppName = PWA_APP_LABEL_DISPLAY;
 
   return {
     title: {
-      default: `${appName} Display`,
-      template: `%s · ${appName} Display`,
+      default: displayAppName,
+      template: `%s · ${displayAppName}`,
     },
     description:
       "Restaurant-Display für Schicht, Reservierungen, Bestand und Checklisten.",
     manifest: DISPLAY_PWA_MANIFEST_PATH,
     appleWebApp: {
       capable: true,
-      title: `${appName} Display`,
+      title: displayAppName,
       statusBarStyle: "default",
     },
     icons: {

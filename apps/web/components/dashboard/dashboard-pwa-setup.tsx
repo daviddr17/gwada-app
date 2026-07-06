@@ -5,10 +5,19 @@ import {
   DASHBOARD_PWA_MANIFEST_PATH,
   DASHBOARD_PWA_SCOPE,
   DASHBOARD_PWA_SW_PATH,
+  dashboardPwaIconPath,
 } from "@/lib/dashboard/dashboard-pwa-config";
+import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
+import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
+import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 
 /** Registriert den Dashboard-Service-Worker (App-Zone). */
 export function DashboardPwaSetup() {
+  useEffect(() => {
+    syncAppleWebAppTitle(PWA_APP_LABEL_DASHBOARD);
+    syncAppleTouchIcon(dashboardPwaIconPath(180));
+  }, []);
+
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
 

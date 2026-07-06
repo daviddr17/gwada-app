@@ -6,6 +6,8 @@ import {
   DASHBOARD_PWA_START_URL,
   dashboardPwaIconPath,
 } from "@/lib/dashboard/dashboard-pwa-config";
+import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
+import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 
 export type DashboardWebAppManifest = {
   id: string;
@@ -27,10 +29,9 @@ export type DashboardWebAppManifest = {
 };
 
 export function buildDashboardPwaManifest(
-  branding: PlatformAppBranding,
+  _branding: PlatformAppBranding,
 ): DashboardWebAppManifest {
-  const appName = branding.appName.trim() || "gwada";
-  const dashboardAppName = `${appName} - Dashboard`;
+  const dashboardAppName = PWA_APP_LABEL_DASHBOARD;
   const icons = DASHBOARD_PWA_ICON_SIZES.flatMap((size) => {
     const src = dashboardPwaIconPath(size);
     const entry = {
@@ -58,7 +59,7 @@ export function buildDashboardPwaManifest(
     display: "standalone",
     orientation: "any",
     background_color: "#ffffff",
-    theme_color: "#0f172a",
+    theme_color: DEFAULT_ACCENT_HEX,
     icons,
   };
 }

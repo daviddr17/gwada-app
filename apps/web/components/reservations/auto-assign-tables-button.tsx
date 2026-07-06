@@ -13,7 +13,7 @@ import {
 import type { DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { updateReservationDiningTable } from "@/lib/supabase/reservations-db";
 import { dispatchDashboardReservationUpdateLivePatch } from "@/lib/dashboard/dispatch-dashboard-reservation-save-live-client";
-import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useWorkspaceRestaurantContextOptional } from "@/lib/contexts/workspace-restaurant-context";
 import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,8 @@ export function AutoAssignTablesButton({
 }: AutoAssignTablesButtonProps) {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantId =
+    useWorkspaceRestaurantContextOptional()?.restaurantId ?? null;
 
   const preview = useMemo(
     () => previewAutoTableAssignments(reservations, tables),

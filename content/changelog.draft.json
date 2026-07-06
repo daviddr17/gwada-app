@@ -1,7 +1,7 @@
 {
-  "title": "PWA: Splash, Icon & Name",
-  "body": "- **Dashboard-PWA:** Start-Animation (Logo drehen) erscheint wieder zuverlässig auf iPhone/iPad\n- **Display-PWA:** Icon ohne weißen Rand; Name beim Hinzufügen zum Home-Bildschirm wieder **gwada - Display** (nicht Restaurantname)\n- **Hinweis:** Für neues Launch-Icon ggf. Display-PWA einmal löschen und neu zum Home-Bildschirm hinzufügen",
-  "superadminBody": "- **Splash:** CSS `display:none` + `(display-mode: standalone)` entfernt — Gate in JS\n- **Icons:** `renderPwaIconServer` — Akzent-Kachel, kein weißes Padding\n- **Namen:** `PWA_APP_LABEL_*` fest; `syncAppleWebAppTitle` / `syncAppleTouchIcon`\n- **Keine Migration**",
+  "title": "Heute: leere Aufmerksamkeit",
+  "body": "- **Dashboard → Heute:** Unter **Aufmerksamkeit** steht **Keine Auffälligkeiten**, wenn dort nichts ansteht",
+  "superadminBody": "- **UI:** `dashboard-heute-tile.tsx` — Leerzustand unabhängig von Modul-Kombination\n- **Keine Migration**",
   "audience": "customers",
-  "version": "2026.07.06.5"
+  "version": "2026.07.06.6"
 }

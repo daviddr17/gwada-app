@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  peekReviewPlatformConnectionsCache,
+  writeReviewPlatformConnectionsCache,
+} from "@/lib/reviews/review-platform-connections-cache";
 
 export type ReviewPlatformConnections = {
   loading: boolean;
@@ -11,14 +15,43 @@ export type ReviewPlatformConnections = {
   refresh: () => void;
 };
 
+function applyCachedConnections(
+  cached: ReturnType<typeof peekReviewPlatformConnectionsCache>,
+): Pick<
+  ReviewPlatformConnections,
+  "googleConnected" | "facebookConnected" | "googleVisible" | "facebookVisible"
+> | null {
+  if (!cached) return null;
+  return {
+    googleConnected: cached.googleConnected,
+    facebookConnected: cached.facebookConnected,
+    googleVisible: cached.googleVisible,
+    facebookVisible: cached.facebookVisible,
+  };
+}
+
 export function useReviewPlatformConnections(
   restaurantId: string | null,
 ): ReviewPlatformConnections {
-  const [loading, setLoading] = useState(true);
-  const [googleConnected, setGoogleConnected] = useState(false);
-  const [facebookConnected, setFacebookConnected] = useState(false);
-  const [googleVisible, setGoogleVisible] = useState(false);
-  const [facebookVisible, setFacebookVisible] = useState(false);
+  const cached =
+    restaurantId != null ? peekReviewPlatformConnectionsCache(restaurantId) : null;
+  const cachedState = applyCachedConnections(cached);
+
+  const [loading, setLoading] = useState(() =>
+    restaurantId != null && cachedState != null ? false : Boolean(restaurantId),
+  );
+  const [googleConnected, setGoogleConnected] = useState(
+    () => cachedState?.googleConnected ?? false,
+  );
+  const [facebookConnected, setFacebookConnected] = useState(
+    () => cachedState?.facebookConnected ?? false,
+  );
+  const [googleVisible, setGoogleVisible] = useState(
+    () => cachedState?.googleVisible ?? false,
+  );
+  const [facebookVisible, setFacebookVisible] = useState(
+    () => cachedState?.facebookVisible ?? false,
+  );
 
   const load = useCallback(async () => {
     if (!restaurantId) {
@@ -26,10 +59,13 @@ export function useReviewPlatformConnections(
       setFacebookConnected(false);
       setGoogleVisible(false);
       setFacebookVisible(false);
-      setLoading(true);
+      setLoading(false);
       return;
     }
-    setLoading(true);
+
+    const hasCached = peekReviewPlatformConnectionsCache(restaurantId) != null;
+    if (!hasCached) setLoading(true);
+
     try {
       const res = await fetch(
         `/api/reviews/channels-status?${new URLSearchParams({ restaurantId })}`,
@@ -41,10 +77,17 @@ export function useReviewPlatformConnections(
         facebookVisible?: boolean;
       };
       if (res.ok) {
-        setGoogleConnected(Boolean(body.googleConnected));
-        setFacebookConnected(Boolean(body.facebookConnected));
-        setGoogleVisible(Boolean(body.googleVisible));
-        setFacebookVisible(Boolean(body.facebookVisible));
+        const next = {
+          googleConnected: Boolean(body.googleConnected),
+          facebookConnected: Boolean(body.facebookConnected),
+          googleVisible: Boolean(body.googleVisible),
+          facebookVisible: Boolean(body.facebookVisible),
+        };
+        setGoogleConnected(next.googleConnected);
+        setFacebookConnected(next.facebookConnected);
+        setGoogleVisible(next.googleVisible);
+        setFacebookVisible(next.facebookVisible);
+        writeReviewPlatformConnectionsCache(restaurantId, next);
       }
     } catch {
       /* ignore */

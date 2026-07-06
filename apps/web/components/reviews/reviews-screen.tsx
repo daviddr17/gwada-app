@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Filter, LayoutGrid, Link2, List, ScrollText, Search } from "lucide-react";
 import {
@@ -74,7 +74,10 @@ import {
   createEmptyReviewsFeedClientCache,
   markReviewsReadInFeedCache,
   patchReviewInFeedCache,
+  peekReviewsFeedSessionCache,
+  writeReviewsFeedSessionCache,
   type ReviewsFeedClientCache,
+  type ReviewsFeedGoogleLocationSummary,
 } from "@/lib/reviews/reviews-feed-client-cache";
 import { isReviewsCacheablePlatform } from "@/lib/reviews/reviews-cache-constants";
 import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
@@ -139,13 +142,7 @@ type ReviewsApiResponse = {
   sync?: ReviewsFeedSyncMeta;
 };
 
-type GoogleLocationSummary = {
-  count: number;
-  average: number | null;
-  median: null;
-  distribution: Record<1 | 2 | 3 | 4 | 5, number>;
-  scope: "google_location";
-};
+type GoogleLocationSummary = ReviewsFeedGoogleLocationSummary;
 
 function withNextPageToken(
   currentPage: number,
@@ -254,6 +251,17 @@ export function ReviewsScreen() {
   const mergedPlatformTotals = feedCache.platformTotals;
   const showSkeleton = useDeferredSkeleton(feedPrefetchLoading);
   const readAllStartedRef = useRef<string | null>(null);
+  const googleLocationSummaryRef = useRef<GoogleLocationSummary | null>(null);
+  googleLocationSummaryRef.current = googleLocationSummary;
+
+  useLayoutEffect(() => {
+    if (!restaurantId) return;
+    const cached = peekReviewsFeedSessionCache(restaurantId);
+    if (!cached?.feedCache.ready) return;
+    setFeedCache(cached.feedCache);
+    setGoogleLocationSummary(cached.googleLocationSummary);
+    setFeedPrefetchLoading(false);
+  }, [restaurantId]);
 
   const markLoadedReviewsRead = useCallback(
     (reviews: UnifiedReview[]) => {
@@ -406,129 +414,140 @@ export function ReviewsScreen() {
       if (!options?.silent) setFeedPrefetchLoading(false);
       return;
     }
+    const cached = peekReviewsFeedSessionCache(restaurantId);
     if (!options?.silent) {
-      setFeedPrefetchLoading(true);
-      setFeedCache(createEmptyReviewsFeedClientCache());
-      setGooglePage(1);
-      setAllPage(1);
-      setFacebookPage(1);
-      setGoogleLocationSummary(null);
-      setGoogleStatsError(null);
+      if (cached?.feedCache.ready) {
+        setFeedCache(cached.feedCache);
+        setGoogleLocationSummary(cached.googleLocationSummary);
+        setFeedPrefetchLoading(false);
+      } else {
+        setFeedPrefetchLoading(true);
+        setFeedCache(createEmptyReviewsFeedClientCache());
+        setGooglePage(1);
+        setAllPage(1);
+        setFacebookPage(1);
+        setGoogleLocationSummary(null);
+        setGoogleStatsError(null);
+      }
     }
 
+    const persistSessionCache = (nextCache: ReviewsFeedClientCache) => {
+      writeReviewsFeedSessionCache(
+        restaurantId,
+        nextCache,
+        googleLocationSummaryRef.current,
+      );
+    };
+
     try {
-      const requests: Promise<void>[] = [];
+      const params = new URLSearchParams({ restaurantId, platform: "all" });
+      const { res, json } = await fetchReviewsJson(params);
+      if (!res.ok) {
+        if (!options?.silent) {
+          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+        }
+        return;
+      }
 
-      requests.push(
-        (async () => {
-          const params = new URLSearchParams({ restaurantId, platform: "all" });
-          const { res, json } = await fetchReviewsJson(params);
-          if (!res.ok) {
-            toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
-            return;
-          }
-          const reviewsRead = json.reviews.map((review) => ({
-            ...review,
-            isUnread: false,
-          }));
-          markLoadedReviewsRead(reviewsRead);
-          setFeedCache((prev) => ({
-            ...prev,
-            allPages: { 1: reviewsRead },
-            allPagination: json.mergedPagination ?? null,
-            allTokenByPage: withNextPageToken(
-              1,
-              json.mergedPagination?.nextPageToken,
-              {},
-            ),
-            platformTotals:
-              json.platformTotals ?? json.mergedPagination?.platformTotals ?? {},
-            loadErrors: json.loadErrors ?? {},
-            sync: json.sync ?? prev.sync,
-          }));
-        })(),
-      );
+      const reviewsRead = json.reviews.map((review) => ({
+        ...review,
+        isUnread: false,
+      }));
+      markLoadedReviewsRead(reviewsRead);
+      const gwadaReviews = reviewsRead.filter((review) => review.platform === "gwada");
 
-      requests.push(
-        (async () => {
-          const params = new URLSearchParams({ restaurantId, platform: "gwada" });
-          const { res, json } = await fetchReviewsJson(params);
-          if (!res.ok) return;
-          const reviewsRead = json.reviews.map((review) => ({
-            ...review,
-            isUnread: false,
-          }));
-          markLoadedReviewsRead(reviewsRead);
-          setFeedCache((prev) => ({
-            ...prev,
-            gwada: reviewsRead,
-            platformTotals: {
-              ...prev.platformTotals,
-              gwada: reviewsRead.length,
-            },
-          }));
-        })(),
-      );
+      let nextCache: ReviewsFeedClientCache = {
+        ...createEmptyReviewsFeedClientCache(),
+        ready: true,
+        gwada: gwadaReviews,
+        allPages: { 1: reviewsRead },
+        allPagination: json.mergedPagination ?? null,
+        allTokenByPage: withNextPageToken(
+          1,
+          json.mergedPagination?.nextPageToken,
+          {},
+        ),
+        platformTotals:
+          json.platformTotals ?? json.mergedPagination?.platformTotals ?? {},
+        loadErrors: json.loadErrors ?? {},
+        sync: json.sync ?? null,
+      };
+
+      setFeedCache(nextCache);
+      persistSessionCache(nextCache);
+      if (!options?.silent) setFeedPrefetchLoading(false);
+
+      const backgroundRequests: Promise<void>[] = [];
 
       if (googleVisible) {
-        requests.push(
+        backgroundRequests.push(
           (async () => {
-            const params = new URLSearchParams({ restaurantId, platform: "google" });
-            const { res, json } = await fetchReviewsJson(params);
-            if (!res.ok) return;
-            const reviewsRead = json.reviews.map((review) => ({
+            const googleParams = new URLSearchParams({
+              restaurantId,
+              platform: "google",
+            });
+            const googleRes = await fetchReviewsJson(googleParams);
+            if (!googleRes.res.ok) return;
+            const googleReviewsRead = googleRes.json.reviews.map((review) => ({
               ...review,
               isUnread: false,
             }));
-            markLoadedReviewsRead(reviewsRead);
+            markLoadedReviewsRead(googleReviewsRead);
             setFeedCache((prev) => ({
               ...prev,
-              googlePages: { 1: reviewsRead },
-              googlePagination: json.googlePagination ?? null,
+              googlePages: { 1: googleReviewsRead },
+              googlePagination: googleRes.json.googlePagination ?? null,
               googleTokenByPage: withNextPageToken(
                 1,
-                json.googlePagination?.nextPageToken,
+                googleRes.json.googlePagination?.nextPageToken,
                 {},
               ),
               platformTotals: {
                 ...prev.platformTotals,
-                google: json.googlePagination?.totalReviewCount ?? reviewsRead.length,
+                google:
+                  googleRes.json.googlePagination?.totalReviewCount ??
+                  googleReviewsRead.length,
               },
-              loadErrors: json.loadError
-                ? { ...prev.loadErrors, google: json.loadError }
+              loadErrors: googleRes.json.loadError
+                ? { ...prev.loadErrors, google: googleRes.json.loadError }
                 : prev.loadErrors,
-              sync: json.sync ?? prev.sync,
+              sync: googleRes.json.sync ?? prev.sync,
             }));
           })(),
         );
 
-        requests.push(
+        backgroundRequests.push(
           (async () => {
             try {
-              const res = await fetch(
+              const statsRes = await fetch(
                 `/api/reviews/google-stats?${new URLSearchParams({ restaurantId })}`,
               );
-              const json = (await res.json()) as {
+              const statsJson = (await statsRes.json()) as {
                 averageRating?: number | null;
                 totalReviewCount?: number;
                 loadError?: string;
                 error?: string;
               };
-              if (!res.ok) {
+              if (!statsRes.ok) {
                 setGoogleStatsError(
-                  json.loadError ?? json.error ?? "Google-Statistik nicht verfügbar.",
+                  statsJson.loadError ??
+                    statsJson.error ??
+                    "Google-Statistik nicht verfügbar.",
                 );
                 return;
               }
-              const total = Number(json.totalReviewCount ?? 0);
-              setGoogleLocationSummary({
+              const total = Number(statsJson.totalReviewCount ?? 0);
+              const summary: GoogleLocationSummary = {
                 count: total,
                 average:
-                  typeof json.averageRating === "number" ? json.averageRating : null,
+                  typeof statsJson.averageRating === "number"
+                    ? statsJson.averageRating
+                    : null,
                 median: null,
                 distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
                 scope: "google_location",
-              });
+              };
+              setGoogleLocationSummary(summary);
               setFeedCache((prev) => ({
                 ...prev,
                 platformTotals: { ...prev.platformTotals, google: total },
@@ -541,41 +560,51 @@ export function ReviewsScreen() {
       }
 
       if (facebookVisible) {
-        requests.push(
+        backgroundRequests.push(
           (async () => {
-            const params = new URLSearchParams({ restaurantId, platform: "facebook" });
-            const { res, json } = await fetchReviewsJson(params);
-            if (!res.ok) return;
-            const reviewsRead = json.reviews.map((review) => ({
+            const facebookParams = new URLSearchParams({
+              restaurantId,
+              platform: "facebook",
+            });
+            const facebookRes = await fetchReviewsJson(facebookParams);
+            if (!facebookRes.res.ok) return;
+            const facebookReviewsRead = facebookRes.json.reviews.map((review) => ({
               ...review,
               isUnread: false,
             }));
-            markLoadedReviewsRead(reviewsRead);
+            markLoadedReviewsRead(facebookReviewsRead);
             setFeedCache((prev) => ({
               ...prev,
-              facebookPages: { 1: reviewsRead },
-              facebookPagination: json.facebookPagination ?? null,
+              facebookPages: { 1: facebookReviewsRead },
+              facebookPagination: facebookRes.json.facebookPagination ?? null,
               facebookTokenByPage: withNextPageToken(
                 1,
-                json.facebookPagination?.nextPageToken,
+                facebookRes.json.facebookPagination?.nextPageToken,
                 {},
               ),
               platformTotals: {
                 ...prev.platformTotals,
                 facebook:
-                  json.facebookPagination?.totalReviewCount ?? reviewsRead.length,
+                  facebookRes.json.facebookPagination?.totalReviewCount ??
+                  facebookReviewsRead.length,
               },
-              loadErrors: json.loadError
-                ? { ...prev.loadErrors, facebook: json.loadError }
+              loadErrors: facebookRes.json.loadError
+                ? { ...prev.loadErrors, facebook: facebookRes.json.loadError }
                 : prev.loadErrors,
-              sync: json.sync ?? prev.sync,
+              sync: facebookRes.json.sync ?? prev.sync,
             }));
           })(),
         );
       }
 
-      await Promise.all(requests);
-      setFeedCache((prev) => ({ ...prev, ready: true }));
+      if (backgroundRequests.length > 0) {
+        await Promise.all(backgroundRequests);
+      }
+
+      setFeedCache((prev) => {
+        persistSessionCache(prev);
+        return prev;
+      });
     } catch {
       if (!options?.silent) {
         toast.error("Netzwerkfehler beim Laden der Bewertungen.");
@@ -818,7 +847,7 @@ export function ReviewsScreen() {
   ]);
 
   useEffect(() => {
-    if (!restaurantId || connectionsLoading) return;
+    if (!restaurantId) return;
     setSearch("");
     setRatingFilter("all");
     setCommentFilter("all");
@@ -826,24 +855,32 @@ export function ReviewsScreen() {
     setReadFilter("all");
     setReadLocal({});
     setSortKey("created_desc");
-    void prefetchFeedRef.current();
-  }, [restaurantId, connectionsLoading, googleVisible, facebookVisible]);
+    const cached = peekReviewsFeedSessionCache(restaurantId);
+    void prefetchFeedRef.current({ silent: Boolean(cached?.feedCache.ready) });
+  }, [restaurantId, googleVisible, facebookVisible]);
 
   useEffect(() => {
     if (!restaurantId || !platformViewReady) return;
     if (readAllStartedRef.current === restaurantId) return;
     readAllStartedRef.current = restaurantId;
-    void markAllReviewsReadClient(restaurantId).then(({ ok }) => {
-      if (ok) {
-        setReadLocal({});
-        setFeedCache((prev) => markReviewsReadInFeedCache(prev, [
-          ...prev.gwada,
-          ...Object.values(prev.allPages).flat(),
-          ...Object.values(prev.googlePages).flat(),
-          ...Object.values(prev.facebookPages).flat(),
-        ]));
-      }
-    });
+    const markRead = () => {
+      void markAllReviewsReadClient(restaurantId).then(({ ok }) => {
+        if (ok) {
+          setReadLocal({});
+          setFeedCache((prev) => markReviewsReadInFeedCache(prev, [
+            ...prev.gwada,
+            ...Object.values(prev.allPages).flat(),
+            ...Object.values(prev.googlePages).flat(),
+            ...Object.values(prev.facebookPages).flat(),
+          ]));
+        }
+      });
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(() => markRead());
+    } else {
+      window.setTimeout(markRead, 0);
+    }
   }, [restaurantId, platformViewReady]);
 
   const submitReply = async () => {

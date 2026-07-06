@@ -87,8 +87,12 @@ export function WorkspaceRestaurantProvider({ children }: { children: ReactNode 
   );
 }
 
+export function useWorkspaceRestaurantContextOptional(): WorkspaceRestaurantValue | null {
+  return useContext(WorkspaceRestaurantContext);
+}
+
 export function useWorkspaceRestaurantContext(): WorkspaceRestaurantValue {
-  const ctx = useContext(WorkspaceRestaurantContext);
+  const ctx = useWorkspaceRestaurantContextOptional();
   if (!ctx) {
     throw new Error(
       "useWorkspaceRestaurantContext erfordert WorkspaceRestaurantProvider.",

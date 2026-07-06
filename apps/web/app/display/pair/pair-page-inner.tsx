@@ -47,6 +47,25 @@ export default function DisplayPairPageInner() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<PairSuccessState | null>(null);
   const autoPairAttemptRef = useRef<string | null>(null);
+  const pairedRedirectRef = useRef(false);
+
+  useEffect(() => {
+    if (pairedRedirectRef.current) return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/display/context", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = (await res.json()) as { paired?: boolean; restaurant?: { slug?: string } };
+        const slug = data.restaurant?.slug?.trim();
+        if (data.paired && slug) {
+          pairedRedirectRef.current = true;
+          router.replace(`/display/${slug}`);
+        }
+      } catch {
+        /* Pair-Formular bleibt sichtbar */
+      }
+    })();
+  }, [router]);
 
   const pair = useCallback(async (pairCode: string) => {
     const normalized =
@@ -89,11 +108,14 @@ export default function DisplayPairPageInner() {
         return;
       }
       if (data.display_id && data.device_token && data.installation_id) {
-        saveDisplayDeviceCredential({
-          displayId: data.display_id,
-          token: data.device_token,
-          installationId: data.installation_id,
-        });
+        saveDisplayDeviceCredential(
+          {
+            displayId: data.display_id,
+            token: data.device_token,
+            installationId: data.installation_id,
+          },
+          data.restaurant?.slug,
+        );
       }
       paired = true;
       setSuccess({

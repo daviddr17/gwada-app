@@ -2,8 +2,9 @@ import type { PlatformAppBranding } from "@/lib/types/platform-app-settings";
 import {
   DISPLAY_PWA_ICON_SIZES,
   DISPLAY_PWA_SCOPE,
-  DISPLAY_PWA_START_URL,
   displayPwaIconPath,
+  displayPwaManifestId,
+  displayPwaStartUrl,
 } from "@/lib/display/display-pwa-config";
 
 export type DisplayWebAppManifest = {
@@ -25,10 +26,18 @@ export type DisplayWebAppManifest = {
   }>;
 };
 
+export type BuildDisplayPwaManifestOptions = {
+  slug?: string | null;
+  restaurantName?: string | null;
+};
+
 export function buildDisplayPwaManifest(
   branding: PlatformAppBranding,
+  options?: BuildDisplayPwaManifestOptions,
 ): DisplayWebAppManifest {
   const appName = branding.appName.trim() || "gwada";
+  const startUrl = displayPwaStartUrl(options?.slug);
+  const restaurantLabel = options?.restaurantName?.trim();
   const icons = DISPLAY_PWA_ICON_SIZES.flatMap((size) => {
     const src = displayPwaIconPath(size);
     const entry = {
@@ -46,12 +55,14 @@ export function buildDisplayPwaManifest(
   });
 
   return {
-    id: DISPLAY_PWA_SCOPE,
-    name: `${appName} Display`,
-    short_name: "Display",
+    id: displayPwaManifestId(options?.slug),
+    name: restaurantLabel
+      ? `${restaurantLabel} · Display`
+      : `${appName} Display`,
+    short_name: restaurantLabel ? restaurantLabel.slice(0, 12) : "Display",
     description:
       "Restaurant-Display für Schicht, Reservierungen, Bestand und Checklisten.",
-    start_url: DISPLAY_PWA_START_URL,
+    start_url: startUrl,
     scope: DISPLAY_PWA_SCOPE,
     display: "standalone",
     orientation: "any",

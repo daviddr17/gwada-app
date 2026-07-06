@@ -1,7 +1,7 @@
 {
-  "title": "Reservierungen, Dashboard Heute, Display-Fixes & Mitarbeiter",
-  "body": "- **Reservierungen:** WhatsApp- und E-Mail-Bestätigungen funktionieren auch, wenn noch keine Reservierungs-Einstellungen gespeichert waren\n- **Dashboard:** Widget **Reservierungen** mit Tabs **Unbestätigt** und **Heute**; neues **Heute**-Widget mit Tagesüberblick (Team, Nachrichten, Reservierungen)\n- **Mitarbeiter:** Übersicht mit **Standard-Suche und Filter**; **Position** (Planung) und **Rolle** (App-Rechte) sind klarer erklärt\n- **Tabellen:** Beim Scrollen im Vollbild bleibt die **Kopfzeile lesbar** (nicht mehr transparent)\n- **Display:** Modul **Reservierungen** lädt wieder zuverlässig; **PWA** startet direkt beim gekoppelten Restaurant statt im Kopplungsmodus",
-  "superadminBody": "- **Reservierungen:** Migration `20260706130000_seed_restaurant_reservation_settings`, `ensureRestaurantReservationSettings()` in WhatsApp/E-Mail-Dispatch\n- **Dashboard:** `unconfirmedList` + `todayList`, `DashboardHeuteTile`, Reservierungen-Tabs\n- **Staff:** `staff-overview-filter-drawer`, Position/Rolle-Hilfetexte, `staff-restaurant-role-select`\n- **UI:** Fullscreen sticky thead (`module-data-table`, `globals.css`)\n- **Display:** `useWorkspaceRestaurantContextOptional` in AutoAssign; slug-PWA-Manifest + Pair-Redirect",
+  "title": "Public API, Docs & Display-PWA",
+  "body": "- **Public API:** JSON-Zugriff auf Speisekarte, Reservierung, News, Events, Galerie, Bewertungen und Öffnungszeiten — mit API-Schlüsseln unter **Einstellungen → API** (read-only, veröffentlichte Restaurants)\n- **Einbinden:** Hinweis zur Headless-API in allen Embed-Modulen mit Link zur Dokumentation\n- **Dokumentation:** Neuer Bereich unter **gwada.app/docs** mit API-Referenz\n- **Display-PWA:** Einheitlicher Name **gwada - Display** beim Hinzufügen zum Home-Bildschirm",
+  "superadminBody": "- **API:** `restaurant_api_keys`, `GET /api/v1/{module}`, Bearer `gwada_sk_live_…`, 60 req/min, optional Domain-Allowlist\n- **Permissions:** `settings.api`, Migration `20260706143000`\n- **Docs:** `app/(platform)/docs` Sidebar-Layout\n- **Display PWA:** Manifest `name`/`short_name` ohne Restaurant-Truncate",
   "audience": "customers",
-  "version": "2026.07.06.1"
+  "version": "2026.07.06.2"
 }

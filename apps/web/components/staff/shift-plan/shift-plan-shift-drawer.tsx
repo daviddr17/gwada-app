@@ -41,7 +41,7 @@ import type {
   RestaurantStaffScheduledShiftRow,
 } from "@/lib/types/staff-shift-schedule";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
-import { staffDisplayName } from "@/lib/types/staff";
+import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
 import { localDayKey, parseLocalDayKey } from "@/lib/staff/shift-schedule-range";
 
 type ShiftPlanShiftDrawerProps = {
@@ -121,12 +121,11 @@ export function ShiftPlanShiftDrawer({
 
   const staffSelectOptions = useMemo(
     () =>
-      staffRows.map((s) => ({
-        value: s.id,
-        label: staffDisplayName(s),
-        leadingColor: s.position_tag?.background_color,
-      })),
-    [staffRows],
+      buildStaffSearchableSelectOptions(staffRows, {
+        includeStaffIds: [staffId],
+        showInactiveSuffix: false,
+      }),
+    [staffRows, staffId],
   );
 
   const selectedTemplateLabel = useMemo(() => {

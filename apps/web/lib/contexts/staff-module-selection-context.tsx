@@ -3,7 +3,10 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
-import { staffDisplayName } from "@/lib/types/staff";
+import {
+  pickDefaultActiveStaffId,
+  staffSelectOptionLabel,
+} from "@/lib/staff/staff-select-options";
 
 const STORAGE_KEY = "gwada-staff-module-selected";
 
@@ -65,12 +68,23 @@ export function StaffModuleSelectionProvider({
     } catch {
       /* ignore */
     }
-    const fallback =
-      stored && staffList.some((s) => s.id === stored)
-        ? stored
-        : staffList[0]?.id ?? null;
+    const fallback = pickDefaultActiveStaffId(staffList, stored);
     if (fallback) setSelectedStaffId(fallback);
   }, [needsStaffPicker, selectedStaffId, staffList, setSelectedStaffId]);
+
+  React.useEffect(() => {
+    if (!needsStaffPicker || !selectedStaffId || staffList.length === 0) return;
+    const selected = staffList.find((s) => s.id === selectedStaffId);
+    if (selected && !selected.is_active) {
+      const activeId = pickDefaultActiveStaffId(staffList);
+      setSelectedStaffId(activeId);
+    }
+  }, [
+    needsStaffPicker,
+    selectedStaffId,
+    staffList,
+    setSelectedStaffId,
+  ]);
 
   const value = React.useMemo(
     () => ({
@@ -111,8 +125,7 @@ export function useStaffModuleSelectionOptional() {
   return React.useContext(StaffModuleSelectionContext);
 }
 
+/** @deprecated Import from `@/lib/staff/staff-select-options` instead. */
 export function staffOptionLabel(row: RestaurantStaffRow): string {
-  const name = staffDisplayName(row);
-  if (!row.is_active) return `${name} (inaktiv)`;
-  return name;
+  return staffSelectOptionLabel(row);
 }

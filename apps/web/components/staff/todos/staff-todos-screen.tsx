@@ -30,6 +30,7 @@ import {
 } from "@/lib/supabase/staff-todos-db";
 import { isAssignedToStaffMember } from "@/lib/staff/assignee-matching";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
+import { filterStaffForSelect } from "@/lib/staff/staff-select-options";
 import {
   peekStaffListCache,
   writeStaffListCache,
@@ -274,7 +275,7 @@ export function StaffTodosScreen() {
 
   const assigneeFilterOptions = useMemo(() => {
     const opts = [{ value: "all", label: "Alle Zuordnungen" }];
-    for (const s of staffList.filter((x) => x.is_active)) {
+    for (const s of filterStaffForSelect(staffList)) {
       opts.push({
         value: `staff:${s.id}`,
         label: `MA: ${s.given_name} ${s.family_name ?? ""}`.trim(),

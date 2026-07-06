@@ -429,7 +429,9 @@ export function StaffShiftPlanScreen({
 
   const staffOptions = useMemo(
     () =>
-      staffRows.map((s) => ({ id: s.id, label: staffDisplayName(s) })),
+      staffRows
+        .filter((s) => s.is_active)
+        .map((s) => ({ id: s.id, label: staffDisplayName(s) })),
     [staffRows],
   );
 

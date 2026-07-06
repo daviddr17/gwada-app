@@ -241,16 +241,26 @@ export function DisplayScreen({ slug }: { slug: string }) {
     runPinLoginGate,
   ]);
 
+  const performLogout = useCallback(async () => {
+    setActiveModule(null);
+    setLocked(false);
+    setContext((prev) =>
+      prev?.session
+        ? { ...prev, session: null, time_session: null }
+        : prev,
+    );
+    await fetch("/api/display/pin", { method: "DELETE" });
+    await refreshContext();
+  }, [refreshContext]);
+
   const resetIdleTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
     if (!context?.display?.auto_lock_seconds || !context.session) return;
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
-      void fetch("/api/display/pin", { method: "DELETE" });
-      setLocked(true);
-      setLockPinError(null);
+      void performLogout();
     }, context.display.auto_lock_seconds * 1000);
-  }, [context?.display?.auto_lock_seconds, context?.session]);
+  }, [context?.display?.auto_lock_seconds, context?.session, performLogout]);
 
   useEffect(() => {
     resetIdleTimer();
@@ -263,18 +273,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
   }, [resetIdleTimer]);
-
-  const performLogout = useCallback(async () => {
-    setActiveModule(null);
-    setLocked(false);
-    setContext((prev) =>
-      prev?.session
-        ? { ...prev, session: null, time_session: null }
-        : prev,
-    );
-    await fetch("/api/display/pin", { method: "DELETE" });
-    await refreshContext();
-  }, [refreshContext]);
 
   const screenCelebrationRef = useRef<DisplayCelebrationVariant | null>(null);
   screenCelebrationRef.current = screenCelebration;

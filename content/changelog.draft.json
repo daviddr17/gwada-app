@@ -1,7 +1,7 @@
 {
-  "title": "Dashboard-PWA, Navigation & Formulare",
-  "body": "- **Dashboard als App:** Das Dashboard lässt sich am iPhone/iPad installieren („gwada – Dashboard“) — Einstellungen und Profil sind in der App erreichbar\n- **Heute-Widget:** Kompakteres Layout mit farbigen Kennzahlen\n- **Mitarbeiter:** Dropdown zeigt Nachname, Vorname — kein automatisches Vorauswählen mehr\n- **Formulare auf iOS:** Mitarbeiter-, Vertrag-, Arbeitszeit- und Reservierungs-Drawer scrollen bei geöffneter Tastatur zuverlässiger\n- **Einbinden:** API-Hinweise unter den Modulen gestrafft",
-  "superadminBody": "- **Routen:** Einstellungen/Profil unter `/dashboard/settings` bzw. `/dashboard/profile` (Legacy-Redirects); PWA-Scope `/dashboard/`\n- **PWA:** Manifest, SW, Splash (`PwaSplashGate`), Install-Button in App-Shell\n- **iOS Drawer:** `useDrawerFormKeyboardAssist` — `repositionInputs` nur iOS + offen, lokales scrollIntoView\n- **Keine Migration**",
+  "title": "PWA: Splash, Icon & Name",
+  "body": "- **Dashboard-PWA:** Start-Animation (Logo drehen) erscheint wieder zuverlässig auf iPhone/iPad\n- **Display-PWA:** Icon ohne weißen Rand; Name beim Hinzufügen zum Home-Bildschirm wieder **gwada - Display** (nicht Restaurantname)\n- **Hinweis:** Für neues Launch-Icon ggf. Display-PWA einmal löschen und neu zum Home-Bildschirm hinzufügen",
+  "superadminBody": "- **Splash:** CSS `display:none` + `(display-mode: standalone)` entfernt — Gate in JS\n- **Icons:** `renderPwaIconServer` — Akzent-Kachel, kein weißes Padding\n- **Namen:** `PWA_APP_LABEL_*` fest; `syncAppleWebAppTitle` / `syncAppleTouchIcon`\n- **Keine Migration**",
   "audience": "customers",
-  "version": "2026.07.06.4"
+  "version": "2026.07.06.5"
 }

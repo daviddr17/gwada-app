@@ -18,12 +18,14 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
+import { MainCategoryDrawer } from "@/components/menu/main-category-drawer";
 import { MenuCompactItemsTable } from "@/components/menu/menu-compact-items-table";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { DishDrawer } from "@/components/menu/dish-drawer";
 import { FilterDrawer } from "@/components/menu/filter-drawer";
 import { MenuTaxonomyDrawer } from "@/components/menu/menu-taxonomy-drawer";
 import { MenuCategoryTabs } from "@/components/menu/menu-category-tabs";
+import { MenuMainCategoryTabs } from "@/components/menu/menu-main-category-tabs";
 import { MenuItemCard } from "@/components/menu/menu-item-card";
 import { MenuOverviewSkeleton } from "@/components/menu/menu-overview-skeleton";
 import { MenuSearchFilters } from "@/components/menu/menu-search-filters";
@@ -37,6 +39,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DEFAULT_CATEGORIES } from "@/lib/constants/categories";
+import { DEFAULT_MAIN_CATEGORIES } from "@/lib/constants/main-categories";
 import { buildDietFilterOptions } from "@/lib/constants/menu-labels";
 import {
   MENU_TAXONOMY_ALLERGENS_KEY,
@@ -45,6 +48,7 @@ import {
   SEED_MENU_TAG_DEFINITIONS,
 } from "@/lib/constants/menu-taxonomy-storage";
 import { useCategoriesStorage } from "@/lib/hooks/use-categories-storage";
+import { useMainCategoriesStorage } from "@/lib/hooks/use-main-categories-storage";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { useMenuTaxonomyStorage } from "@/lib/hooks/use-menu-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
@@ -58,6 +62,7 @@ import type {
   DietFilter,
   MenuCategoryDefinition,
   MenuItem,
+  MenuMainCategoryDefinition,
   MenuTaxonomyDefinition,
   PriceRange,
 } from "@/lib/types/menu";
@@ -93,6 +98,14 @@ export function MenuOverviewScreen() {
   const canUpdate = hasModuleUpdate(has, "menu");
   const canDelete = hasModuleDelete(has, "menu");
   const { currencyCode } = useMenuSettings(workspaceRestaurantId);
+  const {
+    mainCategories,
+    addMainCategory,
+    updateMainCategory,
+    reorderMainCategories,
+    deleteMainCategory,
+    isHydrated: mainCategoriesHydrated,
+  } = useMainCategoriesStorage();
   const {
     categories,
     addCategory,
@@ -138,6 +151,7 @@ export function MenuOverviewScreen() {
 
   const isHydrated =
     categoriesHydrated &&
+    mainCategoriesHydrated &&
     menuHydrated &&
     ingredientsHydrated &&
     menuTags.isHydrated &&
@@ -153,11 +167,15 @@ export function MenuOverviewScreen() {
 
   const [search, setSearch] = useState("");
   const [dietFilter, setDietFilter] = useState<DietFilter>("all");
+  const [activeMainCategoryId, setActiveMainCategoryId] = useState<string>(
+    DEFAULT_MAIN_CATEGORIES[0].id,
+  );
   const [activeCategoryId, setActiveCategoryId] = useState<string>(
     DEFAULT_CATEGORIES[0].id,
   );
   const [filterOpen, setFilterOpen] = useState(false);
   const [manageCategoriesOpen, setManageCategoriesOpen] = useState(false);
+  const [manageMainCategoriesOpen, setManageMainCategoriesOpen] = useState(false);
   const [taxonomyManage, setTaxonomyManage] = useState<"tags" | "allergens" | null>(
     null,
   );
@@ -174,6 +192,11 @@ export function MenuOverviewScreen() {
     | null
     | { mode: "create" }
     | { mode: "edit"; cat: MenuCategoryDefinition }
+  >(null);
+  const [mainCategorySheet, setMainCategorySheet] = useState<
+    | null
+    | { mode: "create" }
+    | { mode: "edit"; cat: MenuMainCategoryDefinition }
   >(null);
 
   const stickyRef = useRef<HTMLDivElement>(null);
@@ -204,14 +227,35 @@ export function MenuOverviewScreen() {
     return () => cancelAnimationFrame(frame);
   }, [priceSliderMax]);
 
+  const categoriesInMain = useMemo(
+    () =>
+      categories.filter((cat) => cat.mainCategoryId === activeMainCategoryId),
+    [categories, activeMainCategoryId],
+  );
+
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      if (!categories.some((c) => c.id === activeCategoryId) && categories[0]) {
-        setActiveCategoryId(categories[0].id);
+      if (
+        mainCategories.length > 0 &&
+        !mainCategories.some((m) => m.id === activeMainCategoryId)
+      ) {
+        setActiveMainCategoryId(mainCategories[0]!.id);
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [categories, activeCategoryId]);
+  }, [mainCategories, activeMainCategoryId]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (
+        !categoriesInMain.some((c) => c.id === activeCategoryId) &&
+        categoriesInMain[0]
+      ) {
+        setActiveCategoryId(categoriesInMain[0].id);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [categoriesInMain, activeCategoryId]);
 
   useEffect(() => {
     if (dietFilter === "all") return;
@@ -240,13 +284,13 @@ export function MenuOverviewScreen() {
   );
 
   const sections = useMemo(() => {
-    return categories.map((cat) => ({
+    return categoriesInMain.map((cat) => ({
       cat,
       items: sortItemsInCategoryForDisplay(
         items.filter((i) => i.category === cat.id && passItemFilters(i)),
       ),
     }));
-  }, [categories, items, passItemFilters]);
+  }, [categoriesInMain, items, passItemFilters]);
 
   const visibleItemCount = useMemo(
     () => sections.reduce((sum, s) => sum + s.items.length, 0),
@@ -317,7 +361,7 @@ export function MenuOverviewScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isHydrated || categories.length === 0) return;
+    if (!isHydrated || categoriesInMain.length === 0) return;
 
     let ticking = false;
 
@@ -330,8 +374,8 @@ export function MenuOverviewScreen() {
         const sticky = stickyRef.current;
         if (!sticky) return;
         const line = sticky.getBoundingClientRect().bottom + 4;
-        let current = categories[0]?.id;
-        for (const c of categories) {
+        let current = categoriesInMain[0]?.id;
+        for (const c of categoriesInMain) {
           const sec = document.getElementById(`menu-cat-${c.id}`);
           if (!sec) continue;
           const top = sec.getBoundingClientRect().top;
@@ -350,7 +394,30 @@ export function MenuOverviewScreen() {
     target.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => target.removeEventListener("scroll", onScroll);
-  }, [isHydrated, categories]);
+  }, [isHydrated, categoriesInMain]);
+
+  const selectMainCategory = useCallback((id: string) => {
+    setActiveMainCategoryId(id);
+    skipScrollSpyRef.current = true;
+    requestAnimationFrame(() => {
+      const root = getAppScrollRoot();
+      const sticky = stickyRef.current;
+      const chipPx = readModuleChipStripHeightPx();
+      const stickyH = sticky?.offsetHeight ?? 0;
+      const pad = 8;
+      if (root) {
+        root.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({
+          top: APP_HEADER_PX + chipPx + stickyH + pad,
+          behavior: "smooth",
+        });
+      }
+      window.setTimeout(() => {
+        skipScrollSpyRef.current = false;
+      }, 850);
+    });
+  }, []);
 
   const closeDishDrawer = useCallback(() => {
     router.replace(MENU_BASE, { scroll: false });
@@ -384,20 +451,47 @@ export function MenuOverviewScreen() {
     return n;
   }, [dietFilter, priceRange, priceSliderMax]);
 
-  const handleCategorySave = async (
+  const handleCategorySave = async (payload: {
+    id?: string;
+    name: string;
+    active?: boolean;
+    mainCategoryId?: string;
+  }) => {
+    const mainCategoryId =
+      payload.mainCategoryId ?? activeMainCategoryId ?? mainCategories[0]?.id;
+    if ("id" in payload && payload.id) {
+      updateCategory(payload.id, {
+        name: payload.name,
+        active: payload.active,
+        mainCategoryId,
+      });
+    } else if (mainCategoryId) {
+      const created = await addCategory(
+        payload.name,
+        payload.active !== false,
+        mainCategoryId,
+      );
+      if (created) {
+        setActiveMainCategoryId(mainCategoryId);
+        scrollToCategory(created.id);
+      }
+    }
+  };
+
+  const handleMainCategorySave = async (
     payload:
       | { name: string; active?: boolean }
       | { id: string; name: string; active: boolean },
   ) => {
     if ("id" in payload && payload.id) {
-      updateCategory(payload.id, {
+      updateMainCategory(payload.id, {
         name: payload.name,
         active: payload.active,
       });
     } else {
-      const created = await addCategory(payload.name, payload.active !== false);
+      const created = await addMainCategory(payload.name, payload.active !== false);
       if (created) {
-        scrollToCategory(created.id);
+        setActiveMainCategoryId(created.id);
       }
     }
   };
@@ -531,8 +625,18 @@ export function MenuOverviewScreen() {
                 (ca. 80% Übereinstimmung).
               </p>
             ) : null}
+            <MenuMainCategoryTabs
+              mainCategories={mainCategories}
+              activeMainCategoryId={activeMainCategoryId}
+              onMainCategorySelect={selectMainCategory}
+              onNewMainCategory={() => setMainCategorySheet({ mode: "create" })}
+              onEditMainCategory={(cat) =>
+                setMainCategorySheet({ mode: "edit", cat })
+              }
+              onOpenManageMainCategories={() => setManageMainCategoriesOpen(true)}
+            />
             <MenuCategoryTabs
-              categories={categories}
+              categories={categoriesInMain}
               activeCategoryId={activeCategoryId}
               onCategorySelect={scrollToCategory}
               onNewCategory={() => setCategorySheet({ mode: "create" })}
@@ -565,7 +669,7 @@ export function MenuOverviewScreen() {
         <div className="space-y-12">
           {items.length > 0 &&
             sections.map(({ cat, items: secItems }) => {
-              const catIndex = categories.findIndex((c) => c.id === cat.id);
+              const catIndex = categoriesInMain.findIndex((c) => c.id === cat.id);
               const pos = catIndex >= 0 ? catIndex + 1 : 0;
               return (
                 <section
@@ -709,6 +813,8 @@ export function MenuOverviewScreen() {
         }}
         mode={categorySheet?.mode ?? "create"}
         initial={categorySheet?.mode === "edit" ? categorySheet.cat : null}
+        mainCategories={mainCategories}
+        defaultMainCategoryId={activeMainCategoryId}
         onSave={handleCategorySave}
         onDelete={
           categorySheet?.mode === "edit"
@@ -724,6 +830,43 @@ export function MenuOverviewScreen() {
         onReorder={reorderCategories}
         onEdit={(cat) => setCategorySheet({ mode: "edit", cat })}
         onNew={() => setCategorySheet({ mode: "create" })}
+      />
+
+      <CategoriesManageDrawer
+        open={manageMainCategoriesOpen}
+        onOpenChange={setManageMainCategoriesOpen}
+        categories={mainCategories}
+        onReorder={(next) => reorderMainCategories(next as MenuMainCategoryDefinition[])}
+        onEdit={(cat) =>
+          setMainCategorySheet({
+            mode: "edit",
+            cat: cat as MenuMainCategoryDefinition,
+          })
+        }
+        onNew={() => setMainCategorySheet({ mode: "create" })}
+        copy={{
+          title: "Hauptkategorien",
+          description:
+            "Reihenfolge per Ziehen ändern. Inaktive Hauptkategorien werden in der Leiste abgeschwächt.",
+          newButton: "Neue Hauptkategorie",
+        }}
+      />
+
+      <MainCategoryDrawer
+        open={mainCategorySheet !== null}
+        onOpenChange={(o) => {
+          if (!o) setMainCategorySheet(null);
+        }}
+        mode={mainCategorySheet?.mode ?? "create"}
+        initial={
+          mainCategorySheet?.mode === "edit" ? mainCategorySheet.cat : null
+        }
+        onSave={handleMainCategorySave}
+        onDelete={
+          mainCategorySheet?.mode === "edit"
+            ? (id) => void deleteMainCategory(id)
+            : undefined
+        }
       />
 
       <CategoriesManageDrawer

@@ -7,6 +7,8 @@ export const queryKeys = {
     items: (restaurantId: string) => ["menu", restaurantId, "items"] as const,
     categories: (restaurantId: string) =>
       ["menu", restaurantId, "categories"] as const,
+    mainCategories: (restaurantId: string) =>
+      ["menu", restaurantId, "main-categories"] as const,
     taxonomy: (restaurantId: string, kind: "tags" | "allergens") =>
       ["menu", restaurantId, "taxonomy", kind] as const,
   },

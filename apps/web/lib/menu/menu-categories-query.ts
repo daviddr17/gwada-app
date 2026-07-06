@@ -4,7 +4,7 @@ import {
   CATEGORY_STORAGE_KEY,
   DEFAULT_CATEGORIES,
 } from "@/lib/constants/categories";
-import { migrateMenuCategoriesFromLegacyAppStateIfEmpty } from "@/lib/supabase/app-state-relational-migration";
+import { migrateMenuCategoriesFromLegacyAppStateIfEmpty, migrateMenuMainCategoriesIfEmpty } from "@/lib/supabase/app-state-relational-migration";
 import { loadMenuCategoriesRelational } from "@/lib/supabase/menu-db";
 import {
   getWorkspaceRestaurantId,
@@ -12,11 +12,14 @@ import {
   mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
 import type { MenuCategoryDefinition } from "@/lib/types/menu";
+import { defaultMenuMainCategories } from "@/lib/menu/menu-main-categories-query";
 
 function normalizeCategory(c: MenuCategoryDefinition): MenuCategoryDefinition {
   return {
     ...c,
     active: c.active !== false,
+    mainCategoryId:
+      c.mainCategoryId ?? DEFAULT_CATEGORIES[0]?.mainCategoryId ?? "",
   };
 }
 
@@ -24,6 +27,9 @@ function isValidCategoryLoose(x: unknown): x is MenuCategoryDefinition {
   if (!x || typeof x !== "object") return false;
   const o = x as Record<string, unknown>;
   if (typeof o.id !== "string" || typeof o.name !== "string" || !o.name.trim()) {
+    return false;
+  }
+  if (o.mainCategoryId !== undefined && typeof o.mainCategoryId !== "string") {
     return false;
   }
   if (o.active !== undefined && typeof o.active !== "boolean") return false;
@@ -56,6 +62,7 @@ export async function fetchMenuCategoriesForRestaurant(): Promise<
   const rid = await getWorkspaceRestaurantId();
   const seed = defaultMenuCategories();
   if (rid) {
+    await migrateMenuMainCategoriesIfEmpty(rid, defaultMenuMainCategories());
     await migrateMenuCategoriesFromLegacyAppStateIfEmpty(rid, seed);
   }
   const rows = await loadMenuCategoriesRelational(rid);

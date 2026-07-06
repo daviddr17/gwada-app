@@ -50,7 +50,7 @@ export default async function EmbedSpeisekartePage({
     );
   }
 
-  const { name, accentHex, currencyCode, categories, items, tagDefinitions } =
+  const { name, accentHex, currencyCode, mainCategories, categories, items, tagDefinitions } =
     result.data;
 
   return (
@@ -58,6 +58,7 @@ export default async function EmbedSpeisekartePage({
       restaurantName={name}
       accentHex={accentHex}
       currencyCode={currencyCode}
+      mainCategories={mainCategories}
       categories={categories}
       items={items}
       tagDefinitions={tagDefinitions}

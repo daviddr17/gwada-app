@@ -13,6 +13,7 @@ import { UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedMenuCategoryTabs } from "@/components/embed/embed-menu-category-tabs";
+import { EmbedMenuMainCategoryTabs } from "@/components/embed/embed-menu-main-category-tabs";
 import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
 import { MenuSearchFilters } from "@/components/menu/menu-search-filters";
 import type { GwadaEmbedFrameViewportMessage } from "@/lib/embed/embed-protocol";
@@ -40,6 +41,7 @@ import { sortItemsInCategoryForDisplay } from "@/lib/menu/item-utils";
 import type {
   MenuCategoryDefinition,
   MenuItem,
+  MenuMainCategoryDefinition,
   MenuTaxonomyDefinition,
 } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
@@ -52,6 +54,7 @@ export type EmbedMenuWidgetProps = {
   restaurantName: string;
   accentHex: string;
   currencyCode?: string;
+  mainCategories: MenuMainCategoryDefinition[];
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: readonly MenuTaxonomyDefinition[];
@@ -124,6 +127,10 @@ function EmbedMenuToolbar({
   search,
   onSearchChange,
   hasSearch,
+  visibleMainCategories,
+  activeMainCategoryId,
+  onMainCategorySelect,
+  mainCategoryVariant,
   visibleCategories,
   activeCategoryId,
   onCategorySelect,
@@ -136,6 +143,10 @@ function EmbedMenuToolbar({
   search: string;
   onSearchChange: (value: string) => void;
   hasSearch: boolean;
+  visibleMainCategories: MenuMainCategoryDefinition[];
+  activeMainCategoryId: string;
+  onMainCategorySelect: (id: string) => void;
+  mainCategoryVariant?: "default" | "sliding";
   visibleCategories: MenuCategoryDefinition[];
   activeCategoryId: string;
   onCategorySelect: (id: string) => void;
@@ -180,6 +191,12 @@ function EmbedMenuToolbar({
                 Suche in Gericht und Beschreibung (ca. 80&nbsp;% Übereinstimmung).
               </p>
             ) : null}
+            <EmbedMenuMainCategoryTabs
+              mainCategories={visibleMainCategories}
+              activeMainCategoryId={activeMainCategoryId}
+              onMainCategorySelect={onMainCategorySelect}
+              variant={mainCategoryVariant}
+            />
             <EmbedMenuCategoryTabs
               categories={visibleCategories}
               activeCategoryId={activeCategoryId}
@@ -274,6 +291,7 @@ export function EmbedMenuWidget({
   restaurantName,
   accentHex,
   currencyCode,
+  mainCategories,
   categories,
   items,
   tagDefinitions,
@@ -310,7 +328,7 @@ export function EmbedMenuWidget({
     return map;
   }, [items]);
 
-  const visibleCategories = useMemo(
+  const visibleCategoriesAll = useMemo(
     () =>
       categories.filter(
         (cat) =>
@@ -318,6 +336,27 @@ export function EmbedMenuWidget({
           (itemsByCategory.get(cat.id)?.length ?? 0) > 0,
       ),
     [categories, itemsByCategory],
+  );
+
+  const visibleMainCategories = useMemo(() => {
+    const mainIdsWithItems = new Set(
+      visibleCategoriesAll.map((c) => c.mainCategoryId),
+    );
+    return mainCategories.filter(
+      (m) => m.active !== false && mainIdsWithItems.has(m.id),
+    );
+  }, [mainCategories, visibleCategoriesAll]);
+
+  const [activeMainCategoryId, setActiveMainCategoryId] = useState(
+    () => visibleMainCategories[0]?.id ?? "",
+  );
+
+  const visibleCategories = useMemo(
+    () =>
+      visibleCategoriesAll.filter(
+        (cat) => cat.mainCategoryId === activeMainCategoryId,
+      ),
+    [visibleCategoriesAll, activeMainCategoryId],
   );
 
   const [search, setSearch] = useState("");
@@ -408,6 +447,15 @@ export function EmbedMenuWidget({
       );
     };
   }, [embedId, hostMode]);
+
+  useEffect(() => {
+    if (
+      visibleMainCategories.length > 0 &&
+      !visibleMainCategories.some((m) => m.id === activeMainCategoryId)
+    ) {
+      setActiveMainCategoryId(visibleMainCategories[0]!.id);
+    }
+  }, [visibleMainCategories, activeMainCategoryId]);
 
   useEffect(() => {
     if (
@@ -507,6 +555,22 @@ export function EmbedMenuWidget({
     return () => window.removeEventListener("scroll", onScroll);
   }, [hostMode, embedId, updateScrollSpy, profileScrollRoot]);
 
+  const selectMainCategory = useCallback((id: string) => {
+    skipScrollSpyRef.current = true;
+    setActiveMainCategoryId(id);
+    requestAnimationFrame(() => {
+      const profileRoot = profileScrollRoot;
+      if (profileRoot) {
+        profileRoot.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      window.setTimeout(() => {
+        skipScrollSpyRef.current = false;
+      }, 850);
+    });
+  }, [profileScrollRoot]);
+
   const scrollToCategory = useCallback(
     (id: string) => {
       skipScrollSpyRef.current = true;
@@ -537,6 +601,7 @@ export function EmbedMenuWidget({
 
   const resizeDeps = [
     restaurantName,
+    visibleMainCategories.length,
     visibleCategories.length,
     items.length,
     search,
@@ -550,6 +615,10 @@ export function EmbedMenuWidget({
     search,
     onSearchChange: setSearch,
     hasSearch,
+    visibleMainCategories,
+    activeMainCategoryId,
+    onMainCategorySelect: selectMainCategory,
+    mainCategoryVariant: profileSheet ? ("sliding" as const) : ("default" as const),
     visibleCategories,
     activeCategoryId,
     onCategorySelect: scrollToCategory,
@@ -568,7 +637,7 @@ export function EmbedMenuWidget({
           profileSheet ? "w-full min-w-0 pb-6" : "w-full min-w-0 py-6",
         )}
       >
-        {visibleCategories.length === 0 ? (
+        {visibleCategoriesAll.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
             Aktuell sind keine Gerichte veröffentlicht.
           </p>

@@ -1,4 +1,8 @@
-import type { MenuCategoryDefinition, MenuItem } from "@/lib/types/menu";
+import type {
+  MenuCategoryDefinition,
+  MenuItem,
+  MenuMainCategoryDefinition,
+} from "@/lib/types/menu";
 import { normalizeRecipeLines } from "@/lib/menu/recipe-utils";
 
 export function isMenuItemActive(item: MenuItem): boolean {
@@ -6,6 +10,10 @@ export function isMenuItemActive(item: MenuItem): boolean {
 }
 
 export function isCategoryActive(cat: MenuCategoryDefinition): boolean {
+  return cat.active !== false;
+}
+
+export function isMainCategoryActive(cat: MenuMainCategoryDefinition): boolean {
   return cat.active !== false;
 }
 

@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import {
+  drawerScrollAreaClassName,
+  drawerFormHeaderClassName,
+} from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
 import {
   Drawer,
@@ -18,97 +21,46 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
-import { SearchableSelect } from "@/components/ui/combobox";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
-import type { MenuCategoryDefinition, MenuMainCategoryDefinition } from "@/lib/types/menu";
+import type { MenuMainCategoryDefinition } from "@/lib/types/menu";
 
-type CategorySavePayload =
-  | { id?: undefined; name: string; active?: boolean; mainCategoryId?: string }
-  | { id: string; name: string; active: boolean; mainCategoryId?: string };
+type MainCategorySavePayload =
+  | { id?: undefined; name: string; active?: boolean }
+  | { id: string; name: string; active: boolean };
 
-export type CategoryDrawerLabels = {
-  titleCreate: string;
-  titleEdit: string;
-  description: string;
-  nameLabel: string;
-  namePlaceholder: string;
-  activeLabel: string;
-  activeDescription: string;
-  deleteLabel?: string;
-  deleteConfirmTitle?: string;
-};
-
-const MENU_CATEGORY_LABELS: CategoryDrawerLabels = {
-  titleCreate: "Neue Kategorie",
-  titleEdit: "Kategorie bearbeiten",
-  description: "Name und Sichtbarkeit – wie es in der Speisekarte erscheint.",
-  nameLabel: "Name",
-  namePlaceholder: "z. B. Mittagsangebot",
-  activeLabel: "Aktiv",
-  activeDescription:
-    "Inaktive Kategorien werden abgeschwächt und sind optional ausblendbar.",
-  deleteLabel: "Eintrag löschen",
-  deleteConfirmTitle: "Eintrag wirklich löschen?",
-};
-
-type CategoryDrawerProps = {
+type MainCategoryDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
-  /** Nur bei mode edit */
-  initial?: MenuCategoryDefinition | null;
-  /** Speisekarte: Zuordnung zu Speisen / Getränke / … */
-  mainCategories?: MenuMainCategoryDefinition[];
-  defaultMainCategoryId?: string;
-  onSave: (payload: CategorySavePayload) => void;
+  initial?: MenuMainCategoryDefinition | null;
+  onSave: (payload: MainCategorySavePayload) => void;
   onDelete?: (id: string) => void | Promise<void>;
-  /** z. B. Bestand: Lieferanten, Zutatenkategorien, … */
-  labels?: Partial<CategoryDrawerLabels>;
 };
 
-export function CategoryDrawer({
+export function MainCategoryDrawer({
   open,
   onOpenChange,
   mode,
   initial,
-  mainCategories = [],
-  defaultMainCategoryId,
   onSave,
   onDelete,
-  labels: labelsProp,
-}: CategoryDrawerProps) {
-  const labels = { ...MENU_CATEGORY_LABELS, ...labelsProp };
+}: MainCategoryDrawerProps) {
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
-  const [mainCategoryId, setMainCategoryId] = useState("");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
-      const fallbackMainId =
-        defaultMainCategoryId ??
-        mainCategories.find((m) => m.active !== false)?.id ??
-        mainCategories[0]?.id ??
-        "";
       if (mode === "edit" && initial) {
         setName(initial.name);
         setActive(initial.active !== false);
-        setMainCategoryId(initial.mainCategoryId || fallbackMainId);
       } else {
         setName("");
         setActive(true);
-        setMainCategoryId(fallbackMainId);
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [mode, initial, open, mainCategories, defaultMainCategoryId]);
-
-  const mainCategoryOptions = mainCategories.map((m) => ({
-    value: m.id,
-    label: m.name,
-  }));
-  const showMainCategoryField = mainCategories.length > 0;
+  }, [mode, initial, open]);
 
   const canDelete = mode === "edit" && initial && onDelete;
 
@@ -116,20 +68,10 @@ export function CategoryDrawer({
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
-    if (showMainCategoryField && !mainCategoryId) return;
     if (mode === "edit" && initial) {
-      onSave({
-        id: initial.id,
-        name: trimmed,
-        active,
-        ...(showMainCategoryField ? { mainCategoryId } : {}),
-      });
+      onSave({ id: initial.id, name: trimmed, active });
     } else {
-      onSave({
-        name: trimmed,
-        active,
-        ...(showMainCategoryField ? { mainCategoryId } : {}),
-      });
+      onSave({ name: trimmed, active });
     }
     onOpenChange(false);
   };
@@ -149,17 +91,17 @@ export function CategoryDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent
-          className={drawerContentClassName("assign")}
-        >
+        <DrawerContent className={drawerContentClassName("assign")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
                 <DrawerTitle className="text-xl font-semibold tracking-tight">
-                  {mode === "edit" ? labels.titleEdit : labels.titleCreate}
+                  {mode === "edit"
+                    ? "Hauptkategorie bearbeiten"
+                    : "Neue Hauptkategorie"}
                 </DrawerTitle>
                 <DrawerDescription className="text-base">
-                  {labels.description}
+                  Obere Ebene der Speisekarte — z. B. Speisen oder Getränke.
                 </DrawerDescription>
               </div>
               {canDelete ? (
@@ -168,7 +110,7 @@ export function CategoryDrawer({
                   variant="ghost"
                   size="icon-sm"
                   className="shrink-0 text-muted-foreground hover:text-destructive"
-                  aria-label={labels.deleteLabel}
+                  aria-label="Eintrag löschen"
                   onClick={() => setConfirmDeleteOpen(true)}
                 >
                   <Trash2 className="size-4" />
@@ -181,46 +123,30 @@ export function CategoryDrawer({
             <div className={drawerScrollAreaClassName(6)}>
               <DrawerFormSection title="Stammdaten">
                 <div className="space-y-2">
-                  <Label htmlFor="category-name">{labels.nameLabel}</Label>
+                  <Label htmlFor="main-category-name">Name</Label>
                   <Input
-                    id="category-name"
+                    id="main-category-name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder={labels.namePlaceholder}
+                    placeholder="z. B. Speisen"
                     className="h-12 rounded-xl"
                     autoFocus
                   />
                 </div>
               </DrawerFormSection>
 
-              {showMainCategoryField ? (
-                <DrawerFormSection title="Zuordnung">
-                  <div className="space-y-2">
-                    <Label htmlFor="category-main-category">Hauptkategorie</Label>
-                    <SearchableSelect
-                      id="category-main-category"
-                      value={mainCategoryId || null}
-                      onValueChange={(v) => setMainCategoryId(v)}
-                      options={mainCategoryOptions}
-                      placeholder="Hauptkategorie wählen"
-                      className={appSelectTriggerAccentCn("h-12 rounded-xl")}
-                    />
-                  </div>
-                </DrawerFormSection>
-              ) : null}
-
               <DrawerFormSection title="Sichtbarkeit">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
-                    <Label htmlFor="category-active" className="text-sm font-medium">
-                      {labels.activeLabel}
+                    <Label htmlFor="main-category-active" className="text-sm font-medium">
+                      Aktiv
                     </Label>
                     <p className="text-xs text-muted-foreground">
-                      {labels.activeDescription}
+                      Inaktive Hauptkategorien werden in der Leiste abgeschwächt.
                     </p>
                   </div>
                   <Switch
-                    id="category-active"
+                    id="main-category-active"
                     checked={active}
                     onCheckedChange={(v) => setActive(v === true)}
                   />
@@ -241,12 +167,13 @@ export function CategoryDrawer({
         <ConfirmDialog
           open={confirmDeleteOpen}
           onOpenChange={setConfirmDeleteOpen}
-          title={labels.deleteConfirmTitle ?? "Eintrag wirklich löschen?"}
+          title="Eintrag wirklich löschen?"
           description={
             initial ? (
               <>
                 „<span className="font-medium text-foreground">{initial.name}</span>“
-                wird dauerhaft entfernt.
+                wird dauerhaft entfernt. Kategorien in dieser Hauptkategorie müssen
+                zuerst verschoben oder gelöscht werden.
               </>
             ) : null
           }

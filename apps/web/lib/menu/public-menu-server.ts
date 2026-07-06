@@ -11,6 +11,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   MenuCategoryDefinition,
   MenuItem,
+  MenuMainCategoryDefinition,
   MenuTaxonomyDefinition,
 } from "@/lib/types/menu";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -21,6 +22,7 @@ export type PublicEmbedMenu = {
   slug: string;
   accentHex: string;
   currencyCode: string;
+  mainCategories: MenuMainCategoryDefinition[];
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: MenuTaxonomyDefinition[];
@@ -93,11 +95,17 @@ export async function fetchPublicEmbedMenu(
 
   const restaurantId = row.id as string;
 
-  const [categoriesRes, itemsRes, tagsRes, allergensRes, settingsRes] =
+  const [mainCategoriesRes, categoriesRes, itemsRes, tagsRes, allergensRes, settingsRes] =
     await Promise.all([
     admin
-      .from("menu_categories")
+      .from("menu_main_categories")
       .select("id, name, is_active, sort_order")
+      .eq("restaurant_id", restaurantId)
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+    admin
+      .from("menu_categories")
+      .select("id, name, is_active, sort_order, main_category_id")
       .eq("restaurant_id", restaurantId)
       .eq("is_active", true)
       .order("sort_order", { ascending: true }),
@@ -132,6 +140,7 @@ export async function fetchPublicEmbedMenu(
   ]);
 
   if (
+    mainCategoriesRes.error ||
     categoriesRes.error ||
     itemsRes.error ||
     tagsRes.error ||
@@ -140,6 +149,14 @@ export async function fetchPublicEmbedMenu(
   ) {
     return { data: null, error: "db_error", status: 500 };
   }
+
+  const mainCategories: MenuMainCategoryDefinition[] = (
+    mainCategoriesRes.data ?? []
+  ).map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    active: c.is_active as boolean,
+  }));
 
   const activeCategoryIds = new Set(
     (categoriesRes.data ?? []).map((c) => c.id as string),
@@ -150,6 +167,7 @@ export async function fetchPublicEmbedMenu(
       id: c.id as string,
       name: c.name as string,
       active: c.is_active as boolean,
+      mainCategoryId: c.main_category_id as string,
     }),
   );
 
@@ -186,6 +204,7 @@ export async function fetchPublicEmbedMenu(
       slug: String(row.slug ?? slug),
       accentHex,
       currencyCode,
+      mainCategories,
       categories,
       items,
       tagDefinitions,

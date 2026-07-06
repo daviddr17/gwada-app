@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { EmbedApiInfoCard } from "@/components/embed/embed-api-info-card";
 import { EmbedDualThemePreviewPane, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedOpeningHoursWidget } from "@/components/embed/embed-opening-hours-widget";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
@@ -327,6 +328,8 @@ export function OpeningHoursEmbedPanel() {
           </p>
         )}
       </section>
+
+      <EmbedApiInfoCard moduleId="opening_hours" />
 
       <section className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         <p>

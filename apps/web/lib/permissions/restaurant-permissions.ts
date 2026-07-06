@@ -35,6 +35,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "settings.opening_hours",
   "settings.branding",
   "settings.dashboard",
+  "settings.api",
   ...MODULE_CRUD_KEYS,
   ...LEGACY_MODULE_MANAGE_KEYS,
   "gallery.read",
@@ -199,6 +200,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "settings.dashboard",
       label: "Dashboard-Widgets",
       description: "Sichtbare Kacheln im Dashboard.",
+      group: "einstellungen",
+    },
+    {
+      key: "settings.api",
+      label: "Public API",
+      description: "API-Schlüssel für Headless-Einbindung (read-only).",
       group: "einstellungen",
     },
     {

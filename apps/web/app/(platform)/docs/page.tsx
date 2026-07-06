@@ -1,19 +1,31 @@
 import type { Metadata } from "next";
-import { MarketingStaticPage } from "@/components/landing/marketing-static-page";
-
-export const dynamic = "force-static";
+import Link from "next/link";
+import { DocsProse } from "@/components/docs/docs-prose";
 
 export const metadata: Metadata = {
-  description: "Dokumentation und Guides für gwada.",
+  title: "Dokumentation",
+  description: "Guides und API-Referenz für gwada.",
 };
 
 export default function DocsPage() {
   return (
-    <MarketingStaticPage title="Dokumentation">
+    <DocsProse
+      title="gwada Dokumentation"
+      description="Guides für Einbindung, Integration und Entwicklung."
+    >
       <p>
-        API-Hinweise, Datenmodell und Best Practices folgen hier als lebendige
-        Guides. Bis dahin: einloggen und im Dashboard ausprobieren.
+        Hier findest du technische Dokumentation zur Plattform — beginnend mit der{" "}
+        <strong>Public Read API</strong> für Headless-Einbindungen.
       </p>
-    </MarketingStaticPage>
+      <h2>API</h2>
+      <p>
+        JSON-Endpunkte für Speisekarte, Reservierung, News und weitere Module — mit
+        API-Schlüssel pro Restaurant. Verwaltung unter{" "}
+        <Link href="/settings/api">Einstellungen → API</Link> (Login erforderlich).
+      </p>
+      <p>
+        <Link href="/docs/api">Zur API-Dokumentation →</Link>
+      </p>
+    </DocsProse>
   );
 }

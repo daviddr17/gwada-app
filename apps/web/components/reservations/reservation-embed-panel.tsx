@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { EmbedApiInfoCard } from "@/components/embed/embed-api-info-card";
 import { EmbedDualThemePreviewFrame, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
@@ -161,6 +162,8 @@ export function ReservationEmbedPanel() {
           </>
         ) : null}
       </section>
+
+      <EmbedApiInfoCard moduleId="reservation" />
 
       <section className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         <p>

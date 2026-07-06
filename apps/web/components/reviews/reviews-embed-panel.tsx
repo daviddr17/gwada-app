@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { EmbedApiInfoCard } from "@/components/embed/embed-api-info-card";
 import { EmbedDualThemePreviewPane, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedReviewsWidget } from "@/components/embed/embed-reviews-widget";
 import { Button } from "@/components/ui/button";
@@ -349,6 +350,8 @@ export function ReviewsEmbedPanel() {
           />
         ) : null}
       </section>
+
+      <EmbedApiInfoCard moduleId="reviews" />
     </div>
   );
 }

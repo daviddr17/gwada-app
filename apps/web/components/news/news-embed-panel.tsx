@@ -5,6 +5,7 @@ import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
+import { EmbedApiInfoCard } from "@/components/embed/embed-api-info-card";
 import { EmbedDualThemePreviewFrame, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
@@ -162,6 +163,8 @@ export function NewsEmbedPanel() {
           />
         ) : null}
       </section>
+
+      <EmbedApiInfoCard moduleId="news" />
     </div>
   );
 }

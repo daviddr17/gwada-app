@@ -78,6 +78,7 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/settings/dashboard": "Dashboard",
   "/settings/integrationen": "Integrationen",
   "/settings/displays": "Displays",
+  "/settings/api": "API",
   "/dashboard/checklisten": "Checklisten",
   "/dashboard/checklisten/todos": "Checklisten",
   "/dashboard/checklisten/vorlagen": "Checklisten",

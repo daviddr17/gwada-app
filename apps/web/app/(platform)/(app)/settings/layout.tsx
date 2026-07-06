@@ -35,6 +35,11 @@ const SETTINGS_NAV: readonly ModuleSubnavItem[] = [
     label: "Displays",
     matchMode: "prefix",
   },
+  {
+    href: "/settings/api",
+    label: "API",
+    matchMode: "exact",
+  },
 ];
 
 export default function SettingsLayout({

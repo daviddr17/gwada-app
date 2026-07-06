@@ -8,6 +8,7 @@ import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { EmbedApiInfoCard } from "@/components/embed/embed-api-info-card";
 import { EmbedDualThemePreviewFrame, embedPreviewSectionHint } from "@/components/embed/embed-dual-theme-preview";
 import { EmbedSnippetCodeBlock } from "@/components/embed/embed-snippet-code-block";
 import { EmbedTextThemeSetting } from "@/components/embed/embed-text-theme-setting";
@@ -162,6 +163,8 @@ export function MenuEmbedPanel() {
           />
         ) : null}
       </section>
+
+      <EmbedApiInfoCard moduleId="menu" />
 
       <section className="rounded-2xl border border-border/50 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         <p>

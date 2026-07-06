@@ -63,6 +63,7 @@ import type {
   RestaurantChecklistDeviceRow,
 } from "@/lib/types/checklist-areas-devices";
 import { staffDisplayName, type RestaurantStaffRow } from "@/lib/types/staff";
+import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
 import type { StaffPositionTagDefinition } from "@/lib/types/staff";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -262,10 +263,11 @@ export function StaffTodoFormDrawer({
 
   const staffOptions = useMemo(
     () =>
-      staffList
-        .filter((s) => s.is_active)
-        .map((s) => ({ value: s.id, label: staffDisplayName(s) })),
-    [staffList],
+      buildStaffSearchableSelectOptions(staffList, {
+        showInactiveSuffix: false,
+        includeStaffIds: staffIds,
+      }),
+    [staffList, staffIds],
   );
 
   const tagOptions = useMemo(

@@ -167,8 +167,20 @@ export function SearchableSelect({
   const displayLabel = value ? (labelById.get(value) ?? "") : ""
   const [inputValue, setInputValue] = React.useState(displayLabel)
   React.useEffect(() => {
-    setInputValue(displayLabel)
-  }, [displayLabel])
+    if (!open) setInputValue(displayLabel)
+  }, [displayLabel, open])
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen)
+      if (nextOpen) {
+        setInputValue("")
+      } else {
+        setInputValue(displayLabel)
+      }
+    },
+    [displayLabel],
+  )
 
   const matcher = Combobox.useFilter({
     sensitivity: "base",
@@ -180,7 +192,7 @@ export function SearchableSelect({
     <Combobox.Root
       modal={false}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       value={value}
       inputValue={inputValue}
       onInputValueChange={(next) => setInputValue(next)}
@@ -215,7 +227,7 @@ export function SearchableSelect({
           id={id}
           aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
-          placeholder={searchPlaceholder}
+          placeholder={open ? searchPlaceholder : value ? undefined : searchPlaceholder}
           className={cn(
             "min-h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0 sm:text-sm",
             "truncate",

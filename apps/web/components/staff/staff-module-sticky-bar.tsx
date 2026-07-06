@@ -5,10 +5,8 @@ import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  staffOptionLabel,
-  useStaffModuleSelection,
-} from "@/lib/contexts/staff-module-selection-context";
+import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
+import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -55,11 +53,14 @@ export function StaffModuleStickyBar() {
     [positionTags.items],
   );
 
-  const options = staffList.map((s) => ({
-    value: s.id,
-    label: staffOptionLabel(s),
-    leadingColor: s.position_tag?.background_color,
-  }));
+  const options = useMemo(
+    () =>
+      buildStaffSearchableSelectOptions(staffList, {
+        activeOnly: true,
+        includeStaffIds: [selectedStaffId],
+      }),
+    [staffList, selectedStaffId],
+  );
 
   const handleStaffSaved = useCallback(
     (staffId?: string) => {

@@ -418,6 +418,63 @@
   backface-visibility: hidden;
 }
 
+/**
+ * PWA-Splash (Dashboard + Display) — nur Standalone, bis data-*-pwa-splash="done".
+ * Hintergrund = Manifest/viewport (kein Flackern nach OS-Splash).
+ */
+.pwa-splash {
+  display: none;
+  background: #ffffff;
+  -webkit-user-select: none;
+  user-select: none;
+  contain: strict;
+  will-change: opacity;
+}
+
+@media (prefers-color-scheme: dark) {
+  .pwa-splash {
+    background: #0a0a0a;
+  }
+}
+
+@media (display-mode: standalone) {
+  html:not([data-dashboard-pwa-splash="done"])
+    .pwa-splash[data-pwa-splash-app="dashboard"] {
+    display: flex;
+  }
+
+  html:not([data-display-pwa-splash="done"])
+    .pwa-splash[data-pwa-splash-app="display"] {
+    display: flex;
+  }
+}
+
+.pwa-splash__logo-wrap {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.pwa-splash--spin .pwa-splash__logo-wrap {
+  animation: pwa-splash-spin 1.25s linear infinite;
+}
+
+@keyframes pwa-splash-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pwa-splash--exit {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pwa-splash--spin .pwa-splash__logo-wrap {
+    animation: none;
+  }
+}
+
 /** iOS: Fokus auf Felder unter 16px löst Auto-Zoom aus */
 @media (max-width: 767px) {
   [data-slot="input"],

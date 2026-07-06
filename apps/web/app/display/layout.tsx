@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DisplayPwaSetup } from "@/components/display/display-pwa-setup";
+import { DisplayPwaSplashPreload } from "@/components/display/display-pwa-splash-preload";
+import { DisplayPwaSplashProvider } from "@/components/display/display-pwa-splash-provider";
 import { DisplayProviders } from "@/components/providers/display-providers";
 import { Toaster } from "@/components/ui/sonner";
 import {
@@ -46,14 +48,17 @@ export default async function DisplayRootLayout({
 
   return (
     <DisplayProviders initialBranding={branding}>
-      <DisplayPwaSetup />
-      <Toaster position="top-center" richColors closeButton />
-      <div
-        data-display-root
-        className="min-h-dvh bg-background text-foreground"
-      >
-        {children}
-      </div>
+      <DisplayPwaSplashPreload />
+      <DisplayPwaSplashProvider>
+        <DisplayPwaSetup />
+        <Toaster position="top-center" richColors closeButton />
+        <div
+          data-display-root
+          className="min-h-dvh bg-background text-foreground"
+        >
+          {children}
+        </div>
+      </DisplayPwaSplashProvider>
     </DisplayProviders>
   );
 }

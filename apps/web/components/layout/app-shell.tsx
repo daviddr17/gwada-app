@@ -9,6 +9,7 @@ import { ModuleChipNav } from "@/components/layout/module-subnav";
 import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-favicon";
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
+import { DashboardPwaInstallButton } from "@/components/dashboard/dashboard-pwa-install-button";
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
@@ -116,6 +117,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               >
                 <Settings className="size-4" />
               </Button>
+              <DashboardPwaInstallButton />
               <ModeToggle size="icon-sm" />
             </div>
           </div>

@@ -1,3 +1,7 @@
+import type { Metadata, Viewport } from "next";
+import { DashboardPwaSetup } from "@/components/dashboard/dashboard-pwa-setup";
+import { DashboardPwaSplashGate } from "@/components/dashboard/dashboard-pwa-splash-gate";
+import { DashboardPwaSplashPreload } from "@/components/dashboard/dashboard-pwa-splash-preload";
 import { AppShell } from "@/components/layout/app-shell";
 import { AppDashboardLivePatchMount } from "@/components/providers/app-dashboard-live-patch-mount";
 import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
@@ -15,7 +19,37 @@ import { RestaurantPermissionsProvider } from "@/lib/contexts/restaurant-permiss
 import { RestaurantProfileProvider } from "@/lib/contexts/restaurant-profile-context";
 import { WorkspaceAuthSessionProvider } from "@/lib/contexts/workspace-auth-session-context";
 import { WorkspaceRestaurantProvider } from "@/lib/contexts/workspace-restaurant-context";
+import {
+  DASHBOARD_PWA_MANIFEST_PATH,
+  dashboardPwaIconPath,
+} from "@/lib/dashboard/dashboard-pwa-config";
+import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import "../../app-calendar.css";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const branding = await getCachedRootLayoutBranding();
+  const appName = branding.appName.trim() || "gwada";
+  const dashboardAppName = `${appName} - Dashboard`;
+
+  return {
+    manifest: DASHBOARD_PWA_MANIFEST_PATH,
+    appleWebApp: {
+      capable: true,
+      title: dashboardAppName,
+      statusBarStyle: "default",
+    },
+    icons: {
+      apple: [{ url: dashboardPwaIconPath(180), sizes: "180x180", type: "image/png" }],
+    },
+  };
+}
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
+};
 
 export default function AppLayout({
   children,
@@ -24,6 +58,7 @@ export default function AppLayout({
 }>) {
   return (
     <WorkspaceShellProviders>
+      <DashboardPwaSplashPreload />
       <QueryProvider>
         <WorkspaceAuthSessionProvider>
           <WorkspaceRestaurantProvider>
@@ -32,6 +67,7 @@ export default function AppLayout({
                 <DashboardWidgetPreferencesProvider>
                   <AccentColorProvider>
                     <SoftNavLockProvider>
+                      <DashboardPwaSetup />
                       <AuthCookieCleanupMount />
                       <DashboardBatchPrefetchMount />
                       <AppModuleWarmPrefetchMount />
@@ -39,7 +75,9 @@ export default function AppLayout({
                       <AppDashboardLivePatchMount />
                       <ProfilePresenceHeartbeat />
                       <AppModuleLiveProviders />
-                      <AppShell>{children}</AppShell>
+                      <DashboardPwaSplashGate>
+                        <AppShell>{children}</AppShell>
+                      </DashboardPwaSplashGate>
                     </SoftNavLockProvider>
                   </AccentColorProvider>
                 </DashboardWidgetPreferencesProvider>

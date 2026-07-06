@@ -9,6 +9,7 @@ import { DisplayContextFooter } from "@/components/display/display-context-foote
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
 import { DisplayCelebrationOverlay, type DisplayCelebrationVariant } from "@/components/display/display-celebration-overlay";
+import { useMarkDisplayPwaSplashReady } from "@/components/display/display-pwa-splash-provider";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
@@ -67,6 +68,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     : DISPLAY_CELEBRATION_EXIT_MS;
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  useMarkDisplayPwaSplashReady(!loading);
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [screenCelebration, setScreenCelebration] =

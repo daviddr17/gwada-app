@@ -1,4 +1,4 @@
-/** PWA nur für /display — Dashboard bleibt vorerst ohne Install. */
+/** PWA für /display (Küchen-/Service-Display). Dashboard inkl. Splash: dashboard-pwa-config. */
 
 export const DISPLAY_PWA_SCOPE = "/display/";
 /** Fallback, wenn kein Restaurant-Slug bekannt ist (Kopplungsseite). */

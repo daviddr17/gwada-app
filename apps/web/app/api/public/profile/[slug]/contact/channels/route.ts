@@ -1,3 +1,4 @@
+import { enforcePublicApiReadRateLimit } from "@/lib/api/public-api-rate-limit";
 import { fetchPublicProfileContactChannels } from "@/lib/contacts/public-profile-contact-channels-server";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-slugs";
@@ -5,7 +6,7 @@ import { isReservedRestaurantSlug } from "@/lib/restaurant/reserved-restaurant-s
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ slug: string }> },
 ) {
   const { slug: rawSlug } = await ctx.params;
@@ -14,6 +15,9 @@ export async function GET(
   if (!slug || isReservedRestaurantSlug(slug)) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
+
+  const rateLimited = enforcePublicApiReadRateLimit(req, slug);
+  if (rateLimited) return rateLimited;
 
   const result = await fetchPublicProfileContactChannels(slug);
   if (!result.data) {

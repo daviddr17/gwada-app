@@ -1,8 +1,10 @@
+import { enforcePublicApiWriteRateLimit } from "@/lib/api/public-api-rate-limit";
 import {
   loadPublicReservationForManage,
   updatePublicReservation,
   type PublicReservationUpdateBody,
 } from "@/lib/reservations/public-reservation-server";
+import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +13,12 @@ export async function POST(req: Request) {
     action?: string;
   } & PublicReservationUpdateBody;
 
+  const slug = normalizeRestaurantSlugInput(body.slug?.trim() ?? "");
+
+  const rateLimited = enforcePublicApiWriteRateLimit(req, slug || undefined);
+  if (rateLimited) return rateLimited;
+
   const action = body.action ?? "update";
-  const slug = body.slug?.trim() ?? "";
   const reservationNumber = Number(body.reservation_number);
   const pin = body.pin?.trim() ?? "";
 

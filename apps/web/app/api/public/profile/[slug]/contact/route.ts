@@ -1,3 +1,4 @@
+import { enforcePublicApiWriteRateLimit } from "@/lib/api/public-api-rate-limit";
 import { publicProfileContactErrorMessage } from "@/lib/contacts/public-profile-contact-errors";
 import {
   submitPublicProfileContact,
@@ -18,6 +19,9 @@ export async function POST(
   if (!slug || isReservedRestaurantSlug(slug)) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
+
+  const rateLimited = enforcePublicApiWriteRateLimit(req, slug);
+  if (rateLimited) return rateLimited;
 
   const body = (await req.json().catch(() => ({}))) as PublicProfileContactBody;
   const result = await submitPublicProfileContact(slug, body);

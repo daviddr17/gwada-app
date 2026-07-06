@@ -1,3 +1,4 @@
+import { enforcePublicApiReadRateLimit } from "@/lib/api/public-api-rate-limit";
 import {
   fetchMetaMediaProxyResponse,
   parseMetaMediaProxyRequest,
@@ -26,6 +27,12 @@ export async function GET(req: Request) {
   if (!parsed.ok) {
     return new Response(parsed.message, { status: parsed.status });
   }
+
+  const rateLimited = enforcePublicApiReadRateLimit(
+    req,
+    parsed.params.restaurantId,
+  );
+  if (rateLimited) return rateLimited;
 
   const admin = createSupabaseAdminClient();
   if (!admin) {

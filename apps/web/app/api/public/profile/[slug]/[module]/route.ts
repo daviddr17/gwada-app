@@ -1,3 +1,4 @@
+import { enforcePublicApiReadRateLimit } from "@/lib/api/public-api-rate-limit";
 import { fetchPublicEmbedEvents } from "@/lib/events/public-events-server";
 import { fetchPublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 import { fetchPublicEmbedMenu } from "@/lib/menu/public-menu-server";
@@ -17,7 +18,7 @@ function isProfileModule(value: string): value is ProfileModule {
 const CACHE_HEADER = "public, s-maxage=60, stale-while-revalidate=300";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ slug: string; module: string }> },
 ) {
   const { slug: rawSlug, module: rawModule } = await ctx.params;
@@ -26,6 +27,9 @@ export async function GET(
   if (!slug || isReservedRestaurantSlug(slug)) {
     return Response.json({ error: "not_found" }, { status: 404 });
   }
+
+  const rateLimited = enforcePublicApiReadRateLimit(req, slug);
+  if (rateLimited) return rateLimited;
 
   if (!isProfileModule(rawModule)) {
     return Response.json({ error: "invalid_module" }, { status: 400 });

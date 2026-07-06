@@ -1,7 +1,7 @@
 {
-  "title": "Schutz öffentlicher APIs",
-  "body": "- **Öffentliche Embed-APIs** sind jetzt gegen Massen-Abfragen (Scraping) geschützt — normale Website-Nutzung bleibt unbeeinträchtigt\n- **Dokumentation:** Rate Limits für Slug-Endpunkte und Secret-Key-API unter **gwada.app/docs/api/rate-limits** ergänzt",
-  "superadminBody": "- **Rate limits:** `/api/public/*` — GET 30/min IP, 20/min IP+Restaurant; POST 10/min IP, 5/min IP+Restaurant\n- **Shared:** `in-memory-rate-limit.ts`, `public-api-rate-limit.ts`, IP aus Proxy-Headern\n- **Keine Migration**",
+  "title": "Dashboard-PWA, Navigation & Formulare",
+  "body": "- **Dashboard als App:** Das Dashboard lässt sich am iPhone/iPad installieren („gwada – Dashboard“) — Einstellungen und Profil sind in der App erreichbar\n- **Heute-Widget:** Kompakteres Layout mit farbigen Kennzahlen\n- **Mitarbeiter:** Dropdown zeigt Nachname, Vorname — kein automatisches Vorauswählen mehr\n- **Formulare auf iOS:** Mitarbeiter-, Vertrag-, Arbeitszeit- und Reservierungs-Drawer scrollen bei geöffneter Tastatur zuverlässiger\n- **Einbinden:** API-Hinweise unter den Modulen gestrafft",
+  "superadminBody": "- **Routen:** Einstellungen/Profil unter `/dashboard/settings` bzw. `/dashboard/profile` (Legacy-Redirects); PWA-Scope `/dashboard/`\n- **PWA:** Manifest, SW, Splash (`PwaSplashGate`), Install-Button in App-Shell\n- **iOS Drawer:** `useDrawerFormKeyboardAssist` — `repositionInputs` nur iOS + offen, lokales scrollIntoView\n- **Keine Migration**",
   "audience": "customers",
-  "version": "2026.07.06.3"
+  "version": "2026.07.06.4"
 }

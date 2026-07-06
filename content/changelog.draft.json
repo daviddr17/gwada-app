@@ -1,7 +1,7 @@
 {
-  "title": "Speisekarte: Embed-Nummern & Ansichts-Icons",
-  "body": "- **Einbinden & Profil-Speisekarte:** Keine Nummern (1., 2., 3. …) mehr vor Gerichtnamen\n- **Speisekarte:** Tabellen-Icon steht links und ist standardmäßig aktiv (Karten rechts)",
-  "superadminBody": "- **Embed:** `EmbedMenuItemRow` ohne `listNumber`\n- **Dashboard:** View-Toggle Reihenfolge Table → Grid",
+  "title": "Reservierungen: Protokoll pro Buchung & Modul-Chip",
+  "body": "- **Drawer:** Protokoll-Abschnitt je Reservierung (Angelegt, Geändert, Änderungsanfragen, Gelöscht)\n- **Modul:** Neuer Chip **Protokoll** mit durchsuchbarer Gesamtliste aller Reservierungsaktionen\n- **Quellen:** Dashboard, Gast-Online, Display — mit Nutzer/Gast/Display-Kennzeichnung",
+  "superadminBody": "- **DB:** `restaurant_reservation_log_entries` + Backfill „Erstellt“ für Bestand\n- **Logging:** `reservation-log-*` in Drawer, Change-Request, Public- & Display-Mutationen",
   "audience": "customers",
-  "version": "2026.07.06.8"
+  "version": "2026.07.06.9"
 }

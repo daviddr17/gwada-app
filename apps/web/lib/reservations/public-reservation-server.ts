@@ -15,6 +15,12 @@ import {
   type PublicReservationUpdateBody,
 } from "@/lib/reservations/public-embed-shared";
 import type { ReservationPendingChange } from "@/lib/reservations/reservation-pending-change";
+import {
+  buildReservationLogChanges,
+  buildReservationLogDetails,
+  reservationSnapshotFromPayload,
+} from "@/lib/reservations/reservation-log-build";
+import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
@@ -28,6 +34,9 @@ import type {
   Weekday,
 } from "@/lib/types/restaurant";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  formatReservationGuestLabel,
+} from "@/lib/types/reservation-log";
 
 export type {
   PublicEmbedRestaurant,
@@ -338,6 +347,44 @@ export async function createPublicReservation(
     return { data: null, error: "create_failed", status: 500 };
   }
 
+  const guestFirst = body.guest_first_name.trim() || "Gast";
+  const guestLast = body.guest_last_name.trim();
+  const after = reservationSnapshotFromPayload(
+    {
+      guest_first_name: guestFirst,
+      guest_last_name: guestLast,
+      guest_phone: body.guest_phone?.trim() || null,
+      guest_email: body.guest_email?.trim() || null,
+      party_size: body.party_size,
+      starts_at: body.starts_at,
+      ends_at: body.ends_at,
+      status_id: statusId,
+      dining_table_id: null,
+      dwell_minutes: dwell,
+      notify_email: body.notify_email,
+      notify_whatsapp: body.notify_whatsapp,
+      terms_accepted: body.terms_accepted,
+    },
+    "Offen",
+    "Kein Tisch",
+  );
+  await insertReservationLogEntry(admin, {
+    restaurantId: restaurant.id,
+    reservationId: data.id as string,
+    actorUserId: null,
+    action: "created",
+    reservationNumber: data.reservation_number as number,
+    guestLabel: formatReservationGuestLabel(
+      data.reservation_number as number,
+      guestFirst,
+      guestLast,
+    ),
+    details: buildReservationLogDetails(
+      buildReservationLogChanges(null, after),
+      { actorSource: "guest", summary: "Online gebucht" },
+    ),
+  });
+
   await dispatchGuestNotifications(data.id);
 
   return {
@@ -534,6 +581,46 @@ export async function updatePublicReservation(
       console.warn("[gwada] public reservation update", error.message);
       return { data: null, error: "update_failed", status: 500 };
     }
+    const before = reservationSnapshotFromPayload(
+      {
+        guest_first_name: existing.guest_first_name,
+        guest_last_name: existing.guest_last_name,
+        guest_phone: existing.guest_phone,
+        guest_email: existing.guest_email,
+        party_size: existing.party_size,
+        starts_at: existing.starts_at,
+        ends_at: existing.ends_at,
+        status_id: "",
+        dining_table_id: existing.dining_table_id,
+        dwell_minutes: existing.dwell_minutes,
+        notify_email: existing.notify_email,
+        notify_whatsapp: existing.notify_whatsapp,
+        terms_accepted: existing.terms_accepted,
+      },
+      existing.status_code,
+      "Kein Tisch",
+    );
+    const after = reservationSnapshotFromPayload(
+      { ...patch, status_id: "", dining_table_id: existing.dining_table_id },
+      existing.status_code,
+      "Kein Tisch",
+    );
+    await insertReservationLogEntry(admin, {
+      restaurantId: restaurantRes.data.id,
+      reservationId: existing.id,
+      actorUserId: null,
+      action: "updated",
+      reservationNumber: existing.reservation_number,
+      guestLabel: formatReservationGuestLabel(
+        existing.reservation_number,
+        patch.guest_first_name,
+        patch.guest_last_name,
+      ),
+      details: buildReservationLogDetails(
+        buildReservationLogChanges(before, after),
+        { actorSource: "guest" },
+      ),
+    });
     if (body.notify_email || body.notify_whatsapp) {
       await dispatchGuestNotifications(existing.id);
     }
@@ -582,6 +669,47 @@ export async function updatePublicReservation(
     console.warn("[gwada] public change request", error.message);
     return { data: null, error: "update_failed", status: 500 };
   }
+
+  const before = reservationSnapshotFromPayload(
+    {
+      guest_first_name: existing.guest_first_name,
+      guest_last_name: existing.guest_last_name,
+      guest_phone: existing.guest_phone,
+      guest_email: existing.guest_email,
+      party_size: existing.party_size,
+      starts_at: existing.starts_at,
+      ends_at: existing.ends_at,
+      status_id: "",
+      dining_table_id: existing.dining_table_id,
+      dwell_minutes: existing.dwell_minutes,
+      notify_email: existing.notify_email,
+      notify_whatsapp: existing.notify_whatsapp,
+      terms_accepted: existing.terms_accepted,
+    },
+    existing.status_code,
+    "Kein Tisch",
+  );
+  const after = reservationSnapshotFromPayload(
+    { ...patch, status_id: "", dining_table_id: existing.dining_table_id },
+    "Änderung angefragt",
+    "Kein Tisch",
+  );
+  await insertReservationLogEntry(admin, {
+    restaurantId: restaurantRes.data.id,
+    reservationId: existing.id,
+    actorUserId: null,
+    action: "change_request_submitted",
+    reservationNumber: existing.reservation_number,
+    guestLabel: formatReservationGuestLabel(
+      existing.reservation_number,
+      patch.guest_first_name,
+      patch.guest_last_name,
+    ),
+    details: buildReservationLogDetails(
+      buildReservationLogChanges(before, after),
+      { actorSource: "guest", summary: "Änderungsanfrage vom Gast" },
+    ),
+  });
 
   return { data: { ok: true, change_request: true }, error: null };
 }

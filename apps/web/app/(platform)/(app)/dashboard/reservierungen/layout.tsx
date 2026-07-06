@@ -22,6 +22,11 @@ const RESERVATIONS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "prefix",
   },
   {
+    href: "/dashboard/reservierungen/protokoll",
+    label: "Protokoll",
+    matchMode: "prefix",
+  },
+  {
     href: "/dashboard/reservierungen/einstellungen",
     label: "Einstellungen",
     matchMode: "prefix",

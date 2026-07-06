@@ -6,39 +6,38 @@ import {
   type SearchableSelectOption,
 } from "@/components/ui/combobox";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
-import type { StaffPositionTagDefinition } from "@/lib/types/staff";
+import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
+import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
+import type { RestaurantPositionRow } from "@/lib/supabase/restaurant-positions-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
-const NO_TAG = "__none__";
-
-type StaffPositionTagSelectProps = {
-  activeTags: StaffPositionTagDefinition[];
+type StaffRestaurantRoleSelectProps = {
+  positions: RestaurantPositionRow[];
   value: string;
   onValueChange: (value: string) => void;
   placeholder?: string;
+  disabled?: boolean;
   "aria-label"?: string;
   className?: string;
 };
 
-export function StaffPositionTagSelect({
-  activeTags,
+export function StaffRestaurantRoleSelect({
+  positions,
   value,
   onValueChange,
-  placeholder = "Keine Position",
+  placeholder = "Rolle wählen …",
+  disabled = false,
   "aria-label": ariaLabel,
   className,
-}: StaffPositionTagSelectProps) {
+}: StaffRestaurantRoleSelectProps) {
   const options = useMemo((): SearchableSelectOption[] => {
-    return [
-      { value: NO_TAG, label: "Keine Position" },
-      ...activeTags.map((t) => ({
-        value: t.id,
-        label: t.name,
-        leadingColor: t.backgroundColor,
-      })),
-    ];
-  }, [activeTags]);
+    return positions.map((p) => ({
+      value: p.id,
+      label: formatRestaurantPositionLabel(p),
+      leadingColor: normalizeRestaurantPositionColor(p.color, p.id),
+    }));
+  }, [positions]);
 
   return (
     <SearchableSelect
@@ -46,11 +45,10 @@ export function StaffPositionTagSelect({
       value={value}
       onValueChange={onValueChange}
       placeholder={placeholder}
-      searchPlaceholder="Position suchen …"
+      searchPlaceholder="Rolle suchen …"
+      disabled={disabled}
       aria-label={ariaLabel}
       className={appSelectTriggerAccentCn(cn(staffDrawerFieldClassName, className))}
     />
   );
 }
-
-export { NO_TAG as STAFF_POSITION_TAG_NONE };

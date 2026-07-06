@@ -26,6 +26,14 @@ import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 
 const selectClass = appSelectTriggerAccentCn(staffDrawerFieldClassName);
 
+const fieldHintClassName = "text-xs text-muted-foreground";
+
+const POSITION_HINT =
+  "Nur für Planung und Statistik (z. B. Schichtplan, Auswertungen).";
+
+const ROLE_HINT =
+  "Steuert die tatsächlichen Berechtigungen in der App (Dashboard, Display, Module).";
+
 export type StaffOverviewStatusFilter = "active" | "inactive" | "all";
 export type StaffOverviewAppFilter = "all" | "linked" | "unlinked";
 export type StaffOverviewPresenceFilter = "all" | "working" | "on_break" | "off";
@@ -152,15 +160,18 @@ export function StaffOverviewFilterDrawer({
           </DrawerFormSection>
 
           <DrawerFormSection title="Position">
-            <SearchableSelect
-              value={filters.positionFilter}
-              onValueChange={(value) => onFiltersChange({ positionFilter: value })}
-              options={positionOptions}
-              placeholder="Alle Positionen"
-              searchPlaceholder="Position suchen…"
-              className={selectClass}
-              aria-label="Position filtern"
-            />
+            <div className="space-y-2">
+              <p className={fieldHintClassName}>{POSITION_HINT}</p>
+              <SearchableSelect
+                value={filters.positionFilter}
+                onValueChange={(value) => onFiltersChange({ positionFilter: value })}
+                options={positionOptions}
+                placeholder="Alle Positionen"
+                searchPlaceholder="Position suchen…"
+                className={selectClass}
+                aria-label="Position filtern"
+              />
+            </div>
           </DrawerFormSection>
 
           <DrawerFormSection title="App-Verknüpfung">
@@ -197,16 +208,19 @@ export function StaffOverviewFilterDrawer({
           </DrawerFormSection>
 
           {roleOptions.length > 1 ? (
-            <DrawerFormSection title="Restaurant-Rolle">
-              <SearchableSelect
-                value={filters.roleFilter}
-                onValueChange={(value) => onFiltersChange({ roleFilter: value })}
-                options={roleOptions}
-                placeholder="Alle Rollen"
-                searchPlaceholder="Rolle suchen…"
-                className={selectClass}
-                aria-label="Restaurant-Rolle filtern"
-              />
+            <DrawerFormSection title="Rolle">
+              <div className="space-y-2">
+                <p className={fieldHintClassName}>{ROLE_HINT}</p>
+                <SearchableSelect
+                  value={filters.roleFilter}
+                  onValueChange={(value) => onFiltersChange({ roleFilter: value })}
+                  options={roleOptions}
+                  placeholder="Alle Rollen"
+                  searchPlaceholder="Rolle suchen…"
+                  className={selectClass}
+                  aria-label="Rolle filtern"
+                />
+              </div>
             </DrawerFormSection>
           ) : null}
 

@@ -14,14 +14,14 @@ const STORAGE_KEY = "gwada-menu-view-mode";
 export type MenuViewMode = "cards" | "compact";
 
 function parseMenuViewMode(raw: unknown): MenuViewMode {
-  return raw === "compact" ? "compact" : "cards";
+  return raw === "cards" ? "cards" : "compact";
 }
 
 export function useMenuViewMode() {
   const supabaseOnly = isSupabaseOnlyMode();
   const failSave = supabaseOnly ? toastDatabaseUnavailable : toastStorageError;
 
-  const [mode, setModeState] = useState<MenuViewMode>("cards");
+  const [mode, setModeState] = useState<MenuViewMode>("compact");
   const [ready, setReady] = useState(false);
 
   useEffect(() => {

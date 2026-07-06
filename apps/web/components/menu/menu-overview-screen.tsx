@@ -522,7 +522,7 @@ export function MenuOverviewScreen() {
     [taxonomySheet, menuTags, menuAllergens],
   );
 
-  const showCards = !viewReady || viewMode === "cards";
+  const showCards = viewReady && viewMode === "cards";
 
   if (!permissionsLoading && !canRead) {
     return <ModuleAccessDenied label="Speisekarte" />;

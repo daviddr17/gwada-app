@@ -27,6 +27,7 @@ import {
   fetchStaffWorkEntriesInRange,
 } from "@/lib/supabase/staff-db";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
+import { useStaffEmploymentTypesStorage } from "@/lib/hooks/use-staff-employment-types-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
@@ -62,6 +63,7 @@ export function StaffOverviewScreen() {
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const positionTags = useStaffPositionTagsStorage(restaurantId);
+  const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
@@ -184,6 +186,11 @@ export function StaffOverviewScreen() {
     return () =>
       window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
   }, [reload]);
+
+  const activeEmploymentTypes = useMemo(
+    () => employmentTypes.items.filter((t) => t.active),
+    [employmentTypes.items],
+  );
 
   const activeTags = useMemo(
     () => positionTags.items.filter((t) => t.active),
@@ -334,6 +341,10 @@ export function StaffOverviewScreen() {
               rows={rows}
               workingIds={workingIds}
               breakIds={breakIds}
+              positionTags={activeTags}
+              contracts={contracts}
+              employmentTypes={activeEmploymentTypes}
+              dayDate={dayDate}
               onEdit={(row) => {
                 setFormMode("edit");
                 setEditStaff(row);

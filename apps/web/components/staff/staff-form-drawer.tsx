@@ -10,6 +10,7 @@ import {
   STAFF_POSITION_TAG_NONE,
   StaffPositionTagSelect,
 } from "@/components/staff/staff-position-tag-select";
+import { StaffRestaurantRoleSelect } from "@/components/staff/staff-restaurant-role-select";
 import {
   staffDrawerFieldClassName,
   staffDrawerScrollClassName,
@@ -44,7 +45,6 @@ import type {
 } from "@/lib/staff/staff-invite-contact-conflict-types";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
 import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
-import { RestaurantPositionSelect } from "@/components/settings/restaurant-position-select";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
@@ -850,6 +850,9 @@ export function StaffFormDrawer({
                 <div className="space-y-3">
                   <div className="space-y-1.5">
                     <Label>Position</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Nur für Planung und Statistik (z. B. Schichtplan, Auswertungen).
+                    </p>
                     <StaffPositionTagSelect
                       activeTags={activePositionTags}
                       value={positionTagId}
@@ -860,15 +863,14 @@ export function StaffFormDrawer({
                   <div className="space-y-1.5">
                     <Label>Rolle</Label>
                     <p className="text-xs text-muted-foreground">
-                      Gilt appweit für Dashboard, Display-Berechtigungen und
-                      Einladungen.
+                      Steuert die tatsächlichen Berechtigungen in der App (Dashboard,
+                      Display, Module).
                     </p>
-                    <RestaurantPositionSelect
+                    <StaffRestaurantRoleSelect
                       positions={invitePositions}
                       value={positionRoleId}
                       onValueChange={setPositionRoleId}
                       aria-label="Rolle"
-                      className={staffDrawerFieldClassName}
                       placeholder="Rolle wählen …"
                     />
                   </div>

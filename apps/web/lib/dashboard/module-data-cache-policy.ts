@@ -574,27 +574,17 @@ export const MODULE_DATA_CACHE_REGISTRY: ModuleCachePolicyEntry[] = [
       "Server-Pagination + Filter; KPIs und Feed getrennt laden. Kein Realtime — Refresh nach Antwort/Aktion.",
     loadTriggers: [
       "Mount Bewertungen-Übersicht",
-      "Hintergrund-Warm (App-Zone idle)",
-      "sessionStorage-Peek beim Modulwechsel",
       "Seitenwechsel / Filter (Server-Request)",
     ],
     invalidateTriggers: [
       "Antwort gespeichert",
       "Link erstellt / gelöscht",
       "Manueller Refresh",
-      "Synchronisieren",
     ],
-    apiEndpoints: [
-      "/api/reviews",
-      "/api/reviews/channels-status",
-      "/api/reviews/statistics",
-    ],
+    apiEndpoints: ["/api/reviews", "/api/reviews/statistics"],
     implementationFiles: [
       "components/reviews/reviews-screen.tsx",
       "components/reviews/reviews-statistics-screen.tsx",
-      "lib/reviews/reviews-feed-client-cache.ts",
-      "lib/reviews/review-platform-connections-cache.ts",
-      "lib/hooks/app-module-warm-prefetch.ts",
     ],
     status: "active",
   },

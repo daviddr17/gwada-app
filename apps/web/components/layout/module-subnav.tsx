@@ -89,7 +89,7 @@ export function ModuleChipNav({
                 <SidebarMenuButton
                   isActive={active}
                   layout="text"
-                  render={<Link href={item.href} scroll={false} />}
+                  render={<Link href={item.href} prefetch={false} scroll={false} />}
                 >
                   <span>{item.label}</span>
                 </SidebarMenuButton>

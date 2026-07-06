@@ -34,17 +34,6 @@ import {
   writeReservationsMonthCache,
 } from "@/lib/reservations/reservations-month-client-cache";
 import {
-  isReviewsFeedSessionCacheFresh,
-  writeReviewsFeedSessionCache,
-} from "@/lib/reviews/reviews-feed-client-cache";
-import type { ReviewsFeedSyncMeta } from "@/lib/reviews/reviews-feed-sync-meta";
-import type { MergedReviewsPaginationMeta } from "@/lib/reviews/reviews-list-pagination";
-import {
-  isReviewPlatformConnectionsCacheFresh,
-  writeReviewPlatformConnectionsCache,
-} from "@/lib/reviews/review-platform-connections-cache";
-import type { UnifiedReview } from "@/lib/reviews/unified-review";
-import {
   fetchDocumentsForRestaurant,
   fetchDocumentsStorageUsage,
 } from "@/lib/supabase/documents-db";
@@ -192,81 +181,6 @@ async function warmStaffTodos(restaurantId: string): Promise<void> {
   });
 }
 
-async function warmReviewPlatformConnections(restaurantId: string): Promise<void> {
-  if (isReviewPlatformConnectionsCacheFresh(restaurantId, FEED_STALE_MS)) return;
-
-  try {
-    const res = await fetch(
-      `/api/reviews/channels-status?${new URLSearchParams({ restaurantId })}`,
-    );
-    const body = (await res.json()) as {
-      googleConnected?: boolean;
-      facebookConnected?: boolean;
-      googleVisible?: boolean;
-      facebookVisible?: boolean;
-    };
-    if (!res.ok) return;
-    writeReviewPlatformConnectionsCache(restaurantId, {
-      googleConnected: Boolean(body.googleConnected),
-      facebookConnected: Boolean(body.facebookConnected),
-      googleVisible: Boolean(body.googleVisible),
-      facebookVisible: Boolean(body.facebookVisible),
-    });
-  } catch {
-    /* background warm */
-  }
-}
-
-async function warmReviewsFeed(restaurantId: string): Promise<void> {
-  if (isReviewsFeedSessionCacheFresh(restaurantId, FEED_STALE_MS)) return;
-
-  try {
-    const res = await fetch(
-      `/api/reviews?${new URLSearchParams({ restaurantId, platform: "all" })}`,
-    );
-    const json = (await res.json()) as {
-      reviews?: UnifiedReview[];
-      mergedPagination?: MergedReviewsPaginationMeta;
-      platformTotals?: Partial<Record<string, number>>;
-      loadErrors?: Partial<Record<string, string>>;
-      sync?: ReviewsFeedSyncMeta;
-    };
-    if (!res.ok || !json.reviews) return;
-
-    const reviews = json.reviews.map((review) => ({
-      ...review,
-      isUnread: false,
-    }));
-    const gwada = reviews.filter((review) => review.platform === "gwada");
-
-    writeReviewsFeedSessionCache(
-      restaurantId,
-      {
-        ready: true,
-        gwada,
-        allPages: { 1: reviews },
-        allPagination: json.mergedPagination ?? null,
-        allTokenByPage: json.mergedPagination?.nextPageToken
-          ? { 2: json.mergedPagination.nextPageToken }
-          : {},
-        googlePages: {},
-        googlePagination: null,
-        googleTokenByPage: {},
-        facebookPages: {},
-        facebookPagination: null,
-        facebookTokenByPage: {},
-        platformTotals:
-          json.platformTotals ?? json.mergedPagination?.platformTotals ?? {},
-        loadErrors: json.loadErrors ?? {},
-        sync: json.sync ?? null,
-      },
-      null,
-    );
-  } catch {
-    /* background warm */
-  }
-}
-
 /**
  * React-Query + Modul-Caches im Idle wärmen — Sidebar-Wechsel ohne Skeleton.
  */
@@ -283,6 +197,4 @@ export function warmAppModuleCaches(
   void warmReservationsCurrentMonth(restaurantId);
   void warmDocumentsList(restaurantId);
   void warmStaffTodos(restaurantId);
-  void warmReviewPlatformConnections(restaurantId);
-  void warmReviewsFeed(restaurantId);
 }

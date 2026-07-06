@@ -47,6 +47,7 @@ import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-labe
 import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 import { StaffTodoProfileSection } from "@/components/staff/todos/staff-todo-profile-section";
 import { StaffDocumentsProfileSection } from "@/components/staff/staff-documents-profile-section";
@@ -192,6 +193,8 @@ export function StaffFormDrawer({
   const countries = COUNTRIES_REFERENCE_FALLBACK;
   const defaultIso = "DE";
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
 
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
@@ -704,7 +707,7 @@ export function StaffFormDrawer({
   };
 
   return (
-    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
+    <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={repositionInputs}>
       <DrawerContent className={drawerContentClassName("formStaff")}>
         <DrawerHeader className="shrink-0 px-5 pt-2 pb-0 text-left">
           <DrawerTitle className="text-xl font-semibold tracking-tight">
@@ -716,7 +719,7 @@ export function StaffFormDrawer({
         </DrawerHeader>
 
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className={staffDrawerScrollClassName}>
+          <div ref={scrollRef} className={staffDrawerScrollClassName}>
             <DrawerFormSection contentPadding={5} className="pt-2 pb-5">
               <input
                 ref={avatarInputRef}

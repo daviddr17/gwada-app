@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import {
   staffDrawerScrollClassName,
 } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
   deleteStaffContract,
   fetchStaffContractLogEntries,
@@ -146,6 +147,8 @@ export function StaffContractDrawer({
 }: StaffContractDrawerProps) {
   const staffId = staff.id;
   const editId = contract?.id ?? null;
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
   const [validFrom, setValidFrom] = useState("");
   const [validTo, setValidTo] = useState("");
   const [payType, setPayType] = useState<StaffContractPayType>("hourly");
@@ -539,7 +542,7 @@ export function StaffContractDrawer({
         onOpenChange(nextOpen);
       }}
       direction="bottom"
-      repositionInputs={false}
+      repositionInputs={repositionInputs}
     >
       <DrawerContent className={drawerContentClassName("formStaff")}>
         <DrawerHeader className="min-w-0 shrink-0 overflow-x-hidden px-5 pt-2 pb-3 text-left">
@@ -558,6 +561,7 @@ export function StaffContractDrawer({
         </DrawerHeader>
         <div className="flex min-h-0 flex-1 flex-col">
         <div
+          ref={scrollRef}
           className={staffDrawerScrollClassName}
           data-vaul-no-drag
         >

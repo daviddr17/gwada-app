@@ -198,6 +198,14 @@
   .bg-app-chrome-fixed-zone {
     background-color: var(--app-chrome-fixed-zone);
   }
+
+  /**
+   * Vollbild-Tabellen: thead-Hintergrund muss auf th kleben (tr-BG scrollt weg).
+   * Ergänzt moduleDataTableFullscreenShellClassName — !important gegen Sort-Button-Layer.
+   */
+  [data-module-table-fullscreen] thead th {
+    background-color: var(--app-chrome-fixed-zone) !important;
+  }
   .shadow-card {
     box-shadow: var(--shadow-card);
   }

@@ -16,8 +16,13 @@ export const moduleDataTableShellClassName =
   "overflow-hidden rounded-xl bg-card ring-0 shadow-none";
 
 /** Vollbild-Overlay: volle Breite, sticky Spaltenkopf im Scroll-Bereich. */
-export const moduleDataTableFullscreenShellClassName =
-  "w-full overflow-visible rounded-none bg-card ring-0 shadow-none [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:border-b [&_thead_th]:border-border/60 [&_thead_th]:bg-app-chrome-fixed-zone";
+export const moduleDataTableFullscreenShellClassName = cn(
+  "w-full overflow-visible rounded-none bg-card ring-0 shadow-none",
+  "[&_table]:border-separate [&_table]:border-spacing-0",
+  "[&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10",
+  "[&_thead_th]:border-b [&_thead_th]:border-border/60",
+  "[&_thead_th]:!bg-[var(--app-chrome-fixed-zone)]",
+);
 
 /** Keine Trennlinie zwischen Pagination und Tabellenkopf — bündig mit Tabellenrand (ohne px). */
 export const moduleListPaginationAboveClassName = "border-b-0 pb-3";

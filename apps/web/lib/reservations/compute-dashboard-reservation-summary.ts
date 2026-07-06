@@ -19,6 +19,8 @@ export type DashboardReservationSummary = {
   weekGuests: number;
   avgPartySizeWeek: number | null;
   recent: DashboardReservationRecent[];
+  /** Heutige Reservierungen (Dashboard Heute-Widget). */
+  todayList: DashboardReservationRecent[];
 };
 
 function statusCode(row: ReservationListRow): string {
@@ -92,6 +94,31 @@ export function computeDashboardReservationSummary(
       };
     });
 
+  const todayList = [...weekRows]
+    .filter(
+      (row) =>
+        countsTowardGuestTotals(row) &&
+        dayKeyFromIso(row.starts_at) === todayKey,
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+    )
+    .slice(0, 6)
+    .map((row) => {
+      const guestLabel =
+        `${row.guest_first_name} ${row.guest_last_name}`.trim() || "Gast";
+      return {
+        id: row.id,
+        guestLabel,
+        startsAt: row.starts_at,
+        partySize: row.party_size,
+        statusName: row.reservation_statuses?.name ?? "—",
+        href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
+        unconfirmed: isUnconfirmedReservation(row),
+      };
+    });
+
   return {
     unconfirmedCount,
     todayReservations,
@@ -100,5 +127,6 @@ export function computeDashboardReservationSummary(
     weekGuests,
     avgPartySizeWeek,
     recent,
+    todayList,
   };
 }

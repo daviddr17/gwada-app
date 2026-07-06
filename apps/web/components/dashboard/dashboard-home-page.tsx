@@ -9,12 +9,18 @@ import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-wi
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
+import { cn } from "@/lib/utils";
 
 const dynamicTile = (
   loader: () => Promise<{ default: React.ComponentType }>,
 ) =>
   dynamic(loader, { loading: () => <DashboardWidgetTileSkeleton /> });
 
+const DashboardHeuteTile = dynamicTile(() =>
+  import("@/components/dashboard/dashboard-heute-tile").then((m) => ({
+    default: m.DashboardHeuteTile,
+  })),
+);
 const DashboardContactsTile = dynamicTile(() =>
   import("@/components/dashboard/dashboard-contacts-tile").then((m) => ({
     default: m.DashboardContactsTile,
@@ -63,6 +69,8 @@ const DashboardWeatherTile = dynamicTile(() =>
 
 function DashboardWidgetById({ id }: { id: DashboardWidgetId }) {
   switch (id) {
+    case "heute":
+      return <DashboardHeuteTile />;
     case "menu":
       return <DashboardMenuTile />;
     case "reservations":
@@ -156,8 +164,11 @@ export function DashboardHomePage() {
 
   return (
     <div className="grid gap-4 pt-2 lg:grid-cols-2">
-      {orderedVisible.map((id) => (
-        <div key={id} className="min-w-0">
+      {orderedVisible.map(({ id, span }) => (
+        <div
+          key={id}
+          className={cn("min-w-0", span === 2 && "lg:col-span-2")}
+        >
           <DashboardWidgetErrorBoundaryWithReset widgetId={id}>
             <DashboardWidgetById id={id} />
           </DashboardWidgetErrorBoundaryWithReset>

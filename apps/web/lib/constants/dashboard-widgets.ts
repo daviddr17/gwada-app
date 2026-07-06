@@ -4,6 +4,7 @@ import {
 } from "@/lib/constants/dashboard-shortcuts";
 
 export type DashboardWidgetId =
+  | "heute"
   | "menu"
   | "reservations"
   | "reviews"
@@ -33,6 +34,7 @@ export const DEFAULT_DASHBOARD_WIDGET_VISIBILITY: Record<
   DashboardWidgetId,
   boolean
 > = {
+  heute: true,
   menu: true,
   reservations: true,
   reviews: false,
@@ -49,6 +51,12 @@ export const DASHBOARD_WIDGET_OPTIONS: readonly {
   label: string;
   description: string;
 }[] = [
+  {
+    id: "heute",
+    label: "Heute",
+    description:
+      "Tagesüberblick: Reservierungen, Team, Nachrichten und Hinweise auf einen Blick",
+  },
   {
     id: "menu",
     label: "Speisekarte",

@@ -1,8 +1,19 @@
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 
-/** Jedes sichtbare Widget = ein Layout-Segment in Nutzerreihenfolge. */
+export type DashboardLayoutSection = {
+  id: DashboardWidgetId;
+  /** Volle Breite ab lg (Heute-Briefing). */
+  span: 1 | 2;
+};
+
+const FULL_WIDTH_WIDGETS = new Set<DashboardWidgetId>(["heute"]);
+
+/** Sichtbare Widgets in Nutzerreihenfolge inkl. Layout-Span. */
 export function groupDashboardLayoutSections(
   orderedVisible: DashboardWidgetId[],
-): DashboardWidgetId[] {
-  return [...orderedVisible];
+): DashboardLayoutSection[] {
+  return orderedVisible.map((id) => ({
+    id,
+    span: FULL_WIDTH_WIDGETS.has(id) ? 2 : 1,
+  }));
 }

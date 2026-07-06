@@ -60,6 +60,17 @@ export function hasDashboardWidgetAccess(
     if (options?.weatherLoading) return false;
     return options?.weatherAvailable === true;
   }
+  if (widgetId === "heute") {
+    if (options?.permissionsLoading) return true;
+    return (
+      hasModuleRead(has, "reservations") ||
+      hasModuleRead(has, "staff") ||
+      hasModuleRead(has, "contacts") ||
+      hasModuleRead(has, "inventory") ||
+      hasModuleRead(has, "reviews") ||
+      options?.weatherAvailable === true
+    );
+  }
   if (options?.permissionsLoading) return true;
   if (widgetId === "integrations") {
     return INTEGRATION_WIDGET_KEYS.some((key) => has(key));

@@ -9,8 +9,9 @@ import * as React from "react"
  * mount inside this host instead.
  */
 export const DrawerFloatingPortalContext =
-  React.createContext<HTMLDivElement | null>(null)
+  React.createContext<React.RefObject<HTMLDivElement | null> | null>(null)
 
-export function useDrawerFloatingPortalHost() {
-  return React.useContext(DrawerFloatingPortalContext)
+export function useDrawerFloatingPortalHost(): HTMLDivElement | null {
+  const hostRef = React.useContext(DrawerFloatingPortalContext)
+  return hostRef?.current ?? null
 }

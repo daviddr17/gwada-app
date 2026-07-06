@@ -99,7 +99,10 @@ export function DrawerFormFooter({
   };
 
   return (
-    <div className={cn(drawerFormFooterShellClassName(contentPadding), className)}>
+    <div
+      data-vaul-no-drag
+      className={cn(drawerFormFooterShellClassName(contentPadding), className)}
+    >
       {showSeparator ? <Separator className="-mt-4 mb-1" /> : null}
       <div className={drawerFormFooterActionsRowClassName}>
         {showCancel ? (

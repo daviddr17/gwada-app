@@ -9,9 +9,16 @@ import { drawerFormBodyClassName } from "@/lib/ui/drawer-form-section"
 import { cn } from "@/lib/utils"
 
 function Drawer({
+  repositionInputs = false,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />
+  return (
+    <DrawerPrimitive.Root
+      data-slot="drawer"
+      repositionInputs={repositionInputs}
+      {...props}
+    />
+  )
 }
 
 function DrawerTrigger({
@@ -40,7 +47,7 @@ function DrawerOverlay({
     <DrawerPrimitive.Overlay
       data-slot="drawer-overlay"
       className={cn(
-        "fixed inset-0 bg-black/10 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 bg-black/20",
         appLayerStackedSurfaceZClassName,
         className
       )}
@@ -63,8 +70,15 @@ function DrawerContent({
   showHandle?: boolean
   overlayClassName?: string
 }) {
-  const [floatingHost, setFloatingHost] = React.useState<HTMLDivElement | null>(
-    null,
+  const floatingHostRef = React.useRef<HTMLDivElement | null>(null)
+  const [, setFloatingHostReady] = React.useState(false)
+
+  const assignFloatingHostRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      floatingHostRef.current = node
+      setFloatingHostReady(Boolean(node))
+    },
+    [],
   )
 
   return (
@@ -85,10 +99,15 @@ function DrawerContent({
             aria-hidden
           />
         ) : null}
-        <DrawerFloatingPortalContext.Provider value={floatingHost}>
-          <div className={cn(drawerFormBodyClassName, "flex-1")}>{children}</div>
+        <DrawerFloatingPortalContext.Provider value={floatingHostRef}>
           <div
-            ref={setFloatingHost}
+            data-vaul-no-drag=""
+            className={cn(drawerFormBodyClassName, "relative z-[1] flex-1")}
+          >
+            {children}
+          </div>
+          <div
+            ref={assignFloatingHostRef}
             data-slot="drawer-floating-host"
             className="pointer-events-none absolute inset-x-0 bottom-0 top-0 z-[100] min-h-0 overflow-visible"
             aria-hidden

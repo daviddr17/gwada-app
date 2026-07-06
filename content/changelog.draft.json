@@ -1,7 +1,7 @@
 {
-  "title": "Speisekarte: Tabellenansicht Standard",
-  "body": "- **Speisekarte:** Beim Öffnen standardmäßig **kompakte Tabelle** — Karten mit Bild weiterhin per Umschalter oben links",
-  "superadminBody": "- **Default:** `useMenuViewMode` → `compact`; gespeicherte Präferenz unverändert\n- **Keine Migration**",
+  "title": "Embed & Profil: keine Gerichtsnummern",
+  "body": "- **Einbinden & Profil-Speisekarte:** Keine Nummern (1., 2., 3. …) mehr vor Gerichtnamen",
+  "superadminBody": "- **UI:** `EmbedMenuItemRow` rendert `listNumber` nicht mehr (Embed + Profil-Sheet)",
   "audience": "customers",
-  "version": "2026.07.06.7"
+  "version": "2026.07.06.8"
 }

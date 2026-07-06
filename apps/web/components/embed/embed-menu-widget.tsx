@@ -77,11 +77,6 @@ function EmbedMenuItemRow({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h3 className="text-base font-semibold leading-snug tracking-tight">
-            {item.listNumber != null ? (
-              <span className="mr-1.5 tabular-nums text-muted-foreground">
-                {item.listNumber}.
-              </span>
-            ) : null}
             {item.name}
           </h3>
           {item.description ? (

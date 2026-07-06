@@ -9,6 +9,7 @@ import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-wi
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 const dynamicTile = (
@@ -155,7 +156,7 @@ export function DashboardHomePage() {
           zugehörigen Module. Unter Einstellungen kannst du Widgets einblenden,
           sofern sie für deine Rolle verfügbar sind.
         </p>
-        <Button render={<Link href="/settings/dashboard" prefetch />}>
+        <Button render={<Link href={APP_ROUTES.settings.dashboard} prefetch />}>
           Dashboard-Einstellungen
         </Button>
       </div>

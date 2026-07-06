@@ -8,6 +8,7 @@ import { ModeToggle } from "@/components/theme/mode-toggle";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 type AppHeaderProps = {
   tenantName?: string;
@@ -50,7 +51,7 @@ export function AppHeader({ tenantName = "Gwada", className }: AppHeaderProps) {
             size="icon"
             className="hidden size-10 rounded-full border-border/60 bg-card/80 shadow-none dark:shadow-sm md:inline-flex"
             aria-label="Einstellungen"
-            render={<Link href="/settings" />}
+            render={<Link href={APP_ROUTES.settings.root} />}
             nativeButton={false}
           >
             <Settings className="size-4" />
@@ -67,7 +68,7 @@ export function AppHeader({ tenantName = "Gwada", className }: AppHeaderProps) {
             <Button
               variant="ghost"
               className="h-11 w-full justify-start gap-3 rounded-xl"
-              render={<Link href="/settings" onClick={() => setMobileOpen(false)} />}
+              render={<Link href={APP_ROUTES.settings.root} onClick={() => setMobileOpen(false)} />}
               nativeButton={false}
             >
               <Settings className="size-4" />

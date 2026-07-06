@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NotificationItem } from "@/lib/notifications/notification-types";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { isSelfOriginatedNotification } from "@/lib/notifications/notification-self-origin";
 
 export async function emitStaffContractSignedNotification(
@@ -134,7 +135,7 @@ export async function loadStaffContractSignedNotificationItems(
       subtitle: pending
         ? "Bitte im Profil unter Meine Dokumente unterschreiben."
         : title,
-      href: "/profile/dokumente",
+      href: APP_ROUTES.profile.documents,
       at: row.created_at,
       meta: {
         contractId,

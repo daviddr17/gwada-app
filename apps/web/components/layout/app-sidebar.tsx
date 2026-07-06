@@ -45,6 +45,7 @@ import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { SUPERADMIN_VORLAGEN_ROUTES } from "@/lib/navigation/superadmin-vorlagen-routes";
 import {
   SUPERADMIN_SYSTEM_ROUTES,
@@ -443,9 +444,9 @@ export function AppSidebar() {
           {!inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
-                isActive={pathname.startsWith("/settings")}
+                isActive={pathname.startsWith(APP_ROUTES.settings.root)}
                 tooltip="Einstellungen"
-                render={<AppNavLink href="/settings" />}
+                render={<AppNavLink href={APP_ROUTES.settings.root} />}
               >
                 <Settings />
                 <span>Einstellungen</span>

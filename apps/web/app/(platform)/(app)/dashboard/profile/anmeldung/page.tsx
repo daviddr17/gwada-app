@@ -39,6 +39,7 @@ import {
 } from "@/lib/supabase/oauth";
 import { workspacePersistenceConfigured } from "@/lib/supabase/workspace-persistence";
 import { cn } from "@/lib/utils";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 /** Status-Chip „verbunden“ in Tenant-Akzentfarbe (nicht der umgebende Container). */
 const oauthConnectedBadgeClassName = cn(
@@ -122,7 +123,11 @@ function ProfileAnmeldungContent() {
     params.delete("oauth_linked");
     params.delete("oauth_error");
     const qs = params.toString();
-    router.replace(qs ? `/profile/anmeldung?${qs}` : "/profile/anmeldung");
+    router.replace(
+      qs
+        ? `${APP_ROUTES.profile.login}?${qs}`
+        : APP_ROUTES.profile.login,
+    );
   }, [searchParams, router]);
 
   const authLoading = !authResolved;

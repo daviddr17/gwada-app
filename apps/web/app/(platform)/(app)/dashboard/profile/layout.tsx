@@ -10,6 +10,7 @@ import {
   buildProfileNavItems,
   isProfileRouteAllowed,
 } from "@/lib/profile/profile-nav";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export default function ProfileLayout({
   children,
@@ -43,7 +44,7 @@ export default function ProfileLayout({
     ) {
       return;
     }
-    router.replace("/profile/persoenliche-daten");
+    router.replace(APP_ROUTES.profile.personal);
   }, [navReady, pathname, visibility, hasStaffProfile, router]);
 
   return (

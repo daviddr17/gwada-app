@@ -9,6 +9,7 @@ import {
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardIntegrationsSummary } from "@/lib/hooks/use-dashboard-integrations-summary";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 export function DashboardIntegrationsTile() {
@@ -28,7 +29,7 @@ export function DashboardIntegrationsTile() {
           aria-hidden
         />
       }
-      href="/settings/integrationen"
+      href={APP_ROUTES.settings.integrations}
       linkLabel="Zu Integrationen"
       ready={ready}
       loading={showSkeleton}
@@ -44,13 +45,13 @@ export function DashboardIntegrationsTile() {
             <DashboardCompactMetricPill
               label="Verbunden"
               value={`${connected} / ${total}`}
-              href="/settings/integrationen"
+              href={APP_ROUTES.settings.integrations}
               stripeVariant="active"
             />
             <DashboardCompactMetricPill
               label="Noch offen"
               value={String(open)}
-              href="/settings/integrationen"
+              href={APP_ROUTES.settings.integrations}
               highlight={open > 0}
               stripeVariant="attention"
             />

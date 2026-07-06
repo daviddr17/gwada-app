@@ -7,6 +7,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { useMyRestaurantStaff } from "@/lib/hooks/use-my-restaurant-staff";
 import { useStaffProfileVisibility } from "@/lib/hooks/use-staff-profile-visibility";
 import { fetchMyStaffDocuments } from "@/lib/staff/staff-documents-api";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export function ProfileDocumentsSummaryCard() {
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
@@ -43,7 +44,7 @@ export function ProfileDocumentsSummaryCard() {
 
   return (
     <Link
-      href="/profile/dokumente"
+      href={APP_ROUTES.profile.documents}
       className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-4 py-3 transition-colors hover:bg-muted/25"
     >
       <div className="flex min-w-0 items-center gap-3">

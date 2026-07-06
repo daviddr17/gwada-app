@@ -17,6 +17,7 @@ import type { NotificationModuleId } from "@/lib/notifications/notification-modu
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { inboxUnreadHintLabel } from "@/lib/contact-messages/inbox-unread-hint-ui";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 function formatNotificationWhen(iso: string): string {
@@ -225,7 +226,7 @@ export function NotificationBellPanel({
           variant="ghost"
           size="sm"
           className="h-9 w-full justify-start gap-2 rounded-xl text-sm font-medium"
-          render={<Link href="/profile/benachrichtigungen" onClick={onNavigate} />}
+          render={<Link href={APP_ROUTES.profile.notifications} onClick={onNavigate} />}
         >
           <Settings className="size-4 text-muted-foreground" />
           Benachrichtigungen einstellen

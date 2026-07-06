@@ -4,6 +4,7 @@ import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
 import { readPlatformIntegrationEnabled } from "@/lib/supabase/platform-integration-enabled";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getPublicSiteUrl } from "@/lib/public-env";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export type MetaPlatformConfig = {
   appId: string;
@@ -203,7 +204,7 @@ export function settingsIntegrationsUrl(params?: {
   result?: "connected" | "error" | "select_page" | "select_location";
   message?: string;
 }): string {
-  const base = "/settings/integrationen";
+  const base = APP_ROUTES.settings.integrations;
   if (!params?.provider) return base;
   const q = new URLSearchParams();
   q.set(params.provider, params.result ?? "connected");

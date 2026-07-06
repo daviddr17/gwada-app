@@ -24,6 +24,7 @@ import {
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
@@ -102,7 +103,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Profil"
-                render={<Link href="/profile" prefetch />}
+                render={<Link href={APP_ROUTES.profile.root} prefetch />}
               >
                 <UserRound className="size-4" />
               </Button>
@@ -111,7 +112,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Einstellungen"
-                render={<Link href="/settings" prefetch />}
+                render={<Link href={APP_ROUTES.settings.root} prefetch />}
               >
                 <Settings className="size-4" />
               </Button>

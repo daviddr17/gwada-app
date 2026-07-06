@@ -1,4 +1,5 @@
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export type ProfileVisibilitySettings = {
   profile_show_work_hours: boolean;
@@ -28,17 +29,17 @@ export function parseProfileVisibility(
 
 const PROFILE_ALWAYS_ITEMS: readonly ModuleSubnavItem[] = [
   {
-    href: "/profile/persoenliche-daten",
+    href: APP_ROUTES.profile.personal,
     label: "Übersicht",
     matchMode: "exact",
   },
   {
-    href: "/profile/anmeldung",
+    href: APP_ROUTES.profile.login,
     label: "Anmeldung",
     matchMode: "exact",
   },
   {
-    href: "/profile/benachrichtigungen",
+    href: APP_ROUTES.profile.notifications,
     label: "Benachrichtigungen",
     matchMode: "exact",
   },
@@ -48,25 +49,25 @@ const PROFILE_STAFF_ITEMS: readonly (ModuleSubnavItem & {
   visibilityKey: keyof ProfileVisibilitySettings;
 })[] = [
   {
-    href: "/profile/arbeitszeiten",
+    href: APP_ROUTES.profile.workHours,
     label: "Meine Arbeitszeiten",
     matchMode: "exact",
     visibilityKey: "profile_show_work_hours",
   },
   {
-    href: "/profile/dienstplan",
+    href: APP_ROUTES.profile.schedule,
     label: "Dienstplan",
     matchMode: "exact",
     visibilityKey: "profile_show_shift_plan",
   },
   {
-    href: "/profile/dokumente",
+    href: APP_ROUTES.profile.documents,
     label: "Meine Dokumente",
     matchMode: "exact",
     visibilityKey: "profile_show_documents",
   },
   {
-    href: "/profile/display-pin",
+    href: APP_ROUTES.profile.displayPin,
     label: "Display-PIN",
     matchMode: "exact",
     visibilityKey: "profile_allow_display_pin_self_service",
@@ -102,10 +103,10 @@ export function isProfileRouteAllowed(params: {
   hasStaffProfile: boolean;
 }): boolean {
   if (
-    params.pathname === "/profile" ||
-    params.pathname.startsWith("/profile/persoenliche-daten") ||
-    params.pathname.startsWith("/profile/anmeldung") ||
-    params.pathname.startsWith("/profile/benachrichtigungen")
+    params.pathname === APP_ROUTES.profile.root ||
+    params.pathname.startsWith(APP_ROUTES.profile.personal) ||
+    params.pathname.startsWith(APP_ROUTES.profile.login) ||
+    params.pathname.startsWith(APP_ROUTES.profile.notifications)
   ) {
     return true;
   }

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { DocsProse } from "@/components/docs/docs-prose";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export const metadata: Metadata = {
   title: "Dokumentation",
@@ -21,7 +22,7 @@ export default function DocsPage() {
       <p>
         JSON-Endpunkte für Speisekarte, Reservierung, News und weitere Module — mit
         API-Schlüssel pro Restaurant. Verwaltung unter{" "}
-        <Link href="/settings/api">Einstellungen → API</Link> (Login erforderlich).
+        <Link href={APP_ROUTES.settings.api}>Einstellungen → API</Link> (Login erforderlich).
       </p>
       <p>
         <Link href="/docs/api">Zur API-Dokumentation →</Link>

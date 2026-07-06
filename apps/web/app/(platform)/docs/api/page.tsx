@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { DocsProse } from "@/components/docs/docs-prose";
 import { RESTAURANT_API_MODULES } from "@/lib/api/restaurant-api-modules";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export const metadata: Metadata = {
   title: "API",
@@ -19,7 +20,7 @@ export default function DocsApiPage() {
       </p>
       <p>
         Schlüssel erzeugst du in der App unter{" "}
-        <Link href="/settings/api">Einstellungen → API</Link>. Jeder Schlüssel
+        <Link href={APP_ROUTES.settings.api}>Einstellungen → API</Link>. Jeder Schlüssel
         gehört zu genau einem Restaurant und kann pro Modul freigeschaltet werden.
       </p>
 

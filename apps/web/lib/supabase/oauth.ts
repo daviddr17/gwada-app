@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export type GwadaOAuthProvider = "google" | "apple";
 
@@ -82,14 +83,14 @@ export async function startOAuthFlow(
 
   if (provider === "google") {
     startGooglePlatformOAuth({
-      next: options?.link ? "/profile/anmeldung" : options?.next,
+      next: options?.link ? APP_ROUTES.profile.login : options?.next,
       link: options?.link,
     });
     return { error: null };
   }
 
   const redirectTo = buildOAuthCallbackUrl(
-    options?.link ? "/profile/anmeldung" : options?.next,
+    options?.link ? APP_ROUTES.profile.login : options?.next,
   );
 
   if (options?.link) {

@@ -13,6 +13,7 @@ import {
 } from "@/lib/integrations/google-platform-oauth";
 import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { getSupabaseAnonKey } from "@/lib/public-env";
 import { gwadaSupabaseCookieOptions } from "@/lib/supabase/ssr-cookie-options";
 import { resolveSupabaseUrl } from "@/lib/supabase/resolve-url";
@@ -39,7 +40,7 @@ function redirectProfile(origin: string, params: {
   oauth_error?: string;
   oauth_linked?: boolean;
 }): NextResponse {
-  const url = new URL("/profile/anmeldung", origin);
+  const url = new URL(APP_ROUTES.profile.login, origin);
   if (params.oauth_linked) url.searchParams.set("oauth_linked", "google");
   if (params.oauth_error) url.searchParams.set("oauth_error", params.oauth_error);
   return NextResponse.redirect(url);

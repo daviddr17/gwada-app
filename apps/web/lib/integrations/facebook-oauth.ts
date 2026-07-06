@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getPublicSiteUrl } from "@/lib/public-env";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import type { FacebookPlatformConfig } from "@/lib/integrations/platform-facebook-config";
 
 const GRAPH_VERSION = "v22.0";
@@ -116,7 +117,7 @@ export function pickFacebookPageForMessenger(
 export function settingsIntegrationsUrl(
   params?: { facebook?: "connected" | "error"; message?: string },
 ): string {
-  const base = "/settings/integrationen";
+  const base = APP_ROUTES.settings.integrations;
   if (!params) return base;
   const q = new URLSearchParams();
   if (params.facebook) q.set("facebook", params.facebook);

@@ -90,6 +90,27 @@ export const APP_ROUTES = {
     statistics: "/dashboard/events/statistiken",
     settings: "/dashboard/events/einstellungen",
   },
+  settings: {
+    root: "/dashboard/settings",
+    restaurant: "/dashboard/settings/restaurant",
+    dashboard: "/dashboard/settings/dashboard",
+    team: "/dashboard/settings/team",
+    openingHours: "/dashboard/settings/oeffnungszeiten",
+    openingHoursEmbed: "/dashboard/settings/oeffnungszeiten/einbinden",
+    integrations: "/dashboard/settings/integrationen",
+    displays: "/dashboard/settings/displays",
+    api: "/dashboard/settings/api",
+  },
+  profile: {
+    root: "/dashboard/profile",
+    personal: "/dashboard/profile/persoenliche-daten",
+    login: "/dashboard/profile/anmeldung",
+    notifications: "/dashboard/profile/benachrichtigungen",
+    workHours: "/dashboard/profile/arbeitszeiten",
+    schedule: "/dashboard/profile/dienstplan",
+    documents: "/dashboard/profile/dokumente",
+    displayPin: "/dashboard/profile/display-pin",
+  },
 } as const;
 
 /** Legacy-Pfade → neue Dashboard-Pfade (Permanent Redirect). */
@@ -133,6 +154,10 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
     source: "/settings/eigenkontrolle/:path*",
     destination: "/dashboard/checklisten/:path*",
   },
+  { source: "/settings", destination: APP_ROUTES.settings.restaurant },
+  { source: "/settings/:path*", destination: "/dashboard/settings/:path*" },
+  { source: "/profile", destination: APP_ROUTES.profile.personal },
+  { source: "/profile/:path*", destination: "/dashboard/profile/:path*" },
   {
     source: "/dashboard/mitarbeiter/todos",
     destination: "/dashboard/checklisten",

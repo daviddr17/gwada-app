@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Clock,
 } from "lucide-react";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 /** Erweiterbare Modul-IDs — neue Module hier registrieren. */
 export const NOTIFICATION_MODULE_IDS = [
@@ -197,7 +198,7 @@ export const NOTIFICATION_MODULES: Record<
     id: "staff_contract_signed",
     label: "Arbeitsvertrag",
     labelPlural: "Arbeitsverträge",
-    href: "/profile/dokumente",
+    href: APP_ROUTES.profile.documents,
     icon: FileSignature,
     settingsInAppLabel: "Neue/unterschriebene Verträge in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei neuen Verträgen",

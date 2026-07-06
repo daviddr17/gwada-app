@@ -10,6 +10,7 @@ import {
   googleAuthOAuthCallbackUrl,
 } from "@/lib/integrations/google-platform-oauth";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { isPlatformOAuthLoginProviderReady } from "@/lib/supabase/platform-oauth-flags";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,7 +26,7 @@ function authErrorRedirect(
 ): NextResponse {
   const origin = new URL(req.url).origin;
   if (target === "profile") {
-    const url = new URL("/profile/anmeldung", origin);
+    const url = new URL(APP_ROUTES.profile.login, origin);
     url.searchParams.set("oauth_error", message);
     return NextResponse.redirect(url);
   }
@@ -76,7 +77,7 @@ export async function handleGoogleOAuthConnect(
         req,
         "Bitte melde dich zuerst an, um Google zu verknüpfen.",
         "login",
-        "/profile/anmeldung",
+        APP_ROUTES.profile.login,
       );
     }
   }
@@ -84,7 +85,7 @@ export async function handleGoogleOAuthConnect(
   const nonce = newNonce();
   const state = encodeGoogleAuthOAuthState({
     nonce,
-    next: link ? "/profile/anmeldung" : next,
+    next: link ? APP_ROUTES.profile.login : next,
     link,
   });
 

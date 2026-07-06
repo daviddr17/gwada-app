@@ -7,6 +7,7 @@ import {
   restaurantApiModuleById,
 } from "@/lib/api/restaurant-api-modules";
 import { cn } from "@/lib/utils";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 export function restaurantPublicApiBaseUrl(origin?: string): string {
   const base = (origin ?? "").replace(/\/+$/, "");
@@ -66,7 +67,7 @@ export function EmbedApiInfoCard({ moduleId, className }: EmbedApiInfoCardProps)
 
       <div className="flex flex-wrap gap-2">
         <Link
-          href="/settings/api"
+          href={APP_ROUTES.settings.api}
           className="inline-flex h-9 items-center rounded-lg border border-border/60 bg-background px-3 text-sm font-medium hover:bg-muted/30"
         >
           API-Schlüssel verwalten

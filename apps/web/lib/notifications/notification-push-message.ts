@@ -9,6 +9,7 @@ import {
 } from "@/lib/notifications/message-notification-sender";
 import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { getPublicSiteUrl } from "@/lib/public-env";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
 function absoluteAppUrl(path: string): string {
   const base =
@@ -419,7 +420,7 @@ export function buildNotificationPushText(
               ? "Vertrag überarbeitet"
               : "Neuer Arbeitsvertrag"
         } — ${title}`,
-        href: "/profile/dokumente",
+        href: APP_ROUTES.profile.documents,
         details: detailLines([
           title,
           pending

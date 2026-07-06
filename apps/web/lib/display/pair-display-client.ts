@@ -50,11 +50,14 @@ export async function pairDisplayWithCode(
   }
 
   if (data.display_id && data.device_token && data.installation_id) {
-    saveDisplayDeviceCredential({
-      displayId: data.display_id,
-      token: data.device_token,
-      installationId: data.installation_id,
-    });
+    saveDisplayDeviceCredential(
+      {
+        displayId: data.display_id,
+        token: data.device_token,
+        installationId: data.installation_id,
+      },
+      data.restaurant?.slug,
+    );
   }
 
   const slug = data.restaurant?.slug?.trim();

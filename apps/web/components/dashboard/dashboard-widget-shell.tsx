@@ -47,6 +47,8 @@ export function DashboardWidgetShell({
   staticChrome = false,
   /** Eigener Lade-Inhalt statt generischer Metrik-Pills. */
   loadingContent,
+  /** Zusätzliche Karten-Klassen (z. B. Heute-Hervorhebung). */
+  cardClassName,
 }: {
   title: string;
   description?: string;
@@ -63,6 +65,7 @@ export function DashboardWidgetShell({
   children: ReactNode;
   staticChrome?: boolean;
   loadingContent?: ReactNode;
+  cardClassName?: string;
 }) {
   const isCompact = variant === "compact";
   const hasContent = children != null && children !== false;
@@ -78,6 +81,7 @@ export function DashboardWidgetShell({
     <Card
       className={cn(
         "min-w-0 border-border/50 shadow-card",
+        cardClassName,
         layered && "relative overflow-hidden",
       )}
     >

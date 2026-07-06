@@ -10,8 +10,8 @@ import {
   Sun,
   UserCheck,
 } from "lucide-react";
-import { AppNavLink } from "@/components/navigation/app-nav-link";
 import {
+  DashboardCompactInlineMetrics,
   DashboardCompactList,
   DashboardCompactListItem,
 } from "@/components/dashboard/dashboard-compact-list";
@@ -20,6 +20,7 @@ import {
   StaffOverviewLivePresenceSheet,
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
@@ -31,8 +32,7 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
 import { formatDashboardStaffTodayWorkLabel } from "@/lib/staff/compute-dashboard-staff-summary";
-import { staffDisplayName } from "@/lib/types/staff";
-import { STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
+import { staffDisplayName, STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
 const todayHeadingFmt = new Intl.DateTimeFormat("de-DE", {
@@ -52,10 +52,40 @@ function todayYmd(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-function HeuteStatCard({
+type HeuteMetricTone =
+  | "neutral"
+  | "accent"
+  | "attention"
+  | "success"
+  | "warning"
+  | "break";
+
+const HEUTE_METRIC_TONE_CLASS: Record<HeuteMetricTone, string> = {
+  neutral: "border-border/50 bg-background/70",
+  accent:
+    "border-accent/45 bg-accent/12 shadow-[inset_0_1px_0_0_color-mix(in_oklch,var(--accent)_25%,transparent)]",
+  attention:
+    "border-blue-500/40 bg-blue-500/12 dark:border-blue-400/35 dark:bg-blue-500/15",
+  success:
+    "border-emerald-500/40 bg-emerald-500/12 dark:border-emerald-400/35 dark:bg-emerald-500/15",
+  warning:
+    "border-amber-500/45 bg-amber-500/14 dark:border-amber-400/35 dark:bg-amber-500/15",
+  break:
+    "border-amber-400/40 bg-amber-400/12 dark:border-amber-300/30 dark:bg-amber-400/12",
+};
+
+const HEUTE_METRIC_VALUE_CLASS: Record<HeuteMetricTone, string> = {
+  neutral: "text-foreground",
+  accent: "text-foreground",
+  attention: "text-blue-700 dark:text-blue-300",
+  success: "text-emerald-800 dark:text-emerald-300",
+  warning: "text-amber-800 dark:text-amber-300",
+  break: "text-amber-800 dark:text-amber-200",
+};
+
+function HeuteMetricPill({
   label,
   value,
-  hint,
   href,
   onClick,
   tone = "neutral",
@@ -63,79 +93,82 @@ function HeuteStatCard({
 }: {
   label: string;
   value: string;
-  hint?: string;
   href?: string;
   onClick?: () => void;
-  tone?: "neutral" | "accent" | "attention" | "success" | "warning" | "break";
+  tone?: HeuteMetricTone;
   icon?: ReactNode;
 }) {
-  const toneClass = {
-    neutral: "border-border/50 bg-muted/15",
-    accent: "border-accent/35 bg-accent/8",
-    attention: "border-blue-500/35 bg-blue-500/8 dark:border-blue-400/30 dark:bg-blue-500/10",
-    success: "border-emerald-500/35 bg-emerald-500/8 dark:border-emerald-400/30 dark:bg-emerald-500/10",
-    warning: "border-amber-500/35 bg-amber-500/8 dark:border-amber-400/30 dark:bg-amber-500/10",
-    break: "border-amber-400/35 bg-amber-400/8 dark:border-amber-300/25 dark:bg-amber-400/10",
-  }[tone];
-
-  const inner = (
-    <>
-      <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {icon ? <span className="shrink-0 [&_svg]:size-3.5">{icon}</span> : null}
-        {label}
-      </span>
-      <span className="mt-1 block text-lg font-semibold tabular-nums text-foreground">
-        {value}
-      </span>
-      {hint ? (
-        <span className="mt-0.5 block text-[11px] text-muted-foreground">{hint}</span>
-      ) : null}
-    </>
+  const shellClass = cn(
+    "inline-flex min-w-0 rounded-lg border text-left transition-colors",
+    HEUTE_METRIC_TONE_CLASS[tone],
+    (href || onClick) &&
+      "cursor-pointer hover:brightness-[1.02] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
   );
 
-  const className = cn(
-    "rounded-xl border px-3 py-2.5 text-left transition-colors",
-    toneClass,
-    (href || onClick) &&
-      "cursor-pointer hover:border-accent/45 hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+  const content = (
+    <div className="flex min-w-0 items-center gap-1.5 px-2 py-1">
+      {icon ? (
+        <span className="shrink-0 text-muted-foreground [&_svg]:size-3">{icon}</span>
+      ) : null}
+      <div className="min-w-0">
+        <span className="block truncate text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {label}
+        </span>
+        <span
+          className={cn(
+            "block truncate text-xs font-semibold tabular-nums leading-tight",
+            HEUTE_METRIC_VALUE_CLASS[tone],
+          )}
+        >
+          {value}
+        </span>
+      </div>
+    </div>
   );
 
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={className}>
-        {inner}
+      <button type="button" onClick={onClick} className={shellClass}>
+        {content}
       </button>
     );
   }
 
   if (href) {
     return (
-      <AppNavLink href={href} prefetch={false} className={className}>
-        {inner}
+      <AppNavLink href={href} prefetch={false} className={shellClass}>
+        {content}
       </AppNavLink>
     );
   }
 
-  return <div className={className}>{inner}</div>;
+  return <div className={shellClass}>{content}</div>;
 }
 
-function HeuteSection({
+function HeutePanel({
   title,
+  titleClassName,
   children,
   className,
 }: {
   title: string;
+  titleClassName?: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
     <section
       className={cn(
-        "min-h-[12rem] rounded-xl border border-border/50 bg-card/60 p-3 shadow-none",
+        "min-w-0 rounded-lg border border-border/40 bg-background/55 p-2",
         className,
       )}
     >
-      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h3
+        className={cn(
+          "mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground",
+          titleClassName,
+        )}
+      >
         {title}
       </h3>
       {children}
@@ -145,15 +178,15 @@ function HeuteSection({
 
 function DashboardHeuteTileSkeleton() {
   return (
-    <div className="space-y-4" aria-busy="true">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-[4.5rem] rounded-xl" />
+    <div className="space-y-2" aria-busy="true">
+      <div className="flex flex-wrap gap-1.5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-[5.25rem] rounded-lg" />
         ))}
       </div>
-      <div className="grid gap-3 lg:grid-cols-2">
-        <Skeleton className="min-h-[12rem] rounded-xl" />
-        <Skeleton className="min-h-[12rem] rounded-xl" />
+      <div className="grid gap-2 lg:grid-cols-2">
+        <Skeleton className="h-28 rounded-lg" />
+        <Skeleton className="h-28 rounded-lg" />
       </div>
     </div>
   );
@@ -220,7 +253,7 @@ export function DashboardHeuteTile() {
         .filter((p) => p.status === "working")
         .map((p) => staffById.get(p.staff_id))
         .filter(Boolean)
-        .slice(0, 6),
+        .slice(0, 5),
     [staff.presence, staffById],
   );
 
@@ -229,42 +262,56 @@ export function DashboardHeuteTile() {
     (inventory.summary?.openOrders ?? 0) > 0;
 
   const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${todayYmd()}`;
+  const staffHoursLabel = staff.summary
+    ? formatDashboardStaffTodayWorkLabel(staff.summary.todayWorkHours)
+    : null;
 
   return (
     <DashboardWidgetShell
       title="Heute"
       description={todayLabel}
-      variant="default"
+      variant="compact"
+      cardClassName="border-accent/35 shadow-md"
+      background={
+        <>
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/10 via-accent/8 to-transparent dark:from-amber-400/12 dark:via-accent/10"
+            aria-hidden
+          />
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-accent/50 to-transparent"
+            aria-hidden
+          />
+        </>
+      }
       icon={
-        <Sun className="size-5 shrink-0 text-amber-500/90" aria-hidden />
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:bg-amber-400/15 dark:text-amber-300">
+          <Sun className="size-4" aria-hidden />
+        </span>
       }
       ready={ready}
       loading={showSkeleton}
       error={null}
       loadingContent={<DashboardHeuteTileSkeleton />}
     >
-      <div className="space-y-4">
-        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="space-y-2.5">
+        <p className="text-[11px] font-medium text-muted-foreground">{todayLabel}</p>
+
+        <DashboardCompactInlineMetrics className="gap-1.5">
           {can.reservations && reservations.summary ? (
             <>
-              <HeuteStatCard
-                label="Reservierungen"
-                value={`${reservations.summary.todayReservations} · ${reservations.summary.todayGuests} Pers.`}
-                hint="Heute im Restaurant"
+              <HeuteMetricPill
+                label="Reserv."
+                value={`${reservations.summary.todayReservations} · ${reservations.summary.todayGuests} P.`}
                 href={reservationDayHref}
                 tone={
                   reservations.summary.todayReservations > 0 ? "accent" : "neutral"
                 }
                 icon={<CalendarDays aria-hidden />}
               />
-              <HeuteStatCard
-                label="Unbestätigt"
+              <HeuteMetricPill
+                label="Offen"
                 value={String(reservations.summary.unconfirmedCount)}
-                hint={
-                  reservations.summary.unconfirmedCount > 0
-                    ? "Bestätigung ausstehend"
-                    : "Alles bestätigt"
-                }
                 href={
                   reservations.summary.unconfirmedCount > 0
                     ? reservationsUnconfirmedOverviewHref()
@@ -280,18 +327,20 @@ export function DashboardHeuteTile() {
 
           {can.staff && staff.summary ? (
             <>
-              <HeuteStatCard
-                label="Team aktiv"
-                value={String(staff.summary.activeStaff)}
-                hint={formatDashboardStaffTodayWorkLabel(staff.summary.todayWorkHours)}
+              <HeuteMetricPill
+                label="Team"
+                value={
+                  staffHoursLabel
+                    ? `${staff.summary.activeStaff} · ${staffHoursLabel}`
+                    : String(staff.summary.activeStaff)
+                }
                 onClick={() => setPresenceSheetMode("working")}
                 tone={staff.summary.activeStaff > 0 ? "success" : "neutral"}
                 icon={<UserCheck aria-hidden />}
               />
-              <HeuteStatCard
-                label="In Pause"
+              <HeuteMetricPill
+                label="Pause"
                 value={String(staff.summary.onBreakStaff)}
-                hint="Display-Schicht"
                 onClick={() => setPresenceSheetMode("on_break")}
                 tone={staff.summary.onBreakStaff > 0 ? "break" : "neutral"}
                 icon={<UserCheck aria-hidden />}
@@ -300,14 +349,9 @@ export function DashboardHeuteTile() {
           ) : null}
 
           {can.messages && messages.summary ? (
-            <HeuteStatCard
-              label="Nachrichten"
+            <HeuteMetricPill
+              label="Post"
               value={String(messages.summary.total_unread)}
-              hint={
-                messages.summary.total_unread > 0
-                  ? "Ungelesen — Antwort nötig"
-                  : "Posteingang leer"
-              }
               href={
                 messages.summary.total_unread > 0
                   ? "/dashboard/kontakte/nachrichten?platform=all&read=unread"
@@ -319,112 +363,102 @@ export function DashboardHeuteTile() {
           ) : null}
 
           {can.inventory && inventory.summary && inventoryAlerts ? (
-            <HeuteStatCard
+            <HeuteMetricPill
               label="Bestand"
-              value={`${inventory.summary.emptyStock} leer · ${inventory.summary.openOrders} offen`}
-              hint="Zutaten oder Bestellungen prüfen"
-              href="/dashboard/bestand/uebersicht"
+              value={`${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`}
+              href="/dashboard/inventory/uebersicht"
               tone="warning"
               icon={<Package aria-hidden />}
             />
           ) : null}
-        </div>
+        </DashboardCompactInlineMetrics>
 
-        <div className="grid gap-3 lg:grid-cols-2">
+        <div className="grid gap-2 lg:grid-cols-2">
           {can.reservations ? (
-            <HeuteSection title="Reservierungen heute">
+            <HeutePanel
+              title="Reservierungen heute"
+              titleClassName="text-accent/90"
+            >
               {todayReservations.length > 0 ? (
                 <DashboardCompactList aria-label="Reservierungen heute">
-                  {todayReservations.map((row) => (
+                  {todayReservations.slice(0, 4).map((row) => (
                     <DashboardCompactListItem
                       key={row.id}
                       href={row.href}
                       title={row.guestLabel}
-                      meta={`${row.partySize} Pers. · ${row.statusName}`}
+                      meta={`${row.partySize} P. · ${row.statusName}`}
                       trailing={formatReservationTime(row.startsAt)}
                       stripeVariant={row.unconfirmed ? "attention" : undefined}
+                      className="py-2"
                     />
                   ))}
                 </DashboardCompactList>
               ) : (
-                <p className="text-sm text-muted-foreground">
+                <p className="px-0.5 text-[11px] text-muted-foreground">
                   {reservations.summary && reservations.summary.todayReservations > 0
-                    ? "Weitere Reservierungen in der Übersicht."
+                    ? "Weitere in der Übersicht."
                     : "Keine Reservierungen für heute."}
                 </p>
               )}
-            </HeuteSection>
+            </HeutePanel>
           ) : null}
 
-          <HeuteSection title="Aufmerksamkeit">
-            <div className="space-y-3">
+          <HeutePanel title="Aufmerksamkeit" titleClassName="text-blue-600/90 dark:text-blue-400/90">
+            <div className="space-y-2">
               {can.reservations && unconfirmedRecent.length > 0 ? (
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    Unbestätigt
-                  </p>
-                  <DashboardCompactList aria-label="Unbestätigte Reservierungen">
-                    {unconfirmedRecent.slice(0, 3).map((row) => (
-                      <DashboardCompactListItem
-                        key={row.id}
-                        href={row.href}
-                        title={row.guestLabel}
-                        meta={`${row.partySize} Pers.`}
-                        trailing={formatReservationTime(row.startsAt)}
-                        stripeVariant="attention"
-                      />
-                    ))}
-                  </DashboardCompactList>
-                </div>
+                <DashboardCompactList aria-label="Unbestätigte Reservierungen">
+                  {unconfirmedRecent.slice(0, 2).map((row) => (
+                    <DashboardCompactListItem
+                      key={row.id}
+                      href={row.href}
+                      title={row.guestLabel}
+                      meta={`${row.partySize} P.`}
+                      trailing={formatReservationTime(row.startsAt)}
+                      stripeVariant="attention"
+                      className="py-2"
+                    />
+                  ))}
+                </DashboardCompactList>
               ) : null}
 
               {can.messages && (messages.summary?.unread.length ?? 0) > 0 ? (
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-blue-600 dark:text-blue-400">
-                    Nachrichten
-                  </p>
-                  <DashboardCompactList aria-label="Ungelesene Nachrichten">
-                    {messages.summary!.unread.slice(0, 3).map((row) => (
-                      <DashboardCompactListItem
-                        key={row.contactId}
-                        href={row.href}
-                        title={row.contactName}
-                        meta={row.preview}
-                        stripeVariant="attention"
-                      />
-                    ))}
-                  </DashboardCompactList>
-                </div>
+                <DashboardCompactList aria-label="Ungelesene Nachrichten">
+                  {messages.summary!.unread.slice(0, 2).map((row) => (
+                    <DashboardCompactListItem
+                      key={row.contactId}
+                      href={row.href}
+                      title={row.contactName}
+                      meta={row.preview}
+                      stripeVariant="attention"
+                      className="py-2"
+                    />
+                  ))}
+                </DashboardCompactList>
               ) : null}
 
               {can.staff && workingStaff.length > 0 ? (
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                    Gerade im Einsatz
-                  </p>
-                  <ul className="flex flex-wrap gap-1.5">
-                    {workingStaff.map((member) => (
-                      <li
-                        key={member!.id}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-medium"
-                      >
-                        <span
-                          className="size-2 rounded-full"
-                          style={{ backgroundColor: STAFF_WORK_ENTRY_COLORS.work }}
-                          aria-hidden
-                        />
-                        {staffDisplayName(member!)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <ul className="flex flex-wrap gap-1">
+                  {workingStaff.map((member) => (
+                    <li
+                      key={member!.id}
+                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-900 dark:text-emerald-200"
+                    >
+                      <span
+                        className="size-1.5 rounded-full"
+                        style={{ backgroundColor: STAFF_WORK_ENTRY_COLORS.work }}
+                        aria-hidden
+                      />
+                      {staffDisplayName(member!)}
+                    </li>
+                  ))}
+                </ul>
               ) : null}
 
               {!can.reservations &&
               !can.messages &&
               !can.staff &&
               !can.inventory ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   Keine Berechtigung für Tagesmodule.
                 </p>
               ) : null}
@@ -436,12 +470,12 @@ export function DashboardHeuteTile() {
               (messages.summary?.unread.length ?? 0) === 0 &&
               workingStaff.length === 0 &&
               !inventoryAlerts ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
                   Alles ruhig — keine offenen Punkte.
                 </p>
               ) : null}
             </div>
-          </HeuteSection>
+          </HeutePanel>
         </div>
       </div>
 

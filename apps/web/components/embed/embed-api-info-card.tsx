@@ -49,8 +49,7 @@ export function EmbedApiInfoCard({ moduleId, className }: EmbedApiInfoCardProps)
         <h2 className="text-base font-semibold">Headless per API</h2>
         <p className="text-sm text-muted-foreground">
           JSON-Daten für {meta.label} mit eigenem Design — ohne iframe. Schlüssel
-          zentral unter Einstellungen verwalten; nur für veröffentlichte
-          Restaurants (read-only).
+          zentral unter Einstellungen verwalten.
         </p>
       </div>
 

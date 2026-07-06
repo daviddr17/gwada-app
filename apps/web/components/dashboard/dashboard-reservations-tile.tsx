@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CalendarDays } from "lucide-react";
 import {
   DashboardCompactInlineMetrics,
@@ -10,7 +11,9 @@ import {
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
+import type { DashboardReservationRecent } from "@/lib/reservations/compute-dashboard-reservation-summary";
+
+type DashboardReservationsView = "unconfirmed" | "today";
 
 function formatReservationWhen(iso: string): string {
   const d = new Date(iso);
@@ -23,10 +26,29 @@ function formatReservationWhen(iso: string): string {
   });
 }
 
+function formatReservationTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function DashboardReservationsTile() {
   const { summary, loading, error, ready } = useDashboardReservationStats();
   const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
+  const [view, setView] = useState<DashboardReservationsView>("unconfirmed");
   const unconfirmed = summary?.unconfirmedCount ?? 0;
+
+  const listRows: DashboardReservationRecent[] =
+    view === "today"
+      ? (summary?.todayList ?? [])
+      : (summary?.unconfirmedList ?? []);
+
+  const emptyMessage =
+    view === "today"
+      ? "Keine Reservierungen für heute."
+      : "Keine unbestätigten Reservierungen.";
 
   return (
     <DashboardWidgetShell
@@ -49,13 +71,17 @@ export function DashboardReservationsTile() {
             <DashboardCompactMetricPill
               label="Unbestätigt"
               value={String(unconfirmed)}
-              href={unconfirmed > 0 ? reservationsUnconfirmedOverviewHref() : undefined}
-              highlight={unconfirmed > 0}
-              stripeVariant={unconfirmed > 0 ? "attention" : undefined}
+              onClick={() => setView("unconfirmed")}
+              highlight={view === "unconfirmed"}
+              stripeVariant={
+                view === "unconfirmed" && unconfirmed > 0 ? "attention" : undefined
+              }
             />
             <DashboardCompactMetricPill
               label="Heute"
               value={`${summary.todayReservations} · ${summary.todayGuests} Pers.`}
+              onClick={() => setView("today")}
+              highlight={view === "today"}
             />
             <DashboardCompactMetricPill
               label="Ø Pers. (KW)"
@@ -67,23 +93,31 @@ export function DashboardReservationsTile() {
             />
           </DashboardCompactInlineMetrics>
 
-          {summary.recent.length > 0 ? (
-            <DashboardCompactList>
-              {summary.recent.map((row) => (
+          {listRows.length > 0 ? (
+            <DashboardCompactList
+              aria-label={
+                view === "today"
+                  ? "Heutige Reservierungen"
+                  : "Unbestätigte Reservierungen"
+              }
+            >
+              {listRows.map((row) => (
                 <DashboardCompactListItem
                   key={row.id}
                   href={row.href}
                   title={row.guestLabel}
                   meta={`${row.partySize} Pers. · ${row.statusName}`}
-                  trailing={formatReservationWhen(row.startsAt)}
+                  trailing={
+                    view === "today"
+                      ? formatReservationTime(row.startsAt)
+                      : formatReservationWhen(row.startsAt)
+                  }
                   stripeVariant={row.unconfirmed ? "attention" : undefined}
                 />
               ))}
             </DashboardCompactList>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              Keine anstehenden Reservierungen.
-            </p>
+            <p className="text-xs text-muted-foreground">{emptyMessage}</p>
           )}
         </div>
       ) : null}

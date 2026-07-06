@@ -61,6 +61,7 @@ import { fetchCountries } from "@/lib/supabase/countries-db";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
+import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
   formatDiningTableLabel,
   fetchDiningTables,
@@ -159,6 +160,8 @@ export function ReservationEditDrawer({
     payload: BuiltReservationPayload;
     detail: Extract<TableAssignmentCheck, { kind: "confirm_share" }>;
   } | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -634,7 +637,7 @@ export function ReservationEditDrawer({
       open={open}
       onOpenChange={handleDrawerOpenChange}
       direction="bottom"
-      repositionInputs={false}
+      repositionInputs={repositionInputs}
       handleOnly
     >
       <DrawerContent className={drawerContentClassName("formFixed")}>
@@ -688,6 +691,7 @@ export function ReservationEditDrawer({
         {open ? (
           <DrawerFormBody>
             <div
+              ref={scrollRef}
               data-vaul-no-drag
               className={drawerScrollAreaClassName(6, "min-w-0 overflow-x-hidden overscroll-x-none touch-pan-y")}
             >

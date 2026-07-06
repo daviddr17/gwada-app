@@ -57,6 +57,7 @@ import {
   staffDrawerScrollClassName,
 } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import { cn } from "@/lib/utils";
 
 const logWhenFmt = new Intl.DateTimeFormat("de-DE", {
@@ -122,6 +123,8 @@ export function StaffWorkEntryDrawer({
   const [logLoading, setLogLoading] = useState(false);
   const startTimeRef = useRef<HTMLInputElement>(null);
   const didAutofocusStartTimeRef = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
 
   const readOnly = !allowEdit;
   const isOpenEntry = Boolean(entry?.is_open);
@@ -279,7 +282,7 @@ export function StaffWorkEntryDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
+      <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={repositionInputs}>
         <DrawerContent className={drawerContentClassName("formMd")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle>{drawerTitle}</DrawerTitle>
@@ -291,7 +294,7 @@ export function StaffWorkEntryDrawer({
               void save();
             }}
           >
-            <div className={drawerScrollAreaClassName(6)}>
+            <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
               <DrawerFormSection>
               {isOpenEntry ? (
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">

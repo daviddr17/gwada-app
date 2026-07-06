@@ -2,10 +2,7 @@
 
 import Link from "next/link";
 import type { RestaurantApiModuleId } from "@/lib/api/restaurant-api-modules";
-import {
-  RESTAURANT_API_MODULES,
-  restaurantApiModuleById,
-} from "@/lib/api/restaurant-api-modules";
+import { restaurantApiModuleById } from "@/lib/api/restaurant-api-modules";
 import { cn } from "@/lib/utils";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
@@ -84,11 +81,6 @@ export function EmbedApiInfoCard({ moduleId, className }: EmbedApiInfoCardProps)
           Alle Module
         </Link>
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        Verfügbare Module:{" "}
-        {RESTAURANT_API_MODULES.map((m) => m.label).join(" · ")}
-      </p>
     </section>
   );
 }

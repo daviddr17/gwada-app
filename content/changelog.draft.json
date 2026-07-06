@@ -1,7 +1,7 @@
 {
-  "title": "Public API, Docs & Display-PWA",
-  "body": "- **Public API:** JSON-Zugriff auf Speisekarte, Reservierung, News, Events, Galerie, Bewertungen und Öffnungszeiten — mit API-Schlüsseln unter **Einstellungen → API** (read-only, veröffentlichte Restaurants)\n- **Einbinden:** Hinweis zur Headless-API in allen Embed-Modulen mit Link zur Dokumentation\n- **Dokumentation:** Neuer Bereich unter **gwada.app/docs** mit API-Referenz\n- **Display-PWA:** Einheitlicher Name **gwada - Display** beim Hinzufügen zum Home-Bildschirm",
-  "superadminBody": "- **API:** `restaurant_api_keys`, `GET /api/v1/{module}`, Bearer `gwada_sk_live_…`, 60 req/min, optional Domain-Allowlist\n- **Permissions:** `settings.api`, Migration `20260706143000`\n- **Docs:** `app/(platform)/docs` Sidebar-Layout\n- **Display PWA:** Manifest `name`/`short_name` ohne Restaurant-Truncate",
+  "title": "Schutz öffentlicher APIs",
+  "body": "- **Öffentliche Embed-APIs** sind jetzt gegen Massen-Abfragen (Scraping) geschützt — normale Website-Nutzung bleibt unbeeinträchtigt\n- **Dokumentation:** Rate Limits für Slug-Endpunkte und Secret-Key-API unter **gwada.app/docs/api/rate-limits** ergänzt",
+  "superadminBody": "- **Rate limits:** `/api/public/*` — GET 30/min IP, 20/min IP+Restaurant; POST 10/min IP, 5/min IP+Restaurant\n- **Shared:** `in-memory-rate-limit.ts`, `public-api-rate-limit.ts`, IP aus Proxy-Headern\n- **Keine Migration**",
   "audience": "customers",
-  "version": "2026.07.06.2"
+  "version": "2026.07.06.3"
 }

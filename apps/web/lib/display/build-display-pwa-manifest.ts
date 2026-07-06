@@ -28,7 +28,6 @@ export type DisplayWebAppManifest = {
 
 export type BuildDisplayPwaManifestOptions = {
   slug?: string | null;
-  restaurantName?: string | null;
 };
 
 export function buildDisplayPwaManifest(
@@ -37,7 +36,7 @@ export function buildDisplayPwaManifest(
 ): DisplayWebAppManifest {
   const appName = branding.appName.trim() || "gwada";
   const startUrl = displayPwaStartUrl(options?.slug);
-  const restaurantLabel = options?.restaurantName?.trim();
+  const displayAppName = `${appName} - Display`;
   const icons = DISPLAY_PWA_ICON_SIZES.flatMap((size) => {
     const src = displayPwaIconPath(size);
     const entry = {
@@ -56,10 +55,8 @@ export function buildDisplayPwaManifest(
 
   return {
     id: displayPwaManifestId(options?.slug),
-    name: restaurantLabel
-      ? `${restaurantLabel} · Display`
-      : `${appName} Display`,
-    short_name: restaurantLabel ? restaurantLabel.slice(0, 12) : "Display",
+    name: displayAppName,
+    short_name: displayAppName,
     description:
       "Restaurant-Display für Schicht, Reservierungen, Bestand und Checklisten.",
     start_url: startUrl,

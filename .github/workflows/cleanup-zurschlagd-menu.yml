@@ -11,6 +11,10 @@ on:
         options:
           - "true"
           - "false"
+  push:
+    branches: [main]
+    paths:
+      - .github/triggers/cleanup-zurschlagd-menu.env
 
 concurrency:
   group: cleanup-zurschlagd-menu
@@ -21,6 +25,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      - name: Resolve dry_run
+        id: flags
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "dry_run=${{ inputs.dry_run }}" >> "$GITHUB_OUTPUT"
+          else
+            dry_run="$(grep -E '^dry_run=' .github/triggers/cleanup-zurschlagd-menu.env | cut -d= -f2- | tr -d '[:space:]' || true)"
+            dry_run="${dry_run:-false}"
+            echo "dry_run=${dry_run}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup SSH
         env:
@@ -53,7 +68,7 @@ jobs:
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
           args=()
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
+          if [ "${{ steps.flags.outputs.dry_run }}" = "true" ]; then
             args+=(--dry-run)
           fi
           bash scripts/cleanup-zurschlagd-inactive-menu-live.sh "${args[@]}"

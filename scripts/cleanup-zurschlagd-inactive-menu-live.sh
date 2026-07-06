@@ -53,7 +53,7 @@ if [[ -z "${POSTGRES_PASSWORD}" ]]; then
 fi
 
 export PGPASSWORD="${POSTGRES_PASSWORD}"
-DB_URL="postgresql://postgres@${LIVE_VPS_HOST}:${LIVE_TUNNEL_LOCAL_PORT}/postgres?sslmode=disable"
+DB_URL="postgresql://postgres@127.0.0.1:${LIVE_TUNNEL_LOCAL_PORT}/postgres?sslmode=disable"
 
 echo ""
 echo "=== zurschlagd: inaktive menu_items (Vorschau) ==="

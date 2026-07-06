@@ -104,7 +104,7 @@ export function StaffModuleStickyBar() {
               options={options}
               value={selectedStaffId ?? ""}
               onValueChange={(v) => setSelectedStaffId(v || null)}
-              placeholder="Mitarbeiter wählen …"
+              placeholder="Bitte Mitarbeiter auswählen"
               searchPlaceholder="Suchen …"
               emptyText="Keine Mitarbeiter"
               className="!min-h-11 !h-11 rounded-xl border-input"

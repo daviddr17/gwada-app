@@ -41,7 +41,7 @@ import {
 import {
   STAFF_SUMMARY_LOGGED_COLOR,
   STAFF_WORK_ENTRY_LABELS,
-  staffDisplayName,
+  staffFamilyFirstDisplayName,
 } from "@/lib/types/staff";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
@@ -252,7 +252,7 @@ export function StaffWorkHoursView({
           <Card className="mb-4 border-border/50 shadow-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                Zusammenfassung — {staffDisplayName(staff)}
+                Zusammenfassung — {staffFamilyFirstDisplayName(staff)}
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">

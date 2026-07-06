@@ -80,7 +80,7 @@ jobs:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
           BUBBLE_API_TOKEN: ${{ secrets.BUBBLE_API_TOKEN }}
         run: |
-          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_IDENTITY="${HOME}/.ssh/id_ed25519"
           export GWADA_SSH_BATCH=1
           args=("${{ steps.flags.outputs.date }}")
           if [ "${{ steps.flags.outputs.dry_run }}" = "true" ]; then

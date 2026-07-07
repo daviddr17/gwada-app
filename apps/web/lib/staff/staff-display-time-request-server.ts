@@ -155,18 +155,27 @@ export function parseDisplayTimeRequestRange(
   };
 }
 
-export async function findPendingDisplayTimeRequest(
+export async function listPendingDisplayTimeRequestsForStaff(
   admin: SupabaseClient,
   staffId: string,
-): Promise<StaffDisplayTimeRequestRow | null> {
+): Promise<StaffDisplayTimeRequestRow[]> {
   const { data } = await admin
     .from("restaurant_staff_display_time_requests")
     .select("*")
     .eq("staff_id", staffId)
     .eq("status", "pending")
-    .maybeSingle();
+    .order("created_at", { ascending: false });
 
-  return (data as StaffDisplayTimeRequestRow | null) ?? null;
+  return (data as StaffDisplayTimeRequestRow[] | null) ?? [];
+}
+
+/** @deprecated Use listPendingDisplayTimeRequestsForStaff */
+export async function findPendingDisplayTimeRequest(
+  admin: SupabaseClient,
+  staffId: string,
+): Promise<StaffDisplayTimeRequestRow | null> {
+  const rows = await listPendingDisplayTimeRequestsForStaff(admin, staffId);
+  return rows[0] ?? null;
 }
 
 export async function listUnacknowledgedDisplayTimeResolutions(
@@ -242,11 +251,6 @@ export async function createDisplayTimeRequest(
   | { ok: true; request: StaffDisplayTimeRequestRow }
   | { ok: false; error: string; status: number }
 > {
-  const pending = await findPendingDisplayTimeRequest(admin, params.staffId);
-  if (pending) {
-    return { ok: false, error: "request_already_pending", status: 409 };
-  }
-
   const { data, error } = await admin
     .from("restaurant_staff_display_time_requests")
     .insert({

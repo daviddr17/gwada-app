@@ -4,7 +4,7 @@ import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
 import {
   acknowledgeDisplayTimeRequestResolutions,
   createDisplayTimeRequest,
-  findPendingDisplayTimeRequest,
+  listPendingDisplayTimeRequestsForStaff,
   listUnacknowledgedDisplayTimeResolutions,
   loadRestaurantTimezone,
   parseDisplayTimeRequestRange,
@@ -23,21 +23,19 @@ export async function GET() {
     return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
   }
 
-  const [pending, resolutions] = await Promise.all([
-    findPendingDisplayTimeRequest(admin, access.staffId),
+  const [pendingRows, resolutions] = await Promise.all([
+    listPendingDisplayTimeRequestsForStaff(admin, access.staffId),
     listUnacknowledgedDisplayTimeResolutions(admin, access.staffId),
   ]);
 
   return NextResponse.json({
-    pending_request: pending
-      ? {
-          id: pending.id,
-          entry_type: pending.entry_type,
-          requested_starts_at: pending.requested_starts_at,
-          requested_ends_at: pending.requested_ends_at,
-          created_at: pending.created_at,
-        }
-      : null,
+    pending_requests: pendingRows.map((row) => ({
+      id: row.id,
+      entry_type: row.entry_type,
+      requested_starts_at: row.requested_starts_at,
+      requested_ends_at: row.requested_ends_at,
+      created_at: row.created_at,
+    })),
     unacknowledged_resolutions: resolutions.map((row) => ({
       id: row.id,
       status: row.status,

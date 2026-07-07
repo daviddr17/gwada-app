@@ -8,6 +8,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const STAFF_AVATARS_BUCKET = "restaurant-staff-avatars";
 
+type EmployeeSnapshot = {
+  id: string;
+  role: string;
+  is_active: boolean;
+};
+
 async function countActiveOwners(
   admin: SupabaseClient,
   restaurantId: string,
@@ -50,11 +56,7 @@ export async function deleteStaffServer(params: {
     return { ok: false, error: "cannot_delete_self", status: 409 };
   }
 
-  let employee: {
-    id: string;
-    role: string;
-    is_active: boolean;
-  } | null = null;
+  let employee: EmployeeSnapshot | null = null;
 
   if (staff.employee_id) {
     const { data: emp } = await admin
@@ -62,7 +64,7 @@ export async function deleteStaffServer(params: {
       .select("id, role, is_active")
       .eq("id", staff.employee_id)
       .maybeSingle();
-    employee = (emp as typeof employee) ?? null;
+    employee = (emp as EmployeeSnapshot | null) ?? null;
   } else if (staff.profile_id) {
     const { data: emp } = await admin
       .from("restaurant_employees")
@@ -70,7 +72,7 @@ export async function deleteStaffServer(params: {
       .eq("restaurant_id", params.restaurantId)
       .eq("profile_id", staff.profile_id)
       .maybeSingle();
-    employee = (emp as typeof employee) ?? null;
+    employee = (emp as EmployeeSnapshot | null) ?? null;
   }
 
   if (

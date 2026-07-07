@@ -7,7 +7,7 @@ import {
   findPendingDisplayTimeRequest,
   listUnacknowledgedDisplayTimeResolutions,
   loadRestaurantTimezone,
-  parseDisplayTimeRequestLocalTime,
+  parseDisplayTimeRequestRange,
 } from "@/lib/staff/staff-display-time-request-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -32,14 +32,18 @@ export async function GET() {
     pending_request: pending
       ? {
           id: pending.id,
+          entry_type: pending.entry_type,
           requested_starts_at: pending.requested_starts_at,
+          requested_ends_at: pending.requested_ends_at,
           created_at: pending.created_at,
         }
       : null,
     unacknowledged_resolutions: resolutions.map((row) => ({
       id: row.id,
       status: row.status,
+      entry_type: row.entry_type,
       requested_starts_at: row.requested_starts_at,
+      requested_ends_at: row.requested_ends_at,
       reviewed_at: row.reviewed_at,
     })),
   });
@@ -57,20 +61,37 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: access.error }, { status: access.status });
   }
 
-  let body: { time?: string };
+  let body: {
+    date?: string;
+    start_time?: string;
+    end_time?: string;
+    entry_type?: string;
+  };
   try {
-    body = (await request.json()) as { time?: string };
+    body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const timeValue = body.time?.trim();
-  if (!timeValue) {
+  const dateYmd = body.date?.trim();
+  const startTime = body.start_time?.trim();
+  const endTime = body.end_time?.trim();
+  const entryType = body.entry_type?.trim();
+  if (!dateYmd || !startTime || !endTime || !entryType) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
   const timeZone = await loadRestaurantTimezone(admin, access.restaurantId);
-  const parsed = parseDisplayTimeRequestLocalTime(timeValue, new Date(), timeZone);
+  const parsed = parseDisplayTimeRequestRange(
+    {
+      dateYmd,
+      startTime,
+      endTime,
+      entryType,
+    },
+    new Date(),
+    timeZone,
+  );
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
@@ -78,7 +99,9 @@ export async function POST(request: Request) {
   const result = await createDisplayTimeRequest(admin, {
     restaurantId: access.restaurantId,
     staffId: access.staffId,
-    requestedStartsAt: parsed.iso,
+    entryType: parsed.entryType,
+    requestedStartsAt: parsed.startsAt,
+    requestedEndsAt: parsed.endsAt,
   });
 
   if (!result.ok) {
@@ -89,7 +112,9 @@ export async function POST(request: Request) {
     ok: true,
     request: {
       id: result.request.id,
+      entry_type: result.request.entry_type,
       requested_starts_at: result.request.requested_starts_at,
+      requested_ends_at: result.request.requested_ends_at,
     },
   });
 }

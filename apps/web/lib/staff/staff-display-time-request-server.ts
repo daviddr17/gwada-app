@@ -1,12 +1,16 @@
 import "server-only";
 
-import { randomUUID } from "crypto";
 import {
   readRestaurantZonedParts,
   restaurantZonedDateKey,
-  startOfRestaurantCalendarDay,
   utcInstantForRestaurantLocal,
 } from "@/lib/restaurant/restaurant-timezone";
+import {
+  DISPLAY_TIME_REQUEST_ENTRY_TYPES,
+  isDisplayTimeRequestEntryType,
+  type DisplayTimeRequestEntryType,
+} from "@/lib/staff/staff-display-time-request-types";
+import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type StaffDisplayTimeRequestStatus = "pending" | "approved" | "declined";
@@ -15,7 +19,9 @@ export type StaffDisplayTimeRequestRow = {
   id: string;
   restaurant_id: string;
   staff_id: string;
+  entry_type: DisplayTimeRequestEntryType;
   requested_starts_at: string;
+  requested_ends_at: string;
   status: StaffDisplayTimeRequestStatus;
   work_entry_id: string | null;
   reviewed_by: string | null;
@@ -48,15 +54,9 @@ export async function loadRestaurantTimezone(
   return tz || "Europe/Berlin";
 }
 
-export function parseDisplayTimeRequestLocalTime(
-  timeValue: string,
-  ref: Date,
-  timeZone: string,
-): { ok: true; iso: string } | { ok: false; error: string } {
+function parseTimeParts(timeValue: string): { hour: number; minute: number } | null {
   const match = /^(\d{1,2}):(\d{2})$/.exec(timeValue.trim());
-  if (!match) {
-    return { ok: false, error: "invalid_time" };
-  }
+  if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
   if (
@@ -67,31 +67,92 @@ export function parseDisplayTimeRequestLocalTime(
     minute < 0 ||
     minute > 59
   ) {
-    return { ok: false, error: "invalid_time" };
+    return null;
+  }
+  return { hour, minute };
+}
+
+function parseDateYmd(dateYmd: string): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateYmd.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+export function parseDisplayTimeRequestRange(
+  params: {
+    dateYmd: string;
+    startTime: string;
+    endTime: string;
+    entryType: string;
+  },
+  ref: Date,
+  timeZone: string,
+):
+  | {
+      ok: true;
+      entryType: DisplayTimeRequestEntryType;
+      startsAt: string;
+      endsAt: string;
+    }
+  | { ok: false; error: string } {
+  if (!isDisplayTimeRequestEntryType(params.entryType)) {
+    return { ok: false, error: "invalid_entry_type" };
   }
 
-  const z = readRestaurantZonedParts(ref, timeZone);
-  const requestedAt = utcInstantForRestaurantLocal(
-    z.year,
-    z.month,
-    z.day,
-    hour,
-    minute,
+  const dateParts = parseDateYmd(params.dateYmd);
+  const startParts = parseTimeParts(params.startTime);
+  const endParts = parseTimeParts(params.endTime);
+  if (!dateParts || !startParts || !endParts) {
+    return { ok: false, error: "invalid_request" };
+  }
+
+  const startsAt = utcInstantForRestaurantLocal(
+    dateParts.year,
+    dateParts.month,
+    dateParts.day,
+    startParts.hour,
+    startParts.minute,
     timeZone,
   );
-  const now = ref.getTime();
-  const requestedMs = requestedAt.getTime();
+  const endsAt = utcInstantForRestaurantLocal(
+    dateParts.year,
+    dateParts.month,
+    dateParts.day,
+    endParts.hour,
+    endParts.minute,
+    timeZone,
+  );
 
-  if (requestedMs > now + 2 * 60_000) {
+  const startMs = startsAt.getTime();
+  const endMs = endsAt.getTime();
+  const now = ref.getTime();
+
+  if (endMs <= startMs) {
+    return { ok: false, error: "end_before_start" };
+  }
+
+  const refDayKey = restaurantZonedDateKey(ref, timeZone);
+  const requestDayKey = restaurantZonedDateKey(startsAt, timeZone);
+  if (requestDayKey > refDayKey) {
+    return { ok: false, error: "date_in_future" };
+  }
+
+  if (endMs > now + 2 * 60_000) {
     return { ok: false, error: "time_in_future" };
   }
 
-  const dayStart = startOfRestaurantCalendarDay(ref, timeZone).getTime();
-  if (requestedMs < dayStart) {
-    return { ok: false, error: "time_before_today" };
-  }
-
-  return { ok: true, iso: requestedAt.toISOString() };
+  return {
+    ok: true,
+    entryType: params.entryType,
+    startsAt: startsAt.toISOString(),
+    endsAt: endsAt.toISOString(),
+  };
 }
 
 export async function findPendingDisplayTimeRequest(
@@ -168,35 +229,19 @@ export async function listPendingDisplayTimeRequestsForRestaurant(
     .filter((row): row is StaffDisplayTimeRequestListItem => row != null);
 }
 
-async function staffHasOpenDisplayShift(
-  admin: SupabaseClient,
-  staffId: string,
-): Promise<boolean> {
-  const { data } = await admin
-    .from("restaurant_staff_work_entries")
-    .select("id")
-    .eq("staff_id", staffId)
-    .eq("is_open", true)
-    .not("shift_id", "is", null)
-    .maybeSingle();
-  return Boolean(data?.id);
-}
-
 export async function createDisplayTimeRequest(
   admin: SupabaseClient,
   params: {
     restaurantId: string;
     staffId: string;
+    entryType: DisplayTimeRequestEntryType;
     requestedStartsAt: string;
+    requestedEndsAt: string;
   },
 ): Promise<
   | { ok: true; request: StaffDisplayTimeRequestRow }
   | { ok: false; error: string; status: number }
 > {
-  if (await staffHasOpenDisplayShift(admin, params.staffId)) {
-    return { ok: false, error: "already_clocked_in", status: 409 };
-  }
-
   const pending = await findPendingDisplayTimeRequest(admin, params.staffId);
   if (pending) {
     return { ok: false, error: "request_already_pending", status: 409 };
@@ -207,7 +252,9 @@ export async function createDisplayTimeRequest(
     .insert({
       restaurant_id: params.restaurantId,
       staff_id: params.staffId,
+      entry_type: params.entryType,
       requested_starts_at: params.requestedStartsAt,
+      requested_ends_at: params.requestedEndsAt,
       status: "pending",
     })
     .select("*")
@@ -225,7 +272,9 @@ export async function createDisplayTimeRequest(
     payload: {
       requestId: (data as StaffDisplayTimeRequestRow).id,
       staffId: params.staffId,
+      entryType: params.entryType,
       requestedStartsAt: params.requestedStartsAt,
+      requestedEndsAt: params.requestedEndsAt,
     },
   });
 
@@ -297,22 +346,16 @@ export async function reviewDisplayTimeRequest(
     return { ok: true, request: declined as StaffDisplayTimeRequestRow };
   }
 
-  if (await staffHasOpenDisplayShift(admin, request.staff_id)) {
-    return { ok: false, error: "staff_already_clocked_in", status: 409 };
-  }
-
-  const shiftId = randomUUID();
-  const startsAt = request.requested_starts_at;
   const { data: entry, error: entryErr } = await admin
     .from("restaurant_staff_work_entries")
     .insert({
       restaurant_id: params.restaurantId,
       staff_id: request.staff_id,
-      entry_type: "work",
-      starts_at: startsAt,
-      ends_at: startsAt,
-      is_open: true,
-      shift_id: shiftId,
+      entry_type: request.entry_type,
+      starts_at: request.requested_starts_at,
+      ends_at: request.requested_ends_at,
+      is_open: false,
+      shift_id: null,
       note: DISPLAY_NOTE,
       created_by: params.actorUserId,
     })
@@ -354,10 +397,30 @@ export function formatDisplayTimeRequestLocalTime(
   }).format(new Date(iso));
 }
 
-export function isDisplayTimeRequestSameDay(
+export function formatDisplayTimeRequestLocalDate(
   iso: string,
-  ref: Date,
   timeZone: string,
-): boolean {
-  return restaurantZonedDateKey(new Date(iso), timeZone) === restaurantZonedDateKey(ref, timeZone);
+): string {
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(iso));
 }
+
+export function formatDisplayTimeRequestRangeLabel(
+  row: Pick<
+    StaffDisplayTimeRequestRow,
+    "entry_type" | "requested_starts_at" | "requested_ends_at"
+  >,
+  timeZone: string,
+): string {
+  const typeLabel = STAFF_WORK_ENTRY_LABELS[row.entry_type];
+  const dateLabel = formatDisplayTimeRequestLocalDate(row.requested_starts_at, timeZone);
+  const from = formatDisplayTimeRequestLocalTime(row.requested_starts_at, timeZone);
+  const to = formatDisplayTimeRequestLocalTime(row.requested_ends_at, timeZone);
+  return `${typeLabel} · ${dateLabel} · ${from}–${to}`;
+}
+
+export { DISPLAY_TIME_REQUEST_ENTRY_TYPES };

@@ -88,7 +88,7 @@ const CELEBRATION_META: Record<DisplayCelebrationVariant, CelebrationMeta> = {
   },
   time_request_accepted: {
     label: "Anfrage freigegeben",
-    sublabel: "Schichtstart übernommen",
+    sublabel: "Eintrag übernommen",
     color: "#22c55e",
     Icon: CheckCircle2,
   },

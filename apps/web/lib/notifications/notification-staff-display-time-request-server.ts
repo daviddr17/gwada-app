@@ -1,9 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DisplayTimeRequestEntryType } from "@/lib/staff/staff-display-time-request-types";
 import { NOTIFICATION_MODULES } from "@/lib/notifications/notification-modules";
 import {
-  formatDisplayTimeRequestLocalTime,
+  formatDisplayTimeRequestRangeLabel,
   loadRestaurantTimezone,
 } from "@/lib/staff/staff-display-time-request-server";
 import { staffFamilyFirstDisplayName } from "@/lib/types/staff";
@@ -46,7 +47,9 @@ export async function loadStaffDisplayTimeRequestNotificationItems(
     .select(
       `
       id,
+      entry_type,
       requested_starts_at,
+      requested_ends_at,
       created_at,
       staff:restaurant_staff ( given_name, family_name )
     `,
@@ -71,7 +74,9 @@ export async function loadStaffDisplayTimeRequestNotificationItems(
   const items = rows.slice(0, limit).map((row) => {
     const r = row as {
       id: string;
+      entry_type: DisplayTimeRequestEntryType;
       requested_starts_at: string;
+      requested_ends_at: string;
       created_at: string;
       staff: { given_name: string; family_name: string } | { given_name: string; family_name: string }[] | null;
     };
@@ -79,15 +84,12 @@ export async function loadStaffDisplayTimeRequestNotificationItems(
     const name = staffRel
       ? staffFamilyFirstDisplayName(staffRel)
       : "Mitarbeiter";
-    const timeLabel = formatDisplayTimeRequestLocalTime(
-      r.requested_starts_at,
-      timeZone,
-    );
+    const rangeLabel = formatDisplayTimeRequestRangeLabel(r, timeZone);
 
     return {
       id: r.id,
-      title: "Schichtstart-Anfrage",
-      subtitle: `${name} · ${timeLabel}`,
+      title: "Zeit nachtragen",
+      subtitle: `${name} · ${rangeLabel}`,
       href: def.href,
       at: r.created_at,
       meta: { requestId: r.id },

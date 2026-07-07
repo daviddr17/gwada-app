@@ -433,13 +433,16 @@ export function buildNotificationPushText(
     }
     case "staff_display_time_request": {
       const time = pickString(p.requestedStartsAt);
+      const end = pickString(p.requestedEndsAt);
+      const entryType = pickString(p.entryType);
       return buildPushMessage({
         prefix,
-        headline: "Schichtstart-Anfrage",
-        subject: `${prefix}Schichtstart-Anfrage vom Display`,
+        headline: "Zeit nachtragen",
+        subject: `${prefix}Nachtragungs-Anfrage vom Display`,
         href,
         details: detailLines([
-          time ? `Gewünschte Startzeit: ${time}` : null,
+          entryType ? `Art: ${entryType}` : null,
+          time && end ? `Zeitraum: ${time} – ${end}` : time ? `Beginn: ${time}` : null,
           "Bitte im Mitarbeiter-Dashboard prüfen und freigeben.",
         ]),
       });

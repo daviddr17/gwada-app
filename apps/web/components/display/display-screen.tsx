@@ -22,7 +22,7 @@ import {
   acknowledgeDisplayTimeRequestResolutions,
   fetchDisplayTimeRequestResolutions,
   type DisplayTimeRequestResolution,
-} from "@/components/display/modules/display-time-request-section";
+} from "@/components/display/modules/display-time-request-sheet";
 import {
   DisplayTimeTodoPopup,
   useDisplayShiftGates,
@@ -48,6 +48,7 @@ import {
   shouldShowDisplayModulePicker,
 } from "@/lib/display/display-module-navigation";
 import { submitDisplayPin } from "@/lib/display/submit-display-pin";
+import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import {
   displayChromeMainClassName,
   displayChromeContentWrapClassName,
@@ -103,11 +104,17 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const showTimeRequestResolutionCelebration = useCallback(
     (resolution: DisplayTimeRequestResolution) => {
-      const timeLabel = new Intl.DateTimeFormat("de-DE", {
+      const from = new Intl.DateTimeFormat("de-DE", {
         hour: "2-digit",
         minute: "2-digit",
       }).format(new Date(resolution.requested_starts_at));
-      setScreenCelebrationSublabel(timeLabel);
+      const to = new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(resolution.requested_ends_at));
+      setScreenCelebrationSublabel(
+        `${STAFF_WORK_ENTRY_LABELS[resolution.entry_type]} · ${from}–${to}`,
+      );
       setScreenCelebration(
         resolution.status === "approved"
           ? "time_request_accepted"

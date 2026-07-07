@@ -26,7 +26,9 @@ export async function GET(request: Request) {
     rows.map(async (row) => ({
       id: row.id,
       staff_id: row.staff_id,
+      entry_type: row.entry_type,
       requested_starts_at: row.requested_starts_at,
+      requested_ends_at: row.requested_ends_at,
       created_at: row.created_at,
       staff: {
         given_name: row.staff.given_name,

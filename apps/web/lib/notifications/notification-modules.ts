@@ -208,13 +208,13 @@ export const NOTIFICATION_MODULES: Record<
   },
   staff_display_time_request: {
     id: "staff_display_time_request",
-    label: "Schichtstart-Anfrage",
-    labelPlural: "Schichtstart-Anfragen",
+    label: "Zeit nachtragen",
+    labelPlural: "Zeit nachtragen",
     href: "/dashboard/mitarbeiter/uebersicht",
     icon: TimerReset,
-    settingsInAppLabel: "Display-Schichtstart-Anfragen in der Glocke",
-    settingsPushWhatsappLabel: "WhatsApp bei Schichtstart-Anfragen",
-    settingsPushEmailLabel: "E-Mail bei Schichtstart-Anfragen",
+    settingsInAppLabel: "Nachtragungs-Anfragen vom Display in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei Nachtragungs-Anfragen",
+    settingsPushEmailLabel: "E-Mail bei Nachtragungs-Anfragen",
   },
 };
 

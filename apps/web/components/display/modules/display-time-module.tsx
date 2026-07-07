@@ -5,7 +5,10 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
-import { DisplayTimeRequestSection } from "@/components/display/modules/display-time-request-section";
+import {
+  DisplayTimeRequestSheet,
+  useDisplayTimeRequestPending,
+} from "@/components/display/modules/display-time-request-sheet";
 import {
   DisplayTimeActionCelebration,
   type DisplayTimeCelebrationAction,
@@ -143,6 +146,9 @@ export function DisplayTimeModule({
     useState<DisplayTimeCelebrationAction | null>(null);
   const [contentHidden, setContentHidden] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
+  const [requestSheetOpen, setRequestSheetOpen] = useState(false);
+  const { pending: pendingTimeRequest, refresh: refreshPendingTimeRequest } =
+    useDisplayTimeRequestPending();
   const reduceMotion = useReducedMotion() ?? false;
   const contentRevealSec =
     (reduceMotion ? DISPLAY_CELEBRATION_EXIT_REDUCED_MS : DISPLAY_CELEBRATION_EXIT_MS) /
@@ -280,6 +286,15 @@ export function DisplayTimeModule({
 
   return (
     <div className={displayModuleContentClassName}>
+      <DisplayTimeRequestSheet
+        open={requestSheetOpen}
+        onOpenChange={setRequestSheetOpen}
+        disabled={actionsBlocked}
+        onChanged={() => {
+          void refreshPendingTimeRequest();
+          onChanged();
+        }}
+      />
       <div className="relative mx-auto flex w-full max-w-md flex-col gap-8">
       <DisplayTimeActionCelebration
         action={celebrationAction}
@@ -316,7 +331,22 @@ export function DisplayTimeModule({
           ease: MOTION_EASE_IN_OUT,
         }}
       >
-      <div className="w-full text-center">
+      <div className="relative w-full text-center">
+        <div className="absolute right-0 top-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="relative rounded-full border-border/60"
+            disabled={actionsBlocked}
+            onClick={() => setRequestSheetOpen(true)}
+          >
+            Nachtragen
+            {pendingTimeRequest ? (
+              <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-accent" />
+            ) : null}
+          </Button>
+        </div>
         <AnimatePresence mode="wait" initial={false}>
           <motion.p
             key={state.status}
@@ -356,7 +386,7 @@ export function DisplayTimeModule({
             <motion.div
               key="clock-in"
               layout
-              className="flex w-full flex-col gap-3"
+              className="w-full"
               initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
@@ -371,10 +401,6 @@ export function DisplayTimeModule({
                 <LogIn className="size-5" />
                 Schicht starten
               </DisplayTimeActionButton>
-              <DisplayTimeRequestSection
-                disabled={actionsBlocked}
-                onChanged={onChanged}
-              />
             </motion.div>
           ) : null}
 

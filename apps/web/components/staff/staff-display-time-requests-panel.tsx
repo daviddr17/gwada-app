@@ -7,14 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DisplayRoundAvatar } from "@/components/display/display-round-avatar";
 import { displayPersonInitials } from "@/lib/display/display-avatar-utils";
+import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
+import type { DisplayTimeRequestEntryType } from "@/lib/staff/staff-display-time-request-types";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { STAFF_WORK_ENTRY_LABELS, type StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
 type TimeRequestRow = {
   id: string;
   staff_id: string;
+  entry_type: DisplayTimeRequestEntryType;
   requested_starts_at: string;
+  requested_ends_at: string;
   created_at: string;
   staff: {
     given_name: string;
@@ -22,6 +27,12 @@ type TimeRequestRow = {
     avatar_url: string | null;
   };
 };
+
+const dateFmt = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
 
 const timeFmt = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -79,18 +90,14 @@ export function StaffDisplayTimeRequestsPanel({
       const data = (await res.json()) as { error?: string };
       if (!res.ok) {
         toast.error(
-          data.error === "staff_already_clocked_in"
-            ? "Mitarbeiter ist bereits eingestempelt."
-            : data.error === "not_pending"
-              ? "Anfrage wurde bereits bearbeitet."
-              : "Aktion fehlgeschlagen.",
+          data.error === "not_pending"
+            ? "Anfrage wurde bereits bearbeitet."
+            : "Aktion fehlgeschlagen.",
         );
         return;
       }
       toast.success(
-        decision === "approve"
-          ? "Schichtstart freigegeben."
-          : "Anfrage abgelehnt.",
+        decision === "approve" ? "Nachtragung freigegeben." : "Anfrage abgelehnt.",
       );
       window.dispatchEvent(new Event(GWADA_STAFF_DATA_REFRESH_EVENT));
       await reload();
@@ -113,9 +120,9 @@ export function StaffDisplayTimeRequestsPanel({
     <Card className={cn("border-accent/25 bg-accent/5 shadow-card", className)}>
       <CardContent className="space-y-3 py-4">
         <div>
-          <p className="text-sm font-medium">Offene Schichtstart-Anfragen</p>
+          <p className="text-sm font-medium">Offene Nachtragungs-Anfragen</p>
           <p className="text-xs text-muted-foreground">
-            Vom Display — Startzeit prüfen und freigeben.
+            Vom Display — Zeitraum prüfen und freigeben.
           </p>
         </div>
         <ul className="space-y-3">
@@ -141,15 +148,19 @@ export function StaffDisplayTimeRequestsPanel({
                   />
                   <div className="min-w-0">
                     <p className="truncate font-medium">{name}</p>
-                    <p className="text-2xl font-semibold tabular-nums">
-                      {timeFmt.format(new Date(row.requested_starts_at))}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Angefragt{" "}
-                      {new Intl.DateTimeFormat("de-DE", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      }).format(new Date(row.created_at))}
+                    <div className="mt-1 flex items-center gap-2">
+                      <StaffWorkEntryTypeStripe
+                        type={row.entry_type as StaffWorkEntryType}
+                        className="h-4"
+                      />
+                      <p className="text-sm font-medium">
+                        {STAFF_WORK_ENTRY_LABELS[row.entry_type]}
+                      </p>
+                    </div>
+                    <p className="text-sm tabular-nums text-muted-foreground">
+                      {dateFmt.format(new Date(row.requested_starts_at))} ·{" "}
+                      {timeFmt.format(new Date(row.requested_starts_at))}–
+                      {timeFmt.format(new Date(row.requested_ends_at))}
                     </p>
                   </div>
                 </div>

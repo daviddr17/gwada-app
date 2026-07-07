@@ -526,11 +526,16 @@ export function SuperadminDatabasePanel() {
 
           {!status.liveApp.triggerConfigured ? (
             <p className="text-xs text-muted-foreground">
-              Für Deploy-Button und Branch-Liste{" "}
+              Für Deploy-Buttons{" "}
               <span className="font-mono">GITHUB_DEPLOY_TOKEN</span> in der
-              App-Env setzen (repo, workflow,{" "}
-              <span className="font-mono">read:packages</span> für GHCR-Pull).
-              SSH-Deploy zusätzlich als GitHub Secrets:{" "}
+              Live-App-Env setzen (PAT mit{" "}
+              <span className="font-mono">repo</span> und{" "}
+              <span className="font-mono">read:packages</span>; idealerweise
+              zusätzlich <span className="font-mono">workflow</span>). Secret{" "}
+              <span className="font-mono">GWADA_GITHUB_DEPLOY_TOKEN</span> →
+              Workflow{" "}
+              <span className="font-mono">sync-github-deploy-token-live.yml</span>{" "}
+              oder App-Deploy. SSH in GitHub Secrets:{" "}
               <span className="font-mono">LIVE_SSH_KEY</span>,{" "}
               <span className="font-mono">LIVE_VPS_HOST</span>.
             </p>

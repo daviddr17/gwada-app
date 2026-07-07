@@ -53,6 +53,7 @@ SHA muss dem gewünschten `git rev-parse --short HEAD` entsprechen.
 |---------|---------|-----|
 | Alter SHA in build-info | Container/Image nicht getauscht | `deploy-live-app.yml` erneut |
 | `denied` beim docker pull | GHCR-Token ohne `read:packages` | PAT aktualisieren, `sync-github-deploy-token-live.yml` |
+| Superadmin „Deploy konnte nicht gestartet werden“ | `GITHUB_DEPLOY_TOKEN` fehlt im Container oder PAT ohne `repo`/`workflow` | Secret `GWADA_GITHUB_DEPLOY_TOKEN` (repo + read:packages), `sync-github-deploy-token-live.yml`; Superadmin nutzt bei fehlendem `workflow`-Scope `repository_dispatch` |
 | Build-Job: anon key fehlt | Weder Secret noch VPS-.env | `LIVE_NEXT_PUBLIC_SUPABASE_ANON_KEY` setzen |
 | 503 auf gwada.app | Traefik Host-Rule fehlt | `COOLIFY_FQDN=gwada.app bash scripts/vps-ensure-coolify-traefik-fqdn.sh` |
 

@@ -7,16 +7,41 @@ on:
         description: Optional — öffentlicher SSH-Key für lokales deploy:live (eine Zeile)
         required: false
         default: ""
+  repository_dispatch:
+    types: [deploy-live-db]
 
 concurrency:
   group: deploy-live-db
   cancel-in-progress: false
 
 jobs:
+  resolve-ref:
+    name: Resolve deploy ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.params.outputs.ref }}
+      install_dev_pubkey: ${{ steps.params.outputs.install_dev_pubkey }}
+    steps:
+      - id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            REF="${{ github.event.client_payload.ref }}"
+            PUBKEY="${{ github.event.client_payload.install_dev_pubkey }}"
+          else
+            REF="${{ github.ref_name }}"
+            PUBKEY="${{ inputs.install_dev_pubkey }}"
+          fi
+          REF="${REF:-main}"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+          echo "install_dev_pubkey=${PUBKEY}" >> "$GITHUB_OUTPUT"
+
   migrate:
+    needs: resolve-ref
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - uses: actions/setup-node@v5
         with:
@@ -49,10 +74,10 @@ jobs:
             "echo Remote-IPs: \$(hostname -I | tr -s ' ')"
 
       - name: Install dev SSH pubkey (optional)
-        if: inputs.install_dev_pubkey != ''
+        if: needs.resolve-ref.outputs.install_dev_pubkey != ''
         env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
-          DEV_PUBKEY: ${{ inputs.install_dev_pubkey }}
+          DEV_PUBKEY: ${{ needs.resolve-ref.outputs.install_dev_pubkey }}
         run: |
           ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" bash -s -- "${DEV_PUBKEY}" <<'REMOTE'
           set -euo pipefail
@@ -77,3 +102,17 @@ jobs:
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
           bash scripts/deploy-db-live-ci.sh
+
+      - name: Sync GITHUB_DEPLOY_TOKEN to VPS
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+          GITHUB_DEPLOY_TOKEN: ${{ secrets.GWADA_GITHUB_DEPLOY_TOKEN }}
+        run: |
+          if [ -z "${GITHUB_DEPLOY_TOKEN}" ]; then
+            echo "GWADA_GITHUB_DEPLOY_TOKEN fehlt — Token-Sync übersprungen."
+            exit 0
+          fi
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          bash scripts/sync-github-deploy-token-live.sh

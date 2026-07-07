@@ -6,6 +6,7 @@ import type {
   SuperadminLiveAppDeployStatus,
 } from "@/lib/types/superadmin-ops-status";
 import { raceWithTimeout } from "@/lib/supabase/race-timeout";
+import { githubDeployTokenStrict } from "@/lib/superadmin/github-deploy-api-server";
 
 const BUILD_INFO_TIMEOUT_MS = 6_000;
 
@@ -144,7 +145,9 @@ export async function fetchLiveAppDeployStatus(
     github,
   });
 
-  const triggerConfigured = github.appDeployWorkflow.configured;
+  const triggerConfigured =
+    Boolean(githubDeployTokenStrict()) ||
+    (github.configured && github.reachable);
 
   return {
     siteUrl,

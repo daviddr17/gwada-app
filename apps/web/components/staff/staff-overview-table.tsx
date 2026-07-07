@@ -31,6 +31,9 @@ import {
   STAFF_PRESENCE_STATUS_LABELS,
 } from "@/lib/staff/staff-presence-labels";
 import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
+import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restaurant-position-label";
+import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
+import { EMPLOYEE_ROLE_OPTIONS } from "@/lib/types/employee-role";
 import { cn } from "@/lib/utils";
 import {
   moduleDataTableHeadCellClassName,
@@ -51,11 +54,13 @@ import {
   moduleSearchFilterRowClassName,
   moduleSearchInputClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
+import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
 
 type StaffSortKey =
   | "lastName"
   | "firstName"
   | "position"
+  | "role"
   | "contact"
   | "status"
   | "presence"
@@ -184,6 +189,34 @@ function applyStaffOverviewFilters(
   return list;
 }
 
+function staffRoleSortKey(row: RestaurantStaffRow): string {
+  const position =
+    row.restaurant_position ?? row.linked_employee?.restaurant_position;
+  if (position) return formatRestaurantPositionLabel(position);
+  const role = row.linked_employee?.role;
+  if (!role) return "";
+  return EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role;
+}
+
+function staffRoleDisplay(row: RestaurantStaffRow): {
+  label: string;
+  color?: string;
+} | null {
+  const position =
+    row.restaurant_position ?? row.linked_employee?.restaurant_position;
+  if (position) {
+    return {
+      label: formatRestaurantPositionLabel(position),
+      color: normalizeRestaurantPositionColor(undefined, position.id),
+    };
+  }
+  const role = row.linked_employee?.role;
+  if (!role) return null;
+  return {
+    label: EMPLOYEE_ROLE_OPTIONS.find((o) => o.value === role)?.label ?? role,
+  };
+}
+
 function presenceSortRank(
   staffId: string,
   workingIds: Set<string>,
@@ -275,6 +308,8 @@ export function StaffOverviewTable({
             b.position_tag?.name ?? "",
             "de",
           ) * dir;
+        case "role":
+          return staffRoleSortKey(a).localeCompare(staffRoleSortKey(b), "de") * dir;
         case "contact": {
           const ca = a.email ?? a.phone ?? "";
           const cb = b.email ?? b.phone ?? "";
@@ -406,7 +441,7 @@ export function StaffOverviewTable({
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
       >
-        <table className="w-full min-w-[64rem] text-left text-sm">
+        <table className="w-full min-w-[72rem] text-left text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowClassName}>
               <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
@@ -431,6 +466,15 @@ export function StaffOverviewTable({
                 <SortHeader
                   label="Position"
                   sortKey="position"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
+                <SortHeader
+                  label="Rolle"
+                  sortKey="role"
                   activeKey={sortKey}
                   dir={sortDir}
                   onSort={toggleSort}
@@ -496,6 +540,7 @@ export function StaffOverviewTable({
           <tbody>
             {paginatedRows.map((row) => {
               const tag = row.position_tag;
+              const role = staffRoleDisplay(row);
               const presenceStatus = staffPresenceStatusForRow(
                 row.id,
                 workingIds,
@@ -519,6 +564,21 @@ export function StaffOverviewTable({
                           aria-hidden
                         />
                         {tag.name}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {role ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-medium">
+                        {role.color ? (
+                          <TagColorStripe
+                            color={role.color}
+                            className="mr-0 h-4 shrink-0"
+                          />
+                        ) : null}
+                        {role.label}
                       </span>
                     ) : (
                       "—"

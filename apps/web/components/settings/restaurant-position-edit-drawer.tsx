@@ -26,7 +26,6 @@ import {
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import {
-  deleteRestaurantPosition,
   fetchPositionPermissionKeys,
   fetchPositionUsageCounts,
   updatePositionPermissions,
@@ -34,6 +33,7 @@ import {
   type PositionUsageCounts,
   type RestaurantPositionRow,
 } from "@/lib/supabase/restaurant-positions-db";
+import { deleteRestaurantPositionClient } from "@/lib/restaurant/restaurant-positions-client-api";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
 
@@ -192,12 +192,19 @@ export function RestaurantPositionEditDrawer({
   const confirmDelete = async () => {
     if (!position || !canDelete) return;
     setSaving(true);
-    const sb = createSupabaseBrowserClient();
-    const { error } = await deleteRestaurantPosition(sb, position.id);
+    const { error } = await deleteRestaurantPositionClient({
+      restaurantId,
+      positionId: position.id,
+    });
     setSaving(false);
     if (error) {
-      toast.error(error);
-      return;
+      const messages: Record<string, string> = {
+        forbidden: "Keine Berechtigung zum Löschen.",
+        cannot_delete_owner: "Die Inhaber-Rolle kann nicht gelöscht werden.",
+        not_found: "Rolle wurde nicht gefunden.",
+      };
+      toast.error(messages[error] ?? "Rolle konnte nicht gelöscht werden.");
+      throw new Error(error);
     }
     toast.success("Position gelöscht.");
     setDeleteOpen(false);

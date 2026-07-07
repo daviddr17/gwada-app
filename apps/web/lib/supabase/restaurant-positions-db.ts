@@ -147,16 +147,6 @@ export async function updateRestaurantPosition(
   return { error: error?.message ?? null };
 }
 
-export async function deleteRestaurantPosition(
-  sb: SupabaseClient,
-  positionId: string,
-): Promise<{ error: string | null }> {
-  const { error } = await sb
-    .from("restaurant_positions")
-    .delete()
-    .eq("id", positionId);
-  return { error: error?.message ?? null };
-}
 
 export async function updatePositionPermissions(
   sb: SupabaseClient,

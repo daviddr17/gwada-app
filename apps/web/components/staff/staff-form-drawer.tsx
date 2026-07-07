@@ -378,14 +378,15 @@ export function StaffFormDrawer({
 
   useEffect(() => {
     if (!open || invitePositions.length === 0) return;
+    if (!positionRoleId) return;
     const valid = invitePositions.some((p) => p.id === positionRoleId);
     if (valid) return;
-    const preferred =
+    const fromStaff =
       staff?.restaurant_position_id &&
       invitePositions.some((p) => p.id === staff.restaurant_position_id)
         ? staff.restaurant_position_id
-        : invitePositions[0].id;
-    setPositionRoleId(preferred);
+        : "";
+    setPositionRoleId(fromStaff);
   }, [open, invitePositions, staff?.restaurant_position_id, positionRoleId]);
 
   useEffect(() => {

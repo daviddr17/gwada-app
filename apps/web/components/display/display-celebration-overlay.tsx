@@ -24,7 +24,9 @@ export type DisplayCelebrationVariant =
   | "pin_welcome"
   | "sign_out"
   | "todo_complete"
-  | "todo_defer";
+  | "todo_defer"
+  | "time_request_accepted"
+  | "time_request_declined";
 
 export type DisplayTodoGateCelebrationVariant = "todo_complete" | "todo_defer";
 
@@ -81,6 +83,18 @@ const CELEBRATION_META: Record<DisplayCelebrationVariant, CelebrationMeta> = {
   todo_defer: {
     label: "Verschoben",
     sublabel: "Beim nächsten Mal",
+    color: "#64748b",
+    Icon: TimerReset,
+  },
+  time_request_accepted: {
+    label: "Anfrage freigegeben",
+    sublabel: "Eintrag übernommen",
+    color: "#22c55e",
+    Icon: CheckCircle2,
+  },
+  time_request_declined: {
+    label: "Anfrage abgelehnt",
+    sublabel: "Bitte Teamleitung ansprechen",
     color: "#64748b",
     Icon: TimerReset,
   },

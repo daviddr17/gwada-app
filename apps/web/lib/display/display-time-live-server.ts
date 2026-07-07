@@ -9,11 +9,19 @@ export async function loadDisplayTimeLiveRevision(
   const admin = createSupabaseAdminClient();
   if (!admin) return { revision: "" };
 
-  const latest = await fetchTableLatestUpdatedAt(
-    admin,
-    "restaurant_staff_work_entries",
-    restaurantId,
-  );
+  const [workEntries, timeRequests] = await Promise.all([
+    fetchTableLatestUpdatedAt(
+      admin,
+      "restaurant_staff_work_entries",
+      restaurantId,
+    ),
+    fetchTableLatestUpdatedAt(
+      admin,
+      "restaurant_staff_display_time_requests",
+      restaurantId,
+    ),
+  ]);
 
-  return { revision: latest ?? "" };
+  const parts = [workEntries, timeRequests].filter(Boolean);
+  return { revision: parts.sort().join("|") };
 }

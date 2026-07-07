@@ -13,6 +13,7 @@ import {
   Star,
   Timer,
   TimerOff,
+  TimerReset,
   CheckCircle2,
   Clock,
 } from "lucide-react";
@@ -35,6 +36,7 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_todo_completed",
   "staff_todo_deferred",
   "staff_contract_signed",
+  "staff_display_time_request",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -203,6 +205,16 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Neue/unterschriebene Verträge in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei neuen Verträgen",
     settingsPushEmailLabel: "E-Mail bei neuen Verträgen",
+  },
+  staff_display_time_request: {
+    id: "staff_display_time_request",
+    label: "Zeit nachtragen",
+    labelPlural: "Zeit nachtragen",
+    href: "/dashboard/mitarbeiter/uebersicht",
+    icon: TimerReset,
+    settingsInAppLabel: "Nachtragungs-Anfragen vom Display in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei Nachtragungs-Anfragen",
+    settingsPushEmailLabel: "E-Mail bei Nachtragungs-Anfragen",
   },
 };
 

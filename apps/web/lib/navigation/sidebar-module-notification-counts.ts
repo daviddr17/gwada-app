@@ -23,7 +23,7 @@ const SIDEBAR_MODULE_NOTIFICATION_IDS: Partial<
     "accounting_voucher",
   ],
   checklisten: ["staff_todo_completed", "staff_todo_deferred"],
-  mitarbeiter: [],
+  mitarbeiter: ["staff_display_time_request"],
 };
 
 export function sidebarModuleNotificationCount(

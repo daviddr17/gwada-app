@@ -49,6 +49,10 @@ import {
   dismissAllStaffContractSignedNotifications,
   dismissStaffContractSignedNotification,
 } from "@/lib/notifications/notification-staff-contract-server";
+import {
+  dismissAllStaffDisplayTimeRequestNotifications,
+  dismissStaffDisplayTimeRequestNotification,
+} from "@/lib/notifications/notification-staff-display-time-request-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { isContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
@@ -284,6 +288,24 @@ export async function markNotificationReadServer(
         restaurantId,
         userId,
         contractId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_display_time_request": {
+      if (!itemId) {
+        const all = await dismissAllStaffDisplayTimeRequestNotifications(sb, {
+          restaurantId,
+          userId,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const requestId = itemId ?? meta?.requestId;
+      if (!requestId) return { ok: false, error: "invalid_request" };
+      const result = await dismissStaffDisplayTimeRequestNotification(sb, {
+        restaurantId,
+        userId,
+        requestId,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

@@ -431,6 +431,22 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_display_time_request": {
+      const time = pickString(p.requestedStartsAt);
+      const end = pickString(p.requestedEndsAt);
+      const entryType = pickString(p.entryType);
+      return buildPushMessage({
+        prefix,
+        headline: "Zeit nachtragen",
+        subject: `${prefix}Nachtragungs-Anfrage vom Display`,
+        href,
+        details: detailLines([
+          entryType ? `Art: ${entryType}` : null,
+          time && end ? `Zeitraum: ${time} – ${end}` : time ? `Beginn: ${time}` : null,
+          "Bitte im Mitarbeiter-Dashboard prüfen und freigeben.",
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

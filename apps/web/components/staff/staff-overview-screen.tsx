@@ -17,6 +17,7 @@ import { StaffOverviewLivePresenceSheet } from "@/components/staff/staff-overvie
 import type { StaffLivePresenceSheetMode } from "@/components/staff/staff-overview-live-presence-sheet";
 import { StaffOverviewWageSheet } from "@/components/staff/staff-overview-wage-sheet";
 import { StaffOverviewTable } from "@/components/staff/staff-overview-table";
+import { StaffDisplayTimeRequestsPanel } from "@/components/staff/staff-display-time-requests-panel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker";
@@ -31,6 +32,8 @@ import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags
 import { useStaffEmploymentTypesStorage } from "@/lib/hooks/use-staff-employment-types-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
+import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
 import {
   localDayStartToUtcIso,
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -63,6 +66,8 @@ export function StaffOverviewScreen() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const { has } = useRestaurantPermissions();
+  const canReviewTimeRequests = hasModuleUpdate(has, "staff");
   const positionTags = useStaffPositionTagsStorage(restaurantId);
   const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
@@ -232,6 +237,10 @@ export function StaffOverviewScreen() {
 
   return (
     <div className="w-full space-y-6 pb-16">
+      {canReviewTimeRequests ? (
+        <StaffDisplayTimeRequestsPanel restaurantId={restaurantId} />
+      ) : null}
+
       <Card className="border-border/50 shadow-card">
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Tagesübersicht</CardTitle>

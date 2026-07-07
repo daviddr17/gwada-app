@@ -89,9 +89,13 @@ export function RestaurantPositionEditDrawer({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RestaurantPositionRow | null>(
+    null,
+  );
 
   const isOwner = position?.slug === "owner";
   const canDelete = position != null && !isOwner;
+  const deleteDialogOpen = deleteOpen && deleteTarget != null;
 
   const colorDirty = colorDraft !== colorBaseline;
   const permDirty = useMemo(() => {
@@ -140,7 +144,10 @@ export function RestaurantPositionEditDrawer({
   }, [open, position, loadData]);
 
   useEffect(() => {
-    if (!open) setDeleteOpen(false);
+    if (!open) {
+      setDeleteOpen(false);
+      setDeleteTarget(null);
+    }
   }, [open]);
 
   const togglePerm = (key: RestaurantPermissionKey, on: boolean) => {
@@ -190,11 +197,15 @@ export function RestaurantPositionEditDrawer({
   };
 
   const confirmDelete = async () => {
-    if (!position || !canDelete) return;
+    const target = deleteTarget ?? position;
+    if (!target || target.slug === "owner") {
+      toast.error("Diese Rolle kann nicht gelöscht werden.");
+      throw new Error("cannot_delete_owner");
+    }
     setSaving(true);
     const { error } = await deleteRestaurantPositionClient({
       restaurantId,
-      positionId: position.id,
+      positionId: target.id,
     });
     setSaving(false);
     if (error) {
@@ -202,15 +213,22 @@ export function RestaurantPositionEditDrawer({
         forbidden: "Keine Berechtigung zum Löschen.",
         cannot_delete_owner: "Die Inhaber-Rolle kann nicht gelöscht werden.",
         not_found: "Rolle wurde nicht gefunden.",
+        delete_failed: "Rolle konnte nicht gelöscht werden.",
+        server_misconfigured: "Löschen ist serverseitig nicht verfügbar.",
       };
       toast.error(messages[error] ?? "Rolle konnte nicht gelöscht werden.");
       throw new Error(error);
     }
     toast.success("Position gelöscht.");
     setDeleteOpen(false);
+    setDeleteTarget(null);
     onOpenChange(false);
     onDeleted();
   };
+
+  const deleteUsageHint = deleteTarget
+    ? formatUsageHint(usageCounts)
+    : null;
 
   const positionColor = position
     ? normalizeRestaurantPositionColor(colorDraft, position.id)
@@ -220,7 +238,11 @@ export function RestaurantPositionEditDrawer({
     <>
       <Drawer
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen && deleteDialogOpen) return;
+          onOpenChange(nextOpen);
+        }}
+        dismissible={!deleteDialogOpen}
         direction="bottom"
         repositionInputs={false}
       >
@@ -298,26 +320,33 @@ export function RestaurantPositionEditDrawer({
               submitPending={saving}
               submitDisabled={!dirty || loading}
               showDelete={canDelete}
-              onDelete={() => setDeleteOpen(true)}
+              onDelete={() => {
+                if (!position) return;
+                setDeleteTarget(position);
+                setDeleteOpen(true);
+              }}
               deleteLabel="Position löschen"
-              deleteDisabled={loading}
+              deleteDisabled={loading || deleteDialogOpen}
             />
           </div>
         </DrawerContent>
       </Drawer>
 
       <ConfirmDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
+        open={deleteDialogOpen}
+        onOpenChange={(nextOpen) => {
+          setDeleteOpen(nextOpen);
+          if (!nextOpen) setDeleteTarget(null);
+        }}
         title="Position wirklich löschen?"
         description={
-          position ? (
+          deleteTarget ? (
             <>
               <span className="font-medium text-foreground">
-                {position.name}
+                {deleteTarget.name}
               </span>{" "}
               wird dauerhaft entfernt.
-              {usageHint ? <> {usageHint}</> : null}
+              {deleteUsageHint ? <> {deleteUsageHint}</> : null}
             </>
           ) : null
         }

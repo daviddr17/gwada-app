@@ -41,15 +41,19 @@ export async function deleteRestaurantPositionServer(params: {
     return { ok: false, error: "delete_failed", status: 500 };
   }
 
-  const { error: deleteError } = await admin
+  const { data: deletedRows, error: deleteError } = await admin
     .from("restaurant_positions")
     .delete()
     .eq("id", params.positionId)
-    .eq("restaurant_id", params.restaurantId);
+    .eq("restaurant_id", params.restaurantId)
+    .select("id");
 
   if (deleteError) {
     console.error("[gwada] delete position row", deleteError.message);
     return { ok: false, error: "delete_failed", status: 500 };
+  }
+  if (!deletedRows?.length) {
+    return { ok: false, error: "not_found", status: 404 };
   }
 
   return { ok: true };

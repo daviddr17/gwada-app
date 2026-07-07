@@ -311,7 +311,7 @@ function validateEmailSubjects(email: EmailChannelFormSlice): boolean {
       { name: "E-Mail Erinnerung", value: email.subjReminder, kind: "reminder" },
       { name: "E-Mail Danke", value: email.subjThanks, kind: "thanks" },
       { name: "E-Mail Storniert", value: email.subjCancelled, kind: "cancelled" },
-      { name: "E-Mail Abgesagt", value: email.subjDeclined, kind: "declined" },
+      { name: "E-Mail Abgelehnt", value: email.subjDeclined, kind: "declined" },
       { name: "E-Mail Nicht erschienen", value: email.subjNoShow, kind: "no_show" },
     ];
   for (const item of items) {
@@ -335,7 +335,7 @@ function validateChannelTemplates(
       { name: `${label} Erinnerung`, value: channel.tmplReminder, kind: "reminder" },
       { name: `${label} Danke`, value: channel.tmplThanks, kind: "thanks" },
       { name: `${label} Storniert`, value: channel.tmplCancelled, kind: "cancelled" },
-      { name: `${label} Abgesagt`, value: channel.tmplDeclined, kind: "declined" },
+      { name: `${label} Abgelehnt`, value: channel.tmplDeclined, kind: "declined" },
       { name: `${label} Nicht erschienen`, value: channel.tmplNoShow, kind: "no_show" },
     ];
   for (const item of items) {

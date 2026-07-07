@@ -17,6 +17,7 @@ type DisplayOpenReservationCardProps = {
   busy: boolean;
   changeHint?: string | null;
   onConfirm?: () => void;
+  onReject?: () => void;
   onApproveChange?: () => void;
   onDeclineChange?: () => void;
   onOpen?: () => void;
@@ -27,6 +28,7 @@ export function DisplayOpenReservationCard({
   busy,
   changeHint,
   onConfirm,
+  onReject,
   onApproveChange,
   onDeclineChange,
   onOpen,
@@ -102,19 +104,39 @@ export function DisplayOpenReservationCard({
               Ablehnen
             </Button>
           </>
-        ) : onConfirm ? (
-          <Button
-            type="button"
-            size="lg"
-            className={cn(
-              "h-12 min-w-[8rem] rounded-xl",
-              brandActionButtonRoundedClassName,
-            )}
-            disabled={busy}
-            onClick={onConfirm}
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : "Bestätigen"}
-          </Button>
+        ) : onConfirm || onReject ? (
+          <>
+            {onConfirm ? (
+              <Button
+                type="button"
+                size="lg"
+                className={cn(
+                  "h-12 min-w-[8rem] rounded-xl",
+                  brandActionButtonRoundedClassName,
+                )}
+                disabled={busy}
+                onClick={onConfirm}
+              >
+                {busy ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  "Bestätigen"
+                )}
+              </Button>
+            ) : null}
+            {onReject ? (
+              <Button
+                type="button"
+                size="lg"
+                variant="outline"
+                className="h-12 min-w-[8rem] rounded-xl"
+                disabled={busy}
+                onClick={onReject}
+              >
+                Ablehnen
+              </Button>
+            ) : null}
+          </>
         ) : null}
       </div>
     </div>

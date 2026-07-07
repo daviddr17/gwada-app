@@ -638,6 +638,7 @@ export function DisplayReservationsModule() {
 
   const seatedStatus = statuses.find((s) => s.code === "seated");
   const confirmedStatus = statuses.find((s) => s.code === "confirmed");
+  const declinedStatus = statuses.find((s) => s.code === "declined");
   const completedStatus = statuses.find((s) => s.code === "completed");
 
   const renderListActions = (
@@ -690,6 +691,17 @@ export function DisplayReservationsModule() {
             {isBusy ? <Loader2 className="size-3.5 animate-spin" /> : "Bestätigen"}
           </Button>
         ) : null}
+        {declinedStatus && code === "pending" ? (
+          <Button
+            size={compact ? "sm" : "lg"}
+            variant="outline"
+            className={btnClass}
+            disabled={isBusy}
+            onClick={() => void setStatus(r.id, declinedStatus)}
+          >
+            Ablehnen
+          </Button>
+        ) : null}
         {seatedStatus && code !== "seated" && code !== "completed" ? (
           <Button
             size={compact ? "sm" : "lg"}
@@ -728,6 +740,7 @@ export function DisplayReservationsModule() {
         code !== "confirmed" &&
         code !== "seated" &&
         code !== "completed") ||
+      (declinedStatus && code === "pending") ||
       (seatedStatus && code !== "seated" && code !== "completed") ||
       (completedStatus && code === "seated");
     const tableField = (
@@ -1001,11 +1014,13 @@ export function DisplayReservationsModule() {
                   changeHint={changeHint}
                   onOpen={() => setEditReservationId(r.id)}
                   onConfirm={
-                    confirmedStatus &&
-                    r.status?.code !== "confirmed" &&
-                    r.status?.code !== "seated" &&
-                    r.status?.code !== "completed"
+                    confirmedStatus && r.status?.code === "pending"
                       ? () => void setStatus(r.id, confirmedStatus)
+                      : undefined
+                  }
+                  onReject={
+                    declinedStatus && r.status?.code === "pending"
+                      ? () => void setStatus(r.id, declinedStatus)
                       : undefined
                   }
                   onApproveChange={

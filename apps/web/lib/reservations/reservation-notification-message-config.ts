@@ -45,9 +45,9 @@ export const NOTIFICATION_MESSAGE_FIELDS: readonly NotificationMessageFieldMeta[
     },
     {
       kind: "declined",
-      title: "Abgesagt",
-      statusLabel: "Abgesagt",
-      description: "Wenn Status auf Abgesagt wechselt",
+      title: "Abgelehnt",
+      statusLabel: "Abgelehnt",
+      description: "Wenn Status auf Abgelehnt wechselt (Restaurant lehnt Anfrage ab)",
     },
     {
       kind: "no_show",

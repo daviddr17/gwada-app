@@ -12,10 +12,17 @@ import type {
 const GITHUB_API_TIMEOUT_MS = 8_000;
 export const APP_DEPLOY_WORKFLOW_FILE = "deploy-live-app.yml";
 export const DB_DEPLOY_WORKFLOW_FILE = "deploy-live-db.yml";
+export const APP_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-app";
+export const DB_DEPLOY_REPOSITORY_DISPATCH_TYPE = "deploy-live-db";
+
+/** Nur für Superadmin-Deploy — kein Fallback auf Changelog-/Build-Tokens. */
+export function githubDeployTokenStrict(): string | null {
+  return process.env.GITHUB_DEPLOY_TOKEN?.trim() || null;
+}
 
 export function githubDeployToken(): string | null {
   return (
-    process.env.GITHUB_DEPLOY_TOKEN?.trim() ||
+    githubDeployTokenStrict() ||
     process.env.CHANGELOG_GIT_TOKEN?.trim() ||
     process.env.GITHUB_TOKEN?.trim() ||
     null
@@ -34,11 +41,17 @@ export function githubDeployBranch(): string {
   );
 }
 
-export async function githubFetchJson(
+type GithubFetchResult = {
+  body: unknown;
+  status: number;
+  oauthScopes: string[];
+};
+
+async function githubFetch(
   path: string,
   init?: RequestInit,
-): Promise<unknown> {
-  const token = githubDeployToken();
+  token = githubDeployToken(),
+): Promise<GithubFetchResult> {
   if (!token) throw new Error("github_deploy_token_missing");
 
   const res = await raceWithTimeout(
@@ -56,11 +69,36 @@ export async function githubFetchJson(
     "GitHub-API",
   );
 
+  const oauthScopes = (res.headers.get("x-oauth-scopes") ?? "")
+    .split(",")
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+
   if (!res.ok) {
-    throw new Error(`github_api_${res.status}`);
+    const err = new Error(`github_api_${res.status}`) as Error & {
+      status?: number;
+      oauthScopes?: string[];
+    };
+    err.status = res.status;
+    err.oauthScopes = oauthScopes;
+    throw err;
   }
 
-  return res.json() as Promise<unknown>;
+  const text = await res.text();
+  return {
+    status: res.status,
+    oauthScopes,
+    body: text ? (JSON.parse(text) as unknown) : null,
+  };
+}
+
+export async function githubFetchJson(
+  path: string,
+  init?: RequestInit,
+  token?: string,
+): Promise<unknown> {
+  const result = await githubFetch(path, init, token);
+  return result.body;
 }
 
 function mapWorkflowRun(row: Record<string, unknown>): SuperadminGithubDeployWorkflowRun {
@@ -98,6 +136,80 @@ function githubApiErrorHint(msg: string): string {
   return "GitHub-API nicht erreichbar.";
 }
 
+function githubDispatchErrorMessage(input: {
+  status: number | undefined;
+  workflowFile: string;
+  usedRepositoryDispatch: boolean;
+}): string {
+  if (input.status === 404) {
+    return `Workflow ${input.workflowFile} im Repo ${githubRepoSlug()} nicht gefunden.`;
+  }
+  if (input.status === 401 || input.status === 403) {
+    if (input.usedRepositoryDispatch) {
+      return "GITHUB_DEPLOY_TOKEN fehlt Repo-Rechte (repo) — Deploy kann nicht ausgelöst werden.";
+    }
+    return "GITHUB_DEPLOY_TOKEN kann Workflows nicht starten — PAT mit repo (und idealerweise workflow) in GWADA_GITHUB_DEPLOY_TOKEN setzen, dann sync-github-deploy-token-live.yml ausführen.";
+  }
+  if (input.status === 422) {
+    return "GitHub lehnt den Deploy-Trigger ab (Ref oder Workflow-Konfiguration prüfen).";
+  }
+  return input.usedRepositoryDispatch
+    ? "GitHub-Deploy (repository_dispatch) konnte nicht gestartet werden."
+    : "GitHub-Deploy konnte nicht gestartet werden.";
+}
+
+async function dispatchGithubDeployEvent(input: {
+  workflowFile: string;
+  repositoryDispatchType: string;
+  ref: string;
+  workflowInputs?: Record<string, string>;
+  clientPayload?: Record<string, unknown>;
+}): Promise<void> {
+  const token = githubDeployTokenStrict() ?? githubDeployToken();
+  if (!token) throw new Error("github_deploy_token_missing");
+
+  const repo = githubRepoSlug();
+  const payload = input.clientPayload ?? { ref: input.ref };
+
+  try {
+    await githubFetchJson(
+      `/repos/${repo}/actions/workflows/${input.workflowFile}/dispatches`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ref: input.ref,
+          ...(input.workflowInputs ? { inputs: input.workflowInputs } : {}),
+        }),
+      },
+      token,
+    );
+    return;
+  } catch (e) {
+    const status =
+      e instanceof Error && "status" in e
+        ? (e as Error & { status?: number }).status
+        : undefined;
+    const msg = e instanceof Error ? e.message : "dispatch_failed";
+    if (status !== 403 && msg !== "github_api_403") {
+      throw e;
+    }
+  }
+
+  await githubFetchJson(
+    `/repos/${repo}/dispatches`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_type: input.repositoryDispatchType,
+        client_payload: payload,
+      }),
+    },
+    token,
+  );
+}
+
 export async function fetchGithubDeployWorkflowStatus(input: {
   workflowFile: string;
   label: string;
@@ -115,7 +227,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
       latestRun: null,
       activeRun: null,
       message:
-        "GITHUB_DEPLOY_TOKEN in der App-Env setzen (repo, workflow, read:packages).",
+        "GITHUB_DEPLOY_TOKEN in der App-Env setzen (repo, workflow oder repo+read:packages).",
     };
   }
 
@@ -156,7 +268,7 @@ export async function fetchGithubDeployWorkflowStatus(input: {
 export async function dispatchGithubLiveAppDeploy(
   ref?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = githubDeployToken();
+  const token = githubDeployTokenStrict() ?? githubDeployToken();
   if (!token) {
     return {
       ok: false,
@@ -165,7 +277,6 @@ export async function dispatchGithubLiveAppDeploy(
     };
   }
 
-  const repo = githubRepoSlug();
   const branch = ref?.trim() || githubDeployBranch();
 
   try {
@@ -180,35 +291,46 @@ export async function dispatchGithubLiveAppDeploy(
       };
     }
 
-    await githubFetchJson(
-      `/repos/${repo}/actions/workflows/${APP_DEPLOY_WORKFLOW_FILE}/dispatches`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ref: branch,
-          inputs: { ref: branch, force_unlock: "true" },
-        }),
-      },
-    );
+    await dispatchGithubDeployEvent({
+      workflowFile: APP_DEPLOY_WORKFLOW_FILE,
+      repositoryDispatchType: APP_DEPLOY_REPOSITORY_DISPATCH_TYPE,
+      ref: branch,
+      workflowInputs: { ref: branch, force_unlock: "true" },
+      clientPayload: { ref: branch, force_unlock: "true" },
+    });
 
     return { ok: true };
   } catch (e) {
+    const status =
+      e instanceof Error && "status" in e
+        ? (e as Error & { status?: number }).status
+        : undefined;
     const msg = e instanceof Error ? e.message : "dispatch_failed";
     if (msg === "github_api_404") {
       return {
         ok: false,
-        error: `Workflow ${APP_DEPLOY_WORKFLOW_FILE} im Repo ${repo} nicht gefunden.`,
+        error: githubDispatchErrorMessage({
+          status: 404,
+          workflowFile: APP_DEPLOY_WORKFLOW_FILE,
+          usedRepositoryDispatch: false,
+        }),
       };
     }
-    return { ok: false, error: "GitHub-Deploy konnte nicht gestartet werden." };
+    return {
+      ok: false,
+      error: githubDispatchErrorMessage({
+        status,
+        workflowFile: APP_DEPLOY_WORKFLOW_FILE,
+        usedRepositoryDispatch: status === 403 || msg === "github_api_403",
+      }),
+    };
   }
 }
 
 export async function dispatchGithubLiveDbDeploy(
   ref?: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = githubDeployToken();
+  const token = githubDeployTokenStrict() ?? githubDeployToken();
   if (!token) {
     return {
       ok: false,
@@ -217,7 +339,6 @@ export async function dispatchGithubLiveDbDeploy(
     };
   }
 
-  const repo = githubRepoSlug();
   const branch = ref?.trim() || githubDeployBranch();
 
   try {
@@ -232,27 +353,37 @@ export async function dispatchGithubLiveDbDeploy(
       };
     }
 
-    await githubFetchJson(
-      `/repos/${repo}/actions/workflows/${DB_DEPLOY_WORKFLOW_FILE}/dispatches`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ref: branch }),
-      },
-    );
+    await dispatchGithubDeployEvent({
+      workflowFile: DB_DEPLOY_WORKFLOW_FILE,
+      repositoryDispatchType: DB_DEPLOY_REPOSITORY_DISPATCH_TYPE,
+      ref: branch,
+      clientPayload: { ref: branch },
+    });
 
     return { ok: true };
   } catch (e) {
+    const status =
+      e instanceof Error && "status" in e
+        ? (e as Error & { status?: number }).status
+        : undefined;
     const msg = e instanceof Error ? e.message : "dispatch_failed";
     if (msg === "github_api_404") {
       return {
         ok: false,
-        error: `Workflow ${DB_DEPLOY_WORKFLOW_FILE} im Repo ${repo} nicht gefunden.`,
+        error: githubDispatchErrorMessage({
+          status: 404,
+          workflowFile: DB_DEPLOY_WORKFLOW_FILE,
+          usedRepositoryDispatch: false,
+        }),
       };
     }
     return {
       ok: false,
-      error: "GitHub DB-Deploy konnte nicht gestartet werden.",
+      error: githubDispatchErrorMessage({
+        status,
+        workflowFile: DB_DEPLOY_WORKFLOW_FILE,
+        usedRepositoryDispatch: status === 403 || msg === "github_api_403",
+      }),
     };
   }
 }

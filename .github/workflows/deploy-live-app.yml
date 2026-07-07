@@ -12,6 +12,8 @@ on:
         required: false
         type: boolean
         default: false
+  repository_dispatch:
+    types: [deploy-live-app]
 
 concurrency:
   group: deploy-live-app
@@ -21,8 +23,30 @@ env:
   GWADA_LIVE_APP_IMAGE_REPO: ghcr.io/daviddr17/gwada-app
 
 jobs:
+  resolve-ref:
+    name: Resolve deploy ref
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.params.outputs.ref }}
+      force_unlock: ${{ steps.params.outputs.force_unlock }}
+    steps:
+      - id: params
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            REF="${{ github.event.client_payload.ref }}"
+            FORCE="${{ github.event.client_payload.force_unlock }}"
+          else
+            REF="${{ inputs.ref }}"
+            FORCE="${{ inputs.force_unlock }}"
+          fi
+          REF="${REF:-main}"
+          FORCE="${FORCE:-false}"
+          echo "ref=${REF}" >> "$GITHUB_OUTPUT"
+          echo "force_unlock=${FORCE}" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build image (GHA)
+    needs: resolve-ref
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -33,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.ref || 'main' }}
+          ref: ${{ needs.resolve-ref.outputs.ref }}
 
       - name: Live build env (Supabase anon)
         id: live_env
@@ -89,7 +113,7 @@ jobs:
 
   deploy:
     name: Pull on VPS
-    needs: build
+    needs: [resolve-ref, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -110,7 +134,7 @@ jobs:
             echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
             exit 1
           fi
-          if [ "${{ inputs.force_unlock }}" = "true" ]; then
+          if [ "${{ needs.resolve-ref.outputs.force_unlock }}" = "true" ]; then
             export GWADA_DEPLOY_FORCE_UNLOCK=1
           fi
           mkdir -p ~/.ssh

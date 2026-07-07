@@ -1,16 +1,13 @@
 "use client";
 
+import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import { formatReservationSlotDe } from "@/lib/reservations/reservation-pending-change";
 import { cn } from "@/lib/utils";
-
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 type DisplayOpenReservationCardProps = {
   reservation: DisplayReservationRow;
@@ -33,6 +30,16 @@ export function DisplayOpenReservationCard({
   onDeclineChange,
   onOpen,
 }: DisplayOpenReservationCardProps) {
+  const timeZone = useDisplayRestaurantTimezone();
+  const timeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone,
+      }),
+    [timeZone],
+  );
   const guestName = `${r.guest_first_name} ${r.guest_last_name}`.trim();
   const code = r.status?.code;
   const isChangeRequest = code === "change_requested";
@@ -69,7 +76,7 @@ export function DisplayOpenReservationCard({
             </div>
             <p className="text-lg font-semibold leading-snug">{guestName}</p>
             <p className="text-sm text-muted-foreground">
-              {formatReservationSlotDe(r.starts_at)} · {timeFmt.format(new Date(r.starts_at))}
+              {formatReservationSlotDe(r.starts_at, timeZone)} · {timeFmt.format(new Date(r.starts_at))}
               –{timeFmt.format(new Date(r.ends_at))} · {r.party_size} Pers.
             </p>
             {isChangeRequest && changeHint ? (

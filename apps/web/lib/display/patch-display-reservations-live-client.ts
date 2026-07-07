@@ -1,5 +1,8 @@
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
-import { localDayToYmd } from "@/lib/reservations/datetime-local";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 
 function sortReservationsByStart(
   rows: DisplayReservationRow[],
@@ -18,10 +21,11 @@ function countsTowardDisplayStats(code: string | undefined): boolean {
 export function displayReservationOnDay(
   row: Pick<DisplayReservationRow, "starts_at">,
   dayYmd: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): boolean {
   const d = new Date(row.starts_at);
   if (Number.isNaN(d.getTime())) return false;
-  return localDayToYmd(d) === dayYmd;
+  return restaurantZonedDateKey(d, timeZone) === dayYmd;
 }
 
 export type DisplayDayPayloadPatch = {

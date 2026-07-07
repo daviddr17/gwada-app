@@ -16,6 +16,7 @@ import { DisplayReservationTableField } from "@/components/display/display-reser
 import { DisplayTimeRangeSlider } from "@/components/display/display-time-range-slider";
 import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats-bar";
 import { DisplayOpenReservationCard } from "@/components/display/display-open-reservation-card";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
 import { formatDisplayChangeRequestHint } from "@/lib/reservations/reservation-pending-change";
 import {
@@ -30,18 +31,21 @@ import {
   type BookingTimeStepMinutes,
 } from "@/lib/reservations/booking-time-step";
 import {
-  fallbackSlotRangeFromReservations,
-  localDateAtSlotMinutes,
+  fallbackSlotRangeFromReservationsInTimezone,
   openingDayBookableSlotStartsMinutes,
-  resolveHoursForLocalCalendarDay,
+  resolveHoursForRestaurantCalendarDay,
 } from "@/lib/reservations/day-opening-slots";
+import {
+  addRestaurantCalendarDaysYmd,
+  formatRestaurantDayHeadingDe,
+  restaurantDateAtSlotMinutes,
+  restaurantTodayYmd,
+} from "@/lib/restaurant/restaurant-timezone";
 import {
   computeTableSlotStats,
   reservationsAtTableForInstant,
   reservationsAtTableForRange,
 } from "@/lib/reservations/reservations-table-occupancy";
-import { formatDayHeadingDe } from "@/lib/reservations/month-range";
-import { localDayToYmd } from "@/lib/reservations/datetime-local";
 import { modulePrimaryAddButtonClassName } from "@/lib/ui/module-primary-add-button";
 import type { DiningAreaRow, DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import { formatDiningTableSelectLabel } from "@/lib/supabase/dining-floor-db";
@@ -69,6 +73,7 @@ type ReservationStatus = {
 
 type DayPayload = {
   day: string;
+  timezone: string;
   restaurant_id: string;
   restaurant_name: string | null;
   reservations: DisplayReservationRow[];
@@ -88,11 +93,6 @@ type DayPayload = {
 type ViewMode = "list" | "occupancy" | "open";
 type ListDensity = "comfortable" | "compact";
 
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 const DISPLAY_SESSION_ERRORS: Record<string, string> = {
   session_expired: "Sitzung abgelaufen — bitte erneut anmelden.",
   session_locked: "Bitte mit PIN anmelden.",
@@ -101,13 +101,18 @@ const DISPLAY_SESSION_ERRORS: Record<string, string> = {
 
 function reservationOverlapsSlotRange(
   r: DisplayReservationRow,
-  day: Date,
+  dayYmd: string,
+  timeZone: string,
   fromMin: number,
   toMin: number,
   stepMinutes: number,
 ): boolean {
-  const rangeStart = localDateAtSlotMinutes(day, fromMin).getTime();
-  const rangeEnd = localDateAtSlotMinutes(day, toMin + stepMinutes).getTime();
+  const rangeStart = restaurantDateAtSlotMinutes(dayYmd, fromMin, timeZone).getTime();
+  const rangeEnd = restaurantDateAtSlotMinutes(
+    dayYmd,
+    toMin + stepMinutes,
+    timeZone,
+  ).getTime();
   const rStart = new Date(r.starts_at).getTime();
   const rEnd = new Date(r.ends_at).getTime();
   return rStart < rangeEnd && rEnd > rangeStart;
@@ -132,6 +137,16 @@ function isFullDaySlotRange(
 }
 
 export function DisplayReservationsModule() {
+  const timeZone = useDisplayRestaurantTimezone();
+  const timeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone,
+      }),
+    [timeZone],
+  );
   const [loading, setLoading] = useState(true);
   const [payload, setPayload] = useState<DayPayload | null>(null);
   const showDataSkeleton = useDeferredSkeleton(loading && !payload);
@@ -152,18 +167,12 @@ export function DisplayReservationsModule() {
     [],
   );
   const [openLoading, setOpenLoading] = useState(false);
-  const [selectedDayYmd, setSelectedDayYmd] = useState(() => localDayToYmd(new Date()));
+  const [selectedDayYmd, setSelectedDayYmd] = useState(() =>
+    restaurantTodayYmd(timeZone),
+  );
   const hadLoadedRef = useRef(false);
 
-  const selectedDay = useMemo(() => {
-    const [y, m, d] = selectedDayYmd.split("-").map((v) => Number.parseInt(v, 10));
-    return new Date(y, m - 1, d, 12, 0, 0, 0);
-  }, [selectedDayYmd]);
-
-  const isSelectedToday = useMemo(() => {
-    const now = new Date();
-    return localDayToYmd(now) === selectedDayYmd;
-  }, [selectedDayYmd]);
+  const isSelectedToday = selectedDayYmd === restaurantTodayYmd(timeZone);
   const bookingStep = normalizeBookingTimeStepMinutes(
     payload?.booking_time_step_minutes,
   );
@@ -235,7 +244,7 @@ export function DisplayReservationsModule() {
 
   const applyOptimisticReservation = useCallback(
     (row: DisplayReservationRow) => {
-      if (!displayReservationOnDay(row, selectedDayYmd)) return;
+      if (!displayReservationOnDay(row, selectedDayYmd, timeZone)) return;
       setPayload((prev) => {
         if (!prev) return prev;
         const patched = patchDisplayDayFromReservationInsert(prev, row);
@@ -243,7 +252,7 @@ export function DisplayReservationsModule() {
       });
       setLoading(false);
     },
-    [selectedDayYmd],
+    [selectedDayYmd, timeZone],
   );
 
   const loadFromLive = useCallback(() => {
@@ -320,12 +329,12 @@ export function DisplayReservationsModule() {
 
   const hoursForDay = useMemo(() => {
     if (!payload) return null;
-    return resolveHoursForLocalCalendarDay(
-      selectedDay,
+    return resolveHoursForRestaurantCalendarDay(
+      selectedDayYmd,
       payload.weekly_hours,
       payload.date_exceptions,
     );
-  }, [payload, selectedDay]);
+  }, [payload, selectedDayYmd]);
 
   const slotMinutes = useMemo(() => {
     if (!hoursForDay) return [];
@@ -333,14 +342,25 @@ export function DisplayReservationsModule() {
       starts_at: r.starts_at,
       ends_at: r.ends_at,
     })) as never[];
-    const fallback = fallbackSlotRangeFromReservations(fallbackReservations, selectedDay);
+    const fallback = fallbackSlotRangeFromReservationsInTimezone(
+      fallbackReservations,
+      selectedDayYmd,
+      timeZone,
+    );
     return openingDayBookableSlotStartsMinutes(
       hoursForDay,
       fallback,
       bookingStep,
       payload?.min_minutes_before_closing ?? 60,
     );
-  }, [hoursForDay, reservations, selectedDay, bookingStep, payload?.min_minutes_before_closing]);
+  }, [
+    hoursForDay,
+    reservations,
+    selectedDayYmd,
+    timeZone,
+    bookingStep,
+    payload?.min_minutes_before_closing,
+  ]);
 
   useEffect(() => {
     if (slotMinutes.length === 0) return;
@@ -370,12 +390,20 @@ export function DisplayReservationsModule() {
     }
     return sortReservationsByStart(
       reservations.filter((r) =>
-        reservationOverlapsSlotRange(r, selectedDay, fromMin, toMin, bookingStep),
+        reservationOverlapsSlotRange(
+          r,
+          selectedDayYmd,
+          timeZone,
+          fromMin,
+          toMin,
+          bookingStep,
+        ),
       ),
     );
   }, [
     reservations,
-    selectedDay,
+    selectedDayYmd,
+    timeZone,
     fromMin,
     toMin,
     bookingStep,
@@ -385,15 +413,19 @@ export function DisplayReservationsModule() {
   ]);
 
   const occupancyInstant = useMemo(
-    () => localDateAtSlotMinutes(selectedDay, toMin),
-    [selectedDay, toMin],
+    () => restaurantDateAtSlotMinutes(selectedDayYmd, toMin, timeZone),
+    [selectedDayYmd, toMin, timeZone],
   );
 
   const occupancyRange = useMemo(() => {
-    const rangeStart = localDateAtSlotMinutes(selectedDay, fromMin);
-    const rangeEnd = localDateAtSlotMinutes(selectedDay, toMin + bookingStep);
+    const rangeStart = restaurantDateAtSlotMinutes(selectedDayYmd, fromMin, timeZone);
+    const rangeEnd = restaurantDateAtSlotMinutes(
+      selectedDayYmd,
+      toMin + bookingStep,
+      timeZone,
+    );
     return { rangeStart, rangeEnd };
-  }, [selectedDay, fromMin, toMin, bookingStep]);
+  }, [selectedDayYmd, fromMin, toMin, bookingStep, timeZone]);
 
   const occupancy = useMemo(() => {
     if (slotMinutes.length === 0) return new Map<string, DisplayReservationRow[]>();
@@ -852,9 +884,9 @@ export function DisplayReservationsModule() {
   };
 
   const shiftSelectedDay = (deltaDays: number) => {
-    const next = new Date(selectedDay);
-    next.setDate(next.getDate() + deltaDays);
-    setSelectedDayYmd(localDayToYmd(next));
+    setSelectedDayYmd((current) =>
+      addRestaurantCalendarDaysYmd(current, deltaDays, timeZone),
+    );
   };
 
   const viewChip = (id: ViewMode, label: string, badge?: number) => (
@@ -923,7 +955,7 @@ export function DisplayReservationsModule() {
                 variant="outline"
                 size="sm"
                 className="h-9 rounded-lg"
-                onClick={() => setSelectedDayYmd(localDayToYmd(new Date()))}
+                onClick={() => setSelectedDayYmd(restaurantTodayYmd(timeZone))}
               >
                 Heute
               </Button>
@@ -936,7 +968,7 @@ export function DisplayReservationsModule() {
               </p>
             ) : null}
             <p className="text-sm text-muted-foreground">
-              {formatDayHeadingDe(selectedDay)}
+              {formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
             </p>
             {showDataSkeleton ? (
               <div className="mt-2 flex flex-wrap gap-4">
@@ -1004,7 +1036,7 @@ export function DisplayReservationsModule() {
               const pending = r.pending_change;
               const changeHint =
                 r.status?.code === "change_requested" && pending
-                  ? formatDisplayChangeRequestHint(r, pending)
+                  ? formatDisplayChangeRequestHint(r, pending, timeZone)
                   : null;
               return (
                 <DisplayOpenReservationCard

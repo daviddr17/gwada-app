@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import {
   DisplayTimeRequestSheet,
   useDisplayTimeRequestPending,
@@ -43,11 +44,6 @@ type TimePayload = TimeState & {
   can_view_team_presence?: boolean;
   team_presence?: DisplayTeamPresenceMember[];
 };
-
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 type TimeAction = "clock_in" | "start_break" | "end_break" | "clock_out";
 
@@ -135,6 +131,16 @@ export function DisplayTimeModule({
   onClockOutSuccess?: () => void;
   prepareAndGate: DisplayPrepareAndGate;
 }) {
+  const timeZone = useDisplayRestaurantTimezone();
+  const timeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone,
+      }),
+    [timeZone],
+  );
   const [state, setState] = useState<TimeState>(
     initial ?? { status: "off", clocked_in_at: null, break_started_at: null },
   );

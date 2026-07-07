@@ -30,6 +30,7 @@ import {
 import { getStaffDisplayTimeState } from "@/lib/staff/staff-display-time-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { normalizeHex } from "@/lib/theme/color-utils";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 
 export { generateDisplayToken, generatePairingCode, hashDisplayToken } from "@/lib/display/display-crypto";
 
@@ -318,7 +319,9 @@ export async function buildDisplayContext(
   const [{ data: restaurant }, sessionResult] = await Promise.all([
     admin
       .from("restaurants")
-      .select("id, name, slug, brand_accent_hex, avatar_storage_path, cover_storage_path")
+      .select(
+        "id, name, slug, brand_accent_hex, avatar_storage_path, cover_storage_path, timezone",
+      )
       .eq("id", deviceResult.display.restaurant_id)
       .maybeSingle(),
     assertDisplaySessionFromCookies(cookieStore, deviceResult.display),
@@ -352,6 +355,11 @@ export async function buildDisplayContext(
             normalizeHex(String(restaurant.brand_accent_hex ?? "")) ?? null,
           avatar_url: avatarUrl,
           cover_url: coverUrl,
+          timezone:
+            typeof restaurant.timezone === "string" &&
+            restaurant.timezone.trim()
+              ? restaurant.timezone.trim()
+              : DEFAULT_RESTAURANT_TIMEZONE,
         }
       : null,
     display: {

@@ -1,6 +1,5 @@
 import "server-only";
 
-import { localDayBoundsIso } from "@gwada/shared";
 import { defaultWeeklyHours, WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { normalizeBookingTimeStepMinutes } from "@/lib/reservations/booking-time-step";
 import {
@@ -9,6 +8,8 @@ import {
 } from "@/lib/reservations/reservation-pending-change";
 import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
+import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
+import { loadDisplayRestaurantTimezone } from "@/lib/staff/staff-display-todos-server";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -149,7 +150,8 @@ export async function loadDisplayReservationsDay(
   const admin = createSupabaseAdminClient();
   if (!admin) return { error: "server_misconfigured" as const };
 
-  const { start, end, day } = localDayBoundsIso(dayYmd);
+  const timeZone = await loadDisplayRestaurantTimezone(admin, restaurantId);
+  const { start, end, day } = restaurantDayBoundsIso(dayYmd, timeZone);
 
   const [
     { data: reservationRows, error: resError },
@@ -247,6 +249,7 @@ export async function loadDisplayReservationsDay(
 
   return {
     day,
+    timezone: timeZone,
     reservations,
     statuses: statuses ?? [],
     areas: areas ?? [],

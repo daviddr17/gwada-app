@@ -92,6 +92,7 @@ export type DisplayContextResponse = {
     accent_hex: string | null;
     avatar_url: string | null;
     cover_url: string | null;
+    timezone: string;
   } | null;
   display: {
     id: string;

@@ -1,17 +1,17 @@
 "use client";
 
+import { useMemo } from "react";
 import { DisplayRoundAvatar } from "@/components/display/display-round-avatar";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { displayPersonInitials } from "@/lib/display/display-avatar-utils";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import type { DisplayTeamPresenceMember } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function presenceLabel(member: DisplayTeamPresenceMember): string {
+function presenceLabel(
+  member: DisplayTeamPresenceMember,
+  timeFmt: Intl.DateTimeFormat,
+): string {
   if (member.status === "on_break" && member.break_started_at) {
     return `Pause seit ${timeFmt.format(new Date(member.break_started_at))}`;
   }
@@ -25,6 +25,16 @@ export function DisplayTimeTeamPresence({
   members: DisplayTeamPresenceMember[];
   className?: string;
 }) {
+  const timeZone = useDisplayRestaurantTimezone();
+  const timeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone,
+      }),
+    [timeZone],
+  );
   const working = members.filter((m) => m.status === "working");
   const onBreak = members.filter((m) => m.status === "on_break");
 
@@ -74,7 +84,7 @@ export function DisplayTimeTeamPresence({
                   <p className="truncate font-medium leading-snug">{name}</p>
                   <p className="truncate text-xs text-muted-foreground">
                     {member.position_name ? `${member.position_name} · ` : ""}
-                    {presenceLabel(member)}
+                    {presenceLabel(member, timeFmt)}
                   </p>
                 </div>
               </li>

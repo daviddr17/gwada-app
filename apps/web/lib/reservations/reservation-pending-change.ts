@@ -58,7 +58,21 @@ const timeDe = new Intl.DateTimeFormat("de-DE", {
   minute: "2-digit",
 });
 
-export function formatReservationSlotDe(iso: string): string {
+export function formatReservationSlotDe(
+  iso: string,
+  timeZone?: string,
+): string {
+  if (timeZone) {
+    return new Intl.DateTimeFormat("de-DE", {
+      timeZone,
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  }
   return timeDe.format(new Date(iso));
 }
 
@@ -89,6 +103,7 @@ export function formatDisplayChangeRequestHint(
     guest_email: string | null;
   },
   pending: ReservationPendingChange,
+  timeZone?: string,
 ): string {
   const keys = reservationChangeDiffKeys(current, pending);
   if (keys.length === 0) return "Änderungsanfrage — bitte prüfen";
@@ -105,7 +120,7 @@ export function formatDisplayChangeRequestHint(
       return `${label}: ${current.party_size} → ${pending.party_size}`;
     }
     if (key === "starts_at") {
-      return `${label}: ${formatReservationSlotDe(current.starts_at)} → ${formatReservationSlotDe(pending.starts_at)}`;
+      return `${label}: ${formatReservationSlotDe(current.starts_at, timeZone)} → ${formatReservationSlotDe(pending.starts_at, timeZone)}`;
     }
     if (key === "guest_phone") {
       return `${label}: ${current.guest_phone ?? "—"} → ${pending.guest_phone ?? "—"}`;

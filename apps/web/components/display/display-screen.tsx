@@ -8,6 +8,7 @@ import { DISPLAY_MODULES } from "@/lib/display/display-types";
 import { DisplayContextFooter } from "@/components/display/display-context-footer";
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
+import { DisplayRestaurantTimezoneProvider } from "@/components/display/display-restaurant-timezone-provider";
 import { DisplayCelebrationOverlay, type DisplayCelebrationVariant } from "@/components/display/display-celebration-overlay";
 import { useMarkDisplayPwaSplashReady } from "@/components/display/display-pwa-splash-provider";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
@@ -32,6 +33,7 @@ import { DisplayInventoryModule } from "@/components/display/modules/display-inv
 import { DisplayComplianceModule } from "@/components/display/modules/display-compliance-module";
 import { DisplayRecipesModule } from "@/components/display/modules/display-recipes-module";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { cn } from "@/lib/utils";
@@ -102,16 +104,18 @@ export function DisplayScreen({ slug }: { slug: string }) {
   const { preparePinLoginGate, prepareAndGate, todoPopupProps } =
     useDisplayShiftGates();
 
+  const restaurantTimezone =
+    context?.restaurant?.timezone ?? DEFAULT_RESTAURANT_TIMEZONE;
+
   const showTimeRequestResolutionCelebration = useCallback(
     (resolution: DisplayTimeRequestResolution) => {
-      const from = new Intl.DateTimeFormat("de-DE", {
+      const fmt = new Intl.DateTimeFormat("de-DE", {
         hour: "2-digit",
         minute: "2-digit",
-      }).format(new Date(resolution.requested_starts_at));
-      const to = new Intl.DateTimeFormat("de-DE", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }).format(new Date(resolution.requested_ends_at));
+        timeZone: restaurantTimezone,
+      });
+      const from = fmt.format(new Date(resolution.requested_starts_at));
+      const to = fmt.format(new Date(resolution.requested_ends_at));
       setScreenCelebrationSublabel(
         `${STAFF_WORK_ENTRY_LABELS[resolution.entry_type]} · ${from}–${to}`,
       );
@@ -121,7 +125,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
           : "time_request_declined",
       );
     },
-    [],
+    [restaurantTimezone],
   );
 
   const maybeShowTimeRequestResolution = useCallback(async () => {
@@ -746,29 +750,31 @@ export function DisplayScreen({ slug }: { slug: string }) {
   }
 
   return (
-    <DisplayAccentRoot accentHex={restaurantAccent}>
-      <AnimatePresence mode="sync" initial={false}>
-        <motion.div
-          key={contentKey}
-          className={contentKey === "pin" || contentKey === "session" ? "min-h-dvh" : undefined}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{
-            duration: contentRevealMs / 1000,
-            ease: MOTION_EASE_OUT,
-          }}
-        >
-          {content}
-        </motion.div>
-      </AnimatePresence>
-      <DisplayCelebrationOverlay
-        variant={screenCelebration}
-        sublabel={screenCelebrationSublabel}
-        onExitStart={handleScreenCelebrationExitStart}
-        onDone={handleScreenCelebrationDone}
-      />
-      <DisplayTimeTodoPopup {...todoPopupProps} />
-    </DisplayAccentRoot>
+    <DisplayRestaurantTimezoneProvider timezone={restaurantTimezone}>
+      <DisplayAccentRoot accentHex={restaurantAccent}>
+        <AnimatePresence mode="sync" initial={false}>
+          <motion.div
+            key={contentKey}
+            className={contentKey === "pin" || contentKey === "session" ? "min-h-dvh" : undefined}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{
+              duration: contentRevealMs / 1000,
+              ease: MOTION_EASE_OUT,
+            }}
+          >
+            {content}
+          </motion.div>
+        </AnimatePresence>
+        <DisplayCelebrationOverlay
+          variant={screenCelebration}
+          sublabel={screenCelebrationSublabel}
+          onExitStart={handleScreenCelebrationExitStart}
+          onDone={handleScreenCelebrationDone}
+        />
+        <DisplayTimeTodoPopup {...todoPopupProps} />
+      </DisplayAccentRoot>
+    </DisplayRestaurantTimezoneProvider>
   );
 }

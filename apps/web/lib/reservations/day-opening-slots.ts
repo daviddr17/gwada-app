@@ -1,4 +1,8 @@
 import { defaultWeeklyHours } from "@/lib/constants/restaurant-profile";
+import {
+  parseRestaurantYmdKey,
+  readRestaurantZonedParts,
+} from "@/lib/restaurant/restaurant-timezone";
 import type {
   DateHoursException,
   DayHours,
@@ -42,6 +46,31 @@ export function resolveHoursForLocalCalendarDay(
   return weeklyHours[jsDateToWeekday(day)];
 }
 
+export function ymdToWeekday(ymd: string): Weekday {
+  const parsed = parseRestaurantYmdKey(ymd);
+  if (!parsed) return "monday";
+  return jsDateToWeekday(
+    new Date(parsed.year, parsed.month - 1, parsed.day, 12, 0, 0, 0),
+  );
+}
+
+/** Öffnungszeiten für Restaurant-Kalendertag (`yyyy-MM-dd`). */
+export function resolveHoursForRestaurantCalendarDay(
+  ymd: string,
+  weeklyHours: Record<Weekday, DayHours>,
+  dateExceptions: DateHoursException[],
+): DayHours {
+  const ex = dateExceptions.find((e) => e.date === ymd);
+  if (ex) {
+    return {
+      closed: ex.closed,
+      open: ex.open,
+      close: ex.close,
+    };
+  }
+  return weeklyHours[ymdToWeekday(ymd)];
+}
+
 export function hhmmToMinutes(t: string): number {
   const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
   if (!m) return 0;
@@ -76,6 +105,34 @@ export function fallbackSlotRangeFromReservations(
     const e = new Date(r.ends_at);
     minM = Math.min(minM, s.getHours() * 60 + s.getMinutes());
     maxM = Math.max(maxM, e.getHours() * 60 + e.getMinutes());
+  }
+  if (!Number.isFinite(minM) || !Number.isFinite(maxM)) {
+    return { openMin: baseOpen, closeMin: baseClose };
+  }
+  const openMin = Math.min(baseOpen, Math.floor(minM));
+  const closeMin = Math.max(baseClose, Math.min(Math.ceil(maxM), 24 * 60 - 1));
+  return { openMin, closeMin };
+}
+
+/** Fallback-Slotbereich aus Reservierungen in Restaurant-Zeitzone. */
+export function fallbackSlotRangeFromReservationsInTimezone(
+  reservations: Pick<ReservationListRow, "starts_at" | "ends_at">[],
+  ymd: string,
+  timeZone: string,
+): { openMin: number; closeMin: number } {
+  const dflt = defaultWeeklyHours()[ymdToWeekday(ymd)];
+  const baseOpen = dflt.closed || !dflt.open ? 11 * 60 + 30 : hhmmToMinutes(dflt.open);
+  const baseClose = dflt.closed || !dflt.close ? 22 * 60 : hhmmToMinutes(dflt.close);
+  if (reservations.length === 0) {
+    return { openMin: baseOpen, closeMin: baseClose };
+  }
+  let minM = Infinity;
+  let maxM = -Infinity;
+  for (const r of reservations) {
+    const s = readRestaurantZonedParts(new Date(r.starts_at), timeZone);
+    const e = readRestaurantZonedParts(new Date(r.ends_at), timeZone);
+    minM = Math.min(minM, s.hour * 60 + s.minute);
+    maxM = Math.max(maxM, e.hour * 60 + e.minute);
   }
   if (!Number.isFinite(minM) || !Number.isFinite(maxM)) {
     return { openMin: baseOpen, closeMin: baseClose };

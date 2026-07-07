@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { format, subDays } from "date-fns";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -45,6 +44,10 @@ import {
   type StaffWorkEntryType,
 } from "@/lib/types/staff";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
+import {
+  restaurantYesterdayYmd,
+} from "@/lib/restaurant/restaurant-timezone";
 import { cn } from "@/lib/utils";
 
 type PendingRequest = {
@@ -64,35 +67,22 @@ const entryTypeItems = DISPLAY_TIME_REQUEST_ENTRY_TYPES.map((type) => ({
   label: STAFF_WORK_ENTRY_LABELS[type],
 }));
 
-function defaultNachtragenDateYmd(): string {
-  return format(subDays(new Date(), 1), "yyyy-MM-dd");
+function defaultNachtragenDateYmd(timeZone: string): string {
+  return restaurantYesterdayYmd(timeZone);
 }
 
 function defaultLocalTimeValue(hour: number, minute = 0): string {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function defaultFormState() {
+function defaultFormState(timeZone: string) {
   return {
-    dateYmd: defaultNachtragenDateYmd(),
+    dateYmd: defaultNachtragenDateYmd(timeZone),
     startTime: defaultLocalTimeValue(9),
     endTime: defaultLocalTimeValue(17),
     entryType: "work" as DisplayTimeRequestEntryType,
   };
 }
-
-const rangeFmt = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 export type DisplayTimeRequestResolution = {
   id: string;
@@ -103,7 +93,35 @@ export type DisplayTimeRequestResolution = {
   reviewed_at: string | null;
 };
 
-function PendingRequestCard({ request }: { request: PendingRequest }) {
+function PendingRequestCard({
+  request,
+  timeZone,
+}: {
+  request: PendingRequest;
+  timeZone: string;
+}) {
+  const rangeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat("de-DE", {
+        timeZone,
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [timeZone],
+  );
+  const timeFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone,
+      }),
+    [timeZone],
+  );
+
   return (
     <div className="rounded-2xl border border-accent/30 bg-accent/5 px-4 py-4">
       <p className="text-sm font-medium">Anfrage ausstehend</p>
@@ -128,6 +146,7 @@ function NachtragenFormFields({
   setStartTime,
   endTime,
   setEndTime,
+  timeZone,
   disabled,
 }: {
   dateYmd: string;
@@ -138,6 +157,7 @@ function NachtragenFormFields({
   setStartTime: (value: string) => void;
   endTime: string;
   setEndTime: (value: string) => void;
+  timeZone: string;
   disabled?: boolean;
 }) {
   return (
@@ -148,7 +168,7 @@ function NachtragenFormFields({
           <DatePickerField
             fullWidth
             value={dateYmd}
-            onChange={(v) => setDateYmd(v ?? defaultNachtragenDateYmd())}
+            onChange={(v) => setDateYmd(v ?? defaultNachtragenDateYmd(timeZone))}
             disabled={disabled}
             className="w-full"
           />
@@ -252,22 +272,23 @@ export function DisplayTimeRequestSheet({
   disabled?: boolean;
   onChanged?: () => void;
 }) {
+  const timeZone = useDisplayRestaurantTimezone();
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<SheetTab>("new");
-  const [dateYmd, setDateYmd] = useState(defaultNachtragenDateYmd);
+  const [dateYmd, setDateYmd] = useState(() => defaultNachtragenDateYmd(timeZone));
   const [startTime, setStartTime] = useState(() => defaultLocalTimeValue(9));
   const [endTime, setEndTime] = useState(() => defaultLocalTimeValue(17));
   const [entryType, setEntryType] = useState<DisplayTimeRequestEntryType>("work");
 
   const resetForm = useCallback(() => {
-    const defaults = defaultFormState();
+    const defaults = defaultFormState(timeZone);
     setDateYmd(defaults.dateYmd);
     setStartTime(defaults.startTime);
     setEndTime(defaults.endTime);
     setEntryType(defaults.entryType);
-  }, []);
+  }, [timeZone]);
 
   const refresh = useCallback(async () => {
     try {
@@ -404,7 +425,11 @@ export function DisplayTimeRequestSheet({
                     Wird im Dashboard geprüft — Rückmeldung beim nächsten Login.
                   </p>
                   {pendingRequests.map((request) => (
-                    <PendingRequestCard key={request.id} request={request} />
+                    <PendingRequestCard
+                      key={request.id}
+                      request={request}
+                      timeZone={timeZone}
+                    />
                   ))}
                 </DrawerFormScrollArea>
               </TabsContent>
@@ -423,6 +448,7 @@ export function DisplayTimeRequestSheet({
                     setStartTime={setStartTime}
                     endTime={endTime}
                     setEndTime={setEndTime}
+                    timeZone={timeZone}
                     disabled={disabled || busy}
                   />
                 </DrawerFormScrollArea>
@@ -442,6 +468,7 @@ export function DisplayTimeRequestSheet({
                 setStartTime={setStartTime}
                 endTime={endTime}
                 setEndTime={setEndTime}
+                timeZone={timeZone}
                 disabled={disabled || busy}
               />
             </DrawerFormScrollArea>

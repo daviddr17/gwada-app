@@ -243,3 +243,193 @@ export function formatRestaurantDateTime(
   if (Number.isNaN(date.getTime())) return "—";
   return createRestaurantDateTimeFormatter(timeZone, options).format(date);
 }
+
+export function parseRestaurantYmdKey(
+  ymd: string,
+): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+export function restaurantTodayYmd(
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+  ref: Date = new Date(),
+): string {
+  return restaurantZonedDateKey(ref, timeZone);
+}
+
+export function addRestaurantCalendarDaysYmd(
+  ymd: string,
+  deltaDays: number,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  const parsed = parseRestaurantYmdKey(ymd);
+  if (!parsed) return restaurantTodayYmd(timeZone);
+  const noon = utcInstantForRestaurantLocal(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    12,
+    0,
+    timeZone,
+  );
+  return restaurantZonedDateKey(
+    new Date(noon.getTime() + deltaDays * 86_400_000),
+    timeZone,
+  );
+}
+
+export function restaurantYesterdayYmd(
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+  ref: Date = new Date(),
+): string {
+  return addRestaurantCalendarDaysYmd(
+    restaurantTodayYmd(timeZone, ref),
+    -1,
+    timeZone,
+  );
+}
+
+/** Restaurant-Kalendertag → UTC-ISO-Grenzen [start, end) für Supabase-Filter. */
+export function restaurantDayBoundsIso(
+  dayYmd: string | null | undefined,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+  ref: Date = new Date(),
+): { start: string; end: string; day: string } {
+  const day = dayYmd?.trim() || restaurantTodayYmd(timeZone, ref);
+  const parsed = parseRestaurantYmdKey(day);
+  if (!parsed) {
+    return restaurantDayBoundsIso(null, timeZone, ref);
+  }
+  const start = utcInstantForRestaurantLocal(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    0,
+    0,
+    timeZone,
+  );
+  const nextDay = addRestaurantCalendarDaysYmd(day, 1, timeZone);
+  const nextParsed = parseRestaurantYmdKey(nextDay);
+  if (!nextParsed) {
+    return restaurantDayBoundsIso(null, timeZone, ref);
+  }
+  const end = utcInstantForRestaurantLocal(
+    nextParsed.year,
+    nextParsed.month,
+    nextParsed.day,
+    0,
+    0,
+    timeZone,
+  );
+  return { start: start.toISOString(), end: end.toISOString(), day };
+}
+
+function parseRestaurantHm(hm: string): { hour: number; minute: number } | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(hm.trim());
+  if (!match) return null;
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (
+    !Number.isFinite(hour) ||
+    !Number.isFinite(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+  return { hour, minute };
+}
+
+/** `yyyy-MM-dd` + `HH:mm` in Restaurant-Zeitzone → ISO-UTC. */
+export function ymdHmToRestaurantIso(
+  ymd: string,
+  hm: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  const parsed = parseRestaurantYmdKey(ymd);
+  const time = parseRestaurantHm(hm);
+  if (!parsed || !time) {
+    throw new Error("invalid_restaurant_local_datetime");
+  }
+  return utcInstantForRestaurantLocal(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    time.hour,
+    time.minute,
+    timeZone,
+  ).toISOString();
+}
+
+/** ISO-UTC → Restaurant-Kalendertag + Uhrzeit. */
+export function restaurantIsoToYmdHm(
+  iso: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): { ymd: string; hm: string } {
+  const d = new Date(iso);
+  const z = readRestaurantZonedParts(d, timeZone);
+  return {
+    ymd: `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`,
+    hm: `${String(z.hour).padStart(2, "0")}:${String(z.minute).padStart(2, "0")}`,
+  };
+}
+
+/** Slot-Minute (0–1439) an Restaurant-Kalendertag → UTC-Instant. */
+export function restaurantDateAtSlotMinutes(
+  ymd: string,
+  minutesFromMidnight: number,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): Date {
+  const parsed = parseRestaurantYmdKey(ymd);
+  if (!parsed) return new Date(Number.NaN);
+  const hour = Math.floor(minutesFromMidnight / 60);
+  const minute = minutesFromMidnight % 60;
+  return utcInstantForRestaurantLocal(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    hour,
+    minute,
+    timeZone,
+  );
+}
+
+export function formatRestaurantDayHeadingDe(
+  ymd: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  const parsed = parseRestaurantYmdKey(ymd);
+  if (!parsed) return ymd;
+  const instant = utcInstantForRestaurantLocal(
+    parsed.year,
+    parsed.month,
+    parsed.day,
+    12,
+    0,
+    timeZone,
+  );
+  return new Intl.DateTimeFormat("de-DE", {
+    timeZone,
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(instant);
+}

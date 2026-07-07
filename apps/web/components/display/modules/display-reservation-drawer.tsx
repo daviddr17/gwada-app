@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import { DatePickerField } from "@/components/ui/date-picker";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
 import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
@@ -49,10 +50,11 @@ import {
   type BookingTimeStepMinutes,
 } from "@/lib/reservations/booking-time-step";
 import {
-  datetimeLocalValueToIso,
-  localDayToYmd,
-  ymdAndHmToDatetimeLocal,
-} from "@/lib/reservations/datetime-local";
+  readRestaurantZonedParts,
+  restaurantIsoToYmdHm,
+  restaurantTodayYmd,
+  ymdHmToRestaurantIso,
+} from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
 import {
   formatDiningTableSelectLabel,
@@ -66,9 +68,9 @@ type Status = { id: string; code: string; name: string; color_hex: string };
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
 
-function defaultTimeHm(step: BookingTimeStepMinutes): string {
-  const d = new Date();
-  const nowMin = d.getHours() * 60 + d.getMinutes();
+function defaultTimeHm(step: BookingTimeStepMinutes, timeZone: string): string {
+  const z = readRestaurantZonedParts(new Date(), timeZone);
+  const nowMin = z.hour * 60 + z.minute;
   const snapped = snapMinutesToBookingStep(nowMin, step);
   return minutesToHHmm(snapped);
 }
@@ -92,6 +94,7 @@ export function DisplayReservationDrawer({
   nextReservationNumber: number | null;
   onCreated: (reservation?: DisplayReservationRow | null) => void;
 }) {
+  const timeZone = useDisplayRestaurantTimezone();
   const step = normalizeBookingTimeStepMinutes(bookingTimeStepMinutes);
   const [countries, setCountries] = useState<CountryReference[]>(
     COUNTRIES_REFERENCE_FALLBACK,
@@ -127,8 +130,8 @@ export function DisplayReservationDrawer({
     setFirstName("");
     setLastName("");
     setPartySize("2");
-    setDateYmd(localDayToYmd(new Date()));
-    setTimeHm(defaultTimeHm(step));
+    setDateYmd(restaurantTodayYmd(timeZone));
+    setTimeHm(defaultTimeHm(step, timeZone));
     setStatusId(confirmed?.id ?? statuses[0]?.id ?? "");
     setNotifyEmail(true);
     setNotifyWhatsapp(false);
@@ -138,7 +141,7 @@ export function DisplayReservationDrawer({
     setPhoneLocal("");
     setEmail("");
     setGuestMessage("");
-  }, [open, statuses, defaultDwellMinutes, step]);
+  }, [open, statuses, defaultDwellMinutes, step, timeZone]);
 
   const statusItems = useMemo(
     () => statuses.map((s) => ({ value: s.id, label: s.name })),
@@ -190,8 +193,13 @@ export function DisplayReservationDrawer({
       return;
     }
     const snappedTime = snapTimeField(timeHm);
-    const startsLocalCombined = ymdAndHmToDatetimeLocal(dateYmd, snappedTime);
-    const startsIso = datetimeLocalValueToIso(startsLocalCombined);
+    let startsIso: string;
+    try {
+      startsIso = ymdHmToRestaurantIso(dateYmd, snappedTime, timeZone);
+    } catch {
+      toast.error("Ungültiges Datum oder Uhrzeit.");
+      return;
+    }
     const dwellTrim = dwellDraft.trim();
     let minutesForEnd = defaultDwellMinutes;
     if (dwellTrim !== "") {

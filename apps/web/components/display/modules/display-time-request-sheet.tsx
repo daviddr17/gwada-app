@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { format, subDays } from "date-fns";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -60,9 +61,8 @@ const entryTypeItems = DISPLAY_TIME_REQUEST_ENTRY_TYPES.map((type) => ({
   label: STAFF_WORK_ENTRY_LABELS[type],
 }));
 
-function todayYmd(): string {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
+function defaultNachtragenDateYmd(): string {
+  return format(subDays(new Date(), 1), "yyyy-MM-dd");
 }
 
 function defaultLocalTimeValue(hour: number, minute = 0): string {
@@ -100,7 +100,7 @@ export function DisplayTimeRequestSheet({
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [dateYmd, setDateYmd] = useState(todayYmd);
+  const [dateYmd, setDateYmd] = useState(defaultNachtragenDateYmd);
   const [startTime, setStartTime] = useState(() => defaultLocalTimeValue(9));
   const [endTime, setEndTime] = useState(() => defaultLocalTimeValue(17));
   const [entryType, setEntryType] = useState<DisplayTimeRequestEntryType>("work");
@@ -129,6 +129,14 @@ export function DisplayTimeRequestSheet({
     if (!open) return;
     void refresh();
   }, [open, refresh]);
+
+  useEffect(() => {
+    if (!open || loading || pendingRequest) return;
+    setDateYmd(defaultNachtragenDateYmd());
+    setStartTime(defaultLocalTimeValue(9));
+    setEndTime(defaultLocalTimeValue(17));
+    setEntryType("work");
+  }, [open, loading, pendingRequest]);
 
   const submitRequest = async () => {
     if (busy || disabled || pendingRequest) return;
@@ -221,7 +229,7 @@ export function DisplayTimeRequestSheet({
                     <DatePickerField
                       fullWidth
                       value={dateYmd}
-                      onChange={(v) => setDateYmd(v ?? todayYmd())}
+                      onChange={(v) => setDateYmd(v ?? defaultNachtragenDateYmd())}
                       disabled={disabled || busy}
                       className="w-full"
                     />

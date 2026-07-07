@@ -1,7 +1,7 @@
 {
-  "title": "Reservierungen: Protokoll pro Buchung & Modul-Chip",
-  "body": "- **Drawer:** Protokoll-Abschnitt je Reservierung (Angelegt, Geändert, Änderungsanfragen, Gelöscht)\n- **Modul:** Neuer Chip **Protokoll** mit durchsuchbarer Gesamtliste aller Reservierungsaktionen\n- **Quellen:** Dashboard, Gast-Online, Display — mit Nutzer/Gast/Display-Kennzeichnung",
-  "superadminBody": "- **DB:** `restaurant_reservation_log_entries` + Backfill „Erstellt“ für Bestand\n- **Logging:** `reservation-log-*` in Drawer, Change-Request, Public- & Display-Mutationen",
+  "title": "Reservierungen: Protokoll · Schichtplan Vollbild",
+  "body": "- **Reservierungen:** Protokoll je Buchung im Drawer und neuer Modul-Chip **Protokoll** mit durchsuchbarer Gesamtliste\n- **Schichtplan:** Vollbild-Icon — Plan über den ganzen Bildschirm für übersichtlicheres Erstellen (Drag-and-Drop bleibt aktiv)",
+  "superadminBody": "- **DB:** `restaurant_reservation_log_entries` + Backfill „Erstellt“ für Bestand\n- **Logging:** `reservation-log-*` in Drawer, Change-Request, Public- & Display-Mutationen\n- **Schichtplan:** `AppFullscreenOverlay` in `staff-shift-plan-screen`",
   "audience": "customers",
   "version": "2026.07.06.9"
 }

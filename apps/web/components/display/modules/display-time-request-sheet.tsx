@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { DatePickerField, formScheduleTimeInputFullWidthClassName } from "@/components/ui/date-picker";
+import {
+  DatePickerField,
+  formScheduleTimeInputClassName,
+} from "@/components/ui/date-picker";
 import {
   Drawer,
   DrawerContent,
@@ -12,6 +15,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+  DrawerFormBody,
+  DrawerFormScrollArea,
+  DrawerFormSection,
+} from "@/components/ui/drawer-form-section";
+import { drawerFormFooterShellClassName } from "@/components/ui/drawer-form-footer";
 import {
   Select,
   SelectContent,
@@ -21,7 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import {
+  drawerFormFieldClassName,
+  drawerFormHeaderClassName,
+} from "@/lib/ui/drawer-form-section";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { DISPLAY_TIME_REQUEST_ENTRY_TYPES } from "@/lib/staff/staff-display-time-request-types";
@@ -40,6 +52,13 @@ type PendingRequest = {
   requested_ends_at: string;
   created_at: string;
 };
+
+const CONTENT_PADDING = 6 as const;
+
+const entryTypeItems = DISPLAY_TIME_REQUEST_ENTRY_TYPES.map((type) => ({
+  value: type,
+  label: STAFF_WORK_ENTRY_LABELS[type],
+}));
 
 function todayYmd(): string {
   const n = new Date();
@@ -159,8 +178,8 @@ export function DisplayTimeRequestSheet({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className={drawerContentClassName("compact")}>
-        <DrawerHeader className={drawerFormHeaderClassName(6)}>
+      <DrawerContent className={drawerContentClassName("form")}>
+        <DrawerHeader className={drawerFormHeaderClassName(CONTENT_PADDING)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
             Zeit nachtragen
           </DrawerTitle>
@@ -169,116 +188,149 @@ export function DisplayTimeRequestSheet({
           </DrawerDescription>
         </DrawerHeader>
 
-        <div className={cn(drawerScrollAreaClassName, "space-y-4 px-1 pb-2")}>
-          {loading ? (
-            <div className="min-h-32" aria-busy="true" />
-          ) : pendingRequest ? (
-            <div className="rounded-2xl border border-accent/30 bg-accent/5 px-4 py-4 text-center">
-              <p className="text-sm font-medium">Anfrage ausstehend</p>
-              <p className="mt-2 text-base font-medium">
-                {STAFF_WORK_ENTRY_LABELS[pendingRequest.entry_type]}
-              </p>
-              <p className="mt-1 text-sm tabular-nums text-muted-foreground">
-                {rangeFmt.format(new Date(pendingRequest.requested_starts_at))}
-                {" – "}
-                {new Intl.DateTimeFormat("de-DE", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                }).format(new Date(pendingRequest.requested_ends_at))}
-              </p>
-              <p className="mt-3 text-sm text-muted-foreground">
-                Wird im Dashboard geprüft — Rückmeldung beim nächsten Login.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Label>Datum</Label>
-                <DatePickerField
-                  value={dateYmd}
-                  onChange={(v) => setDateYmd(v ?? todayYmd())}
-                  disabled={disabled || busy}
-                  className="w-full"
-                />
+        <DrawerFormBody>
+          <DrawerFormScrollArea
+            contentPadding={CONTENT_PADDING}
+            className="space-y-0"
+          >
+            {loading ? (
+              <div className="min-h-32" aria-busy="true" />
+            ) : pendingRequest ? (
+              <div className="rounded-2xl border border-accent/30 bg-accent/5 px-4 py-4 text-center">
+                <p className="text-sm font-medium">Anfrage ausstehend</p>
+                <p className="mt-2 text-base font-medium">
+                  {STAFF_WORK_ENTRY_LABELS[pendingRequest.entry_type]}
+                </p>
+                <p className="mt-1 text-sm tabular-nums text-muted-foreground">
+                  {rangeFmt.format(new Date(pendingRequest.requested_starts_at))}
+                  {" – "}
+                  {new Intl.DateTimeFormat("de-DE", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }).format(new Date(pendingRequest.requested_ends_at))}
+                </p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Wird im Dashboard geprüft — Rückmeldung beim nächsten Login.
+                </p>
               </div>
+            ) : (
+              <>
+                <DrawerFormSection contentPadding={CONTENT_PADDING}>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Datum</Label>
+                    <DatePickerField
+                      fullWidth
+                      value={dateYmd}
+                      onChange={(v) => setDateYmd(v ?? todayYmd())}
+                      disabled={disabled || busy}
+                      className="w-full"
+                    />
+                  </div>
+                </DrawerFormSection>
 
-              <div className="space-y-2">
-                <Label>Art</Label>
-                <Select
-                  value={entryType}
-                  onValueChange={(v) =>
-                    setEntryType(v as DisplayTimeRequestEntryType)
-                  }
-                  disabled={disabled || busy}
-                >
-                  <SelectTrigger
-                    className={appSelectTriggerAccentCn("h-11 w-full rounded-xl")}
-                  >
-                    <span className="flex items-center gap-2">
-                      <StaffWorkEntryTypeStripe
-                        type={entryType as StaffWorkEntryType}
-                        className="h-4 self-center"
-                      />
-                      <SelectValue />
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DISPLAY_TIME_REQUEST_ENTRY_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        <span className="flex items-center gap-2">
+                <DrawerFormSection contentPadding={CONTENT_PADDING}>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">Art</Label>
+                    <Select
+                      value={entryType}
+                      items={entryTypeItems}
+                      onValueChange={(v) => {
+                        if (typeof v === "string") {
+                          setEntryType(v as DisplayTimeRequestEntryType);
+                        }
+                      }}
+                      disabled={disabled || busy}
+                    >
+                      <SelectTrigger
+                        className={appSelectTriggerAccentCn(
+                          drawerFormFieldClassName,
+                          "text-left font-normal",
+                        )}
+                      >
+                        <span className="flex min-w-0 flex-1 items-center gap-2">
                           <StaffWorkEntryTypeStripe
-                            type={type}
-                            className="h-4 self-center"
+                            type={entryType as StaffWorkEntryType}
+                            className="h-4 shrink-0 self-center"
                           />
-                          {STAFF_WORK_ENTRY_LABELS[type]}
+                          <SelectValue placeholder="Art wählen">
+                            {STAFF_WORK_ENTRY_LABELS[entryType]}
+                          </SelectValue>
                         </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DISPLAY_TIME_REQUEST_ENTRY_TYPES.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            <span className="flex items-center gap-2">
+                              <StaffWorkEntryTypeStripe
+                                type={type}
+                                className="h-4 shrink-0 self-center"
+                              />
+                              {STAFF_WORK_ENTRY_LABELS[type]}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </DrawerFormSection>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label htmlFor="display-time-request-start">Von</Label>
-                  <input
-                    id="display-time-request-start"
-                    type="time"
-                    value={startTime}
-                    disabled={disabled || busy}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className={formScheduleTimeInputFullWidthClassName}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="display-time-request-end">Bis</Label>
-                  <input
-                    id="display-time-request-end"
-                    type="time"
-                    value={endTime}
-                    disabled={disabled || busy}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className={formScheduleTimeInputFullWidthClassName}
-                  />
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+                <DrawerFormSection contentPadding={CONTENT_PADDING}>
+                  <div className="flex flex-wrap gap-3">
+                    <div className="min-w-0 space-y-1.5">
+                      <Label
+                        htmlFor="display-time-request-start"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Von
+                      </Label>
+                      <input
+                        id="display-time-request-start"
+                        type="time"
+                        value={startTime}
+                        disabled={disabled || busy}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        className={formScheduleTimeInputClassName}
+                      />
+                    </div>
+                    <div className="min-w-0 space-y-1.5">
+                      <Label
+                        htmlFor="display-time-request-end"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Bis
+                      </Label>
+                      <input
+                        id="display-time-request-end"
+                        type="time"
+                        value={endTime}
+                        disabled={disabled || busy}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        className={formScheduleTimeInputClassName}
+                      />
+                    </div>
+                  </div>
+                </DrawerFormSection>
+              </>
+            )}
+          </DrawerFormScrollArea>
 
-        {!loading && !pendingRequest ? (
-          <div className="px-1 pb-1 pt-2">
-            <Button
-              type="button"
-              disabled={disabled || busy}
-              className={cn("w-full", brandActionButtonRoundedClassName)}
-              onClick={() => void submitRequest()}
+          {!loading && !pendingRequest ? (
+            <div
+              data-vaul-no-drag
+              className={drawerFormFooterShellClassName(CONTENT_PADDING)}
             >
-              <Send className="size-4" />
-              Anfrage senden
-            </Button>
-          </div>
-        ) : null}
+              <Button
+                type="button"
+                disabled={disabled || busy}
+                className={cn("h-12 w-full", brandActionButtonRoundedClassName)}
+                onClick={() => void submitRequest()}
+              >
+                <Send className="size-4" />
+                {busy ? "Senden …" : "Anfrage senden"}
+              </Button>
+            </div>
+          ) : null}
+        </DrawerFormBody>
       </DrawerContent>
     </Drawer>
   );

@@ -34,6 +34,7 @@ import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import {
   fetchStaffInviteContactCheckClient,
   sendStaffInviteClient,
+  deleteStaffClient,
   revokeStaffRestaurantAccessClient,
   uploadStaffAvatarClient,
   type StaffInviteAction,
@@ -48,7 +49,7 @@ import { formatRestaurantPositionLabel } from "@/lib/restaurant/format-restauran
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
-import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
+import { hasModuleDelete, hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 import { StaffTodoProfileSection } from "@/components/staff/todos/staff-todo-profile-section";
 import { StaffDocumentsProfileSection } from "@/components/staff/staff-documents-profile-section";
 import { useWorkspaceActiveRole } from "@/lib/hooks/use-workspace-active-role";
@@ -77,6 +78,7 @@ import {
   formatStaffContractPeriodDe,
 } from "@/lib/staff/staff-contract-period";
 import { staffContractsPageUrl } from "@/lib/staff/staff-contract-navigation";
+import { staffWorkHoursPageUrl } from "@/lib/staff/staff-work-hours-navigation";
 import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import type { RestaurantStaffRow, StaffPositionTagDefinition, RestaurantStaffLogEntry, RestaurantStaffContractRow } from "@/lib/types/staff";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
@@ -220,6 +222,8 @@ export function StaffFormDrawer({
   const [inviteBusy, setInviteBusy] = useState<StaffInviteAction | null>(null);
   const [revokeOpen, setRevokeOpen] = useState(false);
   const [revokeBusy, setRevokeBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [logEntries, setLogEntries] = useState<RestaurantStaffLogEntry[]>([]);
   const [logLoading, setLogLoading] = useState(false);
   const [contactConflicts, setContactConflicts] =
@@ -235,6 +239,8 @@ export function StaffFormDrawer({
   const { has } = useRestaurantPermissions();
   const canReadStaffTodos = hasModuleRead(has, "staff_todos");
   const canManageTeam = has("team.manage") || isRestaurantOwnerRole(myRole);
+  const canDeleteStaff =
+    mode === "edit" && Boolean(staff) && hasModuleDelete(has, "staff");
 
   const channelConnections = useRestaurantChannelConnections(restaurantId);
   const canSendWhatsapp =
@@ -494,6 +500,12 @@ export function StaffFormDrawer({
     router.push(staffContractsPageUrl(staff.id, currentContract?.id ?? null));
   }, [staff, currentContract?.id, onOpenChange, router]);
 
+  const goToStaffWorkHours = useCallback(() => {
+    if (!staff) return;
+    onOpenChange(false);
+    router.push(staffWorkHoursPageUrl(staff.id));
+  }, [staff, onOpenChange, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!givenName.trim() || !familyName.trim()) {
@@ -704,6 +716,28 @@ export function StaffFormDrawer({
         : "App-Zugang entzogen.",
     );
     setRevokeOpen(false);
+    onSaved();
+    onOpenChange(false);
+  };
+
+  const handleDeleteStaff = async () => {
+    if (!staff) return;
+    setDeleteBusy(true);
+    const { error } = await deleteStaffClient({
+      restaurantId,
+      staffId: staff.id,
+    });
+    setDeleteBusy(false);
+    if (error) {
+      const messages: Record<string, string> = {
+        forbidden: "Keine Berechtigung zum Löschen.",
+        last_owner: "Der letzte aktive Inhaber kann nicht entfernt werden.",
+        cannot_delete_self: "Eigener Mitarbeiter-Eintrag kann hier nicht gelöscht werden.",
+      };
+      toast.error(messages[error] ?? "Mitarbeiter konnte nicht gelöscht werden.");
+      throw new Error(error);
+    }
+    toast.success("Mitarbeiter gelöscht.");
     onSaved();
     onOpenChange(false);
   };
@@ -921,6 +955,23 @@ export function StaffFormDrawer({
                             Kein aktiver Vertrag — Verträge öffnen
                           </p>
                         )}
+                      </div>
+                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                    </button>
+                  ) : null}
+                  {mode === "edit" && staff ? (
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5 text-left transition-colors hover:bg-muted/25"
+                      onClick={goToStaffWorkHours}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground">
+                          Arbeitszeiten
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          Zeiterfassung und Schichten für diesen Mitarbeiter
+                        </p>
                       </div>
                       <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                     </button>
@@ -1211,6 +1262,10 @@ export function StaffFormDrawer({
             submitPending={pending}
             submitDisabled={!givenName.trim() || !familyName.trim()}
             submitLabel={mode === "create" ? "Anlegen" : "Speichern"}
+            showDelete={canDeleteStaff}
+            deleteLabel="Mitarbeiter löschen"
+            deleteDisabled={pending || deleteBusy || revokeBusy}
+            onDelete={() => setDeleteOpen(true)}
           />
         </form>
       </DrawerContent>
@@ -1253,6 +1308,30 @@ export function StaffFormDrawer({
           setPendingInviteAction(null);
           if (action) void runInvite(action);
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Mitarbeiter endgültig löschen?"
+        description={
+          staff ? (
+            <>
+              <span className="font-medium text-foreground">
+                {[staff.given_name, staff.family_name].filter(Boolean).join(" ")}
+              </span>{" "}
+              wird dauerhaft entfernt — inklusive Arbeitszeiten, Verträge,
+              Dokumente, Schichten, ToDos und Display-Zugang. Diese Aktion kann
+              nicht rückgängig gemacht werden.
+            </>
+          ) : (
+            "Alle zugehörigen Daten werden dauerhaft gelöscht."
+          )
+        }
+        confirmLabel="Endgültig löschen"
+        destructive
+        confirmDisabled={deleteBusy}
+        onConfirm={handleDeleteStaff}
       />
 
       <ConfirmDialog

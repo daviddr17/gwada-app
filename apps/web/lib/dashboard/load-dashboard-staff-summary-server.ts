@@ -48,7 +48,8 @@ const STAFF_SELECT = `
   linked_profile:profiles!profile_id (
     given_name,
     family_name,
-    display_name
+    display_name,
+    last_seen_at
   ),
   linked_employee:restaurant_employees!employee_id (
     id,
@@ -78,11 +79,13 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
         given_name: string | null;
         family_name: string | null;
         display_name: string | null;
+        last_seen_at: string | null;
       }
     | {
         given_name: string | null;
         family_name: string | null;
         display_name: string | null;
+        last_seen_at: string | null;
       }[]
     | null;
   const profileOne = Array.isArray(profileRaw) ? (profileRaw[0] ?? null) : profileRaw;
@@ -147,6 +150,7 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
           given_name: profileOne.given_name,
           family_name: profileOne.family_name,
           display_name: profileOne.display_name,
+          last_seen_at: profileOne.last_seen_at ?? null,
         }
       : null,
     linked_employee: empOne

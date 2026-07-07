@@ -23,7 +23,13 @@ import type {
   StaffEmploymentTypeDefinition,
   StaffPositionTagDefinition,
 } from "@/lib/types/staff";
+import { StaffLastLoginCell } from "@/components/staff/staff-last-login-cell";
+import { staffLastLoginIso } from "@/lib/staff/staff-last-login";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
+import {
+  staffPresenceStatusForRow,
+  STAFF_PRESENCE_STATUS_LABELS,
+} from "@/lib/staff/staff-presence-labels";
 import { findStaffContractForDay } from "@/lib/staff/staff-day-wage";
 import { cn } from "@/lib/utils";
 import {
@@ -52,6 +58,8 @@ type StaffSortKey =
   | "position"
   | "contact"
   | "status"
+  | "presence"
+  | "lastLogin"
   | "app"
   | "createdAt";
 
@@ -176,10 +184,21 @@ function applyStaffOverviewFilters(
   return list;
 }
 
+function presenceSortRank(
+  staffId: string,
+  workingIds: Set<string>,
+  breakIds: Set<string>,
+): number {
+  if (breakIds.has(staffId)) return 2;
+  if (workingIds.has(staffId)) return 1;
+  return 0;
+}
+
 type StaffOverviewTableProps = {
   rows: RestaurantStaffRow[];
   workingIds: Set<string>;
   breakIds: Set<string>;
+  lastDisplayLoginByStaffId: Map<string, string>;
   positionTags: StaffPositionTagDefinition[];
   contracts: RestaurantStaffContractRow[];
   employmentTypes: StaffEmploymentTypeDefinition[];
@@ -191,6 +210,7 @@ export function StaffOverviewTable({
   rows,
   workingIds,
   breakIds,
+  lastDisplayLoginByStaffId,
   positionTags,
   contracts,
   employmentTypes,
@@ -262,6 +282,20 @@ export function StaffOverviewTable({
         }
         case "status":
           return (Number(a.is_active) - Number(b.is_active)) * dir;
+        case "presence":
+          return (
+            (presenceSortRank(a.id, workingIds, breakIds) -
+              presenceSortRank(b.id, workingIds, breakIds)) *
+            dir
+          );
+        case "lastLogin": {
+          const la = staffLastLoginIso(a, lastDisplayLoginByStaffId.get(a.id));
+          const lb = staffLastLoginIso(b, lastDisplayLoginByStaffId.get(b.id));
+          if (!la && !lb) return 0;
+          if (!la) return 1;
+          if (!lb) return -1;
+          return (new Date(la).getTime() - new Date(lb).getTime()) * dir;
+        }
         case "app":
           return (
             (Number(Boolean(a.profile_id)) - Number(Boolean(b.profile_id))) *
@@ -286,6 +320,7 @@ export function StaffOverviewTable({
     sortDir,
     workingIds,
     breakIds,
+    lastDisplayLoginByStaffId,
     contracts,
     dayDate,
   ]);
@@ -371,7 +406,7 @@ export function StaffOverviewTable({
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
       >
-        <table className="w-full min-w-[52rem] text-left text-sm">
+        <table className="w-full min-w-[64rem] text-left text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowClassName}>
               <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
@@ -419,6 +454,24 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[6.5rem]")}>
+                <SortHeader
+                  label="Anwesenheit"
+                  sortKey="presence"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[8rem]")}>
+                <SortHeader
+                  label="Letzter Login"
+                  sortKey="lastLogin"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+              </th>
               <th className={cn(moduleDataTableHeadCellClassName, "min-w-[5rem]")}>
                 <SortHeader
                   label="App"
@@ -443,11 +496,12 @@ export function StaffOverviewTable({
           <tbody>
             {paginatedRows.map((row) => {
               const tag = row.position_tag;
-              const presence = breakIds.has(row.id)
-                ? "Pause"
-                : workingIds.has(row.id)
-                  ? "Aktiv"
-                  : null;
+              const presenceStatus = staffPresenceStatusForRow(
+                row.id,
+                workingIds,
+                breakIds,
+              );
+              const presenceLabel = STAFF_PRESENCE_STATUS_LABELS[presenceStatus];
               return (
                 <tr
                   key={row.id}
@@ -479,11 +533,27 @@ export function StaffOverviewTable({
                     ) : (
                       <Badge variant="outline">Inaktiv</Badge>
                     )}
-                    {presence ? (
-                      <Badge className="ml-1" variant="default">
-                        {presence}
+                  </td>
+                  <td className="px-4 py-3">
+                    {presenceStatus === "off" ? (
+                      <span className="text-muted-foreground">—</span>
+                    ) : (
+                      <Badge
+                        variant={
+                          presenceStatus === "on_break" ? "outline" : "default"
+                        }
+                      >
+                        {presenceLabel}
                       </Badge>
-                    ) : null}
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StaffLastLoginCell
+                      row={row}
+                      lastDisplayActivityAt={lastDisplayLoginByStaffId.get(
+                        row.id,
+                      )}
+                    />
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {row.profile_id

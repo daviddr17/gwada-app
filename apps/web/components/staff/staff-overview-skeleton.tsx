@@ -9,7 +9,7 @@ import {
 } from "@/lib/ui/module-data-table-skeleton";
 import { cn } from "@/lib/utils";
 
-const TABLE_COLS = 8;
+const TABLE_COLS = 10;
 const TABLE_ROWS = 7;
 
 export function StaffOverviewDayStatsSkeleton({
@@ -45,7 +45,7 @@ export function StaffOverviewTableSkeleton({
       <Skeleton className="h-11 w-full rounded-2xl" aria-hidden />
       <ModuleDataTableSkeletonFrame aria-label="Mitarbeiter werden geladen">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[52rem] text-sm">
+          <table className="w-full min-w-[64rem] text-sm">
             <ModuleDataTableHeadSkeleton columnCount={TABLE_COLS} />
             <ModuleDataTableBodySkeleton
               columnCount={TABLE_COLS}

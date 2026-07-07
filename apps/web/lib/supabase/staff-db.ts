@@ -51,7 +51,8 @@ const STAFF_SELECT = `
   linked_profile:profiles!profile_id (
     given_name,
     family_name,
-    display_name
+    display_name,
+    last_seen_at
   ),
   linked_employee:restaurant_employees!employee_id (
     id,
@@ -94,8 +95,18 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
     | null;
   const posOne = Array.isArray(posRaw) ? posRaw[0] ?? null : posRaw;
   const profileRaw = r.linked_profile as
-    | { given_name: string | null; family_name: string | null; display_name: string | null }
-    | { given_name: string | null; family_name: string | null; display_name: string | null }[]
+    | {
+        given_name: string | null;
+        family_name: string | null;
+        display_name: string | null;
+        last_seen_at: string | null;
+      }
+    | {
+        given_name: string | null;
+        family_name: string | null;
+        display_name: string | null;
+        last_seen_at: string | null;
+      }[]
     | null;
   const profileOne = Array.isArray(profileRaw) ? profileRaw[0] ?? null : profileRaw;
   const empRaw = r.linked_employee as
@@ -159,6 +170,7 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
           given_name: profileOne.given_name,
           family_name: profileOne.family_name,
           display_name: profileOne.display_name,
+          last_seen_at: profileOne.last_seen_at ?? null,
         }
       : null,
     linked_employee: empOne
@@ -925,6 +937,30 @@ export async function fetchStaffLivePresence(
   }
 
   return { data: [...byStaff.values()], error: null };
+}
+
+/** Letzte Display-Aktivität pro Mitarbeiter (PIN-Login / Session). */
+export async function fetchStaffLastDisplayLoginByStaffId(
+  restaurantId: string,
+): Promise<{ data: Map<string, string>; error: string | null }> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("restaurant_display_sessions")
+    .select("staff_id, last_activity_at")
+    .eq("restaurant_id", restaurantId)
+    .order("last_activity_at", { ascending: false });
+
+  if (error) return { data: new Map(), error: error.message };
+
+  const byStaff = new Map<string, string>();
+  for (const row of data ?? []) {
+    const staffId = row.staff_id as string;
+    if (byStaff.has(staffId)) continue;
+    const at = row.last_activity_at as string;
+    if (at) byStaff.set(staffId, at);
+  }
+
+  return { data: byStaff, error: null };
 }
 
 export async function upsertStaffWorkEntry(

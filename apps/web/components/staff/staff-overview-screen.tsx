@@ -23,6 +23,7 @@ import { DatePickerField } from "@/components/ui/date-picker";
 import {
   fetchStaffContractsForRestaurant,
   fetchStaffForRestaurant,
+  fetchStaffLastDisplayLoginByStaffId,
   fetchStaffLivePresence,
   fetchStaffWorkEntriesInRange,
 } from "@/lib/supabase/staff-db";
@@ -74,6 +75,9 @@ export function StaffOverviewScreen() {
   const [workingIds, setWorkingIds] = useState<Set<string>>(new Set());
   const [breakIds, setBreakIds] = useState<Set<string>>(new Set());
   const [presenceRows, setPresenceRows] = useState<StaffLivePresenceRow[]>([]);
+  const [lastDisplayLoginByStaffId, setLastDisplayLoginByStaffId] = useState(
+    () => new Map<string, string>(),
+  );
   const [dayEntries, setDayEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
@@ -150,14 +154,19 @@ export function StaffOverviewScreen() {
     const start = localDayStartToUtcIso(day);
     const end = exclusiveUtcIsoAfterLocalVisibleEnd(day);
 
-    const [{ data: presence, error: presenceErr }, { data: entries, error: entriesErr }] =
-      await Promise.all([
+    const [
+      { data: presence, error: presenceErr },
+      { data: entries, error: entriesErr },
+      { data: displayLogins, error: displayLoginErr },
+    ] = await Promise.all([
       fetchStaffLivePresence(restaurantId),
       fetchStaffWorkEntriesInRange(restaurantId, null, start, end),
+      fetchStaffLastDisplayLoginByStaffId(restaurantId),
     ]);
 
     if (presenceErr) toast.error(presenceErr);
     if (entriesErr) toast.error(entriesErr);
+    if (displayLoginErr) toast.error(displayLoginErr);
 
     const working = new Set<string>();
     const onBreak = new Set<string>();
@@ -170,6 +179,7 @@ export function StaffOverviewScreen() {
     setBreakIds(onBreak);
     setPresenceRows(presence);
     setDayEntries(entries);
+    setLastDisplayLoginByStaffId(displayLogins);
   }, [restaurantId, dayDate]);
 
   useEffect(() => {
@@ -341,6 +351,7 @@ export function StaffOverviewScreen() {
               rows={rows}
               workingIds={workingIds}
               breakIds={breakIds}
+              lastDisplayLoginByStaffId={lastDisplayLoginByStaffId}
               positionTags={activeTags}
               contracts={contracts}
               employmentTypes={activeEmploymentTypes}

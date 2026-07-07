@@ -124,6 +124,7 @@ export type RestaurantStaffRow = {
     given_name: string | null;
     family_name: string | null;
     display_name: string | null;
+    last_seen_at: string | null;
   } | null;
   linked_employee: {
     id: string;

@@ -103,3 +103,20 @@ export async function revokeStaffRestaurantAccessClient(params: {
   if (!res.ok) return { error: body.error ?? `revoke_${res.status}` };
   return { profileLabel: body.profileLabel };
 }
+
+export async function deleteStaffClient(params: {
+  restaurantId: string;
+  staffId: string;
+}): Promise<{ ok?: boolean; error?: string }> {
+  const res = await fetch("/api/staff/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    ok?: boolean;
+    error?: string;
+  };
+  if (!res.ok) return { error: body.error ?? `delete_${res.status}` };
+  return { ok: true };
+}

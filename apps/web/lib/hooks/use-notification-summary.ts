@@ -20,8 +20,15 @@ import {
   dispatchNotificationsRefresh,
 } from "@/lib/notifications/notification-events";
 import { patchNotificationSummaryClearModule } from "@/lib/notifications/patch-notification-summary-module";
+import {
+  patchNotificationSummaryRemoveReservation,
+} from "@/lib/notifications/patch-notification-reservation-resolved-client";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationSummary } from "@/lib/notifications/notification-types";
+import {
+  GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
+  type ReservationOpenResolvedDetail,
+} from "@/lib/reservations/reservation-open-status";
 import { patchNotificationSummaryFromNotificationPayload } from "@/lib/contact-messages/patch-inbox-from-message-row";
 import {
   NOTIFICATION_SUMMARY_GC_MS,
@@ -189,10 +196,25 @@ export function useNotificationSummary() {
       });
     };
 
+    const onReservationOpenResolved = (event: Event) => {
+      const detail = (event as CustomEvent<ReservationOpenResolvedDetail>).detail;
+      if (!detail || detail.restaurantId !== restaurantId) return;
+      livePatchAtRef.current = Date.now();
+      const summaryKey = queryKeys.notifications.summary(restaurantId);
+      queryClient.setQueryData<NotificationSummary>(summaryKey, (prev) => {
+        if (!prev) return prev;
+        return patchNotificationSummaryRemoveReservation(prev, detail);
+      });
+    };
+
     window.addEventListener(GWADA_NOTIFICATIONS_REFRESH_EVENT, invalidate);
     window.addEventListener(
       GWADA_NOTIFICATIONS_MODULE_CLEARED_EVENT,
       onModuleCleared,
+    );
+    window.addEventListener(
+      GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
+      onReservationOpenResolved,
     );
     window.addEventListener(
       GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,
@@ -219,6 +241,10 @@ export function useNotificationSummary() {
       window.removeEventListener(
         GWADA_NOTIFICATIONS_MODULE_CLEARED_EVENT,
         onModuleCleared,
+      );
+      window.removeEventListener(
+        GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
+        onReservationOpenResolved,
       );
       window.removeEventListener(
         GWADA_NOTIFICATIONS_MESSAGE_LIVE_EVENT,

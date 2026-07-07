@@ -1,7 +1,5 @@
 import type { DashboardReservationSummary } from "@/lib/reservations/compute-dashboard-reservation-summary";
-import {
-  weekRangeUtcIso,
-} from "@/lib/reservations/dashboard-period-range";
+import { weekRangeUtcIso } from "@/lib/reservations/dashboard-period-range";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 
@@ -172,6 +170,23 @@ export function patchDashboardReservationSummaryFromInsert(
   }
 
   return next;
+}
+
+/** KPI: offene Reservierung erledigt (Bestätigen / Änderung). */
+export function patchDashboardReservationSummaryResolvedOpen(
+  summary: DashboardReservationSummary,
+  reservationId: string,
+): DashboardReservationSummary {
+  const hadEntry = summary.unconfirmedList.some((r) => r.id === reservationId);
+  const nextCount = Math.max(0, summary.unconfirmedCount - 1);
+  if (!hadEntry && summary.unconfirmedCount <= 0) {
+    return summary;
+  }
+  return {
+    ...summary,
+    unconfirmedCount: nextCount,
+    unconfirmedList: summary.unconfirmedList.filter((r) => r.id !== reservationId),
+  };
 }
 
 export function reservationInsertInMonthRange(

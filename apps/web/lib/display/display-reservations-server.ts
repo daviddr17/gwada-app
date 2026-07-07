@@ -3,6 +3,11 @@ import "server-only";
 import { localDayBoundsIso } from "@gwada/shared";
 import { defaultWeeklyHours, WEEKDAY_ORDER } from "@/lib/constants/restaurant-profile";
 import { normalizeBookingTimeStepMinutes } from "@/lib/reservations/booking-time-step";
+import {
+  parseReservationPendingChange,
+  type ReservationPendingChange,
+} from "@/lib/reservations/reservation-pending-change";
+import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -78,6 +83,8 @@ export type DisplayReservationRow = {
     table_number: number;
     table_name: string | null;
   } | null;
+  pending_change: ReservationPendingChange | null;
+  status_before_change_id: string | null;
 };
 
 export type DisplayReservationDetail = DisplayReservationRow & {
@@ -129,6 +136,9 @@ function mapReservationRow(row: Record<string, unknown>): DisplayReservationRow 
           table_name: (tableOne as { table_name: string | null }).table_name,
         }
       : null,
+    pending_change: parseReservationPendingChange(row.pending_change),
+    status_before_change_id:
+      (row.status_before_change_id as string | null) ?? null,
   };
 }
 
@@ -150,6 +160,7 @@ export async function loadDisplayReservationsDay(
     hoursBundle,
     { data: restaurantRow },
     { data: maxReservationRow },
+    openBundle,
   ] = await Promise.all([
     admin
       .from("reservations")
@@ -168,6 +179,7 @@ export async function loadDisplayReservationsDay(
         notes,
         status_id,
         dining_table_id,
+        pending_change,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
         dining_tables ( id, table_number, table_name )
       `,
@@ -213,11 +225,19 @@ export async function loadDisplayReservationsDay(
       .order("reservation_number", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    loadDisplayOpenReservations(restaurantId),
   ]);
 
   if (resError) {
     return { error: resError.message };
   }
+
+  if ("error" in openBundle && openBundle.error) {
+    return { error: openBundle.error };
+  }
+
+  const openCount =
+    "count" in openBundle ? openBundle.count : 0;
 
   const reservations = (reservationRows ?? []).map((r) =>
     mapReservationRow(r as Record<string, unknown>),
@@ -249,6 +269,7 @@ export async function loadDisplayReservationsDay(
       count: reservations.length,
       guests: guestCount,
     },
+    open_count: openCount,
   };
 }
 
@@ -285,6 +306,7 @@ export async function loadDisplayReservationDetail(
         notify_whatsapp,
         terms_accepted,
         created_at,
+        pending_change,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
         dining_tables ( id, table_number, table_name )
       `,
@@ -434,6 +456,7 @@ export async function loadDisplayReservationRowById(
         notes,
         status_id,
         dining_table_id,
+        pending_change,
         ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
         dining_tables ( id, table_number, table_name )
       `,
@@ -444,6 +467,59 @@ export async function loadDisplayReservationRowById(
 
   if (error || !data) return null;
   return mapReservationRow(data as Record<string, unknown>);
+}
+
+/** Unbestätigte + Änderungsanfragen (alle Tage). */
+export async function loadDisplayOpenReservations(restaurantId: string) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { error: "server_misconfigured" as const };
+
+  const { data: statuses, error: statusError } = await admin
+    .from("reservation_statuses")
+    .select("id, code")
+    .in("code", [...UNCONFIRMED_RESERVATION_STATUS_CODES]);
+
+  if (statusError) return { error: statusError.message };
+
+  const statusIds = (statuses ?? []).map((s) => s.id as string);
+  if (statusIds.length === 0) {
+    return { reservations: [] as DisplayReservationRow[], count: 0 };
+  }
+
+  const { data: rows, error } = await admin
+    .from("reservations")
+    .select(
+      `
+        id,
+        reservation_number,
+        contact_id,
+        guest_first_name,
+        guest_last_name,
+        guest_phone,
+        guest_email,
+        party_size,
+        starts_at,
+        ends_at,
+        notes,
+        status_id,
+        dining_table_id,
+        pending_change,
+        status_before_change_id,
+        ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
+        dining_tables ( id, table_number, table_name )
+      `,
+    )
+    .eq("restaurant_id", restaurantId)
+    .in("status_id", statusIds)
+    .order("starts_at", { ascending: true });
+
+  if (error) return { error: error.message };
+
+  const reservations = (rows ?? []).map((r) =>
+    mapReservationRow(r as Record<string, unknown>),
+  );
+
+  return { reservations, count: reservations.length };
 }
 
 export { WEEKDAY_ORDER };

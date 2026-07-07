@@ -15,7 +15,14 @@ import {
 import { DisplayReservationTableField } from "@/components/display/display-reservation-table-field";
 import { DisplayTimeRangeSlider } from "@/components/display/display-time-range-slider";
 import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats-bar";
+import { DisplayOpenReservationCard } from "@/components/display/display-open-reservation-card";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
+import { formatDisplayChangeRequestHint } from "@/lib/reservations/reservation-pending-change";
+import {
+  dispatchReservationOpenResolvedLivePatch,
+  nextStatusCodeAfterChangeRequestApprove,
+  nextStatusCodeAfterChangeRequestDecline,
+} from "@/lib/reservations/reservation-open-status";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import {
@@ -75,9 +82,10 @@ type DayPayload = {
   weekly_hours: Record<Weekday, DayHours>;
   date_exceptions: DateHoursException[];
   stats: { count: number; guests: number };
+  open_count: number;
 };
 
-type ViewMode = "list" | "occupancy";
+type ViewMode = "list" | "occupancy" | "open";
 type ListDensity = "comfortable" | "compact";
 
 const timeFmt = new Intl.DateTimeFormat("de-DE", {
@@ -140,6 +148,10 @@ export function DisplayReservationsModule() {
     null,
   );
   const [editReservationId, setEditReservationId] = useState<string | null>(null);
+  const [openReservations, setOpenReservations] = useState<DisplayReservationRow[]>(
+    [],
+  );
+  const [openLoading, setOpenLoading] = useState(false);
   const [selectedDayYmd, setSelectedDayYmd] = useState(() => localDayToYmd(new Date()));
   const hadLoadedRef = useRef(false);
 
@@ -181,6 +193,36 @@ export function DisplayReservationsModule() {
       if (!opts?.silent) setLoading(false);
     }
   }, [selectedDayYmd]);
+
+  const loadOpen = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setOpenLoading(true);
+    try {
+      const res = await fetch("/api/display/reservations/open", {
+        cache: "no-store",
+        credentials: "include",
+      });
+      const data = (await res.json()) as {
+        reservations?: DisplayReservationRow[];
+        count?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(
+          DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
+            "Offene Reservierungen konnten nicht geladen werden.",
+        );
+        return;
+      }
+      setOpenReservations(data.reservations ?? []);
+      setPayload((prev) =>
+        prev ? { ...prev, open_count: data.count ?? data.reservations?.length ?? 0 } : prev,
+      );
+    } catch {
+      toast.error("Offene Reservierungen konnten nicht geladen werden.");
+    } finally {
+      if (!opts?.silent) setOpenLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setRangeSlotIndices(null);
@@ -230,9 +272,14 @@ export function DisplayReservationsModule() {
       applyOptimisticReservation(detail.row);
     };
 
+    const onLiveRefresh = () => {
+      loadFromLive();
+      void loadOpen({ silent: true });
+    };
+
     window.addEventListener(
       GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
-      loadFromLive,
+      onLiveRefresh,
     );
     window.addEventListener(
       GWADA_DISPLAY_RESERVATIONS_LIVE_INSERT_EVENT,
@@ -241,14 +288,21 @@ export function DisplayReservationsModule() {
     return () => {
       window.removeEventListener(
         GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
-        loadFromLive,
+        onLiveRefresh,
       );
       window.removeEventListener(
         GWADA_DISPLAY_RESERVATIONS_LIVE_INSERT_EVENT,
         onLiveInsert,
       );
     };
-  }, [load, loadFromLive, applyOptimisticReservation]);
+  }, [load, loadFromLive, applyOptimisticReservation, loadOpen]);
+
+  useEffect(() => {
+    if (viewMode !== "open") return;
+    void loadOpen();
+  }, [viewMode, loadOpen]);
+
+  const openCount = payload?.open_count ?? openReservations.length;
 
   const reservations = payload?.reservations ?? [];
   const statuses = payload?.statuses ?? [];
@@ -427,6 +481,18 @@ export function DisplayReservationsModule() {
     });
   };
 
+  const removeFromOpen = (reservationId: string) => {
+    setOpenReservations((prev) => prev.filter((r) => r.id !== reservationId));
+    setPayload((prev) =>
+      prev
+        ? {
+            ...prev,
+            open_count: Math.max(0, (prev.open_count ?? 0) - 1),
+          }
+        : prev,
+    );
+  };
+
   const setStatus = async (reservationId: string, status: ReservationStatus) => {
     setBusyId(reservationId);
     try {
@@ -448,10 +514,80 @@ export function DisplayReservationsModule() {
         return;
       }
       patchReservationStatus(reservationId, status);
+      const previousCode =
+        openReservations.find((r) => r.id === reservationId)?.status?.code ??
+        payload?.reservations.find((r) => r.id === reservationId)?.status?.code ??
+        "";
+      if (payload?.restaurant_id) {
+        dispatchReservationOpenResolvedLivePatch({
+          restaurantId: payload.restaurant_id,
+          reservationId,
+          previousStatusCode: previousCode,
+          nextStatusCode: status.code,
+        });
+      }
+      if (status.code !== "pending" && status.code !== "change_requested") {
+        removeFromOpen(reservationId);
+      }
       toast.success(`Status: ${status.name}`);
       void load({ silent: true });
     } catch {
       toast.error("Status konnte nicht geändert werden.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const resolveChangeRequest = async (
+    reservationId: string,
+    action: "approve" | "decline",
+  ) => {
+    setBusyId(reservationId);
+    try {
+      const res = await fetch(
+        `/api/display/reservations/${encodeURIComponent(reservationId)}/change-request`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action }),
+        },
+      );
+      const data = (await res.json()) as { error?: string; message?: string };
+      if (!res.ok) {
+        toast.error(
+          data.message ??
+            DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
+            "Änderungsanfrage konnte nicht bearbeitet werden.",
+        );
+        return;
+      }
+      removeFromOpen(reservationId);
+      if (payload?.restaurant_id) {
+        const row =
+          openReservations.find((r) => r.id === reservationId) ?? null;
+        dispatchReservationOpenResolvedLivePatch({
+          restaurantId: payload.restaurant_id,
+          reservationId,
+          previousStatusCode: "change_requested",
+          nextStatusCode:
+            action === "approve"
+              ? nextStatusCodeAfterChangeRequestApprove(statuses, row ?? {
+                  status_before_change_id: null,
+                })
+              : nextStatusCodeAfterChangeRequestDecline(statuses, row ?? {
+                  status_before_change_id: null,
+                }),
+        });
+      }
+      toast.success(
+        action === "approve"
+          ? "Änderung übernommen."
+          : "Änderungsanfrage abgelehnt.",
+      );
+      void load({ silent: true });
+    } catch {
+      toast.error("Änderungsanfrage konnte nicht bearbeitet werden.");
     } finally {
       setBusyId(null);
     }
@@ -708,19 +844,31 @@ export function DisplayReservationsModule() {
     setSelectedDayYmd(localDayToYmd(next));
   };
 
-  const viewChip = (id: ViewMode, label: string) => (
+  const viewChip = (id: ViewMode, label: string, badge?: number) => (
     <button
       key={id}
       type="button"
       onClick={() => setViewMode(id)}
       className={cn(
-        "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
+        "relative shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
         viewMode === id
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border/60 bg-muted/30 text-muted-foreground",
       )}
     >
       {label}
+      {badge != null && badge > 0 ? (
+        <span
+          className={cn(
+            "ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums",
+            viewMode === id
+              ? "bg-accent-foreground/15 text-accent-foreground"
+              : "bg-amber-500/15 text-amber-800 dark:text-amber-200",
+          )}
+        >
+          {badge > 99 ? "99+" : badge}
+        </span>
+      ) : null}
     </button>
   );
 
@@ -815,11 +963,67 @@ export function DisplayReservationsModule() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
+        {viewChip("open", "Offen", openCount)}
         {viewChip("list", "Liste")}
         {viewChip("occupancy", "Tischbelegung")}
       </div>
 
-      {showDataSkeleton ? (
+      {viewMode === "open" ? (
+        openLoading && openReservations.length === 0 ? (
+          <div className="space-y-3" aria-busy>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-28 w-full rounded-2xl" />
+            ))}
+          </div>
+        ) : openReservations.length === 0 ? (
+          <div className="rounded-2xl border border-border/50 bg-card px-4 py-10 text-center shadow-card">
+            <p className="text-sm font-medium text-foreground">
+              Keine offenen Reservierungen
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Unbestätigte Buchungen und Änderungsanfragen erscheinen hier.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {openReservations.map((r) => {
+              const isBusy = busyId === r.id;
+              const pending = r.pending_change;
+              const changeHint =
+                r.status?.code === "change_requested" && pending
+                  ? formatDisplayChangeRequestHint(r, pending)
+                  : null;
+              return (
+                <DisplayOpenReservationCard
+                  key={r.id}
+                  reservation={r}
+                  busy={isBusy}
+                  changeHint={changeHint}
+                  onOpen={() => setEditReservationId(r.id)}
+                  onConfirm={
+                    confirmedStatus &&
+                    r.status?.code !== "confirmed" &&
+                    r.status?.code !== "seated" &&
+                    r.status?.code !== "completed"
+                      ? () => void setStatus(r.id, confirmedStatus)
+                      : undefined
+                  }
+                  onApproveChange={
+                    r.status?.code === "change_requested"
+                      ? () => void resolveChangeRequest(r.id, "approve")
+                      : undefined
+                  }
+                  onDeclineChange={
+                    r.status?.code === "change_requested"
+                      ? () => void resolveChangeRequest(r.id, "decline")
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        )
+      ) : showDataSkeleton ? (
         <>
           <Skeleton className="h-14 w-full rounded-2xl" />
           <Skeleton className="h-16 w-full rounded-2xl" />
@@ -1038,7 +1242,10 @@ export function DisplayReservationsModule() {
         reservations={overlapReservations}
         defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
         bookingTimeStepMinutes={bookingStep}
-        onSaved={() => void load({ silent: true })}
+        onSaved={() => {
+          void load({ silent: true });
+          void loadOpen({ silent: true });
+        }}
       />
 
       <DisplayReservationDrawer

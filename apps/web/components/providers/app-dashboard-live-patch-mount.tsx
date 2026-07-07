@@ -30,8 +30,14 @@ import {
 } from "@/lib/dashboard/patch-dashboard-batch-widget-client";
 import {
   patchDashboardReservationSummaryFromInsert,
+  patchDashboardReservationSummaryResolvedOpen,
   reservationInsertInMonthRange,
 } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
+import {
+  GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
+  type ReservationOpenResolvedDetail,
+  shouldDecrementUnconfirmedCount,
+} from "@/lib/reservations/reservation-open-status";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import type { DashboardBatchQueryData } from "@/lib/hooks/use-dashboard-batch-summary-query";
 import {
@@ -178,6 +184,32 @@ export function AppDashboardLivePatchMount() {
       }
 
       scheduleWidgetFetch(detail.widget);
+    };
+
+    const onReservationOpenResolved = (event: Event) => {
+      const detail = (event as CustomEvent<ReservationOpenResolvedDetail>).detail;
+      if (!detail || detail.restaurantId !== restaurantId) return;
+      if (
+        !shouldDecrementUnconfirmedCount({
+          previousStatusCode: detail.previousStatusCode,
+          nextStatusCode: detail.nextStatusCode,
+        })
+      ) {
+        return;
+      }
+      patchBatchData((old) => {
+        if (!old.data.reservations) return old;
+        return {
+          ...old,
+          data: {
+            ...old.data,
+            reservations: patchDashboardReservationSummaryResolvedOpen(
+              old.data.reservations,
+              detail.reservationId,
+            ),
+          },
+        };
+      });
     };
 
     const onReservationLiveUpdate = (event: Event) => {
@@ -328,6 +360,10 @@ export function AppDashboardLivePatchMount() {
       onReservationLiveUpdate,
     );
     window.addEventListener(
+      GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
+      onReservationOpenResolved,
+    );
+    window.addEventListener(
       GWADA_DASHBOARD_WIDGET_LIVE_PATCH_EVENT,
       onWidgetLivePatch,
     );
@@ -371,6 +407,10 @@ export function AppDashboardLivePatchMount() {
       window.removeEventListener(
         GWADA_DASHBOARD_RESERVATIONS_LIVE_UPDATE_EVENT,
         onReservationLiveUpdate,
+      );
+      window.removeEventListener(
+        GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
+        onReservationOpenResolved,
       );
       window.removeEventListener(
         GWADA_DASHBOARD_WIDGET_LIVE_PATCH_EVENT,

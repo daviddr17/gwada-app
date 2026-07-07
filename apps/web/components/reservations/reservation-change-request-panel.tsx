@@ -9,6 +9,12 @@ import {
   getReservationPendingChange,
 } from "@/lib/supabase/reservation-change-request-db";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
+import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
+import {
+  dispatchReservationOpenResolvedLivePatch,
+  nextStatusCodeAfterChangeRequestApprove,
+  nextStatusCodeAfterChangeRequestDecline,
+} from "@/lib/reservations/reservation-open-status";
 import {
   formatReservationSlotDe,
   reservationChangeDiffKeys,
@@ -36,11 +42,13 @@ function DiffRow({
 export function ReservationChangeRequestPanel({
   reservation,
   restaurantId,
+  statuses = [],
   onResolved,
   className,
 }: {
   reservation: ReservationListRow;
   restaurantId: string;
+  statuses?: ReservationStatusJoin[];
   onResolved: () => void;
   className?: string;
 }) {
@@ -68,6 +76,12 @@ export function ReservationChangeRequestPanel({
       toast.error(error.message);
       return;
     }
+    dispatchReservationOpenResolvedLivePatch({
+      restaurantId,
+      reservationId: reservation.id,
+      previousStatusCode: "change_requested",
+      nextStatusCode: nextStatusCodeAfterChangeRequestApprove(statuses, reservation),
+    });
     toast.success("Änderung übernommen.");
     onResolved();
   };
@@ -83,6 +97,12 @@ export function ReservationChangeRequestPanel({
       toast.error(error.message);
       return;
     }
+    dispatchReservationOpenResolvedLivePatch({
+      restaurantId,
+      reservationId: reservation.id,
+      previousStatusCode: "change_requested",
+      nextStatusCode: nextStatusCodeAfterChangeRequestDecline(statuses, reservation),
+    });
     toast.success("Änderungsanfrage abgelehnt.");
     onResolved();
   };

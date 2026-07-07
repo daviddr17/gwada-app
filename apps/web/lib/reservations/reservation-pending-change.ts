@@ -69,6 +69,52 @@ export type ReservationChangeFieldKey =
   | "guest_phone"
   | "guest_email";
 
+const changeHintLabels: Record<ReservationChangeFieldKey, string> = {
+  guest: "Gast",
+  party_size: "Personen",
+  starts_at: "Termin",
+  guest_phone: "Telefon",
+  guest_email: "E-Mail",
+};
+
+/** Eine Zeile für Display-Karten (Änderungsanfrage). */
+export function formatDisplayChangeRequestHint(
+  current: {
+    guest_first_name: string;
+    guest_last_name: string;
+    party_size: number;
+    starts_at: string;
+    ends_at: string;
+    guest_phone: string | null;
+    guest_email: string | null;
+  },
+  pending: ReservationPendingChange,
+): string {
+  const keys = reservationChangeDiffKeys(current, pending);
+  if (keys.length === 0) return "Änderungsanfrage — bitte prüfen";
+  const parts = keys.map((key) => {
+    const label = changeHintLabels[key];
+    if (key === "guest") {
+      const before =
+        `${current.guest_first_name} ${current.guest_last_name}`.trim();
+      const after =
+        `${pending.guest_first_name} ${pending.guest_last_name}`.trim();
+      return `${label}: ${before} → ${after}`;
+    }
+    if (key === "party_size") {
+      return `${label}: ${current.party_size} → ${pending.party_size}`;
+    }
+    if (key === "starts_at") {
+      return `${label}: ${formatReservationSlotDe(current.starts_at)} → ${formatReservationSlotDe(pending.starts_at)}`;
+    }
+    if (key === "guest_phone") {
+      return `${label}: ${current.guest_phone ?? "—"} → ${pending.guest_phone ?? "—"}`;
+    }
+    return `${label}: ${current.guest_email ?? "—"} → ${pending.guest_email ?? "—"}`;
+  });
+  return parts.join(" · ");
+}
+
 export function reservationChangeDiffKeys(
   current: {
     guest_first_name: string;

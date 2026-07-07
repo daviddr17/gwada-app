@@ -18,6 +18,12 @@ export function useDashboardSummaryQuery<T>(options: {
   ) => Promise<{ data: T | null; error: string | null }>;
   /** Realtime o. Ä. — stilles Nachladen. */
   extraRefreshEvents?: readonly string[];
+  /** Sofort-Patch ohne Refetch (z. B. optimistische KPIs). */
+  optimisticPatches?: ReadonlyArray<{
+    event: string;
+    patch: (prev: T, detail: unknown) => T;
+    matches?: (detail: unknown, restaurantId: string) => boolean;
+  }>;
   /** False wenn Batch-Provider die Daten liefert. */
   enabled?: boolean;
 }) {
@@ -26,6 +32,7 @@ export function useDashboardSummaryQuery<T>(options: {
     workspaceReady,
     fetch,
     extraRefreshEvents = EMPTY_REFRESH_EVENTS,
+    optimisticPatches = [],
     enabled = true,
   } = options;
   const hasDataRef = useDashboardHasDataRef();
@@ -33,6 +40,9 @@ export function useDashboardSummaryQuery<T>(options: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const refreshEventsKey = extraRefreshEvents.join("\0");
+  const optimisticPatchesKey = optimisticPatches
+    .map((p) => p.event)
+    .join("\0");
 
   const run = useCallback(
     async (silent: boolean) => {
@@ -97,6 +107,25 @@ export function useDashboardSummaryQuery<T>(options: {
       window.addEventListener(ev, onPoll);
     }
 
+    const optimisticHandlers = optimisticPatches.map((patchDef) => {
+      const handler = (event: Event) => {
+        const detail = (event as CustomEvent<unknown>).detail;
+        if (
+          patchDef.matches
+            ? !patchDef.matches(detail, restaurantId)
+            : (detail as { restaurantId?: string } | null)?.restaurantId !==
+              restaurantId
+        ) {
+          return;
+        }
+        setSummary((prev) =>
+          prev != null ? patchDef.patch(prev, detail) : prev,
+        );
+      };
+      window.addEventListener(patchDef.event, handler);
+      return { event: patchDef.event, handler };
+    });
+
     return () => {
       cancel = true;
       window.removeEventListener(GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT, onPoll);
@@ -107,8 +136,11 @@ export function useDashboardSummaryQuery<T>(options: {
       for (const ev of extraRefreshEvents) {
         window.removeEventListener(ev, onPoll);
       }
+      for (const { event, handler } of optimisticHandlers) {
+        window.removeEventListener(event, handler);
+      }
     };
-  }, [enabled, restaurantId, run, refreshEventsKey]);
+  }, [enabled, restaurantId, run, refreshEventsKey, optimisticPatchesKey]);
 
   return {
     summary,

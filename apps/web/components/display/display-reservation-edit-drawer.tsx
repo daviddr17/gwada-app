@@ -37,6 +37,7 @@ import {
   type CountryReference,
 } from "@/lib/constants/countries";
 import type { DisplayReservationDetail } from "@/lib/display/display-reservations-server";
+import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
 import { parseGuestPhone, formatGuestPhone } from "@/lib/phone/guest-phone";
 import {
   hhmmToMinutes,
@@ -146,9 +147,13 @@ export function DisplayReservationEditDrawer({
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
+  const initialStatusCodeRef = useRef("");
+  const restaurantIdRef = useRef("");
 
   const populateFromDetail = useCallback(
     (d: DisplayReservationDetail) => {
+      restaurantIdRef.current = d.restaurant_id;
+      initialStatusCodeRef.current = d.status?.code ?? "";
       setFirstName(d.guest_first_name);
       setLastName(d.guest_last_name);
       const parsed = parseGuestPhone(
@@ -339,6 +344,17 @@ export function DisplayReservationEditDrawer({
         return;
       }
       toast.success("Reservierung gespeichert.");
+      const newStatusCode =
+        statuses.find((s) => s.id === payload.status_id)?.code ?? "";
+      if (reservationId && restaurantIdRef.current) {
+        dispatchReservationOpenResolvedLivePatch({
+          restaurantId: restaurantIdRef.current,
+          reservationId,
+          previousStatusCode: initialStatusCodeRef.current,
+          nextStatusCode: newStatusCode,
+        });
+        initialStatusCodeRef.current = newStatusCode;
+      }
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       onOpenChange(false);

@@ -81,6 +81,7 @@ import {
   dispatchDashboardReservationCreateLivePatch,
   dispatchDashboardReservationUpdateLivePatch,
 } from "@/lib/dashboard/dispatch-dashboard-reservation-save-live-client";
+import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import {
   deleteReservation,
@@ -538,9 +539,16 @@ export function ReservationEditDrawer({
           },
         );
       }
+      const previousStatusCode = initialStatusCodeRef.current ?? "";
       initialStatusCodeRef.current = newStatusCode;
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
+      dispatchReservationOpenResolvedLivePatch({
+        restaurantId: reservation.restaurant_id,
+        reservationId: reservation.id,
+        previousStatusCode,
+        nextStatusCode: newStatusCode,
+      });
       dispatchDashboardReservationUpdateLivePatch(reservation.restaurant_id);
       onSaved();
       return;
@@ -726,6 +734,7 @@ export function ReservationEditDrawer({
                 <ReservationChangeRequestPanel
                   reservation={reservation}
                   restaurantId={reservation.restaurant_id}
+                  statuses={statuses}
                   onResolved={() => {
                     setProtocolRefreshKey((k) => k + 1);
                     onSaved();

@@ -5,6 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
+import { DisplayTimeRequestSection } from "@/components/display/modules/display-time-request-section";
 import {
   DisplayTimeActionCelebration,
   type DisplayTimeCelebrationAction,
@@ -355,7 +356,7 @@ export function DisplayTimeModule({
             <motion.div
               key="clock-in"
               layout
-              className="w-full"
+              className="flex w-full flex-col gap-3"
               initial={{ opacity: 0, y: reduceMotion ? 0 : 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: reduceMotion ? 0 : -8 }}
@@ -370,6 +371,10 @@ export function DisplayTimeModule({
                 <LogIn className="size-5" />
                 Schicht starten
               </DisplayTimeActionButton>
+              <DisplayTimeRequestSection
+                disabled={actionsBlocked}
+                onChanged={onChanged}
+              />
             </motion.div>
           ) : null}
 

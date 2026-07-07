@@ -431,6 +431,19 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_display_time_request": {
+      const time = pickString(p.requestedStartsAt);
+      return buildPushMessage({
+        prefix,
+        headline: "Schichtstart-Anfrage",
+        subject: `${prefix}Schichtstart-Anfrage vom Display`,
+        href,
+        details: detailLines([
+          time ? `Gewünschte Startzeit: ${time}` : null,
+          "Bitte im Mitarbeiter-Dashboard prüfen und freigeben.",
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

@@ -45,6 +45,7 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       staff_todo_completed: false,
       staff_todo_deferred: false,
       staff_contract_signed: true,
+      staff_display_time_request: true,
     },
     pushEmailModules: {
       messages: true,
@@ -62,6 +63,7 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       staff_todo_completed: true,
       staff_todo_deferred: true,
       staff_contract_signed: true,
+      staff_display_time_request: true,
     },
   };
 }

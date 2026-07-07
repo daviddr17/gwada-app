@@ -19,6 +19,11 @@ import { DisplayTimeStatusSuffix } from "@/components/display/display-time-statu
 import { DisplayStaffTodoBadge } from "@/components/display/display-staff-todo-badge";
 import { DisplayTimeModule } from "@/components/display/modules/display-time-module";
 import {
+  acknowledgeDisplayTimeRequestResolutions,
+  fetchDisplayTimeRequestResolutions,
+  type DisplayTimeRequestResolution,
+} from "@/components/display/modules/display-time-request-section";
+import {
   DisplayTimeTodoPopup,
   useDisplayShiftGates,
 } from "@/components/display/modules/display-shift-gates";
@@ -89,8 +94,51 @@ export function DisplayScreen({ slug }: { slug: string }) {
     mods: DisplayModule[];
   } | null>(null);
   const pinLoginGatePendingRef = useRef(false);
+  const timeRequestResolutionCheckedStaffRef = useRef<string | null>(null);
+  const pendingTimeRequestResolutionRef = useRef<DisplayTimeRequestResolution | null>(
+    null,
+  );
   const { preparePinLoginGate, prepareAndGate, todoPopupProps } =
     useDisplayShiftGates();
+
+  const showTimeRequestResolutionCelebration = useCallback(
+    (resolution: DisplayTimeRequestResolution) => {
+      const timeLabel = new Intl.DateTimeFormat("de-DE", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(resolution.requested_starts_at));
+      setScreenCelebrationSublabel(timeLabel);
+      setScreenCelebration(
+        resolution.status === "approved"
+          ? "time_request_accepted"
+          : "time_request_declined",
+      );
+    },
+    [],
+  );
+
+  const maybeShowTimeRequestResolution = useCallback(async () => {
+    const staffId = context?.session?.staff.id;
+    if (!staffId) return;
+    if (timeRequestResolutionCheckedStaffRef.current === staffId) return;
+    if (screenCelebration || todoPopupProps.open || todoPopupProps.gateCelebration) {
+      return;
+    }
+
+    timeRequestResolutionCheckedStaffRef.current = staffId;
+    const resolutions = await fetchDisplayTimeRequestResolutions();
+    const first = resolutions[0];
+    if (!first) return;
+
+    pendingTimeRequestResolutionRef.current = first;
+    showTimeRequestResolutionCelebration(first);
+  }, [
+    context?.session?.staff.id,
+    screenCelebration,
+    showTimeRequestResolutionCelebration,
+    todoPopupProps.gateCelebration,
+    todoPopupProps.open,
+  ]);
 
   const refreshContext = useCallback(async () => {
     const res = await fetch("/api/display/context", { cache: "no-store" });
@@ -207,11 +255,13 @@ export function DisplayScreen({ slug }: { slug: string }) {
 
   const runPinLoginGate = useCallback(() => {
     pinLoginGatePreparingRef.current = true;
-    void preparePinLoginGate().finally(() => {
-      pinLoginGatePreparingRef.current = false;
-      void refreshTodoBadge();
-    });
-  }, [preparePinLoginGate, refreshTodoBadge]);
+    void preparePinLoginGate()
+      .finally(() => {
+        pinLoginGatePreparingRef.current = false;
+        void refreshTodoBadge();
+        void maybeShowTimeRequestResolution();
+      });
+  }, [preparePinLoginGate, refreshTodoBadge, maybeShowTimeRequestResolution]);
 
   const sessionActive = Boolean(context?.session);
   const { state: timeSession, refresh: refreshTimeSession, patch: patchTimeSession } =
@@ -223,6 +273,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
   useEffect(() => {
     if (!context?.session) {
       sessionRestoreGatePreparedRef.current = false;
+      timeRequestResolutionCheckedStaffRef.current = null;
       return;
     }
     if (locked || loading) return;
@@ -297,13 +348,28 @@ export function DisplayScreen({ slug }: { slug: string }) {
   }, [finishPinLogin, performLogout]);
 
   const handleScreenCelebrationDone = useCallback(() => {
+    const variant = screenCelebrationRef.current;
+
     if (pinLoginGatePendingRef.current) {
       pinLoginGatePendingRef.current = false;
       runPinLoginGate();
+    } else if (
+      variant === "time_request_accepted" ||
+      variant === "time_request_declined"
+    ) {
+      const pending = pendingTimeRequestResolutionRef.current;
+      pendingTimeRequestResolutionRef.current = null;
+      if (pending) {
+        void acknowledgeDisplayTimeRequestResolutions([pending.id]);
+        if (pending.status === "approved") {
+          void refreshTimeSession();
+        }
+      }
     }
+
     setScreenCelebration(null);
     setScreenCelebrationSublabel(undefined);
-  }, [runPinLoginGate]);
+  }, [runPinLoginGate, refreshTimeSession]);
 
   const submitPin = async (pinValue: string) => {
     setPinBusy(true);

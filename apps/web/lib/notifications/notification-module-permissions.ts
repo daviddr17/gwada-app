@@ -32,6 +32,7 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_todo_completed: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
   staff_todo_deferred: { kind: "staffModuleOrProfile", prefix: "staff_todos" },
   staff_contract_signed: { kind: "staffProfile" },
+  staff_display_time_request: { kind: "module", prefix: "staff" },
   inventory_low_stock: { kind: "module", prefix: "inventory" },
   accounting_quotation: { kind: "module", prefix: "accounting" },
   accounting_invoice: { kind: "module", prefix: "accounting" },

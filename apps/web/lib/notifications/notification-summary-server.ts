@@ -6,6 +6,7 @@ import { loadInventoryLowStockBellSummary } from "@/lib/notifications/notificati
 import { loadAccountingNotificationItems } from "@/lib/notifications/notification-accounting-server";
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
+import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
 import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
@@ -373,6 +374,24 @@ const MODULE_BUILDERS: Record<
     return {
       id: def.id,
       count: items.length,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_display_time_request: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_time_request;
+    const { items, totalCount } = await loadStaffDisplayTimeRequestNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
       label: def.labelPlural,
       href: def.href,
       items,

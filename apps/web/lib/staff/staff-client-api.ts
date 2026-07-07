@@ -36,6 +36,9 @@ export async function sendStaffInviteClient(params: {
   staffId: string;
   restaurantPositionId: string;
   action: StaffInviteAction;
+  /** Formularwert — nur für WhatsApp/E-Mail-Versand, ohne vorheriges Speichern. */
+  email?: string | null;
+  phone?: string | null;
 }): Promise<{
   inviteUrl?: string;
   sent?: boolean;

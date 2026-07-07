@@ -10,6 +10,7 @@ import {
   sendStaffInviteEmail,
   sendStaffInviteWhatsapp,
 } from "@/lib/staff/staff-invite-send-server";
+import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -23,6 +24,9 @@ export async function POST(req: Request) {
     staffId?: string;
     restaurantPositionId?: string;
     action?: StaffInviteAction;
+    /** Formularwert — Versand ohne vorheriges Speichern am Mitarbeiter. */
+    email?: string | null;
+    phone?: string | null;
     /** @deprecated use action */
     channel?: "email" | "whatsapp";
   };
@@ -69,11 +73,13 @@ export async function POST(req: Request) {
   }
 
   const channel = action === "whatsapp" ? "whatsapp" : "email";
+  const inviteEmail = body.email?.trim() || staff.email?.trim() || "";
+  const invitePhone = body.phone?.trim() || staff.phone?.trim() || "";
 
-  if (action === "email" && !staff.email?.trim()) {
+  if (action === "email" && !inviteEmail) {
     return Response.json({ error: "no_email" }, { status: 400 });
   }
-  if (action === "whatsapp" && !staff.phone?.trim()) {
+  if (action === "whatsapp" && !invitePhone) {
     return Response.json({ error: "no_phone" }, { status: 400 });
   }
 
@@ -81,8 +87,8 @@ export async function POST(req: Request) {
     const conflicts = await resolveStaffInviteContactConflicts(userSb, {
       restaurantId,
       staffId,
-      email: staff.email,
-      phone: staff.phone,
+      email: action === "email" ? inviteEmail : staff.email,
+      phone: action === "whatsapp" ? invitePhone : staff.phone,
     });
     const conflict =
       action === "email" ? conflicts.emailConflict : conflicts.phoneConflict;
@@ -115,8 +121,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "invite_failed" }, { status: 500 });
   }
 
-  const origin = new URL(req.url).origin;
-  const url = staffInviteUrl(origin, invite.token);
+  const url = staffInviteUrl(resolvePublicAppOrigin(req), invite.token);
 
   const { data: restaurant } = await userSb
     .from("restaurants")
@@ -140,7 +145,7 @@ export async function POST(req: Request) {
   if (action === "whatsapp") {
     const sent = await sendStaffInviteWhatsapp({
       restaurantId,
-      phone: staff.phone as string,
+      phone: invitePhone,
       staffName,
       restaurantName,
       inviteUrl: url,
@@ -155,7 +160,7 @@ export async function POST(req: Request) {
       action: "invite_whatsapp",
       sessionSupabase: userSb,
       details: {
-        summary: `Einladung per WhatsApp versendet an ${staff.phone}`,
+        summary: `Einladung per WhatsApp versendet an ${invitePhone}`,
       },
     });
     return Response.json({
@@ -168,7 +173,7 @@ export async function POST(req: Request) {
 
   const sent = await sendStaffInviteEmail({
     restaurantId,
-    to: staff.email as string,
+    to: inviteEmail,
     staffName,
     restaurantName,
     inviteUrl: url,
@@ -184,7 +189,7 @@ export async function POST(req: Request) {
     action: "invite_email",
     sessionSupabase: userSb,
     details: {
-      summary: `Einladung per E-Mail versendet an ${staff.email}`,
+      summary: `Einladung per E-Mail versendet an ${inviteEmail}`,
     },
   });
 

@@ -617,6 +617,8 @@ export function StaffFormDrawer({
         staffId: staff.id,
         restaurantPositionId: positionRoleId,
         action,
+        email: action === "email" ? email.trim() : undefined,
+        phone: action === "whatsapp" ? contactCheckPhone : undefined,
       });
     setInviteBusy(null);
     if (error) {

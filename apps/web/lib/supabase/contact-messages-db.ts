@@ -80,6 +80,8 @@ export type ContactConversationPreview = {
   last_attachment_kind?: ContactMessageAttachmentKind;
   /** Plattform der zuletzt sichtbaren Nachricht (Posteingang). */
   last_message_platform?: ContactMessagePlatform;
+  /** Letzte Nachricht: kein separates Nachrichten-Alert (Reservierungs-Gastnachricht). */
+  last_message_suppress_notifications?: boolean;
   /** Letzter eingehender Kanal des Gastes (Antwort-Default). */
   last_inbound_platform?: ContactMessagePlatform;
   /** Live-IMAP-Unread (vor Merge, für verknüpfte Kontakte). */
@@ -104,7 +106,8 @@ const MESSAGE_SELECT = `
   delivery_status,
   created_at,
   send_batch_id,
-  external_source_id
+  external_source_id,
+  suppress_notifications
 `;
 
 export function mapContactMessageRowFromRecord(
@@ -213,19 +216,80 @@ export async function fetchReservationContactMessages(params: {
     return { data: [], error: null };
   }
   const sb = createSupabaseBrowserClient();
-  const { data, error } = await sb
+
+  const { data: reservation, error: reservationError } = await sb
+    .from("reservations")
+    .select("contact_id, created_at")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("id", params.reservationId)
+    .maybeSingle();
+
+  if (reservationError) {
+    return { data: [], error: new Error(reservationError.message) };
+  }
+
+  const rawById = new Map<string, Record<string, unknown>>();
+
+  const { data: linked, error: linkedError } = await sb
     .from("contact_messages")
     .select(MESSAGE_SELECT)
     .eq("restaurant_id", params.restaurantId)
     .eq("reservation_id", params.reservationId)
     .order("created_at", { ascending: true });
 
-  if (error) return { data: [], error: new Error(error.message) };
+  if (linkedError) {
+    return { data: [], error: new Error(linkedError.message) };
+  }
+
+  for (const row of linked ?? []) {
+    const id = (row as { id: string }).id;
+    rawById.set(id, row as Record<string, unknown>);
+  }
+
+  const contactId = (reservation?.contact_id as string | null) ?? null;
+  const createdAt = reservation?.created_at as string | undefined;
+  if (contactId && createdAt) {
+    const windowStart = new Date(
+      new Date(createdAt).getTime() - 2 * 60 * 1000,
+    ).toISOString();
+    const windowEnd = new Date(
+      new Date(createdAt).getTime() + 15 * 60 * 1000,
+    ).toISOString();
+
+    const { data: orphans, error: orphanError } = await sb
+      .from("contact_messages")
+      .select(MESSAGE_SELECT)
+      .eq("restaurant_id", params.restaurantId)
+      .eq("contact_id", contactId)
+      .eq("direction", "inbound")
+      .eq("platform", "gwada")
+      .is("reservation_id", null)
+      .gte("created_at", windowStart)
+      .lte("created_at", windowEnd)
+      .order("created_at", { ascending: true });
+
+    if (orphanError) {
+      return { data: [], error: new Error(orphanError.message) };
+    }
+
+    for (const row of orphans ?? []) {
+      const id = (row as { id: string }).id;
+      if (!rawById.has(id)) {
+        rawById.set(id, row as Record<string, unknown>);
+      }
+    }
+  }
+
+  const rawRows = [...rawById.values()].sort((a, b) =>
+    String(a.created_at).localeCompare(String(b.created_at)),
+  );
+
   const enriched = await enrichMessageRowsWithAttachments(
     sb,
     params.restaurantId,
-    (data ?? []) as Record<string, unknown>[],
+    rawRows,
   );
+
   return { data: enriched, error: null };
 }
 
@@ -348,6 +412,8 @@ export async function fetchContactConversations(params: {
         : { body: mapped.body.trim(), attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
 
     const lastReservationId = (row.reservation_id as string | null) ?? null;
+    const suppressNotifications =
+      (row.suppress_notifications as boolean | null) === true;
 
     previews.set(threadKey, {
       contact_id: threadKey,
@@ -361,6 +427,7 @@ export async function fetchContactConversations(params: {
       is_unread: false,
       has_reservation_link: Boolean(lastReservationId),
       last_reservation_id: lastReservationId,
+      last_message_suppress_notifications: suppressNotifications,
       inbound_since_preview: inboundAfter.get(threadKey) ?? 0,
       last_attachment_kind:
         primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??

@@ -8,6 +8,9 @@ import {
 import {
   isSelfOriginatedNotification,
 } from "@/lib/notifications/notification-self-origin";
+import {
+  fetchReservationGuestMessagePreviews,
+} from "@/lib/notifications/reservation-guest-message-notification";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 
 const RESERVATION_CANCELLATION_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -151,6 +154,23 @@ export async function loadReservationNotificationItems(
         },
       };
     });
+
+  if (
+    params.module === "reservations_pending" &&
+    filtered.length > 0
+  ) {
+    const guestMessages = await fetchReservationGuestMessagePreviews(sb, {
+      restaurantId: params.restaurantId,
+      reservationIds: filtered.map((r) => r.id),
+    });
+    for (const item of items) {
+      const preview = guestMessages.get(item.id);
+      if (!preview) continue;
+      const snippet =
+        preview.length > 80 ? `${preview.slice(0, 77)}…` : preview;
+      item.subtitle = `${item.subtitle} · „${snippet}"`;
+    }
+  }
 
   return { items, totalCount: filtered.length };
 }

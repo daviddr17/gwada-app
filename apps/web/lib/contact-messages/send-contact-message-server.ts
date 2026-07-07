@@ -55,6 +55,8 @@ export type SendContactMessageServerInput = {
   attachmentFiles?: OutboundAttachmentFile[];
   voiceFile?: OutboundAttachmentFile;
   clientSendId?: string;
+  /** Kein separates Nachrichten-Push (z. B. Gast-Nachricht bei neuer Reservierung). */
+  suppressNotifications?: boolean;
 };
 
 async function isWhatsappSessionWorking(restaurantId: string): Promise<boolean> {
@@ -166,6 +168,7 @@ async function insertMessage(
     delivery_status: string;
     send_batch_id?: string | null;
     external_source_id?: string | null;
+    suppress_notifications?: boolean;
   },
 ): Promise<{ id: string | null; error: string | null }> {
   const { data, error } = await admin
@@ -224,6 +227,7 @@ export async function sendContactMessageServer(
         sent_by: input.sentBy ?? null,
         delivery_status: "delivered",
         send_batch_id: sendBatchId,
+        suppress_notifications: input.suppressNotifications === true,
       });
       if (error) errors.push(`gwada:${error}`);
       else if (id && attachmentFiles.length > 0) {

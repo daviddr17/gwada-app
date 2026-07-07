@@ -16,10 +16,15 @@ export const OAUTH_PENDING_ID_COOKIE = "gwada_oauth_pending_id";
 
 export const GOOGLE_AUTH_NONCE_COOKIE = "gwada_google_oauth_nonce";
 
-/** Beim Auth-Einstieg (Login, Callback) per Set-Cookie löschen. */
-export const AUTH_ENTRY_COOKIES_TO_CLEAR = [
+/** Legacy-OAuth-Cookies — sicher per Client-API zu löschen (nicht während laufendem Google-OAuth). */
+export const LEGACY_AUTH_COOKIES_TO_CLEAR = [
   ...LEGACY_OAUTH_PENDING_COOKIE_NAMES,
   OAUTH_PENDING_ID_COOKIE,
+] as const;
+
+/** Beim Auth-Einstieg (Login-Seitenaufruf, Callback) per Set-Cookie löschen. */
+export const AUTH_ENTRY_COOKIES_TO_CLEAR = [
+  ...LEGACY_AUTH_COOKIES_TO_CLEAR,
   GOOGLE_AUTH_NONCE_COOKIE,
 ] as const;
 
@@ -62,6 +67,19 @@ export function authEntryCookieClearHeaders(): string[] {
   return AUTH_ENTRY_COOKIES_TO_CLEAR.map((name) =>
     clearCookieSetCookieHeader(name),
   );
+}
+
+export function legacyAuthCookieClearHeaders(): string[] {
+  return LEGACY_AUTH_COOKIES_TO_CLEAR.map((name) =>
+    clearCookieSetCookieHeader(name),
+  );
+}
+
+/** Nur Legacy-Pending-Cookies — nicht den Google-OAuth-Nonce (Race mit schnellem Klick). */
+export function appendLegacyAuthCookieCleanup(headers: Headers): void {
+  for (const c of legacyAuthCookieClearHeaders()) {
+    headers.append("Set-Cookie", c);
+  }
 }
 
 /** Cookie-Header für Upstream kürzen (Login/Token auch bei übergroßen Browser-Cookies). */

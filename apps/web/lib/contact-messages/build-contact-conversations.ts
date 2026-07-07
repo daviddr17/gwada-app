@@ -110,6 +110,8 @@ export function buildContactConversationsFromRows(params: {
           };
 
     const lastReservationId = (raw.reservation_id as string | null) ?? null;
+    const suppressNotifications =
+      (raw.suppress_notifications as boolean | null) === true;
 
     previews.set(threadKey, {
       contact_id: threadKey,
@@ -123,6 +125,7 @@ export function buildContactConversationsFromRows(params: {
       is_unread: false,
       has_reservation_link: Boolean(lastReservationId),
       last_reservation_id: lastReservationId,
+      last_message_suppress_notifications: suppressNotifications,
       inbound_since_preview: inboundAfter.get(threadKey) ?? 0,
       last_attachment_kind:
         primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??

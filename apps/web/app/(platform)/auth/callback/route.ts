@@ -13,6 +13,7 @@ import {
   GWADA_WAITLIST_SIGNUP_MESSAGE,
 } from "@/lib/auth/public-signup-gate";
 import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
+import { humanizeLoginErrorMessage } from "@/lib/auth/login-error-messages";
 
 function loginRedirect(
   origin: string,
@@ -35,7 +36,11 @@ export async function GET(request: NextRequest) {
   const oauthError = searchParams.get("error_description") ?? searchParams.get("error");
 
   if (oauthError) {
-    return loginRedirect(origin, oauthError, searchParams.get("next"));
+    return loginRedirect(
+      origin,
+      humanizeLoginErrorMessage(String(oauthError).slice(0, 200)),
+      searchParams.get("next"),
+    );
   }
 
   if (!code) {
@@ -64,7 +69,11 @@ export async function GET(request: NextRequest) {
 
   const { data: sessionData, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return loginRedirect(origin, error.message, searchParams.get("next"));
+    return loginRedirect(
+      origin,
+      humanizeLoginErrorMessage(error.message),
+      searchParams.get("next"),
+    );
   }
 
   if (

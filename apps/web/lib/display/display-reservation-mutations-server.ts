@@ -1,12 +1,12 @@
 import "server-only";
 
-import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
 import {
   buildReservationLogChanges,
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
+import { attachInboundGuestMessageToReservation } from "@/lib/reservations/reservation-guest-message-server";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
@@ -112,17 +112,18 @@ export async function createDisplayReservation(
   });
 
   const guestMessage = input.guest_message?.trim();
-  const contactId = (data.contact_id as string | null) ?? null;
-  if (guestMessage && contactId) {
-    await sendContactMessageServer(admin, {
+  if (guestMessage) {
+    await attachInboundGuestMessageToReservation(admin, {
       restaurantId,
-      contactId,
-      body: guestMessage,
-      direction: "inbound",
-      channels: ["gwada"],
       reservationId: data.id as string,
+      guestMessage,
       restaurantName: input.restaurant_name ?? null,
-    }).catch(() => undefined);
+    }).catch((err) => {
+      console.warn(
+        "[gwada] attach reservation guest message",
+        err instanceof Error ? err.message : err,
+      );
+    });
   }
 
   if (input.notify_whatsapp) {

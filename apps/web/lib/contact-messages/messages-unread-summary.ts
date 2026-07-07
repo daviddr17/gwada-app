@@ -3,6 +3,9 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 import { inboxPreviewSnippet } from "@/lib/contact-messages/inbox-preview-snippet";
 import { conversationNotificationPlatform } from "@/lib/contact-messages/conversation-notification-platform";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
+import {
+  conversationExcludedFromSeparateMessageNotification,
+} from "@/lib/notifications/reservation-guest-message-notification";
 
 export const DASHBOARD_MESSAGES_UNREAD_LIMIT = 4;
 
@@ -41,12 +44,16 @@ export function dashboardMessageThreadHref(contactId: string): string {
 export function deriveMessagesUnreadSummaryFromConversations(
   conversations: ContactConversationPreview[],
 ): MessagesUnreadSummary {
-  const total_unread = conversations.reduce(
+  const notifyable = conversations.filter(
+    (c) => !conversationExcludedFromSeparateMessageNotification(c),
+  );
+
+  const total_unread = notifyable.reduce(
     (acc, c) => acc + (c.is_unread ? c.unread_count : 0),
     0,
   );
 
-  const unread = conversations
+  const unread = notifyable
     .filter((c) => c.is_unread && c.unread_count > 0)
     .slice(0, DASHBOARD_MESSAGES_UNREAD_LIMIT)
     .map((c) => ({

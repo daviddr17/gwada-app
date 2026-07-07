@@ -126,6 +126,7 @@ export async function proxy(request: NextRequest) {
   if (!user) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", pathname + search);
+    loginUrl.searchParams.set("reason", "reauth");
     return NextResponse.redirect(loginUrl);
   }
 

@@ -11,6 +11,9 @@ import {
   fetchUnifiedInboxConversationsForDashboard,
   fetchUnifiedInboxConversationsServer,
 } from "@/lib/contact-messages/unified-inbox-server";
+import {
+  conversationExcludedFromSeparateMessageNotification,
+} from "@/lib/notifications/reservation-guest-message-notification";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -38,9 +41,12 @@ export async function fetchMessagesUnreadSummary(
   const conversations = includeInbox
     ? await fetchUnifiedInboxConversationsServer(admin, params)
     : await fetchUnifiedInboxConversationsForDashboard(admin, params);
-  const total_unread = sumUnread(conversations);
+  const notifyable = conversations.filter(
+    (c) => !conversationExcludedFromSeparateMessageNotification(c),
+  );
+  const total_unread = sumUnread(notifyable);
 
-  const unread = conversations
+  const unread = notifyable
     .filter((c) => c.is_unread && c.unread_count > 0)
     .slice(0, DASHBOARD_MESSAGES_UNREAD_LIMIT)
     .map((c) => ({

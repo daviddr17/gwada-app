@@ -7,8 +7,7 @@ export const LEGACY_OAUTH_PENDING_COOKIE_NAMES_CLIENT = [
   "gwada_google_oauth_pending",
 ] as const;
 
-export const AUTH_ENTRY_COOKIES_TO_CLEAR_CLIENT = [
+export const LEGACY_AUTH_COOKIES_TO_CLEAR_CLIENT = [
   ...LEGACY_OAUTH_PENDING_COOKIE_NAMES_CLIENT,
   "gwada_oauth_pending_id",
-  "gwada_google_oauth_nonce",
 ] as const;

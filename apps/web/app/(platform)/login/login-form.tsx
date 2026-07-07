@@ -39,44 +39,19 @@ import {
 import { AuthScreenBrandLogo } from "@/components/auth/auth-screen-brand-logo";
 import { useAuthEnterTransition } from "@/components/auth/use-auth-enter-transition";
 import { waitlistErrorMessage } from "@/lib/waitlist/waitlist-errors";
+import {
+  humanizeLoginErrorMessage,
+  isLikelyNetworkAuthFailure,
+  LOGIN_REAUTH_MESSAGE,
+  loginErrorBannerText,
+} from "@/lib/auth/login-error-messages";
 
 const backNavLinkClass =
   "inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline";
 
-function isLikelyNetworkAuthFailure(message: string): boolean {
-  return /load failed|failed to fetch|networkerror|network request failed|fetch|keine antwort nach/i.test(
-    message,
-  );
-}
-
-/** Keine Entwickler-Hinweise (Timeouts, Slugs, npm) in Toast-Beschreibungen. */
-function isTechnicalLoginToastDetail(s: string): boolean {
-  const t = s.trim();
-  if (!t) return true;
-  if (t === "{}" || t === "[object Object]") return true;
-  return (
-    /Restaurant-|Workspace-|App-State|Supabase-Session|Erreichbarkeit|keine Antwort nach|\d+\s*s\b|Zeitüberschreitung|\bnpm\b|`npm|db:start|NEXT_PUBLIC|127\.0\.0\.1|localhost:\d+/i.test(
-      t,
-    ) ||     /^Anmeldung \(Passwort\):/i.test(t) ||
-    /Missing NEXT_PUBLIC_SUPABASE/i.test(t)
-  );
-}
-
-function humanizeLoginErrorMessage(raw: string | undefined | null): string {
-  const t = raw?.trim() ?? "";
-  if (!t || t === "{}" || t === "[object Object]") {
-    return "Anmeldung fehlgeschlagen. Bitte später erneut versuchen.";
-  }
-  if (/invalid login credentials|invalid_credentials/i.test(t)) {
-    return "E-Mail oder Passwort ist falsch.";
-  }
-  if (isLikelyNetworkAuthFailure(t)) {
-    return "Keine Verbindung zum Anmeldedienst. Bitte Netzwerk prüfen und es später erneut versuchen.";
-  }
-  if (/supabase_upstream|upstream_unreachable|502|503|bad gateway|service unavailable/i.test(t)) {
-    return "Der Anmeldedienst ist gerade nicht erreichbar. Bitte in wenigen Minuten erneut versuchen.";
-  }
-  return t;
+function authEnterHref(next: string | null | undefined): string {
+  const path = safeInternalPath(next);
+  return `/auth/enter?next=${encodeURIComponent(path)}`;
 }
 
 export function LoginForm() {
@@ -96,8 +71,9 @@ export function LoginForm() {
     overlay: authEnterOverlay,
     isEntering,
   } = useAuthEnterTransition();
-  const [email, setEmail] = useState("dreyer@techlion.de");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [bannerError, setBannerError] = useState<string | null>(null);
   const [regEmail, setRegEmail] = useState("");
   const [regGivenName, setRegGivenName] = useState("");
   const [regFamilyName, setRegFamilyName] = useState("");
@@ -114,35 +90,26 @@ export function LoginForm() {
     return () => setDocumentTitleOverride(null);
   }, [screen, setDocumentTitleOverride]);
 
-  /** Alte OAuth-Pending-Cookies (HttpOnly) serverseitig löschen — entlastet Login/Supabase-Requests. */
-  useEffect(() => {
-    void fetch("/api/auth/cleanup-cookies", { credentials: "include" }).catch(
-      () => undefined,
-    );
-  }, []);
-
   const loginToastError = (headline: string, detail?: string) => {
-    const d = detail?.trim();
-    if (d && !isTechnicalLoginToastDetail(d)) {
-      toast.error(headline, { description: d });
-      return;
-    }
-    toast.error(headline);
+    const text = loginErrorBannerText(headline, detail);
+    setBannerError(text);
+    toast.error(text);
   };
 
-  /** Bereits angemeldet: weiterleiten (Server-`getUser` auf /login ist absichtlich ausgelassen für schnelleren Load). */
+  const clearLoginError = () => setBannerError(null);
+
+  /** Bereits angemeldet: über /auth/enter (gleicher Pfad wie OAuth — Session-Cookies stabil). */
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
         const sb = createSupabaseBrowserClient();
         const {
-          data: { user },
-        } = await sb.auth.getUser();
-        if (cancelled || !user) return;
-        const next = safeInternalPath(nextParam);
+          data: { session },
+        } = await sb.auth.getSession();
+        if (cancelled || !session) return;
         enterApp(() => {
-          window.location.assign(next);
+          window.location.assign(authEnterHref(nextParam));
         });
       } catch {
         /* Session optional */
@@ -154,11 +121,20 @@ export function LoginForm() {
   }, [nextParam, enterApp]);
 
   useEffect(() => {
+    const reason = searchParams.get("reason");
     const err = searchParams.get("error");
-    if (!err?.trim()) return;
-    loginToastError(humanizeLoginErrorMessage(err));
+    let message: string | null = null;
+    if (reason === "reauth") {
+      message = LOGIN_REAUTH_MESSAGE;
+    } else if (err?.trim()) {
+      message = humanizeLoginErrorMessage(err);
+    }
+    if (!message) return;
+    setBannerError(message);
+    toast.error(message);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("error");
+    params.delete("reason");
     const qs = params.toString();
     router.replace(qs ? `/login?${qs}` : "/login");
   }, [searchParams, router]);
@@ -175,7 +151,7 @@ export function LoginForm() {
           provider === "google"
             ? "Anmeldung mit Google fehlgeschlagen."
             : "Anmeldung mit Apple fehlgeschlagen.",
-          error.message,
+          humanizeLoginErrorMessage(error.message),
         );
       }
     } catch (e) {
@@ -236,9 +212,9 @@ export function LoginForm() {
         loginToastError(humanizeLoginErrorMessage(error.message));
         return;
       }
-      const next = safeInternalPath(searchParams.get("next"));
+      clearLoginError();
       enterApp(() => {
-        window.location.assign(next);
+        window.location.assign(authEnterHref(searchParams.get("next")));
       });
       return;
     } catch (e) {
@@ -463,6 +439,15 @@ export function LoginForm() {
                     Die Datenbank ist derzeit nicht erreichbar.
                   </p>
                 ) : null}
+                {bannerError ? (
+                  <p
+                    className="text-pretty text-sm text-destructive"
+                    role="alert"
+                    aria-live="polite"
+                  >
+                    {bannerError}
+                  </p>
+                ) : null}
               </CardHeader>
               <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -472,7 +457,10 @@ export function LoginForm() {
                   type="email"
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (bannerError) clearLoginError();
+                  }}
                   className="h-11 rounded-xl"
                 />
               </div>
@@ -494,7 +482,10 @@ export function LoginForm() {
                     type="password"
                     autoComplete="current-password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      if (bannerError) clearLoginError();
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") void handleLogin();
                     }}

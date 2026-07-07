@@ -102,8 +102,15 @@ export async function startOAuthFlow(
       },
     });
     if (error) return { error };
-    if (data?.url) window.location.assign(data.url);
-    return { error: null };
+    if (data?.url) {
+      window.location.assign(data.url);
+      return { error: null };
+    }
+    return {
+      error: new Error(
+        "Anmeldung konnte nicht gestartet werden. Bitte erneut versuchen.",
+      ),
+    };
   }
 
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -114,8 +121,15 @@ export async function startOAuthFlow(
     },
   });
   if (error) return { error };
-  if (data?.url) window.location.assign(data.url);
-  return { error: null };
+  if (data?.url) {
+    window.location.assign(data.url);
+    return { error: null };
+  }
+  return {
+    error: new Error(
+      "Anmeldung konnte nicht gestartet werden. Bitte erneut versuchen.",
+    ),
+  };
 }
 
 export async function unlinkOAuthProvider(

@@ -164,6 +164,7 @@ function reservationDetails(payload: Record<string, unknown>): string {
   const phone = pickString(payload.guestPhone);
   const email = pickString(payload.guestEmail);
   const notes = pickString(payload.notesPreview);
+  const messagePreview = pickString(payload.messagePreview);
 
   return detailLines([
     `Gast: ${guest}`,
@@ -173,6 +174,7 @@ function reservationDetails(payload: Record<string, unknown>): string {
     phone ? `Telefon: ${phone}` : null,
     email ? `E-Mail: ${email}` : null,
     notes ? `Hinweis: ${notes}` : null,
+    messagePreview ? `Nachricht: ${messagePreview}` : null,
   ]);
 }
 

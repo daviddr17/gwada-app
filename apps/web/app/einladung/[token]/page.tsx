@@ -17,7 +17,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { syncUserProfileNames } from "@/lib/profile/sync-user-profile-names";
 import { usePublicOAuthAvailability } from "@/lib/hooks/use-public-oauth-availability";
 import {
   startGooglePlatformOAuth,
@@ -217,13 +216,10 @@ export default function StaffInvitePage() {
       toast.error("Bitte zuerst anmelden.");
       return;
     }
-    if (givenName.trim() && familyName.trim()) {
-      if (!(await persistProfileNames(sb))) {
-        setBusy(false);
-        return;
-      }
-    }
-    const ok = await acceptInvite(user.id);
+    const ok = await acceptInvite(user.id, {
+      givenName: givenName.trim(),
+      familyName: familyName.trim(),
+    });
     setBusy(false);
     if (ok) {
       toast.success(`Willkommen bei ${invite.restaurant_name}!`);
@@ -231,11 +227,19 @@ export default function StaffInvitePage() {
     }
   };
 
-  const acceptInvite = async (userId: string) => {
+  const acceptInvite = async (
+    userId: string,
+    names?: { givenName: string; familyName: string },
+  ) => {
     const sb = createSupabaseBrowserClient();
+    const gn = names?.givenName.trim() ?? "";
+    const fn = names?.familyName.trim() ?? "";
     const { data, error } = await sb.rpc("accept_staff_invite", {
       p_token: token,
       p_profile_id: userId,
+      ...(gn && fn
+        ? { p_given_name: gn, p_family_name: fn }
+        : {}),
     });
     if (error) {
       toast.error(error.message);
@@ -288,18 +292,6 @@ export default function StaffInvitePage() {
     return true;
   };
 
-  const persistProfileNames = async (sb: ReturnType<typeof createSupabaseBrowserClient>) => {
-    const result = await syncUserProfileNames(sb, {
-      givenName,
-      familyName,
-    });
-    if (!result.ok) {
-      toast.error("Profilname konnte nicht gespeichert werden.");
-      return false;
-    }
-    return true;
-  };
-
   const handleRegister = async () => {
     if (!invite) return;
     if (!email.trim() || !password) {
@@ -338,11 +330,14 @@ export default function StaffInvitePage() {
       );
       return;
     }
-    if (!(await persistProfileNames(sb))) {
+    if (!data.session) {
       setBusy(false);
+      toast.info(
+        "Bitte bestätige deine E-Mail — danach den Einladungslink erneut öffnen und anmelden.",
+      );
       return;
     }
-    const ok = await acceptInvite(userId);
+    const ok = await acceptInvite(userId, { givenName: gn, familyName: fn });
     setBusy(false);
     if (ok) {
       toast.success(`Willkommen bei ${invite.restaurant_name}!`);
@@ -373,11 +368,10 @@ export default function StaffInvitePage() {
       setBusy(false);
       return;
     }
-    if (!(await persistProfileNames(sb))) {
-      setBusy(false);
-      return;
-    }
-    const ok = await acceptInvite(userId);
+    const ok = await acceptInvite(userId, {
+      givenName: givenName.trim(),
+      familyName: familyName.trim(),
+    });
     setBusy(false);
     if (ok) {
       toast.success(`Du bist jetzt bei ${invite.restaurant_name} dabei.`);

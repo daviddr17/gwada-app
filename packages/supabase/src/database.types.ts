@@ -4382,7 +4382,16 @@ export type Database = {
     }
     Functions: {
       accept_staff_invite: {
-        Args: { p_profile_id?: string; p_token: string }
+        Args: {
+          p_family_name?: string
+          p_given_name?: string
+          p_profile_id?: string
+          p_token: string
+        }
+        Returns: Json
+      }
+      sync_own_profile_names: {
+        Args: { p_family_name: string; p_given_name: string }
         Returns: Json
       }
       auth_has_restaurant_permission: {

@@ -1,3 +1,9 @@
+/** DIN A4 Querformat (Breite × Höhe) — zuverlässiger als `A4 landscape` in Safari/iOS. */
+export const A4_LANDSCAPE_PAGE_SIZE = "297mm 210mm";
+
+/** DIN A4 Hochformat (Breite × Höhe). */
+export const A4_PORTRAIT_PAGE_SIZE = "210mm 297mm";
+
 export type PrintTableDocumentOptions = {
   documentTitle: string;
   headers: readonly string[];
@@ -24,6 +30,7 @@ function buildPrintHtml({
   summaryLine,
   landscape = true,
 }: PrintTableDocumentOptions): string {
+  const pageSize = landscape ? A4_LANDSCAPE_PAGE_SIZE : A4_PORTRAIT_PAGE_SIZE;
   const headCells = headers
     .map((h) => `<th>${escapeHtml(h)}</th>`)
     .join("");
@@ -52,8 +59,15 @@ function buildPrintHtml({
   <title>${escapeHtml(documentTitle)}</title>
   <style>
     @page {
-      size: A4 ${landscape ? "landscape" : "portrait"};
+      size: ${pageSize};
       margin: 12mm;
+    }
+    @media print {
+      html, body {
+        width: ${pageSize.split(" ")[0]};
+        margin: 0;
+        padding: 0;
+      }
     }
     * { box-sizing: border-box; }
     body {

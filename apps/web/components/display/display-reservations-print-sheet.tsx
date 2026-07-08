@@ -160,7 +160,8 @@ export function DisplayReservationsPrintSheet({
                 Jetzt drucken
               </Button>
               <p className="text-xs text-muted-foreground">
-                Öffnet den System-Druckdialog mit Spalte „Kommentare“ für Notizen.
+                Öffnet den System-Druckdialog in DIN A4 Querformat mit Spalte
+                „Kommentare“ für Notizen.
               </p>
             </DrawerFormSection>
           </div>

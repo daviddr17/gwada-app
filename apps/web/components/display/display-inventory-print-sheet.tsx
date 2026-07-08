@@ -265,8 +265,8 @@ export function DisplayInventoryPrintSheet({
               </Button>
               <p className="text-xs text-muted-foreground">
                 {isStock
-                  ? "Öffnet den System-Druckdialog mit Spalten zum handschriftlichen Eintragen."
-                  : "Öffnet den System-Druckdialog mit der gefilterten Bestellliste."}
+                  ? "Öffnet den System-Druckdialog in DIN A4 Querformat mit Spalten zum handschriftlichen Eintragen."
+                  : "Öffnet den System-Druckdialog in DIN A4 Querformat mit der gefilterten Bestellliste."}
               </p>
             </DrawerFormSection>
           </div>

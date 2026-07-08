@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSpreadsheet, FileText } from "lucide-react";
+import { FileSpreadsheet, FileText, Printer } from "lucide-react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,13 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { cn } from "@/lib/utils";
 import {
   dayReservationExportTotals,
   downloadDayReservationsCsv,
   downloadDayReservationsPdf,
+  printDayReservations,
 } from "@/lib/reservations/export-day-reservations";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 
@@ -39,6 +42,21 @@ export function DayReservationsExportSheet({
   dayYmd?: string;
 }) {
   const { reservationCount, guestCount } = dayReservationExportTotals(reservations);
+
+  const handlePrint = () => {
+    if (reservationCount === 0) return;
+    try {
+      printDayReservations(reservations, {
+        restaurantName,
+        dayTitle,
+        timeZone,
+        dayYmd,
+      });
+      onOpenChange(false);
+    } catch {
+      toast.error("Drucken fehlgeschlagen.");
+    }
+  };
 
   const handleCsv = () => {
     if (!day || reservationCount === 0) return;
@@ -96,6 +114,20 @@ export function DayReservationsExportSheet({
         <div className="flex flex-col gap-3 px-6 pb-6">
           <Button
             type="button"
+            className={cn("h-12 justify-start gap-3", brandActionButtonRoundedClassName)}
+            disabled={reservationCount === 0}
+            onClick={handlePrint}
+          >
+            <Printer className="size-5 shrink-0" />
+            <span className="text-left">
+              <span className="block font-medium">Jetzt drucken</span>
+              <span className="block text-xs font-normal opacity-90">
+                DIN A4 Querformat mit Spalte „Kommentare“ für Notizen
+              </span>
+            </span>
+          </Button>
+          <Button
+            type="button"
             variant="outline"
             className="h-12 justify-start gap-3 rounded-xl px-4"
             disabled={reservationCount === 0}
@@ -120,7 +152,7 @@ export function DayReservationsExportSheet({
             <span className="text-left">
               <span className="block font-medium">Als PDF</span>
               <span className="block text-xs font-normal text-muted-foreground">
-                Zum Ausdrucken mit extra Spalte „Kommentare“ für Notizen
+                DIN A4 Querformat zum Archivieren oder Weiterleiten
               </span>
             </span>
           </Button>

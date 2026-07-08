@@ -4,11 +4,6 @@ import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 const HEADERS = [
   "Zeit",
   "Nachname",
@@ -22,11 +17,32 @@ const HEADERS = [
   "Kommentare",
 ] as const;
 
+export type DayReservationExportOptions = {
+  restaurantName?: string;
+  dayTitle?: string;
+  /** IANA-Zeitzone für Uhrzeiten in Export (Display / Restaurant). */
+  timeZone?: string;
+  /** Dateiname `reservierungen-YYYY-MM-DD.*` — sonst aus `day`. */
+  dayYmd?: string;
+};
+
+function createTimeFormatter(timeZone?: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
 function ymdLocal(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+function resolveExportDayYmd(day: Date, options?: DayReservationExportOptions): string {
+  return options?.dayYmd?.trim() || ymdLocal(day);
 }
 
 export function dayReservationExportTotals(
@@ -48,7 +64,10 @@ function totalsSummaryDe(totals: {
   return `${r} Reservierung${r === 1 ? "" : "en"} · ${p} Person${p === 1 ? "" : "en"} gesamt`;
 }
 
-function reservationToRow(r: ReservationListRow): string[] {
+function reservationToRow(
+  r: ReservationListRow,
+  timeFmt: Intl.DateTimeFormat,
+): string[] {
   const start = timeFmt.format(new Date(r.starts_at));
   const end = timeFmt.format(new Date(r.ends_at));
   return [
@@ -68,7 +87,10 @@ function reservationToRow(r: ReservationListRow): string[] {
 export function downloadDayReservationsCsv(
   day: Date,
   reservations: ReservationListRow[],
+  options?: DayReservationExportOptions,
 ): void {
+  const timeFmt = createTimeFormatter(options?.timeZone);
+  const dayYmd = resolveExportDayYmd(day, options);
   const totals = dayReservationExportTotals(reservations);
   const lines = [
     ["Reservierungen gesamt", String(totals.reservationCount)]
@@ -77,29 +99,35 @@ export function downloadDayReservationsCsv(
     ["Personen gesamt", String(totals.guestCount)].map(escapeCsvCell).join(";"),
     "",
     HEADERS.join(";"),
-    ...reservations.map((r) => reservationToRow(r).map(escapeCsvCell).join(";")),
+    ...reservations.map((r) =>
+      reservationToRow(r, timeFmt).map(escapeCsvCell).join(";"),
+    ),
   ];
   const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {
     type: "text/csv;charset=utf-8",
   });
-  downloadBlob(`reservierungen-${ymdLocal(day)}.csv`, blob);
+  downloadBlob(`reservierungen-${dayYmd}.csv`, blob);
 }
 
 export async function downloadDayReservationsPdf(
   day: Date,
   reservations: ReservationListRow[],
-  options?: { restaurantName?: string; dayTitle?: string },
+  options?: DayReservationExportOptions,
 ): Promise<void> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
+  const timeFmt = createTimeFormatter(options?.timeZone);
+  const dayYmd = resolveExportDayYmd(day, options);
 
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const title = options?.dayTitle ?? day.toLocaleDateString("de-DE", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const title =
+    options?.dayTitle ??
+    day.toLocaleDateString("de-DE", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
 
   doc.setFontSize(14);
   doc.text("Reservierungen", 14, 16);
@@ -124,7 +152,7 @@ export async function downloadDayReservationsPdf(
   autoTable(doc, {
     startY: y + 6,
     head: [HEADERS as unknown as string[]],
-    body: reservations.map((r) => reservationToRow(r)),
+    body: reservations.map((r) => reservationToRow(r, timeFmt)),
     styles: {
       fontSize: 9,
       cellPadding: { top: 4, right: 2, bottom: 4, left: 2 },
@@ -149,5 +177,5 @@ export async function downloadDayReservationsPdf(
 
   applyJsPdfPageNumbers(doc);
 
-  doc.save(`reservierungen-${ymdLocal(day)}.pdf`);
+  doc.save(`reservierungen-${dayYmd}.pdf`);
 }

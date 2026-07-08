@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
 
-  const [{ data: items, error: itemsError }, { data: ingredients, error: ingError }, { data: categories }] =
+  const [{ data: items, error: itemsError }, { data: ingredients, error: ingError }, { data: categories }, { data: mainCategories }] =
     await Promise.all([
       admin
         .from("menu_items")
@@ -39,7 +39,12 @@ export async function GET(request: Request) {
         .eq("is_active", true),
       admin
         .from("menu_categories")
-        .select("id, name, is_active")
+        .select("id, name, is_active, main_category_id")
+        .eq("restaurant_id", access.restaurantId)
+        .order("sort_order"),
+      admin
+        .from("menu_main_categories")
+        .select("id, name, is_active, sort_order")
         .eq("restaurant_id", access.restaurantId)
         .order("sort_order"),
     ]);
@@ -59,7 +64,13 @@ export async function GET(request: Request) {
   );
 
   const catMap = new Map(
-    (categories ?? []).map((c) => [c.id as string, c.name as string]),
+    (categories ?? []).map((c) => [
+      c.id as string,
+      {
+        name: c.name as string,
+        mainCategoryId: c.main_category_id as string,
+      },
+    ]),
   );
 
   let dishes = (items ?? []).map((item) => {
@@ -83,7 +94,8 @@ export async function GET(request: Request) {
       description: (item.description as string) ?? "",
       price: Number(item.price),
       category_id: item.category_id as string,
-      category_name: catMap.get(item.category_id as string) ?? "",
+      category_name: catMap.get(item.category_id as string)?.name ?? "",
+      main_category_id: catMap.get(item.category_id as string)?.mainCategoryId ?? "",
       recipe,
     };
   });
@@ -103,7 +115,26 @@ export async function GET(request: Request) {
       (c) =>
         (c.is_active as boolean) !== false && dishCategoryIds.has(c.id as string),
     )
-    .map((c) => ({ id: c.id as string, name: c.name as string }));
+    .map((c) => ({
+      id: c.id as string,
+      name: c.name as string,
+      main_category_id: c.main_category_id as string,
+    }));
 
-  return NextResponse.json({ dishes, categories: categoryList });
+  const mainCategoryIdsWithDishes = new Set(
+    categoryList.map((c) => c.main_category_id).filter(Boolean),
+  );
+  const mainCategoryList = (mainCategories ?? [])
+    .filter(
+      (mc) =>
+        (mc.is_active as boolean) !== false &&
+        mainCategoryIdsWithDishes.has(mc.id as string),
+    )
+    .map((mc) => ({ id: mc.id as string, name: mc.name as string }));
+
+  return NextResponse.json({
+    dishes,
+    categories: categoryList,
+    mainCategories: mainCategoryList,
+  });
 }

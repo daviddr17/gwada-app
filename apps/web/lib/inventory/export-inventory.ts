@@ -2,6 +2,7 @@ import {
   downloadTableCsv,
   downloadTablePdf,
 } from "@/lib/export/table-document-export";
+import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
 import type {
   Ingredient,
   InventoryTaxonomyDefinition,
@@ -44,7 +45,7 @@ function ingredientToRow(
   row: Ingredient,
   ctx: InventoryExportContext,
 ): string[] {
-  const unitLabel = nameById(ctx.units, row.unit) || row.unit;
+  const unitLabel = inventoryUnitLabelDe(row.unit, nameById(ctx.units, row.unit) || undefined);
   return [
     row.name.trim(),
     String(row.currentStock),

@@ -326,10 +326,10 @@ function DisplayInventoryCard({
               aria-label={`Neuer Bestand ${row.name} (${row.unitId})`}
             />
             <span
-              className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-lg font-medium text-muted-foreground tabular-nums"
+              className="pointer-events-none absolute top-1/2 right-4 max-w-[40%] truncate -translate-y-1/2 text-sm font-medium text-muted-foreground tabular-nums"
               aria-hidden
             >
-              {row.unitId}
+              {row.unitLabel}
             </span>
           </div>
         </div>
@@ -358,10 +358,10 @@ function DisplayInventoryCard({
               aria-label={`Bestellmenge ${row.name} (${row.unitId})`}
             />
             <span
-              className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-lg font-medium text-muted-foreground tabular-nums"
+              className="pointer-events-none absolute top-1/2 right-4 max-w-[40%] truncate -translate-y-1/2 text-sm font-medium text-muted-foreground tabular-nums"
               aria-hidden
             >
-              {row.unitId}
+              {row.unitLabel}
             </span>
           </div>
         </div>

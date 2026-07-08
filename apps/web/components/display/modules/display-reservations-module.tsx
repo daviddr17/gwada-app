@@ -1116,10 +1116,14 @@ export function DisplayReservationsModule() {
         </div>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {viewChip("open", "Offen", openCount)}
-        {viewChip("list", "Liste")}
-        {viewChip("occupancy", "Tischbelegung")}
+      <div className="flex flex-wrap items-center gap-2 pb-1">
+        <div className="flex gap-2 overflow-x-auto">
+          {viewChip("list", "Liste")}
+          {viewChip("occupancy", "Tischbelegung")}
+        </div>
+        <div className="ml-auto shrink-0">
+          {viewChip("open", "Unbestätigte Reservierungen", openCount)}
+        </div>
       </div>
 
       {viewMode === "open" ? (

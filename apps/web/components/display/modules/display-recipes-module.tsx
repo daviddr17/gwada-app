@@ -1,7 +1,8 @@
 "use client";
 
+import { Printer, Search } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { toast } from "sonner";
 import {
   Drawer,
   DrawerContent,
@@ -9,12 +10,16 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { printDisplayRecipe } from "@/lib/display/export-display-recipe";
+import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { GWADA_DISPLAY_RECIPES_REFRESH_EVENT } from "@/lib/display/display-recipes-live-events";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
 type RecipeLine = {
@@ -31,11 +36,14 @@ type Dish = {
   price: number;
   category_id: string;
   category_name: string;
+  main_category_id: string;
   recipe: RecipeLine[];
 };
 
-type CategoryChip = { id: string; name: string };
+type CategoryChip = { id: string; name: string; main_category_id: string };
+type MainCategoryChip = { id: string; name: string };
 
+const ALL_MAIN_CATEGORIES = "all";
 const ALL_CATEGORIES = "all";
 
 const eur = new Intl.NumberFormat("de-DE", {
@@ -43,15 +51,22 @@ const eur = new Intl.NumberFormat("de-DE", {
   currency: "EUR",
 });
 
-export function DisplayRecipesModule() {
+export function DisplayRecipesModule({
+  restaurantName,
+}: {
+  restaurantName?: string;
+}) {
   const [loading, setLoading] = useState(true);
   const [allDishes, setAllDishes] = useState<Dish[]>([]);
   const showDataSkeleton = useDeferredSkeleton(loading && allDishes.length === 0);
   const [query, setQuery] = useState("");
+  const [mainCategoryFilter, setMainCategoryFilter] = useState(ALL_MAIN_CATEGORIES);
   const [categoryFilter, setCategoryFilter] = useState(ALL_CATEGORIES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [printingRecipe, setPrintingRecipe] = useState(false);
 
   const [categories, setCategories] = useState<CategoryChip[]>([]);
+  const [mainCategories, setMainCategories] = useState<MainCategoryChip[]>([]);
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -60,9 +75,11 @@ export function DisplayRecipesModule() {
       const data = (await res.json()) as {
         dishes?: Dish[];
         categories?: CategoryChip[];
+        mainCategories?: MainCategoryChip[];
       };
       setAllDishes(data.dishes ?? []);
       setCategories(data.categories ?? []);
+      setMainCategories(data.mainCategories ?? []);
     } finally {
       if (!opts?.silent) setLoading(false);
     }
@@ -82,8 +99,23 @@ export function DisplayRecipesModule() {
     };
   }, [load]);
 
+  const visibleCategories = useMemo(() => {
+    if (mainCategoryFilter === ALL_MAIN_CATEGORIES) return categories;
+    return categories.filter((c) => c.main_category_id === mainCategoryFilter);
+  }, [categories, mainCategoryFilter]);
+
+  useEffect(() => {
+    if (categoryFilter === ALL_CATEGORIES) return;
+    if (!visibleCategories.some((c) => c.id === categoryFilter)) {
+      setCategoryFilter(ALL_CATEGORIES);
+    }
+  }, [categoryFilter, visibleCategories]);
+
   const dishes = useMemo(() => {
     let rows = allDishes;
+    if (mainCategoryFilter !== ALL_MAIN_CATEGORIES) {
+      rows = rows.filter((d) => d.main_category_id === mainCategoryFilter);
+    }
     if (categoryFilter !== ALL_CATEGORIES) {
       rows = rows.filter((d) => d.category_id === categoryFilter);
     }
@@ -98,7 +130,7 @@ export function DisplayRecipesModule() {
       );
     }
     return rows;
-  }, [allDishes, categoryFilter, query]);
+  }, [allDishes, mainCategoryFilter, categoryFilter, query]);
 
   useEffect(() => {
     if (selectedId && !dishes.some((d) => d.id === selectedId)) {
@@ -111,20 +143,47 @@ export function DisplayRecipesModule() {
     [allDishes, selectedId],
   );
 
-  const categoryChip = (id: string, label: string) => (
+  const handlePrintRecipe = () => {
+    if (!selected || selected.recipe.length === 0 || printingRecipe) return;
+    void (async () => {
+      setPrintingRecipe(true);
+      try {
+        await printDisplayRecipe(selected, { restaurantName });
+      } catch {
+        toast.error("Drucken fehlgeschlagen.");
+      } finally {
+        setPrintingRecipe(false);
+      }
+    })();
+  };
+
+  const filterChip = (
+    id: string,
+    label: string,
+    activeId: string,
+    onSelect: (id: string) => void,
+  ) => (
     <button
       key={id}
       type="button"
-      onClick={() => setCategoryFilter(id)}
+      onClick={() => onSelect(id)}
       className={cn(
         "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition-colors",
-        categoryFilter === id
+        activeId === id
           ? "border-accent bg-accent text-accent-foreground"
           : "border-border/60 bg-muted/30 text-muted-foreground",
       )}
     >
       {label}
     </button>
+  );
+
+  const filterChipRowSkeleton = (
+    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <Skeleton key={i} className="h-10 w-24 shrink-0 rounded-full" />
+      ))}
+    </div>
   );
 
   return (
@@ -141,17 +200,36 @@ export function DisplayRecipesModule() {
         </div>
 
         {showDataSkeleton ? (
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-24 shrink-0 rounded-full" />
-            ))}
+          <div className="space-y-2">
+            {filterChipRowSkeleton}
+            {filterChipRowSkeleton}
           </div>
-        ) : categories.length > 0 ? (
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
-            {categoryChip(ALL_CATEGORIES, "Alle")}
-            {categories.map((c) => categoryChip(c.id, c.name))}
+        ) : (
+          <div className="space-y-2">
+            {mainCategories.length > 0 ? (
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                {filterChip(ALL_MAIN_CATEGORIES, "Alle", mainCategoryFilter, (id) => {
+                  setMainCategoryFilter(id);
+                  setCategoryFilter(ALL_CATEGORIES);
+                })}
+                {mainCategories.map((mc) =>
+                  filterChip(mc.id, mc.name, mainCategoryFilter, (id) => {
+                    setMainCategoryFilter(id);
+                    setCategoryFilter(ALL_CATEGORIES);
+                  }),
+                )}
+              </div>
+            ) : null}
+            {visibleCategories.length > 0 ? (
+              <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+                {filterChip(ALL_CATEGORIES, "Alle", categoryFilter, setCategoryFilter)}
+                {visibleCategories.map((c) =>
+                  filterChip(c.id, c.name, categoryFilter, setCategoryFilter),
+                )}
+              </div>
+            ) : null}
           </div>
-        ) : null}
+        )}
 
         {showDataSkeleton ? (
           <div className="space-y-2">
@@ -222,7 +300,8 @@ export function DisplayRecipesModule() {
                       >
                         <span className="font-medium">{line.ingredient_name}</span>
                         <span className="shrink-0 tabular-nums text-muted-foreground">
-                          {line.amount} {line.unit}
+                          {line.amount}{" "}
+                          {inventoryUnitLabelDe(line.unit)}
                         </span>
                       </li>
                     ))}
@@ -233,6 +312,23 @@ export function DisplayRecipesModule() {
                   </p>
                 )}
               </div>
+
+              {selected.recipe.length > 0 ? (
+                <div className="space-y-2 border-t border-border/50 px-6 py-4">
+                  <Button
+                    type="button"
+                    className={cn("h-12 w-full gap-2", brandActionButtonRoundedClassName)}
+                    disabled={printingRecipe}
+                    onClick={handlePrintRecipe}
+                  >
+                    <Printer className="size-4" />
+                    Rezept drucken
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Öffnet den System-Druckdialog mit Zutatenliste in DIN A4 Hochformat.
+                  </p>
+                </div>
+              ) : null}
             </>
           ) : null}
         </DrawerContent>

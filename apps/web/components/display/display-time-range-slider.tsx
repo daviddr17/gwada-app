@@ -29,26 +29,10 @@ export function DisplayTimeRangeSlider({
   return (
     <div
       className={cn(
-        "space-y-3 rounded-2xl border border-border/50 bg-card p-3 shadow-card",
+        "space-y-2 rounded-2xl border border-border/50 bg-card p-3 shadow-card",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3 text-center">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Von</p>
-          <p className="text-2xl font-semibold tabular-nums">
-            {minutesToHHmm(slotMinutes[fromIdx] ?? 0)}
-          </p>
-        </div>
-        <p className="text-sm text-muted-foreground">–</p>
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Bis</p>
-          <p className="text-2xl font-semibold tabular-nums">
-            {minutesToHHmm(slotMinutes[toIdx] ?? 0)}
-          </p>
-        </div>
-      </div>
-
       <Slider
         min={0}
         max={max}
@@ -67,10 +51,10 @@ export function DisplayTimeRangeSlider({
         className={displaySliderClassName}
       />
 
-      <div className="flex justify-between text-[11px] tabular-nums text-muted-foreground">
-        <span>{minutesToHHmm(slotMinutes[0] ?? 0)}</span>
-        {hint ? <span className="text-center">{hint}</span> : null}
-        <span>{minutesToHHmm(slotMinutes[max] ?? 0)}</span>
+      <div className="flex justify-between gap-2 text-[11px] tabular-nums text-muted-foreground">
+        <span>{minutesToHHmm(slotMinutes[fromIdx] ?? 0)}</span>
+        {hint ? <span className="min-w-0 flex-1 text-center">{hint}</span> : null}
+        <span>{minutesToHHmm(slotMinutes[toIdx] ?? 0)}</span>
       </div>
     </div>
   );

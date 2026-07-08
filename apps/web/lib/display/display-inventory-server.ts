@@ -2,6 +2,7 @@ import "server-only";
 
 import { createId } from "@/lib/create-id";
 import { parseStockLogEntryFromJson } from "@/lib/supabase/inventory-db";
+import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { IngredientStockLogEntry } from "@/lib/types/ingredient-stock-log";
@@ -365,7 +366,7 @@ export async function loadDisplayInventory(
       id: ing.id,
       name: ing.name,
       unitId: ing.unit,
-      unitLabel: units.get(ing.unit) ?? ing.unit,
+      unitLabel: inventoryUnitLabelDe(ing.unit, units.get(ing.unit)),
       currentStock: ing.currentStock,
       supplierId: ing.supplierId,
       supplierName: suppliers.get(ing.supplierId) ?? ing.supplierId,
@@ -416,7 +417,7 @@ export async function updateDisplayIngredientStock(params: {
   }
 
   const units = await loadTaxonomyNames(params.restaurantId, "inventory_units");
-  const unitLabel = units.get(prev.unit) ?? prev.unit;
+  const unitLabel = inventoryUnitLabelDe(prev.unit, units.get(prev.unit));
   const stockLog: IngredientStockLogEntry[] = [...(prev.stockLog ?? [])];
   stockLog.push({
     id: createId(),
@@ -476,7 +477,7 @@ export async function updateDisplayOrderQuantity(params: {
 
   const supplierName = suppliers.get(ing.supplierId) ?? ing.supplierId;
   const brandLabel = brands.get(ing.brandId) ?? ing.brandId;
-  const unitLabel = units.get(ing.unit) ?? ing.unit;
+  const unitLabel = inventoryUnitLabelDe(ing.unit, units.get(ing.unit));
 
   const open = getOpenLineContext(orders, ing.supplierId, ing.id);
   const nextQty = params.quantity;

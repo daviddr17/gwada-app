@@ -331,7 +331,7 @@ export function DisplayReservationsModule() {
   );
 
   const handleReservationCreated = useCallback(
-    (row: DisplayReservationRow | null) => {
+    (row?: DisplayReservationRow | null) => {
       if (row) {
         notifyDisplayReservationOwnCreate({ reservationId: row.id });
         applyOptimisticReservation(row);

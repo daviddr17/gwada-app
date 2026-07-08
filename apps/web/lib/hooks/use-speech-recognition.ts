@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isStandalonePwaClient } from "@/lib/pwa/is-standalone-pwa-client";
 
 type SpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
@@ -41,10 +42,36 @@ export function isEmbeddedPreviewBrowser(): boolean {
   return /Cursor\/|Electron\//i.test(navigator.userAgent);
 }
 
+/** iOS/iPadOS Safari (nicht Chrome/Firefox in-app). */
+export function isIosWebKitBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  const ios = /iPad|iPhone|iPod/.test(ua);
+  const webkit = /WebKit/.test(ua);
+  const notOther = !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+  return ios && webkit && notOther;
+}
+
+/**
+ * iOS-PWA (Home-Bildschirm): WebKit meldet SpeechRecognition, start() scheitert
+ * mit `service-not-allowed` — bekanntes Apple-Limit, nicht Safari-Tab.
+ */
+export function isSpeechRecognitionBlockedInStandalonePwa(): boolean {
+  return isIosWebKitBrowser() && isStandalonePwaClient();
+}
+
+function speechRecognitionBlockedHint(): string | null {
+  if (isSpeechRecognitionBlockedInStandalonePwa()) {
+    return "Spracherkennung funktioniert in der installierten App (Home-Bildschirm) auf dem iPhone/iPad nicht. Bitte gwada.app direkt in Safari öffnen — nicht über das App-Symbol.";
+  }
+  return null;
+}
+
 function speechRecognitionErrorMessage(error: string): string {
+  const pwaHint = speechRecognitionBlockedHint();
   switch (error) {
     case "not-allowed":
-      return "Mikrofon-Zugriff verweigert.";
+      return pwaHint ?? "Mikrofon-Zugriff verweigert.";
     case "no-speech":
       return "Keine Sprache erkannt — bitte erneut versuchen.";
     case "audio-capture":
@@ -54,7 +81,10 @@ function speechRecognitionErrorMessage(error: string): string {
         ? "Spracheingabe funktioniert im Cursor-Vorschaubrowser nicht. Bitte Safari oder Chrome verwenden."
         : "Spracherkennung konnte den Sprachdienst nicht erreichen — Internetverbindung prüfen.";
     case "service-not-allowed":
-      return "Spracherkennung ist in diesem Browser nicht verfügbar — bitte Safari oder Chrome verwenden.";
+      return (
+        pwaHint ??
+        "Spracherkennung ist in diesem Browser nicht verfügbar — bitte Safari oder Chrome verwenden."
+      );
     case "language-not-supported":
       return "Deutsch (de-DE) wird in diesem Browser nicht unterstützt.";
     default:
@@ -64,6 +94,14 @@ function speechRecognitionErrorMessage(error: string): string {
 
 export function speechRecognitionSupported(): boolean {
   return getSpeechRecognitionCtor() != null;
+}
+
+/** API vorhanden und in diesem Kontext nutzbar (z. B. nicht iOS-PWA). */
+export function speechRecognitionUsable(): boolean {
+  if (!speechRecognitionSupported()) return false;
+  if (isEmbeddedPreviewBrowser()) return false;
+  if (isSpeechRecognitionBlockedInStandalonePwa()) return false;
+  return true;
 }
 
 export function useSpeechRecognition(params?: {
@@ -79,7 +117,7 @@ export function useSpeechRecognition(params?: {
 
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
-  const [supported] = useState(() => speechRecognitionSupported());
+  const [supported] = useState(() => speechRecognitionUsable());
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
 
   const stop = useCallback(() => {
@@ -89,6 +127,12 @@ export function useSpeechRecognition(params?: {
   }, []);
 
   const start = useCallback(() => {
+    const blockedHint = speechRecognitionBlockedHint();
+    if (blockedHint) {
+      onErrorRef.current?.(blockedHint);
+      return;
+    }
+
     const Ctor = getSpeechRecognitionCtor();
     if (!Ctor) {
       onErrorRef.current?.(

@@ -45,6 +45,7 @@ export function DisplayReservationTableField({
   reservations,
   disabled,
   compact = false,
+  showSuggestions = true,
   onUpdated,
 }: {
   reservation: DisplayReservationRow;
@@ -52,6 +53,7 @@ export function DisplayReservationTableField({
   reservations: DisplayReservationRow[];
   disabled?: boolean;
   compact?: boolean;
+  showSuggestions?: boolean;
   onUpdated: (tableId: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -178,6 +180,9 @@ export function DisplayReservationTableField({
   };
 
   if (!canAssign) {
+    if (compact) {
+      return null;
+    }
     return (
       <p className="text-xs text-muted-foreground">
         Tischzuordnung nur bei Status „Bestätigt“ oder „Am Tisch“.
@@ -186,7 +191,7 @@ export function DisplayReservationTableField({
   }
 
   return (
-    <div className="space-y-1.5">
+    <div className={cn(compact ? "space-y-0" : "space-y-1.5")}>
       <Select
         value={value}
         items={tableOptions}
@@ -196,8 +201,8 @@ export function DisplayReservationTableField({
         <SelectTrigger
           className={appSelectTriggerAccentCn(
             compact
-              ? "h-8 w-full min-w-0 rounded-md text-xs"
-              : "h-9 w-full min-w-[10rem] rounded-lg text-sm",
+              ? "h-8 w-full min-w-0 rounded-lg text-xs"
+              : "h-10 w-full min-w-[10rem] rounded-xl",
             selectValueNoShrink,
           )}
         >
@@ -212,10 +217,10 @@ export function DisplayReservationTableField({
         </SelectContent>
       </Select>
 
-      {check.kind === "capacity_exceeded" ? (
+      {check.kind === "capacity_exceeded" && !compact ? (
         <p className="text-xs text-destructive">{check.message}</p>
       ) : null}
-      {check.kind === "confirm_share" ? (
+      {check.kind === "confirm_share" && !compact ? (
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Am Tisch „{check.tableLabel}“ sind zur gleichen Zeit bereits{" "}
           {check.seatUsed} von {check.capacity} Plätzen belegt — es passen noch{" "}
@@ -223,7 +228,7 @@ export function DisplayReservationTableField({
         </p>
       ) : null}
 
-      {isUnassigned && suggestions.length > 0 ? (
+      {showSuggestions && isUnassigned && suggestions.length > 0 ? (
         <div className="space-y-1.5 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
           <p className="text-xs text-muted-foreground">Vorschläge:</p>
           <div className="flex flex-wrap gap-1.5">

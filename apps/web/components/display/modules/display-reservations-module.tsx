@@ -210,7 +210,7 @@ export function DisplayReservationsModule() {
   const [payload, setPayload] = useState<DayPayload | null>(null);
   const showDataSkeleton = useDeferredSkeleton(loading && !payload);
   const [viewMode, setViewMode] = useState<ViewMode>("list");
-  const [listDensity, setListDensity] = useState<ListDensity>("compact");
+  const [listDensity, setListDensity] = useState<ListDensity>("comfortable");
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [rangeSlotIndices, setRangeSlotIndices] = useState<[number, number] | null>(
     null,
@@ -737,7 +737,7 @@ export function DisplayReservationsModule() {
       : "h-12 min-w-[8rem] rounded-xl";
     return (
       <div
-        className={cn("flex gap-1.5", compact ? "w-full flex-wrap" : "shrink-0 flex-col sm:flex-row")}
+        className={cn("flex gap-1.5", compact ? "shrink-0 flex-wrap justify-end" : "shrink-0 flex-col sm:flex-row")}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
@@ -833,6 +833,7 @@ export function DisplayReservationsModule() {
           reservations={reservations}
           disabled={isBusy}
           compact={listDensity === "compact"}
+          showSuggestions={listDensity !== "compact"}
           onUpdated={(tableId) => patchReservationTable(r.id, tableId)}
         />
       </div>
@@ -846,7 +847,7 @@ export function DisplayReservationsModule() {
           key={r.id}
           role="button"
           tabIndex={0}
-          className="flex min-w-0 cursor-pointer flex-col rounded-lg border border-border/50 bg-card px-2.5 py-2 shadow-card transition-colors hover:bg-muted/20"
+          className="flex min-w-0 cursor-pointer flex-col gap-1.5 rounded-xl border border-border/50 bg-card px-3 py-2 shadow-card transition-colors hover:bg-muted/20"
           onClick={openEdit}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -855,19 +856,19 @@ export function DisplayReservationsModule() {
             }
           }}
         >
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="w-9 shrink-0 text-sm font-semibold tabular-nums leading-none">
+          <div className="flex min-w-0 items-start gap-2">
+            <span className="w-11 shrink-0 pt-0.5 text-base font-semibold tabular-nums leading-none">
               {startLabel}
             </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0">
-                <span className="truncate font-medium text-sm leading-tight">{guestName}</span>
-                <span className="shrink-0 text-[10px] text-muted-foreground">
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                <span className="truncate font-semibold text-sm leading-snug">{guestName}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
                   #{r.reservation_number}
                 </span>
                 {r.status ? (
                   <span
-                    className="shrink-0 rounded-full px-1.5 py-px text-[10px] font-medium leading-tight text-white"
+                    className="shrink-0 rounded-full px-2 py-px text-[10px] font-medium text-white"
                     style={{ backgroundColor: r.status.color_hex }}
                   >
                     {r.status.name}
@@ -877,23 +878,16 @@ export function DisplayReservationsModule() {
                   <ReservationInternalNoteIndicator className="size-3.5 shrink-0" />
                 ) : null}
               </div>
-              <p className="truncate text-[11px] leading-tight text-muted-foreground">
+              <p className="truncate text-[11px] text-muted-foreground">
                 {r.party_size} P. · bis {endLabel}
                 {tableLabel ? ` · ${tableLabel}` : ""}
               </p>
             </div>
+            {hasListActions ? (
+              <div className="shrink-0">{renderListActions(r, code, isBusy, true)}</div>
+            ) : null}
           </div>
-          <div
-            className={cn(
-              "mt-1.5 flex min-w-0 gap-1.5",
-              hasListActions ? "flex-col sm:flex-row sm:items-end" : "",
-            )}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            <div className="min-w-0 flex-1">{tableField}</div>
-            {hasListActions ? renderListActions(r, code, isBusy, true) : null}
-          </div>
+          {tableField}
         </div>
       );
     }
@@ -903,7 +897,7 @@ export function DisplayReservationsModule() {
         key={r.id}
         role="button"
         tabIndex={0}
-        className="cursor-pointer rounded-xl border border-border/50 bg-card p-3 shadow-card transition-colors hover:bg-muted/20"
+        className="cursor-pointer rounded-2xl border border-border/50 bg-card p-4 shadow-card transition-colors hover:bg-muted/20"
         onClick={openEdit}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -912,35 +906,35 @@ export function DisplayReservationsModule() {
           }
         }}
       >
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0 flex-1 space-y-0.5">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-muted-foreground">#{r.reservation_number}</span>
-              <span className="text-lg font-semibold tabular-nums">{startLabel}</span>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-muted-foreground">#{r.reservation_number}</span>
+              <span className="text-2xl font-semibold tabular-nums">{startLabel}</span>
               {r.status ? (
                 <span
-                  className="rounded-full px-2 py-px text-[11px] font-medium text-white"
+                  className="rounded-full px-2.5 py-0.5 text-xs font-medium text-white"
                   style={{ backgroundColor: r.status.color_hex }}
                 >
                   {r.status.name}
                 </span>
               ) : null}
             </div>
-            <p className="text-lg font-semibold leading-snug">{guestName}</p>
-            <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-              <Users className="size-3.5 shrink-0" />
+            <p className="text-2xl font-semibold leading-tight">{guestName}</p>
+            <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+              <Users className="size-4 shrink-0" />
               {r.party_size} Personen · bis {endLabel}
               {tableLabel ? ` · ${tableLabel}` : ""}
               {reservationInternalNoteText(r.notes) ? (
-                <ReservationInternalNoteIndicator className="size-3.5" />
+                <ReservationInternalNoteIndicator className="size-4" />
               ) : null}
             </p>
             {reservationInternalNoteText(r.notes) ? (
-              <p className="line-clamp-2 text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground">
                 {reservationInternalNoteText(r.notes)}
               </p>
             ) : null}
-            <div className="pt-0.5">{tableField}</div>
+            {tableField}
           </div>
           {renderListActions(r, code, isBusy, false)}
         </div>
@@ -1208,18 +1202,18 @@ export function DisplayReservationsModule() {
           <div
             className={cn(
               listDensity === "compact"
-                ? "flex flex-col gap-1.5"
-                : "space-y-2",
+                ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+                : "space-y-3",
             )}
             aria-busy
           >
-            {Array.from({ length: listDensity === "compact" ? 8 : 4 }).map(
+            {Array.from({ length: listDensity === "compact" ? 6 : 4 }).map(
               (_, i) => (
                 <Skeleton
                   key={i}
                   className={cn(
-                    "w-full rounded-lg",
-                    listDensity === "compact" ? "h-14" : "h-20",
+                    "w-full rounded-2xl",
+                    listDensity === "compact" ? "h-20" : "h-24",
                   )}
                 />
               ),
@@ -1388,7 +1382,9 @@ export function DisplayReservationsModule() {
       ) : (
         <div
           className={cn(
-            listDensity === "compact" ? "flex flex-col gap-1.5" : "space-y-2",
+            listDensity === "compact"
+              ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+              : "space-y-3",
           )}
         >
           {filteredReservations.length === 0 ? (

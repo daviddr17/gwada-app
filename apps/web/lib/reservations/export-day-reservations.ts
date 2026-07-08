@@ -166,8 +166,20 @@ export async function printDayReservations(
 ): Promise<void> {
   const sorted = sortReservationsByStart(reservations);
   if (sorted.length === 0) return;
+  const dayYmd = resolveExportDayYmd(new Date(), options);
+  const title = options?.dayTitle?.trim() || "Reservierungen";
+  const totals = dayReservationExportTotals(sorted);
   const doc = await buildDayReservationsPdfDocument(sorted, options);
-  await printJsPdfDocument(doc);
+  await printJsPdfDocument(doc, {
+    shareFilename: `reservierungen-${dayYmd}.pdf`,
+    htmlFallback: {
+      documentTitle: "Reservierungen",
+      headers: HEADERS,
+      rows: buildDayReservationExportRows(sorted, options),
+      restaurantName: options?.restaurantName,
+      summaryLine: `${title} · ${totalsSummaryDe(totals)}`,
+    },
+  });
 }
 
 export function downloadDayReservationsCsv(

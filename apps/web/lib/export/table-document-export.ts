@@ -116,7 +116,16 @@ export async function printTablePdf(
 ): Promise<void> {
   if (options.rows.length === 0) return;
   const doc = await buildTablePdfDocument(options);
-  await printJsPdfDocument(doc);
+  await printJsPdfDocument(doc, {
+    shareFilename: `${options.filenamePrefix}-${ymdLocal(new Date())}.pdf`,
+    htmlFallback: {
+      documentTitle: options.documentTitle,
+      headers: options.headers,
+      rows: options.rows,
+      restaurantName: options.restaurantName,
+      summaryLine: options.summaryLine,
+    },
+  });
 }
 
 export async function downloadTablePdf({

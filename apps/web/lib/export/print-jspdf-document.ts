@@ -1,5 +1,18 @@
 import type { jsPDF } from "jspdf";
 
+export type PrintJsPdfDocumentOptions = {
+  /** Dateiname für iOS Share-Sheet (Querformat-PDF). */
+  shareFilename?: string;
+  /** HTML-Tabellen-Fallback auf iOS, wenn Share/iframe scheitern. */
+  htmlFallback?: {
+    documentTitle: string;
+    headers: readonly string[];
+    rows: string[][];
+    restaurantName?: string;
+    summaryLine?: string;
+  };
+};
+
 function isSafari(): boolean {
   if (typeof navigator === "undefined") return false;
   const ua = navigator.userAgent;
@@ -29,13 +42,12 @@ function wait(ms: number): Promise<void> {
   });
 }
 
-function scheduleBlobRevoke(url: string, delayMs = 120_000): void {
+function scheduleBlobRevoke(url: string, delayMs = 180_000): void {
   window.setTimeout(() => URL.revokeObjectURL(url), delayMs);
 }
 
 /**
  * PDF in iframe laden — Handler vor `src` setzen (sonst verpasstes onload → Timeout).
- * Safari/Firefox feuern bei PDF-iframes oft kein onload → nach kurzer Wartezeit trotzdem drucken.
  */
 function loadPdfInFrame(
   frame: HTMLIFrameElement,
@@ -65,7 +77,7 @@ function loadPdfInFrame(
         return;
       }
       fail();
-    }, allowLoadTimeout ? 4_000 : 15_000);
+    }, allowLoadTimeout ? 5_000 : 15_000);
 
     frame.onload = finish;
     frame.onerror = fail;
@@ -75,47 +87,37 @@ function loadPdfInFrame(
 
 function applyPrintFrameStyles(frame: HTMLIFrameElement, landscape: boolean): void {
   if (landscape) {
-    // Querformat-Viewport — schmales Portrait-Iframe (1×100px) erzwingte Hochformat in Safari.
     frame.style.cssText =
-      "position:fixed;left:0;top:0;width:297mm;height:210mm;max-width:100vw;max-height:70vh;opacity:0.01;border:0;pointer-events:none;z-index:-1;";
+      "position:fixed;left:0;top:0;width:1122px;height:793px;max-width:100vw;max-height:100vh;opacity:0.01;border:0;pointer-events:none;z-index:-1;";
   } else {
     frame.style.cssText =
       "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
   }
 }
 
-/**
- * iOS rendert PDF-iframes als Einzelbild — Querformat geht nur über den nativen PDF-Viewer.
- */
-async function printPdfInNewWindow(url: string): Promise<void> {
-  const printWin = window.open(url, "_blank", "noopener,noreferrer");
-  if (!printWin) {
-    throw new Error("print_popup_blocked");
+async function trySharePdfOnIos(blob: Blob, filename: string): Promise<boolean> {
+  if (!isIosTouchDevice() || typeof navigator.share !== "function") {
+    return false;
   }
 
-  await wait(900);
-  printWin.focus();
-  printWin.print();
-  scheduleBlobRevoke(url);
+  const file = new File([blob], filename, { type: "application/pdf" });
+  const shareData = { files: [file] };
+  if (!navigator.canShare?.(shareData)) {
+    return false;
+  }
+
+  try {
+    await navigator.share(shareData);
+    return true;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return true;
+    }
+    return false;
+  }
 }
 
-/**
- * Druckt ein jsPDF-Dokument — Querformat bleibt auf iOS/Safari erhalten
- * (HTML `@page size` wird dort oft ignoriert).
- */
-export async function printJsPdfDocument(doc: jsPDF): Promise<void> {
-  const blob = doc.output("blob");
-  const url = URL.createObjectURL(blob);
-
-  if (isIosTouchDevice()) {
-    try {
-      await printPdfInNewWindow(url);
-      return;
-    } catch {
-      // Popup blockiert → Landscape-Iframe als Fallback
-    }
-  }
-
+async function printPdfInIframe(url: string): Promise<void> {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   const landscapeFrame = needsLandscapePrintFrame();
@@ -134,7 +136,7 @@ export async function printJsPdfDocument(doc: jsPDF): Promise<void> {
   try {
     document.body.appendChild(frame);
     await loadPdfInFrame(frame, url, landscapeFrame);
-    await wait(landscapeFrame ? 600 : 150);
+    await wait(landscapeFrame ? (isIosTouchDevice() ? 1_800 : 600) : 150);
 
     const win = frame.contentWindow;
     if (!win) {
@@ -151,6 +153,37 @@ export async function printJsPdfDocument(doc: jsPDF): Promise<void> {
     }
   } catch (error) {
     cleanup();
+    throw error;
+  }
+}
+
+/**
+ * Druckt ein jsPDF-Dokument — auf iPad zuerst Share→Drucken (Querformat-PDF),
+ * sonst iframe; optional HTML-Fallback.
+ */
+export async function printJsPdfDocument(
+  doc: jsPDF,
+  options?: PrintJsPdfDocumentOptions,
+): Promise<void> {
+  const blob = doc.output("blob");
+  const shareFilename = options?.shareFilename?.trim() || "dokument.pdf";
+
+  const shared = await trySharePdfOnIos(blob, shareFilename);
+  if (shared) return;
+
+  const url = URL.createObjectURL(blob);
+
+  try {
+    await printPdfInIframe(url);
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    if (options?.htmlFallback) {
+      const { printHtmlLandscapeDocument } = await import(
+        "@/lib/export/print-html-landscape-document"
+      );
+      printHtmlLandscapeDocument(options.htmlFallback);
+      return;
+    }
     throw error;
   }
 }

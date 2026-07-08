@@ -162,8 +162,8 @@ export function DisplayReservationsPrintSheet({
                 Jetzt drucken
               </Button>
               <p className="text-xs text-muted-foreground">
-                Öffnet den System-Druckdialog in DIN A4 Querformat mit Spalte
-                „Kommentare“ für Notizen.
+                Auf dem iPad: Teilen → Drucken (Querformat). Am Mac/PC öffnet sich
+                der System-Druckdialog mit DIN A4 Querformat und Spalte „Kommentare“.
               </p>
             </DrawerFormSection>
           </div>

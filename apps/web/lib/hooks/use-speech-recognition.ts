@@ -12,6 +12,7 @@ type BrowserSpeechRecognition = {
   maxAlternatives: number;
   onstart: (() => void) | null;
   onend: (() => void) | null;
+  onaudioend: (() => void) | null;
   onerror: ((ev: { error: string }) => void) | null;
   onresult: ((ev: {
     resultIndex: number;
@@ -26,6 +27,8 @@ type BrowserSpeechRecognition = {
   start: () => void;
   stop: () => void;
 };
+
+const SAFARI_FINALIZE_MS = 750;
 
 function getSpeechRecognitionCtor(): SpeechRecognitionCtor | null {
   if (typeof window === "undefined") return null;
@@ -52,26 +55,28 @@ export function isIosWebKitBrowser(): boolean {
   return ios && webkit && notOther;
 }
 
-/**
- * iOS-PWA (Home-Bildschirm): WebKit meldet SpeechRecognition, start() scheitert
- * mit `service-not-allowed` — bekanntes Apple-Limit, nicht Safari-Tab.
- */
-export function isSpeechRecognitionBlockedInStandalonePwa(): boolean {
-  return isIosWebKitBrowser() && isStandalonePwaClient();
+/** macOS Safari (nicht iOS, nicht Chrome/Edge/Firefox). */
+export function isMacOsSafariBrowser(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (isIosWebKitBrowser()) return false;
+  if (!/Macintosh|Mac OS X/.test(ua)) return false;
+  if (/Chrome|Chromium|Edg|OPR|Firefox/.test(ua)) return false;
+  return /Safari/.test(ua);
 }
 
-function speechRecognitionBlockedHint(): string | null {
-  if (isSpeechRecognitionBlockedInStandalonePwa()) {
-    return "Spracherkennung funktioniert in der installierten App (Home-Bildschirm) auf dem iPhone/iPad nicht. Bitte gwada.app direkt in Safari öffnen — nicht über das App-Symbol.";
-  }
-  return null;
+/** Safari-WebKit (Tab oder PWA) — für Workarounds, ohne PWA zu blockieren. */
+export function isSafariWebKitBrowser(): boolean {
+  return isIosWebKitBrowser() || isMacOsSafariBrowser();
 }
 
 function speechRecognitionErrorMessage(error: string): string {
-  const pwaHint = speechRecognitionBlockedHint();
   switch (error) {
     case "not-allowed":
-      return pwaHint ?? "Mikrofon-Zugriff verweigert.";
+      if (isSafariWebKitBrowser() && !isStandalonePwaClient()) {
+        return "Mikrofon in Safari erlauben: Einstellungen → Websites → Mikrofon → gwada.app auf „Erlauben“.";
+      }
+      return "Mikrofon-Zugriff verweigert.";
     case "no-speech":
       return "Keine Sprache erkannt — bitte erneut versuchen.";
     case "audio-capture":
@@ -81,10 +86,13 @@ function speechRecognitionErrorMessage(error: string): string {
         ? "Spracheingabe funktioniert im Cursor-Vorschaubrowser nicht. Bitte Safari oder Chrome verwenden."
         : "Spracherkennung konnte den Sprachdienst nicht erreichen — Internetverbindung prüfen.";
     case "service-not-allowed":
-      return (
-        pwaHint ??
-        "Spracherkennung ist in diesem Browser nicht verfügbar — bitte Safari oder Chrome verwenden."
-      );
+      if (isMacOsSafariBrowser()) {
+        return "Safari benötigt die System-Diktierfunktion: Systemeinstellungen → Tastatur → Diktat aktivieren. Danach Mikrofon für gwada.app unter Safari → Einstellungen → Websites erlauben.";
+      }
+      if (isSafariWebKitBrowser() && !isStandalonePwaClient()) {
+        return "Spracherkennung in Safari: Mikrofon unter Safari → Einstellungen → Websites für gwada.app erlauben. Alternativ die installierte App (Home-Bildschirm) nutzen.";
+      }
+      return "Spracherkennung ist in diesem Browser nicht verfügbar.";
     case "language-not-supported":
       return "Deutsch (de-DE) wird in diesem Browser nicht unterstützt.";
     default:
@@ -96,12 +104,65 @@ export function speechRecognitionSupported(): boolean {
   return getSpeechRecognitionCtor() != null;
 }
 
-/** API vorhanden und in diesem Kontext nutzbar (z. B. nicht iOS-PWA). */
-export function speechRecognitionUsable(): boolean {
-  if (!speechRecognitionSupported()) return false;
-  if (isEmbeddedPreviewBrowser()) return false;
-  if (isSpeechRecognitionBlockedInStandalonePwa()) return false;
-  return true;
+/** Mikrofon + Sprach-Privilegien in Safari-Tab vor SpeechRecognition anfordern. */
+async function primeSafariSpeechAccess(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
+
+  try {
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+    }
+  } catch {
+    // optional — nicht blockieren
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) return true;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    for (const track of stream.getTracks()) track.stop();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function extractFinalTranscript(ev: {
+  results: {
+    length: number;
+    [index: number]: {
+      isFinal: boolean;
+      0?: { transcript?: string };
+    };
+  };
+}): string {
+  let finalText = "";
+  for (let i = 0; i < ev.results.length; i++) {
+    const result = ev.results[i];
+    if (!result?.isFinal) continue;
+    finalText += result[0]?.transcript ?? "";
+  }
+  return finalText.trim();
+}
+
+function extractInterimTranscript(ev: {
+  resultIndex: number;
+  results: {
+    length: number;
+    [index: number]: {
+      isFinal: boolean;
+      0?: { transcript?: string };
+    };
+  };
+}): string {
+  let interimText = "";
+  for (let i = ev.resultIndex; i < ev.results.length; i++) {
+    const result = ev.results[i];
+    if (result?.isFinal) continue;
+    interimText += result?.[0]?.transcript ?? "";
+  }
+  return interimText.trim();
 }
 
 export function useSpeechRecognition(params?: {
@@ -117,19 +178,131 @@ export function useSpeechRecognition(params?: {
 
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
-  const [supported] = useState(() => speechRecognitionUsable());
+  const [supported] = useState(() => speechRecognitionSupported());
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const safariFinalizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const safariAudioEndedRef = useRef(false);
 
-  const stop = useCallback(() => {
-    recognitionRef.current?.stop();
-    recognitionRef.current = null;
-    setListening(false);
+  const clearSafariFinalizeTimer = useCallback(() => {
+    if (safariFinalizeTimerRef.current != null) {
+      clearTimeout(safariFinalizeTimerRef.current);
+      safariFinalizeTimerRef.current = null;
+    }
   }, []);
 
+  const stop = useCallback(() => {
+    clearSafariFinalizeTimer();
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
+    safariAudioEndedRef.current = false;
+    setListening(false);
+  }, [clearSafariFinalizeTimer]);
+
+  const deliverFinalTranscript = useCallback(
+    (transcript: string) => {
+      if (!transcript) return;
+      setInterim("");
+      onFinalRef.current?.(transcript);
+    },
+    [],
+  );
+
+  const scheduleSafariFinalize = useCallback(
+    (recognition: BrowserSpeechRecognition, ev: Parameters<NonNullable<BrowserSpeechRecognition["onresult"]>>[0]) => {
+      const finalize = () => {
+        clearSafariFinalizeTimer();
+        const transcript = extractFinalTranscript(ev);
+        recognition.stop();
+        deliverFinalTranscript(transcript);
+      };
+
+      if (safariAudioEndedRef.current) {
+        finalize();
+        return;
+      }
+
+      clearSafariFinalizeTimer();
+      safariFinalizeTimerRef.current = setTimeout(finalize, SAFARI_FINALIZE_MS);
+    },
+    [clearSafariFinalizeTimer, deliverFinalTranscript],
+  );
+
+  const startRecognition = useCallback(() => {
+    const Ctor = getSpeechRecognitionCtor();
+    if (!Ctor) {
+      onErrorRef.current?.(
+        "Spracherkennung wird in diesem Browser nicht unterstützt.",
+      );
+      return;
+    }
+
+    stop();
+    setInterim("");
+    safariAudioEndedRef.current = false;
+
+    const recognition = new Ctor();
+    recognition.lang = lang;
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    const useSafariTabWorkaround =
+      isSafariWebKitBrowser() &&
+      !isEmbeddedPreviewBrowser() &&
+      !isStandalonePwaClient();
+
+    recognition.onstart = () => setListening(true);
+    recognition.onend = () => {
+      clearSafariFinalizeTimer();
+      setListening(false);
+      recognitionRef.current = null;
+      safariAudioEndedRef.current = false;
+    };
+    recognition.onerror = (ev) => {
+      if (ev.error === "aborted") return;
+      onErrorRef.current?.(speechRecognitionErrorMessage(ev.error));
+      setListening(false);
+    };
+
+    if (useSafariTabWorkaround) {
+      recognition.onaudioend = () => {
+        safariAudioEndedRef.current = true;
+      };
+    }
+
+    recognition.onresult = (ev) => {
+      const interimText = extractInterimTranscript(ev);
+      if (interimText) setInterim(interimText);
+
+      if (useSafariTabWorkaround) {
+        scheduleSafariFinalize(recognition, ev);
+        return;
+      }
+
+      const finalText = extractFinalTranscript(ev);
+      if (finalText) deliverFinalTranscript(finalText);
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch {
+      onErrorRef.current?.("Spracherkennung konnte nicht gestartet werden.");
+      setListening(false);
+    }
+  }, [
+    clearSafariFinalizeTimer,
+    deliverFinalTranscript,
+    lang,
+    scheduleSafariFinalize,
+    stop,
+  ]);
+
   const start = useCallback(() => {
-    const blockedHint = speechRecognitionBlockedHint();
-    if (blockedHint) {
-      onErrorRef.current?.(blockedHint);
+    if (isEmbeddedPreviewBrowser()) {
+      onErrorRef.current?.(speechRecognitionErrorMessage("network"));
       return;
     }
 
@@ -141,53 +314,23 @@ export function useSpeechRecognition(params?: {
       return;
     }
 
-    if (isEmbeddedPreviewBrowser()) {
-      onErrorRef.current?.(speechRecognitionErrorMessage("network"));
+    const needsSafariPrime =
+      isSafariWebKitBrowser() && !isStandalonePwaClient();
+
+    if (!needsSafariPrime) {
+      startRecognition();
       return;
     }
 
-    stop();
-    setInterim("");
-
-    const recognition = new Ctor();
-    recognition.lang = lang;
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = () => setListening(true);
-    recognition.onend = () => {
-      setListening(false);
-      recognitionRef.current = null;
-    };
-    recognition.onerror = (ev) => {
-      if (ev.error === "aborted") return;
-      onErrorRef.current?.(speechRecognitionErrorMessage(ev.error));
-      setListening(false);
-    };
-    recognition.onresult = (ev) => {
-      let interimText = "";
-      let finalText = "";
-      for (let i = ev.resultIndex; i < ev.results.length; i++) {
-        const chunk = ev.results[i]?.[0]?.transcript ?? "";
-        if (ev.results[i]?.isFinal) finalText += chunk;
-        else interimText += chunk;
+    void (async () => {
+      const primed = await primeSafariSpeechAccess();
+      if (!primed) {
+        onErrorRef.current?.(speechRecognitionErrorMessage("not-allowed"));
+        return;
       }
-      if (interimText) setInterim(interimText.trim());
-      if (finalText.trim()) {
-        setInterim("");
-        onFinalRef.current?.(finalText.trim());
-      }
-    };
-
-    recognitionRef.current = recognition;
-    try {
-      recognition.start();
-    } catch {
-      onErrorRef.current?.("Spracherkennung konnte nicht gestartet werden.");
-      setListening(false);
-    }
-  }, [lang, stop]);
+      startRecognition();
+    })();
+  }, [startRecognition]);
 
   useEffect(() => () => stop(), [stop]);
 

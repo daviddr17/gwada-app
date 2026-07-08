@@ -61,6 +61,8 @@ export function DatePickerField({
   size = "default",
   fullWidth = false,
   minYmd,
+  open: openProp,
+  onOpenChange,
 }: {
   value: string | null | undefined
   onChange: (ymd: string | null) => void
@@ -73,8 +75,13 @@ export function DatePickerField({
   fullWidth?: boolean
   /** Frühestes wählbares Datum (`yyyy-MM-dd`, inklusive). */
   minYmd?: string | null
+  /** Optional controlled popover (z. B. schließen bei Tages-Pfeilen). */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = React.useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
+  const open = openProp ?? uncontrolledOpen
+  const setOpen = onOpenChange ?? setUncontrolledOpen
   const selected = React.useMemo(() => parseYmdToDate(value ?? null), [value])
   const minDate = React.useMemo(() => parseYmdToDate(minYmd ?? null), [minYmd])
   const hasDate = Boolean(value?.trim())

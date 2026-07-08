@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DatePickerField } from "@/components/ui/date-picker";
+import { DatePickerField, formScheduleTimeInputFullWidthClassName } from "@/components/ui/date-picker";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
@@ -524,14 +524,12 @@ export function DisplayReservationEditDrawer({
                         >
                           Uhrzeit
                         </Label>
-                        <Input
+                        <input
                           id="disp-edit-time"
                           type="time"
-                          step={step === 1 ? 60 : step * 60}
                           value={timeHm}
                           onChange={(e) => setTimeHm(e.target.value)}
-                          onBlur={() => snapTimeField(timeHm)}
-                          className={cn(fieldClass, "tabular-nums")}
+                          className={formScheduleTimeInputFullWidthClassName}
                         />
                       </div>
                     </div>

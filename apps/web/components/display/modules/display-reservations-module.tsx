@@ -40,16 +40,19 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import {
   normalizeBookingTimeStepMinutes,
+  snapMinutesToBookingStep,
   type BookingTimeStepMinutes,
 } from "@/lib/reservations/booking-time-step";
 import {
   fallbackSlotRangeFromReservationsInTimezone,
+  minutesToHHmm,
   openingDayBookableSlotStartsMinutes,
   resolveHoursForRestaurantCalendarDay,
 } from "@/lib/reservations/day-opening-slots";
 import {
   addRestaurantCalendarDaysYmd,
   formatRestaurantDayHeadingDe,
+  readRestaurantZonedParts,
   restaurantDateAtSlotMinutes,
   restaurantTodayYmd,
 } from "@/lib/restaurant/restaurant-timezone";
@@ -224,6 +227,7 @@ export function DisplayReservationsModule() {
   const [selectedDayYmd, setSelectedDayYmd] = useState(() =>
     restaurantTodayYmd(timeZone),
   );
+  const [dayPickerOpen, setDayPickerOpen] = useState(false);
   const hadLoadedRef = useRef(false);
 
   const isSelectedToday = selectedDayYmd === restaurantTodayYmd(timeZone);
@@ -926,10 +930,23 @@ export function DisplayReservationsModule() {
   };
 
   const shiftSelectedDay = (deltaDays: number) => {
+    setDayPickerOpen(false);
     setSelectedDayYmd((current) =>
       addRestaurantCalendarDaysYmd(current, deltaDays, timeZone),
     );
   };
+
+  const createInitialTimeHm = useMemo(() => {
+    if (selectedDayYmd === restaurantTodayYmd(timeZone)) {
+      const z = readRestaurantZonedParts(new Date(), timeZone);
+      const nowMin = z.hour * 60 + z.minute;
+      return minutesToHHmm(snapMinutesToBookingStep(nowMin, bookingStep));
+    }
+    if (slotMinutes.length > 0) {
+      return minutesToHHmm(slotMinutes[0]);
+    }
+    return "19:00";
+  }, [selectedDayYmd, timeZone, bookingStep, slotMinutes]);
 
   const viewChip = (id: ViewMode, label: string, badge?: number) => (
     <button
@@ -961,14 +978,14 @@ export function DisplayReservationsModule() {
 
   return (
     <div className={displayModuleContentClassName}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative z-10 flex min-w-0 flex-wrap items-center gap-2">
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="size-10 shrink-0 rounded-xl"
+              className="relative z-10 size-10 shrink-0 rounded-xl"
               aria-label="Vorheriger Tag"
               onClick={() => shiftSelectedDay(-1)}
             >
@@ -976,6 +993,8 @@ export function DisplayReservationsModule() {
             </Button>
             <DatePickerField
               value={selectedDayYmd}
+              open={dayPickerOpen}
+              onOpenChange={setDayPickerOpen}
               onChange={(v) => {
                 if (v) setSelectedDayYmd(v);
               }}
@@ -985,7 +1004,7 @@ export function DisplayReservationsModule() {
               type="button"
               variant="ghost"
               size="icon"
-              className="size-10 shrink-0 rounded-xl"
+              className="relative z-10 size-10 shrink-0 rounded-xl"
               aria-label="Nächster Tag"
               onClick={() => shiftSelectedDay(1)}
             >
@@ -996,70 +1015,73 @@ export function DisplayReservationsModule() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 rounded-lg"
-                onClick={() => setSelectedDayYmd(restaurantTodayYmd(timeZone))}
+                className="relative z-10 h-9 rounded-lg"
+                onClick={() => {
+                  setDayPickerOpen(false);
+                  setSelectedDayYmd(restaurantTodayYmd(timeZone));
+                }}
               >
                 Heute
               </Button>
             ) : null}
           </div>
-          <div>
-            {isSelectedToday ? (
-              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                Heute
-              </p>
-            ) : null}
-            <p className="text-sm text-muted-foreground">
-              {formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
-            </p>
-            {showDataSkeleton ? (
-              <div className="mt-2 flex flex-wrap gap-4">
-                <Skeleton className="h-7 w-36 rounded-lg" />
-                <Skeleton className="h-7 w-28 rounded-lg" />
-              </div>
-            ) : (
-              <div className="mt-1 flex flex-wrap gap-4 text-lg">
-                <span>
-                  <span className="font-semibold tabular-nums">
-                    {payload?.stats.count ?? 0}
-                  </span>{" "}
-                  Reservierungen
-                </span>
-                <span className="flex items-center gap-1 text-muted-foreground">
-                  <Users className="size-5" />
-                  <span className="font-semibold tabular-nums text-foreground">
-                    {payload?.stats.guests ?? 0}
-                  </span>{" "}
-                  Gäste
-                </span>
-              </div>
-            )}
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                reservationsDayDrawerHeaderActionButtonClassName,
+                "size-10 rounded-xl",
+              )}
+              aria-label="Tagesliste drucken"
+              disabled={showDataSkeleton || printReservations.length === 0}
+              onClick={() => setPrintOpen(true)}
+            >
+              <Printer className="size-4" />
+            </Button>
+            <Button
+              size="lg"
+              className={cn(modulePrimaryAddButtonClassName, "h-12 rounded-xl")}
+              onClick={() => setCreateOpen(true)}
+              disabled={showDataSkeleton}
+            >
+              <Plus className="mr-2 size-5" />
+              Neu
+            </Button>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className={cn(
-              reservationsDayDrawerHeaderActionButtonClassName,
-              "size-10 rounded-xl",
-            )}
-            aria-label="Tagesliste drucken"
-            disabled={showDataSkeleton || printReservations.length === 0}
-            onClick={() => setPrintOpen(true)}
-          >
-            <Printer className="size-4" />
-          </Button>
-          <Button
-            size="lg"
-            className={cn(modulePrimaryAddButtonClassName, "h-12 rounded-xl")}
-            onClick={() => setCreateOpen(true)}
-            disabled={showDataSkeleton}
-          >
-            <Plus className="mr-2 size-5" />
-            Neu
-          </Button>
+        <div>
+          {isSelectedToday ? (
+            <p className="text-sm font-medium text-green-600 dark:text-green-400">
+              Heute
+            </p>
+          ) : null}
+          <p className="text-sm text-muted-foreground">
+            {formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
+          </p>
+          {showDataSkeleton ? (
+            <div className="mt-2 flex flex-wrap gap-4">
+              <Skeleton className="h-7 w-36 rounded-lg" />
+              <Skeleton className="h-7 w-28 rounded-lg" />
+            </div>
+          ) : (
+            <div className="mt-1 flex flex-wrap gap-4 text-lg">
+              <span>
+                <span className="font-semibold tabular-nums">
+                  {payload?.stats.count ?? 0}
+                </span>{" "}
+                Reservierungen
+              </span>
+              <span className="flex items-center gap-1 text-muted-foreground">
+                <Users className="size-5" />
+                <span className="font-semibold tabular-nums text-foreground">
+                  {payload?.stats.guests ?? 0}
+                </span>{" "}
+                Gäste
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1360,6 +1382,8 @@ export function DisplayReservationsModule() {
         defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
         bookingTimeStepMinutes={bookingStep}
         nextReservationNumber={payload?.next_reservation_number ?? null}
+        initialDayYmd={selectedDayYmd}
+        initialTimeHm={createInitialTimeHm}
         onCreated={(row) => {
           if (row) applyOptimisticReservation(row);
           void load({ silent: true });

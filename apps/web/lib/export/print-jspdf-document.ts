@@ -20,33 +20,43 @@ function wait(ms: number): Promise<void> {
   });
 }
 
-function onceIframeLoaded(frame: HTMLIFrameElement): Promise<void> {
+/**
+ * PDF in iframe laden — Handler vor `src` setzen (sonst verpasstes onload → Timeout).
+ * Safari/Firefox feuern bei PDF-iframes oft kein onload → nach kurzer Wartezeit trotzdem drucken.
+ */
+function loadPdfInFrame(
+  frame: HTMLIFrameElement,
+  url: string,
+  allowLoadTimeout: boolean,
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const timeout = window.setTimeout(() => {
-      reject(new Error("print_pdf_load_timeout"));
-    }, 15_000);
+    let settled = false;
 
     const finish = () => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(timeout);
       resolve();
     };
 
     const fail = () => {
+      if (settled) return;
+      settled = true;
       window.clearTimeout(timeout);
       reject(new Error("print_pdf_load_failed"));
     };
 
-    try {
-      if (frame.contentDocument?.readyState === "complete") {
+    const timeout = window.setTimeout(() => {
+      if (allowLoadTimeout) {
         finish();
         return;
       }
-    } catch {
-      // Cross-origin PDF viewer — rely on onload.
-    }
+      fail();
+    }, allowLoadTimeout ? 4_000 : 15_000);
 
     frame.onload = finish;
     frame.onerror = fail;
+    frame.src = url;
   });
 }
 
@@ -54,13 +64,9 @@ function onceIframeLoaded(frame: HTMLIFrameElement): Promise<void> {
  * Druckt ein jsPDF-Dokument — Querformat bleibt auf iOS/Safari erhalten
  * (HTML `@page size` wird dort oft ignoriert).
  */
-let printInFlight = false;
-
 export async function printJsPdfDocument(doc: jsPDF): Promise<void> {
-  if (printInFlight) return;
-  printInFlight = true;
-
-  let url: string | null = null;
+  const blob = doc.output("blob");
+  const url = URL.createObjectURL(blob);
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
 
@@ -75,54 +81,25 @@ export async function printJsPdfDocument(doc: jsPDF): Promise<void> {
   }
 
   const cleanup = () => {
-    if (url) {
-      URL.revokeObjectURL(url);
-      url = null;
-    }
-    window.setTimeout(() => frame.remove(), 500);
-  };
-
-  const scheduleCleanup = () => {
-    const win = frame.contentWindow;
-    if (win) {
-      const onAfterPrint = () => {
-        win.removeEventListener("afterprint", onAfterPrint);
-        cleanup();
-      };
-      win.addEventListener("afterprint", onAfterPrint);
-    }
-    // afterprint fehlt oft auf iOS — Blob erst später freigeben.
-    window.setTimeout(cleanup, 120_000);
+    URL.revokeObjectURL(url);
+    window.setTimeout(() => frame.remove(), 1_500);
   };
 
   try {
     document.body.appendChild(frame);
-
-    if (visibleFrame) {
-      // Safari: Blob-URLs in iframes sind fehleranfällig (leerer Druck).
-      frame.src = doc.output("datauristring");
-    } else {
-      const blob = doc.output("blob");
-      url = URL.createObjectURL(blob);
-      frame.src = url;
-    }
-
-    await onceIframeLoaded(frame);
-    await wait(visibleFrame ? 1000 : 200);
+    await loadPdfInFrame(frame, url, visibleFrame);
+    await wait(visibleFrame ? 600 : 150);
 
     const win = frame.contentWindow;
     if (!win) {
-      cleanup();
       throw new Error("print_frame_unavailable");
     }
 
     win.focus();
     win.print();
-    scheduleCleanup();
+    cleanup();
   } catch (error) {
     cleanup();
     throw error;
-  } finally {
-    printInFlight = false;
   }
 }

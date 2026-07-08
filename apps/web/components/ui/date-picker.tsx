@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format, isValid, parseISO } from "date-fns"
+import { format, isValid } from "date-fns"
 import { de } from "date-fns/locale"
 import { de as localeDe } from "react-day-picker/locale"
 import { Calendar as CalendarIcon, ChevronDownIcon } from "lucide-react"
@@ -47,7 +47,23 @@ export const formScheduleTimeInputFullWidthClassName = cn(
 
 function parseYmdToDate(ymd: string | null | undefined): Date | undefined {
   if (!ymd?.trim()) return undefined
-  const d = parseISO(`${ymd}T12:00:00`)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
+  if (!match) return undefined
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    !Number.isFinite(day) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return undefined
+  }
+  const d = new Date(year, month - 1, day)
   return isValid(d) ? d : undefined
 }
 

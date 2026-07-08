@@ -165,7 +165,7 @@ export function utcInstantForRestaurantLocal(
       (hour - z.hour) * 60 +
       (minute - z.minute);
     if (deltaMin === 0) break;
-    guess -= deltaMin * 60_000;
+    guess += deltaMin * 60_000;
   }
   return new Date(guess);
 }

@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
-import { DatePickerField } from "@/components/ui/date-picker";
+import { DatePickerField, formScheduleTimeInputFullWidthClassName } from "@/components/ui/date-picker";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
@@ -68,11 +68,22 @@ type Status = { id: string; code: string; name: string; color_hex: string };
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
 
-function defaultTimeHm(step: BookingTimeStepMinutes, timeZone: string): string {
-  const z = readRestaurantZonedParts(new Date(), timeZone);
-  const nowMin = z.hour * 60 + z.minute;
-  const snapped = snapMinutesToBookingStep(nowMin, step);
-  return minutesToHHmm(snapped);
+function defaultTimeHm(
+  step: BookingTimeStepMinutes,
+  timeZone: string,
+  dayYmd: string,
+  firstSlotMinutes?: number,
+): string {
+  if (dayYmd === restaurantTodayYmd(timeZone)) {
+    const z = readRestaurantZonedParts(new Date(), timeZone);
+    const nowMin = z.hour * 60 + z.minute;
+    const snapped = snapMinutesToBookingStep(nowMin, step);
+    return minutesToHHmm(snapped);
+  }
+  if (firstSlotMinutes != null) {
+    return minutesToHHmm(firstSlotMinutes);
+  }
+  return "19:00";
 }
 
 export function DisplayReservationDrawer({
@@ -83,6 +94,8 @@ export function DisplayReservationDrawer({
   defaultDwellMinutes,
   bookingTimeStepMinutes,
   nextReservationNumber,
+  initialDayYmd,
+  initialTimeHm,
   onCreated,
 }: {
   open: boolean;
@@ -92,6 +105,8 @@ export function DisplayReservationDrawer({
   defaultDwellMinutes: number;
   bookingTimeStepMinutes: number;
   nextReservationNumber: number | null;
+  initialDayYmd: string;
+  initialTimeHm?: string;
   onCreated: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
@@ -130,8 +145,11 @@ export function DisplayReservationDrawer({
     setFirstName("");
     setLastName("");
     setPartySize("2");
-    setDateYmd(restaurantTodayYmd(timeZone));
-    setTimeHm(defaultTimeHm(step, timeZone));
+    setDateYmd(initialDayYmd.trim() || restaurantTodayYmd(timeZone));
+    setTimeHm(
+      initialTimeHm?.trim() ||
+        defaultTimeHm(step, timeZone, initialDayYmd, undefined),
+    );
     setStatusId(confirmed?.id ?? statuses[0]?.id ?? "");
     setNotifyEmail(true);
     setNotifyWhatsapp(false);
@@ -141,7 +159,7 @@ export function DisplayReservationDrawer({
     setPhoneLocal("");
     setEmail("");
     setGuestMessage("");
-  }, [open, statuses, defaultDwellMinutes, step, timeZone]);
+  }, [open, statuses, defaultDwellMinutes, step, timeZone, initialDayYmd, initialTimeHm]);
 
   const statusItems = useMemo(
     () => statuses.map((s) => ({ value: s.id, label: s.name })),
@@ -349,14 +367,12 @@ export function DisplayReservationDrawer({
                   <Label htmlFor="disp-res-time" className="text-xs text-muted-foreground">
                     Uhrzeit
                   </Label>
-                  <Input
+                  <input
                     id="disp-res-time"
                     type="time"
-                    step={step === 1 ? 60 : step * 60}
                     value={timeHm}
                     onChange={(e) => setTimeHm(e.target.value)}
-                    onBlur={() => snapTimeField(timeHm)}
-                    className={cn(fieldClass, "tabular-nums")}
+                    className={formScheduleTimeInputFullWidthClassName}
                   />
                 </div>
               </div>

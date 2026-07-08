@@ -195,7 +195,9 @@ export function DisplayReservationTableField({
       >
         <SelectTrigger
           className={appSelectTriggerAccentCn(
-            compact ? "h-9 w-full min-w-0 rounded-lg text-sm" : "h-10 w-full min-w-[10rem] rounded-xl",
+            compact
+              ? "h-8 w-full min-w-0 rounded-md text-xs"
+              : "h-9 w-full min-w-[10rem] rounded-lg text-sm",
             selectValueNoShrink,
           )}
         >

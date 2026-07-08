@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -60,6 +61,7 @@ import {
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
 import {
   buildDisplayReservationSlotIso,
@@ -82,6 +84,7 @@ type BuiltPayload = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  notes: string | null;
 };
 
 const selectValueNoShrink =
@@ -138,6 +141,7 @@ export function DisplayReservationEditDrawer({
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
+  const [internalNote, setInternalNote] = useState("");
   const initialStatusCodeRef = useRef("");
   const restaurantIdRef = useRef("");
 
@@ -169,6 +173,7 @@ export function DisplayReservationEditDrawer({
           : String(defaultDwellMinutes),
       );
       setTableId(d.dining_table_id ?? "__none__");
+      setInternalNote(reservationInternalNoteText(d.notes) ?? "");
     },
     [defaultDwellMinutes, timeZone],
   );
@@ -309,6 +314,7 @@ export function DisplayReservationEditDrawer({
       notify_email: notifyEmail,
       notify_whatsapp: notifyWhatsapp,
       terms_accepted: termsAccepted,
+      notes: internalNote.trim() || null,
     };
   };
 
@@ -381,11 +387,6 @@ export function DisplayReservationEditDrawer({
 
     void executeSave(payload);
   };
-
-  const notesDisplay =
-    detail?.notes && !detail.notes.startsWith("display-demo:")
-      ? detail.notes
-      : null;
 
   return (
     <>
@@ -577,16 +578,22 @@ export function DisplayReservationEditDrawer({
                       </div>
                     </div>
 
-                    {notesDisplay ? (
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Gastnotiz
-                        </Label>
-                        <p className="text-sm leading-relaxed text-muted-foreground">
-                          {notesDisplay}
-                        </p>
-                      </div>
-                    ) : null}
+                    <div className="space-y-1.5">
+                      <Label
+                        htmlFor="disp-edit-internal-note"
+                        className="text-xs text-muted-foreground"
+                      >
+                        Interne Notiz
+                      </Label>
+                      <Textarea
+                        id="disp-edit-internal-note"
+                        value={internalNote}
+                        onChange={(e) => setInternalNote(e.target.value)}
+                        rows={3}
+                        placeholder="Wünsche, Allergien, Anlass … (nur für das Team)"
+                        className="min-h-[4.5rem] resize-y rounded-xl"
+                      />
+                    </div>
                     </DrawerFormSection>
 
                     <DrawerFormSection title="Tisch & Verweildauer">

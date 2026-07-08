@@ -2,6 +2,10 @@ import type {
   RealtimeChannel,
   SupabaseClient,
 } from "@supabase/supabase-js";
+import {
+  registerRestaurantRealtimeSubscription,
+  type RestaurantRealtimeSubscription,
+} from "@/lib/supabase/restaurant-realtime-visibility-coordinator";
 
 export type RestaurantRealtimeTable =
   | "reservations"
@@ -171,21 +175,14 @@ export function subscribeRestaurantTableChanges(
     options.onStatus?.("CLOSED");
   };
 
-  const onVisibility = () => {
-    if (document.visibilityState === "visible") {
-      subscribe();
-    } else {
-      unsubscribe();
-    }
+  const subscription: RestaurantRealtimeSubscription = {
+    channelName: options.channelName,
+    connected: false,
+    subscribe,
+    unsubscribe,
   };
 
-  onVisibility();
-  document.addEventListener("visibilitychange", onVisibility);
-
-  return () => {
-    document.removeEventListener("visibilitychange", onVisibility);
-    unsubscribe();
-  };
+  return registerRestaurantRealtimeSubscription(subscription);
 }
 
 /** @deprecated Nutze {@link subscribeRestaurantTableChanges} — nur INSERT. */

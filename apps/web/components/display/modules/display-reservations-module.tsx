@@ -26,6 +26,8 @@ import { DisplayReservationTableField } from "@/components/display/display-reser
 import { DisplayTimeRangeSlider } from "@/components/display/display-time-range-slider";
 import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats-bar";
 import { DisplayOpenReservationCard } from "@/components/display/display-open-reservation-card";
+import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
 import { DisplayReservationsPrintSheet } from "@/components/display/display-reservations-print-sheet";
@@ -171,6 +173,7 @@ function mapDisplayReservationToListRow(
     notify_email: false,
     notify_whatsapp: false,
     terms_accepted: false,
+    notes: r.notes ?? null,
     pending_change: null,
     status_before_change_id: null,
     reservation_statuses: r.status
@@ -914,13 +917,18 @@ export function DisplayReservationsModule() {
               ) : null}
             </div>
             <p className="text-2xl font-semibold leading-tight">{guestName}</p>
-            <p className="flex items-center gap-1 text-muted-foreground">
-              <Users className="size-4" />
+            <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+              <Users className="size-4 shrink-0" />
               {r.party_size} Personen · bis {endLabel}
               {tableLabel ? ` · ${tableLabel}` : ""}
+              {reservationInternalNoteText(r.notes) ? (
+                <ReservationInternalNoteIndicator className="size-4" />
+              ) : null}
             </p>
-            {r.notes && !r.notes.startsWith("display-demo:") ? (
-              <p className="text-sm text-muted-foreground">{r.notes}</p>
+            {reservationInternalNoteText(r.notes) ? (
+              <p className="text-sm text-muted-foreground">
+                {reservationInternalNoteText(r.notes)}
+              </p>
             ) : null}
             {tableField}
           </div>

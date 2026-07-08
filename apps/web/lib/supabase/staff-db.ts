@@ -969,6 +969,7 @@ export async function upsertStaffWorkEntry(
   payload: Omit<RestaurantStaffWorkEntryRow, "id" | "restaurant_id" | "staff_id"> & {
     id?: string;
     is_open?: boolean;
+    shift_id?: string | null;
   },
 ): Promise<{ id: string } | null> {
   const supabase = createSupabaseBrowserClient();
@@ -982,6 +983,9 @@ export async function upsertStaffWorkEntry(
   };
   if (payload.is_open !== undefined) {
     row.is_open = payload.is_open;
+  }
+  if (payload.shift_id !== undefined) {
+    row.shift_id = payload.shift_id;
   }
   if (payload.id) {
     const { error } = await supabase

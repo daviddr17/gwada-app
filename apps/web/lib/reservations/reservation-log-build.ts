@@ -21,6 +21,7 @@ export type ReservationLogSnapshot = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  notes: string | null;
 };
 
 function guestName(s: ReservationLogSnapshot): string {
@@ -68,6 +69,7 @@ export function reservationSnapshotFromPayload(
     notify_email: payload.notify_email,
     notify_whatsapp: payload.notify_whatsapp,
     terms_accepted: payload.terms_accepted,
+    notes: payload.notes ?? null,
   };
 }
 
@@ -162,6 +164,13 @@ export function buildReservationLogChanges(
     "AGB akzeptiert",
     boolDe(before.terms_accepted),
     boolDe(after.terms_accepted),
+  );
+  pushChange(
+    changes,
+    "notes",
+    "Interne Notiz",
+    strOrDash(before.notes),
+    strOrDash(after.notes),
   );
 
   return changes;

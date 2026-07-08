@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     notify_email?: boolean;
     notify_whatsapp?: boolean;
     terms_accepted?: boolean;
-    guest_message?: string | null;
+    notes?: string | null;
   };
   try {
     body = (await request.json()) as typeof body;
@@ -102,12 +102,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "status_missing" }, { status: 500 });
   }
 
-  const { data: restaurant } = await admin
-    .from("restaurants")
-    .select("name")
-    .eq("id", access.restaurantId)
-    .maybeSingle();
-
   const result = await createDisplayReservation(admin, access.restaurantId, {
     guest_first_name: given,
     guest_last_name: family,
@@ -122,8 +116,7 @@ export async function POST(request: Request) {
     notify_email: body.notify_email === true,
     notify_whatsapp: body.notify_whatsapp === true,
     terms_accepted: body.terms_accepted !== false,
-    guest_message: body.guest_message?.trim() || null,
-    restaurant_name: (restaurant?.name as string | undefined) ?? null,
+    notes: body.notes?.trim() || null,
   });
 
   if (!result.ok) {

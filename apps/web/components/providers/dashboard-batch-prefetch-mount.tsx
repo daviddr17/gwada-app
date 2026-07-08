@@ -6,6 +6,7 @@ import { dashboardBatchSummaryQueryOptions } from "@/lib/hooks/dashboard-batch-s
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 /**
  * Lädt Dashboard-KPIs im Hintergrund, sobald Workspace-Restaurant steht —
@@ -26,9 +27,11 @@ export function DashboardBatchPrefetchMount() {
       return;
     }
 
-    void queryClient.prefetchQuery(
-      dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
-    );
+    runWhenIdle(() => {
+      void queryClient.prefetchQuery(
+        dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
+      );
+    });
   }, [queryClient, restaurantId, batchWidgets, workspaceReady]);
 
   return null;

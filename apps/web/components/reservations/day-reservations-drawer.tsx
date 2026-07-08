@@ -49,6 +49,8 @@ import {
   reservationAssignedTableLabel,
   reservationDiningTableLabel,
 } from "@/lib/reservations/reservation-table-assignment";
+import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import {
   fallbackSlotRangeFromReservations,
   localDateAtSlotMinutes,
@@ -804,6 +806,9 @@ export function DayReservationsDrawer({
                 <span className="rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium text-foreground">
                   {tableLabel}
                 </span>
+              ) : null}
+              {reservationInternalNoteText(r.notes) ? (
+                <ReservationInternalNoteIndicator />
               ) : null}
             </div>
           </div>

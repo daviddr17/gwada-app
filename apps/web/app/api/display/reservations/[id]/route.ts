@@ -110,6 +110,8 @@ export async function PATCH(
       notify_email: Boolean(body.notify_email),
       notify_whatsapp: Boolean(body.notify_whatsapp),
       terms_accepted: Boolean(body.terms_accepted),
+      notes:
+        typeof body.notes === "string" ? body.notes.trim() || null : null,
     },
   );
 

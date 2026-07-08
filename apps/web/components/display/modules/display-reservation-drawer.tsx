@@ -131,7 +131,7 @@ export function DisplayReservationDrawer({
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
-  const [guestMessage, setGuestMessage] = useState("");
+  const [internalNote, setInternalNote] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -161,7 +161,7 @@ export function DisplayReservationDrawer({
     setTableId("__none__");
     setPhoneLocal("");
     setEmail("");
-    setGuestMessage("");
+    setInternalNote("");
   }, [open, statuses, defaultDwellMinutes, step, timeZone, initialDayYmd, initialTimeHm]);
 
   const statusItems = useMemo(
@@ -250,7 +250,7 @@ export function DisplayReservationDrawer({
           notify_email: notifyEmail,
           notify_whatsapp: notifyWhatsapp,
           terms_accepted: termsAccepted,
-          guest_message: guestMessage.trim() || null,
+          notes: internalNote.trim() || null,
         }),
       });
       const data = (await res.json()) as {
@@ -478,15 +478,15 @@ export function DisplayReservationDrawer({
               </div>
 
               <div className="space-y-1.5 pb-4">
-                <Label htmlFor="disp-res-guest-message" className="text-xs text-muted-foreground">
-                  Nachricht an das Restaurant
+                <Label htmlFor="disp-res-internal-note" className="text-xs text-muted-foreground">
+                  Interne Notiz
                 </Label>
                 <Textarea
-                  id="disp-res-guest-message"
-                  value={guestMessage}
-                  onChange={(e) => setGuestMessage(e.target.value)}
+                  id="disp-res-internal-note"
+                  value={internalNote}
+                  onChange={(e) => setInternalNote(e.target.value)}
                   rows={3}
-                  placeholder="Wünsche, Allergien, Anlass …"
+                  placeholder="Wünsche, Allergien, Anlass … (nur für das Team)"
                   className="min-h-[4.5rem] resize-y rounded-xl"
                 />
               </div>

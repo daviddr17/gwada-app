@@ -14,6 +14,8 @@ type PwaSplashScreenProps = {
   app: PwaSplashAppId;
   iconSrc: string;
   phase: PwaSplashPhase;
+  /** App bereit — Klicks durchlassen, Splash blendet nur noch visuell aus. */
+  allowInteraction?: boolean;
   className?: string;
 };
 
@@ -22,6 +24,7 @@ export function PwaSplashScreen({
   app,
   iconSrc,
   phase,
+  allowInteraction = false,
   className,
 }: PwaSplashScreenProps) {
   if (phase === "done") return null;
@@ -32,6 +35,7 @@ export function PwaSplashScreen({
       className={cn(
         "pwa-splash fixed inset-0 z-[99999] flex items-center justify-center",
         phase === "exit" && "pwa-splash--exit",
+        allowInteraction && "pointer-events-none",
         className,
       )}
       style={

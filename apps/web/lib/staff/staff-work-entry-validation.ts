@@ -108,11 +108,23 @@ export function validateStaffWorkEntryTiming(params: {
   const sameDay = filterSiblings(params.siblings, dayKey, params.entryId);
   const candidate = toRange(params.startsAt, params.endsAt, params.isOpen);
 
-  if (candidate.endMs <= candidate.startMs) {
+  if (!params.isOpen && candidate.endMs <= candidate.startMs) {
     return { ok: false, message: "Ende muss nach Beginn liegen." };
   }
 
   if (params.entryType === "work") {
+    if (params.isOpen) {
+      for (const other of params.siblings.filter(isTimedWorkEntry)) {
+        if (params.entryId && other.id === params.entryId) continue;
+        if (other.is_open) {
+          return {
+            ok: false,
+            message:
+              "Es läuft bereits eine offene Arbeitszeit — bitte zuerst beenden.",
+          };
+        }
+      }
+    }
     for (const other of sameDay.filter(isTimedWorkEntry)) {
       const otherRange = toRange(other.starts_at, other.ends_at, other.is_open);
       if (rangesOverlap(candidate, otherRange)) {

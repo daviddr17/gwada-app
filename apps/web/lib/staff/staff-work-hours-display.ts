@@ -1,7 +1,7 @@
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 
 export function isDisplayWorkEntry(e: RestaurantStaffWorkEntryRow): boolean {
-  return Boolean(e.shift_id) || e.note === "Display";
+  return e.note === "Display";
 }
 
 export type WorkHoursListItem =
@@ -16,7 +16,7 @@ export function groupWorkHoursDayEntries(
   const displayByShift = new Map<string, RestaurantStaffWorkEntryRow[]>();
 
   for (const e of entries) {
-    if (e.shift_id) {
+    if (e.shift_id && e.note === "Display") {
       const list = displayByShift.get(e.shift_id) ?? [];
       list.push(e);
       displayByShift.set(e.shift_id, list);

@@ -128,7 +128,12 @@ export function PwaSplashGate({ app, iconSrc, isReady, children }: PwaSplashGate
   return (
     <>
       {phase !== "done" ? (
-        <PwaSplashScreen app={app} iconSrc={iconSrc} phase={splashPhase} />
+        <PwaSplashScreen
+          app={app}
+          iconSrc={iconSrc}
+          phase={splashPhase}
+          allowInteraction={isReady}
+        />
       ) : null}
       {children}
     </>

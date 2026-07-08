@@ -6,7 +6,6 @@ import {
   reservationSnapshotFromPayload,
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
-import { attachInboundGuestMessageToReservation } from "@/lib/reservations/reservation-guest-message-server";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
@@ -31,8 +30,7 @@ export type DisplayCreateReservationInput = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
-  guest_message?: string | null;
-  restaurant_name?: string | null;
+  notes?: string | null;
 };
 
 export async function createDisplayReservation(
@@ -60,6 +58,7 @@ export async function createDisplayReservation(
       notify_email: input.notify_email,
       notify_whatsapp: input.notify_whatsapp,
       terms_accepted: input.terms_accepted,
+      notes: input.notes?.trim() || null,
     })
     .select("id, reservation_number, guest_pin, contact_id")
     .single();
@@ -90,7 +89,10 @@ export async function createDisplayReservation(
     }
   }
   const after = reservationSnapshotFromPayload(
-    input,
+    {
+      ...input,
+      notes: input.notes?.trim() || null,
+    },
     (statusRow?.name as string | undefined) ?? "—",
     tableLabel,
   );
@@ -110,21 +112,6 @@ export async function createDisplayReservation(
       { actorSource: "display", summary: "Über Display angelegt" },
     ),
   });
-
-  const guestMessage = input.guest_message?.trim();
-  if (guestMessage) {
-    await attachInboundGuestMessageToReservation(admin, {
-      restaurantId,
-      reservationId: data.id as string,
-      guestMessage,
-      restaurantName: input.restaurant_name ?? null,
-    }).catch((err) => {
-      console.warn(
-        "[gwada] attach reservation guest message",
-        err instanceof Error ? err.message : err,
-      );
-    });
-  }
 
   if (input.notify_whatsapp) {
     void dispatchReservationWhatsapp(admin, data.id as string, "created").catch(
@@ -250,6 +237,7 @@ export type DisplayUpdateReservationInput = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  notes: string | null;
 };
 
 export async function updateDisplayReservation(
@@ -277,6 +265,7 @@ export async function updateDisplayReservation(
       notify_email,
       notify_whatsapp,
       terms_accepted,
+      notes,
       ${RESERVATION_STATUS_EMBED} ( code, name )
     `,
     )
@@ -333,6 +322,7 @@ export async function updateDisplayReservation(
       notify_email: Boolean(reservation.notify_email),
       notify_whatsapp: Boolean(reservation.notify_whatsapp),
       terms_accepted: Boolean(reservation.terms_accepted),
+      notes: (reservation.notes as string | null) ?? null,
     },
     previousStatusName,
     beforeTableLabel,
@@ -361,6 +351,7 @@ export async function updateDisplayReservation(
       notify_email: input.notify_email,
       notify_whatsapp: input.notify_whatsapp,
       terms_accepted: input.terms_accepted,
+      notes: input.notes?.trim() || null,
     })
     .eq("id", reservationId);
 

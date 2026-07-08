@@ -30,10 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ReservationMessagesPanel } from "@/components/contacts/reservation-messages-panel";
-import {
-  triggerSendContactMessage,
-} from "@/lib/contact-messages/trigger-send-contact-message";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { ReservationChangeRequestPanel } from "@/components/reservations/reservation-change-request-panel";
 import { ReservationCreatedHint } from "@/components/reservations/reservation-created-hint";
 import { ReservationProtocolSection } from "@/components/reservations/reservation-protocol-section";
@@ -141,6 +139,7 @@ type BuiltReservationPayload = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  notes: string | null;
 };
 
 export function ReservationEditDrawer({
@@ -186,7 +185,7 @@ export function ReservationEditDrawer({
   const [defaultDwellMinutes, setDefaultDwellMinutes] = useState(120);
   const [dwellDraft, setDwellDraft] = useState("");
   const [tableId, setTableId] = useState<string>("__none__");
-  const [guestMessage, setGuestMessage] = useState("");
+  const [internalNote, setInternalNote] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
 
   /** Wenn ein Modal (Löschen / Tisch teilen) offen ist, unterdrückt Vaul fälschlich `onOpenChange(false)` — außer nach explizitem Schließen. */
@@ -354,11 +353,11 @@ export function ReservationEditDrawer({
           : String(defaultDwellMinutes),
       );
       setTableId(reservation.dining_table_id ?? "__none__");
-      setGuestMessage("");
+      setInternalNote(reservationInternalNoteText(reservation.notes) ?? "");
       return;
     }
     if (createFor) {
-      setGuestMessage("");
+      setInternalNote("");
       setFirstName("");
       setLastName("");
       setPhoneCountryIso(defaultIso);
@@ -474,30 +473,13 @@ export function ReservationEditDrawer({
       notify_email: notifyEmail,
       notify_whatsapp: notifyWhatsapp,
       terms_accepted: termsAccepted,
+      notes: internalNote.trim() || null,
     };
   };
 
   const restaurantDisplayName = restaurantIdForFetch
     ? getProfileForRestaurantId(restaurantIdForFetch).name.trim() || undefined
     : undefined;
-
-  const persistGuestMessage = async (
-    contactId: string | null,
-    reservationId: string,
-    restaurantId: string,
-  ) => {
-    const text = guestMessage.trim();
-    if (!text || !contactId) return;
-    await triggerSendContactMessage({
-      restaurantId,
-      contactId,
-      messageBody: text,
-      direction: "inbound",
-      channels: ["gwada"],
-      reservationId,
-      restaurantName: restaurantDisplayName,
-    });
-  };
 
   const executeSave = async (payload: BuiltReservationPayload) => {
     const newStatusCode =
@@ -896,24 +878,22 @@ export function ReservationEditDrawer({
                 </p>
               ) : null}
 
-              {isCreate ? (
-                <div className="space-y-1.5">
-                  <Label
-                    htmlFor="res-guest-message"
-                    className="text-xs text-muted-foreground"
-                  >
-                    Nachricht an das Restaurant
-                  </Label>
-                  <Textarea
-                    id="res-guest-message"
-                    value={guestMessage}
-                    onChange={(e) => setGuestMessage(e.target.value)}
-                    rows={3}
-                    placeholder="Wünsche, Allergien, Anlass …"
-                    className="min-h-[4.5rem] resize-y rounded-xl"
-                  />
-                </div>
-              ) : null}
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="res-internal-note"
+                  className="text-xs text-muted-foreground"
+                >
+                  Interne Notiz
+                </Label>
+                <Textarea
+                  id="res-internal-note"
+                  value={internalNote}
+                  onChange={(e) => setInternalNote(e.target.value)}
+                  rows={3}
+                  placeholder="Wünsche, Allergien, Anlass … (nur für das Team, keine Gast-Nachricht)"
+                  className="min-h-[4.5rem] resize-y rounded-xl"
+                />
+              </div>
               </DrawerFormSection>
 
               <DrawerFormSection title="Tisch & Verweildauer">

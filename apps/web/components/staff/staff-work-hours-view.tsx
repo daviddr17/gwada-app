@@ -236,9 +236,16 @@ export function StaffWorkHoursView({
       : dayForNew
         ? startOfLocalDay(dayForNew)
         : null;
-    if (!day) return [];
-    return byDay.get(localDayKey(day)) ?? [];
-  }, [drawerOpen, editEntry, dayForNew, byDay]);
+    if (!day) return entries;
+    const dayEntries = byDay.get(localDayKey(day)) ?? [];
+    const openElsewhere = entries.filter(
+      (e) =>
+        e.is_open &&
+        e.entry_type === "work" &&
+        localDayKey(new Date(e.starts_at)) !== localDayKey(day),
+    );
+    return [...dayEntries, ...openElsewhere];
+  }, [drawerOpen, editEntry, dayForNew, byDay, entries]);
 
   return (
     <div className="pb-16">

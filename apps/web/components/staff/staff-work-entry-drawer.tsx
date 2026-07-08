@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
@@ -115,6 +116,7 @@ export function StaffWorkEntryDrawer({
   const [dateStr, setDateStr] = useState("");
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
+  const [stillRunning, setStillRunning] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, setPending] = useState(false);
   const [logEntries, setLogEntries] = useState<RestaurantStaffWorkEntryLogEntry[]>(
@@ -155,6 +157,7 @@ export function StaffWorkEntryDrawer({
       setEntryType(entry.entry_type);
       setDateStr(toDateInput(s));
       setStartTime(toTimeInput(s));
+      setStillRunning(entry.is_open === true && entry.entry_type === "work");
       setEndTime(
         entry.is_open ? toTimeInput(new Date()) : toTimeInput(new Date(entry.ends_at)),
       );
@@ -164,6 +167,7 @@ export function StaffWorkEntryDrawer({
       setDateStr(toDateInput(day));
       setStartTime("09:00");
       setEndTime("17:00");
+      setStillRunning(false);
     }
   }, [open, entry, defaultDay]);
 
@@ -199,14 +203,17 @@ export function StaffWorkEntryDrawer({
     const endMs = new Date(ends_at_input).getTime();
     const closingOpenEntry =
       isOpenEntry && endMs <= Date.now() && endMs > startMs;
-    const ends_at = isOpenEntry && !closingOpenEntry ? starts_at : ends_at_input;
+    const willStayOpen =
+      entryType === "work" &&
+      ((isOpenEntry && !closingOpenEntry) || (!entry && stillRunning));
+    const ends_at = willStayOpen ? starts_at : ends_at_input;
 
     const timing = validateStaffWorkEntryTiming({
       entryType,
       startsAt: starts_at,
       endsAt: ends_at,
       entryId: entry?.id,
-      isOpen: isOpenEntry && !closingOpenEntry,
+      isOpen: willStayOpen,
       siblings: siblingEntries,
     });
     if (!timing.ok) {
@@ -233,10 +240,20 @@ export function StaffWorkEntryDrawer({
     };
 
     setPending(true);
+    const openShiftId =
+      willStayOpen && entry?.shift_id
+        ? entry.shift_id
+        : willStayOpen
+          ? crypto.randomUUID()
+          : undefined;
     const res = await upsertStaffWorkEntry(restaurantId, staffId, {
       id: entry?.id,
       ...after,
-      ...(isOpenEntry ? { is_open: !closingOpenEntry } : {}),
+      ...(willStayOpen
+        ? { is_open: true, shift_id: openShiftId ?? null }
+        : entry?.is_open
+          ? { is_open: false }
+          : {}),
     });
     setPending(false);
     if (!res) {
@@ -272,6 +289,7 @@ export function StaffWorkEntryDrawer({
     absenceByDayKey,
     siblingEntries,
     isOpenEntry,
+    stillRunning,
   ]);
 
   const drawerTitle = entry
@@ -296,10 +314,11 @@ export function StaffWorkEntryDrawer({
           >
             <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
               <DrawerFormSection>
-              {isOpenEntry ? (
+              {isOpenEntry || stillRunning ? (
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-                  Läuft noch — Zeiten sind bearbeitbar. „Bis“ in der Vergangenheit
-                  beendet den Eintrag.
+                  {isOpenEntry
+                    ? "Läuft noch — Zeiten sind bearbeitbar. „Bis“ in der Vergangenheit beendet den Eintrag."
+                    : "Ende offen — der Mitarbeiter kann sich später am Display ausstempeln."}
                 </p>
               ) : null}
               {isDisplayEntry ? (
@@ -316,7 +335,11 @@ export function StaffWorkEntryDrawer({
                   disabled={readOnly}
                   onValueChange={(v) => {
                     if (typeof v === "string") {
-                      setEntryType(v as StaffWorkEntryType);
+                      const next = v as StaffWorkEntryType;
+                      setEntryType(next);
+                      if (next !== "work") {
+                        setStillRunning(false);
+                      }
                     }
                   }}
                 >
@@ -376,12 +399,26 @@ export function StaffWorkEntryDrawer({
                   <input
                     type="time"
                     value={endTime}
-                    disabled={readOnly}
+                    disabled={readOnly || stillRunning}
                     onChange={(e) => setEndTime(e.target.value)}
                     className={formScheduleTimeInputClassName}
                   />
                 </div>
               </div>
+              {entryType === "work" && !entry && !readOnly ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
+                  <Checkbox
+                    checked={stillRunning}
+                    onCheckedChange={(v) => setStillRunning(v === true)}
+                    disabled={pending}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm leading-snug">
+                    Läuft noch — Ende offen lassen (Mitarbeiter stempelt später am
+                    Display aus)
+                  </span>
+                </label>
+              ) : null}
               </DrawerFormSection>
 
               {entry?.id ? (

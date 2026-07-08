@@ -107,6 +107,7 @@ export type ReservationListRow = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  notes: string | null;
   pending_change: unknown | null;
   status_before_change_id: string | null;
   reservation_statuses: ReservationStatusJoin | null;
@@ -125,8 +126,9 @@ export function mapRawToReservationListRow(
   return {
     ...(row as Omit<
       ReservationListRow,
-      "reservation_statuses" | "dining_tables" | "created_by_profile"
+      "reservation_statuses" | "dining_tables" | "created_by_profile" | "notes"
     >),
+    notes: (row.notes as string | null | undefined) ?? null,
     reservation_statuses: status as ReservationStatusJoin | null,
     dining_tables: normalizeReservationDiningTableJoin(tableRaw),
     created_by_profile: creatorRaw as ReservationCreatorProfileJoin | null,
@@ -155,6 +157,7 @@ export const RESERVATION_LIST_ROW_SELECT = `
       notify_email,
       notify_whatsapp,
       terms_accepted,
+      notes,
       pending_change,
       status_before_change_id,
       ${RESERVATION_STATUS_EMBED} ( id, code, name, color_hex ),
@@ -319,6 +322,7 @@ export type ReservationUpdatePayload = {
   notify_email: boolean;
   notify_whatsapp: boolean;
   terms_accepted: boolean;
+  notes?: string | null;
 };
 
 export type ReservationInsertPayload = ReservationUpdatePayload & {
@@ -356,6 +360,7 @@ export async function insertReservation(
       notify_email: payload.notify_email,
       notify_whatsapp: payload.notify_whatsapp,
       terms_accepted: payload.terms_accepted,
+      notes: payload.notes,
     })
     .select("id, reservation_number, guest_pin, contact_id")
     .single();

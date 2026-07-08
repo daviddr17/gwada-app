@@ -46,6 +46,8 @@ import {
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
+import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
+import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -1061,6 +1063,9 @@ export function ReservationsOverview() {
                                   <span className="rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium text-foreground">
                                     {tableLabel}
                                   </span>
+                                ) : null}
+                                {reservationInternalNoteText(r.notes) ? (
+                                  <ReservationInternalNoteIndicator />
                                 ) : null}
                               </div>
                             </div>

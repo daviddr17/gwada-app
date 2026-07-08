@@ -812,7 +812,6 @@ export function DisplayReservationsModule() {
 
   const renderListReservation = (r: DisplayReservationRow) => {
     const isBusy = busyId === r.id;
-    const tableLabel = r.table ? formatDiningTableSelectLabel(r.table) : null;
     const startLabel = timeFmt.format(new Date(r.starts_at));
     const endLabel = timeFmt.format(new Date(r.ends_at));
     const code = r.status?.code;
@@ -826,14 +825,18 @@ export function DisplayReservationsModule() {
       (seatedStatus && code !== "seated" && code !== "completed") ||
       (completedStatus && code === "seated");
     const tableField = (
-      <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <div
+        className="min-w-0 shrink-0 self-start sm:w-36 md:w-40"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
         <DisplayReservationTableField
           reservation={r}
           tables={tables}
           reservations={reservations}
           disabled={isBusy}
-          compact={listDensity === "compact"}
-          showSuggestions={listDensity !== "compact"}
+          variant="list"
+          showSuggestions={false}
           onUpdated={(tableId) => patchReservationTable(r.id, tableId)}
         />
       </div>
@@ -847,7 +850,7 @@ export function DisplayReservationsModule() {
           key={r.id}
           role="button"
           tabIndex={0}
-          className="flex min-w-0 cursor-pointer flex-col gap-1.5 rounded-xl border border-border/50 bg-card px-3 py-2 shadow-card transition-colors hover:bg-muted/20"
+          className="flex min-w-0 cursor-pointer flex-col rounded-xl border border-border/50 bg-card px-3 py-2 shadow-card transition-colors hover:bg-muted/20"
           onClick={openEdit}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -856,11 +859,11 @@ export function DisplayReservationsModule() {
             }
           }}
         >
-          <div className="flex min-w-0 items-start gap-2">
+          <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1.5">
             <span className="w-11 shrink-0 pt-0.5 text-base font-semibold tabular-nums leading-none">
               {startLabel}
             </span>
-            <div className="min-w-0 flex-1 space-y-0.5">
+            <div className="min-w-0 flex-1 basis-[8rem] space-y-0.5">
               <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
                 <span className="truncate font-semibold text-sm leading-snug">{guestName}</span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -880,14 +883,13 @@ export function DisplayReservationsModule() {
               </div>
               <p className="truncate text-[11px] text-muted-foreground">
                 {r.party_size} P. · bis {endLabel}
-                {tableLabel ? ` · ${tableLabel}` : ""}
               </p>
             </div>
+            {tableField}
             {hasListActions ? (
-              <div className="shrink-0">{renderListActions(r, code, isBusy, true)}</div>
+              <div className="ml-auto shrink-0">{renderListActions(r, code, isBusy, true)}</div>
             ) : null}
           </div>
-          {tableField}
         </div>
       );
     }
@@ -906,8 +908,8 @@ export function DisplayReservationsModule() {
           }
         }}
       >
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
+        <div className="flex min-w-0 flex-wrap items-start gap-x-3 gap-y-2">
+          <div className="min-w-0 flex-1 basis-[14rem] space-y-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-muted-foreground">#{r.reservation_number}</span>
               <span className="text-2xl font-semibold tabular-nums">{startLabel}</span>
@@ -924,7 +926,6 @@ export function DisplayReservationsModule() {
             <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
               <Users className="size-4 shrink-0" />
               {r.party_size} Personen · bis {endLabel}
-              {tableLabel ? ` · ${tableLabel}` : ""}
               {reservationInternalNoteText(r.notes) ? (
                 <ReservationInternalNoteIndicator className="size-4" />
               ) : null}
@@ -934,9 +935,11 @@ export function DisplayReservationsModule() {
                 {reservationInternalNoteText(r.notes)}
               </p>
             ) : null}
-            {tableField}
           </div>
-          {renderListActions(r, code, isBusy, false)}
+          {tableField}
+          <div className="shrink-0 self-start">
+            {renderListActions(r, code, isBusy, true)}
+          </div>
         </div>
       </div>
     );

@@ -45,6 +45,7 @@ export function DisplayReservationTableField({
   reservations,
   disabled,
   compact = false,
+  variant = "default",
   showSuggestions = true,
   onUpdated,
 }: {
@@ -53,6 +54,8 @@ export function DisplayReservationTableField({
   reservations: DisplayReservationRow[];
   disabled?: boolean;
   compact?: boolean;
+  /** Kompakte Listenzeile: schmaler Select, Vorschläge als Chips statt Karte. */
+  variant?: "default" | "list";
   showSuggestions?: boolean;
   onUpdated: (tableId: string | null) => void;
 }) {
@@ -179,8 +182,11 @@ export function DisplayReservationTableField({
     setSharePending(null);
   };
 
+  const isListVariant = variant === "list";
+  const isCompactUi = compact || isListVariant;
+
   if (!canAssign) {
-    if (compact) {
+    if (isCompactUi) {
       return null;
     }
     return (
@@ -190,8 +196,14 @@ export function DisplayReservationTableField({
     );
   }
 
+  const selectTriggerClass = isListVariant
+    ? "h-8 w-full min-w-[7.5rem] max-w-full rounded-lg px-2 text-xs"
+    : compact
+      ? "h-8 w-full min-w-0 rounded-lg text-xs"
+      : "h-10 w-full min-w-[10rem] rounded-xl";
+
   return (
-    <div className={cn(compact ? "space-y-0" : "space-y-1.5")}>
+    <div className={cn(isListVariant ? "space-y-1" : isCompactUi ? "space-y-0" : "space-y-1.5")}>
       <Select
         value={value}
         items={tableOptions}
@@ -199,12 +211,7 @@ export function DisplayReservationTableField({
         onValueChange={(v) => void applyTable(String(v))}
       >
         <SelectTrigger
-          className={appSelectTriggerAccentCn(
-            compact
-              ? "h-8 w-full min-w-0 rounded-lg text-xs"
-              : "h-10 w-full min-w-[10rem] rounded-xl",
-            selectValueNoShrink,
-          )}
+          className={appSelectTriggerAccentCn(selectTriggerClass, selectValueNoShrink)}
         >
           <SelectValue placeholder="Tisch">{selectedLabel}</SelectValue>
         </SelectTrigger>
@@ -217,10 +224,10 @@ export function DisplayReservationTableField({
         </SelectContent>
       </Select>
 
-      {check.kind === "capacity_exceeded" && !compact ? (
+      {check.kind === "capacity_exceeded" && !isCompactUi ? (
         <p className="text-xs text-destructive">{check.message}</p>
       ) : null}
-      {check.kind === "confirm_share" && !compact ? (
+      {check.kind === "confirm_share" && !isCompactUi ? (
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Am Tisch „{check.tableLabel}“ sind zur gleichen Zeit bereits{" "}
           {check.seatUsed} von {check.capacity} Plätzen belegt — es passen noch{" "}
@@ -229,6 +236,29 @@ export function DisplayReservationTableField({
       ) : null}
 
       {showSuggestions && isUnassigned && suggestions.length > 0 ? (
+        isListVariant ? (
+          <div className="flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {suggestions.map((alt) => (
+              <Button
+                key={alt.tableId}
+                type="button"
+                size="sm"
+                variant="outline"
+                className={cn(
+                  "h-7 rounded-md px-2 text-[11px]",
+                  alt.kind === "free" && "border-accent/40",
+                )}
+                disabled={busy}
+                onClick={() => void applyTable(alt.tableId, { skipShareConfirm: false })}
+              >
+                {alt.label}
+                {alt.kind === "share" ? (
+                  <span className="ml-0.5 text-muted-foreground">+</span>
+                ) : null}
+              </Button>
+            ))}
+          </div>
+        ) : (
         <div className="space-y-1.5 rounded-xl border border-border/50 bg-muted/15 px-3 py-2.5">
           <p className="text-xs text-muted-foreground">Vorschläge:</p>
           <div className="flex flex-wrap gap-1.5">
@@ -253,6 +283,7 @@ export function DisplayReservationTableField({
             ))}
           </div>
         </div>
+        )
       ) : null}
 
       <ConfirmDialog

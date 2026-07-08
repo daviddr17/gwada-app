@@ -39,6 +39,7 @@ import {
 import { AuthScreenBrandLogo } from "@/components/auth/auth-screen-brand-logo";
 import { useAuthEnterTransition } from "@/components/auth/use-auth-enter-transition";
 import { waitlistErrorMessage } from "@/lib/waitlist/waitlist-errors";
+import { GWADA_STAFF_INVITE_SIGNUP_HINT } from "@/lib/auth/staff-invite-signup-gate";
 import {
   humanizeLoginErrorMessage,
   isLikelyNetworkAuthFailure,
@@ -79,6 +80,9 @@ export function LoginForm() {
   const [regFamilyName, setRegFamilyName] = useState("");
   const [regNote, setRegNote] = useState("");
   const [waitlistBusy, setWaitlistBusy] = useState(false);
+  const [regHasPendingInvite, setRegHasPendingInvite] = useState<boolean | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false);
   const [magicLinkBusy, setMagicLinkBusy] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
@@ -138,6 +142,39 @@ export function LoginForm() {
     const qs = params.toString();
     router.replace(qs ? `/login?${qs}` : "/login");
   }, [searchParams, router]);
+
+  useEffect(() => {
+    if (screen !== "register") {
+      setRegHasPendingInvite(null);
+      return;
+    }
+    const normalized = regEmail.trim().toLowerCase();
+    if (!normalized.includes("@")) {
+      setRegHasPendingInvite(null);
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/public/staff-invite/has-pending?${new URLSearchParams({
+              email: normalized,
+            })}`,
+            { cache: "no-store" },
+          );
+          if (!res.ok) {
+            setRegHasPendingInvite(null);
+            return;
+          }
+          const data = (await res.json()) as { pending?: boolean };
+          setRegHasPendingInvite(Boolean(data.pending));
+        } catch {
+          setRegHasPendingInvite(null);
+        }
+      })();
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [screen, regEmail]);
 
   const handleOAuth = async (provider: GwadaOAuthProvider) => {
     setBusy(true);
@@ -611,6 +648,32 @@ export function LoginForm() {
                 Registrieren
               </Button>
             </CardFooter>
+          </>
+        ) : regHasPendingInvite ? (
+          <>
+            <CardHeader className="space-y-1">
+              <CardTitle className="text-2xl font-semibold tracking-tight">
+                Restaurant-Einladung
+              </CardTitle>
+              <CardDescription>{GWADA_STAFF_INVITE_SIGNUP_HINT}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Auf der Einladungsseite kannst du dich mit E-Mail und Passwort
+                registrieren. Alternativ: zurück zur Anmeldung und Google oder
+                Magic Link nutzen — danach den Einladungslink erneut öffnen und
+                beitreten.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                className="h-11 w-full rounded-xl"
+                disabled={isTransitioning}
+                onClick={() => transitionTo("login")}
+              >
+                Zur Anmeldung
+              </Button>
+            </CardContent>
           </>
         ) : (
           <>

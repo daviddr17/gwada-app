@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { AuthScreenShell } from "@/components/auth/auth-screen-brand-logo";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +18,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { syncUserProfileNames } from "@/lib/profile/sync-user-profile-names";
+import { usePublicOAuthAvailability } from "@/lib/hooks/use-public-oauth-availability";
+import {
+  startGooglePlatformOAuth,
+  startOAuthFlow,
+} from "@/lib/supabase/oauth";
 import type { StaffInviteViewerStatus } from "@/lib/types/staff";
 
 type InvitePreview = {
@@ -136,6 +142,8 @@ export default function StaffInvitePage() {
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
+  const inviteNextPath = `/einladung/${encodeURIComponent(token)}`;
 
   useEffect(() => {
     if (!token) {
@@ -175,6 +183,53 @@ export default function StaffInvitePage() {
   const invite = loadState.kind === "ready" ? loadState.invite : null;
   const viewerStatus =
     loadState.kind === "ready" ? loadState.viewerStatus : "anonymous";
+
+  const viewerLoggedIn =
+    loadState.kind === "ready" ? loadState.viewerLoggedIn : false;
+
+  const handleOAuth = async (provider: "google" | "apple") => {
+    if (!token) return;
+    setBusy(true);
+    try {
+      if (provider === "google") {
+        startGooglePlatformOAuth({ next: inviteNextPath });
+        return;
+      }
+      const sb = createSupabaseBrowserClient();
+      const { error } = await startOAuthFlow(sb, provider, {
+        next: inviteNextPath,
+      });
+      if (error) toast.error(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAcceptLoggedIn = async () => {
+    if (!invite) return;
+    setBusy(true);
+    const sb = createSupabaseBrowserClient();
+    const {
+      data: { user },
+    } = await sb.auth.getUser();
+    if (!user?.id) {
+      setBusy(false);
+      toast.error("Bitte zuerst anmelden.");
+      return;
+    }
+    if (givenName.trim() && familyName.trim()) {
+      if (!(await persistProfileNames(sb))) {
+        setBusy(false);
+        return;
+      }
+    }
+    const ok = await acceptInvite(user.id);
+    setBusy(false);
+    if (ok) {
+      toast.success(`Willkommen bei ${invite.restaurant_name}!`);
+      goDashboard();
+    }
+  };
 
   const acceptInvite = async (userId: string) => {
     const sb = createSupabaseBrowserClient();
@@ -404,6 +459,22 @@ export default function StaffInvitePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {viewerLoggedIn && viewerStatus === "can_join" ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Du bist angemeldet. Nimm die Einladung an, um dem Team beizutreten.
+              </p>
+              <Button
+                type="button"
+                className="w-full rounded-xl"
+                disabled={busy}
+                onClick={() => void handleAcceptLoggedIn()}
+              >
+                {busy ? "…" : "Einladung annehmen"}
+              </Button>
+            </>
+          ) : (
+            <>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="inv-given">Vorname</Label>
@@ -473,6 +544,36 @@ export default function StaffInvitePage() {
           >
             Bereits Konto — anmelden & beitreten
           </Button>
+          {showOAuthSection ? (
+            <div className="space-y-2 border-t border-border/40 pt-4">
+              <p className="text-center text-xs text-muted-foreground">oder</p>
+              {showGoogle ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full gap-2 rounded-xl"
+                  disabled={busy}
+                  onClick={() => void handleOAuth("google")}
+                >
+                  <GoogleGlyph />
+                  Mit Google registrieren / anmelden
+                </Button>
+              ) : null}
+              {showApple ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full gap-2 rounded-xl"
+                  disabled={busy}
+                  onClick={() => void handleOAuth("apple")}
+                >
+                  Mit Apple registrieren / anmelden
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+            </>
+          )}
         </CardContent>
       </Card>
     </AuthScreenShell>

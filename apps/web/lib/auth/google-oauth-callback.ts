@@ -24,6 +24,7 @@ import {
   GWADA_WAITLIST_SIGNUP_MESSAGE,
   parseOAuthIdTokenEmail,
 } from "@/lib/auth/public-signup-gate";
+import { isSignupAllowedForEmailAdmin } from "@/lib/auth/staff-invite-signup-gate";
 
 function redirectLogin(
   origin: string,
@@ -174,9 +175,12 @@ export async function handleGoogleOAuthCallback(
     }
     const existingUserId = await findAuthUserIdByEmailAdmin(admin, oauthEmail);
     if (!existingUserId) {
-      return clearNonce(
-        redirectLogin(origin, GWADA_WAITLIST_SIGNUP_MESSAGE, state.next),
-      );
+      const allowed = await isSignupAllowedForEmailAdmin(admin, oauthEmail);
+      if (!allowed) {
+        return clearNonce(
+          redirectLogin(origin, GWADA_WAITLIST_SIGNUP_MESSAGE, state.next),
+        );
+      }
     }
   }
 

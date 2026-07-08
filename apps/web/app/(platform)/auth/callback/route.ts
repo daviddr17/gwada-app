@@ -12,7 +12,10 @@ import {
   GWADA_PUBLIC_SIGNUP_ENABLED,
   GWADA_WAITLIST_SIGNUP_MESSAGE,
 } from "@/lib/auth/public-signup-gate";
-import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
+import {
+  isInviteSignupNextPath,
+  isSignupAllowedForEmailAdmin,
+} from "@/lib/auth/staff-invite-signup-gate";
 import { humanizeLoginErrorMessage } from "@/lib/auth/login-error-messages";
 
 function loginRedirect(
@@ -82,8 +85,22 @@ export async function GET(request: NextRequest) {
   ) {
     const createdMs = new Date(sessionData.session.user.created_at).getTime();
     if (Date.now() - createdMs < 120_000) {
-      await supabase.auth.signOut();
-      return loginRedirect(origin, GWADA_WAITLIST_SIGNUP_MESSAGE, searchParams.get("next"));
+      const admin = createSupabaseAdminClient();
+      const userEmail = sessionData.session.user.email;
+      const nextPath = searchParams.get("next");
+      const allowed =
+        isInviteSignupNextPath(nextPath) ||
+        (admin && userEmail
+          ? await isSignupAllowedForEmailAdmin(admin, userEmail)
+          : false);
+      if (!allowed) {
+        await supabase.auth.signOut();
+        return loginRedirect(
+          origin,
+          GWADA_WAITLIST_SIGNUP_MESSAGE,
+          searchParams.get("next"),
+        );
+      }
     }
   }
 

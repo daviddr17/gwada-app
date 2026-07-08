@@ -13,6 +13,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
+import { isSignupAllowedForEmailAdmin } from "@/lib/auth/staff-invite-signup-gate";
 import { GWADA_PUBLIC_SIGNUP_ENABLED } from "@/lib/auth/public-signup-gate";
 
 export async function sendMagicLinkEmailServer(params: {
@@ -34,8 +35,11 @@ export async function sendMagicLinkEmailServer(params: {
   if (!GWADA_PUBLIC_SIGNUP_ENABLED) {
     const existingUserId = await findAuthUserIdByEmailAdmin(admin, email);
     if (!existingUserId) {
-      // Kein Leak: gleiche Antwort wie bei unbekannter Adresse
-      return { ok: true };
+      const allowed = await isSignupAllowedForEmailAdmin(admin, email);
+      if (!allowed) {
+        // Kein Leak: gleiche Antwort wie bei unbekannter Adresse
+        return { ok: true };
+      }
     }
   }
 

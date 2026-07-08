@@ -7,7 +7,7 @@ export type ReservationLiveInsertFields = {
   id: string;
   starts_at: string;
   ends_at?: string;
-  dwell_minutes?: number;
+  dwell_minutes?: number | null;
   guest_first_name: string | null;
   guest_last_name: string | null;
   party_size: number;
@@ -20,10 +20,11 @@ export type ReservationLiveInsertFields = {
 const DEFAULT_LIVE_INSERT_DWELL_MINUTES = 120;
 
 export function reservationEndsAtFromLiveInsert(
-  insert: Pick<
-    ReservationLiveInsertFields,
-    "starts_at" | "ends_at" | "dwell_minutes"
-  >,
+  insert: {
+    starts_at: string;
+    ends_at?: string | null;
+    dwell_minutes?: number | null;
+  },
 ): string {
   if (insert.ends_at && Number.isFinite(new Date(insert.ends_at).getTime())) {
     return insert.ends_at;

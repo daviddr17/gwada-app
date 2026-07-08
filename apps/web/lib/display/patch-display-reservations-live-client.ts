@@ -12,6 +12,8 @@ function sortReservationsByStart(
   );
 }
 
+export { sortReservationsByStart };
+
 function countsTowardDisplayStats(code: string | undefined): boolean {
   return (
     code !== "cancelled" && code !== "declined" && code !== "no_show"
@@ -38,7 +40,7 @@ export function patchDisplayDayFromReservationInsert(
   row: DisplayReservationRow,
 ): DisplayDayPayloadPatch {
   if (payload.reservations.some((r) => r.id === row.id)) {
-    return payload;
+    return patchDisplayDayFromReservationUpdate(payload, row);
   }
 
   const reservations = sortReservationsByStart([
@@ -97,5 +99,27 @@ export function patchDisplayDayFromReservationUpdate(
     reservations: sortReservationsByStart(
       payload.reservations.map((r) => (r.id === row.id ? row : r)),
     ),
+  };
+}
+
+export function patchDisplayDayFromReservationRemove(
+  payload: DisplayDayPayloadPatch,
+  reservationId: string,
+): DisplayDayPayloadPatch {
+  const prev = payload.reservations.find((r) => r.id === reservationId);
+  if (!prev) return payload;
+
+  const reservations = payload.reservations.filter((r) => r.id !== reservationId);
+  const prevCounts = countsTowardDisplayStats(prev.status?.code);
+  if (!prevCounts) {
+    return { ...payload, reservations };
+  }
+
+  return {
+    reservations,
+    stats: {
+      count: Math.max(0, payload.stats.count - 1),
+      guests: Math.max(0, payload.stats.guests - prev.party_size),
+    },
   };
 }

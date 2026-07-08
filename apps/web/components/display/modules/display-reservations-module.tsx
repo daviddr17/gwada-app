@@ -62,6 +62,9 @@ import {
 import {
   displayReservationOnDay,
   patchDisplayDayFromReservationInsert,
+  patchDisplayDayFromReservationRemove,
+  patchDisplayDayFromReservationUpdate,
+  sortReservationsByStart,
 } from "@/lib/display/patch-display-reservations-live-client";
 
 type ReservationStatus = {
@@ -118,15 +121,6 @@ function reservationOverlapsSlotRange(
   return rStart < rangeEnd && rEnd > rangeStart;
 }
 
-function sortReservationsByStart(
-  rows: DisplayReservationRow[],
-): DisplayReservationRow[] {
-  return [...rows].sort(
-    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-  );
-}
-
-/** Slider at both ends → show every reservation returned for the selected day (matches header stats). */
 function isFullDaySlotRange(
   slotMinutes: number[],
   rangeSlotIndices: [number, number],
@@ -195,7 +189,10 @@ export function DisplayReservationsModule() {
         );
         return;
       }
-      setPayload(data);
+      setPayload({
+        ...data,
+        reservations: sortReservationsByStart(data.reservations ?? []),
+      });
     } catch {
       toast.error("Reservierungen konnten nicht geladen werden.");
     } finally {
@@ -244,10 +241,18 @@ export function DisplayReservationsModule() {
 
   const applyOptimisticReservation = useCallback(
     (row: DisplayReservationRow) => {
-      if (!displayReservationOnDay(row, selectedDayYmd, timeZone)) return;
       setPayload((prev) => {
         if (!prev) return prev;
-        const patched = patchDisplayDayFromReservationInsert(prev, row);
+        const onDay = displayReservationOnDay(row, selectedDayYmd, timeZone);
+        const exists = prev.reservations.some((r) => r.id === row.id);
+        if (!onDay) {
+          if (!exists) return prev;
+          const patched = patchDisplayDayFromReservationRemove(prev, row.id);
+          return { ...prev, ...patched };
+        }
+        const patched = exists
+          ? patchDisplayDayFromReservationUpdate(prev, row)
+          : patchDisplayDayFromReservationInsert(prev, row);
         return { ...prev, ...patched };
       });
       setLoading(false);
@@ -313,7 +318,10 @@ export function DisplayReservationsModule() {
 
   const openCount = payload?.open_count ?? openReservations.length;
 
-  const reservations = payload?.reservations ?? [];
+  const reservations = useMemo(
+    () => sortReservationsByStart(payload?.reservations ?? []),
+    [payload?.reservations],
+  );
   const statuses = payload?.statuses ?? [];
   const areas = payload?.areas ?? [];
   const tables = payload?.tables ?? [];
@@ -386,18 +394,16 @@ export function DisplayReservationsModule() {
       slotMinutes.length === 0 ||
       isFullDaySlotRange(slotMinutes, effectiveRangeSlotIndices)
     ) {
-      return sortReservationsByStart(reservations);
+      return reservations;
     }
-    return sortReservationsByStart(
-      reservations.filter((r) =>
-        reservationOverlapsSlotRange(
-          r,
-          selectedDayYmd,
-          timeZone,
-          fromMin,
-          toMin,
-          bookingStep,
-        ),
+    return reservations.filter((r) =>
+      reservationOverlapsSlotRange(
+        r,
+        selectedDayYmd,
+        timeZone,
+        fromMin,
+        toMin,
+        bookingStep,
       ),
     );
   }, [
@@ -1289,8 +1295,9 @@ export function DisplayReservationsModule() {
         reservations={overlapReservations}
         defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
         bookingTimeStepMinutes={bookingStep}
-        onSaved={() => {
-          void load({ silent: true });
+        onSaved={(row) => {
+          if (row) applyOptimisticReservation(row);
+          else void load({ silent: true });
           void loadOpen({ silent: true });
         }}
       />
@@ -1305,7 +1312,7 @@ export function DisplayReservationsModule() {
         nextReservationNumber={payload?.next_reservation_number ?? null}
         onCreated={(row) => {
           if (row) applyOptimisticReservation(row);
-          else void load({ silent: true });
+          void load({ silent: true });
         }}
       />
 

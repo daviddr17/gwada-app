@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
 import { updateDisplayReservation } from "@/lib/display/display-reservation-mutations-server";
-import { loadDisplayReservationDetail } from "@/lib/display/display-reservations-server";
+import {
+  loadDisplayReservationDetail,
+  loadDisplayReservationRowById,
+} from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export async function GET(
@@ -112,5 +115,7 @@ export async function PATCH(
     return NextResponse.json({ error: result.error }, { status });
   }
 
-  return NextResponse.json({ ok: true });
+  const reservation = await loadDisplayReservationRowById(access.restaurantId, id);
+
+  return NextResponse.json({ ok: true, reservation });
 }

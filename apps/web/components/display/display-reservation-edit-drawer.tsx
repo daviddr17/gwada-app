@@ -37,7 +37,10 @@ import {
   COUNTRIES_REFERENCE_FALLBACK,
   type CountryReference,
 } from "@/lib/constants/countries";
-import type { DisplayReservationDetail } from "@/lib/display/display-reservations-server";
+import type {
+  DisplayReservationDetail,
+  DisplayReservationRow,
+} from "@/lib/display/display-reservations-server";
 import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
 import { parseGuestPhone, formatGuestPhone } from "@/lib/phone/guest-phone";
 import {
@@ -115,7 +118,7 @@ export function DisplayReservationEditDrawer({
   reservations: ReservationListRow[];
   defaultDwellMinutes: number;
   bookingTimeStepMinutes: number;
-  onSaved: () => void;
+  onSaved: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
   const step = normalizeBookingTimeStepMinutes(
@@ -339,7 +342,10 @@ export function DisplayReservationEditDrawer({
           body: JSON.stringify(payload),
         },
       );
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        reservation?: DisplayReservationRow | null;
+      };
       if (!res.ok) {
         toast.error(
           DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
@@ -362,7 +368,7 @@ export function DisplayReservationEditDrawer({
       allowDrawerCloseRef.current = true;
       setTableSharePending(null);
       onOpenChange(false);
-      onSaved();
+      onSaved(data.reservation ?? null);
     } catch {
       toast.error("Speichern fehlgeschlagen.");
     } finally {

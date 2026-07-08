@@ -26,6 +26,8 @@ export function DayReservationsExportSheet({
   dayTitle,
   reservations,
   restaurantName,
+  timeZone,
+  dayYmd,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,13 +35,20 @@ export function DayReservationsExportSheet({
   dayTitle: string;
   reservations: ReservationListRow[];
   restaurantName?: string;
+  timeZone?: string;
+  dayYmd?: string;
 }) {
   const { reservationCount, guestCount } = dayReservationExportTotals(reservations);
 
   const handleCsv = () => {
     if (!day || reservationCount === 0) return;
     try {
-      downloadDayReservationsCsv(day, reservations);
+      downloadDayReservationsCsv(day, reservations, {
+        restaurantName,
+        dayTitle,
+        timeZone,
+        dayYmd,
+      });
       toast.success("CSV wurde heruntergeladen.");
       onOpenChange(false);
     } catch {
@@ -54,6 +63,8 @@ export function DayReservationsExportSheet({
         await downloadDayReservationsPdf(day, reservations, {
           restaurantName,
           dayTitle,
+          timeZone,
+          dayYmd,
         });
         toast.success("PDF wurde heruntergeladen.");
         onOpenChange(false);

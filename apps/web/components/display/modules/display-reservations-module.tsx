@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LayoutList, Loader2, MessageSquare, Plus, Rows3, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  LayoutList,
+  Loader2,
+  MessageSquare,
+  Plus,
+  Rows3,
+  Users,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,6 +28,8 @@ import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats
 import { DisplayOpenReservationCard } from "@/components/display/display-open-reservation-card";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
+import { DayReservationsExportSheet } from "@/components/reservations/day-reservations-export-sheet";
+import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { formatDisplayChangeRequestHint } from "@/lib/reservations/reservation-pending-change";
 import {
   dispatchReservationOpenResolvedLivePatch,
@@ -130,6 +142,53 @@ function isFullDaySlotRange(
   return rangeSlotIndices[0] === 0 && rangeSlotIndices[1] === lastIdx;
 }
 
+function mapDisplayReservationToListRow(
+  r: DisplayReservationRow,
+  restaurantId: string,
+  tables: DiningTableRow[],
+): ReservationListRow {
+  return {
+    id: r.id,
+    restaurant_id: restaurantId,
+    reservation_number: r.reservation_number,
+    guest_pin: "",
+    created_at: "",
+    created_by_profile_id: null,
+    created_by_profile: null,
+    guest_first_name: r.guest_first_name,
+    guest_last_name: r.guest_last_name,
+    guest_phone: r.guest_phone,
+    guest_email: r.guest_email,
+    contact_id: r.contact_id,
+    party_size: r.party_size,
+    starts_at: r.starts_at,
+    ends_at: r.ends_at,
+    dining_table_id: r.dining_table_id,
+    dwell_minutes: null,
+    notify_email: false,
+    notify_whatsapp: false,
+    terms_accepted: false,
+    pending_change: null,
+    status_before_change_id: null,
+    reservation_statuses: r.status
+      ? {
+          id: r.status.id,
+          code: r.status.code,
+          name: r.status.name,
+          color_hex: r.status.color_hex,
+        }
+      : null,
+    dining_tables: r.table
+      ? {
+          id: r.table.id,
+          table_number: r.table.table_number,
+          table_name: r.table.table_name,
+          area_id: tables.find((t) => t.id === r.table!.id)?.area_id ?? "",
+        }
+      : null,
+  };
+}
+
 export function DisplayReservationsModule() {
   const timeZone = useDisplayRestaurantTimezone();
   const timeFmt = useMemo(
@@ -153,6 +212,7 @@ export function DisplayReservationsModule() {
   const lastSlotsKeyRef = useRef("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [messageTarget, setMessageTarget] = useState<DisplayReservationRow | null>(
     null,
   );
@@ -631,48 +691,24 @@ export function DisplayReservationsModule() {
     }
   };
 
+  const restaurantId = payload?.restaurant_id ?? "";
+
   const overlapReservations = useMemo((): ReservationListRow[] => {
-    return reservations.map((r) => ({
-      id: r.id,
-      restaurant_id: payload?.restaurant_id ?? "",
-      reservation_number: r.reservation_number,
-      guest_pin: "",
-      created_at: "",
-      created_by_profile_id: null,
-      created_by_profile: null,
-      guest_first_name: r.guest_first_name,
-      guest_last_name: r.guest_last_name,
-      guest_phone: r.guest_phone,
-      guest_email: r.guest_email,
-      contact_id: r.contact_id,
-      party_size: r.party_size,
-      starts_at: r.starts_at,
-      ends_at: r.ends_at,
-      dining_table_id: r.dining_table_id,
-      dwell_minutes: null,
-      notify_email: false,
-      notify_whatsapp: false,
-      terms_accepted: false,
-      pending_change: null,
-      status_before_change_id: null,
-      reservation_statuses: r.status
-        ? {
-            id: r.status.id,
-            code: r.status.code,
-            name: r.status.name,
-            color_hex: r.status.color_hex,
-          }
-        : null,
-      dining_tables: r.table
-        ? {
-            id: r.table.id,
-            table_number: r.table.table_number,
-            table_name: r.table.table_name,
-            area_id: tables.find((t) => t.id === r.table!.id)?.area_id ?? "",
-          }
-        : null,
-    }));
-  }, [reservations, payload?.restaurant_id, tables]);
+    return reservations.map((r) =>
+      mapDisplayReservationToListRow(r, restaurantId, tables),
+    );
+  }, [reservations, restaurantId, tables]);
+
+  const exportReservations = useMemo((): ReservationListRow[] => {
+    return filteredReservations.map((r) =>
+      mapDisplayReservationToListRow(r, restaurantId, tables),
+    );
+  }, [filteredReservations, restaurantId, tables]);
+
+  const exportDay = useMemo(
+    () => restaurantDateAtSlotMinutes(selectedDayYmd, 0, timeZone),
+    [selectedDayYmd, timeZone],
+  );
 
   const seatedStatus = statuses.find((s) => s.code === "seated");
   const confirmedStatus = statuses.find((s) => s.code === "confirmed");
@@ -1002,6 +1038,20 @@ export function DisplayReservationsModule() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              reservationsDayDrawerHeaderActionButtonClassName,
+              "size-10 rounded-xl",
+            )}
+            aria-label="Tagesliste exportieren"
+            disabled={showDataSkeleton || exportReservations.length === 0}
+            onClick={() => setExportOpen(true)}
+          >
+            <Download className="size-4" />
+          </Button>
+          <Button
             size="lg"
             className={cn(modulePrimaryAddButtonClassName, "h-12 rounded-xl")}
             onClick={() => setCreateOpen(true)}
@@ -1323,6 +1373,17 @@ export function DisplayReservationsModule() {
         }}
         reservation={messageTarget}
         restaurantName={payload?.restaurant_name ?? null}
+      />
+
+      <DayReservationsExportSheet
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        day={exportDay}
+        dayYmd={selectedDayYmd}
+        timeZone={timeZone}
+        dayTitle={formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
+        restaurantName={payload?.restaurant_name ?? undefined}
+        reservations={exportReservations}
       />
     </div>
   );

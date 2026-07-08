@@ -1,5 +1,6 @@
 "use client";
 
+import { PurchaseOrderVoiceFab } from "@/components/inventory/purchase-order-voice-fab";
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
@@ -40,6 +41,7 @@ export default function InventoryLayout({
         subnavItems={INVENTORY_NAV}
       />
       <AppMain>{children}</AppMain>
+      <PurchaseOrderVoiceFab />
     </>
   );
 }

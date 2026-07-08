@@ -1,3 +1,4 @@
+import { printTableDocument } from "@/lib/export/print-table-document";
 import {
   downloadTableCsv,
   downloadTablePdf,
@@ -129,6 +130,31 @@ export function buildDisplayInventoryExportRows(
   return sorted.map((row) =>
     mode === "stock" ? stockRowToExport(row) : orderRowToExport(row),
   );
+}
+
+function displayInventoryHeaders(mode: DisplayInventoryExportMode): readonly string[] {
+  return mode === "stock" ? STOCK_HEADERS : ORDER_HEADERS;
+}
+
+export function printDisplayInventory(
+  rows: DisplayInventoryIngredientRow[],
+  mode: DisplayInventoryExportMode,
+  options?: { restaurantName?: string },
+): void {
+  const exportRows = buildDisplayInventoryExportRows(rows, mode);
+  const isStock = mode === "stock";
+  const summary = isStock
+    ? `${exportRows.length} Zutat${exportRows.length === 1 ? "" : "en"} · Spalten „Neuer Bestand“ und „Bestellung“ zum handschriftlichen Eintragen`
+    : `${exportRows.length} Position${exportRows.length === 1 ? "" : "en"}`;
+
+  printTableDocument({
+    documentTitle: isStock ? "Bestand" : "Bestellung",
+    headers: displayInventoryHeaders(mode),
+    rows: exportRows,
+    restaurantName: options?.restaurantName,
+    summaryLine: summary,
+    landscape: true,
+  });
 }
 
 export function downloadDisplayInventoryCsv(

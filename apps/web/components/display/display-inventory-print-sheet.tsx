@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSpreadsheet, FileText } from "lucide-react";
+import { Printer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -31,14 +31,15 @@ import type {
 import {
   countDisplayInventoryExportFilters,
   DEFAULT_DISPLAY_INVENTORY_EXPORT_FILTERS,
-  downloadDisplayInventoryCsv,
-  downloadDisplayInventoryPdf,
   filterDisplayInventoryExportRows,
+  printDisplayInventory,
   type DisplayInventoryExportFilters,
   type DisplayInventoryExportMode,
 } from "@/lib/display/export-display-inventory";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import { cn } from "@/lib/utils";
 
 const ALL = "all";
 
@@ -57,7 +58,7 @@ function deriveBrandOptions(
     .sort((a, b) => a.name.localeCompare(b.name, "de"));
 }
 
-type DisplayInventoryExportSheetProps = {
+type DisplayInventoryPrintSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: DisplayInventoryExportMode;
@@ -69,7 +70,7 @@ type DisplayInventoryExportSheetProps = {
   initialFilters?: Partial<DisplayInventoryExportFilters>;
 };
 
-export function DisplayInventoryExportSheet({
+export function DisplayInventoryPrintSheet({
   open,
   onOpenChange,
   mode,
@@ -79,7 +80,7 @@ export function DisplayInventoryExportSheet({
   productionSites,
   restaurantName,
   initialFilters,
-}: DisplayInventoryExportSheetProps) {
+}: DisplayInventoryPrintSheetProps) {
   const [filters, setFilters] = useState<DisplayInventoryExportFilters>(
     DEFAULT_DISPLAY_INVENTORY_EXPORT_FILTERS,
   );
@@ -133,7 +134,7 @@ export function DisplayInventoryExportSheet({
 
   const activeFilterCount = countDisplayInventoryExportFilters(filters, mode);
   const isStock = mode === "stock";
-  const title = isStock ? "Bestand exportieren" : "Bestellung exportieren";
+  const title = isStock ? "Bestand drucken" : "Bestellung drucken";
   const description =
     filteredRows.length > 0
       ? `${filteredRows.length} Zutat${filteredRows.length === 1 ? "" : "en"}${
@@ -141,35 +142,21 @@ export function DisplayInventoryExportSheet({
         }`
       : activeFilterCount > 0
         ? "Keine Zutaten für die gewählten Filter."
-        : "Noch keine Zutaten zum Exportieren.";
+        : "Noch keine Zutaten zum Drucken.";
 
   const resetFilters = () => {
     setFilters(DEFAULT_DISPLAY_INVENTORY_EXPORT_FILTERS);
     toast.success("Filter zurückgesetzt");
   };
 
-  const handleCsv = () => {
+  const handlePrint = () => {
     if (filteredRows.length === 0) return;
     try {
-      downloadDisplayInventoryCsv(filteredRows, mode, { restaurantName });
-      toast.success("CSV wurde heruntergeladen.");
+      printDisplayInventory(filteredRows, mode, { restaurantName });
       onOpenChange(false);
     } catch {
-      toast.error("CSV-Export fehlgeschlagen.");
+      toast.error("Drucken fehlgeschlagen.");
     }
-  };
-
-  const handlePdf = () => {
-    if (filteredRows.length === 0) return;
-    void (async () => {
-      try {
-        await downloadDisplayInventoryPdf(filteredRows, mode, { restaurantName });
-        toast.success("PDF wurde heruntergeladen.");
-        onOpenChange(false);
-      } catch {
-        toast.error("PDF-Export fehlgeschlagen.");
-      }
-    })();
   };
 
   return (
@@ -242,7 +229,7 @@ export function DisplayInventoryExportSheet({
               <DrawerFormSection title="Bestellmenge">
                 <div className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
                   <div className="min-w-0 space-y-0.5">
-                    <Label htmlFor="display-export-only-order-qty" className="text-sm">
+                    <Label htmlFor="display-print-only-order-qty" className="text-sm">
                       Nur mit Bestellmenge
                     </Label>
                     <p className="text-xs text-muted-foreground">
@@ -250,7 +237,7 @@ export function DisplayInventoryExportSheet({
                     </p>
                   </div>
                   <Switch
-                    id="display-export-only-order-qty"
+                    id="display-print-only-order-qty"
                     checked={filters.onlyWithOrderQuantity}
                     onCheckedChange={(checked) =>
                       setFilters((prev) => ({
@@ -263,41 +250,24 @@ export function DisplayInventoryExportSheet({
               </DrawerFormSection>
             ) : null}
 
-            <DrawerFormSection title="Export">
-              <div className="flex flex-col gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 justify-start gap-3 rounded-xl px-4"
-                  disabled={filteredRows.length === 0}
-                  onClick={handleCsv}
-                >
-                  <FileSpreadsheet className="size-5 shrink-0 text-muted-foreground" />
-                  <span className="text-left">
-                    <span className="block font-medium">Als CSV</span>
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      Für Excel, Numbers oder weitere Auswertung
-                    </span>
-                  </span>
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-12 justify-start gap-3 rounded-xl px-4"
-                  disabled={filteredRows.length === 0}
-                  onClick={handlePdf}
-                >
-                  <FileText className="size-5 shrink-0 text-muted-foreground" />
-                  <span className="text-left">
-                    <span className="block font-medium">Als PDF</span>
-                    <span className="block text-xs font-normal text-muted-foreground">
-                      {isStock
-                        ? "Mit Spalten zum handschriftlichen Eintragen und Seitenzahlen"
-                        : "Bestellliste zum Ausdrucken mit Seitenzahlen"}
-                    </span>
-                  </span>
-                </Button>
-              </div>
+            <DrawerFormSection title="Drucken">
+              <Button
+                type="button"
+                className={cn(
+                  "h-12 w-full gap-2",
+                  brandActionButtonRoundedClassName,
+                )}
+                disabled={filteredRows.length === 0}
+                onClick={handlePrint}
+              >
+                <Printer className="size-4" />
+                Jetzt drucken
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {isStock
+                  ? "Öffnet den System-Druckdialog mit Spalten zum handschriftlichen Eintragen."
+                  : "Öffnet den System-Druckdialog mit der gefilterten Bestellliste."}
+              </p>
             </DrawerFormSection>
           </div>
 

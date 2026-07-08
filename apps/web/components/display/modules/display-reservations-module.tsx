@@ -4,11 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Download,
   LayoutList,
   Loader2,
   MessageSquare,
   Plus,
+  Printer,
   Rows3,
   Users,
 } from "lucide-react";
@@ -28,7 +28,7 @@ import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats
 import { DisplayOpenReservationCard } from "@/components/display/display-open-reservation-card";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
-import { DayReservationsExportSheet } from "@/components/reservations/day-reservations-export-sheet";
+import { DisplayReservationsPrintSheet } from "@/components/display/display-reservations-print-sheet";
 import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { formatDisplayChangeRequestHint } from "@/lib/reservations/reservation-pending-change";
 import {
@@ -212,7 +212,7 @@ export function DisplayReservationsModule() {
   const lastSlotsKeyRef = useRef("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [exportOpen, setExportOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [messageTarget, setMessageTarget] = useState<DisplayReservationRow | null>(
     null,
   );
@@ -705,11 +705,6 @@ export function DisplayReservationsModule() {
     );
   }, [filteredReservations, restaurantId, tables]);
 
-  const exportDay = useMemo(
-    () => restaurantDateAtSlotMinutes(selectedDayYmd, 0, timeZone),
-    [selectedDayYmd, timeZone],
-  );
-
   const seatedStatus = statuses.find((s) => s.code === "seated");
   const confirmedStatus = statuses.find((s) => s.code === "confirmed");
   const declinedStatus = statuses.find((s) => s.code === "declined");
@@ -1045,11 +1040,11 @@ export function DisplayReservationsModule() {
               reservationsDayDrawerHeaderActionButtonClassName,
               "size-10 rounded-xl",
             )}
-            aria-label="Tagesliste exportieren"
+            aria-label="Tagesliste drucken"
             disabled={showDataSkeleton || exportReservations.length === 0}
-            onClick={() => setExportOpen(true)}
+            onClick={() => setPrintOpen(true)}
           >
-            <Download className="size-4" />
+            <Printer className="size-4" />
           </Button>
           <Button
             size="lg"
@@ -1375,15 +1370,15 @@ export function DisplayReservationsModule() {
         restaurantName={payload?.restaurant_name ?? null}
       />
 
-      <DayReservationsExportSheet
-        open={exportOpen}
-        onOpenChange={setExportOpen}
-        day={exportDay}
+      <DisplayReservationsPrintSheet
+        open={printOpen}
+        onOpenChange={setPrintOpen}
         dayYmd={selectedDayYmd}
         timeZone={timeZone}
         dayTitle={formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
         restaurantName={payload?.restaurant_name ?? undefined}
         reservations={exportReservations}
+        statuses={statuses}
       />
     </div>
   );

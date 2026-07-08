@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Download, Package, Search, ShoppingCart } from "lucide-react";
+import { Package, Printer, Search, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { DisplayInventoryExportSheet } from "@/components/display/display-inventory-export-sheet";
+import { DisplayInventoryPrintSheet } from "@/components/display/display-inventory-print-sheet";
 import type {
   DisplayInventoryFilterOption,
   DisplayInventoryIngredientRow,
@@ -375,7 +375,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
   const [data, setData] = useState<DisplayInventoryPayload | null>(null);
   const showDataSkeleton = useDeferredSkeleton(loading && !data);
   const [mode, setMode] = useState<ViewMode>("stock");
-  const [exportOpen, setExportOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState(ALL);
   const [filterCategory, setFilterCategory] = useState(ALL);
@@ -555,13 +555,11 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
             reservationsDayDrawerHeaderActionButtonClassName,
             "ml-auto size-12 rounded-2xl",
           )}
-          aria-label={
-            mode === "stock" ? "Bestand exportieren" : "Bestellung exportieren"
-          }
+          aria-label={mode === "stock" ? "Bestand drucken" : "Bestellung drucken"}
           disabled={showDataSkeleton || !data || data.ingredients.length === 0}
-          onClick={() => setExportOpen(true)}
+          onClick={() => setPrintOpen(true)}
         >
-          <Download className="size-5" />
+          <Printer className="size-5" />
         </Button>
       </div>
 
@@ -670,9 +668,9 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
       ) : null}
 
       {data ? (
-        <DisplayInventoryExportSheet
-          open={exportOpen}
-          onOpenChange={setExportOpen}
+        <DisplayInventoryPrintSheet
+          open={printOpen}
+          onOpenChange={setPrintOpen}
           mode={mode}
           ingredients={data.ingredients}
           suppliers={data.suppliers}

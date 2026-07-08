@@ -1,5 +1,6 @@
 import { downloadBlob } from "@/lib/export/download-blob";
 import { escapeCsvCell } from "@/lib/export/escape-csv-cell";
+import { printTableDocument } from "@/lib/export/print-table-document";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
@@ -82,6 +83,30 @@ function reservationToRow(
     String(r.reservation_number),
     "",
   ];
+}
+
+export function buildDayReservationExportRows(
+  reservations: ReservationListRow[],
+  options?: Pick<DayReservationExportOptions, "timeZone">,
+): string[][] {
+  const timeFmt = createTimeFormatter(options?.timeZone);
+  return reservations.map((r) => reservationToRow(r, timeFmt));
+}
+
+export function printDayReservations(
+  reservations: ReservationListRow[],
+  options?: DayReservationExportOptions,
+): void {
+  const totals = dayReservationExportTotals(reservations);
+  const title = options?.dayTitle?.trim() || "Reservierungen";
+  printTableDocument({
+    documentTitle: "Reservierungen",
+    headers: HEADERS,
+    rows: buildDayReservationExportRows(reservations, options),
+    restaurantName: options?.restaurantName,
+    summaryLine: `${title} · ${totalsSummaryDe(totals)}`,
+    landscape: true,
+  });
 }
 
 export function downloadDayReservationsCsv(

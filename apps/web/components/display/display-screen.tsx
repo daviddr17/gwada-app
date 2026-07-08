@@ -741,7 +741,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
             {currentModule === "recipes" ? (
               <DisplayRecipesModule />
             ) : null}
-            {currentModule === "inventory" ? <DisplayInventoryModule /> : null}
+            {currentModule === "inventory" ? (
+              <DisplayInventoryModule
+                restaurantName={context.restaurant?.name ?? undefined}
+              />
+            ) : null}
             {currentModule === "compliance" ? <DisplayComplianceModule /> : null}
           </DisplayModuleShell>
       );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Package, Search, ShoppingCart } from "lucide-react";
+import { Download, Package, Search, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { DisplayInventoryExportSheet } from "@/components/display/display-inventory-export-sheet";
 import type {
   DisplayInventoryFilterOption,
   DisplayInventoryIngredientRow,
@@ -20,10 +22,15 @@ import type {
 import { GWADA_DISPLAY_INVENTORY_REFRESH_EVENT } from "@/lib/display/display-inventory-live-events";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "stock" | "order";
+
+type DisplayInventoryModuleProps = {
+  restaurantName?: string;
+};
 
 const ALL = "all";
 
@@ -363,11 +370,12 @@ function DisplayInventoryCard({
   );
 }
 
-export function DisplayInventoryModule() {
+export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModuleProps) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DisplayInventoryPayload | null>(null);
   const showDataSkeleton = useDeferredSkeleton(loading && !data);
   const [mode, setMode] = useState<ViewMode>("stock");
+  const [exportOpen, setExportOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState(ALL);
   const [filterCategory, setFilterCategory] = useState(ALL);
@@ -487,6 +495,15 @@ export function DisplayInventoryModule() {
     </div>
   );
 
+  const exportInitialFilters = useMemo(
+    () => ({
+      supplierId: filterSupplier,
+      categoryId: filterCategory,
+      productionSiteId: filterProduction,
+    }),
+    [filterCategory, filterProduction, filterSupplier],
+  );
+
   if (!data && !loading) {
     return (
       <p className="py-12 text-center text-muted-foreground">
@@ -497,7 +514,7 @@ export function DisplayInventoryModule() {
 
   return (
     <div className={displayModuleContentClassName}>
-      <div data-inventory-toolbar className="flex flex-wrap gap-2">
+      <div data-inventory-toolbar className="flex flex-wrap items-center gap-2">
         <button
           type="button"
           onClick={() => {
@@ -530,6 +547,22 @@ export function DisplayInventoryModule() {
           <ShoppingCart className="size-5 shrink-0" aria-hidden />
           Bestellung
         </button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className={cn(
+            reservationsDayDrawerHeaderActionButtonClassName,
+            "ml-auto size-12 rounded-2xl",
+          )}
+          aria-label={
+            mode === "stock" ? "Bestand exportieren" : "Bestellung exportieren"
+          }
+          disabled={showDataSkeleton || !data || data.ingredients.length === 0}
+          onClick={() => setExportOpen(true)}
+        >
+          <Download className="size-5" />
+        </Button>
       </div>
 
       {showDataSkeleton ? (
@@ -634,6 +667,20 @@ export function DisplayInventoryModule() {
         </div>
       )}
         </>
+      ) : null}
+
+      {data ? (
+        <DisplayInventoryExportSheet
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          mode={mode}
+          ingredients={data.ingredients}
+          suppliers={data.suppliers}
+          categories={data.categories}
+          productionSites={data.productionSites}
+          restaurantName={restaurantName}
+          initialFilters={exportInitialFilters}
+        />
       ) : null}
     </div>
   );

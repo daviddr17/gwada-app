@@ -18,3 +18,6 @@ export function parseOAuthIdTokenEmail(idToken: string): string | null {
 
 export const GWADA_WAITLIST_SIGNUP_MESSAGE =
   "Gwada ist noch nicht öffentlich verfügbar. Trage dich auf der Anmeldeseite auf die Warteliste ein.";
+
+export const GWADA_STAFF_INVITE_SIGNUP_HINT =
+  "Für deine E-Mail liegt eine Restaurant-Einladung vor. Öffne den Link aus der Einladungsnachricht (E-Mail oder WhatsApp) oder melde dich mit Google bzw. Magic Link an.";

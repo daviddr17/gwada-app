@@ -43,6 +43,3 @@ export function isInviteSignupNextPath(next: string | null | undefined): boolean
   const path = safeInternalPath(next);
   return path.startsWith("/einladung/") && path.length > "/einladung/".length;
 }
-
-export const GWADA_STAFF_INVITE_SIGNUP_HINT =
-  "Für deine E-Mail liegt eine Restaurant-Einladung vor. Öffne den Link aus der Einladungsnachricht (E-Mail oder WhatsApp) oder melde dich mit Google bzw. Magic Link an.";

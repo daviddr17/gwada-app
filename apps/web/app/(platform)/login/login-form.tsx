@@ -39,7 +39,7 @@ import {
 import { AuthScreenBrandLogo } from "@/components/auth/auth-screen-brand-logo";
 import { useAuthEnterTransition } from "@/components/auth/use-auth-enter-transition";
 import { waitlistErrorMessage } from "@/lib/waitlist/waitlist-errors";
-import { GWADA_STAFF_INVITE_SIGNUP_HINT } from "@/lib/auth/staff-invite-signup-gate";
+import { GWADA_STAFF_INVITE_SIGNUP_HINT } from "@/lib/auth/public-signup-gate";
 import {
   humanizeLoginErrorMessage,
   isLikelyNetworkAuthFailure,

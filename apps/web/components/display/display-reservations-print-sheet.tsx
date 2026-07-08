@@ -26,6 +26,7 @@ import {
   dayReservationExportTotals,
   printDayReservations,
 } from "@/lib/reservations/export-day-reservations";
+import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
@@ -78,10 +79,13 @@ export function DisplayReservationsPrintSheet({
   );
 
   const filteredReservations = useMemo(() => {
-    if (statusFilter === ALL) return reservations;
-    return reservations.filter(
-      (r) => r.reservation_statuses?.id === statusFilter,
-    );
+    const rows =
+      statusFilter === ALL
+        ? reservations
+        : reservations.filter(
+            (r) => r.reservation_statuses?.id === statusFilter,
+          );
+    return sortReservationsByStart(rows);
   }, [reservations, statusFilter]);
 
   const { reservationCount, guestCount } = dayReservationExportTotals(

@@ -9,6 +9,7 @@ import {
 import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
+import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
 import { loadDisplayRestaurantTimezone } from "@/lib/staff/staff-display-todos-server";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -241,8 +242,10 @@ export async function loadDisplayReservationsDay(
   const openCount =
     "count" in openBundle ? openBundle.count : 0;
 
-  const reservations = (reservationRows ?? []).map((r) =>
-    mapReservationRow(r as Record<string, unknown>),
+  const reservations = sortReservationsByStart(
+    (reservationRows ?? []).map((r) =>
+      mapReservationRow(r as Record<string, unknown>),
+    ),
   );
 
   const guestCount = reservations.reduce((s, r) => s + r.party_size, 0);
@@ -518,8 +521,8 @@ export async function loadDisplayOpenReservations(restaurantId: string) {
 
   if (error) return { error: error.message };
 
-  const reservations = (rows ?? []).map((r) =>
-    mapReservationRow(r as Record<string, unknown>),
+  const reservations = sortReservationsByStart(
+    (rows ?? []).map((r) => mapReservationRow(r as Record<string, unknown>)),
   );
 
   return { reservations, count: reservations.length };

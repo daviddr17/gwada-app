@@ -279,7 +279,7 @@ export function DisplayReservationsModule() {
         );
         return;
       }
-      setOpenReservations(data.reservations ?? []);
+      setOpenReservations(sortReservationsByStart(data.reservations ?? []));
       setPayload((prev) =>
         prev ? { ...prev, open_count: data.count ?? data.reservations?.length ?? 0 } : prev,
       );
@@ -450,22 +450,23 @@ export function DisplayReservationsModule() {
     ] ?? fromMin;
 
   const filteredReservations = useMemo(() => {
+    let rows = reservations;
     if (
-      slotMinutes.length === 0 ||
-      isFullDaySlotRange(slotMinutes, effectiveRangeSlotIndices)
+      slotMinutes.length > 0 &&
+      !isFullDaySlotRange(slotMinutes, effectiveRangeSlotIndices)
     ) {
-      return reservations;
+      rows = reservations.filter((r) =>
+        reservationOverlapsSlotRange(
+          r,
+          selectedDayYmd,
+          timeZone,
+          fromMin,
+          toMin,
+          bookingStep,
+        ),
+      );
     }
-    return reservations.filter((r) =>
-      reservationOverlapsSlotRange(
-        r,
-        selectedDayYmd,
-        timeZone,
-        fromMin,
-        toMin,
-        bookingStep,
-      ),
-    );
+    return sortReservationsByStart(rows);
   }, [
     reservations,
     selectedDayYmd,
@@ -538,20 +539,22 @@ export function DisplayReservationsModule() {
       const table = tableId ? tables.find((t) => t.id === tableId) : null;
       return {
         ...prev,
-        reservations: prev.reservations.map((r) =>
-          r.id === reservationId
-            ? {
-                ...r,
-                dining_table_id: tableId,
-                table: table
-                  ? {
-                      id: table.id,
-                      table_number: table.table_number,
-                      table_name: table.table_name,
-                    }
-                  : null,
-              }
-            : r,
+        reservations: sortReservationsByStart(
+          prev.reservations.map((r) =>
+            r.id === reservationId
+              ? {
+                  ...r,
+                  dining_table_id: tableId,
+                  table: table
+                    ? {
+                        id: table.id,
+                        table_number: table.table_number,
+                        table_name: table.table_name,
+                      }
+                    : null,
+                }
+              : r,
+          ),
         ),
       };
     });
@@ -562,18 +565,20 @@ export function DisplayReservationsModule() {
       if (!prev) return prev;
       return {
         ...prev,
-        reservations: prev.reservations.map((r) =>
-          r.id === reservationId
-            ? {
-                ...r,
-                status: {
-                  id: status.id,
-                  code: status.code,
-                  name: status.name,
-                  color_hex: status.color_hex,
-                },
-              }
-            : r,
+        reservations: sortReservationsByStart(
+          prev.reservations.map((r) =>
+            r.id === reservationId
+              ? {
+                  ...r,
+                  status: {
+                    id: status.id,
+                    code: status.code,
+                    name: status.name,
+                    color_hex: status.color_hex,
+                  },
+                }
+              : r,
+          ),
         ),
       };
     });
@@ -699,11 +704,11 @@ export function DisplayReservationsModule() {
     );
   }, [reservations, restaurantId, tables]);
 
-  const exportReservations = useMemo((): ReservationListRow[] => {
-    return filteredReservations.map((r) =>
+  const printReservations = useMemo((): ReservationListRow[] => {
+    return reservations.map((r) =>
       mapDisplayReservationToListRow(r, restaurantId, tables),
     );
-  }, [filteredReservations, restaurantId, tables]);
+  }, [reservations, restaurantId, tables]);
 
   const seatedStatus = statuses.find((s) => s.code === "seated");
   const confirmedStatus = statuses.find((s) => s.code === "confirmed");
@@ -1041,7 +1046,7 @@ export function DisplayReservationsModule() {
               "size-10 rounded-xl",
             )}
             aria-label="Tagesliste drucken"
-            disabled={showDataSkeleton || exportReservations.length === 0}
+            disabled={showDataSkeleton || printReservations.length === 0}
             onClick={() => setPrintOpen(true)}
           >
             <Printer className="size-4" />
@@ -1377,7 +1382,7 @@ export function DisplayReservationsModule() {
         timeZone={timeZone}
         dayTitle={formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
         restaurantName={payload?.restaurant_name ?? undefined}
-        reservations={exportReservations}
+        reservations={printReservations}
         statuses={statuses}
       />
     </div>

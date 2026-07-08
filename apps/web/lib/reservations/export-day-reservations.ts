@@ -4,6 +4,7 @@ import { printTableDocument } from "@/lib/export/print-table-document";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
+import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
 
 const HEADERS = [
   "Zeit",
@@ -90,19 +91,22 @@ export function buildDayReservationExportRows(
   options?: Pick<DayReservationExportOptions, "timeZone">,
 ): string[][] {
   const timeFmt = createTimeFormatter(options?.timeZone);
-  return reservations.map((r) => reservationToRow(r, timeFmt));
+  return sortReservationsByStart(reservations).map((r) =>
+    reservationToRow(r, timeFmt),
+  );
 }
 
 export function printDayReservations(
   reservations: ReservationListRow[],
   options?: DayReservationExportOptions,
 ): void {
-  const totals = dayReservationExportTotals(reservations);
+  const sorted = sortReservationsByStart(reservations);
+  const totals = dayReservationExportTotals(sorted);
   const title = options?.dayTitle?.trim() || "Reservierungen";
   printTableDocument({
     documentTitle: "Reservierungen",
     headers: HEADERS,
-    rows: buildDayReservationExportRows(reservations, options),
+    rows: buildDayReservationExportRows(sorted, options),
     restaurantName: options?.restaurantName,
     summaryLine: `${title} · ${totalsSummaryDe(totals)}`,
     landscape: true,
@@ -117,6 +121,7 @@ export function downloadDayReservationsCsv(
   const timeFmt = createTimeFormatter(options?.timeZone);
   const dayYmd = resolveExportDayYmd(day, options);
   const totals = dayReservationExportTotals(reservations);
+  const sorted = sortReservationsByStart(reservations);
   const lines = [
     ["Reservierungen gesamt", String(totals.reservationCount)]
       .map(escapeCsvCell)
@@ -124,7 +129,7 @@ export function downloadDayReservationsCsv(
     ["Personen gesamt", String(totals.guestCount)].map(escapeCsvCell).join(";"),
     "",
     HEADERS.join(";"),
-    ...reservations.map((r) =>
+    ...sorted.map((r) =>
       reservationToRow(r, timeFmt).map(escapeCsvCell).join(";"),
     ),
   ];
@@ -174,10 +179,12 @@ export async function downloadDayReservationsPdf(
   doc.text(`Export ${new Date().toLocaleString("de-DE")}`, 14, y + 2);
   doc.setTextColor(0);
 
+  const sorted = sortReservationsByStart(reservations);
+
   autoTable(doc, {
     startY: y + 6,
     head: [HEADERS as unknown as string[]],
-    body: reservations.map((r) => reservationToRow(r, timeFmt)),
+    body: sorted.map((r) => reservationToRow(r, timeFmt)),
     styles: {
       fontSize: 9,
       cellPadding: { top: 4, right: 2, bottom: 4, left: 2 },

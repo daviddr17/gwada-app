@@ -3,14 +3,7 @@ import {
   DEFAULT_RESTAURANT_TIMEZONE,
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
-
-function sortReservationsByStart(
-  rows: DisplayReservationRow[],
-): DisplayReservationRow[] {
-  return [...rows].sort(
-    (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-  );
-}
+import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
 
 export { sortReservationsByStart };
 

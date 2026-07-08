@@ -199,7 +199,9 @@ export function InventoryVoiceFab({ mode }: { mode: InventoryVoiceMode }) {
         ...taxonomyCtx,
       });
       if (!lineResult.ok) {
-        toast.error(lineResult.error);
+        if ("error" in lineResult) {
+          toast.error(lineResult.error);
+        }
         return;
       }
 

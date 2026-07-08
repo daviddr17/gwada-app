@@ -311,7 +311,6 @@ async function main() {
 
   const liveOrders = await loadLiveOrders(admin, restaurant.id);
   const liveOpen = liveOrders.filter((o) => o.status === "open");
-  const bubbleOpen = pickNewestOpenOrder(bubbleOpenOrders);
   const mergedOrders = mergeOrders(liveOrders, bubbleOpenOrders);
 
   console.log("Live:", {

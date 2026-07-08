@@ -46,6 +46,18 @@ export function countsTowardGwadaUnread(params: {
   return !isExternalInboxMirrorSource(params.externalSourceId);
 }
 
+/** Kanal-Spiegel (IMAP/WAHA): am externen Kanal noch offen. */
+export function mirrorInboundIsChannelUnread(params: {
+  direction: string;
+  externalSourceId: string | null | undefined;
+  externalSeen: boolean | null | undefined;
+}): boolean {
+  if (params.direction !== "inbound") return false;
+  const ext = params.externalSourceId?.trim() ?? "";
+  if (!ext.startsWith("email-imap:") && !ext.startsWith("waha:")) return false;
+  return params.externalSeen !== true;
+}
+
 export function isConversationMarkedUnread(row: ConversationReadRow | undefined): boolean {
   if (!row?.marked_unread_at) return false;
   if (!row.last_read_at) return true;
@@ -55,44 +67,25 @@ export function isConversationMarkedUnread(row: ConversationReadRow | undefined)
   );
 }
 
+/** Team-Gelesen: ein Kollege hat den Thread nach der letzten Aktivität gelesen. */
+export function staffCommunalCoversConversation(params: {
+  communal_read_at?: string | null;
+  conversation: Pick<ConversationUnreadInput, "last_at">;
+}): boolean {
+  const communal = params.communal_read_at?.trim();
+  if (!communal) return false;
+  const communalMs = new Date(communal).getTime();
+  const lastMs = new Date(params.conversation.last_at).getTime();
+  if (Number.isNaN(communalMs) || Number.isNaN(lastMs)) return false;
+  return communalMs >= lastMs;
+}
+
 export function computeConversationUnread(params: {
   read?: ConversationReadRow;
   conversation: ConversationUnreadInput;
+  /** Max `last_read_at` über alle Mitarbeiter mit Berechtigung. */
+  communal_read_at?: string | null;
 }): ConversationUnreadResult {
-  /** IMAP / WAHA: externer Kanal + persönlicher Gwada-Stand pro Mitarbeiter. */
-  if (params.conversation.external_unread_count != null) {
-    const external = Math.max(0, params.conversation.external_unread_count);
-    if (external > 0) {
-      return {
-        unread_count: external,
-        is_unread: true,
-        unread_hint: "channel",
-      };
-    }
-
-    const personal = computePersonalGwadaUnread(params);
-    if (personal.is_unread) {
-      return {
-        unread_count: personal.unread_count,
-        is_unread: true,
-        unread_hint: "gwada_only",
-      };
-    }
-
-    return { unread_count: 0, is_unread: false, unread_hint: null };
-  }
-
-  const personal = computePersonalGwadaUnread(params);
-  return {
-    ...personal,
-    unread_hint: personal.is_unread ? "channel" : null,
-  };
-}
-
-function computePersonalGwadaUnread(params: {
-  read?: ConversationReadRow;
-  conversation: ConversationUnreadInput;
-}): { unread_count: number; is_unread: boolean } {
   if (isConversationMarkedUnread(params.read)) {
     const base =
       params.conversation.inbound_count && params.conversation.inbound_count > 0
@@ -100,9 +93,55 @@ function computePersonalGwadaUnread(params: {
         : params.conversation.last_direction === "inbound"
           ? 1
           : 1;
-    return { unread_count: base, is_unread: true };
+    return {
+      unread_count: base,
+      is_unread: true,
+      unread_hint: "channel",
+    };
   }
 
+  const personal = computePersonalGwadaUnread(params);
+  if (!personal.is_unread) {
+    return { unread_count: 0, is_unread: false, unread_hint: null };
+  }
+
+  const communalCovers = staffCommunalCoversConversation({
+    communal_read_at: params.communal_read_at,
+    conversation: params.conversation,
+  });
+
+  const externalUnread =
+    params.conversation.external_unread_count != null
+      ? Math.max(0, params.conversation.external_unread_count)
+      : null;
+
+  const channelStillOpen =
+    externalUnread != null
+      ? externalUnread > 0 && !communalCovers
+      : !communalCovers;
+
+  if (channelStillOpen) {
+    return {
+      unread_count:
+        externalUnread != null && externalUnread > 0
+          ? externalUnread
+          : personal.unread_count,
+      is_unread: true,
+      unread_hint: "channel",
+    };
+  }
+
+  return {
+    unread_count: personal.unread_count,
+    is_unread: true,
+    unread_hint: "gwada_only",
+  };
+}
+
+function computePersonalGwadaUnread(params: {
+  read?: ConversationReadRow;
+  conversation: ConversationUnreadInput;
+}): { unread_count: number; is_unread: boolean } {
   const lastRead = params.read?.last_read_at;
   if (!lastRead) {
     if (params.conversation.last_direction === "inbound") {

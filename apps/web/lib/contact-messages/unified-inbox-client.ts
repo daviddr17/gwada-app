@@ -7,7 +7,10 @@ import { markConversationReadClient } from "@/lib/contact-messages/fetch-inbox-c
 import { mergeInboxConversationPreviews } from "@/lib/contact-messages/unified-inbox-merge";
 import { setUnifiedInboxCache } from "@/lib/contact-messages/unified-inbox-cache";
 import { enrichOneConversationWithReads } from "@/lib/contact-messages/unified-inbox-read-state";
-import { fetchConversationReadsBrowser } from "@/lib/supabase/contact-conversation-reads-db";
+import {
+  fetchCommunalConversationReadsBrowser,
+  fetchConversationReadsBrowser,
+} from "@/lib/supabase/contact-conversation-reads-db";
 import {
   fetchContactConversations,
   type ContactConversationPreview,
@@ -32,12 +35,14 @@ export async function enrichUnifiedInboxReadState(params: {
   } = await sb.auth.getUser();
   if (!user) return params.conversations;
 
-  const [gwada, whatsapp, email, facebook, instagram] = await Promise.all([
+  const [gwada, whatsapp, email, facebook, instagram, communalReads] =
+    await Promise.all([
     readsMapForPlatform(params.restaurantId, user.id, "gwada"),
     readsMapForPlatform(params.restaurantId, user.id, "whatsapp"),
     readsMapForPlatform(params.restaurantId, user.id, "email"),
     readsMapForPlatform(params.restaurantId, user.id, "facebook"),
     readsMapForPlatform(params.restaurantId, user.id, "instagram"),
+    fetchCommunalConversationReadsBrowser({ restaurantId: params.restaurantId }),
   ]);
 
   return params.conversations.map((c) =>
@@ -47,7 +52,7 @@ export async function enrichUnifiedInboxReadState(params: {
       email,
       facebook,
       instagram,
-    }),
+    }, communalReads),
   );
 }
 

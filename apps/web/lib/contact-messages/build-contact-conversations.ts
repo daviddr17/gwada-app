@@ -1,5 +1,9 @@
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
-import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
+import {
+  countsTowardGwadaUnread,
+  mirrorInboundIsChannelUnread,
+} from "@/lib/contact-messages/conversation-read-state";
+
 import {
   conversationThreadKeyFromRow,
 } from "@/lib/contact-messages/conversation-thread-key";
@@ -15,18 +19,6 @@ import {
 import type { RawMessageAttachmentRow } from "@/lib/contact-messages/fetch-message-attachments";
 import type { ContactMessageAttachmentKind } from "@/lib/types/contact-message-attachment";
 
-function emailImapInboundIsUnread(
-  direction: string,
-  externalSourceId: string | null | undefined,
-  externalSeen: boolean | null | undefined,
-): boolean {
-  if (direction !== "inbound") return false;
-  const ext = externalSourceId?.trim() ?? "";
-  if (!ext.startsWith("email-imap:")) return false;
-  if (externalSeen === false) return true;
-  return false;
-}
-
 /** Gemeinsame Logik: contact_messages-Zeilen → Konversations-Vorschau pro Plattform. */
 export function buildContactConversationsFromRows(params: {
   platform: ContactMessagePlatform;
@@ -36,6 +28,7 @@ export function buildContactConversationsFromRows(params: {
   const countByThread = new Map<string, number>();
   const inboundAfter = new Map<string, number>();
   const emailUnreadByThread = new Map<string, number>();
+  const whatsappUnreadByThread = new Map<string, number>();
   const previews = new Map<string, ContactConversationPreview>();
   const lastInboundByThread = new Map<string, ContactMessagePlatform>();
 
@@ -65,15 +58,28 @@ export function buildContactConversationsFromRows(params: {
     }
     if (
       params.platform === "email" &&
-      emailImapInboundIsUnread(
-        mapped.direction,
-        ext || null,
-        raw.external_seen as boolean | null | undefined,
-      )
+      mirrorInboundIsChannelUnread({
+        direction: mapped.direction,
+        externalSourceId: ext || null,
+        externalSeen: raw.external_seen as boolean | null | undefined,
+      })
     ) {
       emailUnreadByThread.set(
         threadKey,
         (emailUnreadByThread.get(threadKey) ?? 0) + 1,
+      );
+    }
+    if (
+      params.platform === "whatsapp" &&
+      mirrorInboundIsChannelUnread({
+        direction: mapped.direction,
+        externalSourceId: ext || null,
+        externalSeen: raw.external_seen as boolean | null | undefined,
+      })
+    ) {
+      whatsappUnreadByThread.set(
+        threadKey,
+        (whatsappUnreadByThread.get(threadKey) ?? 0) + 1,
       );
     }
     if (
@@ -143,6 +149,12 @@ export function buildContactConversationsFromRows(params: {
       preview.email_unread_count = emailUnread;
       preview.unread_count = emailUnread;
       preview.is_unread = emailUnread > 0;
+    }
+    if (params.platform === "whatsapp") {
+      const waUnread = whatsappUnreadByThread.get(threadKey) ?? 0;
+      preview.whatsapp_unread_count = waUnread;
+      preview.unread_count = waUnread;
+      preview.is_unread = waUnread > 0;
     }
   }
 

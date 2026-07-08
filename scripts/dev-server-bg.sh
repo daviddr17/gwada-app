@@ -49,7 +49,7 @@ echo "${server_pid}" > "${PID_FILE}"
 
 for _ in $(seq 1 45); do
   if curl -sf --connect-timeout 1 "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
-    log "Bereit: http://localhost:${PORT}"
+    log "Bereit: http://127.0.0.1:${PORT} (empfohlen — bei „Can't connect“ localhost vermeiden)"
     exit 0
   fi
   sleep 1

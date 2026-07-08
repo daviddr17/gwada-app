@@ -22,6 +22,10 @@ import { isWahaDirectMessageChatId } from "@/lib/waha/waha-lids";
 import {
   linkOutboundWhatsappFromWahaWebhook,
 } from "@/lib/contact-messages/outbound-whatsapp-db-server";
+import {
+  setMirrorThreadExternalSeenInDb,
+  setWhatsappMessageExternalSeenInDb,
+} from "@/lib/contacts/message-thread-external-seen-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type WahaWebhookBody = {
@@ -197,6 +201,7 @@ export async function handleWahaInboundWebhook(
       createdAt: wahaTimestampToIso(payload.timestamp),
       attachmentKind: mediaKind,
       conversationLabel,
+      externalSeen: false,
     });
 
     await insertInboxSignalServer(admin, {
@@ -219,6 +224,7 @@ export async function handleWahaInboundWebhook(
     externalSourceId,
     createdAt: wahaTimestampToIso(payload.timestamp),
     attachmentKind: mediaKind,
+    externalSeen: false,
   });
 
   scheduleAvatarSync(contactId);
@@ -314,6 +320,36 @@ export async function handleWahaMessageAck(
       .update({ delivery_status: deliveryStatus })
       .eq("restaurant_id", restaurantId)
       .eq("external_source_id", externalSourceId);
+
+    if (!fromMe && ack >= 3) {
+      const wahaMessageId = payload.id.trim();
+      await setWhatsappMessageExternalSeenInDb(admin, {
+        restaurantId,
+        wahaMessageId,
+        seen: true,
+      });
+
+      const { data: msgRow } = await admin
+        .from("contact_messages")
+        .select("contact_id, conversation_key")
+        .eq("restaurant_id", restaurantId)
+        .eq("external_source_id", externalSourceId)
+        .maybeSingle();
+
+      const row = msgRow as {
+        contact_id: string | null;
+        conversation_key: string | null;
+      } | null;
+      const conversationKey = row?.contact_id ?? row?.conversation_key ?? null;
+      if (conversationKey) {
+        await setMirrorThreadExternalSeenInDb(admin, {
+          restaurantId,
+          conversationKey,
+          platform: "whatsapp",
+          seen: true,
+        });
+      }
+    }
   }
 
   await insertInboxSignalServer(admin, {

@@ -2,7 +2,7 @@ import type { ConversationUnreadHint } from "@/lib/contact-messages/conversation
 import { cn } from "@/lib/utils";
 
 export const INBOX_UNREAD_HINT_GWADA_ONLY_LABEL =
-  "Am Kanal gelesen · in Gwada noch offen";
+  "Bereits gelesen · in Gwada noch offen";
 
 export function inboxUnreadHintLabel(
   hint: ConversationUnreadHint | null | undefined,

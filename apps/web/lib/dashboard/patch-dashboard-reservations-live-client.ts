@@ -6,12 +6,55 @@ import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 export type ReservationLiveInsertFields = {
   id: string;
   starts_at: string;
+  ends_at?: string;
+  dwell_minutes?: number;
   guest_first_name: string | null;
   guest_last_name: string | null;
   party_size: number;
+  statusId: string;
   statusCode: string;
   statusName: string;
+  statusColorHex?: string;
 };
+
+const DEFAULT_LIVE_INSERT_DWELL_MINUTES = 120;
+
+export function reservationEndsAtFromLiveInsert(
+  insert: Pick<
+    ReservationLiveInsertFields,
+    "starts_at" | "ends_at" | "dwell_minutes"
+  >,
+): string {
+  if (insert.ends_at && Number.isFinite(new Date(insert.ends_at).getTime())) {
+    return insert.ends_at;
+  }
+  const dwell = insert.dwell_minutes ?? DEFAULT_LIVE_INSERT_DWELL_MINUTES;
+  const startMs = new Date(insert.starts_at).getTime();
+  if (!Number.isFinite(startMs)) return insert.starts_at;
+  return new Date(startMs + dwell * 60 * 1000).toISOString();
+}
+
+export function reservationLiveInsertListRowRaw(
+  insert: ReservationLiveInsertFields,
+  restaurantId: string,
+): Record<string, unknown> {
+  return {
+    id: insert.id,
+    restaurant_id: restaurantId,
+    starts_at: insert.starts_at,
+    ends_at: reservationEndsAtFromLiveInsert(insert),
+    dwell_minutes: insert.dwell_minutes ?? DEFAULT_LIVE_INSERT_DWELL_MINUTES,
+    guest_first_name: insert.guest_first_name,
+    guest_last_name: insert.guest_last_name,
+    party_size: insert.party_size,
+    reservation_statuses: {
+      code: insert.statusCode,
+      name: insert.statusName,
+      id: insert.statusId,
+      color_hex: insert.statusColorHex ?? DEFAULT_PENDING_STATUS.color_hex,
+    },
+  };
+}
 
 const DEFAULT_PENDING_STATUS: ReservationStatusJoin = {
   id: "",
@@ -67,20 +110,30 @@ export function reservationLiveInsertFromRecord(
   const status = Array.isArray(st) ? (st[0] ?? null) : st;
   const statusObj =
     status && typeof status === "object"
-      ? (status as { code?: string; name?: string })
+      ? (status as {
+          id?: string;
+          code?: string;
+          name?: string;
+          color_hex?: string;
+        })
       : null;
 
   return {
     id,
     starts_at: startsAt,
+    ends_at: typeof row.ends_at === "string" ? row.ends_at : undefined,
+    dwell_minutes:
+      typeof row.dwell_minutes === "number" ? row.dwell_minutes : undefined,
     guest_first_name:
       typeof row.guest_first_name === "string" ? row.guest_first_name : null,
     guest_last_name:
       typeof row.guest_last_name === "string" ? row.guest_last_name : null,
     party_size:
       Number.isFinite(partySize) && partySize > 0 ? partySize : 1,
+    statusId: statusObj?.id ?? "",
     statusCode: statusObj?.code ?? DEFAULT_PENDING_STATUS.code,
     statusName: statusObj?.name ?? DEFAULT_PENDING_STATUS.name,
+    statusColorHex: statusObj?.color_hex,
   };
 }
 

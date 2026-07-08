@@ -6,6 +6,7 @@ import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { wahaMarkChatAsRead, wahaMarkChatAsUnread } from "@/lib/waha/waha-chat-read";
 import { syncEmailThreadSeenOnImap } from "@/lib/contact-messages/email-inbox-service";
 import { setEmailThreadExternalSeenInDb } from "@/lib/contacts/email-message-external-seen-db";
+import { setMirrorThreadExternalSeenInDb } from "@/lib/contacts/message-thread-external-seen-db";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import { wahaChatIdFromPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
@@ -52,6 +53,15 @@ export async function markConversationReadDbServer(
     await setEmailThreadExternalSeenInDb(admin, {
       restaurantId: params.restaurantId,
       conversationKey: params.conversationKey,
+      seen: true,
+    });
+  }
+
+  if (params.platform === "whatsapp") {
+    await setMirrorThreadExternalSeenInDb(admin, {
+      restaurantId: params.restaurantId,
+      conversationKey: params.conversationKey,
+      platform: "whatsapp",
       seen: true,
     });
   }
@@ -131,6 +141,12 @@ export async function markConversationUnreadServer(
   if (error) return { error };
 
   if (params.platform === "whatsapp") {
+    await setMirrorThreadExternalSeenInDb(admin, {
+      restaurantId: params.restaurantId,
+      conversationKey: params.conversationKey,
+      platform: "whatsapp",
+      seen: false,
+    });
     const chatId = await whatsappChatIdForConversation(admin, {
       restaurantId: params.restaurantId,
       conversationKey: params.conversationKey,

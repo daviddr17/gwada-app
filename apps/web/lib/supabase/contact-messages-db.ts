@@ -3,24 +3,19 @@ import type {
   ContactMessageDirection,
   ContactMessagePlatform,
 } from "@/lib/constants/contact-message-platforms";
-import { messageDisplayPlatform } from "@/lib/contact-messages/message-display-platform";
 import type { ConversationUnreadHint } from "@/lib/contact-messages/conversation-read-state";
-import { countsTowardGwadaUnread } from "@/lib/contact-messages/conversation-read-state";
+import { buildContactConversationsFromRows } from "@/lib/contact-messages/build-contact-conversations";
 import { CONVERSATION_LIST_MESSAGE_ROW_LIMIT } from "@/lib/contact-messages/conversation-list-limits";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { contactDisplayName } from "@/lib/supabase/contacts-db";
 import { gwadaAttachmentDownloadUrl } from "@/lib/contact-messages/contact-message-attachment-urls";
 import {
   fetchMessageAttachmentsForRestaurant,
   groupAttachmentsByMessageId,
   type RawMessageAttachmentRow,
 } from "@/lib/contact-messages/fetch-message-attachments";
-import { primaryAttachmentKind } from "@/lib/contact-messages/last-attachment-kind";
-import { previewBodyAndKindFromWhatsappMirror } from "@/lib/contact-messages/whatsapp-mirror-preview";
 import {
   conversationThreadKeyFromRow,
 } from "@/lib/contact-messages/conversation-thread-key";
-import { displayNameForPseudoConversation } from "@/lib/contact-messages/waha-chat-label";
 import type {
   ContactMessageAttachment,
   ContactMessageAttachmentKind,
@@ -107,6 +102,7 @@ const MESSAGE_SELECT = `
   created_at,
   send_batch_id,
   external_source_id,
+  external_seen,
   suppress_notifications
 `;
 
@@ -352,100 +348,14 @@ export async function fetchContactConversations(params: {
     ? new Map<string, RawMessageAttachmentRow[]>()
     : groupAttachmentsByMessageId(attachmentRows);
 
-  const countByContact = new Map<string, number>();
-  const inboundAfter = new Map<string, number>();
-  const previews = new Map<string, ContactConversationPreview>();
-  const lastInboundByContact = new Map<string, ContactMessagePlatform>();
-
-  for (const raw of rawRows) {
-    const row = raw as Record<string, unknown>;
-    const threadKey = conversationThreadKeyFromRow({
-      contact_id: row.contact_id as string | null,
-      conversation_key: row.conversation_key as string | null,
-    });
-    if (!threadKey) continue;
-
-    countByContact.set(threadKey, (countByContact.get(threadKey) ?? 0) + 1);
-
-    const mapped = mapContactMessageRowFromRecord(
-      row,
-      attachmentsByMessage.get(row.id as string) ?? [],
-    );
-    const msgPlatform = messageDisplayPlatform(mapped);
-    const ext = (mapped.external_source_id as string | null) ?? "";
-    if (
-      countsTowardGwadaUnread({
-        direction: mapped.direction,
-        externalSourceId: ext || null,
-      })
-    ) {
-      inboundAfter.set(threadKey, (inboundAfter.get(threadKey) ?? 0) + 1);
-    }
-    if (
-      mapped.direction === "inbound" &&
-      !lastInboundByContact.has(threadKey)
-    ) {
-      lastInboundByContact.set(threadKey, msgPlatform);
-    }
-
-    if (previews.has(threadKey)) continue;
-
-    const contactRaw = row.contacts;
-    const contact = Array.isArray(contactRaw)
-      ? (contactRaw[0] as { first_name: string; last_name: string })
-      : (contactRaw as { first_name: string; last_name: string } | null);
-
-    const conversationKey = row.conversation_key as string | null;
-    const storedLabel = (row.conversation_label as string | null)?.trim() || null;
-    const contactName = contact
-      ? contactDisplayName(contact)
-      : conversationKey
-        ? displayNameForPseudoConversation({
-            conversationKey,
-            storedLabel,
-          })
-        : storedLabel || "Chat";
-
-    const mirrored =
-      ext.startsWith("waha:") || msgPlatform === "whatsapp"
-        ? previewBodyAndKindFromWhatsappMirror(mapped.body.trim())
-        : { body: mapped.body.trim(), attachmentKind: undefined as ContactMessageAttachmentKind | undefined };
-
-    const lastReservationId = (row.reservation_id as string | null) ?? null;
-    const suppressNotifications =
-      (row.suppress_notifications as boolean | null) === true;
-
-    previews.set(threadKey, {
-      contact_id: threadKey,
-      contact_name: contactName,
+  return {
+    data: buildContactConversationsFromRows({
       platform: params.platform,
-      last_body: mirrored.body,
-      last_at: mapped.created_at,
-      last_direction: mapped.direction,
-      message_count: 0,
-      unread_count: 0,
-      is_unread: false,
-      has_reservation_link: Boolean(lastReservationId),
-      last_reservation_id: lastReservationId,
-      last_message_suppress_notifications: suppressNotifications,
-      inbound_since_preview: inboundAfter.get(threadKey) ?? 0,
-      last_attachment_kind:
-        primaryAttachmentKind(mapped.attachments?.map((a) => a.kind)) ??
-        mirrored.attachmentKind,
-      last_message_platform: msgPlatform,
-    });
-  }
-
-  for (const [threadKey, preview] of previews) {
-    preview.message_count = countByContact.get(threadKey) ?? 0;
-    preview.inbound_since_preview = inboundAfter.get(threadKey) ?? 0;
-    preview.last_inbound_platform = lastInboundByContact.get(threadKey);
-  }
-
-  const list = [...previews.values()].sort((a, b) =>
-    b.last_at.localeCompare(a.last_at),
-  );
-  return { data: list, error: null };
+      rows: rawRows,
+      attachmentsByMessage,
+    }),
+    error: null,
+  };
 }
 
 export async function fetchContactMessagesQuick(

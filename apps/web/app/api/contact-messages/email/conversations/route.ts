@@ -1,7 +1,7 @@
 import { fetchEmailInboxConversations } from "@/lib/contact-messages/email-inbox-service";
 import { mergeUnreadIntoConversations } from "@/lib/contact-messages/merge-conversation-unread";
 import { authorizeContactMessagesRestaurant } from "@/lib/contact-messages/route-auth";
-import { fetchConversationReadsForUser } from "@/lib/supabase/contact-conversation-reads-db";
+import { fetchCommunalConversationReadsAdmin, fetchConversationReadsForUser } from "@/lib/supabase/contact-conversation-reads-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +23,21 @@ export async function GET(req: Request) {
     return Response.json({ error: result.error, data: [] }, { status: 502 });
   }
 
-  const reads = await fetchConversationReadsForUser(admin, {
-    restaurantId: auth.restaurantId,
-    userId: auth.userId,
-    platform: "email",
-  });
-  const data = mergeUnreadIntoConversations(result.data, reads, "email");
+  const [reads, communalReads] = await Promise.all([
+    fetchConversationReadsForUser(admin, {
+      restaurantId: auth.restaurantId,
+      userId: auth.userId,
+      platform: "email",
+    }),
+    fetchCommunalConversationReadsAdmin(admin, {
+      restaurantId: auth.restaurantId,
+    }),
+  ]);
+  const data = mergeUnreadIntoConversations(
+    result.data,
+    reads,
+    "email",
+    communalReads,
+  );
   return Response.json({ data });
 }

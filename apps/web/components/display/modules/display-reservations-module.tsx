@@ -17,6 +17,7 @@ import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button"
 import { Skeleton } from "@/components/ui/skeleton";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { DisplayReservationDrawer } from "@/components/display/modules/display-reservation-drawer";
+import { DisplayReservationVoiceButton } from "@/components/display/display-reservation-voice-button";
 import { DisplayReservationEditDrawer } from "@/components/display/display-reservation-edit-drawer";
 import {
   DisplayReservationMessageSheet,
@@ -74,6 +75,7 @@ import { toast } from "sonner";
 import {
   GWADA_DISPLAY_RESERVATIONS_LIVE_INSERT_EVENT,
   GWADA_DISPLAY_RESERVATIONS_REFRESH_EVENT,
+  notifyDisplayReservationOwnCreate,
   type DisplayReservationsLiveInsertDetail,
 } from "@/lib/display/display-reservations-live-events";
 import {
@@ -326,6 +328,17 @@ export function DisplayReservationsModule() {
       setLoading(false);
     },
     [selectedDayYmd, timeZone],
+  );
+
+  const handleReservationCreated = useCallback(
+    (row: DisplayReservationRow | null) => {
+      if (row) {
+        notifyDisplayReservationOwnCreate({ reservationId: row.id });
+        applyOptimisticReservation(row);
+      }
+      void load({ silent: true });
+    },
+    [applyOptimisticReservation, load],
   );
 
   const loadFromLive = useCallback(() => {
@@ -1109,6 +1122,14 @@ export function DisplayReservationsModule() {
               <Plus className="mr-2 size-5" />
               Neu
             </Button>
+            <DisplayReservationVoiceButton
+              disabled={showDataSkeleton}
+              statuses={statuses}
+              defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
+              bookingTimeStepMinutes={bookingStep}
+              timeZone={timeZone}
+              onCreated={handleReservationCreated}
+            />
           </div>
         </div>
         <div>
@@ -1448,10 +1469,7 @@ export function DisplayReservationsModule() {
         nextReservationNumber={payload?.next_reservation_number ?? null}
         initialDayYmd={selectedDayYmd}
         initialTimeHm={createInitialTimeHm}
-        onCreated={(row) => {
-          if (row) applyOptimisticReservation(row);
-          void load({ silent: true });
-        }}
+        onCreated={handleReservationCreated}
       />
 
       <DisplayReservationMessageSheet

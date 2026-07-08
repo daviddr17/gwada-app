@@ -14,7 +14,18 @@ import { insertContactMessageIfNew } from "@/lib/contacts/contact-inbound-messag
 import { sanitizeConversationLabelForStorage } from "@/lib/contact-messages/waha-chat-label";
 import { guestPhoneToWhatsAppChatId } from "@/lib/whatsapp/phone-to-chat-id";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
+import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** WAHA ack ≥ 3 = am WhatsApp-Kanal gelesen (Spiegel für Soft-Unread). */
+function wahaInboundExternalSeen(
+  message: Pick<ContactMessageRow, "direction" | "waha_ack">,
+): boolean | undefined {
+  if (message.direction !== "inbound") return undefined;
+  const ack = message.waha_ack;
+  if (typeof ack === "number" && Number.isFinite(ack) && ack >= 3) return true;
+  return false;
+}
 
 async function mirrorWahaThreadToDb(
   admin: SupabaseClient,
@@ -83,10 +94,21 @@ async function mirrorWahaThreadToDb(
 
     if (known.has(m.id)) {
       const currentBody = known.get(m.id) ?? "";
-      if (mirrorBody && mirrorBody !== currentBody) {
+      const externalSeen = wahaInboundExternalSeen(m);
+      if (
+        (mirrorBody && mirrorBody !== currentBody) ||
+        externalSeen !== undefined
+      ) {
         let updateQuery = admin
           .from("contact_messages")
-          .update({ body: mirrorBody })
+          .update({
+            ...(mirrorBody && mirrorBody !== currentBody
+              ? { body: mirrorBody }
+              : {}),
+            ...(externalSeen !== undefined
+              ? { external_seen: externalSeen }
+              : {}),
+          })
           .eq("restaurant_id", params.restaurantId)
           .eq("external_source_id", m.id);
         if (thread.contactId) {
@@ -114,6 +136,7 @@ async function mirrorWahaThreadToDb(
           params.conversationLabel,
         ),
         suppressNotifications: true,
+        externalSeen: wahaInboundExternalSeen(m),
       });
       if (inserted.inserted) imported += 1;
       continue;
@@ -132,6 +155,7 @@ async function mirrorWahaThreadToDb(
       conversationLabel: sanitizeConversationLabelForStorage(
         params.conversationLabel,
       ),
+      externalSeen: wahaInboundExternalSeen(m),
     });
     if (result.imported) imported += 1;
   }

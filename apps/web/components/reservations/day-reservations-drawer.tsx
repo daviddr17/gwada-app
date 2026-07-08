@@ -90,6 +90,7 @@ import { DayReservationsExportSheet } from "@/components/reservations/day-reserv
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
 import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { toAutoAssignReservation } from "@/lib/reservations/auto-table-assignment";
+import { reservationEndsAtFromLiveInsert } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { reservationsAtTableForInstant } from "@/lib/reservations/reservations-table-occupancy";
 import { cn } from "@/lib/utils";
 
@@ -700,7 +701,9 @@ export function DayReservationsDrawer({
       st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex) ? st.color_hex : "#64748b";
     const guest = `${r.guest_first_name} ${r.guest_last_name}`.trim();
     const t = timeDe.format(new Date(r.starts_at));
-    const endLabel = timeDe.format(new Date(r.ends_at));
+    const endLabel = timeDe.format(
+      new Date(reservationEndsAtFromLiveInsert(r)),
+    );
     const tableLabel = compact
       ? reservationAssignedTableLabel(r)
       : reservationDiningTableLabel(r);

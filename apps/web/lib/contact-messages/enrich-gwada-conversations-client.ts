@@ -2,7 +2,10 @@
 
 import { mergeUnreadIntoConversations } from "@/lib/contact-messages/merge-conversation-unread";
 import type { ContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
-import { fetchConversationReadsBrowser } from "@/lib/supabase/contact-conversation-reads-db";
+import {
+  fetchCommunalConversationReadsBrowser,
+  fetchConversationReadsBrowser,
+} from "@/lib/supabase/contact-conversation-reads-db";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
@@ -17,15 +20,21 @@ export async function enrichConversationsWithReadState(params: {
   } = await sb.auth.getUser();
   if (!user) return params.conversations;
 
-  const reads = await fetchConversationReadsBrowser({
-    restaurantId: params.restaurantId,
-    userId: user.id,
-    platform: params.platform,
-  });
+  const [reads, communalReads] = await Promise.all([
+    fetchConversationReadsBrowser({
+      restaurantId: params.restaurantId,
+      userId: user.id,
+      platform: params.platform,
+    }),
+    fetchCommunalConversationReadsBrowser({
+      restaurantId: params.restaurantId,
+    }),
+  ]);
 
   return mergeUnreadIntoConversations(
     params.conversations,
     reads,
     params.platform,
+    communalReads,
   );
 }

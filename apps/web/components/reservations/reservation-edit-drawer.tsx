@@ -83,6 +83,7 @@ import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/res
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import {
   deleteReservation,
+  defaultStaffReservationStatusId,
   fetchNextReservationNumber,
   fetchReservationStatuses,
   insertReservation,
@@ -401,14 +402,21 @@ export function ReservationEditDrawer({
     if (!open || reservation || !createFor || statuses.length === 0) return;
     setStatusId((cur) => {
       if (cur) return cur;
-      return (
-        statuses.find((s) => s.code === "confirmed")?.id ??
-        statuses.find((s) => s.code === "pending")?.id ??
-        statuses[0]?.id ??
-        ""
-      );
+      return defaultStaffReservationStatusId(statuses);
     });
   }, [open, reservation, createFor, statuses]);
+
+  useEffect(() => {
+    if (!open || !reservation || statuses.length === 0) return;
+    setStatusId((cur) => {
+      if (cur) return cur;
+      const code = reservation.reservation_statuses?.code;
+      const fromCode = code
+        ? statuses.find((s) => s.code === code)?.id
+        : undefined;
+      return fromCode ?? defaultStaffReservationStatusId(statuses);
+    });
+  }, [open, reservation, statuses]);
 
   const statusItems = useMemo(
     () => Object.fromEntries(statuses.map((s) => [s.id, s.name])),
@@ -585,11 +593,15 @@ export function ReservationEditDrawer({
           insert: {
             id: created.id,
             starts_at: payload.starts_at,
+            ends_at: payload.ends_at,
+            dwell_minutes: payload.dwell_minutes,
             guest_first_name: payload.guest_first_name,
             guest_last_name: payload.guest_last_name,
             party_size: payload.party_size,
-            statusCode: status?.code ?? "pending",
-            statusName: status?.name ?? "Unbestätigt",
+            statusId: payload.status_id,
+            statusCode: status?.code ?? "confirmed",
+            statusName: status?.name ?? "Bestätigt",
+            statusColorHex: status?.color_hex,
           },
         });
       }
@@ -625,9 +637,15 @@ export function ReservationEditDrawer({
 
   const handleDeleteReservation = async () => {
     if (!reservation) return;
+    const restaurantId =
+      reservation.restaurant_id ?? restaurantIdForFetch ?? "";
+    if (!restaurantId) {
+      toast.error("Restaurant konnte nicht zugeordnet werden.");
+      return;
+    }
     setSaving(true);
     const { error } = await deleteReservation({
-      restaurantId: reservation.restaurant_id,
+      restaurantId,
       id: reservation.id,
     });
     setSaving(false);

@@ -308,6 +308,18 @@ export async function fetchReservationStatuses(): Promise<{
   return { data: (data ?? []) as ReservationStatusJoin[], error: null };
 }
 
+/** Mitarbeiter legt an → standardmäßig „Bestätigt“. */
+export function defaultStaffReservationStatusId(
+  statuses: ReservationStatusJoin[],
+): string {
+  return (
+    statuses.find((s) => s.code === "confirmed")?.id ??
+    statuses.find((s) => s.code === "pending")?.id ??
+    statuses[0]?.id ??
+    ""
+  );
+}
+
 export type ReservationUpdatePayload = {
   guest_first_name: string;
   guest_last_name: string;

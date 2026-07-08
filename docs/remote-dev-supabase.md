@@ -66,8 +66,25 @@ Live und Dev sind **getrennte** Supabase-Stacks auf dem gleichen VPS (`/opt/gwad
 
 Vorlage: `.env.development.example` · aktiv: `.env.development` (gitignored)
 
+- `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000` (nicht `localhost` — siehe unten)
 - `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:8100` (über Tunnel)
 - `NEXT_PUBLIC_GWADA_WORKSPACE_SLUG=gwada-dev`
+
+---
+
+## „Can't connect to server“ / Login → Fehlerseite
+
+**Symptom:** Login unter `http://localhost:3000` lädt, nach Anmelden kommt eine Browser-Fehlerseite („Can't connect to server“ / `chrome-error://`).
+
+**Ursache:** `localhost` löst auf manchen Systemen/Browsern (IPv6 `::1`) auf, während der Dev-Server oder der eingebettete Cursor-Browser IPv4/IPv6 uneinheitlich behandeln. `curl localhost` kann funktionieren, der Browser nach dem Full-Page-Redirect (`/auth/enter` → `/dashboard`) nicht.
+
+**Fix:**
+
+1. App immer unter **`http://127.0.0.1:3000`** öffnen (nicht `localhost`).
+2. In `.env.development`: `NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000`
+3. Dev-Server neu starten: `pnpm dev`
+
+Auth-Redirects (`/auth/enter`, `/auth/callback`) nutzen relative Pfade bzw. den Request-Host — kein hardcodiertes `localhost` im Login-Flow. Das Problem liegt an der Browser-URL, nicht an der Redirect-Logik.
 
 ---
 

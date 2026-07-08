@@ -2,6 +2,7 @@
 
 import { AppMain } from "@/components/layout/app-main";
 import type { ModuleSubnavItem } from "@/components/layout/module-subnav";
+import { ReservationVoiceFab } from "@/components/reservations/reservation-voice-fab";
 import { RegisterModuleChrome } from "@/lib/contexts/app-module-chrome-context";
 
 const RESERVATIONS_NAV: readonly ModuleSubnavItem[] = [
@@ -49,6 +50,7 @@ export default function ReservierungenLayout({
         subnavItems={RESERVATIONS_NAV}
       />
       <AppMain>{children}</AppMain>
+      <ReservationVoiceFab />
     </>
   );
 }

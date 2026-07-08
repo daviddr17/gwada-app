@@ -32,6 +32,7 @@ import {
   patchDashboardReservationSummaryFromInsert,
   patchDashboardReservationSummaryResolvedOpen,
   reservationInsertInMonthRange,
+  reservationLiveInsertListRowRaw,
 } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import {
   GWADA_RESERVATION_OPEN_RESOLVED_EVENT,
@@ -293,19 +294,9 @@ export function AppDashboardLivePatchMount() {
       if (reservationInsertInMonthRange(detail.insert.starts_at, monthRange)) {
         const cached = peekReservationsMonthCache(restaurantId, monthRange);
         if (cached && !cached.rows.some((r) => r.id === detail.insert.id)) {
-          const stubRow = mapRawToReservationListRow({
-            id: detail.insert.id,
-            starts_at: detail.insert.starts_at,
-            guest_first_name: detail.insert.guest_first_name,
-            guest_last_name: detail.insert.guest_last_name,
-            party_size: detail.insert.party_size,
-            reservation_statuses: {
-              code: detail.insert.statusCode,
-              name: detail.insert.statusName,
-              id: "",
-              color_hex: "#eab308",
-            },
-          });
+          const stubRow = mapRawToReservationListRow(
+            reservationLiveInsertListRowRaw(detail.insert, detail.restaurantId),
+          );
           writeReservationsMonthCache(restaurantId, monthRange, [
             ...cached.rows,
             stubRow,

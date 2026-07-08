@@ -49,5 +49,5 @@ export function resolvePublicAppOrigin(request: Request): string {
   const fromEnv = getPublicSiteUrl()?.replace(/\/+$/, "");
   if (fromHeaders && !isLoopbackOrigin(fromHeaders)) return fromHeaders;
   if (fromEnv) return fromEnv;
-  return "http://localhost:3000";
+  return "http://127.0.0.1:3000";
 }

@@ -78,6 +78,8 @@ import {
 } from "@/lib/reservations/reservations-month-client-cache";
 import {
   reservationInsertInMonthRange,
+  reservationEndsAtFromLiveInsert,
+  reservationLiveInsertListRowRaw,
 } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
 
@@ -513,19 +515,9 @@ export function ReservationsOverview() {
         return;
       }
 
-      const stubRow = mapRawToReservationListRow({
-        id: detail.insert.id,
-        starts_at: detail.insert.starts_at,
-        guest_first_name: detail.insert.guest_first_name,
-        guest_last_name: detail.insert.guest_last_name,
-        party_size: detail.insert.party_size,
-        reservation_statuses: {
-          code: detail.insert.statusCode,
-          name: detail.insert.statusName,
-          id: "",
-          color_hex: "#eab308",
-        },
-      });
+      const stubRow = mapRawToReservationListRow(
+        reservationLiveInsertListRowRaw(detail.insert, detail.restaurantId),
+      );
 
       setRows((prev) => {
         if (prev.some((r) => r.id === detail.insert.id)) return prev;
@@ -1014,7 +1006,9 @@ export function ReservationsOverview() {
                       const guest =
                         `${r.guest_first_name} ${r.guest_last_name}`.trim();
                       const timeLabel = timeDe.format(new Date(r.starts_at));
-                      const endLabel = timeDe.format(new Date(r.ends_at));
+                      const endLabel = timeDe.format(
+                        new Date(reservationEndsAtFromLiveInsert(r)),
+                      );
                       const tableLabel = reservationDiningTableLabel(r);
                       const gwadaReview = gwadaReviewsByReservation.get(r.id);
                       return (

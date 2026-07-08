@@ -8,7 +8,12 @@ import {
 } from "@/lib/contact-messages/conversation-read-state";
 import { conversationChannelForRead } from "@/lib/contact-messages/unified-inbox-merge";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
-import { fetchConversationReadsForUser } from "@/lib/supabase/contact-conversation-reads-db";
+import {
+  communalReadAtForConversation,
+  fetchCommunalConversationReadsAdmin,
+  fetchConversationReadsForUser,
+  type CommunalConversationReadMap,
+} from "@/lib/supabase/contact-conversation-reads-db";
 import type { ContactConversationPreview } from "@/lib/supabase/contact-messages-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -51,6 +56,7 @@ function gwadaChannelConversationInput(
 function enrichOneConversation(
   c: ContactConversationPreview,
   readsByPlatform: ReadsByPlatform,
+  communalReads: CommunalConversationReadMap,
 ): ContactConversationPreview {
   const readPlatform = conversationChannelForRead(c.contact_id);
   const read = readForPlatform(readsByPlatform, c.contact_id, readPlatform);
@@ -72,6 +78,11 @@ function enrichOneConversation(
             conversationReadLookupKey(c.contact_id, "gwada"),
           ),
           conversation: gwadaChannelConversationInput(c),
+          communal_read_at: communalReadAtForConversation(
+            communalReads,
+            c.contact_id,
+            "gwada",
+          ),
         })
       : { unread_count: 0, is_unread: false, unread_hint: null };
     const unreadWa = computeConversationUnread({
@@ -81,6 +92,11 @@ function enrichOneConversation(
         last_direction: c.last_direction,
         external_unread_count: c.whatsapp_unread_count ?? null,
       },
+      communal_read_at: communalReadAtForConversation(
+        communalReads,
+        c.contact_id,
+        "whatsapp",
+      ),
     });
     const unreadEm = computeConversationUnread({
       read: rEm,
@@ -90,6 +106,11 @@ function enrichOneConversation(
         external_unread_count:
           c.email_unread_count !== undefined ? c.email_unread_count : null,
       },
+      communal_read_at: communalReadAtForConversation(
+        communalReads,
+        c.contact_id,
+        "email",
+      ),
     });
     const unread_count = Math.max(
       unreadGwada.unread_count,
@@ -128,6 +149,11 @@ function enrichOneConversation(
   const { unread_count, is_unread, unread_hint } = computeConversationUnread({
     read,
     conversation,
+    communal_read_at: communalReadAtForConversation(
+      communalReads,
+      c.contact_id,
+      readPlatform,
+    ),
   });
   return { ...c, unread_count, is_unread, unread_hint };
 }
@@ -140,7 +166,14 @@ export async function enrichUnifiedInboxReadStateServer(
     conversations: ContactConversationPreview[];
   },
 ): Promise<ContactConversationPreview[]> {
-  const [gwada, whatsapp, email, facebook, instagram] = await Promise.all([
+  const [
+    gwada,
+    whatsapp,
+    email,
+    facebook,
+    instagram,
+    communalReads,
+  ] = await Promise.all([
     fetchConversationReadsForUser(admin, {
       restaurantId: params.restaurantId,
       userId: params.userId,
@@ -166,16 +199,20 @@ export async function enrichUnifiedInboxReadStateServer(
       userId: params.userId,
       platform: "instagram",
     }),
+    fetchCommunalConversationReadsAdmin(admin, {
+      restaurantId: params.restaurantId,
+    }),
   ]);
 
   return params.conversations.map((c) =>
-    enrichOneConversation(c, { gwada, whatsapp, email, facebook, instagram }),
+    enrichOneConversation(c, { gwada, whatsapp, email, facebook, instagram }, communalReads),
   );
 }
 
 export function enrichOneConversationWithReads(
   c: ContactConversationPreview,
   readsByPlatform: ReadsByPlatform,
+  communalReads: CommunalConversationReadMap = new Map(),
 ): ContactConversationPreview {
-  return enrichOneConversation(c, readsByPlatform);
+  return enrichOneConversation(c, readsByPlatform, communalReads);
 }

@@ -197,9 +197,9 @@ export function DisplayReservationTableField({
   }
 
   const selectTriggerClass = isListVariant
-    ? "h-8 w-full min-w-[7.5rem] max-w-full rounded-lg px-2 text-xs"
+    ? "h-8 !min-h-8 max-h-8 w-full min-w-[7.5rem] max-w-full rounded-lg px-2 py-0 text-xs"
     : compact
-      ? "h-8 w-full min-w-0 rounded-lg text-xs"
+      ? "h-8 !min-h-8 max-h-8 w-full min-w-0 rounded-lg py-0 text-xs"
       : "h-10 w-full min-w-[10rem] rounded-xl";
 
   return (
@@ -211,6 +211,7 @@ export function DisplayReservationTableField({
         onValueChange={(v) => void applyTable(String(v))}
       >
         <SelectTrigger
+          size={isListVariant || compact ? "sm" : "default"}
           className={appSelectTriggerAccentCn(selectTriggerClass, selectValueNoShrink)}
         >
           <SelectValue placeholder="Tisch">{selectedLabel}</SelectValue>
@@ -237,7 +238,7 @@ export function DisplayReservationTableField({
 
       {showSuggestions && isUnassigned && suggestions.length > 0 ? (
         isListVariant ? (
-          <div className="flex gap-1 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex flex-wrap gap-1">
             {suggestions.map((alt) => (
               <Button
                 key={alt.tableId}

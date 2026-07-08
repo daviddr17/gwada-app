@@ -824,9 +824,13 @@ export function DisplayReservationsModule() {
       (declinedStatus && code === "pending") ||
       (seatedStatus && code !== "seated" && code !== "completed") ||
       (completedStatus && code === "seated");
+    const tableFieldWrapClassName =
+      listDensity === "compact"
+        ? "min-w-0 flex-1"
+        : "min-w-0 shrink-0 self-start sm:w-36 md:w-40";
     const tableField = (
       <div
-        className="min-w-0 shrink-0 self-start sm:w-36 md:w-40"
+        className={tableFieldWrapClassName}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
       >
@@ -836,7 +840,7 @@ export function DisplayReservationsModule() {
           reservations={reservations}
           disabled={isBusy}
           variant="list"
-          showSuggestions={false}
+          showSuggestions
           onUpdated={(tableId) => patchReservationTable(r.id, tableId)}
         />
       </div>
@@ -850,7 +854,7 @@ export function DisplayReservationsModule() {
           key={r.id}
           role="button"
           tabIndex={0}
-          className="flex min-w-0 cursor-pointer flex-col rounded-xl border border-border/50 bg-card px-3 py-2 shadow-card transition-colors hover:bg-muted/20"
+          className="flex min-w-0 cursor-pointer flex-col gap-2 rounded-xl border border-border/50 bg-card px-3 py-2.5 shadow-card transition-colors hover:bg-muted/20"
           onClick={openEdit}
           onKeyDown={(e) => {
             if (e.key === "Enter" || e.key === " ") {
@@ -859,13 +863,13 @@ export function DisplayReservationsModule() {
             }
           }}
         >
-          <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1.5">
-            <span className="w-11 shrink-0 pt-0.5 text-base font-semibold tabular-nums leading-none">
+          <div className="flex min-w-0 items-start gap-2">
+            <span className="w-10 shrink-0 pt-px text-sm font-semibold tabular-nums leading-none">
               {startLabel}
             </span>
-            <div className="min-w-0 flex-1 basis-[8rem] space-y-0.5">
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="truncate font-semibold text-sm leading-snug">{guestName}</p>
               <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                <span className="truncate font-semibold text-sm leading-snug">{guestName}</span>
                 <span className="shrink-0 text-[11px] text-muted-foreground">
                   #{r.reservation_number}
                 </span>
@@ -881,13 +885,21 @@ export function DisplayReservationsModule() {
                   <ReservationInternalNoteIndicator className="size-3.5 shrink-0" />
                 ) : null}
               </div>
-              <p className="truncate text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-muted-foreground">
                 {r.party_size} P. · bis {endLabel}
               </p>
             </div>
+          </div>
+          <div
+            className="flex min-w-0 items-start gap-2 border-t border-border/40 pt-2"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
             {tableField}
             {hasListActions ? (
-              <div className="ml-auto shrink-0">{renderListActions(r, code, isBusy, true)}</div>
+              <div className="flex h-8 shrink-0 items-center">
+                {renderListActions(r, code, isBusy, true)}
+              </div>
             ) : null}
           </div>
         </div>
@@ -936,9 +948,11 @@ export function DisplayReservationsModule() {
               </p>
             ) : null}
           </div>
-          {tableField}
-          <div className="shrink-0 self-start">
-            {renderListActions(r, code, isBusy, true)}
+          <div className="flex min-w-0 shrink-0 items-start gap-2">
+            {tableField}
+            <div className="flex h-8 shrink-0 items-center">
+              {renderListActions(r, code, isBusy, true)}
+            </div>
           </div>
         </div>
       </div>

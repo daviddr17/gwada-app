@@ -205,11 +205,29 @@ async function loadLiveOrders(admin, restaurantId) {
   }));
 }
 
+function pickNewestOpenOrder(orders) {
+  if (!orders.length) return null;
+  return [...orders].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )[0];
+}
+
+/** Nur die neueste Bubble-Bestellung importieren; veraltete Live-Offene schließen. */
 function mergeOrders(liveOrders, bubbleOpenOrders) {
-  const bubbleOpenIds = new Set(bubbleOpenOrders.map((o) => o.id));
-  const closedOrOther = liveOrders.filter((o) => o.status !== "open" || !bubbleOpenIds.has(o.id));
-  const liveOpenKept = liveOrders.filter((o) => o.status === "open" && !bubbleOpenIds.has(o.id));
-  return [...closedOrOther, ...liveOpenKept, ...bubbleOpenOrders];
+  const bubbleOpen = pickNewestOpenOrder(bubbleOpenOrders);
+  const bubbleOpenIds = new Set(bubbleOpen ? [bubbleOpen.id] : []);
+
+  const merged = liveOrders.map((o) => {
+    if (o.status !== "open") return o;
+    if (bubbleOpenIds.has(o.id)) return o;
+    return { ...o, status: "closed" };
+  });
+
+  if (bubbleOpen && !merged.some((o) => o.id === bubbleOpen.id)) {
+    merged.push(bubbleOpen);
+  }
+
+  return merged;
 }
 
 async function main() {
@@ -255,7 +273,13 @@ async function main() {
 
   for (const o of bubbleOpenOrders) {
     console.log(
-      `  offen: ${o.id} · ${o.supplierName} · ${o.lines.length} Positionen · ${o.createdAt}`,
+      `  offen (Bubble): ${o.id} · ${o.supplierName} · ${o.lines.length} Positionen · ${o.createdAt}`,
+    );
+  }
+  const bubbleOpen = pickNewestOpenOrder(bubbleOpenOrders);
+  if (bubbleOpenOrders.length > 1 && bubbleOpen) {
+    console.log(
+      `  → importiert wird nur die neueste: ${bubbleOpen.id} (${bubbleOpen.lines.length} Positionen)`,
     );
   }
 
@@ -287,6 +311,7 @@ async function main() {
 
   const liveOrders = await loadLiveOrders(admin, restaurant.id);
   const liveOpen = liveOrders.filter((o) => o.status === "open");
+  const bubbleOpen = pickNewestOpenOrder(bubbleOpenOrders);
   const mergedOrders = mergeOrders(liveOrders, bubbleOpenOrders);
 
   console.log("Live:", {
@@ -324,12 +349,14 @@ async function main() {
 
   const ordersChanged =
     mergedOrders.length !== liveOrders.length ||
-    bubbleOpenOrders.some((b) => {
-      const liveMatch = liveOrders.find((l) => l.id === b.id);
-      if (!liveMatch) return true;
-      if (liveMatch.lines.length !== b.lines.length) return true;
-      return JSON.stringify(liveMatch.lines) !== JSON.stringify(b.lines);
-    }) ||
+    (bubbleOpen &&
+      (() => {
+        const liveMatch = liveOrders.find((l) => l.id === bubbleOpen.id);
+        if (!liveMatch) return true;
+        if (liveMatch.lines.length !== bubbleOpen.lines.length) return true;
+        return JSON.stringify(liveMatch.lines) !== JSON.stringify(bubbleOpen.lines);
+      })()) ||
+    liveOpen.some((o) => o.status === "open" && o.id !== bubbleOpen?.id) ||
     liveOpen.length !== mergedOrders.filter((o) => o.status === "open").length;
 
   if (ordersChanged) {

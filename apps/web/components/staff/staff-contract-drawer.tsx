@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import { Plus } from "lucide-react";
+import { Plus, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -71,6 +71,11 @@ import {
   isStaffContractExternalMetadataEditable,
 } from "@/lib/staff/staff-contract-status";
 import { submitStaffContractExternal } from "@/lib/staff/staff-contract-external-api";
+import {
+  STAFF_CONTRACT_ATTACHMENT_ACCEPT,
+  STAFF_CONTRACT_ATTACHMENT_LABEL,
+  validateStaffContractAttachmentFile,
+} from "@/lib/staff/validate-staff-contract-attachment-file";
 import { loadStaffContractTemplates } from "@/lib/supabase/staff-contract-templates-db";
 import { fetchStaffModuleSettings } from "@/lib/supabase/staff-module-settings-db";
 import type { RestaurantProfile } from "@/lib/types/restaurant";
@@ -86,6 +91,7 @@ import type {
   StaffContractPayType,
   StaffEmploymentTypeDefinition,
 } from "@/lib/types/staff";
+import { cn } from "@/lib/utils";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
@@ -177,6 +183,9 @@ export function StaffContractDrawer({
   const [externalPdfFile, setExternalPdfFile] = useState<File | null>(null);
   const [externalDocumentTitle, setExternalDocumentTitle] = useState("");
   const [externalSignedAt, setExternalSignedAt] = useState("");
+  const [isExternalPdfDragOver, setIsExternalPdfDragOver] = useState(false);
+  const externalPdfFileRef = useRef<HTMLInputElement>(null);
+  const externalPdfDragDepthRef = useRef(0);
 
   const selectableEmploymentTypes = useMemo(
     () =>
@@ -192,12 +201,56 @@ export function StaffContractDrawer({
     [selectableEmploymentTypes],
   );
 
+  const applyExternalPdfFile = useCallback((next: File | null) => {
+    if (!next) {
+      setExternalPdfFile(null);
+      return;
+    }
+    const validationError = validateStaffContractAttachmentFile(next);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setExternalPdfFile(next);
+    setExternalDocumentTitle((prev) => {
+      if (prev.trim()) return prev;
+      const base = next.name.replace(/\.[^.]+$/, "").trim();
+      return base || prev;
+    });
+  }, []);
+
+  const handleExternalPdfDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    externalPdfDragDepthRef.current += 1;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsExternalPdfDragOver(true);
+    }
+  }, []);
+
+  const handleExternalPdfDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    externalPdfDragDepthRef.current = Math.max(0, externalPdfDragDepthRef.current - 1);
+    if (externalPdfDragDepthRef.current === 0) {
+      setIsExternalPdfDragOver(false);
+    }
+  }, []);
+
+  const handleExternalPdfDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = "copy";
+  }, []);
+
   useEffect(() => {
     if (!open) return;
     setCreateContract(false);
     setCreationOverlayOpen(false);
     setOverlayPayload(null);
     setExternalPdfFile(null);
+    externalPdfDragDepthRef.current = 0;
+    setIsExternalPdfDragOver(false);
     if (contract) {
       setValidFrom(contract.valid_from);
       setValidTo(contract.valid_to ?? "");
@@ -252,6 +305,15 @@ export function StaffContractDrawer({
   }, [createContract]);
 
   useEffect(() => {
+    if (externalContract) return;
+    setExternalPdfFile(null);
+    setExternalDocumentTitle("");
+    setExternalSignedAt("");
+    externalPdfDragDepthRef.current = 0;
+    setIsExternalPdfDragOver(false);
+  }, [externalContract]);
+
+  useEffect(() => {
     if (!open || !employmentTypeId) {
       setActiveTemplateCount(0);
       return;
@@ -281,6 +343,33 @@ export function StaffContractDrawer({
   const externalMetadataEditable =
     isStaffContractExternalMetadataEditable(contract);
   const formFieldsDisabled = pending || contractTermsLocked;
+  const showContractAttachmentSection =
+    externalContract ||
+    contractIsExternal ||
+    (Boolean(editId) &&
+      !contract?.current_document_id &&
+      !contract?.employee_signature_pending);
+  const attachmentUploadDisabled =
+    Boolean(contract?.employee_signature_pending) ||
+    (contractTermsLocked && Boolean(contract?.current_document_id));
+  const useExternalSave =
+    externalContract ||
+    contractIsExternal ||
+    (Boolean(editId) && Boolean(externalPdfFile) && !contract?.current_document_id);
+
+  const handleExternalPdfDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      externalPdfDragDepthRef.current = 0;
+      setIsExternalPdfDragOver(false);
+      if (attachmentUploadDisabled) return;
+      const dropped = e.dataTransfer.files?.[0];
+      if (dropped) applyExternalPdfFile(dropped);
+    },
+    [applyExternalPdfFile, attachmentUploadDisabled],
+  );
+
   const canUsePlatformDigital =
     !contractIsExternal &&
     !contractIsSigned &&
@@ -352,7 +441,7 @@ export function StaffContractDrawer({
     if (action === "employer_signed") return "AG-Unterschrift";
     if (action === "employee_signed") return "MA-Unterschrift";
     if (action === "prepared") return "Entwurf gespeichert";
-    if (action === "external_uploaded") return "Extern · PDF";
+    if (action === "external_uploaded") return "Extern · Dokument";
     return "Geändert";
   };
 
@@ -460,7 +549,7 @@ export function StaffContractDrawer({
     const needsPdf = !editId && !externalPdfFile;
     const needsPdfOnEdit = Boolean(editId) && !contract?.current_document_id && !externalPdfFile;
     if (needsPdf || needsPdfOnEdit) {
-      toast.error("Bitte eine PDF-Datei auswählen.");
+      toast.error("Bitte eine PDF- oder Bilddatei auswählen.");
       return;
     }
 
@@ -483,8 +572,8 @@ export function StaffContractDrawer({
 
     toast.success(
       externalPdfFile
-        ? "Externer Vertrag mit PDF gespeichert."
-        : "Externer Vertrag aktualisiert.",
+        ? "Vertrag mit Dokument gespeichert."
+        : "Vertrag aktualisiert.",
     );
     notifyStaffContractsUpdated();
     onSaved();
@@ -522,7 +611,7 @@ export function StaffContractDrawer({
       void save();
       return;
     }
-    if (externalContract || contractIsExternal) {
+    if (useExternalSave) {
       void saveExternal();
       return;
     }
@@ -570,7 +659,7 @@ export function StaffContractDrawer({
               {contract?.employee_signature_pending
                 ? "Vertragsdaten sind gesperrt — es fehlt noch die Unterschrift des Mitarbeiters."
                 : isStaffContractExternal(contract)
-                  ? "Externer Vertrag ist als unterschrieben markiert — Stammdaten und PDF sind gesperrt. Nur interne Notizen können angepasst werden."
+                  ? "Externer Vertrag ist als unterschrieben markiert — Stammdaten und Dokument sind gesperrt. Nur interne Notizen können angepasst werden."
                   : "Vertragsdaten entsprechen dem unterschriebenen PDF und können nicht geändert werden. Interne Notizen sind weiterhin möglich."}
             </div>
           ) : externalMetadataEditable ? (
@@ -746,12 +835,81 @@ export function StaffContractDrawer({
             />
           </DrawerFormSection>
 
-          {externalContract || contractIsExternal ? (
-            <DrawerFormSection title="Externer Vertrag (PDF)" contentPadding={5}>
+          {!editId ? (
+            <DrawerFormSection title="Vertragsart" contentPadding={5}>
+              <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Vertrag erstellen</p>
+                  <p className="text-xs text-muted-foreground">
+                    Mustervorlage ausfüllen, unterschreiben und als PDF in
+                    Dokumente speichern
+                    {contractTwoStepSigning
+                      ? " (Zweit-Schritt: Mitarbeiter unterschreibt im Profil)."
+                      : "."}
+                  </p>
+                  {!employmentTypeId ? (
+                    <p className="text-xs text-amber-600">
+                      Bitte zuerst ein Beschäftigungsverhältnis wählen.
+                    </p>
+                  ) : templatesLoading ? (
+                    <p className="text-xs text-muted-foreground">
+                      Mustervorlagen werden geprüft …
+                    </p>
+                  ) : activeTemplateCount === 0 ? (
+                    showCreateTemplateAction ? (
+                      <button
+                        type="button"
+                        className="text-left text-xs text-amber-600 underline-offset-2 hover:underline"
+                        onClick={openTemplateManager}
+                      >
+                        Keine Mustervorlage für dieses Beschäftigungsverhältnis —
+                        anlegen oder importieren.
+                      </button>
+                    ) : (
+                      <p className="text-xs text-amber-600">
+                        Keine Mustervorlage für dieses Beschäftigungsverhältnis.
+                      </p>
+                    )
+                  ) : null}
+                </div>
+                <Switch
+                  checked={createContract}
+                  onCheckedChange={setCreateContract}
+                  disabled={!canCreateDigitalContract || pending}
+                  aria-label="Vertrag erstellen"
+                />
+              </div>
+              <div className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Externer Vertrag (Dokument)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Vertrag existiert schon auf Papier — PDF oder Foto hochladen
+                    und Stammdaten erfassen.
+                  </p>
+                </div>
+                <Switch
+                  checked={externalContract}
+                  onCheckedChange={setExternalContract}
+                  disabled={pending}
+                  aria-label="Externer Vertrag"
+                />
+              </div>
+            </DrawerFormSection>
+          ) : null}
+
+          {showContractAttachmentSection ? (
+            <DrawerFormSection
+              title={
+                externalContract || contractIsExternal
+                  ? "Externer Vertrag (Dokument)"
+                  : "Vertragsdokument"
+              }
+              contentPadding={5}
+            >
               <p className="mb-3 text-sm text-muted-foreground">
-                Vertrag wurde außerhalb der Plattform erstellt — PDF hier
-                hochladen und Stammdaten pflegen. Keine digitale Unterschrift
-                über Gwada.
+                {externalContract || contractIsExternal
+                  ? "Vertrag wurde außerhalb der Plattform erstellt — PDF oder Foto hier hochladen und Stammdaten pflegen. Keine digitale Unterschrift über Gwada."
+                  : "Noch kein Vertragsdokument hinterlegt — PDF oder Foto (z. B. Scan) nachträglich anhängen."}
               </p>
               {contract?.current_document_id ? (
                 <div className="mb-3">
@@ -767,26 +925,93 @@ export function StaffContractDrawer({
                 </div>
               ) : (
                 <p className="mb-3 text-sm text-amber-700">
-                  Noch keine PDF angehängt.
+                  Noch kein Dokument angehängt.
                 </p>
               )}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="external-contract-pdf">PDF-Datei</Label>
-                  <Input
+                  <Label id="external-contract-pdf-label">Datei</Label>
+                  <input
+                    ref={externalPdfFileRef}
                     id="external-contract-pdf"
                     type="file"
-                    accept=".pdf,application/pdf"
-                    className={staffDrawerFieldClassName}
-                    disabled={formFieldsDisabled}
+                    accept={STAFF_CONTRACT_ATTACHMENT_ACCEPT}
+                    className="sr-only"
+                    disabled={attachmentUploadDisabled}
                     onChange={(e) => {
-                      const file = e.target.files?.[0] ?? null;
-                      setExternalPdfFile(file);
+                      applyExternalPdfFile(e.target.files?.[0] ?? null);
+                      e.target.value = "";
                     }}
                   />
+                  <div
+                    role="button"
+                    tabIndex={attachmentUploadDisabled ? -1 : 0}
+                    data-vaul-no-drag
+                    aria-labelledby="external-contract-pdf-label"
+                    aria-disabled={attachmentUploadDisabled}
+                    className={cn(
+                      "flex w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 text-center transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45",
+                      attachmentUploadDisabled
+                        ? "cursor-not-allowed border-border/40 bg-muted/15 opacity-60"
+                        : isExternalPdfDragOver
+                          ? "cursor-pointer border-accent bg-accent/10"
+                          : "cursor-pointer border-border/60 bg-muted/25 hover:border-border hover:bg-muted/40",
+                      externalPdfFile && "py-6",
+                    )}
+                    onClick={() => {
+                      if (attachmentUploadDisabled) return;
+                      externalPdfFileRef.current?.click();
+                    }}
+                    onKeyDown={(e) => {
+                      if (attachmentUploadDisabled) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        externalPdfFileRef.current?.click();
+                      }
+                    }}
+                    onDragEnter={
+                      attachmentUploadDisabled ? undefined : handleExternalPdfDragEnter
+                    }
+                    onDragLeave={
+                      attachmentUploadDisabled ? undefined : handleExternalPdfDragLeave
+                    }
+                    onDragOver={
+                      attachmentUploadDisabled ? undefined : handleExternalPdfDragOver
+                    }
+                    onDrop={attachmentUploadDisabled ? undefined : handleExternalPdfDrop}
+                  >
+                    <Upload
+                      className={cn(
+                        "size-8 shrink-0",
+                        isExternalPdfDragOver ? "text-accent" : "text-muted-foreground",
+                      )}
+                      aria-hidden
+                    />
+                    {externalPdfFile ? (
+                      <>
+                        <span className="max-w-full truncate text-sm font-medium">
+                          {externalPdfFile.name}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Klicken oder andere Datei hierher ziehen
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium">
+                          {isExternalPdfDragOver
+                            ? "Datei loslassen …"
+                            : "Datei auswählen oder hierher ziehen"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {STAFF_CONTRACT_ATTACHMENT_LABEL}
+                        </span>
+                      </>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     {editId
-                      ? "Optional — leer lassen, um die bestehende PDF zu behalten."
+                      ? "Optional — leer lassen, um das bestehende Dokument zu behalten."
                       : "Erforderlich beim Anlegen."}
                   </p>
                 </div>
@@ -876,74 +1101,6 @@ export function StaffContractDrawer({
                 />
               </div>
             ) : null}
-            {!contractIsSigned ? (
-            <>
-            <div className="flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Vertrag erstellen</p>
-                <p className="text-xs text-muted-foreground">
-                  Mustervorlage ausfüllen, unterschreiben und als PDF in
-                  Dokumente speichern
-                  {contractTwoStepSigning
-                    ? " (Zweit-Schritt: Mitarbeiter unterschreibt im Profil)."
-                    : "."}
-                </p>
-                {!employmentTypeId ? (
-                  <p className="text-xs text-amber-600">
-                    Bitte zuerst ein Beschäftigungsverhältnis wählen.
-                  </p>
-                ) : templatesLoading ? (
-                  <p className="text-xs text-muted-foreground">
-                    Mustervorlagen werden geprüft …
-                  </p>
-                ) : activeTemplateCount === 0 ? (
-                  showCreateTemplateAction ? (
-                    <button
-                      type="button"
-                      className="text-left text-xs text-amber-600 underline-offset-2 hover:underline"
-                      onClick={openTemplateManager}
-                    >
-                      Keine Mustervorlage für dieses Beschäftigungsverhältnis —
-                      anlegen oder importieren.
-                    </button>
-                  ) : (
-                    <p className="text-xs text-amber-600">
-                      Keine Mustervorlage für dieses Beschäftigungsverhältnis.
-                    </p>
-                  )
-                ) : contractIsSigned || contract?.employee_signature_pending ? (
-                  <p className="text-xs text-amber-600">
-                    Bereits digital unterzeichnet — neuer Vertrag nur über neuen
-                    Datensatz.
-                  </p>
-                ) : null}
-              </div>
-              <Switch
-                checked={createContract}
-                onCheckedChange={setCreateContract}
-                disabled={!canCreateDigitalContract || pending}
-                aria-label="Vertrag erstellen"
-              />
-            </div>
-            {!editId ? (
-              <div className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-border/40 bg-muted/15 p-4">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Externer Vertrag (PDF)</p>
-                  <p className="text-xs text-muted-foreground">
-                    Vertrag existiert schon auf Papier — nur PDF hochladen und
-                    Stammdaten erfassen.
-                  </p>
-                </div>
-                <Switch
-                  checked={externalContract}
-                  onCheckedChange={setExternalContract}
-                  disabled={pending}
-                  aria-label="Externer Vertrag"
-                />
-              </div>
-            ) : null}
-            </>
-            ) : null}
           </DrawerFormSection>
           )}
 
@@ -1010,9 +1167,9 @@ export function StaffContractDrawer({
           submitLabel={
             contractTermsLocked
               ? "Notiz speichern"
-              : externalContract || contractIsExternal
+              : useExternalSave
                 ? externalPdfFile || !editId
-                  ? "PDF speichern"
+                  ? "Dokument speichern"
                   : "Speichern"
                 : createContract
                   ? "Zur Vertragserstellung"

@@ -9,10 +9,11 @@ import { DisplayContextFooter } from "@/components/display/display-context-foote
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayAccentRoot } from "@/components/display/display-accent-root";
 import { DisplayRestaurantTimezoneProvider } from "@/components/display/display-restaurant-timezone-provider";
+import { DisplayBrandedBackground } from "@/components/display/display-branded-background";
 import { DisplayCelebrationOverlay, type DisplayCelebrationVariant } from "@/components/display/display-celebration-overlay";
-import { useMarkDisplayPwaSplashReady } from "@/components/display/display-pwa-splash-provider";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
 import { DisplayPinPad } from "@/components/display/display-pin-pad";
+import { DisplayPinStandbyScene } from "@/components/display/display-pin-standby";
 import { DisplayModuleIcon } from "@/components/display/display-module-icon";
 import { DisplayModuleShell } from "@/components/display/display-module-shell";
 import { DisplayStaffLine } from "@/components/display/display-staff-line";
@@ -76,7 +77,6 @@ export function DisplayScreen({ slug }: { slug: string }) {
     : DISPLAY_CELEBRATION_EXIT_MS;
   const [context, setContext] = useState<DisplayContextResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  useMarkDisplayPwaSplashReady(!loading);
   const [pin, setPin] = useState("");
   const [pinBusy, setPinBusy] = useState(false);
   const [screenCelebration, setScreenCelebration] =
@@ -524,7 +524,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
   } else if (context.restaurant && context.restaurant.slug !== slug) {
     content = (
       <div className={displayChromeShellClassName}>
-        <DisplayChromeHeader />
+        <DisplayChromeHeader restaurantId={context.restaurant.id} weatherEnabled />
         <main
           className={cn(
             displayChromeMainClassName,
@@ -551,17 +551,12 @@ export function DisplayScreen({ slug }: { slug: string }) {
     contentKey = "pin";
     content = (
       <div className={displayChromeShellClassName}>
-        <DisplayChromeHeader>
+        <DisplayChromeHeader restaurantId={context.restaurant?.id} weatherEnabled>
           <span className="text-sm font-medium text-foreground">PIN eingeben</span>
         </DisplayChromeHeader>
 
         <div className={displayChromeContentWrapClassName}>
-          <main
-            className={cn(
-              displayChromeMainClassName,
-              "flex flex-col items-center justify-center gap-5 px-6 py-6",
-            )}
-          >
+          <DisplayPinStandbyScene accentHex={restaurantAccent}>
             <DisplayPinPad
               value={pin}
               onChange={setPin}
@@ -572,7 +567,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             {pinError ? (
               <p className="text-sm text-destructive">{pinError}</p>
             ) : null}
-          </main>
+          </DisplayPinStandbyScene>
         </div>
 
         <DisplayContextFooter
@@ -591,7 +586,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     if (modules.length === 0) {
       content = (
         <div className={displayChromeShellClassName}>
-          <DisplayChromeHeader>
+          <DisplayChromeHeader restaurantId={context.restaurant?.id} weatherEnabled>
             <DisplayStaffLine
               staff={session.staff}
               suffix={timeStatusSuffix}
@@ -623,6 +618,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
       content = (
         <div className={displayChromeShellClassName}>
           <DisplayChromeHeader
+            restaurantId={context.restaurant?.id}
+            weatherEnabled
             trailing={
               <DisplayStaffTodoBadge
                 count={todoBadgeCount}
@@ -638,9 +635,11 @@ export function DisplayScreen({ slug }: { slug: string }) {
             />
           </DisplayChromeHeader>
           <div className={displayChromeContentWrapClassName}>
+            <DisplayBrandedBackground accentHex={restaurantAccent} intensity="whisper" />
             <DisplayLockOverlay
               open={locked}
               placement="content"
+              accentHex={restaurantAccent}
               onUnlock={(p) => void unlockWithPin(p)}
               busy={pinBusy}
               error={lockPinError}
@@ -648,7 +647,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
             <main
               className={cn(
                 displayChromeMainClassName,
-                "grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3",
+                "relative z-10 grid grid-cols-1 gap-4 p-6 sm:grid-cols-2 lg:grid-cols-3",
               )}
             >
               {moduleMeta.map((mod) => (
@@ -687,7 +686,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
       if (!currentModule) {
         content = (
           <div className={displayChromeShellClassName}>
-            <DisplayChromeHeader />
+            <DisplayChromeHeader restaurantId={context.restaurant?.id} weatherEnabled />
             <main
               className={cn(
                 displayChromeMainClassName,
@@ -701,6 +700,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
       } else {
       content = (
         <DisplayModuleShell
+            restaurantId={context.restaurant!.id}
+            accentHex={restaurantAccent}
             restaurantName={context.restaurant?.name ?? ""}
             restaurantAvatarUrl={context.restaurant?.avatar_url ?? null}
             displayName={context.display?.name ?? ""}

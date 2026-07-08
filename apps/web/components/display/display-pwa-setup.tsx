@@ -10,6 +10,7 @@ import {
   normalizeDisplayPwaRestaurantSlug,
 } from "@/lib/display/display-pwa-config";
 import { PWA_APP_LABEL_DISPLAY } from "@/lib/pwa/pwa-app-labels";
+import { isStandalonePwaClient } from "@/lib/pwa/is-standalone-pwa-client";
 import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
 import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 
@@ -24,7 +25,9 @@ export function DisplayPwaSetup() {
 
   useEffect(() => {
     syncAppleWebAppTitle(PWA_APP_LABEL_DISPLAY);
-    syncAppleTouchIcon(displayPwaIconPath(180));
+    if (isStandalonePwaClient()) {
+      syncAppleTouchIcon(displayPwaIconPath(180));
+    }
   }, []);
 
   useEffect(() => {

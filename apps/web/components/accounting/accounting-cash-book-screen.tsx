@@ -26,6 +26,8 @@ import {
   updateAccountingCashEntry,
 } from "@/lib/accounting/accounting-api";
 import { formatCashTaxRatesSummary } from "@/lib/accounting/accounting-cash-display";
+import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
+import { LIST_PAGE_SIZE_MAX } from "@/lib/constants/list-pagination";
 import { ACCOUNTING_CASH_DIRECTION_LABELS } from "@/lib/accounting/accounting-cash-book-defaults";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -166,6 +168,58 @@ export function AccountingCashBookScreen() {
     void loadList();
   }, [loadList]);
 
+  const tableExport = useCallback(async () => {
+    if (!restaurantId) {
+      return {
+        documentTitle: "Kassenbuch",
+        filenamePrefix: "kassenbuch",
+        headers: ["Datum", "Richtung", "Art", "Betrag", "MwSt.", "Beleg", "Notiz"],
+        rows: [] as string[][],
+        summaryLine: "0 Buchungen",
+        orientation: "landscape" as const,
+      };
+    }
+
+    const all = await fetchAllPaginatedItems(
+      async (page, pageSize) => {
+        const result = await fetchAccountingCashBook(restaurantId, {
+          page,
+          pageSize,
+          search,
+        });
+        return {
+          items: result.entries,
+          page: result.page,
+          pageSize: result.pageSize,
+          totalCount: result.totalCount,
+          totalPages: result.totalPages,
+        };
+      },
+      LIST_PAGE_SIZE_MAX,
+    );
+
+    return {
+      documentTitle: "Kassenbuch",
+      filenamePrefix: "kassenbuch",
+      headers: ["Datum", "Richtung", "Art", "Betrag", "MwSt.", "Beleg", "Notiz"],
+      rows: all.map((entry) => [
+        formatDate(entry.entry_date),
+        ACCOUNTING_CASH_DIRECTION_LABELS[entry.direction],
+        entry.category_name ?? "—",
+        `${entry.direction === "expense" ? "−" : "+"}${formatMoney(entry.amount)}`,
+        formatCashTaxRatesSummary(entry.tax_lines),
+        entry.voucher_id
+          ? entry.voucher_number?.trim() ||
+            entry.voucher_contact_name?.trim() ||
+            "Beleg"
+          : "—",
+        entry.note?.trim() || "—",
+      ]),
+      summaryLine: `${all.length} Buchung${all.length === 1 ? "" : "en"}`,
+      orientation: "landscape" as const,
+    };
+  }, [restaurantId, search]);
+
   const handleSearch = (next: string) => {
     setSearch(next);
     setPage(1);
@@ -288,6 +342,7 @@ export function AccountingCashBookScreen() {
           canNext={page < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          tableExport={tableExport}
         >
             <table className="w-full min-w-[880px] text-sm">
               <thead>

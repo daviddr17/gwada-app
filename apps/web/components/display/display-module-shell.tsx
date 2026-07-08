@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { DisplayModuleMeta } from "@/lib/display/display-types";
 import type { DisplayModule, DisplaySessionStaff } from "@/lib/display/display-types";
 import type { StaffTodoDisplayUrgency } from "@/lib/staff/staff-todo-status";
+import { DisplayBrandedBackground } from "@/components/display/display-branded-background";
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
 import { DisplayContextFooter } from "@/components/display/display-context-footer";
 import { DisplayLockOverlay } from "@/components/display/display-pin-pad";
@@ -26,6 +27,8 @@ import {
 import { cn } from "@/lib/utils";
 
 export function DisplayModuleShell({
+  restaurantId,
+  accentHex,
   restaurantName,
   restaurantAvatarUrl,
   displayName,
@@ -45,6 +48,8 @@ export function DisplayModuleShell({
   lockError = null,
   children,
 }: {
+  restaurantId: string;
+  accentHex: string;
   restaurantName: string;
   restaurantAvatarUrl: string | null;
   displayName: string;
@@ -117,7 +122,11 @@ export function DisplayModuleShell({
 
   return (
     <div className={displayChromeShellClassName}>
-      <DisplayChromeHeader trailing={<>{todoBadge}{moduleTrailing}</>}>
+      <DisplayChromeHeader
+        restaurantId={restaurantId}
+        weatherEnabled
+        trailing={<>{todoBadge}{moduleTrailing}</>}
+      >
         <DisplayStaffLine
           staff={staff}
           suffix={staffSuffix}
@@ -126,16 +135,18 @@ export function DisplayModuleShell({
       </DisplayChromeHeader>
 
       <div className={displayChromeContentWrapClassName}>
+        <DisplayBrandedBackground accentHex={accentHex} intensity="hint" />
         {onUnlock ? (
           <DisplayLockOverlay
             open={locked}
             placement="content"
+            accentHex={accentHex}
             onUnlock={onUnlock}
             busy={lockBusy}
             error={lockError}
           />
         ) : null}
-        <main className={cn(displayChromeMainClassName, "p-4 sm:p-6")}>
+        <main className={cn(displayChromeMainClassName, "relative z-10 p-4 sm:p-6")}>
           {children}
         </main>
       </div>

@@ -1,7 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { DashboardPwaSetup } from "@/components/dashboard/dashboard-pwa-setup";
-import { DashboardPwaSplashGate } from "@/components/dashboard/dashboard-pwa-splash-gate";
-import { DashboardPwaSplashPreload } from "@/components/dashboard/dashboard-pwa-splash-preload";
 import { AppShell } from "@/components/layout/app-shell";
 import { AppDashboardLivePatchMount } from "@/components/providers/app-dashboard-live-patch-mount";
 import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
@@ -58,7 +56,6 @@ export default function AppLayout({
 }>) {
   return (
     <WorkspaceShellProviders>
-      <DashboardPwaSplashPreload />
       <QueryProvider>
         <WorkspaceAuthSessionProvider>
           <WorkspaceRestaurantProvider>
@@ -75,9 +72,7 @@ export default function AppLayout({
                       <AppDashboardLivePatchMount />
                       <ProfilePresenceHeartbeat />
                       <AppModuleLiveProviders />
-                      <DashboardPwaSplashGate>
-                        <AppShell>{children}</AppShell>
-                      </DashboardPwaSplashGate>
+                      <AppShell>{children}</AppShell>
                     </SoftNavLockProvider>
                   </AccentColorProvider>
                 </DashboardWidgetPreferencesProvider>

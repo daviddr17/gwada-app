@@ -17,6 +17,7 @@ import {
   Clock,
   FileText,
   Users,
+  Banknote,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -34,6 +35,8 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker";
+import { Label } from "@/components/ui/label";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   computeStaffStatistics,
@@ -41,9 +44,12 @@ import {
   formatStaffStatsHours,
   type StaffStatsPeriod,
 } from "@/lib/staff/compute-staff-statistics";
-import { formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
+import {
+  formatStaffEuroCents,
+  formatStaffAvgHourlyWage,
+} from "@/lib/staff/staff-day-wage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import { fetchStaffStatisticsBundle } from "@/lib/supabase/staff-statistics-db";
+import { fetchStaffStatisticsBundle, staffStatsPresetRangeYmd } from "@/lib/supabase/staff-statistics-db";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
@@ -52,6 +58,10 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { cn } from "@/lib/utils";
 
 const weekHoursConfig = {
+  hours: { label: "Arbeitsstunden", color: "var(--accent)" },
+} satisfies ChartConfig;
+
+const dayHoursConfig = {
   hours: { label: "Arbeitsstunden", color: "var(--accent)" },
 } satisfies ChartConfig;
 
@@ -83,25 +93,44 @@ function ChartEmpty({ message }: { message: string }) {
   );
 }
 
+type StaffStatsPeriodSelection =
+  | { mode: "preset"; months: StaffStatsPeriod }
+  | { mode: "custom"; startYmd: string; endYmd: string };
+
 export function StaffStatisticsScreen() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
-  const [period, setPeriod] = useState<StaffStatsPeriod>(12);
+  const [periodSelection, setPeriodSelection] = useState<StaffStatsPeriodSelection>(
+    () => ({ mode: "preset", months: 12 }),
+  );
   const [bundle, setBundle] = useState<Awaited<
     ReturnType<typeof fetchStaffStatisticsBundle>
   >["data"]>(null);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
 
+  const customRangeInvalid =
+    periodSelection.mode === "custom" &&
+    periodSelection.startYmd > periodSelection.endYmd;
+
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId || customRangeInvalid) {
+      setLoading(false);
+      if (customRangeInvalid) setBundle(null);
+      return;
+    }
     let cancel = false;
     setLoading(true);
     void (async () => {
-      const { data, error } = await fetchStaffStatisticsBundle({
-        restaurantId,
-        monthsBack: period,
-      });
+      const { data, error } = await fetchStaffStatisticsBundle(
+        periodSelection.mode === "preset"
+          ? { restaurantId, monthsBack: periodSelection.months }
+          : {
+              restaurantId,
+              startYmd: periodSelection.startYmd,
+              endYmd: periodSelection.endYmd,
+            },
+      );
       if (cancel) return;
       setLoading(false);
       if (error) toast.error(error);
@@ -110,7 +139,7 @@ export function StaffStatisticsScreen() {
     return () => {
       cancel = true;
     };
-  }, [restaurantId, period]);
+  }, [restaurantId, periodSelection, customRangeInvalid]);
 
   const stats = useMemo(() => {
     if (!bundle) return null;
@@ -169,9 +198,9 @@ export function StaffStatisticsScreen() {
 
   return (
     <div className="space-y-6 pb-4">
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div className="flex flex-col items-end gap-3">
         <div
-          className="flex flex-wrap gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"
+          className="flex flex-wrap justify-end gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"
           role="group"
           aria-label="Zeitraum"
         >
@@ -180,17 +209,89 @@ export function StaffStatisticsScreen() {
               key={m}
               type="button"
               size="sm"
-              variant={period === m ? "default" : "ghost"}
+              variant={
+                periodSelection.mode === "preset" && periodSelection.months === m
+                  ? "default"
+                  : "ghost"
+              }
               className={cn(
                 "h-8 rounded-lg px-3 text-xs",
-                period === m && "shadow-sm",
+                periodSelection.mode === "preset" &&
+                  periodSelection.months === m &&
+                  "shadow-sm",
               )}
-              onClick={() => setPeriod(m)}
+              onClick={() => setPeriodSelection({ mode: "preset", months: m })}
             >
               {m} Mon.
             </Button>
           ))}
+          <Button
+            type="button"
+            size="sm"
+            variant={periodSelection.mode === "custom" ? "default" : "ghost"}
+            className={cn(
+              "h-8 rounded-lg px-3 text-xs",
+              periodSelection.mode === "custom" && "shadow-sm",
+            )}
+            onClick={() =>
+              setPeriodSelection((current) => {
+                if (current.mode === "custom") return current;
+                const range = staffStatsPresetRangeYmd(
+                  current.mode === "preset" ? current.months : 12,
+                );
+                return {
+                  mode: "custom",
+                  startYmd: range.startYmd,
+                  endYmd: range.endYmd,
+                };
+              })
+            }
+          >
+            Frei
+          </Button>
         </div>
+        {periodSelection.mode === "custom" ? (
+          <div className="grid w-full max-w-md gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="staff-stats-range-start">Von</Label>
+              <DatePickerField
+                id="staff-stats-range-start"
+                value={periodSelection.startYmd}
+                onChange={(v) => {
+                  if (!v) return;
+                  setPeriodSelection({
+                    mode: "custom",
+                    startYmd: v,
+                    endYmd: periodSelection.endYmd,
+                  });
+                }}
+                fullWidth
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="staff-stats-range-end">Bis</Label>
+              <DatePickerField
+                id="staff-stats-range-end"
+                value={periodSelection.endYmd}
+                onChange={(v) => {
+                  if (!v) return;
+                  setPeriodSelection({
+                    mode: "custom",
+                    startYmd: periodSelection.startYmd,
+                    endYmd: v,
+                  });
+                }}
+                minYmd={periodSelection.startYmd}
+                fullWidth
+              />
+            </div>
+            {customRangeInvalid ? (
+              <p className="text-sm text-destructive sm:col-span-2">
+                Das Enddatum muss am oder nach dem Startdatum liegen.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       {showSkeleton ? (
@@ -243,7 +344,7 @@ export function StaffStatisticsScreen() {
             />
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <KpiCard
               icon={Clock}
               label="Netto-Arbeitszeit"
@@ -267,6 +368,36 @@ export function StaffStatisticsScreen() {
               label="Schicht-Lohn (Std.)"
               value={formatStaffEuroCents(stats.shiftPlanWageCents)}
               hint={wageHint}
+            />
+            <KpiCard
+              icon={Banknote}
+              label="Lohn (tatsächlich)"
+              value={formatStaffEuroCents(stats.actualTotalWageCents)}
+              hint={
+                stats.actualTotalWageCents > 0
+                  ? `${formatStaffStatsHours(stats.actualWageNetWorkHours)} Netto · erfasste Zeiten × Vertragslohn`
+                  : "Erfasste Zeiten × Vertragslohn im Zeitraum"
+              }
+            />
+            <KpiCard
+              icon={Banknote}
+              label="Ø Stundenlohn (tatsächlich)"
+              value={formatStaffAvgHourlyWage(stats.actualAvgHourlyWageCents)}
+              hint={
+                stats.actualAvgHourlyWageCents != null
+                  ? "Gesamtlohn ÷ Netto-Stunden"
+                  : "Keine berechenbaren Stundenlöhne"
+              }
+            />
+            <KpiCard
+              icon={Banknote}
+              label="Ø Lohn pro Mitarbeiter"
+              value={formatStaffEuroCents(stats.generalAvgWageCents)}
+              hint={
+                stats.staffWithActualWageCount > 0
+                  ? `${stats.staffWithActualWageCount} Mitarbeiter mit erfasstem Lohn`
+                  : "Mittelwert der Personen-Löhne"
+              }
             />
           </div>
         </>
@@ -312,6 +443,74 @@ export function StaffStatisticsScreen() {
                   <ChartTooltip
                     content={
                       <ChartTooltipContent
+                        formatter={(value) =>
+                          formatStaffStatsHours(Number(value))
+                        }
+                      />
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="hours"
+                    stroke="var(--color-hours)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "var(--color-hours)" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 border-border/50 shadow-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Arbeitszeit pro Tag</CardTitle>
+            <CardDescription>
+              Erfasste Netto-Arbeitsstunden nach Kalendertag im Zeitraum.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-0">
+            {showSkeleton ? (
+              <Skeleton className="mx-6 h-[240px] w-auto rounded-xl" />
+            ) : !stats || stats.byDay.length === 0 ? (
+              <ChartEmpty message="Noch keine Arbeitszeiten im gewählten Zeitraum." />
+            ) : (
+              <ChartContainer
+                config={dayHoursConfig}
+                className="aspect-auto h-[260px] w-full min-w-0"
+              >
+                <LineChart
+                  accessibilityLayer
+                  data={stats.byDay}
+                  margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="day"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    className="text-[10px]"
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={40}
+                    className="tabular-nums"
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        labelFormatter={(_, payload) => {
+                          const row = payload?.[0]?.payload as
+                            | { dayYmd?: string; day?: string }
+                            | undefined;
+                          if (!row?.dayYmd) return row?.day ?? "";
+                          const [y, m, d] = row.dayYmd.split("-");
+                          return `${d}.${m}.${y}`;
+                        }}
                         formatter={(value) =>
                           formatStaffStatsHours(Number(value))
                         }

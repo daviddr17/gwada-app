@@ -16,6 +16,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { printDisplayRecipe } from "@/lib/display/export-display-recipe";
 import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
+import {
+  drawerFormHeaderClassName,
+  drawerScrollAreaClassName,
+} from "@/lib/ui/drawer-form-section";
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { GWADA_DISPLAY_RECIPES_REFRESH_EVENT } from "@/lib/display/display-recipes-live-events";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -274,10 +278,10 @@ export function DisplayRecipesModule({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className={drawerContentClassName("formMd")}>
+        <DrawerContent className={drawerContentClassName("displayForm")}>
           {selected ? (
             <>
-              <DrawerHeader className="text-left">
+              <DrawerHeader className={drawerFormHeaderClassName(6)}>
                 <p className="text-sm text-muted-foreground">{selected.category_name}</p>
                 <DrawerTitle className="text-2xl font-semibold">{selected.name}</DrawerTitle>
                 {selected.description ? (
@@ -290,7 +294,7 @@ export function DisplayRecipesModule({
                 </p>
               </DrawerHeader>
 
-              <div className="max-h-[min(50dvh,420px)] overflow-y-auto px-6 pb-6">
+              <div className={drawerScrollAreaClassName(6)}>
                 {selected.recipe.length > 0 ? (
                   <ul className="space-y-2 rounded-2xl border border-border/50 bg-muted/15 p-4">
                     {selected.recipe.map((line) => (
@@ -314,7 +318,7 @@ export function DisplayRecipesModule({
               </div>
 
               {selected.recipe.length > 0 ? (
-                <div className="space-y-2 border-t border-border/50 px-6 py-4">
+                <div className="shrink-0 space-y-2 border-t border-border/50 px-6 py-4">
                   <Button
                     type="button"
                     className={cn("h-12 w-full gap-2", brandActionButtonRoundedClassName)}

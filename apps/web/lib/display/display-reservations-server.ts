@@ -8,7 +8,10 @@ import {
 } from "@/lib/reservations/reservation-pending-change";
 import { UNCONFIRMED_RESERVATION_STATUS_CODES } from "@/lib/reservations/unconfirmed-reservations";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
-import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
+import {
+  readRestaurantZonedParts,
+  restaurantDayBoundsIso,
+} from "@/lib/restaurant/restaurant-timezone";
 import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
 import { loadDisplayRestaurantTimezone } from "@/lib/staff/staff-display-todos-server";
 import type { DateHoursException, DayHours, Weekday } from "@/lib/types/restaurant";
@@ -527,5 +530,81 @@ export async function loadDisplayOpenReservations(restaurantId: string) {
 
   return { reservations, count: reservations.length };
 }
+
+export type DisplayReservationDayStat = {
+  count: number;
+  guests: number;
+};
+
+function parseDisplayMonthKey(
+  monthKey: string | null | undefined,
+): { year: number; month: number } | null {
+  if (!monthKey?.trim()) return null;
+  const match = /^(\d{4})-(\d{2})(?:-\d{2})?$/.exec(monthKey.trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    month < 1 ||
+    month > 12
+  ) {
+    return null;
+  }
+  return { year, month };
+}
+
+/** Reservierungs- und Personenzahl pro Restaurant-Kalendertag (Monatsansicht Display). */
+export async function loadDisplayReservationsMonthDayStats(
+  restaurantId: string,
+  monthKey: string | null | undefined,
+) {
+  const parsed = parseDisplayMonthKey(monthKey);
+  if (!parsed) return { error: "invalid_month" as const };
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { error: "server_misconfigured" as const };
+
+  const timeZone = await loadDisplayRestaurantTimezone(admin, restaurantId);
+  const monthYmd = `${parsed.year}-${String(parsed.month).padStart(2, "0")}`;
+  const firstDayYmd = `${monthYmd}-01`;
+  const nextMonth =
+    parsed.month === 12
+      ? { year: parsed.year + 1, month: 1 }
+      : { year: parsed.year, month: parsed.month + 1 };
+  const nextMonthFirstYmd = `${nextMonth.year}-${String(nextMonth.month).padStart(2, "0")}-01`;
+
+  const { start } = restaurantDayBoundsIso(firstDayYmd, timeZone);
+  const { start: endExclusive } = restaurantDayBoundsIso(
+    nextMonthFirstYmd,
+    timeZone,
+  );
+
+  const { data: rows, error } = await admin
+    .from("reservations")
+    .select("starts_at, party_size")
+    .eq("restaurant_id", restaurantId)
+    .gte("starts_at", start)
+    .lt("starts_at", endExclusive);
+
+  if (error) return { error: error.message };
+
+  const days: Record<string, DisplayReservationDayStat> = {};
+  for (const row of rows ?? []) {
+    const startsAt = row.starts_at as string;
+    const partySize = row.party_size as number;
+    const z = readRestaurantZonedParts(new Date(startsAt), timeZone);
+    const dayYmd = `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
+    const prev = days[dayYmd] ?? { count: 0, guests: 0 };
+    days[dayYmd] = {
+      count: prev.count + 1,
+      guests: prev.guests + Math.max(0, partySize),
+    };
+  }
+
+  return { month: monthYmd, timezone: timeZone, days };
+}
+
 
 export { WEEKDAY_ORDER };

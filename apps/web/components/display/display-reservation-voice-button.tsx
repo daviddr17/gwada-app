@@ -129,7 +129,7 @@ export function DisplayReservationVoiceButton({
         type="button"
         size="lg"
         className={cn(
-          "h-12 w-12 shrink-0 rounded-xl px-0",
+          "h-12 w-12 shrink-0 rounded-full px-0",
           brandActionButtonClassName,
           listening && "animate-pulse ring-4 ring-accent/30",
         )}

@@ -12,6 +12,24 @@ export type StaffDocumentListItem = {
   created_at: string;
 };
 
+export async function fetchStaffDocumentsForRestaurant(params: {
+  restaurantId: string;
+}): Promise<{ data: StaffDocumentListItem[]; error: string | null }> {
+  const q = new URLSearchParams({
+    restaurantId: params.restaurantId,
+    scope: "restaurant",
+  });
+  const res = await fetch(`/api/staff/documents?${q.toString()}`);
+  const body = (await res.json().catch(() => ({}))) as {
+    documents?: StaffDocumentListItem[];
+    error?: string;
+  };
+  if (!res.ok) {
+    return { data: [], error: body.error ?? `fetch_${res.status}` };
+  }
+  return { data: body.documents ?? [], error: null };
+}
+
 export async function fetchStaffDocumentsForEmployee(params: {
   restaurantId: string;
   staffId: string;

@@ -39,6 +39,10 @@ type GuestPhoneFieldProps = {
   invalid?: boolean;
   className?: string;
   localAutoComplete?: string;
+  /** Auf Tablet/Mobil: `numeric` statt Telefon-Tastatur. */
+  localInputMode?: "tel" | "numeric";
+  /** Display-Tablet: höheres Feld (h-12). */
+  tall?: boolean;
 };
 
 export function GuestPhoneField({
@@ -54,16 +58,21 @@ export function GuestPhoneField({
   invalid,
   className,
   localAutoComplete = "tel-national",
+  localInputMode = "tel",
+  tall = false,
 }: GuestPhoneFieldProps) {
+  const tallClass = tall ? "h-12 text-base" : "";
   return (
-    <div className={cn(guestPhoneFieldGroupClassName, className)}>
+    <div className={cn(guestPhoneFieldGroupClassName, tall && "h-12", className)}>
       <GuestPhoneCountrySelect
         id={countryId}
         value={countryIso}
         countries={countries}
         disabled={disabled}
         invalid={invalid}
-        triggerClassName={guestPhonePrefixTriggerClassName()}
+        triggerClassName={guestPhonePrefixTriggerClassName(
+          tall ? "h-12 min-h-12" : undefined,
+        )}
         onValueChange={onCountryChange}
       />
       <span className={guestPhoneFieldSeparatorClassName} aria-hidden>
@@ -73,8 +82,8 @@ export function GuestPhoneField({
         id={localId}
         value={localValue}
         onChange={(e) => onLocalChange(e.target.value)}
-        className={guestPhoneNumberInputClassName}
-        inputMode="tel"
+        className={cn(guestPhoneNumberInputClassName, tallClass)}
+        inputMode={localInputMode}
         autoComplete={localAutoComplete}
         placeholder={localPlaceholder}
         disabled={disabled}

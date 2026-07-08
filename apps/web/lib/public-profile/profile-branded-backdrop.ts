@@ -91,6 +91,32 @@ export function brandProfileBackdropColors(
   };
 }
 
+export type BrandProfileBackdropIntensity = "default" | "subtle" | "whisper" | "hint" | "dust";
+
+const BACKDROP_INTENSITY_SCALE: Record<BrandProfileBackdropIntensity, number> = {
+  default: 1,
+  subtle: 0.3,
+  whisper: 0.2,
+  hint: 0.12,
+  dust: 0.1,
+};
+
+const BLOB_INTENSITY_SCALE: Record<BrandProfileBackdropIntensity, number> = {
+  default: 1,
+  subtle: 0.3,
+  whisper: 0.22,
+  hint: 0.12,
+  dust: 0.1,
+};
+
+function backdropMixPercent(
+  percent: number,
+  intensity: BrandProfileBackdropIntensity,
+): number {
+  if (intensity === "default") return percent;
+  return Math.round(percent * BACKDROP_INTENSITY_SCALE[intensity]);
+}
+
 export function profileHeroBlobBackground(
   color: string,
   strongOpacity: number,
@@ -101,16 +127,48 @@ export function profileHeroBlobBackground(
   ].join(", ");
 }
 
+export function profileHeroBlobStrongOpacity(
+  strongOpacity: number,
+  intensity: BrandProfileBackdropIntensity = "default",
+): number {
+  if (intensity === "default") return strongOpacity;
+  return Math.round(strongOpacity * BLOB_INTENSITY_SCALE[intensity]);
+}
+
+function profileBackdropBackgroundBlend(
+  intensity: BrandProfileBackdropIntensity,
+): string {
+  if (intensity === "dust") {
+    return "linear-gradient(180deg, color-mix(in srgb, var(--background) 97%, transparent) 0%, var(--background) 100%)";
+  }
+  if (intensity === "hint") {
+    return "linear-gradient(180deg, color-mix(in srgb, var(--background) 98%, transparent) 0%, var(--background) 100%)";
+  }
+  if (intensity === "whisper") {
+    return "linear-gradient(180deg, color-mix(in srgb, var(--background) 96%, transparent) 0%, var(--background) 100%)";
+  }
+  if (intensity === "subtle") {
+    return "linear-gradient(180deg, color-mix(in srgb, var(--background) 95%, transparent) 0%, var(--background) 100%)";
+  }
+  return "linear-gradient(180deg, color-mix(in srgb, var(--background) 84%, transparent) 0%, var(--background) 100%)";
+}
+
 /** Statisches Mesh + Sheet-Backdrop — Landing-ähnlicher Zwei-Farben-Verlauf. */
-export function brandedProfileBackdropStyle(accentHex: string): CSSProperties {
+export function brandedProfileBackdropStyle(
+  accentHex: string,
+  intensity: BrandProfileBackdropIntensity = "default",
+): CSSProperties {
   const { accent, harmony } = brandProfileBackdropColors(accentHex);
+  const accentColor =
+    intensity === "default" ? accent : `var(--accent, ${accent})`;
+
   return {
     background: [
-      `radial-gradient(ellipse 120% 80% at 50% 38%, color-mix(in srgb, ${accent} 64%, transparent) 0%, color-mix(in srgb, ${harmony} 18%, transparent) 34%, transparent 54%)`,
-      `radial-gradient(ellipse 90% 65% at 82% 88%, color-mix(in srgb, ${harmony} 16%, transparent) 0%, transparent 55%)`,
-      `radial-gradient(ellipse 95% 70% at 22% 88%, color-mix(in srgb, ${accent} 36%, transparent) 0%, transparent 52%)`,
-      `radial-gradient(ellipse 70% 55% at 50% 62%, color-mix(in srgb, ${accent} 28%, transparent) 0%, transparent 58%)`,
-      "linear-gradient(180deg, color-mix(in srgb, var(--background) 84%, transparent) 0%, var(--background) 100%)",
+      `radial-gradient(ellipse 120% 80% at 50% 38%, color-mix(in srgb, ${accentColor} ${backdropMixPercent(64, intensity)}%, transparent) 0%, color-mix(in srgb, ${harmony} ${backdropMixPercent(18, intensity)}%, transparent) 34%, transparent 54%)`,
+      `radial-gradient(ellipse 90% 65% at 82% 88%, color-mix(in srgb, ${harmony} ${backdropMixPercent(16, intensity)}%, transparent) 0%, transparent 55%)`,
+      `radial-gradient(ellipse 95% 70% at 22% 88%, color-mix(in srgb, ${accentColor} ${backdropMixPercent(36, intensity)}%, transparent) 0%, transparent 52%)`,
+      `radial-gradient(ellipse 70% 55% at 50% 62%, color-mix(in srgb, ${accentColor} ${backdropMixPercent(28, intensity)}%, transparent) 0%, transparent 58%)`,
+      profileBackdropBackgroundBlend(intensity),
     ].join(", "),
   };
 }

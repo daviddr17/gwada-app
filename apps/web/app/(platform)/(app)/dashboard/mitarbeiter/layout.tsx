@@ -20,6 +20,11 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
     activeWhen: ["/dashboard/mitarbeiter"],
   },
   {
+    href: "/dashboard/mitarbeiter/arbeitszeiten",
+    label: "Arbeitszeiten",
+    matchMode: "exact",
+  },
+  {
     href: "/dashboard/mitarbeiter/schichtplan",
     label: "Schichtplan",
     matchMode: "exact",
@@ -32,11 +37,6 @@ const STAFF_NAV: readonly ModuleSubnavItem[] = [
   {
     href: "/dashboard/mitarbeiter/dokumente",
     label: "Dokumente",
-    matchMode: "exact",
-  },
-  {
-    href: "/dashboard/mitarbeiter/arbeitszeiten",
-    label: "Arbeitszeiten",
     matchMode: "exact",
   },
   {

@@ -35,10 +35,14 @@ import {
   contactOverviewFirstName,
   contactOverviewLastName,
   fetchContactReservationsQuick,
+  allEmailsLabel,
+  allPhonesLabel,
+  type ContactListRow,
   type ContactReservationLink,
 } from "@/lib/supabase/contacts-db";
 import {
   CONTACT_CATALOG_FILTER_ALL,
+  CONTACT_CATALOG_PLATFORM_LABELS,
   parseContactCatalogPlatformFilter,
   type ContactCatalogPlatform,
   type ContactCatalogPlatformFilter,
@@ -332,6 +336,85 @@ export function ContactsOverview() {
     setPage(1);
   }, [search, platformFilter]);
 
+  const tableExport = useMemo(() => {
+    const unifiedToContactRow = (row: UnifiedContactListRow): ContactListRow => ({
+      id: row.gwadaContactId ?? row.rowKey,
+      restaurant_id: "",
+      first_name: row.first_name,
+      last_name: row.last_name,
+      company: row.company,
+      address_street: row.address_street,
+      address_postal_code: row.address_postal_code,
+      address_city: row.address_city,
+      address_country: row.address_country,
+      notes: row.notes,
+      created_at: row.created_at ?? "",
+      updated_at: row.updated_at ?? "",
+      last_interaction_at: row.last_interaction_at,
+      contact_emails: row.emails.map((email, index) => ({
+        id: String(index),
+        contact_id: row.gwadaContactId ?? row.rowKey,
+        email,
+        label: null,
+        is_primary: index === 0,
+        sort_order: index,
+      })),
+      contact_phones: row.phones.map((phone, index) => ({
+        id: String(index),
+        contact_id: row.gwadaContactId ?? row.rowKey,
+        phone_display: phone,
+        country_iso2: null,
+        label: null,
+        is_primary: index === 0,
+        sort_order: index,
+      })),
+      contact_messaging_ids: [],
+      reservation_count: row.reservation_count,
+      message_count: row.message_count,
+    });
+
+    const rows = filteredSorted.map((r) => {
+      const contact = unifiedToContactRow(r);
+      const emailLabel = allEmailsLabel(contact);
+      const phoneLabel = allPhonesLabel(contact);
+      const addr = unifiedContactAddressLabel(r);
+      return [
+        r.platforms.map((p) => CONTACT_CATALOG_PLATFORM_LABELS[p]).join(", "),
+        contactOverviewLastName(r),
+        contactOverviewFirstName(r),
+        r.company?.trim() ?? "",
+        emailLabel === "—" ? "" : emailLabel,
+        phoneLabel === "—" ? "" : phoneLabel,
+        addr === "—" ? "" : addr,
+        formatWhen(r.last_interaction_at),
+      ];
+    });
+
+    return {
+      documentTitle: "Kontakte",
+      filenamePrefix: "kontakte",
+      headers: [
+        "Quelle",
+        "Nachname",
+        "Vorname",
+        "Firmenname",
+        "E-Mail",
+        "Telefon",
+        "Adresse",
+        "Zuletzt",
+      ],
+      rows,
+      restaurantName: profile?.name,
+      summaryLine: `${filteredSorted.length} Kontakt${filteredSorted.length === 1 ? "" : "e"}`,
+      orientation: "landscape" as const,
+      columnStyles: {
+        4: { cellWidth: 40 },
+        5: { cellWidth: 32 },
+        6: { cellWidth: 44 },
+      },
+    };
+  }, [filteredSorted, profile?.name]);
+
   const openCreate = () => {
     setCreateDraft(null);
     setEditContactId(null);
@@ -480,6 +563,7 @@ export function ContactsOverview() {
             canNext={currentPage < totalPages}
             onPrevious={() => setPage((p) => Math.max(1, p - 1))}
             onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            tableExport={tableExport}
           >
             <table className="w-full min-w-[64rem] text-sm">
               <thead>

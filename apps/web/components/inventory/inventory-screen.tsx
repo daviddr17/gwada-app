@@ -63,6 +63,7 @@ import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-pe
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
+import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
 import {
   getDishesUsingIngredient,
   ingredientRowMatchesDishSearch,
@@ -879,6 +880,69 @@ export function InventoryScreen() {
     [filterBrand, filterCategory, filterProduction, filterSupplier],
   );
 
+  const tableExport = useMemo(() => {
+    const taxonomyName = (
+      items: InventoryTaxonomyDefinition[],
+      id: string,
+    ): string => {
+      const hit = items.find((i) => i.id === id);
+      if (!hit) return "";
+      return hit.active === false ? `${hit.name} (inaktiv)` : hit.name;
+    };
+
+    const rows = filteredSorted.map((row) => {
+      const unitLabel = inventoryUnitLabelDe(
+        row.unit,
+        taxonomyName(units.items, row.unit) || undefined,
+      );
+      return [
+        row.name.trim(),
+        String(row.currentStock),
+        unitLabel,
+        "",
+        "",
+        taxonomyName(suppliers.items, row.supplierId),
+        taxonomyName(ingredientCategories.items, row.categoryId),
+        taxonomyName(productionSites.items, row.productionSiteId),
+        taxonomyName(brands.items, row.brandId),
+        row.active === false ? "Inaktiv" : "Aktiv",
+      ];
+    });
+
+    return {
+      documentTitle: "Bestand",
+      filenamePrefix: "bestand",
+      headers: [
+        "Name",
+        "Bestand",
+        "Einheit",
+        "Neuer Bestand",
+        "Bestellung",
+        "Lieferant",
+        "Kategorie",
+        "Produktion",
+        "Marke",
+        "Status",
+      ],
+      rows,
+      summaryLine: `${filteredSorted.length} Zutat${filteredSorted.length === 1 ? "" : "en"}`,
+      orientation: "landscape" as const,
+      columnStyles: {
+        1: { cellWidth: 18, halign: "right" as const },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 22 },
+        4: { cellWidth: 22 },
+      },
+    };
+  }, [
+    filteredSorted,
+    suppliers.items,
+    ingredientCategories.items,
+    productionSites.items,
+    brands.items,
+    units.items,
+  ]);
+
   const ready =
     ingredientsHydrated &&
     menuHydrated &&
@@ -1014,6 +1078,7 @@ export function InventoryScreen() {
         canNext={currentPage < totalPages}
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        tableExport={tableExport}
       >
         <table className="w-full min-w-[1260px] text-sm">
           <thead>

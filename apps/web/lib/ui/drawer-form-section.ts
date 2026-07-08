@@ -44,7 +44,13 @@ export const drawerFormSectionTintClassName =
 export const drawerFormSectionTitleClassName =
   "text-xs font-medium tracking-wide text-muted-foreground uppercase";
 
-export const drawerFormSectionBodyClassName = "space-y-3";
+export const drawerFormSectionBodyClassName = "space-y-4";
+
+/** Label + Eingabefeld in einer Zeile. */
+export const drawerFormFieldGroupClassName = "space-y-2";
+
+/** Mehrere zweispaltige Zeilen untereinander (Drawer-Formulare). */
+export const drawerFormRowStackClassName = "flex flex-col gap-4";
 
 export function drawerFormSectionClassName(
   contentPadding: DrawerContentPadding = 6,
@@ -122,6 +128,12 @@ export function drawerFormHeaderClassName(
 /** Text-/Select-Felder in Formular-Bottom-Sheets. */
 export const drawerFormFieldClassName =
   "h-11 w-full min-w-0 rounded-xl border border-input bg-transparent px-3 text-sm outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
+
+/** Display-Tablet: etwas größere Eingabefelder im Reservierungs-Sheet. */
+export const displayDrawerFormFieldClassName = cn(
+  drawerFormFieldClassName,
+  "h-12 text-base",
+);
 
 /** Volle Breite für sekundäre Aktionen im Scroll-Bereich (Schließen, Link-Button). */
 export const drawerFormFullWidthButtonClassName = "h-11 w-full rounded-xl";

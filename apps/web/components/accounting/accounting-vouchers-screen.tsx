@@ -28,6 +28,9 @@ import {
   updateAccountingVoucher,
 } from "@/lib/accounting/accounting-api";
 import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
+import { accountingStatusLabel } from "@/lib/accounting/accounting-status-labels";
+import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
+import { LIST_PAGE_SIZE_MAX } from "@/lib/constants/list-pagination";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultVoucherSort } from "@/lib/accounting/accounting-list-sort";
 import { useMarkNotificationModuleReadOnOpen } from "@/lib/hooks/use-mark-notification-module-read-on-open";
@@ -281,6 +284,87 @@ export function AccountingVouchersScreen() {
 
   const listCountLabel = `Beleg${listMeta.totalCount === 1 ? "" : "e"}`;
 
+  const tableExport = useCallback(async () => {
+    if (!restaurantId) {
+      return {
+        documentTitle: "Belege",
+        filenamePrefix: "buchhaltung-belege",
+        headers: [
+          "Quelle",
+          "Nummer",
+          "Datum",
+          "Kontakt",
+          "Art",
+          "Betrag",
+          "Steuer",
+          "Steuersätze",
+          "Status",
+        ],
+        rows: [] as string[][],
+        summaryLine: "0 Belege",
+        orientation: "landscape" as const,
+      };
+    }
+
+    const listParams = {
+      source: platformFilter === "all" ? undefined : platformFilter,
+      status: statusFilter === "all" ? undefined : statusFilter,
+      documentVariant: variantFilter === "all" ? undefined : variantFilter,
+      voucherKind: voucherKindFilter === "all" ? undefined : voucherKindFilter,
+      search,
+      ...(isDefaultVoucherSort(sortKey, sortDir)
+        ? {}
+        : { sort: sortKey, sortDir }),
+    };
+
+    const all = await fetchAllPaginatedItems(
+      (page, pageSize) =>
+        fetchAccountingVouchers(restaurantId, { ...listParams, page, pageSize }),
+      LIST_PAGE_SIZE_MAX,
+    );
+
+    return {
+      documentTitle: "Belege",
+      filenamePrefix: "buchhaltung-belege",
+      headers: [
+        "Quelle",
+        "Nummer",
+        "Datum",
+        "Kontakt",
+        "Art",
+        "Betrag",
+        "Steuer",
+        "Steuersätze",
+        "Status",
+      ],
+      rows: all.map((row) => [
+        accountingSourceDisplayLabel(row.source),
+        isAccountingCorrectionVariant(row.document_variant)
+          ? `${row.voucher_number ?? "—"} (Korrektur)`
+          : (row.voucher_number ?? "—"),
+        new Date(row.voucher_date).toLocaleDateString("de-DE"),
+        row.contact_name ?? "—",
+        KIND_LABELS[row.voucher_kind] ?? row.voucher_kind,
+        formatMoney(row.total_gross_amount),
+        formatMoney(row.total_tax_amount),
+        formatVoucherTaxRatesSummary(row.voucher_items),
+        accountingStatusLabel(row.status, statuses),
+      ]),
+      summaryLine: `${all.length} Beleg${all.length === 1 ? "" : "e"}`,
+      orientation: "landscape" as const,
+    };
+  }, [
+    restaurantId,
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    voucherKindFilter,
+    search,
+    sortKey,
+    sortDir,
+    statuses,
+  ]);
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -406,6 +490,7 @@ export function AccountingVouchersScreen() {
           busy={loading}
           onPrevious={() => setPage(listMeta.page - 1)}
           onNext={() => setPage(listMeta.page + 1)}
+          tableExport={tableExport}
         >
               <table className="w-full min-w-[860px] text-sm">
                 <thead>

@@ -1,5 +1,7 @@
 import {
   exclusiveUtcIsoAfterLocalVisibleEnd,
+  localDayKey,
+  localDayStartToUtcIso,
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
 import type { StaffStatsPeriod } from "@/lib/staff/compute-staff-statistics";
@@ -29,34 +31,86 @@ export type StaffStatisticsBundle = {
   periodEnd: Date;
 };
 
-function periodRange(monthsBack: StaffStatsPeriod): {
-  periodStart: Date;
-  periodEnd: Date;
-  rangeStartIso: string;
-  rangeEndIso: string;
+function ymdToLocalDate(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+export function staffStatsPresetRangeYmd(monthsBack: StaffStatsPeriod): {
+  startYmd: string;
+  endYmd: string;
 } {
   const periodEnd = startOfLocalDay(new Date());
   const periodStart = startOfLocalDay(new Date());
   periodStart.setMonth(periodStart.getMonth() - monthsBack);
   return {
+    startYmd: localDayKey(periodStart),
+    endYmd: localDayKey(periodEnd),
+  };
+}
+
+function periodRangeFromMonths(monthsBack: StaffStatsPeriod): {
+  periodStart: Date;
+  periodEnd: Date;
+  rangeStartIso: string;
+  rangeEndIso: string;
+} {
+  const { startYmd, endYmd } = staffStatsPresetRangeYmd(monthsBack);
+  const periodStart = startOfLocalDay(ymdToLocalDate(startYmd));
+  const periodEnd = startOfLocalDay(ymdToLocalDate(endYmd));
+  return {
     periodStart,
     periodEnd,
-    rangeStartIso: periodStart.toISOString(),
+    rangeStartIso: localDayStartToUtcIso(periodStart),
     rangeEndIso: exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd),
   };
 }
 
-export async function fetchStaffStatisticsBundle(params: {
-  restaurantId: string;
-  monthsBack?: StaffStatsPeriod;
-}): Promise<{ data: StaffStatisticsBundle | null; error: string | null }> {
+function periodRangeFromYmd(startYmd: string, endYmd: string): {
+  periodStart: Date;
+  periodEnd: Date;
+  rangeStartIso: string;
+  rangeEndIso: string;
+} | null {
+  if (startYmd > endYmd) return null;
+  const periodStart = startOfLocalDay(ymdToLocalDate(startYmd));
+  const periodEnd = startOfLocalDay(ymdToLocalDate(endYmd));
+  return {
+    periodStart,
+    periodEnd,
+    rangeStartIso: localDayStartToUtcIso(periodStart),
+    rangeEndIso: exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd),
+  };
+}
+
+export type FetchStaffStatisticsBundleParams =
+  | {
+      restaurantId: string;
+      monthsBack: StaffStatsPeriod;
+    }
+  | {
+      restaurantId: string;
+      startYmd: string;
+      endYmd: string;
+    };
+
+export async function fetchStaffStatisticsBundle(
+  params: FetchStaffStatisticsBundleParams,
+): Promise<{ data: StaffStatisticsBundle | null; error: string | null }> {
   if (!isUuidRestaurantId(params.restaurantId)) {
     return { data: null, error: null };
   }
 
-  const months = params.monthsBack ?? 12;
-  const { periodStart, periodEnd, rangeStartIso, rangeEndIso } =
-    periodRange(months);
+  const range =
+    "monthsBack" in params
+      ? periodRangeFromMonths(params.monthsBack)
+      : periodRangeFromYmd(params.startYmd, params.endYmd);
+
+  if (!range) {
+    return { data: null, error: "Ungültiger Zeitraum." };
+  }
+
+  const { periodStart, periodEnd, rangeStartIso, rangeEndIso } = range;
 
   const [
     staffRes,

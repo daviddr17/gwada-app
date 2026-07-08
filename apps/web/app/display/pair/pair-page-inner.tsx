@@ -9,7 +9,6 @@ import {
   displayPairSuccessNavigateDelayMs,
 } from "@/components/display/display-pair-success-celebration";
 import { DisplayChromeHeader } from "@/components/display/display-chrome-header";
-import { useMarkDisplayPwaSplashReady } from "@/components/display/display-pwa-splash-provider";
 import { Button } from "@/components/ui/button";
 import {
   displayChromeMainClassName,
@@ -47,16 +46,11 @@ export default function DisplayPairPageInner() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<PairSuccessState | null>(null);
-  const [bootReady, setBootReady] = useState(false);
-  useMarkDisplayPwaSplashReady(bootReady);
   const autoPairAttemptRef = useRef<string | null>(null);
   const pairedRedirectRef = useRef(false);
 
   useEffect(() => {
-    if (pairedRedirectRef.current) {
-      setBootReady(true);
-      return;
-    }
+    if (pairedRedirectRef.current) return;
     void (async () => {
       try {
         const res = await fetch("/api/display/context", { cache: "no-store" });
@@ -69,8 +63,6 @@ export default function DisplayPairPageInner() {
         }
       } catch {
         /* Pair-Formular bleibt sichtbar */
-      } finally {
-        setBootReady(true);
       }
     })();
   }, [router]);

@@ -8,6 +8,7 @@ import {
   dashboardPwaIconPath,
 } from "@/lib/dashboard/dashboard-pwa-config";
 import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
+import { isStandalonePwaClient } from "@/lib/pwa/is-standalone-pwa-client";
 import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
 import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 
@@ -15,7 +16,9 @@ import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 export function DashboardPwaSetup() {
   useEffect(() => {
     syncAppleWebAppTitle(PWA_APP_LABEL_DASHBOARD);
-    syncAppleTouchIcon(dashboardPwaIconPath(180));
+    if (isStandalonePwaClient()) {
+      syncAppleTouchIcon(dashboardPwaIconPath(180));
+    }
   }, []);
 
   useEffect(() => {

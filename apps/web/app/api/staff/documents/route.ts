@@ -2,6 +2,7 @@ import { assertRestaurantStaffApi } from "@/lib/documents/assert-restaurant-staf
 import {
   listMyStaffDocuments,
   listStaffDocumentsForEmployee,
+  listStaffDocumentsForRestaurant,
 } from "@/lib/staff/staff-documents-access-server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
@@ -34,6 +35,17 @@ export async function GET(req: Request) {
       staffId: result.staffId,
       documents: result.rows,
     });
+  }
+
+  if (scope === "restaurant") {
+    const result = await listStaffDocumentsForRestaurant({
+      restaurantId,
+      userId: auth.userId,
+    });
+    if (!result.ok) {
+      return Response.json({ error: result.error }, { status: result.status });
+    }
+    return Response.json({ documents: result.rows });
   }
 
   if (!isUuidRestaurantId(staffId)) {

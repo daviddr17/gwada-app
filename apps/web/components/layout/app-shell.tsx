@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Settings, UserRound } from "lucide-react";
+import { AppBrandedBackground } from "@/components/layout/app-branded-background";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
@@ -26,11 +28,22 @@ import {
 } from "@/lib/contexts/app-module-chrome-context";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { useAccentColor } from "@/lib/contexts/accent-color-context";
 import { cn } from "@/lib/utils";
 
+function isRestaurantDashboardPath(pathname: string): boolean {
+  return (
+    pathname === APP_ROUTES.dashboard ||
+    pathname.startsWith(`${APP_ROUTES.dashboard}/`)
+  );
+}
+
 function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const { accentHex } = useAccentColor();
   const { chrome } = useAppModuleChrome();
   const showChipRow = Boolean(chrome.subnav?.items.length);
+  const showDashboardBrandedBackground = isRestaurantDashboardPath(pathname);
 
   React.useLayoutEffect(() => {
     if (!showChipRow) {
@@ -140,9 +153,19 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 
       <div
         data-app-scroll-root
-        className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
       >
-        <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
+        {showDashboardBrandedBackground ? (
+          <div
+            className="pointer-events-none sticky top-0 z-0 -mb-[100dvh] h-dvh w-full overflow-hidden"
+            aria-hidden
+          >
+            <AppBrandedBackground accentHex={accentHex} intensity="hint" />
+          </div>
+        ) : null}
+        <div className="relative z-[1]">
+          <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
+        </div>
       </div>
     </SidebarInset>
   );

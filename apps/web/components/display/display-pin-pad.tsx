@@ -10,6 +10,7 @@ import {
   MOTION_EASE_OUT,
 } from "@/lib/ui/motion-presets";
 import { cn } from "@/lib/utils";
+import { DisplayPinStandbyScene } from "@/components/display/display-pin-standby";
 
 type DisplayPinPadProps = {
   value: string;
@@ -178,6 +179,7 @@ export function DisplayLockOverlay({
   onUnlock,
   busy,
   error,
+  accentHex,
   /** `content` = nur Header/Hauptbereich; Fußzeile bleibt sichtbar. */
   placement = "fullscreen",
 }: {
@@ -185,6 +187,7 @@ export function DisplayLockOverlay({
   onUnlock: (pin: string) => void;
   busy?: boolean;
   error?: string | null;
+  accentHex: string;
   placement?: "fullscreen" | "content";
 }) {
   const reduceMotion = useReducedMotion() ?? false;
@@ -202,29 +205,35 @@ export function DisplayLockOverlay({
         <motion.div
           key="display-lock"
           className={cn(
-            "flex flex-col items-center justify-center gap-6 bg-background/95 p-6 backdrop-blur-sm",
+            "overflow-hidden",
             placement === "content"
-              ? "absolute inset-0 z-40"
-              : "fixed inset-0 z-50",
+              ? "absolute inset-0 z-40 flex min-h-0 flex-col"
+              : "fixed inset-0 z-50 flex flex-col",
           )}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: revealMs / 1000, ease: MOTION_EASE_OUT }}
         >
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Lock className="size-5" />
-            <span className="text-lg">Display gesperrt</span>
-          </div>
-          <p className="text-sm text-muted-foreground">PIN eingeben</p>
-          <DisplayPinPad
-            value={pin}
-            onChange={setPin}
-            onComplete={onUnlock}
-            disabled={busy}
-            busy={busy}
-          />
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <DisplayPinStandbyScene
+            accentHex={accentHex}
+            enabled={open}
+            className="gap-5 py-8"
+          >
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Lock className="size-5" />
+              <span className="text-lg">Display gesperrt</span>
+            </div>
+            <p className="text-sm text-muted-foreground">PIN eingeben</p>
+            <DisplayPinPad
+              value={pin}
+              onChange={setPin}
+              onComplete={onUnlock}
+              disabled={busy}
+              busy={busy}
+            />
+            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          </DisplayPinStandbyScene>
         </motion.div>
       ) : null}
     </AnimatePresence>

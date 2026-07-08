@@ -7,7 +7,7 @@ import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
 
-const HEADERS = [
+export const DAY_RESERVATION_EXPORT_HEADERS = [
   "Zeit",
   "Nachname",
   "Vorname",
@@ -19,6 +19,8 @@ const HEADERS = [
   "Nr.",
   "Kommentare",
 ] as const;
+
+const HEADERS = DAY_RESERVATION_EXPORT_HEADERS;
 
 export type DayReservationExportOptions = {
   restaurantName?: string;

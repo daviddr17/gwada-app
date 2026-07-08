@@ -102,6 +102,11 @@ import {
   logReservationUpdateFromBrowser,
 } from "@/lib/reservations/reservation-log-client";
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
+import { useIsTouchTablet } from "@/hooks/use-touch-tablet";
+import {
+  touchNumericInputMode,
+  touchPhoneLocalInputMode,
+} from "@/lib/ui/touch-numeric-input";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -169,6 +174,9 @@ export function ReservationEditDrawer({
   } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
+  const touchTablet = useIsTouchTablet();
+  const numericInputMode = touchNumericInputMode(touchTablet);
+  const phoneLocalInputMode = touchPhoneLocalInputMode(touchTablet);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -789,6 +797,7 @@ export function ReservationEditDrawer({
                     type="number"
                     min={1}
                     max={50}
+                    inputMode={numericInputMode}
                     value={partySize}
                     onChange={(e) => setPartySize(e.target.value)}
                     className={cn(fieldClass, "tabular-nums")}
@@ -866,6 +875,7 @@ export function ReservationEditDrawer({
                     localValue={phoneLocal}
                     onLocalChange={setPhoneLocal}
                     countries={countriesForPhone}
+                    localInputMode={phoneLocalInputMode}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -925,6 +935,7 @@ export function ReservationEditDrawer({
                     type="number"
                     min={15}
                     max={1440}
+                    inputMode={numericInputMode}
                     value={dwellDraft}
                     onChange={(e) => setDwellDraft(e.target.value)}
                     className={cn(fieldClass, "tabular-nums")}

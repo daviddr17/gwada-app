@@ -77,6 +77,9 @@ export const drawerChromeSizeClassNames = {
   /** Tagesübersicht Reservierungen. */
   dayOverview:
     "h-[min(96dvh,calc(100dvh-0.5rem))] max-h-[min(96dvh,calc(100dvh-0.5rem))] min-h-0 max-w-[100dvw] overflow-hidden md:max-w-[42rem]",
+  /** Display-Reservierung: großes Sheet für Tablet (90 % Breite × Höhe). */
+  displayForm:
+    "h-[90dvh] max-h-[90dvh] min-h-0 w-[90dvw] max-w-[90dvw] overflow-hidden",
 } as const;
 
 export type DrawerChromeSize = keyof typeof drawerChromeSizeClassNames;

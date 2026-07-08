@@ -46,6 +46,7 @@ import {
   moduleDataTableHeadRowCompactClassName,
 } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
 import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 import {
   createRestaurantDateTimeFormatter,
@@ -164,6 +165,67 @@ export function ChecklistProtocolScreen() {
     [restaurantTimezone],
   );
 
+  const tableExport = useCallback(async () => {
+    if (!restaurantId || !canReadTodos) {
+      return {
+        documentTitle: "Checklisten-Protokoll",
+        filenamePrefix: "checklisten-protokoll",
+        headers: ["Zeit", "Typ", "Aufgabe", "Bereich", "Gerät", "Wert", "Nutzer"],
+        rows: [] as string[][],
+        summaryLine: "0 Einträge",
+        orientation: "landscape" as const,
+      };
+    }
+
+    const all = await fetchAllPaginatedItems((page, pageSize) =>
+      fetchChecklistProtocolPage({
+        restaurantId,
+        page,
+        pageSize,
+        search: searchDebounced,
+        kind: filterKind,
+        period: filterPeriod,
+        areaId: filterAreaId,
+        deviceId: filterDeviceId,
+        deviation: filterDeviation,
+        sortKey,
+        timeZone: restaurantTimezone,
+      }),
+    );
+
+    const fmt = createRestaurantDateTimeFormatter(restaurantTimezone);
+
+    return {
+      documentTitle: "Checklisten-Protokoll",
+      filenamePrefix: "checklisten-protokoll",
+      headers: ["Zeit", "Typ", "Aufgabe", "Bereich", "Gerät", "Wert", "Nutzer"],
+      rows: all.map((e) => [
+        fmt.format(new Date(e.at)),
+        e.kind === "capture" && e.withinLimits === false
+          ? `${e.actionLabel} · Abweichung`
+          : e.actionLabel,
+        e.title,
+        e.areaName ?? "—",
+        e.deviceName ?? "—",
+        e.value || "—",
+        e.actor,
+      ]),
+      summaryLine: `${all.length} Eintrag${all.length === 1 ? "" : "e"}`,
+      orientation: "landscape" as const,
+    };
+  }, [
+    restaurantId,
+    canReadTodos,
+    searchDebounced,
+    filterKind,
+    filterPeriod,
+    filterAreaId,
+    filterDeviceId,
+    filterDeviation,
+    sortKey,
+    restaurantTimezone,
+  ]);
+
   if (!permissionsLoading && !canReadTodos) {
     return <ModuleAccessDenied label="Checklisten" />;
   }
@@ -239,6 +301,7 @@ export function ChecklistProtocolScreen() {
           canNext={page < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          tableExport={tableExport}
         >
           <table className="w-full min-w-[880px] text-sm">
             <thead>

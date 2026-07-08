@@ -35,6 +35,9 @@ import {
   updateAccountingQuotation,
 } from "@/lib/accounting/accounting-api";
 import { isLexofficeRateLimitError } from "@/lib/accounting/lexoffice-rate-limit";
+import { accountingStatusLabel } from "@/lib/accounting/accounting-status-labels";
+import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
+import { LIST_PAGE_SIZE_MAX } from "@/lib/constants/list-pagination";
 import { useAccountingListUrl } from "@/lib/hooks/use-accounting-list-url";
 import { isDefaultSalesDocumentSort } from "@/lib/accounting/accounting-list-sort";
 import { useMarkNotificationModuleReadOnOpen } from "@/lib/hooks/use-mark-notification-module-read-on-open";
@@ -301,6 +304,87 @@ export function AccountingSalesDocumentsScreen({
   const listCountLabel =
     countLabel + (listMeta.totalCount === 1 ? "" : isInvoice ? "en" : "e");
 
+  const tableExport = useCallback(async () => {
+    if (!restaurantId) {
+      return {
+        documentTitle: isInvoice ? "Rechnungen" : "Angebote",
+        filenamePrefix: isInvoice ? "buchhaltung-rechnungen" : "buchhaltung-angebote",
+        headers: ["Quelle", "Empfänger", "Datum", "Nummer", "Betrag", "Status"],
+        rows: [] as string[][],
+        summaryLine: `0 ${listCountLabel}`,
+        orientation: "landscape" as const,
+      };
+    }
+
+    const source = platformFilter === "all" ? undefined : platformFilter;
+    const listParams = {
+      source,
+      status: statusFilter === "all" ? undefined : statusFilter,
+      documentVariant:
+        isInvoice && variantFilter !== "all" ? variantFilter : undefined,
+      search,
+      ...(isDefaultSalesDocumentSort(sortKey, sortDir)
+        ? {}
+        : { sort: sortKey, sortDir }),
+    };
+
+    const all = isInvoice
+      ? await fetchAllPaginatedItems(
+          (page, pageSize) =>
+            fetchAccountingInvoices(restaurantId, {
+              ...listParams,
+              page,
+              pageSize,
+            }),
+          LIST_PAGE_SIZE_MAX,
+        )
+      : await fetchAllPaginatedItems(
+          (page, pageSize) =>
+            fetchAccountingQuotations(restaurantId, {
+              ...listParams,
+              page,
+              pageSize,
+            }),
+          LIST_PAGE_SIZE_MAX,
+        );
+
+    return {
+      documentTitle: isInvoice ? "Rechnungen" : "Angebote",
+      filenamePrefix: isInvoice ? "buchhaltung-rechnungen" : "buchhaltung-angebote",
+      headers: ["Quelle", "Empfänger", "Datum", "Nummer", "Betrag", "Status"],
+      rows: all.map((row) => {
+        const recipient = row.recipient_snapshot?.name ?? "—";
+        const number =
+          isAccountingCorrectionVariant(row.document_variant) ||
+          row.external_document_type === "credit_note"
+            ? `${row.voucher_number ?? "—"} (Korrektur)`
+            : (row.voucher_number ?? "—");
+        return [
+          accountingSourceDisplayLabel(row.source),
+          recipient,
+          new Date(row.voucher_date).toLocaleDateString("de-DE"),
+          number,
+          formatMoney(row.totals?.totalGross ?? 0, row.currency),
+          accountingStatusLabel(row.status, statuses),
+        ];
+      }),
+      summaryLine: `${all.length} ${countLabel}${all.length === 1 ? "" : isInvoice ? "en" : "e"}`,
+      orientation: "landscape" as const,
+    };
+  }, [
+    restaurantId,
+    isInvoice,
+    platformFilter,
+    statusFilter,
+    variantFilter,
+    search,
+    sortKey,
+    sortDir,
+    statuses,
+    countLabel,
+    listCountLabel,
+  ]);
+
   if (!ready) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
@@ -415,6 +499,7 @@ export function AccountingSalesDocumentsScreen({
           busy={loading}
           onPrevious={() => setPage(listMeta.page - 1)}
           onNext={() => setPage(listMeta.page + 1)}
+          tableExport={tableExport}
         >
               <table className="w-full min-w-[640px] text-sm">
                 <thead>

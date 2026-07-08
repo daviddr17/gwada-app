@@ -1,7 +1,7 @@
 "use client";
 
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
 import { toast } from "sonner";
@@ -35,8 +35,10 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
 import {
+  localDayKey,
   localDayStartToUtcIso,
   exclusiveUtcIsoAfterLocalVisibleEnd,
+  startOfLocalDay,
 } from "@/lib/reservations/month-range";
 import type {
   RestaurantStaffContractRow,
@@ -73,10 +75,9 @@ export function StaffOverviewScreen() {
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
-  const [dayDate, setDayDate] = useState(() => {
-    const n = new Date();
-    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}-${String(n.getDate()).padStart(2, "0")}`;
-  });
+  const [dayDate, setDayDate] = useState(() => localDayKey(new Date()));
+  const [liveNow, setLiveNow] = useState(() => new Date());
+  const autoFollowTodayRef = useRef(true);
   const [workingIds, setWorkingIds] = useState<Set<string>>(new Set());
   const [breakIds, setBreakIds] = useState<Set<string>>(new Set());
   const [presenceRows, setPresenceRows] = useState<StaffLivePresenceRow[]>([]);
@@ -195,6 +196,39 @@ export function StaffOverviewScreen() {
       window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
   }, [reloadDayStats]);
 
+  /** Live-Lohn + automatischer Tageswechsel um Mitternacht (nur im „Heute“-Modus). */
+  useEffect(() => {
+    const tickLive = () => {
+      const now = new Date();
+      setLiveNow(now);
+      if (autoFollowTodayRef.current) {
+        const todayKey = localDayKey(now);
+        setDayDate((current) => (current === todayKey ? current : todayKey));
+      }
+    };
+
+    tickLive();
+    const intervalId = window.setInterval(tickLive, 30_000);
+
+    let midnightTimerId = 0;
+    const scheduleMidnightTick = () => {
+      const now = new Date();
+      const nextMidnight = startOfLocalDay(now);
+      nextMidnight.setDate(nextMidnight.getDate() + 1);
+      const delayMs = Math.max(250, nextMidnight.getTime() - now.getTime() + 50);
+      midnightTimerId = window.setTimeout(() => {
+        tickLive();
+        scheduleMidnightTick();
+      }, delayMs);
+    };
+    scheduleMidnightTick();
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(midnightTimerId);
+    };
+  }, []);
+
   useEffect(() => {
     const onRefresh = () => void reload();
     window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
@@ -228,8 +262,9 @@ export function StaffOverviewScreen() {
         entries: dayEntries,
         contracts,
         dayYmd: dayDate,
+        now: liveNow,
       }),
-    [dayEntries, contracts, dayDate],
+    [dayEntries, contracts, dayDate, liveNow],
   );
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
@@ -247,7 +282,14 @@ export function StaffOverviewScreen() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="max-w-xs">
-            <DatePickerField value={dayDate} onChange={(v) => setDayDate(v ?? "")} />
+            <DatePickerField
+              value={dayDate}
+              onChange={(v) => {
+                const next = v ?? "";
+                setDayDate(next);
+                autoFollowTodayRef.current = next === localDayKey(new Date());
+              }}
+            />
           </div>
           {showSkeleton ? (
             <StaffOverviewDayStatsSkeleton />

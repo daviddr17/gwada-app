@@ -23,6 +23,7 @@ import {
   moduleDataTableHeadRowMutedClassName,
 } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
 import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
@@ -84,6 +85,42 @@ export function ReservationsProtocolScreen() {
 
   const hasSearch = searchDebounced.trim().length > 0;
 
+  const tableExport = useCallback(async () => {
+    if (!restaurantId) {
+      return {
+        documentTitle: "Reservierungs-Protokoll",
+        filenamePrefix: "reservierungen-protokoll",
+        headers: ["Datum", "Nutzer", "Reservierung", "Aktion", "Details"],
+        rows: [] as string[][],
+        summaryLine: "0 Einträge",
+        orientation: "landscape" as const,
+      };
+    }
+
+    const all = await fetchAllPaginatedItems((page, pageSize) =>
+      fetchReservationLogEntriesPaginated(restaurantId, {
+        page,
+        pageSize,
+        search: searchDebounced,
+      }),
+    );
+
+    return {
+      documentTitle: "Reservierungs-Protokoll",
+      filenamePrefix: "reservierungen-protokoll",
+      headers: ["Datum", "Nutzer", "Reservierung", "Aktion", "Details"],
+      rows: all.map((e) => [
+        formatWhen(e.created_at),
+        resolveReservationLogEntryActorLabel(e),
+        e.guest_label,
+        reservationLogActionLabel(e.action),
+        resolveReservationLogEntryDetailsSummary(e),
+      ]),
+      summaryLine: `${all.length} Eintrag${all.length === 1 ? "" : "e"}`,
+      orientation: "landscape" as const,
+    };
+  }, [restaurantId, searchDebounced]);
+
   if (!workspaceReady) {
     return <WorkspaceRestaurantResolvePlaceholder />;
   }
@@ -128,6 +165,7 @@ export function ReservationsProtocolScreen() {
           canNext={page < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          tableExport={tableExport}
         >
           <table className="w-full min-w-[880px] text-sm">
             <thead>

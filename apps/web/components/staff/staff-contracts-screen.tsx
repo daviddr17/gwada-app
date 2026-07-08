@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
+import { StaffContractsAllTable } from "@/components/staff/staff-contracts-all-table";
 import { StaffContractsSkeleton } from "@/components/staff/staff-contracts-skeleton";
 import { StaffContractDrawer } from "@/components/staff/staff-contract-drawer";
 import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useStaffEmploymentTypesStorage } from "@/lib/hooks/use-staff-employment-types-storage";
-import { fetchStaffContracts } from "@/lib/supabase/staff-db";
+import { fetchStaffContracts, fetchStaffContractsForRestaurant } from "@/lib/supabase/staff-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type {
@@ -30,7 +31,7 @@ import { staffFamilyFirstDisplayName } from "@/lib/types/staff";
 import { StaffContractTemplatesListDrawer } from "@/components/staff/staff-contract-templates-list-drawer";
 import { StaffContractPdfDownloadButton } from "@/components/staff/staff-contract-pdf-download-button";
 import { StaffContractStatusBadge } from "@/components/staff/staff-contract-status-badge";
-import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
+import { StaffTodosTableSkeleton } from "@/components/staff/todos/staff-todos-skeleton";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { formatListRangeLabel } from "@/lib/ui/list-range-count";
@@ -63,7 +64,8 @@ export function StaffContractsScreen() {
   const contractIdFromUrl = searchParams.get("contract");
 
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const { selectedStaff, selectedStaffId } = useStaffModuleSelection();
+  const { selectedStaff, selectedStaffId, staffList, setSelectedStaffId } =
+    useStaffModuleSelection();
   const { profile: restaurantProfile } = useRestaurantProfile();
   const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
@@ -83,16 +85,15 @@ export function StaffContractsScreen() {
   const [templateRefreshKey, setTemplateRefreshKey] = useState(0);
 
   const reload = useCallback(async () => {
-    if (!restaurantId || !selectedStaffId) {
+    if (!restaurantId) {
       setContracts([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    const { data, error } = await fetchStaffContracts(
-      restaurantId,
-      selectedStaffId,
-    );
+    const { data, error } = selectedStaffId
+      ? await fetchStaffContracts(restaurantId, selectedStaffId)
+      : await fetchStaffContractsForRestaurant(restaurantId);
     setLoading(false);
     if (error) toast.error(error);
     else setContracts(data);
@@ -134,15 +135,154 @@ export function StaffContractsScreen() {
   };
 
   const openEdit = (c: RestaurantStaffContractRow) => {
+    setSelectedStaffId(c.staff_id);
     setEditContract(c);
     setDrawerOpen(true);
   };
+
+  const drawerStaff =
+    selectedStaff ??
+    (editContract
+      ? (staffList.find((s) => s.id === editContract.staff_id) ?? null)
+      : null);
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
 
   if (!selectedStaff) {
-    return <StaffSelectEmployeeHint />;
+    return (
+      <div className="pb-16">
+        <div className="mb-4 flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={moduleManageChipButtonClassName}
+            onClick={() => setManageEmploymentOpen(true)}
+          >
+            <Briefcase className="size-4" />
+            Beschäftigungsverhältnisse
+          </Button>
+        </div>
+
+        {loading && !showSkeleton ? (
+          <div className="min-h-[14rem]" aria-busy="true" />
+        ) : null}
+        {showSkeleton ? (
+          <StaffTodosTableSkeleton />
+        ) : (
+          <StaffContractsAllTable
+            contracts={contracts}
+            staffList={staffList}
+            employmentTypes={employmentTypes.items}
+            onSelectContract={openEdit}
+          />
+        )}
+
+        {drawerStaff ? (
+          <StaffContractDrawer
+            open={drawerOpen}
+            onOpenChange={(open) => {
+              setDrawerOpen(open);
+              if (!open) setEditContract(null);
+            }}
+            restaurantId={restaurantId}
+            staff={drawerStaff}
+            staffName={staffFamilyFirstDisplayName(drawerStaff)}
+            restaurant={restaurantProfile}
+            contract={editContract}
+            existingContracts={contracts.filter(
+              (c) => c.staff_id === drawerStaff.id,
+            )}
+            employmentTypes={employmentTypes.items}
+            onAddEmploymentType={employmentTypes.add}
+            onSaved={() => void reload()}
+            onDeleted={() => {
+              setEditContract(null);
+              void reload();
+            }}
+            onOpenTemplateManager={(employmentTypeId) => {
+              const full = employmentTypes.getById(employmentTypeId);
+              if (full) setTemplatesEmployment(full);
+            }}
+            templateRefreshKey={templateRefreshKey}
+          />
+        ) : null}
+
+        <CategoriesManageDrawer
+          open={manageEmploymentOpen}
+          onOpenChange={setManageEmploymentOpen}
+          categories={employmentTypes.items.map((t) => ({
+            id: t.id,
+            name: t.name,
+            active: t.active,
+          }))}
+          onReorder={(next) =>
+            void employmentTypes.reorder(
+              next.map((n) => {
+                const full = employmentTypes.getById(n.id)!;
+                return { ...full, name: n.name, active: n.active ?? true };
+              }),
+            )
+          }
+          onEdit={(row) => {
+            const full = employmentTypes.getById(row.id);
+            if (full) {
+              setEmploymentSheet({ mode: "edit", item: full });
+            }
+            setManageEmploymentOpen(false);
+          }}
+          onNew={() => {
+            setEmploymentSheet({ mode: "create" });
+            setManageEmploymentOpen(false);
+          }}
+          onManageTemplates={(row) => {
+            const full = employmentTypes.getById(row.id);
+            if (full) setTemplatesEmployment(full);
+            setManageEmploymentOpen(false);
+          }}
+          copy={EMPLOYMENT_MANAGE_COPY}
+        />
+
+        {templatesEmployment ? (
+          <StaffContractTemplatesListDrawer
+            open={templatesEmployment !== null}
+            onOpenChange={(open) => {
+              if (!open) setTemplatesEmployment(null);
+            }}
+            restaurantId={restaurantId}
+            employmentTypeId={templatesEmployment.id}
+            employmentTypeName={templatesEmployment.name}
+            onTemplatesChanged={() =>
+              setTemplateRefreshKey((key) => key + 1)
+            }
+          />
+        ) : null}
+
+        <CategoryDrawer
+          open={employmentSheet !== null}
+          onOpenChange={(open) => {
+            if (!open) setEmploymentSheet(null);
+          }}
+          mode={employmentSheet?.mode ?? "create"}
+          initial={
+            employmentSheet?.mode === "edit" ? employmentSheet.item : null
+          }
+          labels={EMPLOYMENT_DRAWER_LABELS}
+          onSave={(payload) => {
+            if ("id" in payload && payload.id) {
+              void employmentTypes.update(payload.id, {
+                name: payload.name,
+                active: payload.active,
+              });
+            } else {
+              void employmentTypes.add(payload.name, payload.active ?? true);
+            }
+            setEmploymentSheet(null);
+          }}
+        />
+      </div>
+    );
   }
 
   return (

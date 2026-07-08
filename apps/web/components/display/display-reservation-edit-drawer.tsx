@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
-import {drawerFormFieldClassName,  drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import {
+  displayDrawerFormFieldClassName,
+  drawerFormFieldGroupClassName,
+  drawerFormRowStackClassName,
+  drawerScrollAreaClassName,
+  drawerFormHeaderClassName,
+} from "@/lib/ui/drawer-form-section";
+import { useIsTouchTablet } from "@/hooks/use-touch-tablet";
+import {
+  touchNumericInputMode,
+  touchPhoneLocalInputMode,
+} from "@/lib/ui/touch-numeric-input";
 import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
@@ -112,6 +123,9 @@ export function DisplayReservationEditDrawer({
   onSaved: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
+  const touchTablet = useIsTouchTablet();
+  const numericInputMode = touchNumericInputMode(touchTablet);
+  const phoneLocalInputMode = touchPhoneLocalInputMode(touchTablet);
   const step = normalizeBookingTimeStepMinutes(
     bookingTimeStepMinutes,
   ) as BookingTimeStepMinutes;
@@ -241,6 +255,11 @@ export function DisplayReservationEditDrawer({
     [statuses],
   );
 
+  const selectedStatus = useMemo(
+    () => statuses.find((s) => s.id === statusId) ?? null,
+    [statuses, statusId],
+  );
+
   const tableItems = useMemo(
     () => [
       { value: "__none__", label: "Kein Tisch" },
@@ -261,7 +280,7 @@ export function DisplayReservationEditDrawer({
   const hasPhone = Boolean(formatGuestPhone(phoneCountryIso, phoneLocal, countries));
   const hasEmail = Boolean(email.trim());
 
-  const fieldClass = drawerFormFieldClassName;
+  const fieldClass = displayDrawerFormFieldClassName;
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
 
   const buildPayload = (): BuiltPayload | null => {
@@ -396,7 +415,7 @@ export function DisplayReservationEditDrawer({
         direction="bottom"
         repositionInputs={false}
       >
-        <DrawerContent className={drawerContentClassName("form")}>
+        <DrawerContent className={drawerContentClassName("displayForm")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle className="text-xl font-semibold tracking-tight">
               Reservierung bearbeiten
@@ -425,8 +444,9 @@ export function DisplayReservationEditDrawer({
                 ) : (
                   <>
                     <DrawerFormSection title="Termin & Status">
+                    <div className={drawerFormRowStackClassName}>
                     <div className={drawerTwoColClass}>
-                      <div className="min-w-0 space-y-1.5">
+                      <div className={cn("min-w-0", drawerFormFieldGroupClassName)}>
                         <Label
                           htmlFor="disp-edit-status"
                           className="text-xs text-muted-foreground"
@@ -455,7 +475,11 @@ export function DisplayReservationEditDrawer({
                               selectValueNoShrink,
                             )}
                           >
-                            <SelectValue placeholder="Status" />
+                            {selectedStatus ? (
+                              <ReservationStatusLabel status={selectedStatus} />
+                            ) : (
+                              <SelectValue placeholder="Status" />
+                            )}
                           </SelectTrigger>
                           <SelectContent>
                             {statuses.map((s) => (
@@ -466,7 +490,7 @@ export function DisplayReservationEditDrawer({
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-ps"
                           className="text-xs text-muted-foreground"
@@ -478,6 +502,7 @@ export function DisplayReservationEditDrawer({
                           type="number"
                           min={1}
                           max={50}
+                          inputMode={numericInputMode}
                           value={partySize}
                           onChange={(e) => setPartySize(e.target.value)}
                           className={cn(fieldClass, "tabular-nums")}
@@ -486,7 +511,7 @@ export function DisplayReservationEditDrawer({
                     </div>
 
                     <div className={drawerTwoColClass}>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label className="text-xs text-muted-foreground">Datum</Label>
                         <DatePickerField
                           fullWidth
@@ -498,7 +523,7 @@ export function DisplayReservationEditDrawer({
                           className="w-full"
                         />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-time"
                           className="text-xs text-muted-foreground"
@@ -514,11 +539,13 @@ export function DisplayReservationEditDrawer({
                         />
                       </div>
                     </div>
+                    </div>
                     </DrawerFormSection>
 
                     <DrawerFormSection title="Gast">
+                    <div className={drawerFormRowStackClassName}>
                     <div className={drawerTwoColClass}>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-fn"
                           className="text-xs text-muted-foreground"
@@ -532,7 +559,7 @@ export function DisplayReservationEditDrawer({
                           className={fieldClass}
                         />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-ln"
                           className="text-xs text-muted-foreground"
@@ -549,7 +576,7 @@ export function DisplayReservationEditDrawer({
                     </div>
 
                     <div className={drawerTwoColClass}>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label className="text-xs text-muted-foreground">Telefon</Label>
                         <GuestPhoneField
                           countryId="disp-edit-phone-country"
@@ -559,9 +586,11 @@ export function DisplayReservationEditDrawer({
                           localValue={phoneLocal}
                           onLocalChange={setPhoneLocal}
                           countries={countries}
+                          localInputMode={phoneLocalInputMode}
+                          tall
                         />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-email"
                           className="text-xs text-muted-foreground"
@@ -578,7 +607,7 @@ export function DisplayReservationEditDrawer({
                       </div>
                     </div>
 
-                    <div className="space-y-1.5">
+                    <div className={drawerFormFieldGroupClassName}>
                       <Label
                         htmlFor="disp-edit-internal-note"
                         className="text-xs text-muted-foreground"
@@ -594,11 +623,12 @@ export function DisplayReservationEditDrawer({
                         className="min-h-[4.5rem] resize-y rounded-xl"
                       />
                     </div>
+                    </div>
                     </DrawerFormSection>
 
                     <DrawerFormSection title="Tisch & Verweildauer">
                     <div className={drawerTwoColClass}>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-dwell"
                           className="text-xs text-muted-foreground"
@@ -610,12 +640,13 @@ export function DisplayReservationEditDrawer({
                           type="number"
                           min={15}
                           max={1440}
+                          inputMode={numericInputMode}
                           value={dwellDraft}
                           onChange={(e) => setDwellDraft(e.target.value)}
                           className={cn(fieldClass, "tabular-nums")}
                         />
                       </div>
-                      <div className="space-y-1.5">
+                      <div className={drawerFormFieldGroupClassName}>
                         <Label
                           htmlFor="disp-edit-table"
                           className="text-xs text-muted-foreground"

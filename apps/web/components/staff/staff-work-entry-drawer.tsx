@@ -157,7 +157,7 @@ export function StaffWorkEntryDrawer({
       setEntryType(entry.entry_type);
       setDateStr(toDateInput(s));
       setStartTime(toTimeInput(s));
-      setStillRunning(entry.is_open === true && entry.entry_type === "work");
+      setStillRunning(false);
       setEndTime(
         entry.is_open ? toTimeInput(new Date()) : toTimeInput(new Date(entry.ends_at)),
       );
@@ -399,7 +399,7 @@ export function StaffWorkEntryDrawer({
                   <input
                     type="time"
                     value={endTime}
-                    disabled={readOnly || stillRunning}
+                    disabled={readOnly || (!entry && stillRunning)}
                     onChange={(e) => setEndTime(e.target.value)}
                     className={formScheduleTimeInputClassName}
                   />

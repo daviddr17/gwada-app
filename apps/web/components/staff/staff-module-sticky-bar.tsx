@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { cn } from "@/lib/utils";
 
 export function StaffModuleStickyBar() {
+  const pathname = usePathname();
   const { restaurantId } = useWorkspaceRestaurantUuid();
   const {
     staffList,
@@ -74,6 +76,17 @@ export function StaffModuleStickyBar() {
     [reloadStaffList, setSelectedStaffId],
   );
 
+  const staffPickerPlaceholder = useMemo(() => {
+    if (
+      pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
+      pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
+      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")
+    ) {
+      return "Alle Mitarbeiter";
+    }
+    return "Bitte Mitarbeiter auswählen";
+  }, [pathname]);
+
   return (
     <>
       <div
@@ -104,7 +117,7 @@ export function StaffModuleStickyBar() {
               options={options}
               value={selectedStaffId ?? ""}
               onValueChange={(v) => setSelectedStaffId(v || null)}
-              placeholder="Bitte Mitarbeiter auswählen"
+              placeholder={staffPickerPlaceholder}
               searchPlaceholder="Suchen …"
               emptyText="Keine Mitarbeiter"
               className="!min-h-11 !h-11 rounded-xl border-input"

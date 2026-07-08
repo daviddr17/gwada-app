@@ -10,7 +10,7 @@ export function AppMain({
   className?: string;
 }) {
   return (
-    <div className="bg-background">
+    <div>
       <main
         className={cn(
           "w-full px-4 pb-16 pt-4 sm:px-6",

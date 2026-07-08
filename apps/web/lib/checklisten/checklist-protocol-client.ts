@@ -10,6 +10,7 @@ import type {
 export type FetchChecklistProtocolPageParams = {
   restaurantId: string;
   page: number;
+  pageSize?: number;
   search: string;
   kind: ChecklistProtocolKindFilter;
   period: ChecklistProtocolPeriodFilter;
@@ -35,6 +36,9 @@ export async function fetchChecklistProtocolPage(
     sort: params.sortKey,
     time_zone: params.timeZone,
   });
+  if (params.pageSize != null) {
+    qs.set("page_size", String(params.pageSize));
+  }
 
   const res = await fetch(`/api/checklisten/protocol?${qs.toString()}`, {
     credentials: "same-origin",

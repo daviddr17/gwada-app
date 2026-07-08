@@ -301,7 +301,6 @@ export function DisplayTimeModule({
           onChanged();
         }}
       />
-      <div className="relative mx-auto flex w-full max-w-md flex-col gap-8">
       <DisplayTimeActionCelebration
         action={celebrationAction}
         onExitStart={() => {
@@ -337,13 +336,26 @@ export function DisplayTimeModule({
           ease: MOTION_EASE_IN_OUT,
         }}
       >
-      <div className="relative w-full text-center">
-        <div className="absolute right-0 top-0">
+        <div className="relative flex min-h-8 w-full items-center justify-center">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.p
+              key={state.status}
+              className={cn(
+                "text-sm font-medium uppercase tracking-wide",
+                displayTimeStatusClassName(state.status),
+              )}
+              initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
+              transition={statusTransition}
+            >
+              {displayTimeStatusLabel(state.status)}
+            </motion.p>
+          </AnimatePresence>
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="relative rounded-full border-border/60"
+            className="absolute top-1/2 right-0 h-8 -translate-y-1/2 rounded-full border-border/60 px-3.5 text-sm"
             disabled={actionsBlocked}
             onClick={() => setRequestSheetOpen(true)}
           >
@@ -353,21 +365,9 @@ export function DisplayTimeModule({
             ) : null}
           </Button>
         </div>
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.p
-            key={state.status}
-            className={cn(
-              "text-sm font-medium uppercase tracking-wide",
-              displayTimeStatusClassName(state.status),
-            )}
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
-            transition={statusTransition}
-          >
-            {displayTimeStatusLabel(state.status)}
-          </motion.p>
-        </AnimatePresence>
+
+        <div className="relative mx-auto flex w-full max-w-md flex-col gap-8">
+      <div className="w-full text-center">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={since ?? "idle"}
@@ -476,8 +476,8 @@ export function DisplayTimeModule({
           ) : null}
         </AnimatePresence>
       </div>
+        </div>
       </motion.div>
-      </div>
 
       {canViewTeamPresence ? (
         <DisplayTimeTeamPresence members={teamPresence} className="w-full" />

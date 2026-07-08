@@ -2,10 +2,11 @@ import type { StaffContractFormPayload } from "@/lib/staff/staff-contract-form-u
 
 const ERROR_MESSAGES: Record<string, string> = {
   invalid_request: "Ungültige Anfrage.",
-  pdf_required: "Bitte eine PDF-Datei auswählen.",
-  pdf_only: "Nur PDF-Dateien sind erlaubt.",
+  attachment_required: "Bitte eine PDF- oder Bilddatei auswählen.",
+  invalid_attachment_type: "Nur PDF, JPEG oder PNG sind erlaubt.",
   staff_not_found: "Mitarbeiter nicht gefunden.",
   contract_not_found: "Vertrag nicht gefunden.",
+  document_already_attached: "Für diesen Vertrag liegt bereits ein Dokument vor.",
   not_external_contract: "Kein externer Vertrag.",
   already_signed: "Vertrag wurde bereits abgeschlossen.",
   pending_employee_signature:

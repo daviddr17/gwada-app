@@ -12,8 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DisplayInventoryOrderCartOverlay, displayInventoryOrderCartLines } from "@/components/display/display-inventory-order-cart-overlay";
 import { DisplayInventoryPrintSheet } from "@/components/display/display-inventory-print-sheet";
+import { DisplayInventoryVoiceButton } from "@/components/display/display-inventory-voice-button";
 import type {
   DisplayInventoryFilterOption,
   DisplayInventoryIngredientRow,
@@ -27,6 +30,29 @@ import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { cn } from "@/lib/utils";
 
 type ViewMode = "stock" | "order";
+type SortMode = "category" | "name";
+
+const SORT_MODE_LABELS: Record<SortMode, string> = {
+  category: "Kategorie",
+  name: "Name",
+};
+
+function sortDisplayInventoryRows(
+  rows: DisplayInventoryIngredientRow[],
+  sortMode: SortMode,
+): DisplayInventoryIngredientRow[] {
+  const sorted = [...rows];
+  if (sortMode === "category") {
+    sorted.sort((a, b) => {
+      const byCategory = a.categoryName.localeCompare(b.categoryName, "de");
+      if (byCategory !== 0) return byCategory;
+      return a.name.localeCompare(b.name, "de");
+    });
+  } else {
+    sorted.sort((a, b) => a.name.localeCompare(b.name, "de"));
+  }
+  return sorted;
+}
 
 type DisplayInventoryModuleProps = {
   restaurantName?: string;
@@ -88,7 +114,6 @@ function DisplayInventoryCard({
   }, [row.currentStock, row.orderId, row.orderLineId, row.orderQuantity]);
 
   const prevFocusedRef = useRef(false);
-  const autoFocusDoneRef = useRef(false);
 
   useEffect(() => {
     if (focused && !prevFocusedRef.current) {
@@ -108,15 +133,6 @@ function DisplayInventoryCard({
     registerInput(row.id, inputRef.current);
     return () => registerInput(row.id, null);
   }, [registerInput, row.id]);
-
-  useEffect(() => {
-    if (focused && !autoFocusDoneRef.current && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-      autoFocusDoneRef.current = true;
-    }
-    if (!focused) autoFocusDoneRef.current = false;
-  }, [focused]);
 
   const commit = useCallback(async (options?: { advanceOnSuccess?: boolean }) => {
     if (busy) return;
@@ -282,16 +298,10 @@ function DisplayInventoryCard({
       data-inventory-card
       role="group"
       aria-label={row.name}
-      onPointerDown={(e) => {
-        if (disabledOrder) return;
-        if ((e.target as HTMLElement).closest("input")) return;
-        onFocusRequest();
-      }}
       className={cn(
-        "flex min-h-[10.5rem] cursor-pointer flex-col rounded-3xl border border-border/50 bg-card p-4 text-left shadow-card transition-colors",
-        "active:scale-[0.99]",
+        "flex min-h-[10.5rem] flex-col rounded-3xl border border-border/50 bg-card p-4 text-left shadow-card transition-colors",
         focused && "border-accent ring-2 ring-accent/30",
-        disabledOrder && "cursor-not-allowed opacity-55",
+        disabledOrder && "opacity-55",
       )}
     >
       <div className="min-w-0 flex-1">
@@ -314,16 +324,15 @@ function DisplayInventoryCard({
               ref={inputRef}
               type="text"
               inputMode="decimal"
-              disabled={busy || !focused}
-              placeholder="Neuer Wert"
+              disabled={busy}
+              placeholder={String(savedStock)}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onPointerDown={(e) => e.stopPropagation()}
               onFocus={() => onFocusRequest()}
               onBlur={handleInputBlur}
               onKeyDown={handleInputKeyDown}
               className={cn(touchQtyInputClass, "pr-14")}
-              aria-label={`Neuer Bestand ${row.name} (${row.unitId})`}
+              aria-label={`Bestand ${row.name} (${row.unitId})`}
             />
             <span
               className="pointer-events-none absolute top-1/2 right-4 max-w-[40%] truncate -translate-y-1/2 text-sm font-medium text-muted-foreground tabular-nums"
@@ -346,11 +355,14 @@ function DisplayInventoryCard({
               ref={inputRef}
               type="text"
               inputMode="decimal"
-              disabled={busy || !focused || disabledOrder}
-              placeholder="Bestellmenge"
+              disabled={busy || disabledOrder}
+              placeholder={
+                orderMeta.orderLineId || savedOrderQty > 0
+                  ? String(savedOrderQty)
+                  : "0"
+              }
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onPointerDown={(e) => e.stopPropagation()}
               onFocus={() => onFocusRequest()}
               onBlur={handleInputBlur}
               onKeyDown={handleInputKeyDown}
@@ -376,10 +388,12 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
   const showDataSkeleton = useDeferredSkeleton(loading && !data);
   const [mode, setMode] = useState<ViewMode>("stock");
   const [printOpen, setPrintOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterSupplier, setFilterSupplier] = useState(ALL);
   const [filterCategory, setFilterCategory] = useState(ALL);
   const [filterProduction, setFilterProduction] = useState(ALL);
+  const [sortMode, setSortMode] = useState<SortMode>("category");
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const inputRefs = useRef(new Map<string, HTMLInputElement>());
 
@@ -441,8 +455,8 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
           r.productionSiteName.toLowerCase().includes(q),
       );
     }
-    return rows;
-  }, [data, filterCategory, filterProduction, filterSupplier, search]);
+    return sortDisplayInventoryRows(rows, sortMode);
+  }, [data, filterCategory, filterProduction, filterSupplier, search, sortMode]);
 
   const focusNextAfter = useCallback(
     (currentId: string | null) => {
@@ -495,6 +509,28 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
     </div>
   );
 
+  const renderSortSelect = () => (
+    <div className="min-w-0 flex-1 space-y-1">
+      <span className="block px-1 text-xs font-medium text-muted-foreground">
+        Sortierung
+      </span>
+      <Select
+        value={sortMode}
+        onValueChange={(v) => {
+          if (v === "category" || v === "name") setSortMode(v);
+        }}
+      >
+        <SelectTrigger className={filterSelectClass}>
+          <SelectValue>{SORT_MODE_LABELS[sortMode]}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="category">{SORT_MODE_LABELS.category}</SelectItem>
+          <SelectItem value="name">{SORT_MODE_LABELS.name}</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
   const exportInitialFilters = useMemo(
     () => ({
       supplierId: filterSupplier,
@@ -503,6 +539,11 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
     }),
     [filterCategory, filterProduction, filterSupplier],
   );
+
+  const orderCartLineCount = useMemo(() => {
+    if (!data) return 0;
+    return displayInventoryOrderCartLines(data.ingredients).length;
+  }, [data]);
 
   if (!data && !loading) {
     return (
@@ -520,6 +561,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
           onClick={() => {
             setMode("stock");
             setFocusedId(null);
+            setCartOpen(false);
           }}
           className={cn(
             "inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-2xl border px-4 text-base font-medium transition-colors sm:flex-none sm:px-8",
@@ -547,25 +589,61 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
           <ShoppingCart className="size-5 shrink-0" aria-hidden />
           Bestellung
         </button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className={cn(
-            reservationsDayDrawerHeaderActionButtonClassName,
-            "ml-auto size-12 rounded-2xl",
-          )}
-          aria-label={mode === "stock" ? "Bestand drucken" : "Bestellung drucken"}
-          disabled={showDataSkeleton || !data || data.ingredients.length === 0}
-          onClick={() => setPrintOpen(true)}
-        >
-          <Printer className="size-5" />
-        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          {mode === "order" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={cn(
+                reservationsDayDrawerHeaderActionButtonClassName,
+                "relative size-12 rounded-2xl",
+              )}
+              aria-label={
+                orderCartLineCount > 0
+                  ? `Aktuelle Bestellung (${orderCartLineCount} Positionen)`
+                  : "Aktuelle Bestellung"
+              }
+              disabled={showDataSkeleton || !data}
+              onClick={() => setCartOpen(true)}
+            >
+              <ShoppingCart className="size-5" />
+              {orderCartLineCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="absolute -top-1 -right-1 h-5 min-w-5 rounded-full px-1 text-[10px] font-semibold tabular-nums"
+                >
+                  {orderCartLineCount > 99 ? "99+" : orderCartLineCount}
+                </Badge>
+              ) : null}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={cn(
+              reservationsDayDrawerHeaderActionButtonClassName,
+              "size-12 rounded-2xl",
+            )}
+            aria-label={mode === "stock" ? "Bestand drucken" : "Bestellung drucken"}
+            disabled={showDataSkeleton || !data || data.ingredients.length === 0}
+            onClick={() => setPrintOpen(true)}
+          >
+            <Printer className="size-5" />
+          </Button>
+          <DisplayInventoryVoiceButton
+            mode={mode}
+            rows={data?.ingredients ?? []}
+            disabled={showDataSkeleton || !data || data.ingredients.length === 0}
+          />
+        </div>
       </div>
 
       {showDataSkeleton ? (
         <>
           <div className="flex flex-col gap-3 sm:flex-row">
+            <Skeleton className="h-16 flex-1 rounded-2xl" />
             <Skeleton className="h-16 flex-1 rounded-2xl" />
             <Skeleton className="h-16 flex-1 rounded-2xl" />
             <Skeleton className="h-16 flex-1 rounded-2xl" />
@@ -607,6 +685,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
           data.categories,
           "Alle Kategorien",
         )}
+        {renderSortSelect()}
       </div>
 
       <div data-inventory-toolbar className="relative">
@@ -627,8 +706,8 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
       <p className="text-sm text-muted-foreground">
         {filtered.length} Zutaten
         {mode === "stock"
-          ? " — Karte antippen, Bestand eingeben; Tab oder Enter für die nächste Zutat."
-          : " — Karte antippen, Bestellmenge eingeben; Tab oder Enter für die nächste Zutat."}
+          ? " — Eingabefeld antippen, Bestand ändern; Tab oder Enter für die nächste Zutat."
+          : " — Eingabefeld antippen, Bestellmenge ändern; Tab oder Enter für die nächste Zutat."}
       </p>
 
       {filtered.length === 0 ? (
@@ -668,6 +747,13 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
       ) : null}
 
       {data ? (
+        <>
+        <DisplayInventoryOrderCartOverlay
+          open={cartOpen}
+          onClose={() => setCartOpen(false)}
+          ingredients={data.ingredients}
+          restaurantName={restaurantName}
+        />
         <DisplayInventoryPrintSheet
           open={printOpen}
           onOpenChange={setPrintOpen}
@@ -679,6 +765,7 @@ export function DisplayInventoryModule({ restaurantName }: DisplayInventoryModul
           restaurantName={restaurantName}
           initialFilters={exportInitialFilters}
         />
+        </>
       ) : null}
     </div>
   );

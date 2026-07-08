@@ -460,6 +460,25 @@ export function DocumentsOverview() {
     setPage(1);
   }, [search, tagFilter]);
 
+  const tableExport = useMemo(
+    () => ({
+      documentTitle: "Dokumente",
+      filenamePrefix: "dokumente",
+      headers: ["Titel", "Datei", "Tag", "Nutzer", "Größe", "Hochgeladen"],
+      rows: filteredSorted.map((row) => [
+        row.title,
+        row.file_name,
+        row.tag?.name ?? "—",
+        formatDocumentUploaderLabel(row.uploaded_by, uploaderNames),
+        formatStorageBytes(row.size_bytes),
+        formatWhen(row.created_at),
+      ]),
+      summaryLine: `${filteredSorted.length} Dokument${filteredSorted.length === 1 ? "" : "e"}`,
+      orientation: "landscape" as const,
+    }),
+    [filteredSorted, uploaderNames],
+  );
+
   const uploadDocumentFile = useCallback(
     async (file: File) => {
       if (formOpen && formMode === "edit") return;
@@ -736,6 +755,7 @@ export function DocumentsOverview() {
           canNext={currentPage < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          tableExport={tableExport}
         >
             <table className="w-full min-w-[52rem] text-sm">
               <thead>

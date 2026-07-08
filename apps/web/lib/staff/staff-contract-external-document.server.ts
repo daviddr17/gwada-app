@@ -20,12 +20,13 @@ export async function attachPdfToStaffContract(params: {
   staffId: string;
   title: string;
   fileName: string;
-  pdfBuffer: Buffer;
+  fileBuffer: Buffer;
+  mimeType: string;
 }): Promise<
   | { ok: true; documentId: string; pdfSha256: string }
   | { ok: false; error: string; status: number }
 > {
-  const pdfSha256 = createHash("sha256").update(params.pdfBuffer).digest("hex");
+  const pdfSha256 = createHash("sha256").update(params.fileBuffer).digest("hex");
 
   const { data: usedRaw, error: usageError } = await params.admin.rpc(
     "restaurant_workspace_used_bytes",
@@ -35,7 +36,7 @@ export async function attachPdfToStaffContract(params: {
     return { ok: false, error: usageError.message, status: 500 };
   }
   if (
-    Number(usedRaw ?? 0) + params.pdfBuffer.length >
+    Number(usedRaw ?? 0) + params.fileBuffer.length >
     RESTAURANT_DOCUMENTS_QUOTA_BYTES
   ) {
     return { ok: false, error: "storage_quota_exceeded", status: 413 };
@@ -58,8 +59,8 @@ export async function attachPdfToStaffContract(params: {
 
   const { error: uploadError } = await params.admin.storage
     .from(RESTAURANT_DOCUMENTS_STORAGE_BUCKET)
-    .upload(storagePath, params.pdfBuffer, {
-      contentType: "application/pdf",
+    .upload(storagePath, params.fileBuffer, {
+      contentType: params.mimeType,
       upsert: false,
     });
 
@@ -84,8 +85,8 @@ export async function attachPdfToStaffContract(params: {
     title: params.title.trim() || params.fileName,
     file_name: params.fileName,
     storage_path: storagePath,
-    mime_type: "application/pdf",
-    size_bytes: params.pdfBuffer.length,
+    mime_type: params.mimeType,
+    size_bytes: params.fileBuffer.length,
     uploaded_by: params.userId,
   });
 

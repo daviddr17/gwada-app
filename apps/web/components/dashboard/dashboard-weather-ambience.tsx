@@ -132,12 +132,34 @@ function DriftingOrb({
   );
 }
 
-export function DashboardWeatherAmbience({
+export function WeatherAmbienceEffects({
   kind,
+  animate,
   className,
 }: {
   kind: WeatherAmbienceKind;
+  animate: boolean;
   className?: string;
+}) {
+  return (
+    <div className={cn("pointer-events-none absolute inset-0", className)} aria-hidden>
+      <RainStreaks
+        active={kind === "rain" || kind === "storm"}
+        animate={animate}
+      />
+      <SnowFlakes active={kind === "snow"} animate={animate} />
+    </div>
+  );
+}
+
+export function DashboardWeatherAmbience({
+  kind,
+  className,
+  veilClassName = "absolute inset-0 bg-background/55 backdrop-blur-[1px] dark:bg-background/70",
+}: {
+  kind: WeatherAmbienceKind;
+  className?: string;
+  veilClassName?: string;
 }) {
   const reduceMotion = useReducedMotion();
   const themeTransitionActive = useThemeTransitionActive();
@@ -186,7 +208,7 @@ export function DashboardWeatherAmbience({
         animate={animate}
       />
       <SnowFlakes active={kind === "snow"} animate={animate} />
-      <div className="absolute inset-0 bg-background/55 backdrop-blur-[1px] dark:bg-background/70" />
+      <div className={cn(veilClassName)} />
     </div>
   );
 }

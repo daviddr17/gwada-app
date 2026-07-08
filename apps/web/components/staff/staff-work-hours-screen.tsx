@@ -1,7 +1,6 @@
 "use client";
 
 import { StaffWorkHoursView } from "@/components/staff/staff-work-hours-view";
-import { StaffSelectEmployeeHint } from "@/components/staff/staff-select-employee-hint";
 import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -19,9 +18,6 @@ export function StaffWorkHoursScreen() {
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
-  if (!selectedStaff || !selectedStaffId) {
-    return <StaffSelectEmployeeHint />;
-  }
 
   return (
     <StaffWorkHoursView

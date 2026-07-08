@@ -24,7 +24,11 @@ import type {
   StaffPositionTagDefinition,
 } from "@/lib/types/staff";
 import { StaffLastLoginCell } from "@/components/staff/staff-last-login-cell";
-import { staffLastLoginIso } from "@/lib/staff/staff-last-login";
+import {
+  formatStaffLastLogin,
+  resolveStaffLastLogin,
+  staffLastLoginIso,
+} from "@/lib/staff/staff-last-login";
 import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
 import {
   staffPresenceStatusForRow,
@@ -382,6 +386,56 @@ export function StaffOverviewTable({
     return "Keine Mitarbeiter.";
   }, [rows.length, search, activeFilterCount]);
 
+  const tableExport = useMemo(
+    () => ({
+      documentTitle: "Mitarbeiter",
+      filenamePrefix: "mitarbeiter",
+      headers: [
+        "Nachname",
+        "Vorname",
+        "Position",
+        "Rolle",
+        "Kontakt",
+        "Status",
+        "Anwesenheit",
+        "Letzter Login",
+        "App",
+        "Angelegt",
+      ],
+      rows: filteredSorted.map((row) => {
+        const role = staffRoleDisplay(row);
+        const presenceStatus = staffPresenceStatusForRow(
+          row.id,
+          workingIds,
+          breakIds,
+        );
+        const lastLogin = resolveStaffLastLogin(
+          row,
+          lastDisplayLoginByStaffId.get(row.id),
+        );
+        return [
+          row.family_name,
+          row.given_name,
+          row.position_tag?.name ?? "—",
+          role?.label ?? "—",
+          row.email ?? row.phone ?? "—",
+          row.is_active ? "Aktiv" : "Inaktiv",
+          presenceStatus === "off"
+            ? "—"
+            : STAFF_PRESENCE_STATUS_LABELS[presenceStatus],
+          lastLogin ? formatStaffLastLogin(lastLogin.iso) : "—",
+          row.profile_id
+            ? formatLinkedProfileLabel(row.linked_profile)
+            : "—",
+          formatStaffCreatedAt(row.created_at),
+        ];
+      }),
+      summaryLine: `${filteredSorted.length} Mitarbeiter`,
+      orientation: "landscape" as const,
+    }),
+    [filteredSorted, workingIds, breakIds, lastDisplayLoginByStaffId],
+  );
+
   return (
     <>
       <div className={cn("mb-4", moduleSearchFilterRowClassName)}>
@@ -440,6 +494,7 @@ export function StaffOverviewTable({
         canNext={currentPage < totalPages}
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        tableExport={tableExport}
       >
         <table className="w-full min-w-[72rem] text-left text-sm">
           <thead>

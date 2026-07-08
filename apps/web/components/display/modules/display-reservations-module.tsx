@@ -15,7 +15,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DatePickerField } from "@/components/ui/date-picker";
+import {
+  DisplayReservationsDayPickerOverlay,
+  DisplayReservationsDayPickerTrigger,
+} from "@/components/display/display-reservations-day-picker-overlay";
 import { DisplayReservationDrawer } from "@/components/display/modules/display-reservation-drawer";
 import { DisplayReservationVoiceButton } from "@/components/display/display-reservation-voice-button";
 import { DisplayReservationEditDrawer } from "@/components/display/display-reservation-edit-drawer";
@@ -829,6 +832,31 @@ export function DisplayReservationsModule() {
     const endLabel = timeFmt.format(new Date(r.ends_at));
     const code = r.status?.code;
     const guestName = `${r.guest_first_name} ${r.guest_last_name}`.trim();
+    const openEdit = () => setEditReservationId(r.id);
+
+    if (listDensity === "compact") {
+      const displayName =
+        r.guest_last_name.trim() || r.guest_first_name.trim() || "—";
+      return (
+        <button
+          key={r.id}
+          type="button"
+          className="flex min-w-0 w-full items-center gap-2 rounded-md border border-border/35 bg-card/70 px-2.5 py-1.5 text-left text-sm leading-snug transition-colors hover:bg-muted/40 active:bg-muted/50"
+          onClick={openEdit}
+        >
+          <span className="w-[3.25rem] shrink-0 tabular-nums text-sm font-semibold text-foreground">
+            {startLabel}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+            {displayName}
+          </span>
+          <span className="w-[1.75rem] shrink-0 text-right text-sm tabular-nums font-semibold text-muted-foreground">
+            {r.party_size}
+          </span>
+        </button>
+      );
+    }
+
     const hasListActions =
       (confirmedStatus &&
         code !== "confirmed" &&
@@ -837,10 +865,7 @@ export function DisplayReservationsModule() {
       (declinedStatus && code === "pending") ||
       (seatedStatus && code !== "seated" && code !== "completed") ||
       (completedStatus && code === "seated");
-    const tableFieldWrapClassName =
-      listDensity === "compact"
-        ? "min-w-0 flex-1"
-        : "min-w-0 shrink-0 self-start sm:w-36 md:w-40";
+    const tableFieldWrapClassName = "min-w-0 shrink-0 self-start sm:w-36 md:w-40";
     const tableField = (
       <div
         className={tableFieldWrapClassName}
@@ -858,66 +883,6 @@ export function DisplayReservationsModule() {
         />
       </div>
     );
-
-    const openEdit = () => setEditReservationId(r.id);
-
-    if (listDensity === "compact") {
-      return (
-        <div
-          key={r.id}
-          role="button"
-          tabIndex={0}
-          className="flex min-w-0 cursor-pointer flex-col gap-2 rounded-xl border border-border/50 bg-card px-3 py-2.5 shadow-card transition-colors hover:bg-muted/20"
-          onClick={openEdit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              openEdit();
-            }
-          }}
-        >
-          <div className="flex min-w-0 items-start gap-2">
-            <span className="w-10 shrink-0 pt-px text-sm font-semibold tabular-nums leading-none">
-              {startLabel}
-            </span>
-            <div className="min-w-0 flex-1 space-y-1">
-              <p className="truncate font-semibold text-sm leading-snug">{guestName}</p>
-              <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
-                <span className="shrink-0 text-[11px] text-muted-foreground">
-                  #{r.reservation_number}
-                </span>
-                {r.status ? (
-                  <span
-                    className="shrink-0 rounded-full px-2 py-px text-[10px] font-medium text-white"
-                    style={{ backgroundColor: r.status.color_hex }}
-                  >
-                    {r.status.name}
-                  </span>
-                ) : null}
-                {reservationInternalNoteText(r.notes) ? (
-                  <ReservationInternalNoteIndicator className="size-3.5 shrink-0" />
-                ) : null}
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                {r.party_size} P. · bis {endLabel}
-              </p>
-            </div>
-          </div>
-          <div
-            className="flex min-w-0 items-start gap-2 border-t border-border/40 pt-2"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            {tableField}
-            {hasListActions ? (
-              <div className="flex h-8 shrink-0 items-center">
-                {renderListActions(r, code, isBusy, true)}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      );
-    }
 
     return (
       <div
@@ -1063,14 +1028,10 @@ export function DisplayReservationsModule() {
             >
               <ChevronLeft className="size-5" />
             </Button>
-            <DatePickerField
-              value={selectedDayYmd}
-              open={dayPickerOpen}
-              onOpenChange={setDayPickerOpen}
-              onChange={(v) => {
-                if (v) setSelectedDayYmd(v);
-              }}
-              size="compact"
+            <DisplayReservationsDayPickerTrigger
+              selectedDayYmd={selectedDayYmd}
+              disabled={showDataSkeleton}
+              onClick={() => setDayPickerOpen(true)}
             />
             <Button
               type="button"
@@ -1105,17 +1066,17 @@ export function DisplayReservationsModule() {
               size="icon"
               className={cn(
                 reservationsDayDrawerHeaderActionButtonClassName,
-                "size-10 rounded-xl",
+                "h-12 w-12 rounded-full",
               )}
               aria-label="Tagesliste drucken"
               disabled={showDataSkeleton || printReservations.length === 0}
               onClick={() => setPrintOpen(true)}
             >
-              <Printer className="size-4" />
+              <Printer className="size-5" />
             </Button>
             <Button
               size="lg"
-              className={cn(modulePrimaryAddButtonClassName, "h-12 rounded-xl")}
+              className={modulePrimaryAddButtonClassName}
               onClick={() => setCreateOpen(true)}
               disabled={showDataSkeleton}
             >
@@ -1240,18 +1201,18 @@ export function DisplayReservationsModule() {
           <div
             className={cn(
               listDensity === "compact"
-                ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+                ? "grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
                 : "space-y-3",
             )}
             aria-busy
           >
-            {Array.from({ length: listDensity === "compact" ? 6 : 4 }).map(
+            {Array.from({ length: listDensity === "compact" ? 12 : 4 }).map(
               (_, i) => (
                 <Skeleton
                   key={i}
                   className={cn(
-                    "w-full rounded-2xl",
-                    listDensity === "compact" ? "h-20" : "h-24",
+                    "w-full rounded-md",
+                    listDensity === "compact" ? "h-9" : "h-24",
                   )}
                 />
               ),
@@ -1332,7 +1293,7 @@ export function DisplayReservationsModule() {
                   listDensity === "compact" &&
                     "bg-background text-foreground shadow-sm",
                 )}
-                aria-label="Kompakte Liste"
+                aria-label="Kompakte Übersicht"
                 aria-pressed={listDensity === "compact"}
                 onClick={() => setListDensity("compact")}
               >
@@ -1421,7 +1382,7 @@ export function DisplayReservationsModule() {
         <div
           className={cn(
             listDensity === "compact"
-              ? "grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3"
+              ? "grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6"
               : "space-y-3",
           )}
         >
@@ -1490,6 +1451,14 @@ export function DisplayReservationsModule() {
         restaurantName={payload?.restaurant_name ?? undefined}
         reservations={printReservations}
         statuses={statuses}
+      />
+
+      <DisplayReservationsDayPickerOverlay
+        open={dayPickerOpen}
+        onClose={() => setDayPickerOpen(false)}
+        selectedDayYmd={selectedDayYmd}
+        onSelectDay={setSelectedDayYmd}
+        timeZone={timeZone}
       />
     </div>
   );

@@ -15,12 +15,13 @@ import {
   type StaffContractExternalSaveInput,
 } from "@/lib/staff/staff-contract-external-document.server";
 import type { StaffContractFormPayload } from "@/lib/staff/staff-contract-form-utils";
+import {
+  resolveStaffContractAttachmentMime,
+  validateStaffContractAttachmentFile,
+} from "@/lib/staff/validate-staff-contract-attachment-file";
 
-function isPdfFile(file: File): boolean {
-  const ext = file.name.split(".").pop()?.toLowerCase();
-  if (ext !== "pdf") return false;
-  if (file.type && file.type !== "application/pdf") return false;
-  return true;
+function attachmentValidationError(file: File): string | null {
+  return validateStaffContractAttachmentFile(file);
 }
 
 export async function saveStaffContractExternal(
@@ -57,21 +58,29 @@ export async function saveStaffContractExternal(
     if (!existing) {
       return { ok: false, error: "contract_not_found", status: 404 };
     }
-    if (existing.contract_source !== "external") {
-      return { ok: false, error: "not_external_contract", status: 409 };
-    }
     if (existing.employee_signature_pending) {
       return { ok: false, error: "pending_employee_signature", status: 409 };
     }
+    const isExternal = existing.contract_source === "external";
+    if (!isExternal && existing.current_document_id) {
+      return { ok: false, error: "document_already_attached", status: 409 };
+    }
     if (!file && !existing.current_document_id) {
-      return { ok: false, error: "pdf_required", status: 400 };
+      return { ok: false, error: "attachment_required", status: 400 };
     }
   } else if (!file) {
-    return { ok: false, error: "pdf_required", status: 400 };
+    return { ok: false, error: "attachment_required", status: 400 };
   }
 
-  if (file && !isPdfFile(file)) {
-    return { ok: false, error: "pdf_only", status: 400 };
+  if (file) {
+    const validationError = attachmentValidationError(file);
+    if (validationError) {
+      return { ok: false, error: "invalid_attachment_type", status: 400 };
+    }
+    const mimeType = resolveStaffContractAttachmentMime(file);
+    if (!mimeType) {
+      return { ok: false, error: "invalid_attachment_type", status: 400 };
+    }
   }
 
   const upsert = await upsertStaffContractFieldsRow(admin, input);
@@ -93,7 +102,8 @@ export async function saveStaffContractExternal(
   let pdfSha256: string | null = null;
 
   if (file) {
-    const pdfBuffer = Buffer.from(await file.arrayBuffer());
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    const mimeType = resolveStaffContractAttachmentMime(file)!;
     const docTitle = buildExternalContractDocumentTitle({
       title: input.documentTitle,
       fileName: file.name,
@@ -110,7 +120,8 @@ export async function saveStaffContractExternal(
       staffId: input.staffId,
       title: docTitle,
       fileName: file.name,
-      pdfBuffer,
+      fileBuffer,
+      mimeType,
     });
 
     if (!attached.ok) return attached;
@@ -138,7 +149,7 @@ export async function saveStaffContractExternal(
   }
 
   const logSummary = file
-    ? "Externer Vertrag — PDF hochgeladen"
+    ? "Vertragsdokument hochgeladen"
     : signedAtIso
       ? "Externer Vertrag — Metadaten aktualisiert"
       : "Externer Vertrag — gespeichert";

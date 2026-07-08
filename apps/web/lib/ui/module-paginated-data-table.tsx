@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, type ReactNode } from "react";
-import { Maximize2, Minimize2 } from "lucide-react";
+import { Download, Maximize2, Minimize2 } from "lucide-react";
 import {
   AppFullscreenOverlay,
   appFullscreenOverlayScrollClassName,
@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ModuleTableExportSheet } from "@/components/export/module-table-export-sheet";
 import {
   ListPagination,
   ListPaginationSurround,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/ui/module-data-table";
 import { ModuleTableHorizontalScrollRegion } from "@/lib/ui/module-table-sticky-column";
 import { formatListPageSummary } from "@/lib/ui/list-range-count";
+import type { ModuleTableExportSource } from "@/lib/ui/module-table-export";
 import { cn } from "@/lib/utils";
 
 /** Vollbild-Toggle in der oberen Pagination-Zeile — optisch wie Filter-Icon. */
@@ -50,6 +52,8 @@ export type ModulePaginatedDataTableProps = ListPaginationProps & {
   fullscreenTitle?: string;
   /** Seitlicher Einzug im Vollbild-Kopf/Fuß — an Tabellenzellen anpassen (Standard px-4). */
   fullscreenChromeInsetClassName?: string;
+  /** CSV/PDF-Export im Vollbild-Overlay (alle gefilterten Zeilen). */
+  tableExport?: ModuleTableExportSource;
 };
 
 function ModuleTableShell({
@@ -85,6 +89,7 @@ export function ModulePaginatedDataTable({
   tableFullscreen = true,
   fullscreenTitle,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
+  tableExport,
   itemLabel,
   page,
   totalPages,
@@ -93,6 +98,7 @@ export function ModulePaginatedDataTable({
   ...paginationProps
 }: ModulePaginatedDataTableProps) {
   const [expanded, setExpanded] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const closeFullscreen = useCallback(() => setExpanded(false), []);
 
   const overlayLabel = fullscreenTitle?.trim() || itemLabel?.trim() || "Tabelle";
@@ -174,23 +180,44 @@ export function ModulePaginatedDataTable({
                 </p>
               ) : null}
             </div>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className={moduleTableFullscreenToggleButtonClassName}
-                    onClick={closeFullscreen}
-                    aria-label="Vollbild schließen"
-                  />
-                }
-              >
-                <Minimize2 className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent side="top">Vollbild schließen</TooltipContent>
-            </Tooltip>
+            <div className="flex shrink-0 items-center gap-2">
+              {tableExport ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className={moduleTableFullscreenToggleButtonClassName}
+                        onClick={() => setExportOpen(true)}
+                        aria-label={`${overlayLabel} exportieren`}
+                      />
+                    }
+                  >
+                    <Download className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Exportieren</TooltipContent>
+                </Tooltip>
+              ) : null}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={moduleTableFullscreenToggleButtonClassName}
+                      onClick={closeFullscreen}
+                      aria-label="Vollbild schließen"
+                    />
+                  }
+                >
+                  <Minimize2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side="top">Vollbild schließen</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         }
         footer={
@@ -219,6 +246,15 @@ export function ModulePaginatedDataTable({
           </ModuleTableHorizontalScrollRegion>
         ) : null}
       </AppFullscreenOverlay>
+
+      {tableExport ? (
+        <ModuleTableExportSheet
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          exportSource={tableExport}
+          title={`${overlayLabel} exportieren`}
+        />
+      ) : null}
     </>
   );
 }
@@ -235,6 +271,7 @@ export type ModuleDataTableFrameProps = {
   /** Kurztext über der Tabelle und im Overlay-Kopf (z. B. „12 Einträge“). */
   summaryText?: string;
   fullscreenChromeInsetClassName?: string;
+  tableExport?: ModuleTableExportSource;
 };
 
 /** Tabellenhülle ohne Pagination (Protokoll, Drawer). */
@@ -247,8 +284,10 @@ export function ModuleDataTableFrame({
   fullscreenTitle,
   summaryText,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
+  tableExport,
 }: ModuleDataTableFrameProps) {
   const [expanded, setExpanded] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const closeFullscreen = useCallback(() => setExpanded(false), []);
 
   const overlayLabel = fullscreenTitle?.trim() || "Tabelle";
@@ -329,23 +368,44 @@ export function ModuleDataTableFrame({
                 </p>
               ) : null}
             </div>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className={moduleTableFullscreenToggleButtonClassName}
-                    onClick={closeFullscreen}
-                    aria-label="Vollbild schließen"
-                  />
-                }
-              >
-                <Minimize2 className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent side="top">Vollbild schließen</TooltipContent>
-            </Tooltip>
+            <div className="flex shrink-0 items-center gap-2">
+              {tableExport ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className={moduleTableFullscreenToggleButtonClassName}
+                        onClick={() => setExportOpen(true)}
+                        aria-label={`${overlayLabel} exportieren`}
+                      />
+                    }
+                  >
+                    <Download className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Exportieren</TooltipContent>
+                </Tooltip>
+              ) : null}
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className={moduleTableFullscreenToggleButtonClassName}
+                      onClick={closeFullscreen}
+                      aria-label="Vollbild schließen"
+                    />
+                  }
+                >
+                  <Minimize2 className="size-4" />
+                </TooltipTrigger>
+                <TooltipContent side="top">Vollbild schließen</TooltipContent>
+              </Tooltip>
+            </div>
           </div>
         }
       >
@@ -362,6 +422,15 @@ export function ModuleDataTableFrame({
           </ModuleTableHorizontalScrollRegion>
         ) : null}
       </AppFullscreenOverlay>
+
+      {tableExport ? (
+        <ModuleTableExportSheet
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          exportSource={tableExport}
+          title={`${overlayLabel} exportieren`}
+        />
+      ) : null}
     </>
   );
 }

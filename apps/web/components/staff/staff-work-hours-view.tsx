@@ -24,11 +24,22 @@ import {
 } from "@/lib/reservations/month-range";
 import {
   deleteStaffWorkEntry,
+  fetchStaffContractsForRestaurant,
   fetchStaffWorkEntriesInRange,
 } from "@/lib/supabase/staff-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
-import type { RestaurantStaffRow, RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
+import type {
+  RestaurantStaffContractRow,
+  RestaurantStaffRow,
+  RestaurantStaffWorkEntryRow,
+} from "@/lib/types/staff";
 import { summarizeStaffWorkEntries } from "@/lib/staff/staff-work-hours-summary";
+import {
+  computeStaffPeriodWageSummary,
+  formatStaffAvgHourlyWage,
+  formatStaffEuroCents,
+} from "@/lib/staff/staff-day-wage";
+import { useStaffModuleSelectionOptional } from "@/lib/contexts/staff-module-selection-context";
 import { StaffDisplayShiftRow } from "@/components/staff/staff-display-shift-row";
 import {
   groupWorkHoursDayEntries,
@@ -95,22 +106,25 @@ function dayKeyFromIso(iso: string): string {
 
 type StaffWorkHoursViewProps = {
   restaurantId: string;
-  staff: RestaurantStaffRow;
-  staffId: string;
+  staff?: RestaurantStaffRow | null;
+  staffId?: string | null;
   allowEdit?: boolean;
 };
 
 export function StaffWorkHoursView({
   restaurantId,
-  staff,
-  staffId,
+  staff = null,
+  staffId = null,
   allowEdit = true,
 }: StaffWorkHoursViewProps) {
+  const staffSelection = useStaffModuleSelectionOptional();
+  const staffList = staffSelection?.staffList ?? [];
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
   const [entries, setEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
+  const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -169,9 +183,19 @@ export function StaffWorkHoursView({
     else setEntries(data);
   }, [restaurantId, staffId, rangeStart, rangeEnd]);
 
+  const reloadContracts = useCallback(async () => {
+    const { data, error } = await fetchStaffContractsForRestaurant(restaurantId);
+    if (error) toast.error(error);
+    else setContracts(data);
+  }, [restaurantId]);
+
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    void reloadContracts();
+  }, [reloadContracts]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, RestaurantStaffWorkEntryRow[]>();
@@ -188,6 +212,26 @@ export function StaffWorkHoursView({
     () => summarizeStaffWorkEntries(entries, new Date()),
     [entries],
   );
+
+  const wageSummary = useMemo(
+    () =>
+      computeStaffPeriodWageSummary({
+        entries,
+        contracts,
+        periodStart: monthStart,
+        periodEnd: monthEnd,
+        now: new Date(),
+      }),
+    [entries, contracts, monthStart, monthEnd],
+  );
+
+  const staffNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of staffList) {
+      map.set(row.id, staffFamilyFirstDisplayName(row));
+    }
+    return map;
+  }, [staffList]);
 
   const absenceByDayKey = useMemo(() => {
     const map = new Map<string, "vacation" | "sick">();
@@ -259,10 +303,13 @@ export function StaffWorkHoursView({
           <Card className="mb-4 border-border/50 shadow-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">
-                Zusammenfassung — {staffFamilyFirstDisplayName(staff)}
+                Zusammenfassung
+                {staff
+                  ? ` — ${staffFamilyFirstDisplayName(staff)}`
+                  : " — Alle Mitarbeiter"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               <p className="flex items-center gap-2">
                 <StaffWorkEntryTypeStripe
                   color={STAFF_SUMMARY_LOGGED_COLOR}
@@ -311,6 +358,30 @@ export function StaffWorkHoursView({
                   </span>
                 </span>
               </p>
+              <p>
+                Lohn:{" "}
+                <span className="font-medium tabular-nums">
+                  {formatStaffEuroCents(wageSummary.totalWageCents)}
+                </span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  Erfasste Zeiten × Vertragslohn
+                </span>
+              </p>
+              {!staffId ? (
+                <p>
+                  Ø Stundenlohn:{" "}
+                  <span className="font-medium tabular-nums">
+                    {formatStaffAvgHourlyWage(
+                      wageSummary.actualAvgHourlyWageCents,
+                    )}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {wageSummary.totalWageCents > 0
+                      ? `${formatStaffEuroCents(wageSummary.totalWageCents)} ÷ ${wageSummary.totalNetWorkHours.toFixed(1).replace(".", ",")} h`
+                      : "Gesamtlohn ÷ Netto-Stunden"}
+                  </span>
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -396,15 +467,17 @@ export function StaffWorkHoursView({
             {monthDays.map((day) => {
               const key = localDayKey(day);
               const dayEntries = byDay.get(key) ?? [];
-              const dayAbsence = findStaffAbsenceOnDay(entries, staffId, key);
-              const blockNewTimeEntry = dayAbsence != null;
+              const canAddEntry = Boolean(staffId);
+              const blockNewTimeEntry = staffId
+                ? findStaffAbsenceOnDay(entries, staffId, key) != null
+                : false;
               return (
                 <Card key={key} className="border-border/50 shadow-card">
                   <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
                     <CardTitle className="text-base">
                       {formatDayHeadingDe(day)}
                     </CardTitle>
-                    {allowEdit && !blockNewTimeEntry ? (
+                    {allowEdit && canAddEntry && !blockNewTimeEntry ? (
                       <Button
                         type="button"
                         variant="ghost"
@@ -426,6 +499,12 @@ export function StaffWorkHoursView({
                     ) : (
                       groupWorkHoursDayEntries(dayEntries).map((item) => {
                         if (item.kind === "display_shift") {
+                          const shiftStaffId =
+                            item.segments.find((s) => s.entry_type === "work")
+                              ?.staff_id ?? item.segments[0]?.staff_id;
+                          const shiftStaffLabel = shiftStaffId
+                            ? staffNameById.get(shiftStaffId)
+                            : undefined;
                           return (
                             <button
                               key={item.shiftId}
@@ -433,16 +512,25 @@ export function StaffWorkHoursView({
                               className={entryRowClassName}
                               onClick={() => openDisplayShift(item.segments)}
                             >
-                              <StaffDisplayShiftRow segments={item.segments} />
+                              <div className="min-w-0 flex-1">
+                                {!staffId && shiftStaffLabel ? (
+                                  <p className="mb-1 text-xs text-muted-foreground">
+                                    {shiftStaffLabel}
+                                  </p>
+                                ) : null}
+                                <StaffDisplayShiftRow segments={item.segments} />
+                              </div>
                             </button>
                           );
                         }
 
                         const e = item.entry;
+                        const entryStaffId = e.staff_id;
                         const endInstant = e.is_open ? new Date() : new Date(e.ends_at);
                         const endLabel = e.is_open
                           ? "läuft"
                           : timeDe.format(endInstant);
+                        const entryStaffLabel = staffNameById.get(entryStaffId);
 
                         return (
                           <button
@@ -461,6 +549,11 @@ export function StaffWorkHoursView({
                                 {isDisplayWorkEntry(e) ? (
                                   <span className="ml-1.5 text-xs font-normal text-accent">
                                     (Display)
+                                  </span>
+                                ) : null}
+                                {!staffId && entryStaffLabel ? (
+                                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                    · {entryStaffLabel}
                                   </span>
                                 ) : null}
                               </span>
@@ -482,7 +575,7 @@ export function StaffWorkHoursView({
             open={drawerOpen}
             onOpenChange={setDrawerOpen}
             restaurantId={restaurantId}
-            staffId={staffId}
+            staffId={editEntry?.staff_id ?? staffId ?? ""}
             entry={editEntry}
             defaultDay={dayForNew}
             absenceByDayKey={absenceByDayKey}

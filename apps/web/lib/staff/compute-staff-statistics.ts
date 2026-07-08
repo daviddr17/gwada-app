@@ -8,6 +8,8 @@ import {
 import {
   findStaffContractForDay,
   staffContractActiveOnDay,
+  computeStaffPeriodWageSummary,
+  staffWorkEntryMsForDay,
 } from "@/lib/staff/staff-day-wage";
 import {
   formatHoursDe,
@@ -70,11 +72,17 @@ export type StaffStatisticsResult = {
   sickDays: number;
   avgNetHoursPerActiveStaff: number | null;
   byWeek: Array<{ week: string; weekStart: string; hours: number }>;
+  byDay: Array<{ day: string; dayYmd: string; hours: number }>;
   topStaffByHours: Array<{ name: string; hours: number }>;
   shiftCount: number;
   plannedHours: number;
   shiftPlanWageCents: number;
   shiftCoverageNotes: string[];
+  actualTotalWageCents: number;
+  actualWageNetWorkHours: number;
+  actualAvgHourlyWageCents: number | null;
+  generalAvgWageCents: number | null;
+  staffWithActualWageCount: number;
   byShiftStatus: Array<{
     status: RestaurantStaffScheduledShiftRow["status"];
     label: string;
@@ -105,6 +113,41 @@ function daysInclusive(start: Date, end: Date): Date[] {
 function formatWeekLabel(weekStartYmd: string): string {
   const d = parseLocalDayKey(weekStartYmd);
   return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+}
+
+function formatDayLabel(dayYmd: string): string {
+  const d = parseLocalDayKey(dayYmd);
+  return d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+}
+
+function workHoursByDay(
+  entries: RestaurantStaffWorkEntryRow[],
+  periodStart: Date,
+  periodEnd: Date,
+  now: Date,
+): Map<string, number> {
+  const netByDay = new Map<string, number>();
+
+  for (
+    let day = startOfLocalDay(periodStart);
+    day <= periodEnd;
+    day = addDays(day, 1)
+  ) {
+    const dayYmd = localDayKey(day);
+    let workMs = 0;
+    let breakMs = 0;
+    for (const e of entries) {
+      if (e.entry_type !== "work" && e.entry_type !== "break") continue;
+      const ms = staffWorkEntryMsForDay(e, dayYmd, now);
+      if (ms <= 0) continue;
+      if (e.entry_type === "work") workMs += ms;
+      else breakMs += ms;
+    }
+    const hours = Math.max(0, workMs - breakMs) / 3_600_000;
+    if (hours > 0) netByDay.set(dayYmd, hours);
+  }
+
+  return netByDay;
 }
 
 function countSickDays(entries: RestaurantStaffWorkEntryRow[]): number {
@@ -203,6 +246,20 @@ export function computeStaffStatistics(
       hours: Math.round(hours * 10) / 10,
     }));
 
+  const dayHoursMap = workHoursByDay(
+    input.workEntries,
+    input.periodStart,
+    input.periodEnd,
+    now,
+  );
+  const byDay = [...dayHoursMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([dayYmd, hours]) => ({
+      dayYmd,
+      day: formatDayLabel(dayYmd),
+      hours: Math.round(hours * 10) / 10,
+    }));
+
   const hoursByStaff = new Map<string, number>();
   for (const s of activeStaff) {
     const staffEntries = input.workEntries.filter((e) => e.staff_id === s.id);
@@ -294,6 +351,14 @@ export function computeStaffStatistics(
     );
   }
 
+  const periodWage = computeStaffPeriodWageSummary({
+    entries: input.workEntries,
+    contracts: input.contracts,
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    now,
+  });
+
   return {
     totalActiveStaff: activeStaff.length,
     inactiveStaff,
@@ -308,11 +373,17 @@ export function computeStaffStatistics(
     sickDays,
     avgNetHoursPerActiveStaff,
     byWeek,
+    byDay,
     topStaffByHours,
     shiftCount: shiftSummary.shiftCount,
     plannedHours,
     shiftPlanWageCents: shiftSummary.wageCents,
     shiftCoverageNotes,
+    actualTotalWageCents: periodWage.totalWageCents,
+    actualWageNetWorkHours: periodWage.totalNetWorkHours,
+    actualAvgHourlyWageCents: periodWage.actualAvgHourlyWageCents,
+    generalAvgWageCents: periodWage.generalAvgWageCents,
+    staffWithActualWageCount: periodWage.staffWithWageCount,
     byShiftStatus,
     byShiftWeekday,
     byPosition,

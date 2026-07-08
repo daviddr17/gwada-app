@@ -428,6 +428,42 @@ export function StaffTodosScreen() {
     currentPage * LIST_PAGE_SIZE_DEFAULT,
   );
 
+  const tableExport = useMemo(
+    () => ({
+      documentTitle: "ToDos",
+      filenamePrefix: "mitarbeiter-todos",
+      headers: [
+        "Titel",
+        "Priorität",
+        "Status",
+        "Zuständig",
+        "Fällig",
+        "Bereich",
+        "Gerät",
+      ],
+      rows: filtered.map((todo) => {
+        const statusLabel = formatStaffTodoStatusLabel(
+          todo,
+          restaurantTimezone,
+          staffById,
+        );
+        const recurrence = staffTodoRecurrenceLabel(todo.recurrence);
+        return [
+          todo.title,
+          STAFF_TODO_PRIORITY_LABELS[todo.priority],
+          statusLabel,
+          staffTodoAssigneeLabel(todo),
+          recurrence ?? formatWhen(todo.display_until, restaurantTimezone),
+          staffTodoAreaLabel(todo) ?? "—",
+          staffTodoDeviceLabel(todo) ?? "—",
+        ];
+      }),
+      summaryLine: `${filtered.length} ToDo${filtered.length === 1 ? "" : "s"}`,
+      orientation: "landscape" as const,
+    }),
+    [filtered, restaurantTimezone, staffById],
+  );
+
   useEffect(() => {
     setPage(1);
   }, [
@@ -626,6 +662,7 @@ export function StaffTodosScreen() {
           canNext={currentPage < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          tableExport={tableExport}
         >
               <table className="w-full min-w-[880px] text-sm">
                 <thead>

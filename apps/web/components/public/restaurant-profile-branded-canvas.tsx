@@ -7,6 +7,8 @@ import {
   brandProfileBackdropColors,
   brandedProfileBackdropStyle,
   profileHeroBlobBackground,
+  profileHeroBlobStrongOpacity,
+  type BrandProfileBackdropIntensity,
 } from "@/lib/public-profile/profile-branded-backdrop";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +18,11 @@ export { brandedProfileBackdropStyle } from "@/lib/public-profile/profile-brande
 export function RestaurantProfileBrandedCanvas({
   accentHex,
   sheetOpen = false,
+  intensity = "default",
 }: {
   accentHex: string;
   sheetOpen?: boolean;
+  intensity?: BrandProfileBackdropIntensity;
 }) {
   const reduceMotion = useReducedMotion();
   const [motionReady, setMotionReady] = useState(false);
@@ -38,11 +42,18 @@ export function RestaurantProfileBrandedCanvas({
     return () => globalThis.clearTimeout(id);
   }, [reduceMotion]);
 
-  const showBlobs = motionReady && !reduceMotion;
+  const showBlobs =
+    motionReady &&
+    !reduceMotion &&
+    intensity !== "hint" &&
+    intensity !== "dust";
 
   const blob = (color: string, position: CSSProperties, strongOpacity: number) => ({
     ...position,
-    background: profileHeroBlobBackground(color, strongOpacity),
+    background: profileHeroBlobBackground(
+      color,
+      profileHeroBlobStrongOpacity(strongOpacity, intensity),
+    ),
   });
 
   return (
@@ -52,7 +63,7 @@ export function RestaurantProfileBrandedCanvas({
         "pointer-events-none absolute inset-0 z-0 overflow-hidden bg-background",
         sheetOpen && "[&_.gwada-hero-blob]:![animation-play-state:paused]",
       )}
-      style={brandedProfileBackdropStyle(accentHex)}
+      style={brandedProfileBackdropStyle(accentHex, intensity)}
     >
       {showBlobs ? (
         <>
@@ -108,13 +119,31 @@ export function RestaurantProfileBrandedCanvas({
               62,
             )}
           />
-          <div
-            className="pointer-events-none absolute inset-0 mix-blend-screen opacity-35 dark:opacity-30"
-            style={{
-              background:
-                "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.16) 45%, transparent 70%)",
-            }}
-          />
+          {intensity === "default" ? (
+            <div
+              className="pointer-events-none absolute inset-0 mix-blend-screen opacity-35 dark:opacity-30"
+              style={{
+                background:
+                  "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.16) 45%, transparent 70%)",
+              }}
+            />
+          ) : intensity === "subtle" ? (
+            <div
+              className="pointer-events-none absolute inset-0 mix-blend-screen opacity-10 dark:opacity-8"
+              style={{
+                background:
+                  "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.08) 45%, transparent 70%)",
+              }}
+            />
+          ) : intensity === "whisper" ? (
+            <div
+              className="pointer-events-none absolute inset-0 mix-blend-screen opacity-8 dark:opacity-6"
+              style={{
+                background:
+                  "linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.06) 45%, transparent 70%)",
+              }}
+            />
+          ) : null}
         </>
       ) : null}
     </div>

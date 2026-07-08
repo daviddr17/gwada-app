@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { toast } from "sonner";
 import { TableCellTruncateTooltip } from "@/components/ui/table-cell-truncate-tooltip";
@@ -27,6 +27,7 @@ import {
   moduleDataTableHeadRowMutedClassName,
 } from "@/lib/ui/module-data-table";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
+import { fetchAllPaginatedItems } from "@/lib/export/fetch-all-paginated";
 
 const whenFmt = new Intl.DateTimeFormat("de-DE", {
   day: "2-digit",
@@ -84,6 +85,47 @@ export function DocumentsProtocolScreen() {
 
   const hasSearch = searchDebounced.trim().length > 0;
 
+  const tableExport = useCallback(async () => {
+    if (!restaurantId) {
+      return {
+        documentTitle: "Dokumenten-Protokoll",
+        filenamePrefix: "dokumente-protokoll",
+        headers: ["Datum", "Nutzer", "Dokument", "Datei", "Aktion", "Details"],
+        rows: [] as string[][],
+        summaryLine: "0 Einträge",
+        orientation: "landscape" as const,
+      };
+    }
+
+    const all = await fetchAllPaginatedItems((page, pageSize) =>
+      fetchDocumentLogEntriesPaginated(restaurantId, {
+        page,
+        pageSize,
+        search: searchDebounced,
+      }),
+    );
+
+    return {
+      documentTitle: "Dokumenten-Protokoll",
+      filenamePrefix: "dokumente-protokoll",
+      headers: ["Datum", "Nutzer", "Dokument", "Datei", "Aktion", "Details"],
+      rows: all.map((e) => [
+        formatWhen(e.created_at),
+        resolveDocumentLogEntryActorLabel(e),
+        e.document_title,
+        e.file_name ?? "—",
+        documentLogActionLabel(e.action),
+        e.action === "updated" ||
+        e.action === "note_added" ||
+        e.action === "note_updated"
+          ? formatDocumentLogDetailsSummary(e.details, e.action)
+          : "—",
+      ]),
+      summaryLine: `${all.length} Eintrag${all.length === 1 ? "" : "e"}`,
+      orientation: "landscape" as const,
+    };
+  }, [restaurantId, searchDebounced]);
+
   if (!workspaceReady) {
     return <WorkspaceRestaurantResolvePlaceholder />;
   }
@@ -128,6 +170,7 @@ export function DocumentsProtocolScreen() {
           canNext={page < totalPages}
           onPrevious={() => setPage((p) => Math.max(1, p - 1))}
           onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          tableExport={tableExport}
         >
           <table className="w-full min-w-[800px] text-sm">
             <thead>

@@ -166,6 +166,45 @@ export async function listStaffDocumentsForEmployee(params: {
   return { ok: true, rows: (data ?? []) as StaffDocumentAccessRow[] };
 }
 
+export async function listStaffDocumentsForRestaurant(params: {
+  restaurantId: string;
+  userId: string;
+}): Promise<
+  | { ok: true; rows: StaffDocumentAccessRow[] }
+  | { ok: false; error: string; status: number }
+> {
+  if (!isUuidRestaurantId(params.restaurantId)) {
+    return { ok: false, error: "invalid_request", status: 400 };
+  }
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return { ok: false, error: "server_misconfigured", status: 503 };
+  }
+
+  const userSb = await createSupabaseServerClient();
+  const canHr =
+    (await hasDocumentsManage(userSb, params.restaurantId)) ||
+    (await hasStaffRead(userSb, params.restaurantId));
+
+  if (!canHr) {
+    return { ok: false, error: "forbidden", status: 403 };
+  }
+
+  const { data, error } = await admin
+    .from("restaurant_documents")
+    .select(DOCUMENT_ACCESS_SELECT)
+    .eq("restaurant_id", params.restaurantId)
+    .not("staff_id", "is", null)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    return { ok: false, error: error.message, status: 500 };
+  }
+
+  return { ok: true, rows: (data ?? []) as StaffDocumentAccessRow[] };
+}
+
 export async function listMyStaffDocuments(params: {
   restaurantId: string;
   userId: string;

@@ -61,7 +61,18 @@ export function StaffModuleSelectionProvider({
   );
 
   React.useEffect(() => {
-    if (!needsStaffPicker || selectedStaffId || staffList.length === 0) return;
+    const skipAutoSelect =
+      pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
+      pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
+      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten");
+    if (
+      !needsStaffPicker ||
+      selectedStaffId ||
+      staffList.length === 0 ||
+      skipAutoSelect
+    ) {
+      return;
+    }
     let stored: string | null = null;
     try {
       stored = sessionStorage.getItem(STORAGE_KEY);
@@ -70,7 +81,7 @@ export function StaffModuleSelectionProvider({
     }
     const fallback = pickStoredActiveStaffId(staffList, stored);
     if (fallback) setSelectedStaffId(fallback);
-  }, [needsStaffPicker, selectedStaffId, staffList, setSelectedStaffId]);
+  }, [needsStaffPicker, pathname, selectedStaffId, staffList, setSelectedStaffId]);
 
   React.useEffect(() => {
     if (!needsStaffPicker || !selectedStaffId || staffList.length === 0) return;

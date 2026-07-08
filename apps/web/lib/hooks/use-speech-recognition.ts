@@ -20,7 +20,8 @@ type BrowserSpeechRecognition = {
       length: number;
       [index: number]: {
         isFinal: boolean;
-        0?: { transcript?: string };
+        length: number;
+        [altIndex: number]: { transcript?: string } | undefined;
       };
     };
   }) => void) | null;
@@ -128,22 +129,40 @@ async function primeSafariSpeechAccess(): Promise<boolean> {
   }
 }
 
-function extractFinalTranscript(ev: {
+function extractFinalWithAlternatives(ev: {
   results: {
     length: number;
     [index: number]: {
       isFinal: boolean;
+      length: number;
       0?: { transcript?: string };
+      [altIndex: number]: { transcript?: string } | undefined;
     };
   };
-}): string {
+}): { transcript: string; alternatives: string[] } {
   let finalText = "";
+  const finalAlternatives: string[] = [];
+
   for (let i = 0; i < ev.results.length; i++) {
     const result = ev.results[i];
     if (!result?.isFinal) continue;
     finalText += result[0]?.transcript ?? "";
+    for (let j = 0; j < result.length; j++) {
+      const alt = result[j]?.transcript?.trim();
+      if (alt) finalAlternatives.push(alt);
+    }
   }
-  return finalText.trim();
+
+  const primary = finalText.trim();
+  const alternatives = [
+    ...new Set(
+      finalAlternatives.filter(
+        (alt) => alt.toLowerCase() !== primary.toLowerCase(),
+      ),
+    ),
+  ];
+
+  return { transcript: primary, alternatives };
 }
 
 function extractInterimTranscript(ev: {
@@ -167,7 +186,7 @@ function extractInterimTranscript(ev: {
 
 export function useSpeechRecognition(params?: {
   lang?: string;
-  onFinal?: (transcript: string) => void;
+  onFinal?: (transcript: string, alternatives?: string[]) => void;
   onError?: (message: string) => void;
 }) {
   const lang = params?.lang ?? "de-DE";
@@ -201,10 +220,10 @@ export function useSpeechRecognition(params?: {
   }, [clearSafariFinalizeTimer]);
 
   const deliverFinalTranscript = useCallback(
-    (transcript: string) => {
+    (transcript: string, alternatives?: string[]) => {
       if (!transcript) return;
       setInterim("");
-      onFinalRef.current?.(transcript);
+      onFinalRef.current?.(transcript, alternatives);
     },
     [],
   );
@@ -213,9 +232,12 @@ export function useSpeechRecognition(params?: {
     (recognition: BrowserSpeechRecognition, ev: Parameters<NonNullable<BrowserSpeechRecognition["onresult"]>>[0]) => {
       const finalize = () => {
         clearSafariFinalizeTimer();
-        const transcript = extractFinalTranscript(ev);
+        const { transcript, alternatives } = extractFinalWithAlternatives(ev);
         recognition.stop();
-        deliverFinalTranscript(transcript);
+        deliverFinalTranscript(
+          transcript,
+          alternatives.length > 0 ? alternatives : undefined,
+        );
       };
 
       if (safariAudioEndedRef.current) {
@@ -246,7 +268,7 @@ export function useSpeechRecognition(params?: {
     recognition.lang = lang;
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
+    recognition.maxAlternatives = 5;
 
     const useSafariTabWorkaround =
       isSafariWebKitBrowser() &&
@@ -281,8 +303,13 @@ export function useSpeechRecognition(params?: {
         return;
       }
 
-      const finalText = extractFinalTranscript(ev);
-      if (finalText) deliverFinalTranscript(finalText);
+      const { transcript, alternatives } = extractFinalWithAlternatives(ev);
+      if (transcript) {
+        deliverFinalTranscript(
+          transcript,
+          alternatives.length > 0 ? alternatives : undefined,
+        );
+      }
     };
 
     recognitionRef.current = recognition;

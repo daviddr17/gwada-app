@@ -1,4 +1,12 @@
 import type { jsPDF } from "jspdf";
+import {
+  isEmbeddedPrintHost,
+  isIosTouchDevice,
+  shouldAutoTriggerPrintDialog,
+  type PrintJsPdfResult,
+} from "@/lib/export/print-host";
+
+export type { PrintJsPdfResult } from "@/lib/export/print-host";
 
 export type PrintJsPdfDocumentOptions = {
   /** Dateiname für iOS Share-Sheet (Querformat-PDF). */
@@ -21,15 +29,6 @@ function isSafari(): boolean {
 
 function isFirefox(): boolean {
   return typeof navigator !== "undefined" && /Firefox/i.test(navigator.userAgent);
-}
-
-/** iPhone, iPod, iPad (inkl. iPadOS mit Desktop-UA). */
-function isIosTouchDevice(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-  );
 }
 
 function needsLandscapePrintFrame(): boolean {
@@ -95,6 +94,14 @@ function applyPrintFrameStyles(frame: HTMLIFrameElement, landscape: boolean): vo
   }
 }
 
+function openPdfInNewTab(url: string): void {
+  const printWin = window.open(url, "_blank", "noopener,noreferrer");
+  if (!printWin) {
+    throw new Error("print_popup_blocked");
+  }
+  scheduleBlobRevoke(url);
+}
+
 async function trySharePdfOnIos(blob: Blob, filename: string): Promise<boolean> {
   if (!isIosTouchDevice() || typeof navigator.share !== "function") {
     return false;
@@ -117,7 +124,12 @@ async function trySharePdfOnIos(blob: Blob, filename: string): Promise<boolean> 
   }
 }
 
-async function printPdfInIframe(url: string): Promise<void> {
+async function printPdfInIframe(url: string): Promise<PrintJsPdfResult> {
+  if (isEmbeddedPrintHost()) {
+    openPdfInNewTab(url);
+    return "opened_tab";
+  }
+
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   const landscapeFrame = needsLandscapePrintFrame();
@@ -143,6 +155,12 @@ async function printPdfInIframe(url: string): Promise<void> {
       throw new Error("print_frame_unavailable");
     }
 
+    if (!shouldAutoTriggerPrintDialog()) {
+      cleanup();
+      openPdfInNewTab(url);
+      return "opened_tab";
+    }
+
     win.focus();
     win.print();
 
@@ -151,6 +169,7 @@ async function printPdfInIframe(url: string): Promise<void> {
     } else {
       cleanup();
     }
+    return "printed";
   } catch (error) {
     cleanup();
     throw error;
@@ -159,30 +178,29 @@ async function printPdfInIframe(url: string): Promise<void> {
 
 /**
  * Druckt ein jsPDF-Dokument — auf iPad zuerst Share→Drucken (Querformat-PDF),
- * sonst iframe; optional HTML-Fallback.
+ * sonst iframe; in IDE-Browsern nur PDF-Tab (kein programmatischer Print-Dialog).
  */
 export async function printJsPdfDocument(
   doc: jsPDF,
   options?: PrintJsPdfDocumentOptions,
-): Promise<void> {
+): Promise<PrintJsPdfResult> {
   const blob = doc.output("blob");
   const shareFilename = options?.shareFilename?.trim() || "dokument.pdf";
 
   const shared = await trySharePdfOnIos(blob, shareFilename);
-  if (shared) return;
+  if (shared) return "shared";
 
   const url = URL.createObjectURL(blob);
 
   try {
-    await printPdfInIframe(url);
+    return await printPdfInIframe(url);
   } catch (error) {
     URL.revokeObjectURL(url);
     if (options?.htmlFallback) {
       const { printHtmlLandscapeDocument } = await import(
         "@/lib/export/print-html-landscape-document"
       );
-      printHtmlLandscapeDocument(options.htmlFallback);
-      return;
+      return printHtmlLandscapeDocument(options.htmlFallback);
     }
     throw error;
   }

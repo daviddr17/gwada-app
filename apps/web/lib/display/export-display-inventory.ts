@@ -1,4 +1,5 @@
 import { printTableDocument } from "@/lib/export/print-table-document";
+import type { PrintJsPdfResult } from "@/lib/export/print-host";
 import {
   downloadTableCsv,
   downloadTablePdf,
@@ -140,14 +141,14 @@ export async function printDisplayInventory(
   rows: DisplayInventoryIngredientRow[],
   mode: DisplayInventoryExportMode,
   options?: { restaurantName?: string },
-): Promise<void> {
+): Promise<PrintJsPdfResult> {
   const exportRows = buildDisplayInventoryExportRows(rows, mode);
   const isStock = mode === "stock";
   const summary = isStock
     ? `${exportRows.length} Zutat${exportRows.length === 1 ? "" : "en"} · Spalten „Neuer Bestand“ und „Bestellung“ zum handschriftlichen Eintragen`
     : `${exportRows.length} Position${exportRows.length === 1 ? "" : "en"}`;
 
-  await printTableDocument({
+  return printTableDocument({
     documentTitle: isStock ? "Bestand" : "Bestellung",
     headers: displayInventoryHeaders(mode),
     rows: exportRows,

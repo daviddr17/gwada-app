@@ -1,4 +1,4 @@
-/** DIN A4 Querformat (Breite × Höhe) — Fallback für HTML-Druck. */
+import type { PrintJsPdfResult } from "@/lib/export/print-host";
 export const A4_LANDSCAPE_PAGE_SIZE = "297mm 210mm";
 
 /** DIN A4 Hochformat (Breite × Höhe). */
@@ -173,12 +173,12 @@ function printTableHtml(options: PrintTableDocumentOptions): void {
  */
 export async function printTableDocument(
   options: PrintTableDocumentOptions,
-): Promise<void> {
-  if (options.rows.length === 0) return;
+): Promise<PrintJsPdfResult> {
+  if (options.rows.length === 0) return "printed";
 
   if (options.landscape !== false) {
     const { printTablePdf } = await import("@/lib/export/table-document-export");
-    await printTablePdf({
+    return printTablePdf({
       documentTitle: options.documentTitle,
       filenamePrefix: "druck",
       headers: options.headers,
@@ -188,8 +188,8 @@ export async function printTableDocument(
       orientation: "landscape",
       columnStyles: options.columnStyles,
     });
-    return;
   }
 
   printTableHtml(options);
+  return "printed";
 }

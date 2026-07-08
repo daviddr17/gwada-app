@@ -28,6 +28,7 @@ import type {
   DisplayInventoryFilterOption,
   DisplayInventoryIngredientRow,
 } from "@/lib/display/display-inventory-server";
+import { notifyPrintResult } from "@/lib/export/notify-print-result";
 import {
   countDisplayInventoryExportFilters,
   DEFAULT_DISPLAY_INVENTORY_EXPORT_FILTERS,
@@ -153,7 +154,8 @@ export function DisplayInventoryPrintSheet({
     if (filteredRows.length === 0) return;
     void (async () => {
       try {
-        await printDisplayInventory(filteredRows, mode, { restaurantName });
+        const result = await printDisplayInventory(filteredRows, mode, { restaurantName });
+        notifyPrintResult(result);
         onOpenChange(false);
       } catch {
         toast.error("Drucken fehlgeschlagen.");

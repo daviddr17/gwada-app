@@ -1,6 +1,6 @@
 import { downloadBlob } from "@/lib/export/download-blob";
 import { escapeCsvCell } from "@/lib/export/escape-csv-cell";
-import { printJsPdfDocument } from "@/lib/export/print-jspdf-document";
+import { printJsPdfDocument, type PrintJsPdfResult } from "@/lib/export/print-jspdf-document";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 import type { jsPDF } from "jspdf";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
@@ -163,14 +163,14 @@ export async function buildDayReservationsPdfDocument(
 export async function printDayReservations(
   reservations: ReservationListRow[],
   options?: DayReservationExportOptions,
-): Promise<void> {
+): Promise<PrintJsPdfResult> {
   const sorted = sortReservationsByStart(reservations);
-  if (sorted.length === 0) return;
+  if (sorted.length === 0) return "printed";
   const dayYmd = resolveExportDayYmd(new Date(), options);
   const title = options?.dayTitle?.trim() || "Reservierungen";
   const totals = dayReservationExportTotals(sorted);
   const doc = await buildDayReservationsPdfDocument(sorted, options);
-  await printJsPdfDocument(doc, {
+  return printJsPdfDocument(doc, {
     shareFilename: `reservierungen-${dayYmd}.pdf`,
     htmlFallback: {
       documentTitle: "Reservierungen",

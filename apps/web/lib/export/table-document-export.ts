@@ -1,7 +1,7 @@
 import type { jsPDF } from "jspdf";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { escapeCsvCell } from "@/lib/export/escape-csv-cell";
-import { printJsPdfDocument } from "@/lib/export/print-jspdf-document";
+import { printJsPdfDocument, type PrintJsPdfResult } from "@/lib/export/print-jspdf-document";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 
 function ymdLocal(d: Date): string {
@@ -113,10 +113,10 @@ export async function buildTablePdfDocument({
 
 export async function printTablePdf(
   options: TableDocumentExportOptions,
-): Promise<void> {
-  if (options.rows.length === 0) return;
+): Promise<PrintJsPdfResult> {
+  if (options.rows.length === 0) return "printed";
   const doc = await buildTablePdfDocument(options);
-  await printJsPdfDocument(doc, {
+  return printJsPdfDocument(doc, {
     shareFilename: `${options.filenamePrefix}-${ymdLocal(new Date())}.pdf`,
     htmlFallback: {
       documentTitle: options.documentTitle,

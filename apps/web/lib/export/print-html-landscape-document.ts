@@ -1,3 +1,8 @@
+import {
+  shouldAutoTriggerPrintDialog,
+  type PrintJsPdfResult,
+} from "@/lib/export/print-host";
+
 export type PrintHtmlLandscapeDocumentOptions = {
   documentTitle: string;
   headers: readonly string[];
@@ -14,13 +19,11 @@ function escapeHtml(text: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function buildLandscapePrintHtml({
-  documentTitle,
-  headers,
-  rows,
-  restaurantName,
-  summaryLine,
-}: PrintHtmlLandscapeDocumentOptions): string {
+function buildLandscapePrintHtml(
+  options: PrintHtmlLandscapeDocumentOptions,
+  autoPrint: boolean,
+): string {
+  const { documentTitle, headers, rows, restaurantName, summaryLine } = options;
   const headCells = headers
     .map((h) => `<th>${escapeHtml(h)}</th>`)
     .join("");
@@ -39,6 +42,17 @@ function buildLandscapePrintHtml({
     metaParts.push(escapeHtml(summaryLine.trim()));
   }
   metaParts.push(`Gedruckt ${new Date().toLocaleString("de-DE")}`);
+
+  const printScript = autoPrint
+    ? `<script>
+    window.addEventListener("load", function () {
+      window.setTimeout(function () {
+        window.focus();
+        window.print();
+      }, 350);
+    });
+  </script>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="de">
@@ -102,14 +116,7 @@ function buildLandscapePrintHtml({
     <thead><tr>${headCells}</tr></thead>
     <tbody>${bodyRows}</tbody>
   </table>
-  <script>
-    window.addEventListener("load", function () {
-      window.setTimeout(function () {
-        window.focus();
-        window.print();
-      }, 350);
-    });
-  </script>
+  ${printScript}
 </body>
 </html>`;
 }
@@ -119,10 +126,11 @@ function buildLandscapePrintHtml({
  */
 export function printHtmlLandscapeDocument(
   options: PrintHtmlLandscapeDocumentOptions,
-): void {
-  if (options.rows.length === 0) return;
+): PrintJsPdfResult {
+  if (options.rows.length === 0) return "printed";
 
-  const html = buildLandscapePrintHtml(options);
+  const autoPrint = shouldAutoTriggerPrintDialog();
+  const html = buildLandscapePrintHtml(options, autoPrint);
   const printWin = window.open("", "_blank");
   if (!printWin) {
     throw new Error("print_popup_blocked");
@@ -131,4 +139,6 @@ export function printHtmlLandscapeDocument(
   printWin.document.open();
   printWin.document.write(html);
   printWin.document.close();
+
+  return autoPrint ? "printed" : "opened_tab";
 }

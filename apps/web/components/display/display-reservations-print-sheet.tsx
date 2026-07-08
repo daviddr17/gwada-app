@@ -22,6 +22,7 @@ import {
   drawerScrollAreaClassName,
 } from "@/lib/ui/drawer-form-section";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
+import { notifyPrintResult } from "@/lib/export/notify-print-result";
 import {
   dayReservationExportTotals,
   printDayReservations,
@@ -106,12 +107,13 @@ export function DisplayReservationsPrintSheet({
     if (filteredReservations.length === 0) return;
     void (async () => {
       try {
-        await printDayReservations(filteredReservations, {
+        const result = await printDayReservations(filteredReservations, {
           restaurantName,
           dayTitle,
           timeZone,
           dayYmd,
         });
+        notifyPrintResult(result);
         onOpenChange(false);
       } catch {
         toast.error("Drucken fehlgeschlagen.");

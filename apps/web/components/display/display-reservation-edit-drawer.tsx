@@ -44,18 +44,10 @@ import type {
 import { dispatchReservationOpenResolvedLivePatch } from "@/lib/reservations/reservation-open-status";
 import { parseGuestPhone, formatGuestPhone } from "@/lib/phone/guest-phone";
 import {
-  hhmmToMinutes,
-  minutesToHHmm,
-} from "@/lib/reservations/day-opening-slots";
-import {
   normalizeBookingTimeStepMinutes,
-  snapMinutesToBookingStep,
   type BookingTimeStepMinutes,
 } from "@/lib/reservations/booking-time-step";
-import {
-  restaurantIsoToYmdHm,
-  ymdHmToRestaurantIso,
-} from "@/lib/restaurant/restaurant-timezone";
+import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
 import {
   checkTableAssignmentForSave,
@@ -68,6 +60,11 @@ import {
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
+import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
+import {
+  buildDisplayReservationSlotIso,
+  resolveDisplayReservationDwellMinutes,
+} from "@/lib/display/display-reservation-save-times";
 
 type Status = { id: string; code: string; name: string; color_hex: string };
 
@@ -89,15 +86,6 @@ type BuiltPayload = {
 
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
-
-const DISPLAY_SESSION_ERRORS: Record<string, string> = {
-  session_expired: "Sitzung abgelaufen — bitte erneut anmelden.",
-  session_locked: "Bitte mit PIN anmelden.",
-  module_forbidden: "Keine Berechtigung für Reservierungen.",
-  not_found: "Reservierung nicht gefunden.",
-  table_requires_confirmed:
-    "Tischzuordnung nur bei Status „Bestätigt“ oder „Am Tisch“.",
-};
 
 export function DisplayReservationEditDrawer({
   open,
@@ -204,8 +192,10 @@ export function DisplayReservationEditDrawer({
         if (cancelled) return;
         if (!res.ok) {
           toast.error(
-            DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
+            displayReservationSaveErrorMessage(
+              data.error,
               "Reservierung konnte nicht geladen werden.",
+            ),
           );
           onOpenChange(false);
           return;
@@ -269,12 +259,6 @@ export function DisplayReservationEditDrawer({
   const fieldClass = drawerFormFieldClassName;
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
 
-  const snapTimeField = (hm: string) => {
-    const snapped = minutesToHHmm(snapMinutesToBookingStep(hhmmToMinutes(hm), step));
-    setTimeHm(snapped);
-    return snapped;
-  };
-
   const buildPayload = (): BuiltPayload | null => {
     const ps = Number.parseInt(partySize, 10);
     if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
@@ -289,27 +273,26 @@ export function DisplayReservationEditDrawer({
       toast.error("Bitte einen Status wählen.");
       return null;
     }
-    const snappedTime = snapTimeField(timeHm);
-    let startsIso: string;
-    try {
-      startsIso = ymdHmToRestaurantIso(dateYmd, snappedTime, timeZone);
-    } catch {
+    const minutesForEnd = resolveDisplayReservationDwellMinutes(
+      dwellDraft,
+      defaultDwellMinutes,
+    );
+    if (minutesForEnd == null) {
+      toast.error("Verweildauer: 15–1440 Minuten.");
+      return null;
+    }
+    const slot = buildDisplayReservationSlotIso(
+      dateYmd,
+      timeHm,
+      minutesForEnd,
+      timeZone,
+      step,
+    );
+    if (!slot) {
       toast.error("Ungültiges Datum oder Uhrzeit.");
       return null;
     }
-    const dwellTrim = dwellDraft.trim();
-    let minutesForEnd = defaultDwellMinutes;
-    if (dwellTrim !== "") {
-      const n = Number.parseInt(dwellTrim, 10);
-      if (!Number.isFinite(n) || n < 15 || n > 1440) {
-        toast.error("Verweildauer: 15–1440 Minuten.");
-        return null;
-      }
-      minutesForEnd = n;
-    }
-    const endsIso = new Date(
-      new Date(startsIso).getTime() + minutesForEnd * 60 * 1000,
-    ).toISOString();
+    setTimeHm(slot.snappedTime);
 
     return {
       guest_first_name: firstName.trim() || "Gast",
@@ -317,8 +300,8 @@ export function DisplayReservationEditDrawer({
       guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
       guest_email: email.trim() || null,
       party_size: ps,
-      starts_at: startsIso,
-      ends_at: endsIso,
+      starts_at: slot.startsIso,
+      ends_at: slot.endsIso,
       status_id: statusId,
       dining_table_id:
         tableAssignmentAllowed && tableId !== "__none__" ? tableId : null,
@@ -347,10 +330,7 @@ export function DisplayReservationEditDrawer({
         reservation?: DisplayReservationRow | null;
       };
       if (!res.ok) {
-        toast.error(
-          DISPLAY_SESSION_ERRORS[data.error ?? ""] ??
-            "Speichern fehlgeschlagen.",
-        );
+        toast.error(displayReservationSaveErrorMessage(data.error));
         return;
       }
       toast.success("Reservierung gespeichert.");

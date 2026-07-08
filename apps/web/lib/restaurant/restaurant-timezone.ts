@@ -280,18 +280,13 @@ export function addRestaurantCalendarDaysYmd(
 ): string {
   const parsed = parseRestaurantYmdKey(ymd);
   if (!parsed) return restaurantTodayYmd(timeZone);
-  const noon = utcInstantForRestaurantLocal(
-    parsed.year,
-    parsed.month,
-    parsed.day,
-    12,
-    0,
-    timeZone,
+  const shifted = new Date(
+    Date.UTC(parsed.year, parsed.month - 1, parsed.day + deltaDays),
   );
-  return restaurantZonedDateKey(
-    new Date(noon.getTime() + deltaDays * 86_400_000),
-    timeZone,
-  );
+  const y = shifted.getUTCFullYear();
+  const m = shifted.getUTCMonth() + 1;
+  const d = shifted.getUTCDate();
+  return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
 export function restaurantYesterdayYmd(

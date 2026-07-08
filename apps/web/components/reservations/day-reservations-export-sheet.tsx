@@ -45,17 +45,19 @@ export function DayReservationsExportSheet({
 
   const handlePrint = () => {
     if (reservationCount === 0) return;
-    try {
-      printDayReservations(reservations, {
-        restaurantName,
-        dayTitle,
-        timeZone,
-        dayYmd,
-      });
-      onOpenChange(false);
-    } catch {
-      toast.error("Drucken fehlgeschlagen.");
-    }
+    void (async () => {
+      try {
+        await printDayReservations(reservations, {
+          restaurantName,
+          dayTitle,
+          timeZone,
+          dayYmd,
+        });
+        onOpenChange(false);
+      } catch {
+        toast.error("Drucken fehlgeschlagen.");
+      }
+    })();
   };
 
   const handleCsv = () => {

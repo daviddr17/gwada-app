@@ -1,7 +1,8 @@
 import { downloadBlob } from "@/lib/export/download-blob";
 import { escapeCsvCell } from "@/lib/export/escape-csv-cell";
-import { printTableDocument } from "@/lib/export/print-table-document";
+import { printJsPdfDocument } from "@/lib/export/print-jspdf-document";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
+import type { jsPDF } from "jspdf";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
@@ -96,21 +97,77 @@ export function buildDayReservationExportRows(
   );
 }
 
-export function printDayReservations(
+export async function buildDayReservationsPdfDocument(
   reservations: ReservationListRow[],
   options?: DayReservationExportOptions,
-): void {
+): Promise<jsPDF> {
+  const { jsPDF } = await import("jspdf");
+  const autoTable = (await import("jspdf-autotable")).default;
+  const timeFmt = createTimeFormatter(options?.timeZone);
   const sorted = sortReservationsByStart(reservations);
-  const totals = dayReservationExportTotals(sorted);
   const title = options?.dayTitle?.trim() || "Reservierungen";
-  printTableDocument({
-    documentTitle: "Reservierungen",
-    headers: HEADERS,
-    rows: buildDayReservationExportRows(sorted, options),
-    restaurantName: options?.restaurantName,
-    summaryLine: `${title} · ${totalsSummaryDe(totals)}`,
-    landscape: true,
+
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+  doc.setFontSize(14);
+  doc.text("Reservierungen", 14, 16);
+  doc.setFontSize(10);
+  let y = 22;
+  doc.text(title, 14, y);
+  y += 5;
+  if (options?.restaurantName?.trim()) {
+    doc.text(options.restaurantName.trim(), 14, y);
+    y += 5;
+  }
+  const totals = dayReservationExportTotals(sorted);
+  doc.setFontSize(9);
+  doc.setTextColor(40);
+  doc.text(totalsSummaryDe(totals), 14, y + 2);
+  y += 5;
+  doc.setFontSize(8);
+  doc.setTextColor(100);
+  doc.text(`Export ${new Date().toLocaleString("de-DE")}`, 14, y + 2);
+  doc.setTextColor(0);
+
+  autoTable(doc, {
+    startY: y + 6,
+    head: [HEADERS as unknown as string[]],
+    body: sorted.map((r) => reservationToRow(r, timeFmt)),
+    styles: {
+      fontSize: 9,
+      cellPadding: { top: 4, right: 2, bottom: 4, left: 2 },
+      minCellHeight: 14,
+      valign: "middle",
+    },
+    headStyles: {
+      fillColor: [40, 40, 40],
+      textColor: 255,
+      fontStyle: "bold",
+      minCellHeight: 10,
+    },
+    columnStyles: {
+      0: { cellWidth: 22 },
+      3: { cellWidth: 12, halign: "center" },
+      8: { cellWidth: 14, halign: "center" },
+      9: { cellWidth: 52, minCellHeight: 18 },
+    },
+    alternateRowStyles: { fillColor: [248, 248, 248] },
+    margin: { left: 10, right: 10, bottom: 14 },
   });
+
+  applyJsPdfPageNumbers(doc);
+
+  return doc;
+}
+
+export async function printDayReservations(
+  reservations: ReservationListRow[],
+  options?: DayReservationExportOptions,
+): Promise<void> {
+  const sorted = sortReservationsByStart(reservations);
+  if (sorted.length === 0) return;
+  const doc = await buildDayReservationsPdfDocument(sorted, options);
+  await printJsPdfDocument(doc);
 }
 
 export function downloadDayReservationsCsv(
@@ -144,70 +201,7 @@ export async function downloadDayReservationsPdf(
   reservations: ReservationListRow[],
   options?: DayReservationExportOptions,
 ): Promise<void> {
-  const { jsPDF } = await import("jspdf");
-  const autoTable = (await import("jspdf-autotable")).default;
-  const timeFmt = createTimeFormatter(options?.timeZone);
   const dayYmd = resolveExportDayYmd(day, options);
-
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const title =
-    options?.dayTitle ??
-    day.toLocaleDateString("de-DE", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-
-  doc.setFontSize(14);
-  doc.text("Reservierungen", 14, 16);
-  doc.setFontSize(10);
-  let y = 22;
-  doc.text(title, 14, y);
-  y += 5;
-  if (options?.restaurantName?.trim()) {
-    doc.text(options.restaurantName.trim(), 14, y);
-    y += 5;
-  }
-  const totals = dayReservationExportTotals(reservations);
-  doc.setFontSize(9);
-  doc.setTextColor(40);
-  doc.text(totalsSummaryDe(totals), 14, y + 2);
-  y += 5;
-  doc.setFontSize(8);
-  doc.setTextColor(100);
-  doc.text(`Export ${new Date().toLocaleString("de-DE")}`, 14, y + 2);
-  doc.setTextColor(0);
-
-  const sorted = sortReservationsByStart(reservations);
-
-  autoTable(doc, {
-    startY: y + 6,
-    head: [HEADERS as unknown as string[]],
-    body: sorted.map((r) => reservationToRow(r, timeFmt)),
-    styles: {
-      fontSize: 9,
-      cellPadding: { top: 4, right: 2, bottom: 4, left: 2 },
-      minCellHeight: 14,
-      valign: "middle",
-    },
-    headStyles: {
-      fillColor: [40, 40, 40],
-      textColor: 255,
-      fontStyle: "bold",
-      minCellHeight: 10,
-    },
-    columnStyles: {
-      0: { cellWidth: 22 },
-      3: { cellWidth: 12, halign: "center" },
-      8: { cellWidth: 14, halign: "center" },
-      9: { cellWidth: 52, minCellHeight: 18 },
-    },
-    alternateRowStyles: { fillColor: [248, 248, 248] },
-    margin: { left: 10, right: 10, bottom: 14 },
-  });
-
-  applyJsPdfPageNumbers(doc);
-
+  const doc = await buildDayReservationsPdfDocument(reservations, options);
   doc.save(`reservierungen-${dayYmd}.pdf`);
 }

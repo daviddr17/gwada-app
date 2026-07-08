@@ -7,6 +7,7 @@ import {
   loadDisplayReservationsDay,
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
 
 export async function GET(request: Request) {
   const cookieStore = await cookies();
@@ -58,13 +59,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const given = body.guest_first_name?.trim();
-  const family = body.guest_last_name?.trim();
+  const given = body.guest_first_name?.trim() || "Gast";
+  const family = body.guest_last_name?.trim() ?? "";
   const partySize = body.party_size;
   const startsAt = body.starts_at?.trim();
   const endsAt = body.ends_at?.trim();
 
-  if (!given || !family || !startsAt || !endsAt || !partySize || partySize < 1) {
+  if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
   if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
     return NextResponse.json({ error: "invalid_starts_at" }, { status: 400 });
   }
-  if (endDate.getTime() <= startDate.getTime()) {
+  if (!isValidReservationTimeRange(startsAt, endsAt)) {
     return NextResponse.json({ error: "invalid_time_range" }, { status: 400 });
   }
 

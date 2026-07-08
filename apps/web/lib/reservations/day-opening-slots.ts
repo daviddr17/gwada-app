@@ -72,7 +72,7 @@ export function resolveHoursForRestaurantCalendarDay(
 }
 
 export function hhmmToMinutes(t: string): number {
-  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(t.trim());
   if (!m) return 0;
   const h = Number(m[1]);
   const min = Number(m[2]);

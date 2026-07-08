@@ -136,24 +136,35 @@ function displayInventoryHeaders(mode: DisplayInventoryExportMode): readonly str
   return mode === "stock" ? STOCK_HEADERS : ORDER_HEADERS;
 }
 
-export function printDisplayInventory(
+export async function printDisplayInventory(
   rows: DisplayInventoryIngredientRow[],
   mode: DisplayInventoryExportMode,
   options?: { restaurantName?: string },
-): void {
+): Promise<void> {
   const exportRows = buildDisplayInventoryExportRows(rows, mode);
   const isStock = mode === "stock";
   const summary = isStock
     ? `${exportRows.length} Zutat${exportRows.length === 1 ? "" : "en"} · Spalten „Neuer Bestand“ und „Bestellung“ zum handschriftlichen Eintragen`
     : `${exportRows.length} Position${exportRows.length === 1 ? "" : "en"}`;
 
-  printTableDocument({
+  await printTableDocument({
     documentTitle: isStock ? "Bestand" : "Bestellung",
     headers: displayInventoryHeaders(mode),
     rows: exportRows,
     restaurantName: options?.restaurantName,
     summaryLine: summary,
     landscape: true,
+    columnStyles: isStock
+      ? {
+          1: { cellWidth: 18, halign: "right" },
+          2: { cellWidth: 22 },
+          3: { cellWidth: 22 },
+          4: { cellWidth: 22 },
+        }
+      : {
+          3: { cellWidth: 16, halign: "right" },
+          4: { cellWidth: 16, halign: "right" },
+        },
   });
 }
 

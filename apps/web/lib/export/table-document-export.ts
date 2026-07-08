@@ -1,5 +1,7 @@
+import type { jsPDF } from "jspdf";
 import { downloadBlob } from "@/lib/export/download-blob";
 import { escapeCsvCell } from "@/lib/export/escape-csv-cell";
+import { printJsPdfDocument } from "@/lib/export/print-jspdf-document";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 
 function ymdLocal(d: Date): string {
@@ -50,16 +52,15 @@ export function downloadTableCsv({
   downloadBlob(`${filenamePrefix}-${ymdLocal(new Date())}.csv`, blob);
 }
 
-export async function downloadTablePdf({
+export async function buildTablePdfDocument({
   documentTitle,
-  filenamePrefix,
   headers,
   rows,
   restaurantName,
   summaryLine,
   orientation = "landscape",
   columnStyles,
-}: TableDocumentExportOptions): Promise<void> {
+}: TableDocumentExportOptions): Promise<jsPDF> {
   const { jsPDF } = await import("jspdf");
   const autoTable = (await import("jspdf-autotable")).default;
 
@@ -107,5 +108,22 @@ export async function downloadTablePdf({
 
   applyJsPdfPageNumbers(doc);
 
+  return doc;
+}
+
+export async function printTablePdf(
+  options: TableDocumentExportOptions,
+): Promise<void> {
+  if (options.rows.length === 0) return;
+  const doc = await buildTablePdfDocument(options);
+  await printJsPdfDocument(doc);
+}
+
+export async function downloadTablePdf({
+  documentTitle,
+  filenamePrefix,
+  ...rest
+}: TableDocumentExportOptions): Promise<void> {
+  const doc = await buildTablePdfDocument({ documentTitle, filenamePrefix, ...rest });
   doc.save(`${filenamePrefix}-${ymdLocal(new Date())}.pdf`);
 }

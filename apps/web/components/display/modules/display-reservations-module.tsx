@@ -229,6 +229,7 @@ export function DisplayReservationsModule() {
   );
   const [dayPickerOpen, setDayPickerOpen] = useState(false);
   const hadLoadedRef = useRef(false);
+  const dayShiftLockRef = useRef(0);
 
   const isSelectedToday = selectedDayYmd === restaurantTodayYmd(timeZone);
   const bookingStep = normalizeBookingTimeStepMinutes(
@@ -929,12 +930,35 @@ export function DisplayReservationsModule() {
     );
   };
 
-  const shiftSelectedDay = (deltaDays: number) => {
-    setDayPickerOpen(false);
-    setSelectedDayYmd((current) =>
-      addRestaurantCalendarDaysYmd(current, deltaDays, timeZone),
-    );
-  };
+  const shiftSelectedDay = useCallback(
+    (deltaDays: number) => {
+      const now = Date.now();
+      if (now - dayShiftLockRef.current < 280) return;
+      dayShiftLockRef.current = now;
+      setDayPickerOpen(false);
+      setSelectedDayYmd((current) =>
+        addRestaurantCalendarDaysYmd(current, deltaDays, timeZone),
+      );
+    },
+    [timeZone],
+  );
+
+  const handleShiftDay = useCallback(
+    (deltaDays: number) => (event: React.SyntheticEvent) => {
+      event.stopPropagation();
+      shiftSelectedDay(deltaDays);
+    },
+    [shiftSelectedDay],
+  );
+
+  const handleShiftDayPointerDown = useCallback(
+    (deltaDays: number) => (event: React.PointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0) return;
+      event.stopPropagation();
+      shiftSelectedDay(deltaDays);
+    },
+    [shiftSelectedDay],
+  );
 
   const createInitialTimeHm = useMemo(() => {
     if (selectedDayYmd === restaurantTodayYmd(timeZone)) {
@@ -980,14 +1004,20 @@ export function DisplayReservationsModule() {
     <div className={displayModuleContentClassName}>
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative z-10 flex min-w-0 flex-wrap items-center gap-2">
+          <div
+            className="relative z-10 flex min-w-0 flex-wrap items-center gap-2"
+            onPointerDownCapture={() => {
+              if (dayPickerOpen) setDayPickerOpen(false);
+            }}
+          >
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              className="relative z-10 size-10 shrink-0 rounded-xl"
+              className="relative z-10 size-11 shrink-0 touch-manipulation rounded-xl"
               aria-label="Vorheriger Tag"
-              onClick={() => shiftSelectedDay(-1)}
+              onPointerDown={handleShiftDayPointerDown(-1)}
+              onClick={handleShiftDay(-1)}
             >
               <ChevronLeft className="size-5" />
             </Button>
@@ -1004,9 +1034,10 @@ export function DisplayReservationsModule() {
               type="button"
               variant="ghost"
               size="icon"
-              className="relative z-10 size-10 shrink-0 rounded-xl"
+              className="relative z-10 size-11 shrink-0 touch-manipulation rounded-xl"
               aria-label="Nächster Tag"
-              onClick={() => shiftSelectedDay(1)}
+              onPointerDown={handleShiftDayPointerDown(1)}
+              onClick={handleShiftDay(1)}
             >
               <ChevronRight className="size-5" />
             </Button>

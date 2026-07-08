@@ -1,4 +1,4 @@
-/** DIN A4 Querformat (Breite × Höhe) — zuverlässiger als `A4 landscape` in Safari/iOS. */
+/** DIN A4 Querformat (Breite × Höhe) — Fallback für HTML-Druck. */
 export const A4_LANDSCAPE_PAGE_SIZE = "297mm 210mm";
 
 /** DIN A4 Hochformat (Breite × Höhe). */
@@ -12,6 +12,10 @@ export type PrintTableDocumentOptions = {
   summaryLine?: string;
   /** Querformat für breite Tabellen (Standard). */
   landscape?: boolean;
+  columnStyles?: Record<
+    number,
+    { cellWidth?: number; halign?: "left" | "center" | "right" }
+  >;
 };
 
 function escapeHtml(text: string): string {
@@ -28,9 +32,8 @@ function buildPrintHtml({
   rows,
   restaurantName,
   summaryLine,
-  landscape = true,
 }: PrintTableDocumentOptions): string {
-  const pageSize = landscape ? A4_LANDSCAPE_PAGE_SIZE : A4_PORTRAIT_PAGE_SIZE;
+  const pageSize = A4_PORTRAIT_PAGE_SIZE;
   const headCells = headers
     .map((h) => `<th>${escapeHtml(h)}</th>`)
     .join("");
@@ -120,12 +123,7 @@ function buildPrintHtml({
 </html>`;
 }
 
-/**
- * Öffnet den System-Druckdialog mit einer tabellarischen Vorschau (Display-Module).
- */
-export function printTableDocument(options: PrintTableDocumentOptions): void {
-  if (options.rows.length === 0) return;
-
+function printTableHtml(options: PrintTableDocumentOptions): void {
   const html = buildPrintHtml(options);
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
@@ -167,4 +165,31 @@ export function printTableDocument(options: PrintTableDocumentOptions): void {
       window.setTimeout(triggerPrint, 150);
     };
   }
+}
+
+/**
+ * Öffnet den System-Druckdialog. Querformat läuft über jsPDF (zuverlässig auf iOS),
+ * Hochformat weiterhin über HTML.
+ */
+export async function printTableDocument(
+  options: PrintTableDocumentOptions,
+): Promise<void> {
+  if (options.rows.length === 0) return;
+
+  if (options.landscape !== false) {
+    const { printTablePdf } = await import("@/lib/export/table-document-export");
+    await printTablePdf({
+      documentTitle: options.documentTitle,
+      filenamePrefix: "druck",
+      headers: options.headers,
+      rows: options.rows,
+      restaurantName: options.restaurantName,
+      summaryLine: options.summaryLine,
+      orientation: "landscape",
+      columnStyles: options.columnStyles,
+    });
+    return;
+  }
+
+  printTableHtml(options);
 }

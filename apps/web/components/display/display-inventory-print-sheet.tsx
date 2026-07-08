@@ -151,12 +151,14 @@ export function DisplayInventoryPrintSheet({
 
   const handlePrint = () => {
     if (filteredRows.length === 0) return;
-    try {
-      printDisplayInventory(filteredRows, mode, { restaurantName });
-      onOpenChange(false);
-    } catch {
-      toast.error("Drucken fehlgeschlagen.");
-    }
+    void (async () => {
+      try {
+        await printDisplayInventory(filteredRows, mode, { restaurantName });
+        onOpenChange(false);
+      } catch {
+        toast.error("Drucken fehlgeschlagen.");
+      }
+    })();
   };
 
   return (

@@ -7,6 +7,7 @@ import {
   loadDisplayReservationRowById,
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
 
 export async function GET(
   _request: Request,
@@ -79,6 +80,13 @@ export async function PATCH(
       : typeof dwellRaw === "number" && Number.isFinite(dwellRaw)
         ? dwellRaw
         : null;
+
+  if (
+    !isValidReservationTimeRange(body.starts_at, body.ends_at) ||
+    (dwellMinutes != null && (dwellMinutes < 15 || dwellMinutes > 1440))
+  ) {
+    return NextResponse.json({ error: "invalid_time_range" }, { status: 400 });
+  }
 
   const result = await updateDisplayReservation(
     admin,

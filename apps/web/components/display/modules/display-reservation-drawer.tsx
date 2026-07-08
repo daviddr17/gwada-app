@@ -41,7 +41,6 @@ import {
 import { fetchCountries } from "@/lib/supabase/countries-db";
 import { formatGuestPhone } from "@/lib/phone/guest-phone";
 import {
-  hhmmToMinutes,
   minutesToHHmm,
 } from "@/lib/reservations/day-opening-slots";
 import {
@@ -51,9 +50,7 @@ import {
 } from "@/lib/reservations/booking-time-step";
 import {
   readRestaurantZonedParts,
-  restaurantIsoToYmdHm,
   restaurantTodayYmd,
-  ymdHmToRestaurantIso,
 } from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
 import {
@@ -62,6 +59,11 @@ import {
 } from "@/lib/supabase/dining-floor-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
+import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
+import {
+  buildDisplayReservationSlotIso,
+  resolveDisplayReservationDwellMinutes,
+} from "@/lib/display/display-reservation-save-times";
 
 type Status = { id: string; code: string; name: string; color_hex: string };
 
@@ -146,9 +148,10 @@ export function DisplayReservationDrawer({
     setLastName("");
     setPartySize("2");
     setDateYmd(initialDayYmd.trim() || restaurantTodayYmd(timeZone));
+    const resolvedDayYmd = initialDayYmd.trim() || restaurantTodayYmd(timeZone);
     setTimeHm(
       initialTimeHm?.trim() ||
-        defaultTimeHm(step, timeZone, initialDayYmd, undefined),
+        defaultTimeHm(step, timeZone, resolvedDayYmd, undefined),
     );
     setStatusId(confirmed?.id ?? statuses[0]?.id ?? "");
     setNotifyEmail(true);
@@ -190,12 +193,6 @@ export function DisplayReservationDrawer({
   const fieldClass = drawerFormFieldClassName;
   const drawerTwoColClass = "grid gap-3 sm:grid-cols-2";
 
-  const snapTimeField = (hm: string) => {
-    const snapped = minutesToHHmm(snapMinutesToBookingStep(hhmmToMinutes(hm), step));
-    setTimeHm(snapped);
-    return snapped;
-  };
-
   const submit = async () => {
     const ps = Number.parseInt(partySize, 10);
     if (!Number.isFinite(ps) || ps < 1 || ps > 50) {
@@ -210,27 +207,27 @@ export function DisplayReservationDrawer({
       toast.error("Bitte einen Status wählen.");
       return;
     }
-    const snappedTime = snapTimeField(timeHm);
-    let startsIso: string;
-    try {
-      startsIso = ymdHmToRestaurantIso(dateYmd, snappedTime, timeZone);
-    } catch {
+    const minutesForEnd = resolveDisplayReservationDwellMinutes(
+      dwellDraft,
+      defaultDwellMinutes,
+    );
+    if (minutesForEnd == null) {
+      toast.error("Verweildauer: 15–1440 Minuten.");
+      return;
+    }
+    const slot = buildDisplayReservationSlotIso(
+      dateYmd,
+      timeHm,
+      minutesForEnd,
+      timeZone,
+      step,
+    );
+    if (!slot) {
       toast.error("Ungültiges Datum oder Uhrzeit.");
       return;
     }
-    const dwellTrim = dwellDraft.trim();
-    let minutesForEnd = defaultDwellMinutes;
-    if (dwellTrim !== "") {
-      const n = Number.parseInt(dwellTrim, 10);
-      if (!Number.isFinite(n) || n < 15 || n > 1440) {
-        toast.error("Verweildauer: 15–1440 Minuten.");
-        return;
-      }
-      minutesForEnd = n;
-    }
-    const endsIso = new Date(
-      new Date(startsIso).getTime() + minutesForEnd * 60 * 1000,
-    ).toISOString();
+    setTimeHm(slot.snappedTime);
+    const { startsIso, endsIso } = slot;
 
     setSaving(true);
     try {
@@ -263,11 +260,7 @@ export function DisplayReservationDrawer({
         reservation?: DisplayReservationRow;
       };
       if (!res.ok) {
-        toast.error(
-          data.error === "session_expired"
-            ? "Sitzung abgelaufen — bitte erneut anmelden."
-            : (data.error ?? "Speichern fehlgeschlagen."),
-        );
+        toast.error(displayReservationSaveErrorMessage(data.error));
         return;
       }
       toast.success(

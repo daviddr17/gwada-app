@@ -104,17 +104,19 @@ export function DisplayReservationsPrintSheet({
 
   const handlePrint = () => {
     if (filteredReservations.length === 0) return;
-    try {
-      printDayReservations(filteredReservations, {
-        restaurantName,
-        dayTitle,
-        timeZone,
-        dayYmd,
-      });
-      onOpenChange(false);
-    } catch {
-      toast.error("Drucken fehlgeschlagen.");
-    }
+    void (async () => {
+      try {
+        await printDayReservations(filteredReservations, {
+          restaurantName,
+          dayTitle,
+          timeZone,
+          dayYmd,
+        });
+        onOpenChange(false);
+      } catch {
+        toast.error("Drucken fehlgeschlagen.");
+      }
+    })();
   };
 
   return (

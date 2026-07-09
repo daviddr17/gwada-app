@@ -11,6 +11,7 @@ import {
   StaffPositionTagSelect,
 } from "@/components/staff/staff-position-tag-select";
 import { StaffRestaurantRoleSelect } from "@/components/staff/staff-restaurant-role-select";
+import { StaffAppAccessStatus } from "@/components/staff/staff-app-access-status";
 import {
   staffDrawerFieldClassName,
   staffDrawerScrollClassName,
@@ -799,6 +800,15 @@ export function StaffFormDrawer({
                   {displayName}
                 </p>
               ) : null}
+              {mode === "edit" && staff ? (
+                <StaffAppAccessStatus
+                  className="mt-4"
+                  variant="drawer"
+                  profile_id={staff.profile_id}
+                  linked_profile={staff.linked_profile}
+                  linked_employee={staff.linked_employee}
+                />
+              ) : null}
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="staff-given" className="text-xs">
@@ -1115,14 +1125,6 @@ export function StaffFormDrawer({
               {mode === "edit" && staff && staff.profile_id ? (
                 <FormSection title="App-Account">
                   <div className="space-y-3">
-                    <p className="text-sm font-medium">
-                      {linkedProfileLabel ?? "Verbunden"}
-                    </p>
-                    {!linkedEmployeeActive ? (
-                      <p className="text-xs text-amber-800 dark:text-amber-200">
-                        Restaurant-Zugang ist deaktiviert.
-                      </p>
-                    ) : null}
                     {canManageTeam ? (
                       <Button
                         type="button"

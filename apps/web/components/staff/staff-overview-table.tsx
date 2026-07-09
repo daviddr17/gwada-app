@@ -24,12 +24,16 @@ import type {
   StaffPositionTagDefinition,
 } from "@/lib/types/staff";
 import { StaffLastLoginCell } from "@/components/staff/staff-last-login-cell";
+import { StaffAppAccessStatus } from "@/components/staff/staff-app-access-status";
 import {
   formatStaffLastLogin,
   resolveStaffLastLogin,
   staffLastLoginIso,
 } from "@/lib/staff/staff-last-login";
-import { formatLinkedProfileLabel } from "@/lib/staff/format-linked-profile-label";
+import {
+  resolveStaffAppAccessState,
+  staffAppAccessProfileLabel,
+} from "@/lib/staff/staff-app-access";
 import {
   staffPresenceStatusForRow,
   STAFF_PRESENCE_STATUS_LABELS,
@@ -399,7 +403,7 @@ export function StaffOverviewTable({
         "Status",
         "Anwesenheit",
         "Letzter Login",
-        "App",
+        "Dashboard-Zugang",
         "Angelegt",
       ],
       rows: filteredSorted.map((row) => {
@@ -424,9 +428,15 @@ export function StaffOverviewTable({
             ? "—"
             : STAFF_PRESENCE_STATUS_LABELS[presenceStatus],
           lastLogin ? formatStaffLastLogin(lastLogin.iso) : "—",
-          row.profile_id
-            ? formatLinkedProfileLabel(row.linked_profile)
-            : "—",
+          (() => {
+            const access = resolveStaffAppAccessState(row);
+            if (access === "none") return "Kein Zugang";
+            const label = staffAppAccessProfileLabel(row);
+            if (access === "revoked") {
+              return label ? `Deaktiviert (${label})` : "Deaktiviert";
+            }
+            return label ? `Dashboard (${label})` : "Dashboard";
+          })(),
           formatStaffCreatedAt(row.created_at),
         ];
       }),
@@ -571,9 +581,9 @@ export function StaffOverviewTable({
                   onSort={toggleSort}
                 />
               </th>
-              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[5rem]")}>
+              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7.5rem]")}>
                 <SortHeader
-                  label="App"
+                  label="Dashboard"
                   sortKey="app"
                   activeKey={sortKey}
                   dir={sortDir}
@@ -670,10 +680,13 @@ export function StaffOverviewTable({
                       )}
                     />
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {row.profile_id
-                      ? formatLinkedProfileLabel(row.linked_profile)
-                      : "—"}
+                  <td className="px-4 py-3 align-top">
+                    <StaffAppAccessStatus
+                      profile_id={row.profile_id}
+                      linked_profile={row.linked_profile}
+                      linked_employee={row.linked_employee}
+                      variant="table"
+                    />
                   </td>
                   <td className="px-4 py-3 tabular-nums text-muted-foreground">
                     {formatStaffCreatedAt(row.created_at)}

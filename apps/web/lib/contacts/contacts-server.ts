@@ -506,11 +506,36 @@ export async function fetchContactsForRestaurantServer(
     messageCountByContact.set(cid, (messageCountByContact.get(cid) ?? 0) + 1);
   }
 
+  const tagsByContact = new Map<string, ContactListRow["tags"]>();
+  const { data: tagAssignments } = await sb
+    .from("contact_tag_assignments")
+    .select(
+      "contact_id, tag:contact_tags ( id, restaurant_id, slug, name, background_color, sort_order, is_system )",
+    )
+    .eq("restaurant_id", restaurantId)
+    .in("contact_id", ids);
+
+  for (const row of tagAssignments ?? []) {
+    const r = row as Record<string, unknown>;
+    const contactId = r.contact_id as string;
+    const tagRaw = r.tag;
+    const tag = Array.isArray(tagRaw) ? tagRaw[0] : tagRaw;
+    if (!tag) continue;
+    const mapped = tag as ContactListRow["tags"][number];
+    const list = tagsByContact.get(contactId) ?? [];
+    list.push(mapped);
+    tagsByContact.set(contactId, list);
+  }
+
   return {
     data: rows.map((r) => ({
       ...(r as Omit<
         ContactListRow,
-        "contact_emails" | "contact_phones" | "reservation_count" | "message_count"
+        | "contact_emails"
+        | "contact_phones"
+        | "reservation_count"
+        | "message_count"
+        | "tags"
       >),
       contact_emails: (Array.isArray(r.contact_emails)
         ? r.contact_emails
@@ -520,6 +545,7 @@ export async function fetchContactsForRestaurantServer(
         : []) as ContactListRow["contact_phones"],
       reservation_count: countByContact.get(r.id as string) ?? 0,
       message_count: messageCountByContact.get(r.id as string) ?? 0,
+      tags: tagsByContact.get(r.id as string) ?? [],
     })),
     error: null,
   };

@@ -11,6 +11,10 @@ import {
   normalizeContactPhone,
 } from "@/lib/contacts/normalize-contact-identity";
 import { formatGwadaContactTitle } from "@/lib/contact-messages/waha-chat-label";
+import {
+  fetchContactTagsByContactIds,
+  type ContactTagRow,
+} from "@/lib/supabase/contact-tags-db";
 
 export {
   findContactByEmailNormalized,
@@ -65,6 +69,7 @@ export type ContactListRow = {
   contact_messaging_ids: ContactMessagingIdRow[];
   reservation_count: number;
   message_count: number;
+  tags: ContactTagRow[];
 };
 
 export type ContactReservationLink = {
@@ -104,6 +109,7 @@ function mapContactListRow(
   row: Record<string, unknown>,
   reservationCount: number,
   messageCount: number,
+  tags: ContactTagRow[] = [],
 ): ContactListRow {
   const emails = row.contact_emails;
   const phones = row.contact_phones;
@@ -116,6 +122,7 @@ function mapContactListRow(
       | "contact_messaging_ids"
       | "reservation_count"
       | "message_count"
+      | "tags"
     >),
     contact_emails: (Array.isArray(emails) ? emails : []) as ContactEmailRow[],
     contact_phones: (Array.isArray(phones) ? phones : []) as ContactPhoneRow[],
@@ -124,6 +131,7 @@ function mapContactListRow(
       : []) as ContactMessagingIdRow[],
     reservation_count: reservationCount,
     message_count: messageCount,
+    tags,
   };
 }
 
@@ -184,12 +192,19 @@ export async function fetchContactsForRestaurant(
     messageCountByContact.set(cid, (messageCountByContact.get(cid) ?? 0) + 1);
   }
 
+  const { data: tagsByContact, error: tagsErr } =
+    await fetchContactTagsByContactIds(restaurantId, ids);
+  if (tagsErr) {
+    return { data: [], error: tagsErr };
+  }
+
   return {
     data: rows.map((r) =>
       mapContactListRow(
         r,
         countByContact.get(r.id as string) ?? 0,
         messageCountByContact.get(r.id as string) ?? 0,
+        tagsByContact.get(r.id as string) ?? [],
       ),
     ),
     error: null,
@@ -252,10 +267,17 @@ export async function fetchContactById(params: {
     return { data: null, error: new Error(msgCountErr.message) };
   }
 
+  const { data: tagsByContact, error: tagsErr } =
+    await fetchContactTagsByContactIds(params.restaurantId, [params.contactId]);
+  if (tagsErr) {
+    return { data: null, error: tagsErr };
+  }
+
   const mapped = mapContactListRow(
     data as Record<string, unknown>,
     (reservations ?? []).length,
     messageCount ?? 0,
+    tagsByContact.get(params.contactId) ?? [],
   );
 
   const resRows = (reservations ?? []).map((r) => {

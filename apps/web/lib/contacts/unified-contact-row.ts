@@ -4,6 +4,7 @@ import {
   contactDisplayName,
   type ContactListRow,
 } from "@/lib/supabase/contacts-db";
+import type { ContactTagRow } from "@/lib/supabase/contact-tags-db";
 
 export type UnifiedContactListRow = {
   rowKey: string;
@@ -26,6 +27,7 @@ export type UnifiedContactListRow = {
   phones: string[];
   reservation_count: number;
   message_count: number;
+  tags: ContactTagRow[];
   lexoffice_customer_number: number | null;
 };
 
@@ -60,4 +62,15 @@ export function filterUnifiedContactsByPlatform(
 ): UnifiedContactListRow[] {
   if (filter === "all") return rows;
   return rows.filter((r) => r.platforms.includes(filter));
+}
+
+export function filterUnifiedContactsByTag(
+  rows: UnifiedContactListRow[],
+  tagFilter: "all" | "__untagged__" | string,
+): UnifiedContactListRow[] {
+  if (tagFilter === "all") return rows;
+  if (tagFilter === "__untagged__") {
+    return rows.filter((r) => r.tags.length === 0);
+  }
+  return rows.filter((r) => r.tags.some((t) => t.id === tagFilter));
 }

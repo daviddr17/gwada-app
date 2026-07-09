@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarDays, MessageSquare, Plus, Search } from "lucide-react";
+import { CalendarDays, MessageSquare, Plus, Search, Filter } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
@@ -26,6 +26,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { ContactCatalogFilterChips } from "@/components/contacts/contact-catalog-filter-chips";
+import { ContactTagChip } from "@/components/contacts/contact-tag-chip";
+import {
+  ContactsTagFilterDrawer,
+  countContactsTagActiveFilters,
+} from "@/components/contacts/contacts-tag-filter-drawer";
 import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { ContactMessagesDrawer } from "@/components/contacts/contact-messages-drawer";
 import { ContactPlatformBadges } from "@/components/contacts/contact-platform-badges";
@@ -50,10 +55,19 @@ import {
 import type { ContactCreateDraft } from "@/lib/contact-messages/draft-from-waha-chat";
 import {
   filterUnifiedContactsByPlatform,
+  filterUnifiedContactsByTag,
   unifiedContactAddressLabel,
   unifiedContactDisplayName,
   type UnifiedContactListRow,
 } from "@/lib/contacts/unified-contact-row";
+import {
+  CONTACT_TAG_FILTER_ALL,
+  type ContactTagFilterValue,
+} from "@/lib/constants/contact-tag-presets";
+import {
+  fetchContactTagsForRestaurant,
+  type ContactTagRow,
+} from "@/lib/supabase/contact-tags-db";
 import { useLexofficeContactIntegration } from "@/lib/hooks/use-lexoffice-contact-integration";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -159,6 +173,11 @@ export function ContactsOverview() {
   const [platformFilter, setPlatformFilter] = useState<ContactCatalogPlatformFilter>(
     () => parseContactCatalogPlatformFilter(platformParam),
   );
+  const [tagFilter, setTagFilter] = useState<ContactTagFilterValue>(
+    CONTACT_TAG_FILTER_ALL,
+  );
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [restaurantTags, setRestaurantTags] = useState<ContactTagRow[]>([]);
   const [createDraft, setCreateDraft] = useState<ContactCreateDraft | null>(null);
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey | null>("lastInteraction");
@@ -206,6 +225,13 @@ export function ContactsOverview() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    if (!restaurantId) return;
+    void fetchContactTagsForRestaurant(restaurantId).then(({ data }) => {
+      setRestaurantTags(data);
+    });
+  }, [restaurantId]);
 
   useEffect(() => {
     setPlatformFilter(parseContactCatalogPlatformFilter(platformParam));
@@ -268,6 +294,7 @@ export function ContactsOverview() {
 
   const filteredSorted = useMemo(() => {
     let list = filterUnifiedContactsByPlatform(rows, platformFilter);
+    list = filterUnifiedContactsByTag(list, tagFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter((r) => {
@@ -321,7 +348,7 @@ export function ContactsOverview() {
       }
     });
     return list;
-  }, [rows, search, sortKey, sortDir, platformFilter]);
+  }, [rows, search, sortKey, sortDir, platformFilter, tagFilter]);
 
   const totalCount = filteredSorted.length;
   const totalPages = totalPagesFromCount(totalCount, LIST_PAGE_SIZE_DEFAULT);
@@ -334,7 +361,9 @@ export function ContactsOverview() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, platformFilter]);
+  }, [search, platformFilter, tagFilter]);
+
+  const tagFilterActiveCount = countContactsTagActiveFilters(tagFilter);
 
   const tableExport = useMemo(() => {
     const unifiedToContactRow = (row: UnifiedContactListRow): ContactListRow => ({
@@ -371,6 +400,7 @@ export function ContactsOverview() {
       contact_messaging_ids: [],
       reservation_count: row.reservation_count,
       message_count: row.message_count,
+      tags: row.tags,
     });
 
     const rows = filteredSorted.map((r) => {
@@ -523,15 +553,32 @@ export function ContactsOverview() {
           ) : null}
 
           <div className="space-y-3">
-            <div className="relative min-w-0">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nachname, Vorname, Firma, E-Mail, Telefon, Adresse …"
-                className="h-10 w-full rounded-xl pl-9"
-                aria-label="Kontakte durchsuchen"
-              />
+            <div className="flex gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nachname, Vorname, Firma, E-Mail, Telefon, Adresse …"
+                  className="h-10 w-full rounded-xl pl-9"
+                  aria-label="Kontakte durchsuchen"
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                className="relative shrink-0 rounded-full border-border/60"
+                aria-label="Filter"
+                onClick={() => setTagFilterOpen(true)}
+              >
+                <Filter className="size-4" />
+                {tagFilterActiveCount > 0 ? (
+                  <span className="absolute -right-0.5 -top-0.5 flex size-4 items-center justify-center rounded-full bg-accent text-[9px] font-bold text-accent-foreground">
+                    {tagFilterActiveCount}
+                  </span>
+                ) : null}
+              </Button>
             </div>
             <Button
               type="button"
@@ -627,6 +674,9 @@ export function ContactsOverview() {
                       onSort={toggleSort}
                     />
                   </th>
+                  <th className="min-w-[7rem] px-2 py-2 text-left hidden lg:table-cell">
+                    <span className={moduleDataTableHeadLabelClassName}>Tags</span>
+                  </th>
                   <th className="min-w-[6.5rem] px-2 py-2 text-left hidden xl:table-cell">
                     <SortHeader
                       label="Zuletzt"
@@ -646,7 +696,7 @@ export function ContactsOverview() {
                 {loading ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       Laden …
@@ -655,7 +705,7 @@ export function ContactsOverview() {
                 ) : filteredSorted.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-3 py-10 text-center text-muted-foreground"
                     >
                       {search.trim()
@@ -700,6 +750,17 @@ export function ContactsOverview() {
                           title={addr}
                         >
                           <span className="block truncate">{addr}</span>
+                        </td>
+                        <td className="px-2 py-2 align-middle hidden lg:table-cell">
+                          <div className="flex flex-wrap gap-1 max-w-[10rem]">
+                            {r.tags.length > 0 ? (
+                              r.tags.map((tag) => (
+                                <ContactTagChip key={tag.id} tag={tag} />
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-2 py-2 align-middle text-xs text-muted-foreground hidden xl:table-cell whitespace-nowrap">
                           {formatWhen(r.last_interaction_at)}
@@ -801,6 +862,14 @@ export function ContactsOverview() {
           contactName={messagesDrawer.name}
         />
       ) : null}
+
+      <ContactsTagFilterDrawer
+        open={tagFilterOpen}
+        onOpenChange={setTagFilterOpen}
+        tagFilter={tagFilter}
+        onTagFilterChange={setTagFilter}
+        tags={restaurantTags}
+      />
     </>
   );
 }

@@ -226,6 +226,7 @@ export function ReservationsOverview() {
   const dayParam = searchParams.get("day");
   const createTimeParam = searchParams.get("time");
   const createTableParam = searchParams.get("table");
+  const createContactParam = searchParams.get("contact");
 
   useEffect(() => {
     if (!isNewParam) return;
@@ -239,6 +240,11 @@ export function ReservationsOverview() {
     }
     if (tb && !isUuidRestaurantId(tb)) {
       p.delete("table");
+      bad = true;
+    }
+    const c = searchParams.get("contact");
+    if (c && !isUuidRestaurantId(c)) {
+      p.delete("contact");
       bad = true;
     }
     if (bad) {
@@ -380,6 +386,13 @@ export function ReservationsOverview() {
     return createTableParam;
   }, [createTableParam]);
 
+  const createForInitialContactId = useMemo(() => {
+    if (!createContactParam || !isUuidRestaurantId(createContactParam)) {
+      return undefined;
+    }
+    return createContactParam;
+  }, [createContactParam]);
+
   const createFor =
     isNewParam && workspaceRestaurantId && createForDayFromUrl
       ? {
@@ -390,6 +403,9 @@ export function ReservationsOverview() {
             : {}),
           ...(createForInitialTableId
             ? { initialDiningTableId: createForInitialTableId }
+            : {}),
+          ...(createForInitialContactId
+            ? { initialContactId: createForInitialContactId }
             : {}),
         }
       : null;

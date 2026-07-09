@@ -114,6 +114,12 @@ import {
   touchPhoneLocalInputMode,
 } from "@/lib/ui/touch-numeric-input";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  contactDisplayName,
+  fetchContactById,
+  primaryEmail,
+  primaryPhone,
+} from "@/lib/supabase/contacts-db";
 import { cn } from "@/lib/utils";
 
 const selectValueNoShrink =
@@ -125,6 +131,8 @@ export type ReservationEditDrawerCreateContext = {
   /** Lokale Uhrzeit HH:mm für neue Reservierung (z. B. aus Tagesübersicht / Tischplan). */
   initialTimeHm?: string;
   initialDiningTableId?: string | null;
+  /** Kontakt-ID — Gastfelder vorausfüllen. */
+  initialContactId?: string;
 };
 
 type ReservationEditDrawerProps = {
@@ -400,6 +408,31 @@ export function ReservationEditDrawer({
           ? createFor.initialDiningTableId
           : "__none__",
       );
+
+      const contactId = createFor.initialContactId;
+      if (contactId && createFor.restaurantId) {
+        void (async () => {
+          const { data, error } = await fetchContactById({
+            restaurantId: createFor.restaurantId,
+            contactId,
+          });
+          if (error || !data) return;
+          setFirstName(reservationGuestFirstNameForForm(data.first_name));
+          setLastName(data.last_name);
+          const phone = primaryPhone(data);
+          if (phone) {
+            const parsed = parseGuestPhone(
+              phone,
+              countriesForPhone,
+              defaultIso,
+            );
+            setPhoneCountryIso(parsed.iso2);
+            setPhoneLocal(parsed.local);
+          }
+          const mail = primaryEmail(data);
+          if (mail) setEmail(mail);
+        })();
+      }
     }
   }, [
     open,
@@ -408,8 +441,10 @@ export function ReservationEditDrawer({
     createFor?.day,
     createFor?.initialTimeHm,
     createFor?.initialDiningTableId,
+    createFor?.initialContactId,
     restaurantIdForFetch,
     getProfileForRestaurantId,
+    countriesForPhone,
   ]);
 
   useEffect(() => {

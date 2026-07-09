@@ -48,6 +48,9 @@ import { isInvalidContactEmailValue } from "@/lib/contacts/contact-identity-conf
 import { dispatchDashboardWidgetLiveFetch } from "@/lib/dashboard/dashboard-widgets-live-events";
 import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { ContactQuickActionsBar } from "@/components/contacts/contact-quick-actions-bar";
+import { ContactTagsEditor } from "@/components/contacts/contact-tags-editor";
+import { ContactTimelineSection } from "@/components/contacts/contact-timeline-section";
 import { cn } from "@/lib/utils";
 
 type EmailDraft = { key: string; email: string; label: string };
@@ -156,6 +159,8 @@ export function ContactEditDrawer({
     canAddToLexoffice: boolean;
     canLinkToLexoffice: boolean;
   } | null>(null);
+  const [assignedTagIds, setAssignedTagIds] = useState<string[]>([]);
+  const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
   const linkExistingLexofficeId = initialDraft?.linkExistingLexofficeId ?? null;
 
   useEffect(() => {
@@ -285,6 +290,7 @@ export function ContactEditDrawer({
         return;
       }
       setDetail(data);
+      setAssignedTagIds(data.tags.map((t) => t.id));
       setFirstName(data.first_name);
       setLastName(data.last_name);
       setCompany(data.company ?? "");
@@ -601,7 +607,7 @@ export function ContactEditDrawer({
                 </DrawerTitle>
                 <DrawerDescription className="text-base">
                   {isEdit
-                    ? "Stammdaten, Kanäle und verknüpfte Reservierungen."
+                    ? "Stammdaten, Tags, Aktivitäten und verknüpfte Reservierungen."
                     : "Kontakt mit E-Mail, Telefon und optionaler Adresse anlegen."}
                 </DrawerDescription>
               </div>
@@ -915,6 +921,39 @@ export function ContactEditDrawer({
                 </div>
               ) : null}
               </DrawerFormSection>
+            ) : null}
+
+            {isEdit && detail && contactId ? (
+              <>
+                <DrawerFormSection title="Schnellaktionen">
+                  <ContactQuickActionsBar
+                    restaurantId={restaurantId}
+                    contact={detail}
+                    onNoteAdded={() => setTimelineRefreshKey((k) => k + 1)}
+                  />
+                </DrawerFormSection>
+
+                <DrawerFormSection title="Tags">
+                  <ContactTagsEditor
+                    restaurantId={restaurantId}
+                    contactId={contactId}
+                    assignedTagIds={assignedTagIds}
+                    disabled={loading || saving}
+                    onTagsChanged={(ids) => {
+                      setAssignedTagIds(ids);
+                      onSaved?.();
+                    }}
+                  />
+                </DrawerFormSection>
+
+                <DrawerFormSection title="Aktivitäten">
+                  <ContactTimelineSection
+                    restaurantId={restaurantId}
+                    contact={detail}
+                    refreshKey={timelineRefreshKey}
+                  />
+                </DrawerFormSection>
+              </>
             ) : null}
 
             <DrawerFormSection title="Notizen">

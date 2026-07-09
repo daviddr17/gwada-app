@@ -39,6 +39,7 @@ function gwadaRowToUnified(row: ContactListRow): UnifiedContactListRow {
     phones: phonesForCell(row),
     reservation_count: row.reservation_count,
     message_count: row.message_count,
+    tags: row.tags,
     lexoffice_customer_number: null,
   };
 }
@@ -67,6 +68,7 @@ function lexofficeRowToUnified(contact: LexofficeContact): UnifiedContactListRow
     phones: extractLexofficePhones(contact),
     reservation_count: 0,
     message_count: 0,
+    tags: [],
     lexoffice_customer_number: contact.roles?.customer?.number ?? null,
   };
 }
@@ -93,6 +95,7 @@ function mergeGwadaLexoffice(
     address_city: gwada.address_city ?? lexoffice.address_city,
     address_country: gwada.address_country ?? lexoffice.address_country,
     notes: gwada.notes ?? lexoffice.notes,
+    tags: gwada.tags,
   };
 }
 

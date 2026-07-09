@@ -1111,14 +1111,16 @@ export function DisplayReservationsModule() {
           </div>
         </div>
         <div>
-          {isSelectedToday ? (
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">
-              Heute
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <p className="text-sm text-muted-foreground">
+              {formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
             </p>
-          ) : null}
-          <p className="text-sm text-muted-foreground">
-            {formatRestaurantDayHeadingDe(selectedDayYmd, timeZone)}
-          </p>
+            {isSelectedToday ? (
+              <span className="text-sm font-medium text-green-600 dark:text-green-400">
+                Heute
+              </span>
+            ) : null}
+          </div>
           {showDataSkeleton ? (
             <div className="mt-2 flex flex-wrap gap-4">
               <Skeleton className="h-7 w-36 rounded-lg" />

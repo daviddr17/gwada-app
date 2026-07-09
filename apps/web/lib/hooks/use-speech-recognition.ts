@@ -146,6 +146,7 @@ function unlockSafariAudioContext(): void {
 }
 
 async function holdMicrophoneForSpeech(): Promise<boolean> {
+  if (!shouldHoldMicrophoneForSpeech()) return true;
   if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
     return true;
   }
@@ -264,11 +265,20 @@ function extractInterimTranscript(ev: {
   return interimText.trim();
 }
 
+function shouldReuseIosRecognitionSingleton(): boolean {
+  return isIosWebKitBrowser() && !isStandalonePwaClient();
+}
+
+function shouldHoldMicrophoneForSpeech(): boolean {
+  /** iPad-PWA: getUserMedia blockiert oft die Web-Speech-API — nur Safari-Tab nutzt Held-Mic. */
+  return isSafariWebKitBrowser() && !isStandalonePwaClient();
+}
+
 function createRecognition(
   Ctor: SpeechRecognitionCtor,
   lang: string,
 ): BrowserSpeechRecognition {
-  if (isIosWebKitBrowser() && sharedIosRecognition) {
+  if (shouldReuseIosRecognitionSingleton() && sharedIosRecognition) {
     sharedIosRecognition.lang = lang;
     return sharedIosRecognition;
   }
@@ -279,7 +289,7 @@ function createRecognition(
   recognition.maxAlternatives = 5;
   recognition.continuous = isIosWebKitBrowser();
 
-  if (isIosWebKitBrowser()) {
+  if (shouldReuseIosRecognitionSingleton()) {
     sharedIosRecognition = recognition;
   }
 
@@ -287,7 +297,13 @@ function createRecognition(
 }
 
 function preloadIosRecognition(Ctor: SpeechRecognitionCtor, lang: string): void {
-  if (iosPreloadDone || !isIosWebKitBrowser()) return;
+  if (
+    iosPreloadDone ||
+    !isIosWebKitBrowser() ||
+    isStandalonePwaClient()
+  ) {
+    return;
+  }
   iosPreloadDone = true;
   const recognition = new Ctor();
   recognition.lang = lang;
@@ -344,6 +360,9 @@ export function useSpeechRecognition(params?: {
       stopSafariRecognition(recognition);
     }
     recognitionRef.current = null;
+    if (isStandalonePwaClient() && isIosWebKitBrowser()) {
+      sharedIosRecognition = null;
+    }
     safariAudioEndedRef.current = false;
     sessionDeliveredRef.current = false;
     latestResultsEventRef.current = null;
@@ -459,6 +478,7 @@ export function useSpeechRecognition(params?: {
         }
       }
       onErrorRef.current?.(speechRecognitionErrorMessage(ev.error));
+      setInterim("");
       releaseHeldMicrophone();
       setListening(false);
     };
@@ -472,9 +492,10 @@ export function useSpeechRecognition(params?: {
     recognition.onresult = (ev) => {
       latestResultsEventRef.current = ev;
       const interimText = extractInterimTranscript(ev);
-      if (interimText) setInterim(interimText);
-
       const best = extractBestTranscript(ev).transcript;
+      if (interimText) setInterim(interimText);
+      else if (best) setInterim(best);
+
       if (best) lastHeardTranscriptRef.current = best;
 
       if (useSafariWebKitWorkaround) {
@@ -525,10 +546,12 @@ export function useSpeechRecognition(params?: {
       return;
     }
 
+    setListening(true);
+    setInterim("Hört zu …");
     unlockSafariAudioContext();
 
     void (async () => {
-      if (!micWarmupDone && isSafariWebKitBrowser()) {
+      if (!micWarmupDone && isSafariWebKitBrowser() && !isStandalonePwaClient()) {
         micWarmupDone = true;
         try {
           if (window.speechSynthesis) {
@@ -542,6 +565,8 @@ export function useSpeechRecognition(params?: {
 
       const micReady = await holdMicrophoneForSpeech();
       if (!micReady) {
+        setListening(false);
+        setInterim("");
         onErrorRef.current?.(speechRecognitionErrorMessage("not-allowed"));
         return;
       }

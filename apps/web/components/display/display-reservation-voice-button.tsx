@@ -2,6 +2,7 @@
 
 import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -11,11 +12,12 @@ import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import type { BookingTimeStepMinutes } from "@/lib/reservations/booking-time-step";
 import {
   formatParsedReservationVoiceLabel,
-  parseReservationVoiceText,
+  parseReservationVoiceTextWithAlternatives,
   type ParsedReservationVoice,
 } from "@/lib/reservations/parse-reservation-voice-text";
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
+import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { cn } from "@/lib/utils";
 
 type DisplayReservationVoiceButtonProps = {
@@ -44,24 +46,30 @@ export function DisplayReservationVoiceButton({
     setMounted(true);
   }, []);
 
-  const handleFinalTranscript = useCallback((transcript: string) => {
-    setHeardText(transcript);
-    const result = parseReservationVoiceText(transcript);
-    if (!result.ok) {
-      toast.error(result.error, {
-        description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
-      });
-      return;
-    }
-    setPending(result.parsed);
-    setConfirmOpen(true);
-  }, []);
+  const handleFinalTranscript = useCallback(
+    (transcript: string, alternatives?: string[]) => {
+      setHeardText(transcript);
+      const result = parseReservationVoiceTextWithAlternatives(
+        transcript,
+        alternatives ?? [],
+      );
+      if (!result.ok) {
+        toast.error(result.error, {
+          description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
+        });
+        return;
+      }
+      setPending(result.parsed);
+      setConfirmOpen(true);
+    },
+    [],
+  );
 
   const handleSpeechError = useCallback((message: string) => {
     toast.error(message);
   }, []);
 
-  const { supported, listening, start, stop } = useSpeechRecognition({
+  const { supported, listening, interim, start, stop } = useSpeechRecognition({
     lang: "de-DE",
     onFinal: handleFinalTranscript,
     onError: handleSpeechError,
@@ -101,6 +109,16 @@ export function DisplayReservationVoiceButton({
 
   return (
     <>
+      {mounted
+        ? createPortal(
+            <SpeechLiveCaption
+              listening={listening}
+              interim={interim}
+              floating
+            />,
+            document.body,
+          )
+        : null}
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={(open) => {

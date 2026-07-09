@@ -75,6 +75,23 @@ function normalizeText(input: string): string {
     .trim();
 }
 
+/** STT-typische Abweichungen vor dem Parsing glätten. */
+function normalizeSpokenReservationText(input: string): string {
+  let text = normalizeText(input).toLowerCase();
+  text = text
+    .replace(/\bpersoen?\b/g, "personen")
+    .replace(/\bperson\b/g, "personen")
+    .replace(/\bleute\b/g, "personen")
+    .replace(/\bpax\b/g, "personen")
+    .replace(/\buhr(e|en)?\b/g, "uhr")
+    .replace(/\bpunkt\b/g, " ")
+    .replace(/\bkomma\b/g, " ")
+    .replace(/\bund\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text;
+}
+
 function stripPrefixes(text: string): string {
   return text
     .replace(
@@ -87,20 +104,29 @@ function stripPrefixes(text: string): string {
 
 function parsePartySize(text: string): { size: number; rest: string } | null {
   const wordAlt = Object.keys(WORD_NUM).join("|");
-  const re = new RegExp(
-    `(\\d+|${wordAlt})\\s*(personen|pers\\.?|gäste?|gast|p\\.?)\\b`,
-    "i",
-  );
-  const m = text.match(re);
-  if (!m) return null;
-  const raw = m[1]!.toLowerCase();
-  const size =
-    /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : (WORD_NUM[raw] ?? NaN);
-  if (!Number.isFinite(size) || size < 1 || size > 50) return null;
-  const rest = (text.slice(0, m.index!) + text.slice(m.index! + m[0].length))
-    .replace(/\s+/g, " ")
-    .trim();
-  return { size, rest };
+  const patterns = [
+    new RegExp(
+      `(\\d+|${wordAlt})\\s*(personen|pers\\.?|gäste?|gast|p\\.?)\\b`,
+      "i",
+    ),
+    new RegExp(`\\bfür\\s+(\\d+|${wordAlt})\\b`, "i"),
+    new RegExp(`\\bmit\\s+(\\d+|${wordAlt})\\b`, "i"),
+  ];
+
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (!m) continue;
+    const raw = m[1]!.toLowerCase();
+    const size =
+      /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : (WORD_NUM[raw] ?? NaN);
+    if (!Number.isFinite(size) || size < 1 || size > 50) continue;
+    const rest = (text.slice(0, m.index!) + text.slice(m.index! + m[0].length))
+      .replace(/\s+/g, " ")
+      .trim();
+    return { size, rest };
+  }
+
+  return null;
 }
 
 function resolveYear(
@@ -144,6 +170,24 @@ function parseDateYmd(
   text: string,
   ref: Date,
 ): { ymd: string; rest: string } | null {
+  const relative = text.match(/\b(heute|morgen|übermorgen|uebermorgen)\b/i);
+  if (relative) {
+    const word = relative[1]!.toLowerCase();
+    const day = new Date(ref);
+    if (word === "morgen") day.setDate(day.getDate() + 1);
+    if (word === "übermorgen" || word === "uebermorgen") {
+      day.setDate(day.getDate() + 2);
+    }
+    const ymd = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+    const rest = (
+      text.slice(0, relative.index!) +
+      text.slice(relative.index! + relative[0].length)
+    )
+      .replace(/\s+/g, " ")
+      .trim();
+    return { ymd, rest };
+  }
+
   const dotted = text.match(
     /\b(\d{1,2})[\./\-](\d{1,2})(?:[\./\-](\d{2,4}))?\b/,
   );
@@ -201,6 +245,7 @@ function parseDateYmd(
 }
 
 function parseTimeHm(text: string): { hm: string; rest: string } | null {
+  const wordAlt = Object.keys(WORD_NUM).join("|");
   const umClock = text.match(
     /\b(?:um\s+)?(\d{1,2})[:.](\d{2})\s*(?:uhr)?\b/i,
   );
@@ -218,10 +263,33 @@ function parseTimeHm(text: string): { hm: string; rest: string } | null {
     return { hm, rest };
   }
 
-  const hourOnly = text.match(/\b(?:um\s+)?(\d{1,2})\s*uhr\b/i);
+  const spacedClock = text.match(
+    /\b(?:um\s+)?(\d{1,2})\s+(\d{2})\s*(?:uhr)?\b/i,
+  );
+  if (spacedClock) {
+    const h = Number.parseInt(spacedClock[1]!, 10);
+    const mi = Number.parseInt(spacedClock[2]!, 10);
+    if (h >= 0 && h <= 23 && mi >= 0 && mi <= 59) {
+      const hm = `${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+      const rest = (
+        text.slice(0, spacedClock.index!) +
+        text.slice(spacedClock.index! + spacedClock[0].length)
+      )
+        .replace(/\s+/g, " ")
+        .trim();
+      return { hm, rest };
+    }
+  }
+
+  const hourOnly = text.match(
+    new RegExp(`\\b(?:um\\s+)?(\\d{1,2}|${wordAlt})\\s*uhr\\b`, "i"),
+  );
   if (hourOnly) {
-    const h = Number.parseInt(hourOnly[1]!, 10);
-    if (h < 0 || h > 23) return null;
+    const raw = hourOnly[1]!.toLowerCase();
+    const h = /^\d+$/.test(raw)
+      ? Number.parseInt(raw, 10)
+      : (WORD_NUM[raw] ?? NaN);
+    if (!Number.isFinite(h) || h < 0 || h > 23) return null;
     const hm = `${String(h).padStart(2, "0")}:00`;
     const rest = (
       text.slice(0, hourOnly.index!) +
@@ -286,7 +354,7 @@ export function parseReservationVoiceText(
   if (!party) {
     return {
       ok: false,
-      error: "Personenzahl fehlt (z. B. „3 Personen“).",
+      error: "Personenzahl fehlt (z. B. „3 Personen“ oder „für 3“).",
     };
   }
   text = party.rest;
@@ -295,7 +363,8 @@ export function parseReservationVoiceText(
   if (!date) {
     return {
       ok: false,
-      error: "Datum fehlt (z. B. „18.7.“, „18. Juli“ oder „18.7.2026“ — Jahr optional, sonst aktuelles Jahr).",
+      error:
+        "Datum fehlt (z. B. „heute“, „18.7.“, „18. Juli“ — Jahr optional, sonst aktuelles Jahr).",
     };
   }
   text = date.rest;
@@ -304,7 +373,7 @@ export function parseReservationVoiceText(
   if (!time) {
     return {
       ok: false,
-      error: "Uhrzeit fehlt (z. B. „19 Uhr“ oder „19:00“).",
+      error: "Uhrzeit fehlt (z. B. „19 Uhr“, „19:00“ oder „19 30“).",
     };
   }
   text = time.rest;
@@ -322,6 +391,34 @@ export function parseReservationVoiceText(
       rawName,
     },
   };
+}
+
+/** Primärtranskript + STT-Alternativen und gesprochene Varianten ausprobieren. */
+export function parseReservationVoiceTextWithAlternatives(
+  primary: string,
+  alternatives: string[] = [],
+  options?: { referenceDate?: Date },
+): ParseReservationVoiceResult {
+  const tried = new Set<string>();
+  const candidates = [primary, ...alternatives];
+
+  for (const raw of candidates) {
+    const text = normalizeText(raw);
+    if (!text || tried.has(text)) continue;
+    tried.add(text);
+    const result = parseReservationVoiceText(text, options);
+    if (result.ok) return result;
+  }
+
+  for (const raw of candidates) {
+    const text = normalizeSpokenReservationText(raw);
+    if (!text || tried.has(text)) continue;
+    tried.add(text);
+    const result = parseReservationVoiceText(text, options);
+    if (result.ok) return result;
+  }
+
+  return parseReservationVoiceText(primary, options);
 }
 
 export function formatParsedReservationVoiceLabel(

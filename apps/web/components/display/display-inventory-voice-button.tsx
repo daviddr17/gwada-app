@@ -2,6 +2,7 @@
 
 import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import {
   parsePurchaseOrderVoiceText,
 } from "@/lib/inventory/parse-purchase-order-voice-text";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
+import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { cn } from "@/lib/utils";
 
 const COPY = {
@@ -223,7 +225,7 @@ export function DisplayInventoryVoiceButton({
     toast.error(message);
   }, []);
 
-  const { supported, listening, start, stop } = useSpeechRecognition({
+  const { supported, listening, interim, start, stop } = useSpeechRecognition({
     lang: "de-DE",
     onFinal: handleFinalTranscript,
     onError: handleSpeechError,
@@ -322,6 +324,13 @@ export function DisplayInventoryVoiceButton({
           <Mic className="size-5" strokeWidth={2.25} aria-hidden />
         )}
       </Button>
+
+      {listening && mounted
+        ? createPortal(
+            <SpeechLiveCaption listening={listening} interim={interim} floating />,
+            document.body,
+          )
+        : null}
     </>
   );
 }

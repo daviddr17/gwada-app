@@ -1,14 +1,7 @@
 import "server-only";
 
-import {
-  buildSignupConfirmationEmailHtml,
-  buildSignupConfirmationEmailText,
-} from "@/lib/email/signup-confirmation-email-html";
-import { fetchTransactionalEmailBranding } from "@/lib/email/fetch-transactional-email-branding";
-import { sendViaSmtp } from "@/lib/email/send-via-smtp";
-import { smtpCredentialsFromConfig } from "@/lib/integrations/smtp-integration-config";
-import { resolveEmailSender } from "@/lib/email/email-delivery";
-import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
+import { buildSignupConfirmationLinkAdmin } from "@/lib/auth/signup-confirmation-link-admin";
+import { sendSignupConfirmationEmail } from "@/lib/auth/signup-confirmation-email-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
@@ -29,53 +22,6 @@ function isAlreadyRegisteredError(message: string | undefined): boolean {
     lower.includes("already been registered") ||
     lower.includes("user already registered")
   );
-}
-
-async function sendSignupConfirmationEmail(params: {
-  email: string;
-  confirmLink: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const admin = createSupabaseAdminClient();
-  if (!admin) {
-    return { ok: false, error: "admin_unavailable" };
-  }
-
-  const platformEmail = await fetchPlatformEmailSmtpConfigAdmin();
-  if (!platformEmail?.enabled) {
-    return { ok: false, error: "smtp_not_configured" };
-  }
-
-  const smtp = smtpCredentialsFromConfig(platformEmail.config);
-  if (!smtp) {
-    return { ok: false, error: "smtp_incomplete" };
-  }
-
-  const branding = await fetchTransactionalEmailBranding(admin);
-  const sender = resolveEmailSender({
-    useCustom: false,
-    fromEmail: smtp.email,
-    fromName: platformEmail.config.from_name ?? branding.appName,
-  });
-
-  const emailContent = {
-    appName: branding.appName,
-    confirmLink: params.confirmLink,
-    logoUrl: branding.logoUrl,
-  };
-
-  const sent = await sendViaSmtp(smtp, {
-    to: params.email,
-    subject: `E-Mail bestätigen — ${branding.appName}`,
-    text: buildSignupConfirmationEmailText(emailContent),
-    html: buildSignupConfirmationEmailHtml(emailContent),
-    fromName: sender.name,
-  });
-
-  if (!sent.ok) {
-    return { ok: false, error: sent.error };
-  }
-
-  return { ok: true };
 }
 
 export async function registerStaffInviteAccountServer(params: {
@@ -139,23 +85,22 @@ export async function registerStaffInviteAccountServer(params: {
     family_name: params.familyName.trim(),
   };
 
-  const linkResult = await admin.auth.admin.generateLink({
-    type: "signup",
+  let linkResult = await buildSignupConfirmationLinkAdmin(admin, {
     email,
     password: params.password,
-    options: { redirectTo, data: metadata },
+    redirectTo,
+    data: metadata,
+    siteUrl: origin,
   });
 
-  let confirmLink = linkResult.data?.properties?.action_link ?? null;
-
-  if (linkResult.error || !confirmLink) {
-    if (!isAlreadyRegisteredError(linkResult.error?.message)) {
-      console.warn("[staff-invite-register] generateLink signup", linkResult.error?.message);
+  if (!linkResult.ok) {
+    if (!isAlreadyRegisteredError(linkResult.error)) {
+      console.warn("[staff-invite-register] generateLink signup", linkResult.error);
       return {
         ok: false,
         error: "signup_failed",
         message:
-          linkResult.error?.message ??
+          linkResult.error ??
           "Registrierung fehlgeschlagen. Bitte erneut versuchen.",
       };
     }
@@ -204,15 +149,15 @@ export async function registerStaffInviteAccountServer(params: {
       };
     }
 
-    const resend = await admin.auth.admin.generateLink({
-      type: "signup",
+    linkResult = await buildSignupConfirmationLinkAdmin(admin, {
       email,
       password: params.password,
-      options: { redirectTo, data: metadata },
+      redirectTo,
+      data: metadata,
+      siteUrl: origin,
     });
-    confirmLink = resend.data?.properties?.action_link ?? null;
-    if (resend.error || !confirmLink) {
-      console.warn("[staff-invite-register] generateLink resend", resend.error?.message);
+    if (!linkResult.ok) {
+      console.warn("[staff-invite-register] generateLink resend", linkResult.error);
       return {
         ok: false,
         error: "signup_failed",
@@ -221,7 +166,10 @@ export async function registerStaffInviteAccountServer(params: {
     }
   }
 
-  const sent = await sendSignupConfirmationEmail({ email, confirmLink });
+  const sent = await sendSignupConfirmationEmail({
+    email,
+    confirmLink: linkResult.confirmLink,
+  });
   if (!sent.ok) {
     if (sent.error === "smtp_not_configured" || sent.error === "smtp_incomplete") {
       return {

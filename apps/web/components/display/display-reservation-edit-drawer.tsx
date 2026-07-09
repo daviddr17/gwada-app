@@ -17,7 +17,7 @@ import {
   displayTouchPhoneLocalInputMode,
   digitsOnlyInput,
 } from "@/lib/ui/touch-numeric-input";
-import { Loader2, Mail } from "lucide-react";
+import { Loader2, Mail, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { TermsGlyph } from "@/components/icons/terms-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
@@ -81,6 +81,7 @@ import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
+import { dispatchDisplayReservationsRefresh } from "@/lib/display/display-reservations-live-events";
 import { displayReservationSaveErrorMessage } from "@/lib/display/display-reservation-save-errors";
 import {
   buildDisplayReservationSlotIso,
@@ -147,6 +148,7 @@ export function DisplayReservationEditDrawer({
     payload: BuiltPayload;
     detail: Extract<TableAssignmentCheck, { kind: "confirm_share" }>;
   } | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -418,6 +420,36 @@ export function DisplayReservationEditDrawer({
     void executeSave(payload);
   };
 
+  const handleDeleteReservation = async () => {
+    if (!reservationId || !detail) return;
+    setSaving(true);
+    try {
+      const res = await fetch(
+        `/api/display/reservations/${encodeURIComponent(reservationId)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        toast.error(
+          displayReservationSaveErrorMessage(
+            data.error,
+            "Löschen fehlgeschlagen.",
+          ),
+        );
+        return;
+      }
+      toast.success("Reservierung gelöscht.");
+      dispatchDisplayReservationsRefresh();
+      allowDrawerCloseRef.current = true;
+      onOpenChange(false);
+      onSaved(null);
+    } catch {
+      toast.error("Löschen fehlgeschlagen.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <>
       <Drawer
@@ -428,19 +460,36 @@ export function DisplayReservationEditDrawer({
       >
         <DrawerContent className={drawerContentClassName("displayForm")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
-            <DrawerTitle className="text-xl font-semibold tracking-tight">
-              Reservierung bearbeiten
-            </DrawerTitle>
-            {detail && !loading ? (
-              <DrawerDescription className="text-base leading-relaxed">
-                <ReservationAccessMeta
-                  reservationNumber={detail.reservation_number}
-                  guestPin={detail.guest_pin}
-                />
-              </DrawerDescription>
-            ) : loading ? (
-              <Skeleton className="mt-2 h-5 w-48 rounded-md" />
-            ) : null}
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 text-left">
+                <DrawerTitle className="text-xl font-semibold tracking-tight">
+                  Reservierung bearbeiten
+                </DrawerTitle>
+                {detail && !loading ? (
+                  <DrawerDescription className="text-base leading-relaxed">
+                    <ReservationAccessMeta
+                      reservationNumber={detail.reservation_number}
+                      guestPin={detail.guest_pin}
+                    />
+                  </DrawerDescription>
+                ) : loading ? (
+                  <Skeleton className="mt-2 h-5 w-48 rounded-md" />
+                ) : null}
+              </div>
+              {detail && !loading ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="shrink-0 text-muted-foreground hover:text-destructive"
+                  aria-label="Reservierung löschen"
+                  disabled={saving}
+                  onClick={() => setConfirmDeleteOpen(true)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              ) : null}
+            </div>
           </DrawerHeader>
 
           {open ? (
@@ -791,6 +840,26 @@ export function DisplayReservationEditDrawer({
           ) : null}
         </DrawerContent>
       </Drawer>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Reservierung wirklich löschen?"
+        description={
+          detail ? (
+            <>
+              Reservierung #{detail.reservation_number} für{" "}
+              <span className="font-medium text-foreground">
+                {detail.guest_first_name} {detail.guest_last_name}
+              </span>{" "}
+              wird dauerhaft entfernt.
+            </>
+          ) : null
+        }
+        confirmLabel="Ja, löschen"
+        confirmDisabled={saving}
+        onConfirm={handleDeleteReservation}
+      />
 
       <ConfirmDialog
         open={tableSharePending !== null}

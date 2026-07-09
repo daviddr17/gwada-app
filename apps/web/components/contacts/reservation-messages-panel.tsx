@@ -109,7 +109,7 @@ export function ReservationMessagesPanel({
   return (
     <div className="min-w-0 space-y-3 overflow-x-hidden rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        Nachrichten zur Reservierung
+        Nachrichtenverlauf
       </p>
       <ContactMessageChatViewport
         messages={messages}

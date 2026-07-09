@@ -1,5 +1,5 @@
 import { sendMagicLinkEmailServer } from "@/lib/auth/magic-link-email-server";
-import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin";
+import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_email" }, { status: 400 });
   }
 
-  const origin = resolveRequestOriginFromRequest(req);
+  const origin = resolvePublicAppOrigin(req);
   const sb = await createSupabaseServerClient();
   const result = await sendMagicLinkEmailServer({
     email,

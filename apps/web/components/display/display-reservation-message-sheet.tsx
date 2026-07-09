@@ -226,7 +226,7 @@ export function DisplayReservationMessageSheet({
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6">
             <div className="space-y-2 rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Nachrichten zur Reservierung
+                Nachrichtenverlauf
               </p>
               <ContactMessageChatViewport
                 messages={messages}

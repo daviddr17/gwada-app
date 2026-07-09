@@ -16,6 +16,16 @@ import {
 import {
   conversationThreadKeyFromRow,
 } from "@/lib/contact-messages/conversation-thread-key";
+import {
+  mergeMessageRowsById,
+  reservationGuestThreadKeys,
+} from "@/lib/contact-messages/reservation-message-thread-keys";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import {
+  findContactByEmailNormalized,
+  findContactByPhoneNormalized,
+} from "@/lib/contacts/contact-identity-conflict";
+import { normalizeContactEmail, normalizeContactPhone } from "@/lib/contacts/normalize-contact-identity";
 import type {
   ContactMessageAttachment,
   ContactMessageAttachmentKind,
@@ -201,6 +211,53 @@ export async function fetchContactMessages(params: {
   return { data: enriched, error: null };
 }
 
+async function fetchRawMessagesForThreadKey(
+  sb: ReturnType<typeof createSupabaseBrowserClient>,
+  restaurantId: string,
+  threadKey: string,
+): Promise<{ rows: Record<string, unknown>[]; error: Error | null }> {
+  let q = sb
+    .from("contact_messages")
+    .select(MESSAGE_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: true });
+
+  if (isLinkedContactId(threadKey)) {
+    q = q.eq("contact_id", threadKey);
+  } else {
+    q = q.eq("conversation_key", threadKey);
+  }
+
+  const { data, error } = await q;
+  if (error) return { rows: [], error: new Error(error.message) };
+  return { rows: (data ?? []) as Record<string, unknown>[], error: null };
+}
+
+async function resolveLinkedContactIdForReservationGuest(
+  restaurantId: string,
+  guestPhone: string | null,
+  guestEmail: string | null,
+): Promise<string | null> {
+  const phoneNorm = guestPhone ? normalizeContactPhone(guestPhone) : null;
+  const emailNorm = guestEmail ? normalizeContactEmail(guestEmail) : null;
+
+  if (phoneNorm) {
+    const byPhone = await findContactByPhoneNormalized({
+      restaurantId,
+      phoneNormalized: phoneNorm,
+    });
+    if (byPhone) return byPhone.contactId;
+  }
+  if (emailNorm) {
+    const byEmail = await findContactByEmailNormalized({
+      restaurantId,
+      emailNormalized: emailNorm,
+    });
+    if (byEmail) return byEmail.contactId;
+  }
+  return null;
+}
+
 export async function fetchReservationContactMessages(params: {
   restaurantId: string;
   reservationId: string;
@@ -215,7 +272,7 @@ export async function fetchReservationContactMessages(params: {
 
   const { data: reservation, error: reservationError } = await sb
     .from("reservations")
-    .select("contact_id, created_at")
+    .select("contact_id, guest_email, guest_phone")
     .eq("restaurant_id", params.restaurantId)
     .eq("id", params.reservationId)
     .maybeSingle();
@@ -237,43 +294,36 @@ export async function fetchReservationContactMessages(params: {
     return { data: [], error: new Error(linkedError.message) };
   }
 
-  for (const row of linked ?? []) {
-    const id = (row as { id: string }).id;
-    rawById.set(id, row as Record<string, unknown>);
+  mergeMessageRowsById(rawById, (linked ?? []) as Record<string, unknown>[]);
+
+  const guestPhone = (reservation?.guest_phone as string | null) ?? null;
+  const guestEmail = (reservation?.guest_email as string | null) ?? null;
+
+  let linkedContactId = (reservation?.contact_id as string | null) ?? null;
+  if (!linkedContactId) {
+    linkedContactId = await resolveLinkedContactIdForReservationGuest(
+      params.restaurantId,
+      guestPhone,
+      guestEmail,
+    );
   }
 
-  const contactId = (reservation?.contact_id as string | null) ?? null;
-  const createdAt = reservation?.created_at as string | undefined;
-  if (contactId && createdAt) {
-    const windowStart = new Date(
-      new Date(createdAt).getTime() - 2 * 60 * 1000,
-    ).toISOString();
-    const windowEnd = new Date(
-      new Date(createdAt).getTime() + 15 * 60 * 1000,
-    ).toISOString();
+  const threadKeys = reservationGuestThreadKeys({
+    guestEmail,
+    guestPhone,
+    linkedContactId,
+  });
 
-    const { data: orphans, error: orphanError } = await sb
-      .from("contact_messages")
-      .select(MESSAGE_SELECT)
-      .eq("restaurant_id", params.restaurantId)
-      .eq("contact_id", contactId)
-      .eq("direction", "inbound")
-      .eq("platform", "gwada")
-      .is("reservation_id", null)
-      .gte("created_at", windowStart)
-      .lte("created_at", windowEnd)
-      .order("created_at", { ascending: true });
-
-    if (orphanError) {
-      return { data: [], error: new Error(orphanError.message) };
+  for (const threadKey of threadKeys) {
+    const { rows, error } = await fetchRawMessagesForThreadKey(
+      sb,
+      params.restaurantId,
+      threadKey,
+    );
+    if (error) {
+      return { data: [], error };
     }
-
-    for (const row of orphans ?? []) {
-      const id = (row as { id: string }).id;
-      if (!rawById.has(id)) {
-        rawById.set(id, row as Record<string, unknown>);
-      }
-    }
+    mergeMessageRowsById(rawById, rows);
   }
 
   const rawRows = [...rawById.values()].sort((a, b) =>

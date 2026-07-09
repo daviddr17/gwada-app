@@ -11,6 +11,7 @@ import { resolveEmailSender } from "@/lib/email/email-delivery";
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
+import { generateAdminAuthActionLink } from "@/lib/auth/generate-admin-auth-action-link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 const DEFAULT_RESET_NEXT = "/auth/neues-passwort";
@@ -45,15 +46,19 @@ export async function sendPasswordResetEmailServer(params: {
   const origin = params.origin.replace(/\/$/, "");
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-    options: { redirectTo },
-  });
+  const linkResult = await generateAdminAuthActionLink(
+    admin,
+    {
+      type: "recovery",
+      email,
+      options: { redirectTo },
+    },
+    { siteUrl: origin, redirectTo },
+  );
 
-  if (error || !data.properties?.action_link) {
-    console.warn("password reset generateLink", error?.message);
-    return { ok: false, error: error?.message ?? "link_generation_failed" };
+  if (!linkResult.ok) {
+    console.warn("password reset generateLink", linkResult.error);
+    return { ok: false, error: linkResult.error };
   }
 
   const branding = await fetchTransactionalEmailBranding(
@@ -67,7 +72,7 @@ export async function sendPasswordResetEmailServer(params: {
 
   const emailContent = {
     appName: branding.appName,
-    resetLink: data.properties.action_link,
+    resetLink: linkResult.actionLink,
     logoUrl: branding.logoUrl,
   };
 

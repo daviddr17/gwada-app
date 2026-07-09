@@ -479,6 +479,49 @@ async function resolveTableLabel(
   });
 }
 
+export async function deleteDisplayReservation(
+  admin: SupabaseClient,
+  restaurantId: string,
+  reservationId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data: reservation } = await admin
+    .from("reservations")
+    .select(
+      "id, restaurant_id, reservation_number, guest_first_name, guest_last_name",
+    )
+    .eq("id", reservationId)
+    .maybeSingle();
+
+  if (!reservation || reservation.restaurant_id !== restaurantId) {
+    return { ok: false, error: "not_found" };
+  }
+
+  const { error } = await admin.from("reservations").delete().eq("id", reservationId);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  await insertReservationLogEntry(admin, {
+    restaurantId,
+    reservationId,
+    actorUserId: null,
+    action: "deleted",
+    reservationNumber: reservation.reservation_number as number,
+    guestLabel: formatReservationGuestLabel(
+      reservation.reservation_number as number,
+      reservation.guest_first_name as string,
+      reservation.guest_last_name as string,
+    ),
+    details: buildReservationLogDetails([], {
+      actorSource: "display",
+      summary: "Reservierung gelöscht",
+    }),
+  });
+
+  return { ok: true };
+}
+
 export async function applyDisplayAutoTableAssignments(
   admin: SupabaseClient,
   restaurantId: string,

@@ -13,6 +13,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
+import { generateAdminAuthActionLink } from "@/lib/auth/generate-admin-auth-action-link";
 import { isSignupAllowedForEmailAdmin } from "@/lib/auth/staff-invite-signup-gate";
 import { GWADA_PUBLIC_SIGNUP_ENABLED } from "@/lib/auth/public-signup-gate";
 
@@ -57,15 +58,19 @@ export async function sendMagicLinkEmailServer(params: {
   const origin = params.origin.replace(/\/$/, "");
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(next)}`;
 
-  const { data, error } = await admin.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: { redirectTo },
-  });
+  const linkResult = await generateAdminAuthActionLink(
+    admin,
+    {
+      type: "magiclink",
+      email,
+      options: { redirectTo },
+    },
+    { siteUrl: origin, redirectTo },
+  );
 
-  if (error || !data.properties?.action_link) {
-    console.warn("magic link generateLink", error?.message);
-    return { ok: false, error: error?.message ?? "link_generation_failed" };
+  if (!linkResult.ok) {
+    console.warn("magic link generateLink", linkResult.error);
+    return { ok: false, error: linkResult.error };
   }
 
   const branding = await fetchTransactionalEmailBranding(
@@ -77,7 +82,7 @@ export async function sendMagicLinkEmailServer(params: {
     fromName: platformEmail.config.from_name ?? branding.appName,
   });
 
-  const magicLink = data.properties.action_link;
+  const magicLink = linkResult.actionLink;
   const emailContent = {
     appName: branding.appName,
     magicLink,

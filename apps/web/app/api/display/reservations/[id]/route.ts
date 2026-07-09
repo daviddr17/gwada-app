@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
-import { updateDisplayReservation } from "@/lib/display/display-reservation-mutations-server";
+import {
+  deleteDisplayReservation,
+  updateDisplayReservation,
+} from "@/lib/display/display-reservation-mutations-server";
 import {
   loadDisplayReservationDetail,
   loadDisplayReservationRowById,
@@ -136,4 +139,30 @@ export async function PATCH(
   const reservation = await loadDisplayReservationRowById(access.restaurantId, id);
 
   return NextResponse.json({ ok: true, reservation });
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
+  }
+
+  const cookieStore = await cookies();
+  const access = await assertDisplayModuleAccess(cookieStore, "reservations");
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  const { id } = await context.params;
+  const result = await deleteDisplayReservation(admin, access.restaurantId, id);
+
+  if (!result.ok) {
+    const status = result.error === "not_found" ? 404 : 500;
+    return NextResponse.json({ error: result.error }, { status });
+  }
+
+  return NextResponse.json({ ok: true });
 }

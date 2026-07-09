@@ -6,6 +6,12 @@ import {
   type RawMessageAttachmentRow,
 } from "@/lib/contact-messages/fetch-message-attachments";
 import {
+  mergeMessageRowsById,
+  reservationGuestThreadKeys,
+} from "@/lib/contact-messages/reservation-message-thread-keys";
+import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
+import { resolveContactIdByGuestIdentity } from "@/lib/reviews/contact-gwada-review-server";
+import {
   mapContactMessageRowFromRecord,
   type ContactMessageRow,
 } from "@/lib/supabase/contact-messages-db";
@@ -51,6 +57,28 @@ async function enrichMessageRows(
   );
 }
 
+async function fetchRawMessagesForThreadKey(
+  client: SupabaseClient,
+  restaurantId: string,
+  threadKey: string,
+): Promise<{ rows: Record<string, unknown>[]; error: string | null }> {
+  let q = client
+    .from("contact_messages")
+    .select(MESSAGE_SELECT)
+    .eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: true });
+
+  if (isLinkedContactId(threadKey)) {
+    q = q.eq("contact_id", threadKey);
+  } else {
+    q = q.eq("conversation_key", threadKey);
+  }
+
+  const { data, error } = await q;
+  if (error) return { rows: [], error: error.message };
+  return { rows: (data ?? []) as Record<string, unknown>[], error: null };
+}
+
 /** Reservierungs-Nachrichten (Server/Display) — gleiche Logik wie Browser-Client. */
 export async function fetchReservationContactMessagesServer(
   client: SupabaseClient,
@@ -65,7 +93,7 @@ export async function fetchReservationContactMessagesServer(
 
   const { data: reservation, error: reservationError } = await client
     .from("reservations")
-    .select("contact_id, created_at")
+    .select("contact_id, created_at, guest_email, guest_phone")
     .eq("restaurant_id", params.restaurantId)
     .eq("id", params.reservationId)
     .maybeSingle();
@@ -87,43 +115,33 @@ export async function fetchReservationContactMessagesServer(
     return { data: [], error: linkedError.message };
   }
 
-  for (const row of linked ?? []) {
-    const id = (row as { id: string }).id;
-    rawById.set(id, row as Record<string, unknown>);
+  mergeMessageRowsById(rawById, (linked ?? []) as Record<string, unknown>[]);
+
+  let linkedContactId = (reservation?.contact_id as string | null) ?? null;
+  if (!linkedContactId) {
+    linkedContactId = await resolveContactIdByGuestIdentity(client, {
+      restaurantId: params.restaurantId,
+      guestPhone: (reservation?.guest_phone as string | null) ?? null,
+      guestEmail: (reservation?.guest_email as string | null) ?? null,
+    });
   }
 
-  const contactId = (reservation?.contact_id as string | null) ?? null;
-  const createdAt = reservation?.created_at as string | undefined;
-  if (contactId && createdAt) {
-    const windowStart = new Date(
-      new Date(createdAt).getTime() - 2 * 60 * 1000,
-    ).toISOString();
-    const windowEnd = new Date(
-      new Date(createdAt).getTime() + 15 * 60 * 1000,
-    ).toISOString();
+  const threadKeys = reservationGuestThreadKeys({
+    guestEmail: (reservation?.guest_email as string | null) ?? null,
+    guestPhone: (reservation?.guest_phone as string | null) ?? null,
+    linkedContactId,
+  });
 
-    const { data: orphans, error: orphanError } = await client
-      .from("contact_messages")
-      .select(MESSAGE_SELECT)
-      .eq("restaurant_id", params.restaurantId)
-      .eq("contact_id", contactId)
-      .eq("direction", "inbound")
-      .eq("platform", "gwada")
-      .is("reservation_id", null)
-      .gte("created_at", windowStart)
-      .lte("created_at", windowEnd)
-      .order("created_at", { ascending: true });
-
-    if (orphanError) {
-      return { data: [], error: orphanError.message };
+  for (const threadKey of threadKeys) {
+    const { rows, error } = await fetchRawMessagesForThreadKey(
+      client,
+      params.restaurantId,
+      threadKey,
+    );
+    if (error) {
+      return { data: [], error };
     }
-
-    for (const row of orphans ?? []) {
-      const id = (row as { id: string }).id;
-      if (!rawById.has(id)) {
-        rawById.set(id, row as Record<string, unknown>);
-      }
-    }
+    mergeMessageRowsById(rawById, rows);
   }
 
   const rawRows = [...rawById.values()].sort((a, b) =>

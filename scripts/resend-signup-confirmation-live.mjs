@@ -8,6 +8,11 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import nodemailer from "nodemailer";
+import {
+  buildSignupConfirmationEmailHtml,
+  buildSignupConfirmationEmailText,
+  generateAdminAuthActionLink,
+} from "./lib/signup-confirmation-email-ops.mjs";
 
 const ORIGIN = (process.env.GWADA_PUBLIC_SITE_URL || "https://gwada.app").replace(
   /\/$/,
@@ -28,29 +33,20 @@ function smtpCredentialsFromConfig(config) {
   return { email, password, smtpHost, smtpPort };
 }
 
-function buildSignupConfirmationEmailHtml({ appName, confirmLink }) {
-  return `<!DOCTYPE html><html lang="de"><body style="font-family:system-ui,sans-serif;line-height:1.5;color:#111">
-<p><strong>${appName}</strong></p>
-<p><strong>E-Mail-Adresse bestätigen</strong></p>
-<p>Bitte tippe auf den Button, um dein Konto zu aktivieren. Danach kannst du die Restaurant-Einladung annehmen.</p>
-<p><a href="${confirmLink}" style="display:inline-block;padding:12px 20px;border-radius:12px;background:#0f766e;color:#fff;text-decoration:none;font-weight:600">E-Mail bestätigen</a></p>
-<p style="font-size:12px;color:#666">Falls der Button nicht funktioniert: <a href="${confirmLink}">${confirmLink}</a></p>
-<p style="font-size:12px;color:#666">Du hast dich über eine Restaurant-Einladung registriert. Wenn du das nicht warst, kannst du diese Nachricht ignorieren.</p>
-</body></html>`;
+function brandingLogoAbsoluteUrl(logoPath) {
+  const path = logoPath?.trim();
+  if (!path) return null;
+  const encoded = path.split("/").map((seg) => encodeURIComponent(seg)).join("/");
+  const objectPath = `/storage/v1/object/public/platform-branding/${encoded}`;
+  return `${ORIGIN}/sb${objectPath}`;
 }
 
-function buildSignupConfirmationEmailText({ appName, confirmLink }) {
-  return [
+function brandingFromSettingsRow(row) {
+  const appName = (row?.app_name || "Gwada").trim() || "Gwada";
+  return {
     appName,
-    "",
-    "E-Mail-Adresse bestätigen",
-    "",
-    "Bitte öffne den Link, um dein Konto zu aktivieren. Danach kannst du die Restaurant-Einladung annehmen.",
-    "",
-    confirmLink,
-    "",
-    "Wenn du dich nicht registriert hast, ignoriere diese E-Mail.",
-  ].join("\n");
+    logoUrl: brandingLogoAbsoluteUrl(row?.logo_path),
+  };
 }
 
 async function findAuthUser(admin, email) {
@@ -94,8 +90,8 @@ async function findPendingInviteToken(admin, restaurantId, email) {
   return invites?.[0]?.invite_token ?? null;
 }
 
-async function sendSignupConfirmation({ admin, smtp, appName, email, confirmLink }) {
-  const fromName = appName;
+async function sendSignupConfirmation({ smtp, branding, email, confirmLink }) {
+  const fromName = branding.appName;
   const transporter = nodemailer.createTransport({
     host: smtp.smtpHost,
     port: smtp.smtpPort,
@@ -103,12 +99,16 @@ async function sendSignupConfirmation({ admin, smtp, appName, email, confirmLink
     auth: { user: smtp.email, pass: smtp.password },
   });
 
-  const content = { appName, confirmLink };
+  const content = {
+    appName: branding.appName,
+    confirmLink,
+    logoUrl: branding.logoUrl,
+  };
   try {
     await transporter.sendMail({
       from: { name: fromName, address: smtp.email },
       to: email,
-      subject: `E-Mail bestätigen — ${appName}`,
+      subject: `E-Mail bestätigen — ${branding.appName}`,
       text: buildSignupConfirmationEmailText(content),
       html: buildSignupConfirmationEmailHtml(content),
     });
@@ -160,11 +160,11 @@ async function main() {
     process.exit(1);
   }
 
-  const { data: branding } = await admin
+  const { data: brandingRow } = await admin
     .from("platform_app_settings")
-    .select("app_name")
+    .select("app_name, logo_path")
     .maybeSingle();
-  const appName = (branding?.app_name || "Gwada").trim() || "Gwada";
+  const branding = brandingFromSettingsRow(brandingRow);
 
   const { data: restaurant, error: restaurantError } = await admin
     .from("restaurants")
@@ -196,23 +196,26 @@ async function main() {
       : "/dashboard";
     const redirectTo = `${ORIGIN}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
-    const { data: linkData, error: linkError } =
-      await admin.auth.admin.generateLink({
+    const linkResult = await generateAdminAuthActionLink(
+      admin,
+      {
         type: "signup",
         email,
         options: { redirectTo },
-      });
-    const confirmLink = linkData?.properties?.action_link ?? null;
-    if (linkError || !confirmLink) {
-      console.error("✗ generateLink fehlgeschlagen:", linkError?.message);
+      },
+      { siteUrl: ORIGIN, redirectTo },
+    );
+    if (!linkResult.ok) {
+      console.error("✗ generateLink fehlgeschlagen:", linkResult.error);
       failed += 1;
       continue;
     }
 
+    const confirmLink = linkResult.actionLink;
+
     const sent = await sendSignupConfirmation({
-      admin,
       smtp,
-      appName,
+      branding,
       email,
       confirmLink,
     });
@@ -223,6 +226,7 @@ async function main() {
     }
 
     console.log("✓ Bestätigungs-Mail gesendet");
+    console.log(`  Link: ${confirmLink}`);
     console.log(`  Einladung: ${inviteToken ? "ja" : "nein (Dashboard-Fallback)"}`);
   }
 

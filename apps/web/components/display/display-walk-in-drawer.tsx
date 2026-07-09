@@ -288,14 +288,14 @@ export function DisplayWalkInDrawer({
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange} repositionInputs={false}>
-        <DrawerContent className={drawerContentClassName}>
-          <DrawerHeader className={drawerFormHeaderClassName}>
+        <DrawerContent className={drawerContentClassName("displayForm")}>
+          <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <DrawerTitle>Laufkunde platzieren</DrawerTitle>
             <DrawerDescription>
               Personenzahl und Tisch wählen — sofort am Tisch, ohne Voranmeldung.
             </DrawerDescription>
           </DrawerHeader>
-          <div ref={scrollRef} className={drawerScrollAreaClassName}>
+          <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
             <div className="space-y-4 px-4 pb-4">
               <div className={drawerFormFieldGroupClassName}>
                 <Label htmlFor="walk-in-name" className="text-xs text-muted-foreground">

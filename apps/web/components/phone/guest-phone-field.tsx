@@ -3,6 +3,10 @@
 import { GuestPhoneCountrySelect } from "@/components/phone/guest-phone-country-select";
 import type { CountryReference } from "@/lib/constants/countries";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  TOUCH_NUMERIC_IOS_PATTERN,
+  digitsOnlyInput,
+} from "@/lib/ui/touch-numeric-input";
 import { cn } from "@/lib/utils";
 
 const selectValueNoShrink =
@@ -80,10 +84,19 @@ export function GuestPhoneField({
       </span>
       <input
         id={localId}
+        type={localInputMode === "numeric" ? "text" : "tel"}
         value={localValue}
-        onChange={(e) => onLocalChange(e.target.value)}
+        onChange={(e) => {
+          const next =
+            localInputMode === "numeric"
+              ? digitsOnlyInput(e.target.value)
+              : e.target.value;
+          onLocalChange(next);
+        }}
         className={cn(guestPhoneNumberInputClassName, tallClass)}
         inputMode={localInputMode}
+        pattern={localInputMode === "numeric" ? TOUCH_NUMERIC_IOS_PATTERN : undefined}
+        enterKeyHint={localInputMode === "numeric" ? "done" : undefined}
         autoComplete={localAutoComplete}
         placeholder={localPlaceholder}
         disabled={disabled}

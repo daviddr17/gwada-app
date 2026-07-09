@@ -7,6 +7,10 @@ import {
   normalizeBookingTimeStepMinutes,
   type BookingTimeStepMinutes,
 } from "@/lib/reservations/booking-time-step";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+} from "@/lib/reservations/reservation-guest-name";
 import type { ParsedReservationVoice } from "@/lib/reservations/parse-reservation-voice-text";
 import {
   defaultStaffReservationStatusId,
@@ -55,8 +59,8 @@ export async function createDisplayReservationFromVoiceParsed(params: {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify({
-      guest_first_name: params.parsed.guestFirstName.trim() || "Gast",
-      guest_last_name: params.parsed.guestLastName.trim(),
+      guest_first_name: normalizeReservationGuestFirstName(params.parsed.guestFirstName),
+      guest_last_name: normalizeReservationGuestLastName(params.parsed.guestLastName),
       guest_phone: null,
       guest_email: null,
       party_size: params.parsed.partySize,

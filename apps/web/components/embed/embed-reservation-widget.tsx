@@ -58,6 +58,11 @@ import {
   type PublicGuestReservation,
 } from "@/lib/reservations/public-embed-shared";
 import { formatGuestPhone, parseGuestPhone } from "@/lib/phone/guest-phone";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+  reservationGuestFirstNameForForm,
+} from "@/lib/reservations/reservation-guest-name";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -258,7 +263,7 @@ export function EmbedReservationWidget({
 
   const applyReservationToForm = useCallback(
     (r: PublicGuestReservation) => {
-      setFirstName(r.guest_first_name === "Gast" ? "" : r.guest_first_name);
+      setFirstName(reservationGuestFirstNameForForm(r.guest_first_name));
       setLastName(r.guest_last_name);
       const parsed = parseGuestPhone(r.guest_phone, countries, "DE");
       setPhoneCountryIso(parsed.iso2);
@@ -285,8 +290,8 @@ export function EmbedReservationWidget({
     );
     const endsIso = buildEndsIso(startsIso, config.defaultDwellMinutes);
     return {
-      guest_first_name: firstName.trim() || "Gast",
-      guest_last_name: lastName.trim(),
+      guest_first_name: normalizeReservationGuestFirstName(firstName),
+      guest_last_name: normalizeReservationGuestLastName(lastName),
       guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
       guest_email: email.trim() || null,
       party_size: ps,

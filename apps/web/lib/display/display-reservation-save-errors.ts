@@ -8,6 +8,7 @@ export const DISPLAY_RESERVATION_SAVE_ERRORS: Record<string, string> = {
   not_found: "Reservierung nicht gefunden.",
   table_requires_confirmed:
     "Tischzuordnung nur bei Status „Bestätigt“ oder „Am Tisch“.",
+  last_name_required: "Bitte einen Nachnamen eingeben.",
   invalid_request: "Eingaben unvollständig oder ungültig.",
   invalid_starts_at: "Ungültiges Datum oder Uhrzeit.",
   invalid_time_range: "Ende muss nach dem Beginn liegen.",

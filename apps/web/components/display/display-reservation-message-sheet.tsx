@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { Loader2, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
+import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
+import { drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +24,7 @@ import {
   sendContactMessageUserMessage,
   type SendContactMessageApiResult,
 } from "@/lib/contact-messages/trigger-send-contact-message";
+import type { ContactMessageRow } from "@/lib/supabase/contact-messages-db";
 import { cn } from "@/lib/utils";
 
 type ChannelState = {
@@ -48,6 +50,8 @@ export function DisplayReservationMessageSheet({
   const [sendEmail, setSendEmail] = useState(false);
   const [sending, setSending] = useState(false);
   const [checkingWhatsapp, setCheckingWhatsapp] = useState(false);
+  const [messages, setMessages] = useState<ContactMessageRow[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const [channels, setChannels] = useState<ChannelState>({
     whatsappEnabled: false,
     emailEnabled: false,
@@ -73,13 +77,41 @@ export function DisplayReservationMessageSheet({
     }
   }, []);
 
+  const loadMessages = useCallback(async () => {
+    if (!reservation) return;
+    setLoadingMessages(true);
+    try {
+      const res = await fetch(
+        `/api/display/reservations/${encodeURIComponent(reservation.id)}/message`,
+        { credentials: "include" },
+      );
+      const data = (await res.json()) as {
+        messages?: ContactMessageRow[];
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(data.error ?? "Nachrichten konnten nicht geladen werden.");
+        setMessages([]);
+        return;
+      }
+      setMessages(data.messages ?? []);
+    } catch {
+      toast.error("Nachrichten konnten nicht geladen werden.");
+      setMessages([]);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, [reservation]);
+
   useEffect(() => {
     if (!open) return;
     setBody("");
     setSendWhatsapp(false);
     setSendEmail(false);
+    setMessages([]);
     void loadChannels();
-  }, [open, loadChannels]);
+    void loadMessages();
+  }, [open, loadChannels, loadMessages]);
 
   const handleWhatsappToggle = async (next: boolean) => {
     if (!next || !reservation) {
@@ -161,7 +193,8 @@ export function DisplayReservationMessageSheet({
       const warn = sendContactMessageUserMessage(data);
       if (warn) toast.warning(warn);
       else toast.success("Nachricht gesendet.");
-      onOpenChange(false);
+      setBody("");
+      void loadMessages();
     } catch {
       toast.error("Senden fehlgeschlagen.");
     } finally {
@@ -178,7 +211,7 @@ export function DisplayReservationMessageSheet({
       <DrawerContent className={drawerContentClassName("compact")}>
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Nachricht senden
+            Nachrichten
           </DrawerTitle>
           <DrawerDescription className="text-base">
             {reservation ? (
@@ -191,6 +224,18 @@ export function DisplayReservationMessageSheet({
 
         {open && reservation ? (
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6">
+            <div className="space-y-2 rounded-xl border border-border/50 bg-muted/10 px-3 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Nachrichten zur Reservierung
+              </p>
+              <ContactMessageChatViewport
+                messages={messages}
+                loading={loadingMessages}
+                threadKey={reservation.id}
+                className="max-h-[min(32dvh,260px)] overflow-x-hidden overscroll-x-none"
+              />
+            </div>
+
             <Textarea
               value={body}
               disabled={sending}

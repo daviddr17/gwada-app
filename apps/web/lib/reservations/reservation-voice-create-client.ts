@@ -4,6 +4,10 @@ import {
   datetimeLocalValueToIso,
   ymdAndHmToDatetimeLocal,
 } from "@/lib/reservations/datetime-local";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+} from "@/lib/reservations/reservation-guest-name";
 import type { ParsedReservationVoice } from "@/lib/reservations/parse-reservation-voice-text";
 import { dispatchDashboardReservationCreateLivePatch } from "@/lib/dashboard/dispatch-dashboard-reservation-save-live-client";
 import { logReservationCreateFromBrowser } from "@/lib/reservations/reservation-log-client";
@@ -54,8 +58,8 @@ export async function createReservationFromVoiceParsed(params: {
   ).toISOString();
 
   const payload = {
-    guest_first_name: params.parsed.guestFirstName.trim() || "Gast",
-    guest_last_name: params.parsed.guestLastName.trim(),
+    guest_first_name: normalizeReservationGuestFirstName(params.parsed.guestFirstName),
+    guest_last_name: normalizeReservationGuestLastName(params.parsed.guestLastName),
     guest_phone: null,
     guest_email: null,
     party_size: params.parsed.partySize,

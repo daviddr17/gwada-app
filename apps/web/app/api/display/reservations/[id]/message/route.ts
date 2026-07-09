@@ -1,8 +1,37 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { fetchReservationContactMessagesServer } from "@/lib/contact-messages/fetch-reservation-contact-messages-server";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
 import { sendDisplayReservationMessage } from "@/lib/display/display-reservation-message-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+
+export async function GET(
+  _request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  const admin = createSupabaseAdminClient();
+  if (!admin) {
+    return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
+  }
+
+  const cookieStore = await cookies();
+  const access = await assertDisplayModuleAccess(cookieStore, "reservations");
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status });
+  }
+
+  const { id } = await context.params;
+  const result = await fetchReservationContactMessagesServer(admin, {
+    restaurantId: access.restaurantId,
+    reservationId: id,
+  });
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: 500 });
+  }
+
+  return NextResponse.json({ messages: result.data });
+}
 
 export async function POST(
   request: Request,

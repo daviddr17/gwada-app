@@ -7,7 +7,7 @@ import { SearchableSelect } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useStaffModuleSelection } from "@/lib/contexts/staff-module-selection-context";
-import { buildStaffSearchableSelectOptions } from "@/lib/staff/staff-select-options";
+import { buildStaffModulePickerOptions, staffModulePickerIdFromSelectValue, staffModulePickerSelectValue } from "@/lib/staff/staff-select-options";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { fetchStaffForRestaurant } from "@/lib/supabase/staff-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -55,13 +55,22 @@ export function StaffModuleStickyBar() {
     [positionTags.items],
   );
 
+  const allowsAllStaff = useMemo(
+    () =>
+      pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
+      pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
+      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten"),
+    [pathname],
+  );
+
   const options = useMemo(
     () =>
-      buildStaffSearchableSelectOptions(staffList, {
+      buildStaffModulePickerOptions(staffList, {
+        allowAll: allowsAllStaff,
         activeOnly: true,
         includeStaffIds: [selectedStaffId],
       }),
-    [staffList, selectedStaffId],
+    [staffList, selectedStaffId, allowsAllStaff],
   );
 
   const handleStaffSaved = useCallback(
@@ -77,15 +86,11 @@ export function StaffModuleStickyBar() {
   );
 
   const staffPickerPlaceholder = useMemo(() => {
-    if (
-      pathname.startsWith("/dashboard/mitarbeiter/vertraege") ||
-      pathname.startsWith("/dashboard/mitarbeiter/dokumente") ||
-      pathname.startsWith("/dashboard/mitarbeiter/arbeitszeiten")
-    ) {
+    if (allowsAllStaff) {
       return "Alle Mitarbeiter";
     }
     return "Bitte Mitarbeiter auswählen";
-  }, [pathname]);
+  }, [allowsAllStaff]);
 
   return (
     <>
@@ -115,11 +120,16 @@ export function StaffModuleStickyBar() {
             <SearchableSelect
               id="staff-module-select"
               options={options}
-              value={selectedStaffId ?? ""}
-              onValueChange={(v) => setSelectedStaffId(v || null)}
+              value={staffModulePickerSelectValue(selectedStaffId, allowsAllStaff)}
+              onValueChange={(v) =>
+                setSelectedStaffId(
+                  staffModulePickerIdFromSelectValue(v, allowsAllStaff),
+                )
+              }
               placeholder={staffPickerPlaceholder}
               searchPlaceholder="Suchen …"
               emptyText="Keine Mitarbeiter"
+              clearable={allowsAllStaff && Boolean(selectedStaffId)}
               className="!min-h-11 !h-11 rounded-xl border-input"
               footerAction={
                 restaurantId

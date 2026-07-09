@@ -4,15 +4,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
   displayDrawerFormFieldClassName,
+  displayDrawerFormFooterButtonClassName,
+  displayDrawerFormSwitchRowClassName,
   drawerFormFieldGroupClassName,
   drawerFormRowStackClassName,
   drawerScrollAreaClassName,
   drawerFormHeaderClassName,
 } from "@/lib/ui/drawer-form-section";
-import { useIsTouchTablet } from "@/hooks/use-touch-tablet";
+import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
-  touchNumericInputMode,
-  touchPhoneLocalInputMode,
+  displayTouchNumericInputProps,
+  displayTouchPhoneLocalInputMode,
+  digitsOnlyInput,
 } from "@/lib/ui/touch-numeric-input";
 import { Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
@@ -61,6 +64,11 @@ import {
 } from "@/lib/reservations/booking-time-step";
 import { restaurantIsoToYmdHm } from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+  reservationGuestFirstNameForForm,
+} from "@/lib/reservations/reservation-guest-name";
 import {
   checkTableAssignmentForSave,
   type TableAssignmentCheck,
@@ -123,9 +131,8 @@ export function DisplayReservationEditDrawer({
   onSaved: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
-  const touchTablet = useIsTouchTablet();
-  const numericInputMode = touchNumericInputMode(touchTablet);
-  const phoneLocalInputMode = touchPhoneLocalInputMode(touchTablet);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useDrawerFormKeyboardAssist({ open, scrollRef });
   const step = normalizeBookingTimeStepMinutes(
     bookingTimeStepMinutes,
   ) as BookingTimeStepMinutes;
@@ -163,7 +170,7 @@ export function DisplayReservationEditDrawer({
     (d: DisplayReservationDetail) => {
       restaurantIdRef.current = d.restaurant_id;
       initialStatusCodeRef.current = d.status?.code ?? "";
-      setFirstName(d.guest_first_name);
+      setFirstName(reservationGuestFirstNameForForm(d.guest_first_name));
       setLastName(d.guest_last_name);
       const parsed = parseGuestPhone(
         d.guest_phone,
@@ -297,6 +304,10 @@ export function DisplayReservationEditDrawer({
       toast.error("Bitte einen Status wählen.");
       return null;
     }
+    if (!lastName.trim()) {
+      toast.error("Bitte einen Nachnamen eingeben.");
+      return null;
+    }
     const minutesForEnd = resolveDisplayReservationDwellMinutes(
       dwellDraft,
       defaultDwellMinutes,
@@ -319,8 +330,8 @@ export function DisplayReservationEditDrawer({
     setTimeHm(slot.snappedTime);
 
     return {
-      guest_first_name: firstName.trim() || "Gast",
-      guest_last_name: lastName.trim(),
+      guest_first_name: normalizeReservationGuestFirstName(firstName),
+      guest_last_name: normalizeReservationGuestLastName(lastName),
       guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
       guest_email: email.trim() || null,
       party_size: ps,
@@ -434,7 +445,7 @@ export function DisplayReservationEditDrawer({
 
           {open ? (
             <>
-              <div className={drawerScrollAreaClassName(6)}>
+              <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
                 {loading ? (
                   <div className="space-y-3" aria-busy>
                     {Array.from({ length: 6 }).map((_, i) => (
@@ -471,7 +482,7 @@ export function DisplayReservationEditDrawer({
                           <SelectTrigger
                             id="disp-edit-status"
                             className={appSelectTriggerAccentCn(
-                              "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                              "h-12 min-h-12 w-full rounded-xl px-3 text-left text-base font-normal",
                               selectValueNoShrink,
                             )}
                           >
@@ -499,12 +510,11 @@ export function DisplayReservationEditDrawer({
                         </Label>
                         <Input
                           id="disp-edit-ps"
-                          type="number"
-                          min={1}
-                          max={50}
-                          inputMode={numericInputMode}
+                          {...displayTouchNumericInputProps}
                           value={partySize}
-                          onChange={(e) => setPartySize(e.target.value)}
+                          onChange={(e) =>
+                            setPartySize(digitsOnlyInput(e.target.value, 2))
+                          }
                           className={cn(fieldClass, "tabular-nums")}
                         />
                       </div>
@@ -586,7 +596,7 @@ export function DisplayReservationEditDrawer({
                           localValue={phoneLocal}
                           onLocalChange={setPhoneLocal}
                           countries={countries}
-                          localInputMode={phoneLocalInputMode}
+                          localInputMode={displayTouchPhoneLocalInputMode}
                           tall
                         />
                       </div>
@@ -637,12 +647,11 @@ export function DisplayReservationEditDrawer({
                         </Label>
                         <Input
                           id="disp-edit-dwell"
-                          type="number"
-                          min={15}
-                          max={1440}
-                          inputMode={numericInputMode}
+                          {...displayTouchNumericInputProps}
                           value={dwellDraft}
-                          onChange={(e) => setDwellDraft(e.target.value)}
+                          onChange={(e) =>
+                            setDwellDraft(digitsOnlyInput(e.target.value, 4))
+                          }
                           className={cn(fieldClass, "tabular-nums")}
                         />
                       </div>
@@ -665,7 +674,7 @@ export function DisplayReservationEditDrawer({
                             id="disp-edit-table"
                             disabled={!tableAssignmentAllowed}
                             className={appSelectTriggerAccentCn(
-                              "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                              "h-12 min-h-12 w-full rounded-xl px-3 text-left text-base font-normal",
                               !tableAssignmentAllowed && "cursor-not-allowed opacity-50",
                               selectValueNoShrink,
                             )}
@@ -695,7 +704,7 @@ export function DisplayReservationEditDrawer({
                     <DrawerFormSection title="Benachrichtigungen & AGB">
                       <div
                         className={cn(
-                          "flex items-center justify-between gap-3",
+                          displayDrawerFormSwitchRowClassName,
                           !hasEmail && "opacity-50",
                         )}
                       >
@@ -719,7 +728,7 @@ export function DisplayReservationEditDrawer({
                       </div>
                       <div
                         className={cn(
-                          "flex items-center justify-between gap-3",
+                          displayDrawerFormSwitchRowClassName,
                           !hasPhone && "opacity-50",
                         )}
                       >
@@ -738,7 +747,7 @@ export function DisplayReservationEditDrawer({
                           aria-labelledby="disp-edit-notify-whatsapp"
                         />
                       </div>
-                      <div className="flex items-center justify-between gap-3">
+                      <div className={displayDrawerFormSwitchRowClassName}>
                         <span
                           id="disp-edit-terms"
                           className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
@@ -762,7 +771,7 @@ export function DisplayReservationEditDrawer({
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-11 flex-1 rounded-xl"
+                  className={displayDrawerFormFooterButtonClassName}
                   disabled={saving}
                   onClick={() => onOpenChange(false)}
                 >
@@ -770,7 +779,7 @@ export function DisplayReservationEditDrawer({
                 </Button>
                 <Button
                   type="button"
-                  className="h-11 flex-1 rounded-xl"
+                  className={displayDrawerFormFooterButtonClassName}
                   disabled={saving || loading || !detail}
                   onClick={() => void handleSave()}
                 >

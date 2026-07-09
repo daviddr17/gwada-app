@@ -153,9 +153,10 @@ function formatTimeDe(d: Date): string {
 }
 
 function guestGreeting(ctx: ReservationMessageContext): string {
-  const fn = ctx.guestFirstName.trim() || "Gast";
+  const fn = ctx.guestFirstName.trim();
   const ln = ctx.guestLastName.trim();
-  return ln ? `Hallo ${fn} ${ln}` : `Hallo ${fn}`;
+  const name = `${fn} ${ln}`.trim();
+  return name ? `Hallo ${name}` : "Hallo";
 }
 
 function linkSuffix(ctx: ReservationMessageContext): string {
@@ -169,7 +170,7 @@ export function renderWhatsappMessageTemplate(
 ): string {
   const replacements: Record<string, string> = {
     "{anrede}": guestGreeting(ctx),
-    "{vorname}": ctx.guestFirstName.trim() || "Gast",
+    "{vorname}": ctx.guestFirstName.trim(),
     "{nachname}": ctx.guestLastName.trim(),
     "{datum}": formatDateDe(ctx.startsAt),
     "{uhrzeit}": formatTimeDe(ctx.startsAt),
@@ -178,7 +179,7 @@ export function renderWhatsappMessageTemplate(
     "{pin}": ctx.guestPin,
     "{link}": linkSuffix(ctx),
     "{ANREDE}": guestGreeting(ctx),
-    "{VORNAME}": ctx.guestFirstName.trim() || "Gast",
+    "{VORNAME}": ctx.guestFirstName.trim(),
     "{NACHNAME}": ctx.guestLastName.trim(),
     "{DATUM}": formatDateDe(ctx.startsAt),
     "{UHRZEIT}": formatTimeDe(ctx.startsAt),

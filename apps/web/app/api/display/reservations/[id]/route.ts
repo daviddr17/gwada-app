@@ -7,6 +7,10 @@ import {
   loadDisplayReservationRowById,
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+} from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
 
 export async function GET(
@@ -88,14 +92,18 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid_time_range" }, { status: 400 });
   }
 
+  const guestLastName = normalizeReservationGuestLastName(body.guest_last_name);
+  if (!guestLastName) {
+    return NextResponse.json({ error: "last_name_required" }, { status: 400 });
+  }
+
   const result = await updateDisplayReservation(
     admin,
     access.restaurantId,
     id,
     {
-      guest_first_name: body.guest_first_name.trim() || "Gast",
-      guest_last_name:
-        typeof body.guest_last_name === "string" ? body.guest_last_name.trim() : "",
+      guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
+      guest_last_name: guestLastName,
       guest_phone:
         typeof body.guest_phone === "string" ? body.guest_phone.trim() || null : null,
       guest_email:

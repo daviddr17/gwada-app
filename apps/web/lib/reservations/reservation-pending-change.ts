@@ -28,7 +28,7 @@ export function parseReservationPendingChange(
   }
   return {
     guest_first_name:
-      typeof o.guest_first_name === "string" ? o.guest_first_name : "Gast",
+      typeof o.guest_first_name === "string" ? o.guest_first_name : "",
     guest_last_name: o.guest_last_name,
     guest_phone:
       o.guest_phone == null ? null : String(o.guest_phone).trim() || null,

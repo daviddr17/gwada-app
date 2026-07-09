@@ -14,6 +14,10 @@ import {
   type PublicReservationCreateBody,
   type PublicReservationUpdateBody,
 } from "@/lib/reservations/public-embed-shared";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+} from "@/lib/reservations/reservation-guest-name";
 import type { ReservationPendingChange } from "@/lib/reservations/reservation-pending-change";
 import {
   buildReservationLogChanges,
@@ -276,6 +280,9 @@ export async function createPublicReservation(
   if (!validatePartySize(body.party_size) || !validateIsoRange(body.starts_at, body.ends_at)) {
     return { data: null, error: "invalid_request", status: 400 };
   }
+  if (!normalizeReservationGuestLastName(body.guest_last_name)) {
+    return { data: null, error: "last_name_required", status: 400 };
+  }
   if (!hasGuestContact(body.guest_phone, body.guest_email)) {
     return { data: null, error: "contact_required", status: 400 };
   }
@@ -325,8 +332,8 @@ export async function createPublicReservation(
     .from("reservations")
     .insert({
       restaurant_id: restaurant.id,
-      guest_first_name: body.guest_first_name.trim() || "Gast",
-      guest_last_name: body.guest_last_name.trim(),
+      guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
+      guest_last_name: normalizeReservationGuestLastName(body.guest_last_name),
       guest_phone: body.guest_phone?.trim() || null,
       guest_email: body.guest_email?.trim() || null,
       party_size: body.party_size,
@@ -347,8 +354,8 @@ export async function createPublicReservation(
     return { data: null, error: "create_failed", status: 500 };
   }
 
-  const guestFirst = body.guest_first_name.trim() || "Gast";
-  const guestLast = body.guest_last_name.trim();
+  const guestFirst = normalizeReservationGuestFirstName(body.guest_first_name);
+  const guestLast = normalizeReservationGuestLastName(body.guest_last_name);
   const after = reservationSnapshotFromPayload(
     {
       guest_first_name: guestFirst,
@@ -498,6 +505,9 @@ export async function updatePublicReservation(
   if (!validatePartySize(body.party_size) || !validateIsoRange(body.starts_at, body.ends_at)) {
     return { data: null, error: "invalid_request", status: 400 };
   }
+  if (!normalizeReservationGuestLastName(body.guest_last_name)) {
+    return { data: null, error: "last_name_required", status: 400 };
+  }
   if (!hasGuestContact(body.guest_phone, body.guest_email)) {
     return { data: null, error: "contact_required", status: 400 };
   }
@@ -559,8 +569,8 @@ export async function updatePublicReservation(
     ) || existing.dwell_minutes;
 
   const patch = {
-    guest_first_name: body.guest_first_name.trim() || "Gast",
-    guest_last_name: body.guest_last_name.trim(),
+    guest_first_name: normalizeReservationGuestFirstName(body.guest_first_name),
+    guest_last_name: normalizeReservationGuestLastName(body.guest_last_name),
     guest_phone: body.guest_phone?.trim() || null,
     guest_email: body.guest_email?.trim() || null,
     party_size: body.party_size,

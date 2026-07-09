@@ -67,7 +67,7 @@ export async function createDisplayReservation(
     return { ok: false, error: error?.message ?? "create_failed" };
   }
 
-  const guestFirst = input.guest_first_name.trim() || "Gast";
+  const guestFirst = input.guest_first_name.trim();
   const guestLast = input.guest_last_name.trim();
   const { data: statusRow } = await admin
     .from("reservation_statuses")

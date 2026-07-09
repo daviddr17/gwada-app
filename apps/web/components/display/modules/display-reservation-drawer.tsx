@@ -1,18 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
   displayDrawerFormFieldClassName,
+  displayDrawerFormFooterButtonClassName,
+  displayDrawerFormSwitchRowClassName,
   drawerFormFieldGroupClassName,
   drawerFormRowStackClassName,
   drawerScrollAreaClassName,
   drawerFormHeaderClassName,
 } from "@/lib/ui/drawer-form-section";
-import { useIsTouchTablet } from "@/hooks/use-touch-tablet";
+import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import {
-  touchNumericInputMode,
-  touchPhoneLocalInputMode,
+  displayTouchNumericInputProps,
+  displayTouchPhoneLocalInputMode,
+  digitsOnlyInput,
 } from "@/lib/ui/touch-numeric-input";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -64,6 +67,10 @@ import {
   restaurantTodayYmd,
 } from "@/lib/restaurant/restaurant-timezone";
 import { reservationAllowsTableAssignment } from "@/lib/reservations/reservation-table-assignment";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+} from "@/lib/reservations/reservation-guest-name";
 import {
   formatDiningTableSelectLabel,
   type DiningTableRow,
@@ -123,9 +130,8 @@ export function DisplayReservationDrawer({
   onCreated: (reservation?: DisplayReservationRow | null) => void;
 }) {
   const timeZone = useDisplayRestaurantTimezone();
-  const touchTablet = useIsTouchTablet();
-  const numericInputMode = touchNumericInputMode(touchTablet);
-  const phoneLocalInputMode = touchPhoneLocalInputMode(touchTablet);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useDrawerFormKeyboardAssist({ open, scrollRef });
   const step = normalizeBookingTimeStepMinutes(bookingTimeStepMinutes);
   const [countries, setCountries] = useState<CountryReference[]>(
     COUNTRIES_REFERENCE_FALLBACK,
@@ -226,6 +232,10 @@ export function DisplayReservationDrawer({
       toast.error("Bitte einen Status wählen.");
       return;
     }
+    if (!lastName.trim()) {
+      toast.error("Bitte einen Nachnamen eingeben.");
+      return;
+    }
     const minutesForEnd = resolveDisplayReservationDwellMinutes(
       dwellDraft,
       defaultDwellMinutes,
@@ -255,8 +265,8 @@ export function DisplayReservationDrawer({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          guest_first_name: firstName.trim() || "Gast",
-          guest_last_name: lastName.trim(),
+          guest_first_name: normalizeReservationGuestFirstName(firstName),
+          guest_last_name: normalizeReservationGuestLastName(lastName),
           guest_phone: formatGuestPhone(phoneCountryIso, phoneLocal, countries),
           guest_email: email.trim() || null,
           party_size: ps,
@@ -315,7 +325,7 @@ export function DisplayReservationDrawer({
 
         {open ? (
           <>
-            <div className={drawerScrollAreaClassName(6)}>
+            <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
               <div className={drawerFormRowStackClassName}>
               <div className={drawerTwoColClass}>
                 <div className={cn("min-w-0", drawerFormFieldGroupClassName)}>
@@ -332,7 +342,7 @@ export function DisplayReservationDrawer({
                     <SelectTrigger
                       id="disp-res-status"
                       className={appSelectTriggerAccentCn(
-                        "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                        "h-12 min-h-12 w-full rounded-xl px-3 text-left text-base font-normal",
                         selectValueNoShrink,
                       )}
                     >
@@ -357,12 +367,11 @@ export function DisplayReservationDrawer({
                   </Label>
                   <Input
                     id="disp-res-ps"
-                    type="number"
-                    min={1}
-                    max={50}
-                    inputMode={numericInputMode}
+                    {...displayTouchNumericInputProps}
                     value={partySize}
-                    onChange={(e) => setPartySize(e.target.value)}
+                    onChange={(e) =>
+                      setPartySize(digitsOnlyInput(e.target.value, 2))
+                    }
                     className={cn(fieldClass, "tabular-nums")}
                   />
                 </div>
@@ -431,7 +440,7 @@ export function DisplayReservationDrawer({
                     localValue={phoneLocal}
                     onLocalChange={setPhoneLocal}
                     countries={countries}
-                    localInputMode={phoneLocalInputMode}
+                    localInputMode={displayTouchPhoneLocalInputMode}
                     tall
                   />
                 </div>
@@ -456,12 +465,11 @@ export function DisplayReservationDrawer({
                   </Label>
                   <Input
                     id="disp-res-dwell"
-                    type="number"
-                    min={15}
-                    max={1440}
-                    inputMode={numericInputMode}
+                    {...displayTouchNumericInputProps}
                     value={dwellDraft}
-                    onChange={(e) => setDwellDraft(e.target.value)}
+                    onChange={(e) =>
+                      setDwellDraft(digitsOnlyInput(e.target.value, 4))
+                    }
                     className={cn(fieldClass, "tabular-nums")}
                   />
                 </div>
@@ -481,7 +489,7 @@ export function DisplayReservationDrawer({
                       id="disp-res-table"
                       disabled={!tableAssignmentAllowed}
                       className={appSelectTriggerAccentCn(
-                        "h-11 min-h-11 w-full rounded-xl px-3 text-left text-sm font-normal",
+                        "h-12 min-h-12 w-full rounded-xl px-3 text-left text-base font-normal",
                         !tableAssignmentAllowed && "cursor-not-allowed opacity-50",
                         selectValueNoShrink,
                       )}
@@ -523,7 +531,7 @@ export function DisplayReservationDrawer({
               <DrawerFormSection title="Benachrichtigungen & AGB">
                 <div
                   className={cn(
-                    "flex items-center justify-between gap-3",
+                    displayDrawerFormSwitchRowClassName,
                     !hasEmail && "opacity-50",
                   )}
                 >
@@ -544,7 +552,7 @@ export function DisplayReservationDrawer({
                 </div>
                 <div
                   className={cn(
-                    "flex items-center justify-between gap-3",
+                    displayDrawerFormSwitchRowClassName,
                     !hasPhone && "opacity-50",
                   )}
                 >
@@ -563,7 +571,7 @@ export function DisplayReservationDrawer({
                     aria-labelledby="disp-res-notify-whatsapp"
                   />
                 </div>
-                <div className="flex items-center justify-between gap-3">
+                <div className={displayDrawerFormSwitchRowClassName}>
                   <span
                     id="disp-res-terms"
                     className="flex min-w-0 items-center gap-2.5 text-sm leading-snug"
@@ -585,14 +593,14 @@ export function DisplayReservationDrawer({
               <Button
                 type="button"
                 variant="outline"
-                className="h-11 flex-1 rounded-xl"
+                className={displayDrawerFormFooterButtonClassName}
                 onClick={() => onOpenChange(false)}
               >
                 Abbrechen
               </Button>
               <Button
                 type="button"
-                className="h-11 flex-1 rounded-xl"
+                className={displayDrawerFormFooterButtonClassName}
                 disabled={saving}
                 onClick={() => void submit()}
               >

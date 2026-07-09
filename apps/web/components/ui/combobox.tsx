@@ -98,6 +98,8 @@ export type SearchableSelectProps = {
   className?: string
   id?: string
   footerAction?: SearchableSelectFooterAction
+  /** X-Button zum Leeren der Auswahl (z. B. Mitarbeiter-Filter). */
+  clearable?: boolean
   "aria-invalid"?: boolean
   "aria-label"?: string
 }
@@ -117,6 +119,7 @@ export function SearchableSelect({
   className,
   id,
   footerAction,
+  clearable,
   "aria-invalid": ariaInvalid,
   "aria-label": ariaLabel,
 }: SearchableSelectProps) {
@@ -234,6 +237,21 @@ export function SearchableSelect({
             "data-[popup-open]:overflow-x-auto data-[popup-open]:overflow-y-hidden data-[popup-open]:text-clip",
           )}
         />
+        {clearable && value ? (
+          <button
+            type="button"
+            className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+            aria-label="Auswahl zurücksetzen"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setInputValue("")
+              onValueChange("")
+            }}
+          >
+            <X className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
         <Combobox.Trigger
           className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted/70"
           aria-label="Liste öffnen"

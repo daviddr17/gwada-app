@@ -32,6 +32,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { ReservationMessagesPanel } from "@/components/contacts/reservation-messages-panel";
 import { ReservationAccessMeta } from "@/components/reservations/reservation-access-meta";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+  reservationGuestFirstNameForForm,
+} from "@/lib/reservations/reservation-guest-name";
 import { ReservationChangeRequestPanel } from "@/components/reservations/reservation-change-request-panel";
 import { ReservationCreatedHint } from "@/components/reservations/reservation-created-hint";
 import { ReservationProtocolSection } from "@/components/reservations/reservation-protocol-section";
@@ -104,7 +109,8 @@ import {
 import { GuestPhoneField } from "@/components/phone/guest-phone-field";
 import { useIsTouchTablet } from "@/hooks/use-touch-tablet";
 import {
-  touchNumericInputMode,
+  digitsOnlyInput,
+  touchNumericInputProps,
   touchPhoneLocalInputMode,
 } from "@/lib/ui/touch-numeric-input";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
@@ -175,7 +181,7 @@ export function ReservationEditDrawer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
   const touchTablet = useIsTouchTablet();
-  const numericInputMode = touchNumericInputMode(touchTablet);
+  const touchNumericProps = touchNumericInputProps(touchTablet);
   const phoneLocalInputMode = touchPhoneLocalInputMode(touchTablet);
 
   const [firstName, setFirstName] = useState("");
@@ -335,7 +341,7 @@ export function ReservationEditDrawer({
         )
       : "DE";
     if (reservation) {
-      setFirstName(reservation.guest_first_name);
+      setFirstName(reservationGuestFirstNameForForm(reservation.guest_first_name));
       setLastName(reservation.guest_last_name);
       const parsed = parseGuestPhone(
         reservation.guest_phone,
@@ -455,6 +461,10 @@ export function ReservationEditDrawer({
     }
     const startsLocalCombined = ymdAndHmToDatetimeLocal(dateYmd, timeHm);
     const startsIso = datetimeLocalValueToIso(startsLocalCombined);
+    if (!lastName.trim()) {
+      toast.error("Bitte einen Nachnamen eingeben.");
+      return null;
+    }
     const dwellTrim = dwellDraft.trim();
     let minutesForEnd = defaultDwellMinutes;
     if (dwellTrim !== "") {
@@ -471,8 +481,8 @@ export function ReservationEditDrawer({
     ).toISOString();
 
     return {
-      guest_first_name: firstName.trim() || "Gast",
-      guest_last_name: lastName.trim(),
+      guest_first_name: normalizeReservationGuestFirstName(firstName),
+      guest_last_name: normalizeReservationGuestLastName(lastName),
       guest_phone: formatGuestPhone(
         phoneCountryIso,
         phoneLocal,
@@ -794,12 +804,17 @@ export function ReservationEditDrawer({
                   </Label>
                   <Input
                     id="res-ps"
-                    type="number"
-                    min={1}
-                    max={50}
-                    inputMode={numericInputMode}
+                    {...(touchTablet
+                      ? touchNumericProps
+                      : { type: "number" as const, min: 1, max: 50 })}
                     value={partySize}
-                    onChange={(e) => setPartySize(e.target.value)}
+                    onChange={(e) =>
+                      setPartySize(
+                        touchTablet
+                          ? digitsOnlyInput(e.target.value, 2)
+                          : e.target.value,
+                      )
+                    }
                     className={cn(fieldClass, "tabular-nums")}
                   />
                 </div>
@@ -932,12 +947,17 @@ export function ReservationEditDrawer({
                   </Label>
                   <Input
                     id="res-dwell"
-                    type="number"
-                    min={15}
-                    max={1440}
-                    inputMode={numericInputMode}
+                    {...(touchTablet
+                      ? touchNumericProps
+                      : { type: "number" as const, min: 15, max: 1440 })}
                     value={dwellDraft}
-                    onChange={(e) => setDwellDraft(e.target.value)}
+                    onChange={(e) =>
+                      setDwellDraft(
+                        touchTablet
+                          ? digitsOnlyInput(e.target.value, 4)
+                          : e.target.value,
+                      )
+                    }
                     className={cn(fieldClass, "tabular-nums")}
                   />
                 </div>

@@ -135,5 +135,12 @@ export const displayDrawerFormFieldClassName = cn(
   "h-12 text-base",
 );
 
+/** Display-Tablet: Switch-Zeilen mit größerem Touch-Target. */
+export const displayDrawerFormSwitchRowClassName =
+  "flex min-h-12 items-center justify-between gap-3";
+
+/** Display-Tablet: Footer-Aktionen (Abbrechen / Speichern). */
+export const displayDrawerFormFooterButtonClassName = "h-12 flex-1 rounded-xl text-base";
+
 /** Volle Breite für sekundäre Aktionen im Scroll-Bereich (Schließen, Link-Button). */
 export const drawerFormFullWidthButtonClassName = "h-11 w-full rounded-xl";

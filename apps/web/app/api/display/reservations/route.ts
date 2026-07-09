@@ -7,6 +7,10 @@ import {
   loadDisplayReservationsDay,
 } from "@/lib/display/display-reservations-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  normalizeReservationGuestFirstName,
+  normalizeReservationGuestLastName,
+} from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
 
 export async function GET(request: Request) {
@@ -59,11 +63,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
-  const given = body.guest_first_name?.trim() || "Gast";
-  const family = body.guest_last_name?.trim() ?? "";
+  const given = normalizeReservationGuestFirstName(body.guest_first_name ?? "");
+  const family = normalizeReservationGuestLastName(body.guest_last_name ?? "");
   const partySize = body.party_size;
   const startsAt = body.starts_at?.trim();
   const endsAt = body.ends_at?.trim();
+
+  if (!family) {
+    return NextResponse.json({ error: "last_name_required" }, { status: 400 });
+  }
 
   if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });

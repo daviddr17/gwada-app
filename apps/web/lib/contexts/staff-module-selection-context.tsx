@@ -53,6 +53,11 @@ export function StaffModuleSelectionProvider({
         }
       } else {
         params.delete("staff");
+        try {
+          sessionStorage.removeItem(STORAGE_KEY);
+        } catch {
+          /* ignore */
+        }
       }
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });

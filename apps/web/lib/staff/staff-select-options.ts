@@ -36,6 +36,8 @@ export function filterStaffForSelect(
   return staffList.filter((s) => s.is_active || includeSet.has(s.id));
 }
 
+export const STAFF_MODULE_ALL_VALUE = "__all__";
+
 export function buildStaffSearchableSelectOptions(
   staffList: readonly RestaurantStaffRow[],
   params: BuildStaffSelectOptionsParams = {},
@@ -46,6 +48,40 @@ export function buildStaffSearchableSelectOptions(
     label: staffSelectOptionLabel(s, showInactiveSuffix),
     leadingColor: s.position_tag?.background_color,
   }));
+}
+
+/** Sticky-Bar: „Alle Mitarbeiter“ als zurücksetzbare erste Option. */
+export function buildStaffModulePickerOptions(
+  staffList: readonly RestaurantStaffRow[],
+  params: BuildStaffSelectOptionsParams & {
+    allowAll?: boolean;
+    allLabel?: string;
+  } = {},
+): SearchableSelectOption[] {
+  const { allowAll = false, allLabel = "Alle Mitarbeiter", ...filterParams } =
+    params;
+  const staffOptions = buildStaffSearchableSelectOptions(staffList, filterParams);
+  if (!allowAll) return staffOptions;
+  return [
+    { value: STAFF_MODULE_ALL_VALUE, label: allLabel },
+    ...staffOptions,
+  ];
+}
+
+export function staffModulePickerSelectValue(
+  selectedStaffId: string | null,
+  allowAll: boolean,
+): string {
+  if (selectedStaffId) return selectedStaffId;
+  return allowAll ? STAFF_MODULE_ALL_VALUE : "";
+}
+
+export function staffModulePickerIdFromSelectValue(
+  value: string,
+  allowAll: boolean,
+): string | null {
+  if (!value || (allowAll && value === STAFF_MODULE_ALL_VALUE)) return null;
+  return value;
 }
 
 /** Nur gespeicherte Auswahl wiederherstellen — kein Fallback auf ersten Mitarbeiter. */

@@ -252,7 +252,7 @@ function splitGuestName(raw: string): {
 } {
   const name = raw.replace(/\b(am|on)\b/gi, " ").replace(/\s+/g, " ").trim();
   if (!name) {
-    return { guestFirstName: "Gast", guestLastName: "", rawName: "" };
+    return { guestFirstName: "", guestLastName: "", rawName: "" };
   }
   const parts = name.split(/\s+/).filter(Boolean);
   if (parts.length === 1) {

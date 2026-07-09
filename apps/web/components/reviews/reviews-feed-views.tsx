@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Eye, EyeOff, Pin, PinOff, ScrollText, Star } from "lucide-react";
+import { CalendarDays, Eye, EyeOff, Pin, PinOff, ScrollText, Share2, Star } from "lucide-react";
 import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +44,7 @@ export type ReviewCardActions = {
   onOpenReservation?: () => void;
   onToggleHidden?: () => void;
   onTogglePin?: () => void;
+  onShare?: () => void;
   pinBusy?: boolean;
 };
 
@@ -55,6 +56,7 @@ function ReviewActionsRow({
   onOpenReservation,
   onToggleHidden,
   onTogglePin,
+  onShare,
   pinBusy,
   visibilityBusy,
 }: Pick<
@@ -66,6 +68,7 @@ function ReviewActionsRow({
   | "onOpenReservation"
   | "onToggleHidden"
   | "onTogglePin"
+  | "onShare"
   | "pinBusy"
   | "visibilityBusy"
 >) {
@@ -92,6 +95,18 @@ function ReviewActionsRow({
       {review.canReply && onReply ? (
         <Button type="button" variant="outline" size="sm" onClick={onReply}>
           Antworten
+        </Button>
+      ) : null}
+      {onShare ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5"
+          onClick={onShare}
+        >
+          <Share2 className="size-3.5" />
+          Teilen
         </Button>
       ) : null}
       {onTogglePin ? (
@@ -154,6 +169,7 @@ export function ReviewCard({
   onOpenReservation,
   onToggleHidden,
   onTogglePin,
+  onShare,
   pinBusy,
 }: ReviewCardActions) {
   const date = new Date(review.createdAt).toLocaleDateString("de-DE", {
@@ -238,6 +254,7 @@ export function ReviewCard({
               onOpenReservation={onOpenReservation}
               onToggleHidden={onToggleHidden}
               onTogglePin={onTogglePin}
+              onShare={onShare}
               pinBusy={pinBusy}
               visibilityBusy={visibilityBusy}
             />
@@ -333,6 +350,7 @@ export function ReviewCard({
           onOpenReservation={onOpenReservation}
           onToggleHidden={onToggleHidden}
           onTogglePin={onTogglePin}
+          onShare={onShare}
           pinBusy={pinBusy}
           visibilityBusy={visibilityBusy}
         />

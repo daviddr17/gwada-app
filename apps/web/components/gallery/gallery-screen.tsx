@@ -42,6 +42,7 @@ import {
 import { useGalleryPlatformConnections } from "@/lib/hooks/use-gallery-platform-connections";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { peekCachedWorkspaceRestaurantId } from "@/lib/supabase/workspace-persistence";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
@@ -92,11 +93,21 @@ function initialGalleryFeedFromCache(restaurantId: string | null): {
 
 export function GalleryScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const { getProfileForRestaurantId, isReady: profileReady } =
+    useRestaurantProfile();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = has("gallery.read");
   const canCreate = has("gallery.create");
   const canUpdate = has("gallery.update");
   const canDelete = has("gallery.delete");
+
+  const profile = useMemo(() => {
+    if (!restaurantId || !profileReady) return null;
+    return getProfileForRestaurantId(restaurantId);
+  }, [restaurantId, profileReady, getProfileForRestaurantId]);
+
+  const restaurantName = profile?.name?.trim() || "Restaurant";
+  const restaurantSlug = profile?.slug?.trim() ?? null;
 
   const initialFeedRef = useRef<ReturnType<typeof initialGalleryFeedFromCache> | null>(
     null,
@@ -403,7 +414,10 @@ export function GalleryScreen() {
         onOpenChange={setSheetOpen}
         canUpdate={canUpdate}
         canDelete={canDelete}
+        canShare={canCreate}
         restaurantId={restaurantId}
+        restaurantName={restaurantName}
+        restaurantSlug={restaurantSlug}
         onEdit={() => toast.message("Bearbeiten folgt in Kürze")}
         onDelete={() => void handleDelete()}
         onChanged={(nextPinned) => {

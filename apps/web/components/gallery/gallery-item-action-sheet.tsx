@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 import {
   Drawer,
@@ -11,9 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { FeedPinButton } from "@/components/feed-pin/feed-pin-button";
 import { GalleryHighlightAssignSection } from "@/components/gallery/gallery-highlight-assign-section";
+import {
+  ShareToChannelsSheet,
+  ShareToChannelsTriggerButton,
+} from "@/components/share/share-to-channels-sheet";
 import { GALLERY_PLATFORM_LABELS } from "@/lib/constants/gallery-platforms";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
 import { GalleryPlatformIcon } from "@/components/gallery/gallery-platform-icon";
+import { buildGalleryItemSharePayload } from "@/lib/share/share-payload-builders";
 
 type Props = {
   item: UnifiedGalleryItem | null;
@@ -21,7 +27,10 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   canUpdate: boolean;
   canDelete: boolean;
+  canShare?: boolean;
   restaurantId: string;
+  restaurantName?: string;
+  restaurantSlug?: string | null;
   onEdit: () => void;
   onDelete: () => void;
   onChanged?: (nextPinned?: boolean) => void;
@@ -34,15 +43,33 @@ export function GalleryItemActionSheet({
   onOpenChange,
   canUpdate,
   canDelete,
+  canShare = false,
   restaurantId,
+  restaurantName = "Restaurant",
+  restaurantSlug,
   onEdit,
   onDelete,
   onChanged,
   onHighlightsChanged,
 }: Props) {
+  const [shareOpen, setShareOpen] = useState(false);
+
+  const sharePayload = useMemo(() => {
+    if (!item) return null;
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : undefined;
+    return buildGalleryItemSharePayload({
+      item,
+      restaurantName,
+      slug: restaurantSlug,
+      origin,
+    });
+  }, [item, restaurantName, restaurantSlug]);
+
   if (!item) return null;
 
   return (
+    <>
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
       <DrawerContent className="pb-safe">
         <DrawerHeader className="text-left">
@@ -95,6 +122,12 @@ export function GalleryItemActionSheet({
                 onChanged={(nextPinned) => onChanged?.(nextPinned)}
               />
             ) : null}
+            {canShare && sharePayload ? (
+              <ShareToChannelsTriggerButton
+                className="w-full justify-start"
+                onClick={() => setShareOpen(true)}
+              />
+            ) : null}
             {item.externalUrl ? (
               <Button variant="outline" className="justify-start" render={<a href={item.externalUrl} target="_blank" rel="noopener noreferrer" />}>
                 <ExternalLink className="size-4" />
@@ -117,5 +150,16 @@ export function GalleryItemActionSheet({
         </div>
       </DrawerContent>
     </Drawer>
+
+    {canShare && sharePayload ? (
+      <ShareToChannelsSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        restaurantId={restaurantId}
+        sourceType="gallery"
+        payload={sharePayload}
+      />
+    ) : null}
+    </>
   );
 }

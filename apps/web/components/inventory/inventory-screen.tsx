@@ -231,6 +231,7 @@ type SortKey =
   | "unit"
   | "currentStock"
   | "lowStockThreshold"
+  | "purchaseUnitPrice"
   | "supplierId"
   | "categoryId"
   | "productionSiteId"
@@ -336,6 +337,71 @@ function InventoryThresholdInputCell({
       className={cn(inputCellClass, "tabular-nums")}
       aria-label="Mindestbestand-Schwelle"
       title="Benachrichtigung wenn Bestand ≤ Schwelle (0 = nur bei leerem Bestand)"
+    />
+  );
+}
+
+function InventoryPurchasePriceInputCell({
+  ingredientId,
+  purchaseUnitPrice,
+  lastPriceChangeAt,
+  onCommitPrice,
+}: {
+  ingredientId: string;
+  purchaseUnitPrice: number | null | undefined;
+  lastPriceChangeAt?: string | null;
+  onCommitPrice: (id: string, nextPrice: number | null) => void;
+}) {
+  const [draft, setDraft] = useState(() =>
+    purchaseUnitPrice != null ? String(purchaseUnitPrice) : "",
+  );
+
+  useEffect(() => {
+    setDraft(purchaseUnitPrice != null ? String(purchaseUnitPrice) : "");
+  }, [ingredientId, purchaseUnitPrice]);
+
+  const commit = useCallback(() => {
+    const raw = draft.trim();
+    if (raw === "") {
+      if (purchaseUnitPrice == null) return;
+      onCommitPrice(ingredientId, null);
+      return;
+    }
+    const n = Number.parseFloat(raw.replace(",", "."));
+    if (Number.isNaN(n) || n < 0) {
+      toast.error("Bitte einen gültigen Einkaufspreis (≥ 0) eingeben.");
+      setDraft(purchaseUnitPrice != null ? String(purchaseUnitPrice) : "");
+      return;
+    }
+    if (purchaseUnitPrice != null && n === purchaseUnitPrice) return;
+    onCommitPrice(ingredientId, n);
+  }, [draft, ingredientId, onCommitPrice, purchaseUnitPrice]);
+
+  const lastChangeLabel = lastPriceChangeAt
+    ? new Date(lastPriceChangeAt).toLocaleDateString("de-DE", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      className={cn(inputCellClass, "min-w-[5rem] tabular-nums")}
+      aria-label="Einkaufspreis pro Einheit"
+      title={
+        lastChangeLabel
+          ? `Zuletzt geändert: ${lastChangeLabel}`
+          : "Einkaufspreis pro Lagereinheit (EUR)"
+      }
     />
   );
 }
@@ -769,6 +835,10 @@ export function InventoryScreen() {
           return (
             ((a.lowStockThreshold ?? 0) - (b.lowStockThreshold ?? 0)) * dir
           );
+        case "purchaseUnitPrice":
+          return (
+            ((a.purchaseUnitPrice ?? -1) - (b.purchaseUnitPrice ?? -1)) * dir
+          );
         case "supplierId":
           return (
             nameById(suppliers.items, a.supplierId).localeCompare(
@@ -869,6 +939,13 @@ export function InventoryScreen() {
   const commitThresholdChange = useCallback(
     (id: string, nextThreshold: number) => {
       void updateIngredient(id, { lowStockThreshold: nextThreshold });
+    },
+    [updateIngredient],
+  );
+
+  const commitPurchasePriceChange = useCallback(
+    (id: string, nextPrice: number | null) => {
+      void updateIngredient(id, { purchaseUnitPrice: nextPrice });
     },
     [updateIngredient],
   );
@@ -1043,7 +1120,7 @@ export function InventoryScreen() {
           />
         )}
       >
-        <table className="w-full min-w-[1260px] text-sm">
+        <table className="w-full min-w-[1340px] text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowSortableClassName}>
               <ModuleTableSortHeader
@@ -1071,6 +1148,15 @@ export function InventoryScreen() {
                 onSort={toggleSort}
                 className="w-24 px-2 py-2"
                 ariaLabel="Schwelle sortieren — Benachrichtigung wenn Bestand ≤ Schwelle"
+              />
+              <ModuleTableSortHeader
+                label="EK"
+                sortKey="purchaseUnitPrice"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="w-24 px-2 py-2"
+                ariaLabel="Einkaufspreis pro Einheit sortieren"
               />
               <ModuleTableSortHeader
                 label="Einheit"
@@ -1132,7 +1218,7 @@ export function InventoryScreen() {
             {filteredSorted.length === 0 ? (
               <tr>
                 <td
-                  colSpan={10}
+                  colSpan={11}
                   className="px-4 py-10 text-center text-muted-foreground"
                 >
                   Keine Zutaten für die aktuelle Suche oder Filter.
@@ -1179,6 +1265,14 @@ export function InventoryScreen() {
                       ingredientId={row.id}
                       lowStockThreshold={row.lowStockThreshold ?? 0}
                       onCommitThreshold={commitThresholdChange}
+                    />
+                  </td>
+                  <td className="px-2 py-1.5 align-middle">
+                    <InventoryPurchasePriceInputCell
+                      ingredientId={row.id}
+                      purchaseUnitPrice={row.purchaseUnitPrice}
+                      lastPriceChangeAt={row.lastPriceChangeAt}
+                      onCommitPrice={commitPurchasePriceChange}
                     />
                   </td>
                   <td className="px-2 py-1.5 align-middle">

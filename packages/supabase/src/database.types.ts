@@ -869,8 +869,10 @@ export type Database = {
           current_stock: number
           id: string
           is_active: boolean
+          low_stock_threshold: number
           name: string
           production_site_id: string
+          purchase_unit_price: number | null
           restaurant_id: string
           supplier_id: string
           unit: string
@@ -883,8 +885,10 @@ export type Database = {
           current_stock?: number
           id: string
           is_active?: boolean
+          low_stock_threshold?: number
           name: string
           production_site_id: string
+          purchase_unit_price?: number | null
           restaurant_id: string
           supplier_id: string
           unit: string
@@ -897,8 +901,10 @@ export type Database = {
           current_stock?: number
           id?: string
           is_active?: boolean
+          low_stock_threshold?: number
           name?: string
           production_site_id?: string
+          purchase_unit_price?: number | null
           restaurant_id?: string
           supplier_id?: string
           unit?: string
@@ -1124,6 +1130,70 @@ export type Database = {
           },
           {
             foreignKeyName: "inventory_purchase_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      inventory_ingredient_price_entries: {
+        Row: {
+          created_at: string
+          effective_at: string
+          id: string
+          ingredient_id: string
+          purchase_order_id: string | null
+          purchase_order_line_id: string | null
+          restaurant_id: string
+          source: string
+          supplier_id: string | null
+          unit: string
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          effective_at?: string
+          id?: string
+          ingredient_id: string
+          purchase_order_id?: string | null
+          purchase_order_line_id?: string | null
+          restaurant_id: string
+          source?: string
+          supplier_id?: string | null
+          unit: string
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          effective_at?: string
+          id?: string
+          ingredient_id?: string
+          purchase_order_id?: string | null
+          purchase_order_line_id?: string | null
+          restaurant_id?: string
+          source?: string
+          supplier_id?: string | null
+          unit?: string
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_ipe_fk_ingredient"
+            columns: ["restaurant_id", "ingredient_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_ingredients"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "inventory_ipe_fk_supplier"
+            columns: ["restaurant_id", "supplier_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_suppliers"
+            referencedColumns: ["restaurant_id", "id"]
+          },
+          {
+            foreignKeyName: "inventory_ingredient_price_entries_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -2530,6 +2600,7 @@ export type Database = {
           guest_pin_hash: string | null
           guest_profile_id: string | null
           id: string
+          is_walk_in: boolean
           notes: string | null
           notify_email: boolean
           notify_whatsapp: boolean
@@ -2559,6 +2630,7 @@ export type Database = {
           guest_pin_hash?: string | null
           guest_profile_id?: string | null
           id?: string
+          is_walk_in?: boolean
           notes?: string | null
           notify_email?: boolean
           notify_whatsapp?: boolean
@@ -2588,6 +2660,7 @@ export type Database = {
           guest_pin_hash?: string | null
           guest_profile_id?: string | null
           id?: string
+          is_walk_in?: boolean
           notes?: string | null
           notify_email?: boolean
           notify_whatsapp?: boolean
@@ -3415,6 +3488,7 @@ export type Database = {
           whatsapp_thanks_enabled: boolean
           whatsapp_thanks_hours_after: number
           whatsapp_thanks_template: string | null
+          walk_in_enabled: boolean
         }
         Insert: {
           booking_lead_time_hours?: number
@@ -3477,6 +3551,7 @@ export type Database = {
           whatsapp_thanks_enabled?: boolean
           whatsapp_thanks_hours_after?: number
           whatsapp_thanks_template?: string | null
+          walk_in_enabled?: boolean
         }
         Update: {
           booking_lead_time_hours?: number
@@ -3539,6 +3614,7 @@ export type Database = {
           whatsapp_thanks_enabled?: boolean
           whatsapp_thanks_hours_after?: number
           whatsapp_thanks_template?: string | null
+          walk_in_enabled?: boolean
         }
         Relationships: [
           {

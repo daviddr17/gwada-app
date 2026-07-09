@@ -37,6 +37,7 @@ import { ContactEditDrawer } from "@/components/contacts/contact-edit-drawer";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { GwadaReviewProtocolDrawer } from "@/components/reviews/gwada-review-protocol-drawer";
 import { ReviewInvitationSheet } from "@/components/reviews/review-invitation-sheet";
+import { ShareToChannelsSheet } from "@/components/share/share-to-channels-sheet";
 import { ReviewSummaryCard } from "@/components/reviews/review-summary-card";
 import { ReviewsScreenSkeleton } from "@/components/reviews/reviews-screen-skeleton";
 import { ReviewsPaginationSurround } from "@/components/reviews/reviews-pagination";
@@ -108,6 +109,7 @@ import {
   ratingDistribution,
 } from "@/lib/reviews/review-stats";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
+import { buildReviewSharePayload } from "@/lib/share/share-payload-builders";
 import {
   COUNTRIES_REFERENCE_FALLBACK,
   resolveCountryIso2FromLabel,
@@ -164,6 +166,7 @@ export function ReviewsScreen() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "reviews");
+  const canShareReviews = hasModuleCreate(has, "reviews");
   const {
     loading: connectionsLoading,
     googleVisible,
@@ -205,6 +208,8 @@ export function ReviewsScreen() {
     useState<ReservationListRow | null>(null);
   const [visibilityBusyKey, setVisibilityBusyKey] = useState<string | null>(null);
   const [pinBusyKey, setPinBusyKey] = useState<string | null>(null);
+  const [shareReview, setShareReview] = useState<UnifiedReview | null>(null);
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
 
   useEffect(() => {
     setViewModeState(readReviewsScreenQueryFromSearch(searchParams.toString()).viewMode);
@@ -282,6 +287,19 @@ export function ReviewsScreen() {
   }, [restaurantId, profileReady, getProfileForRestaurantId]);
 
   const restaurantDisplayName = restaurantProfile?.name?.trim() ?? "Restaurant";
+  const restaurantSlug = restaurantProfile?.slug?.trim() ?? null;
+
+  const shareReviewPayload = useMemo(() => {
+    if (!shareReview) return null;
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : undefined;
+    return buildReviewSharePayload({
+      review: shareReview,
+      restaurantName: restaurantDisplayName,
+      slug: restaurantSlug,
+      origin,
+    });
+  }, [shareReview, restaurantDisplayName, restaurantSlug]);
   const defaultCountryIso2 = useMemo(
     () =>
       resolveCountryIso2FromLabel(
@@ -1172,6 +1190,12 @@ export function ReviewsScreen() {
           : undefined,
         onToggleHidden: () => void toggleReviewVisibility(review),
         onTogglePin: () => void toggleReviewPin(review),
+        onShare: canShareReviews
+          ? () => {
+              setShareReview(review);
+              setShareSheetOpen(true);
+            }
+          : undefined,
       };
     },
     [
@@ -1180,6 +1204,7 @@ export function ReviewsScreen() {
       openReservationDrawer,
       toggleReviewVisibility,
       toggleReviewPin,
+      canShareReviews,
     ],
   );
 
@@ -1730,6 +1755,19 @@ export function ReviewsScreen() {
           setReservationDrawerRow(null);
         }}
       />
+
+      {restaurantId && shareReview && shareReviewPayload ? (
+        <ShareToChannelsSheet
+          open={shareSheetOpen}
+          onOpenChange={(open) => {
+            setShareSheetOpen(open);
+            if (!open) setShareReview(null);
+          }}
+          restaurantId={restaurantId}
+          sourceType="review"
+          payload={shareReviewPayload}
+        />
+      ) : null}
 
       <ReviewsFilterDrawer
         open={filterOpen}

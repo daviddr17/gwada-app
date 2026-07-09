@@ -26,6 +26,11 @@ import type {
   NewMenuItem,
 } from "@/lib/types/menu";
 import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/inventory";
+import {
+  computeFoodCostPercent,
+  computeRecipeCost,
+  formatEuroAmount,
+} from "@/lib/menu/recipe-cost-utils";
 
 type FormState = {
   name: string;
@@ -139,6 +144,23 @@ export function DishForm({
     () => new Map(stockUnits.map((u) => [u.id, u.name])),
     [stockUnits],
   );
+
+  const ingredientsById = useMemo(
+    () => new Map(ingredients.map((x) => [x.id, x])),
+    [ingredients],
+  );
+
+  const recipeCostSummary = useMemo(() => {
+    const cost = computeRecipeCost(form.recipe, ingredientsById);
+    const sellRaw = form.price.trim().replace(",", ".");
+    const sellPrice =
+      sellRaw === "" ? null : Number.parseFloat(sellRaw);
+    const foodCostPercent = computeFoodCostPercent(
+      cost.allPriced ? cost.totalCost : null,
+      sellPrice != null && !Number.isNaN(sellPrice) ? sellPrice : null,
+    );
+    return { cost, foodCostPercent };
+  }, [form.price, form.recipe, ingredientsById]);
 
   const recipeRemoveLabel = useMemo(() => {
     if (recipeLineRemoveIndex === null) return "";
@@ -386,12 +408,15 @@ export function DishForm({
           ) : (
             <div className="space-y-2">
               <div className="overflow-x-auto rounded-lg border border-border/50 bg-muted/10">
-                <table className="w-full min-w-[260px] table-fixed text-sm">
+                <table className="w-full min-w-[320px] table-fixed text-sm">
                   <thead>
                     <tr className={moduleDataTableHeadRowMutedClassName}>
-                      <th className="w-[55%] px-2 py-1.5 font-medium">Zutat</th>
-                      <th className="w-[22%] px-1 py-1.5 font-medium">Einheit</th>
-                      <th className="w-[18%] px-1 py-1.5 font-medium">Menge</th>
+                      <th className="w-[40%] px-2 py-1.5 font-medium">Zutat</th>
+                      <th className="w-[16%] px-1 py-1.5 font-medium">Einheit</th>
+                      <th className="w-[16%] px-1 py-1.5 font-medium">Menge</th>
+                      <th className="w-[18%] px-1 py-1.5 font-medium text-right">
+                        EK
+                      </th>
                       <th
                         className="w-10 px-1 py-1.5 text-center font-medium"
                         aria-label="Aktion"
@@ -408,6 +433,16 @@ export function DishForm({
                       const unitLabel = ing
                         ? (unitNameById.get(ing.unit) ?? ing.unit)
                         : "—";
+                      const amountParsed = Number.parseFloat(
+                        line.amount.replace(",", "."),
+                      );
+                      const lineCost =
+                        ing?.purchaseUnitPrice != null &&
+                        Number.isFinite(ing.purchaseUnitPrice) &&
+                        !Number.isNaN(amountParsed) &&
+                        amountParsed > 0
+                          ? amountParsed * ing.purchaseUnitPrice
+                          : null;
                       const err = errors[`recipe_${i}`];
                       return (
                         <Fragment key={i}>
@@ -459,6 +494,13 @@ export function DishForm({
                                 aria-invalid={!!err}
                               />
                             </td>
+                            <td className="p-1 align-middle text-right">
+                              <div className="flex min-h-9 items-center justify-end rounded-lg border border-border/50 bg-background/90 px-2 text-xs tabular-nums text-muted-foreground">
+                                {lineCost != null
+                                  ? formatEuroAmount(lineCost)
+                                  : "—"}
+                              </div>
+                            </td>
                             <td className="p-0.5 align-middle text-center">
                               <Button
                                 type="button"
@@ -475,7 +517,7 @@ export function DishForm({
                           {err ? (
                             <tr className="border-b border-border/35 last:border-b-0">
                               <td
-                                colSpan={4}
+                                colSpan={5}
                                 className="px-2 pb-1.5 text-xs text-destructive"
                               >
                                 {err}
@@ -488,6 +530,39 @@ export function DishForm({
                   </tbody>
                 </table>
               </div>
+              {form.recipe.length > 0 ? (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-sm">
+                  <span>
+                    <span className="text-muted-foreground">Gesamt-EK: </span>
+                    <span className="font-medium tabular-nums">
+                      {recipeCostSummary.cost.allPriced &&
+                      recipeCostSummary.cost.totalCost != null
+                        ? formatEuroAmount(recipeCostSummary.cost.totalCost)
+                        : recipeCostSummary.cost.totalCost != null
+                          ? `${formatEuroAmount(recipeCostSummary.cost.totalCost)}*`
+                          : "—"}
+                    </span>
+                  </span>
+                  <span>
+                    <span className="text-muted-foreground">Food-Cost: </span>
+                    <span className="font-medium tabular-nums">
+                      {recipeCostSummary.foodCostPercent != null
+                        ? `${recipeCostSummary.foodCostPercent.toFixed(1).replace(".", ",")} %`
+                        : "—"}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {" "}
+                      (vs. VK)
+                    </span>
+                  </span>
+                  {!recipeCostSummary.cost.allPriced &&
+                  recipeCostSummary.cost.lines.length > 0 ? (
+                    <span className="text-xs text-muted-foreground">
+                      * Nicht alle Zutaten haben einen Einkaufspreis
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               <Button
                 type="button"
                 variant="outline"

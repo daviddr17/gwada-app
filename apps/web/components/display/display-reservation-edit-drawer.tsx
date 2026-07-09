@@ -87,6 +87,10 @@ import {
   buildDisplayReservationSlotIso,
   resolveDisplayReservationDwellMinutes,
 } from "@/lib/display/display-reservation-save-times";
+import {
+  maybeShowReservationExistingContactLinkToast,
+  resolveExistingContactBeforeReservationLink,
+} from "@/lib/reservations/reservation-existing-contact-link-toast";
 
 type Status = { id: string; code: string; name: string; color_hex: string };
 
@@ -352,6 +356,15 @@ export function DisplayReservationEditDrawer({
 
   const executeSave = async (payload: BuiltPayload) => {
     if (!reservationId) return;
+    const restaurantId = restaurantIdRef.current;
+    const existingContactBeforeSave =
+      restaurantId.length > 0
+        ? await resolveExistingContactBeforeReservationLink({
+            restaurantId,
+            guestPhone: payload.guest_phone,
+            guestEmail: payload.guest_email,
+          })
+        : null;
     setSaving(true);
     try {
       const res = await fetch(
@@ -372,6 +385,16 @@ export function DisplayReservationEditDrawer({
         return;
       }
       toast.success("Reservierung gespeichert.");
+      if (restaurantId.length > 0) {
+        void maybeShowReservationExistingContactLinkToast(
+          {
+            restaurantId,
+            previousContactId: detail?.contact_id ?? null,
+            savedContactId: data.reservation?.contact_id ?? null,
+          },
+          existingContactBeforeSave,
+        );
+      }
       const newStatusCode =
         statuses.find((s) => s.id === payload.status_id)?.code ?? "";
       if (reservationId && restaurantIdRef.current) {

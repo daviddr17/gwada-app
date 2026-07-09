@@ -10,6 +10,7 @@ import {
   Plus,
   Printer,
   Rows3,
+  UserRound,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import { DisplayReservationTableField } from "@/components/display/display-reser
 import { DisplayTimeRangeSlider } from "@/components/display/display-time-range-slider";
 import { DisplayPeriodStatsBar } from "@/components/display/display-period-stats-bar";
 import { DisplayOpenReservationCard } from "@/components/display/display-open-reservation-card";
+import { DisplayWalkInDrawer } from "@/components/display/display-walk-in-drawer";
 import { ReservationInternalNoteIndicator } from "@/components/reservations/reservation-internal-note-indicator";
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
@@ -108,6 +110,7 @@ type DayPayload = {
   default_dwell_minutes: number;
   booking_time_step_minutes: BookingTimeStepMinutes;
   min_minutes_before_closing: number;
+  walk_in_enabled: boolean;
   next_reservation_number: number;
   weekly_hours: Record<Weekday, DayHours>;
   date_exceptions: DateHoursException[];
@@ -223,6 +226,7 @@ export function DisplayReservationsModule() {
   const lastSlotsKeyRef = useRef("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [walkInOpen, setWalkInOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
   const [messageTarget, setMessageTarget] = useState<DisplayReservationRow | null>(
     null,
@@ -721,6 +725,7 @@ export function DisplayReservationsModule() {
   };
 
   const restaurantId = payload?.restaurant_id ?? "";
+  const walkInEnabled = payload?.walk_in_enabled === true;
 
   const overlapReservations = useMemo((): ReservationListRow[] => {
     return reservations.map((r) =>
@@ -1083,6 +1088,18 @@ export function DisplayReservationsModule() {
               <Plus className="mr-2 size-5" />
               Neu
             </Button>
+            {walkInEnabled ? (
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-12 rounded-xl px-4 touch-manipulation"
+                onClick={() => setWalkInOpen(true)}
+                disabled={showDataSkeleton || tables.length === 0}
+              >
+                <UserRound className="mr-2 size-5" />
+                Laufkunde
+              </Button>
+            ) : null}
             <DisplayReservationVoiceButton
               disabled={showDataSkeleton}
               statuses={statuses}
@@ -1432,6 +1449,22 @@ export function DisplayReservationsModule() {
         initialTimeHm={createInitialTimeHm}
         onCreated={handleReservationCreated}
       />
+
+      {walkInEnabled ? (
+        <DisplayWalkInDrawer
+          open={walkInOpen}
+          onOpenChange={setWalkInOpen}
+          tables={tables}
+          reservations={reservations}
+          restaurantId={restaurantId}
+          defaultDwellMinutes={payload?.default_dwell_minutes ?? 120}
+          bookingTimeStepMinutes={bookingStep}
+          onCreated={(row) => {
+            setSelectedDayYmd(restaurantTodayYmd(timeZone));
+            handleReservationCreated(row);
+          }}
+        />
+      ) : null}
 
       <DisplayReservationMessageSheet
         open={messageTarget !== null}

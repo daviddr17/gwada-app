@@ -12,6 +12,7 @@ import {
   normalizeReservationGuestLastName,
 } from "@/lib/reservations/reservation-guest-name";
 import { isValidReservationTimeRange } from "@/lib/display/display-reservation-save-times";
+import { walkInGuestNamesFromOptionalLabel } from "@/lib/reservations/walk-in";
 
 export async function GET(request: Request) {
   const cookieStore = await cookies();
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
   }
 
   let body: {
+    walk_in?: boolean;
+    guest_name?: string | null;
     guest_first_name?: string;
     guest_last_name?: string;
     guest_phone?: string | null;
@@ -61,6 +64,91 @@ export async function POST(request: Request) {
     body = (await request.json()) as typeof body;
   } catch {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const { data: settings } = await admin
+    .from("restaurant_reservation_settings")
+    .select("default_dwell_minutes, walk_in_enabled")
+    .eq("restaurant_id", access.restaurantId)
+    .maybeSingle();
+
+  if (body.walk_in === true) {
+    if (!settings?.walk_in_enabled) {
+      return NextResponse.json({ error: "walk_in_disabled" }, { status: 403 });
+    }
+
+    const tableId = body.dining_table_id?.trim();
+    if (!tableId) {
+      return NextResponse.json({ error: "table_required" }, { status: 400 });
+    }
+
+    const partySize = body.party_size;
+    const startsAt = body.starts_at?.trim();
+    const endsAt = body.ends_at?.trim();
+    if (!startsAt || !endsAt || !partySize || partySize < 1 || partySize > 50) {
+      return NextResponse.json({ error: "invalid_request" }, { status: 400 });
+    }
+
+    const startDate = new Date(startsAt);
+    const endDate = new Date(endsAt);
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return NextResponse.json({ error: "invalid_starts_at" }, { status: 400 });
+    }
+    if (!isValidReservationTimeRange(startsAt, endsAt)) {
+      return NextResponse.json({ error: "invalid_time_range" }, { status: 400 });
+    }
+
+    const { data: seated } = await admin
+      .from("reservation_statuses")
+      .select("id")
+      .eq("code", "seated")
+      .maybeSingle();
+    const seatedStatusId = seated?.id as string | undefined;
+    if (!seatedStatusId) {
+      return NextResponse.json({ error: "status_missing" }, { status: 500 });
+    }
+
+    const dwellMin =
+      body.dwell_minutes && body.dwell_minutes >= 15
+        ? body.dwell_minutes
+        : (settings?.default_dwell_minutes ?? 120);
+
+    const names = walkInGuestNamesFromOptionalLabel(body.guest_name);
+
+    const result = await createDisplayReservation(admin, access.restaurantId, {
+      guest_first_name: names.guest_first_name,
+      guest_last_name: names.guest_last_name,
+      guest_phone: null,
+      guest_email: null,
+      party_size: partySize,
+      starts_at: startDate.toISOString(),
+      ends_at: endDate.toISOString(),
+      status_id: seatedStatusId,
+      dining_table_id: tableId,
+      dwell_minutes: dwellMin,
+      notify_email: false,
+      notify_whatsapp: false,
+      terms_accepted: true,
+      notes: null,
+      is_walk_in: true,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    const reservation = await loadDisplayReservationRowById(
+      access.restaurantId,
+      result.id,
+    );
+
+    return NextResponse.json({
+      ok: true,
+      id: result.id,
+      reservation_number: result.reservation_number,
+      guest_pin: result.guest_pin,
+      reservation,
+    });
   }
 
   const given = normalizeReservationGuestFirstName(body.guest_first_name ?? "");
@@ -85,12 +173,6 @@ export async function POST(request: Request) {
   if (!isValidReservationTimeRange(startsAt, endsAt)) {
     return NextResponse.json({ error: "invalid_time_range" }, { status: 400 });
   }
-
-  const { data: settings } = await admin
-    .from("restaurant_reservation_settings")
-    .select("default_dwell_minutes")
-    .eq("restaurant_id", access.restaurantId)
-    .maybeSingle();
 
   const dwellMin =
     body.dwell_minutes && body.dwell_minutes >= 15

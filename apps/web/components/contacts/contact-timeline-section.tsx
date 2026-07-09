@@ -36,6 +36,94 @@ function formatTimelineWhen(iso: string): string {
   });
 }
 
+function formatLastContactDate(iso: string | null): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
+type ContactTimelineStats = {
+  reservations: number;
+  messages: number;
+  notes: number;
+  lastContactAt: string | null;
+};
+
+function computeContactTimelineStats(
+  entries: ContactTimelineEntry[],
+  contact: Pick<ContactDetail, "last_interaction_at">,
+): ContactTimelineStats {
+  let reservations = 0;
+  let messages = 0;
+  let notes = 0;
+  let lastContactAt = contact.last_interaction_at;
+
+  for (const entry of entries) {
+    if (entry.kind === "reservation") reservations += 1;
+    else if (entry.kind === "message") messages += 1;
+    else if (entry.kind === "note" || entry.kind === "legacy_note") notes += 1;
+
+    if (
+      !lastContactAt ||
+      new Date(entry.at).getTime() > new Date(lastContactAt).getTime()
+    ) {
+      lastContactAt = entry.at;
+    }
+  }
+
+  return { reservations, messages, notes, lastContactAt };
+}
+
+function ContactTimelineStatTile({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-[4.75rem] flex-1 rounded-lg border border-border/40 bg-muted/15 px-3 py-2">
+      <p className="text-[10px] font-medium text-muted-foreground">{label}</p>
+      <p className="mt-0.5 text-base font-semibold tabular-nums tracking-tight">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function ContactTimelineStatsRow({ stats }: { stats: ContactTimelineStats }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <ContactTimelineStatTile
+        label="Reservierungen"
+        value={String(stats.reservations)}
+      />
+      <ContactTimelineStatTile
+        label="Nachrichten"
+        value={String(stats.messages)}
+      />
+      <ContactTimelineStatTile label="Notizen" value={String(stats.notes)} />
+      <ContactTimelineStatTile
+        label="Letzter Kontakt"
+        value={formatLastContactDate(stats.lastContactAt)}
+      />
+    </div>
+  );
+}
+
+function ContactTimelineStatsSkeleton() {
+  return (
+    <div className="flex flex-wrap gap-2" aria-hidden>
+      {Array.from({ length: 4 }, (_, index) => (
+        <Skeleton key={index} className="h-14 min-w-[4.75rem] flex-1 rounded-lg" />
+      ))}
+    </div>
+  );
+}
+
 function TimelineIcon({ entry }: { entry: ContactTimelineEntry }) {
   if (entry.kind === "reservation") {
     return <CalendarDays className="size-4 shrink-0 text-muted-foreground" />;
@@ -86,6 +174,10 @@ export function ContactTimelineSection({
     () => filterContactTimelineEntries(entries, filter),
     [entries, filter],
   );
+  const stats = useMemo(
+    () => computeContactTimelineStats(entries, contact),
+    [entries, contact],
+  );
 
   const filterButton = (
     <div className={moduleSearchFilterButtonWrapClassName}>
@@ -122,6 +214,7 @@ export function ContactTimelineSection({
       <>
         <div className="space-y-4" aria-busy>
           {sectionHeader}
+          <ContactTimelineStatsSkeleton />
           <div className="space-y-2">
             <Skeleton className="h-14 w-full rounded-lg" />
             <Skeleton className="h-14 w-full rounded-lg" />
@@ -143,6 +236,7 @@ export function ContactTimelineSection({
     <>
       <div className="space-y-4">
         {sectionHeader}
+        <ContactTimelineStatsRow stats={stats} />
 
         {entries.length === 0 ? (
           <p className="text-xs text-muted-foreground">

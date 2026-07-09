@@ -3,7 +3,7 @@
 import * as React from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
-import { Trash2 } from "lucide-react";
+import { Share2, Trash2 } from "lucide-react";
 import { DishForm } from "@/components/menu/dish-form";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -14,6 +14,10 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import {
+  ShareToChannelsSheet,
+} from "@/components/share/share-to-channels-sheet";
+import { buildMenuItemSharePayload } from "@/lib/share/share-payload-builders";
 import {
   MENU_TAXONOMY_ALLERGENS_KEY,
   MENU_TAXONOMY_TAGS_KEY,
@@ -41,6 +45,10 @@ type DishDrawerProps = {
   /** Nur Bearbeiten: Gericht endgültig löschen */
   onDelete?: (id: string) => boolean | Promise<boolean>;
   categories: MenuCategoryDefinition[];
+  restaurantId?: string;
+  restaurantName?: string;
+  restaurantSlug?: string | null;
+  canShare?: boolean;
 };
 
 export function DishDrawer({
@@ -52,6 +60,10 @@ export function DishDrawer({
   onUpdate,
   onDelete,
   categories,
+  restaurantId,
+  restaurantName = "Restaurant",
+  restaurantSlug,
+  canShare = false,
 }: DishDrawerProps) {
   const { ingredients } = useIngredientsStorage();
   const { items: stockUnits } = useInventoryTaxonomyStorage(
@@ -72,9 +84,25 @@ export function DishDrawer({
   );
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = React.useState(false);
+  const [shareOpen, setShareOpen] = React.useState(false);
+
+  const sharePayload = React.useMemo(() => {
+    if (!editItem) return null;
+    const origin =
+      typeof window !== "undefined" ? window.location.origin : undefined;
+    return buildMenuItemSharePayload({
+      item: editItem,
+      restaurantName,
+      slug: restaurantSlug,
+      origin,
+    });
+  }, [editItem, restaurantName, restaurantSlug]);
 
   React.useEffect(() => {
-    if (!open) setConfirmDeleteOpen(false);
+    if (!open) {
+      setConfirmDeleteOpen(false);
+      setShareOpen(false);
+    }
   }, [open]);
 
   const handleSubmit = (item: NewMenuItem) => {
@@ -120,6 +148,18 @@ export function DishDrawer({
                 </DrawerDescription>
               ) : null}
             </div>
+            {mode === "edit" && editItem && canShare && restaurantId && sharePayload ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground"
+                aria-label="Auf Kanäle teilen"
+                onClick={() => setShareOpen(true)}
+              >
+                <Share2 className="size-4" />
+              </Button>
+            ) : null}
             {mode === "edit" && editItem && onDelete ? (
               <Button
                 type="button"
@@ -163,6 +203,16 @@ export function DishDrawer({
       confirmLabel="Ja, löschen"
       onConfirm={handleConfirmDelete}
     />
+
+    {mode === "edit" && editItem && canShare && restaurantId && sharePayload ? (
+      <ShareToChannelsSheet
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        restaurantId={restaurantId}
+        sourceType="menu_item"
+        payload={sharePayload}
+      />
+    ) : null}
     </>
   );
 }

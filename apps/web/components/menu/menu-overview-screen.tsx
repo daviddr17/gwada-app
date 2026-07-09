@@ -76,6 +76,7 @@ import {
   hasModuleUpdate,
 } from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import { ListRangeCount } from "@/lib/ui/list-range-count";
@@ -92,12 +93,22 @@ export function MenuOverviewScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { restaurantId: workspaceRestaurantId } = useWorkspaceRestaurantUuid();
+  const { getProfileForRestaurantId, isReady: profileReady } =
+    useRestaurantProfile();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "menu");
   const canCreate = hasModuleCreate(has, "menu");
   const canUpdate = hasModuleUpdate(has, "menu");
   const canDelete = hasModuleDelete(has, "menu");
   const { currencyCode } = useMenuSettings(workspaceRestaurantId);
+
+  const profile = useMemo(() => {
+    if (!workspaceRestaurantId || !profileReady) return null;
+    return getProfileForRestaurantId(workspaceRestaurantId);
+  }, [workspaceRestaurantId, profileReady, getProfileForRestaurantId]);
+
+  const restaurantName = profile?.name?.trim() || "Restaurant";
+  const restaurantSlug = profile?.slug?.trim() ?? null;
   const {
     mainCategories,
     addMainCategory,
@@ -792,6 +803,10 @@ export function MenuOverviewScreen() {
         onUpdate={updateItem}
         onDelete={deleteItem}
         categories={categories}
+        restaurantId={workspaceRestaurantId ?? undefined}
+        restaurantName={restaurantName}
+        restaurantSlug={restaurantSlug}
+        canShare={canCreate}
       />
 
       <FilterDrawer

@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -122,6 +123,7 @@ type SettingsSnapshot = {
   emailReview: ReviewRequestIncludes;
   reviewGoogleUrl: string;
   reviewFacebookUrl: string;
+  walkInEnabled: boolean;
 };
 
 function tmplFromRow(
@@ -300,6 +302,7 @@ function rowToSnapshot(
       typeof data?.review_facebook_url === "string"
         ? data.review_facebook_url
         : "",
+    walkInEnabled: data?.walk_in_enabled === true,
   };
 }
 
@@ -483,6 +486,7 @@ export function ReservationSettingsForm() {
   );
   const [reviewGoogleUrl, setReviewGoogleUrl] = useState("");
   const [reviewFacebookUrl, setReviewFacebookUrl] = useState("");
+  const [walkInEnabled, setWalkInEnabled] = useState(false);
   const [testWhatsappPhone, setTestWhatsappPhone] = useState("");
   const [testEmailAddress, setTestEmailAddress] = useState("");
   const [sendingTestKind, setSendingTestKind] = useState<{
@@ -522,6 +526,7 @@ export function ReservationSettingsForm() {
       emailReview,
       reviewGoogleUrl,
       reviewFacebookUrl,
+      walkInEnabled,
     }),
     [
       minutes,
@@ -537,6 +542,7 @@ export function ReservationSettingsForm() {
       emailReview,
       reviewGoogleUrl,
       reviewFacebookUrl,
+      walkInEnabled,
     ],
   );
 
@@ -583,6 +589,7 @@ export function ReservationSettingsForm() {
       setEmailReview(next.emailReview);
       setReviewGoogleUrl(next.reviewGoogleUrl);
       setReviewFacebookUrl(next.reviewFacebookUrl);
+      setWalkInEnabled(next.walkInEnabled);
       savedSnapshotRef.current = JSON.stringify(next);
     })();
     return () => {
@@ -829,6 +836,7 @@ export function ReservationSettingsForm() {
         emailReviewIncludeFacebook: emailReview.includeFacebook,
         reviewGoogleUrl: reviewGoogleUrl.trim() || null,
         reviewFacebookUrl: reviewFacebookUrl.trim() || null,
+        walkInEnabled,
       });
       setSaving(false);
       if (error) toast.error(error.message);
@@ -963,6 +971,27 @@ export function ReservationSettingsForm() {
                 <p className="text-xs text-muted-foreground">
                   Gilt für Online-Buchung, Dashboard und Display-Tischbelegung.
                 </p>
+              </div>
+            </div>
+
+            <div className="max-w-2xl">
+              <div className="flex items-start justify-between gap-4 rounded-xl border border-border/50 bg-muted/20 px-4 py-3">
+                <div className="space-y-1">
+                  <Label htmlFor="walk-in-enabled" className="text-sm font-medium">
+                    Walk-in / Laufkunde
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Im Display können Gäste ohne Voranmeldung sofort an einen Tisch
+                    platziert werden. Ohne Aktivierung erscheint die Funktion im
+                    Display nicht.
+                  </p>
+                </div>
+                <Switch
+                  id="walk-in-enabled"
+                  checked={walkInEnabled}
+                  disabled={loading}
+                  onCheckedChange={setWalkInEnabled}
+                />
               </div>
             </div>
 

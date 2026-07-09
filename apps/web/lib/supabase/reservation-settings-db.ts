@@ -58,6 +58,7 @@ export type RestaurantReservationSettingsRow = {
   email_review_include_facebook: boolean;
   review_google_url: string | null;
   review_facebook_url: string | null;
+  walk_in_enabled: boolean;
 };
 
 const SETTINGS_SELECT = [
@@ -116,6 +117,7 @@ const SETTINGS_SELECT = [
   "email_review_include_facebook",
   "review_google_url",
   "review_facebook_url",
+  "walk_in_enabled",
 ].join(", ");
 
 const WHATSAPP_TEMPLATE_KEY: Record<
@@ -273,6 +275,7 @@ export type UpsertReservationSettingsParams = {
   emailReviewIncludeFacebook: boolean;
   reviewGoogleUrl: string | null;
   reviewFacebookUrl: string | null;
+  walkInEnabled: boolean;
 };
 
 export async function upsertReservationSettings(
@@ -350,6 +353,7 @@ export async function upsertReservationSettings(
       review_request_include_facebook:
         params.whatsappReviewIncludeFacebook ||
         params.emailReviewIncludeFacebook,
+      walk_in_enabled: params.walkInEnabled,
     },
     { onConflict: "restaurant_id" },
   );

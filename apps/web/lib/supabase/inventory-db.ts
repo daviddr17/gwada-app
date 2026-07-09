@@ -11,6 +11,10 @@ import type {
 } from "@/lib/types/purchase-order";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { IngredientStockLogEntry } from "@/lib/types/ingredient-stock-log";
+import type {
+  IngredientPriceEntry,
+  IngredientPriceEntrySource,
+} from "@/lib/types/ingredient-price";
 
 export function inventoryRelationalPersistenceEnabled(): boolean {
   return workspacePersistenceConfigured();
@@ -168,6 +172,47 @@ export function parseStockLogEntryFromJson(raw: unknown): IngredientStockLogEntr
     };
   }
   return null;
+}
+
+function parsePurchaseUnitPrice(raw: unknown): number | null {
+  if (raw == null || raw === "") return null;
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
+function parsePriceEntrySource(raw: unknown): IngredientPriceEntrySource {
+  if (
+    raw === "delivery" ||
+    raw === "import" ||
+    raw === "invoice" ||
+    raw === "manual"
+  ) {
+    return raw;
+  }
+  return "manual";
+}
+
+function mapPriceEntryRow(row: Record<string, unknown>): IngredientPriceEntry | null {
+  const unitPrice = parsePurchaseUnitPrice(row.unit_price);
+  if (unitPrice == null) return null;
+  if (typeof row.id !== "string" || typeof row.ingredient_id !== "string") return null;
+  if (typeof row.unit !== "string" || typeof row.effective_at !== "string") return null;
+  return {
+    id: row.id,
+    ingredientId: row.ingredient_id,
+    supplierId: typeof row.supplier_id === "string" ? row.supplier_id : null,
+    unitPrice,
+    unit: row.unit,
+    effectiveAt: row.effective_at,
+    source: parsePriceEntrySource(row.source),
+    purchaseOrderId:
+      typeof row.purchase_order_id === "string" ? row.purchase_order_id : null,
+    purchaseOrderLineId:
+      typeof row.purchase_order_line_id === "string"
+        ? row.purchase_order_line_id
+        : null,
+  };
 }
 
 function parseLogEntryFromJson(raw: unknown): PurchaseOrderLogEntry | null {
@@ -475,13 +520,28 @@ export async function loadIngredientsRelational(
   const { data: ings, error: e1 } = await supabase
     .from("inventory_ingredients")
     .select(
-      "id,name,unit,current_stock,low_stock_threshold,supplier_id,category_id,production_site_id,brand_id,is_active",
+      "id,name,unit,current_stock,low_stock_threshold,purchase_unit_price,supplier_id,category_id,production_site_id,brand_id,is_active",
     )
     .eq("restaurant_id", rid)
     .order("name", { ascending: true });
   if (e1) {
     console.warn("[gwada] inventory_ingredients", e1.message);
     return null;
+  }
+  const { data: priceDates, error: ePriceDates } = await supabase
+    .from("inventory_ingredient_price_entries")
+    .select("ingredient_id,effective_at")
+    .eq("restaurant_id", rid)
+    .order("effective_at", { ascending: false });
+  if (ePriceDates) {
+    console.warn("[gwada] inventory_ingredient_price_entries dates", ePriceDates.message);
+  }
+  const lastPriceChangeByIng = new Map<string, string>();
+  for (const row of priceDates ?? []) {
+    const ingId = row.ingredient_id as string;
+    if (!lastPriceChangeByIng.has(ingId)) {
+      lastPriceChangeByIng.set(ingId, row.effective_at as string);
+    }
   }
   const { data: logs, error: e2 } = await supabase
     .from("inventory_stock_log_entries")
@@ -511,6 +571,8 @@ export async function loadIngredientsRelational(
       unit: o.unit as string,
       currentStock: Number(o.current_stock),
       lowStockThreshold: Number(o.low_stock_threshold ?? 0),
+      purchaseUnitPrice: parsePurchaseUnitPrice(o.purchase_unit_price),
+      lastPriceChangeAt: lastPriceChangeByIng.get(o.id as string) ?? null,
       supplierId: o.supplier_id as string,
       categoryId: o.category_id as string,
       productionSiteId: o.production_site_id as string,
@@ -536,6 +598,49 @@ export async function saveIngredientsRelational(
     return false;
   }
   return true;
+}
+
+export async function updateIngredientPurchasePrice(
+  restaurantId: string,
+  ingredientId: string,
+  purchaseUnitPrice: number | null,
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("inventory_ingredients")
+    .update({ purchase_unit_price: purchaseUnitPrice })
+    .eq("restaurant_id", restaurantId)
+    .eq("id", ingredientId);
+  if (error) {
+    console.warn("[gwada] update purchase_unit_price", error.message);
+    return false;
+  }
+  return true;
+}
+
+export async function loadIngredientPriceHistory(
+  restaurantId: string,
+  ingredientId: string,
+): Promise<IngredientPriceEntry[]> {
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("inventory_ingredient_price_entries")
+    .select(
+      "id,ingredient_id,supplier_id,unit_price,unit,effective_at,source,purchase_order_id,purchase_order_line_id",
+    )
+    .eq("restaurant_id", restaurantId)
+    .eq("ingredient_id", ingredientId)
+    .order("effective_at", { ascending: false });
+  if (error) {
+    console.warn("[gwada] loadIngredientPriceHistory", error.message);
+    return [];
+  }
+  const out: IngredientPriceEntry[] = [];
+  for (const row of data ?? []) {
+    const mapped = mapPriceEntryRow(row as Record<string, unknown>);
+    if (mapped) out.push(mapped);
+  }
+  return out;
 }
 
 export async function loadPurchaseOrdersRelational(

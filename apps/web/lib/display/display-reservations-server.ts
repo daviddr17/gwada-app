@@ -214,7 +214,7 @@ export async function loadDisplayReservationsDay(
     admin
       .from("restaurant_reservation_settings")
       .select(
-        "default_dwell_minutes, booking_time_step_minutes, min_minutes_before_closing",
+        "default_dwell_minutes, booking_time_step_minutes, min_minutes_before_closing, walk_in_enabled",
       )
       .eq("restaurant_id", restaurantId)
       .maybeSingle(),
@@ -268,6 +268,7 @@ export async function loadDisplayReservationsDay(
       typeof settings?.min_minutes_before_closing === "number"
         ? settings.min_minutes_before_closing
         : 60,
+    walk_in_enabled: settings?.walk_in_enabled === true,
     restaurant_name: (restaurantRow?.name as string | undefined) ?? null,
     restaurant_id: restaurantId,
     next_reservation_number:

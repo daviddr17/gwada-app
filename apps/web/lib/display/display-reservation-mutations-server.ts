@@ -31,6 +31,7 @@ export type DisplayCreateReservationInput = {
   notify_whatsapp: boolean;
   terms_accepted: boolean;
   notes?: string | null;
+  is_walk_in?: boolean;
 };
 
 export async function createDisplayReservation(
@@ -59,6 +60,7 @@ export async function createDisplayReservation(
       notify_whatsapp: input.notify_whatsapp,
       terms_accepted: input.terms_accepted,
       notes: input.notes?.trim() || null,
+      is_walk_in: input.is_walk_in === true,
     })
     .select("id, reservation_number, guest_pin, contact_id")
     .single();
@@ -109,7 +111,12 @@ export async function createDisplayReservation(
     ),
     details: buildReservationLogDetails(
       buildReservationLogChanges(null, after),
-      { actorSource: "display", summary: "Über Display angelegt" },
+      {
+        actorSource: "display",
+        summary: input.is_walk_in
+          ? "Walk-in (Laufkunde) über Display"
+          : "Über Display angelegt",
+      },
     ),
   });
 

@@ -19,6 +19,10 @@ export type Ingredient = {
   currentStock: number;
   /** Push/Glocke wenn currentStock <= Schwellwert (0 = nur leerer Bestand). */
   lowStockThreshold?: number;
+  /** Einkaufspreis (EUR) pro Lagereinheit — Basis für Food-Cost. */
+  purchaseUnitPrice?: number | null;
+  /** Letzte Preisänderung (aus Preishistorie, optional beim Laden). */
+  lastPriceChangeAt?: string | null;
   supplierId: string;
   categoryId: string;
   productionSiteId: string;

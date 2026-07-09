@@ -59,6 +59,7 @@ export function IngredientDrawer({
   const [name, setName] = useState("");
   const [unit, setUnit] = useState<IngredientStockUnit>("g");
   const [currentStock, setCurrentStock] = useState("0");
+  const [purchaseUnitPrice, setPurchaseUnitPrice] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [productionSiteId, setProductionSiteId] = useState("");
@@ -71,6 +72,7 @@ export function IngredientDrawer({
       setName("");
       setUnit(firstActiveId(units) || "g");
       setCurrentStock("0");
+      setPurchaseUnitPrice("");
       setSupplierId(firstActiveId(suppliers));
       setCategoryId(firstActiveId(ingredientCategories));
       setProductionSiteId(firstActiveId(productionSites));
@@ -124,18 +126,31 @@ export function IngredientDrawer({
     [units],
   );
 
+  const selectedUnitLabel = useMemo(() => {
+    const u = units.find((x) => x.id === unit);
+    return u?.name ?? unit;
+  }, [unit, units]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
     const stock = Number.parseFloat(currentStock.replace(",", "."));
     if (Number.isNaN(stock) || stock < 0) return;
+    let parsedPrice: number | null = null;
+    const priceRaw = purchaseUnitPrice.trim();
+    if (priceRaw !== "") {
+      const p = Number.parseFloat(priceRaw.replace(",", "."));
+      if (Number.isNaN(p) || p < 0) return;
+      parsedPrice = p;
+    }
     void (async () => {
       const ok = await Promise.resolve(
         onCreate({
           name: trimmed,
           unit,
           currentStock: stock,
+          purchaseUnitPrice: parsedPrice,
           supplierId: supplierId || firstActiveId(suppliers),
           categoryId: categoryId || firstActiveId(ingredientCategories),
           productionSiteId: productionSiteId || firstActiveId(productionSites),
@@ -213,6 +228,22 @@ export function IngredientDrawer({
                     className="h-12 rounded-xl"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="ing-price">
+                  Einkaufspreis pro {selectedUnitLabel}
+                </Label>
+                <Input
+                  id="ing-price"
+                  inputMode="decimal"
+                  value={purchaseUnitPrice}
+                  onChange={(e) => setPurchaseUnitPrice(e.target.value)}
+                  placeholder="optional, z. B. 2,50"
+                  className="h-12 rounded-xl"
+                />
+                <p className="text-xs text-muted-foreground">
+                  EUR pro Lagereinheit — Grundlage für Food-Cost in Rezepten.
+                </p>
               </div>
             </DrawerFormSection>
 

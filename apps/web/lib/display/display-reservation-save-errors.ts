@@ -15,6 +15,8 @@ export const DISPLAY_RESERVATION_SAVE_ERRORS: Record<string, string> = {
   status_missing: "Reservierungsstatus fehlt in der Datenbank.",
   server_misconfigured: "Server nicht konfiguriert.",
   create_failed: "Reservierung konnte nicht angelegt werden.",
+  walk_in_disabled: "Walk-in ist für dieses Restaurant deaktiviert.",
+  table_required: "Bitte einen Tisch wählen.",
 };
 
 export function displayReservationSaveErrorMessage(

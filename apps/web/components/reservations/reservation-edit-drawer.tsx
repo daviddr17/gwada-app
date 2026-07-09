@@ -120,6 +120,10 @@ import {
   primaryEmail,
   primaryPhone,
 } from "@/lib/supabase/contacts-db";
+import {
+  maybeShowReservationExistingContactLinkToast,
+  resolveExistingContactBeforeReservationLink,
+} from "@/lib/reservations/reservation-existing-contact-link-toast";
 import { cn } from "@/lib/utils";
 
 const selectValueNoShrink =
@@ -546,9 +550,23 @@ export function ReservationEditDrawer({
     const newStatusCode =
       statuses.find((s) => s.id === payload.status_id)?.code ?? "";
 
+    const restaurantId =
+      reservation?.restaurant_id ?? createFor?.restaurantId ?? null;
+    const existingContactBeforeSave =
+      restaurantId != null
+        ? await resolveExistingContactBeforeReservationLink({
+            restaurantId,
+            guestPhone: payload.guest_phone,
+            guestEmail: payload.guest_email,
+          })
+        : null;
+
     if (isEdit && reservation) {
       setSaving(true);
-      const { error } = await updateReservation(reservation.id, payload);
+      const { data: updated, error } = await updateReservation(
+        reservation.id,
+        payload,
+      );
       setSaving(false);
       if (error) {
         toast.error(error.message);
@@ -562,6 +580,16 @@ export function ReservationEditDrawer({
       });
       setProtocolRefreshKey((k) => k + 1);
       toast.success("Reservierung gespeichert.");
+      if (restaurantId) {
+        void maybeShowReservationExistingContactLinkToast(
+          {
+            restaurantId,
+            previousContactId: reservation.contact_id,
+            savedContactId: updated?.contact_id ?? null,
+          },
+          existingContactBeforeSave,
+        );
+      }
       const dispatchEvent = reservationStatusDispatchEvent(
         initialStatusCodeRef.current,
         newStatusCode,
@@ -625,6 +653,17 @@ export function ReservationEditDrawer({
           ? `Reservierung #${created.reservation_number} angelegt. Gast-PIN: ${created.guest_pin}`
           : "Reservierung angelegt.",
       );
+      if (created && restaurantId) {
+        void maybeShowReservationExistingContactLinkToast(
+          {
+            restaurantId,
+            previousContactId: null,
+            savedContactId: created.contact_id,
+            manualInitialContactId: createFor.initialContactId,
+          },
+          existingContactBeforeSave,
+        );
+      }
       if (created && payload.notify_whatsapp) {
         void triggerReservationWhatsappDispatch(created.id, "created").then((wa) => {
           const msg = whatsappDispatchUserMessage(wa);

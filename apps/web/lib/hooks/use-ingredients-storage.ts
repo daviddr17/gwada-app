@@ -233,12 +233,24 @@ function normalizeIngredient(raw: Record<string, unknown>): Ingredient | null {
       ? raw.lowStockThreshold
       : 0;
 
+  let purchaseUnitPrice: number | null = null;
+  if (raw.purchaseUnitPrice != null && raw.purchaseUnitPrice !== "") {
+    const p =
+      typeof raw.purchaseUnitPrice === "number"
+        ? raw.purchaseUnitPrice
+        : Number.parseFloat(String(raw.purchaseUnitPrice).replace(",", "."));
+    if (Number.isFinite(p) && p >= 0) purchaseUnitPrice = p;
+  }
+
   return {
     id: raw.id,
     name: raw.name,
     unit: raw.unit,
     currentStock: raw.currentStock,
     lowStockThreshold,
+    purchaseUnitPrice,
+    lastPriceChangeAt:
+      typeof raw.lastPriceChangeAt === "string" ? raw.lastPriceChangeAt : null,
     supplierId: raw.supplierId,
     categoryId: raw.categoryId,
     productionSiteId: raw.productionSiteId,
@@ -522,11 +534,17 @@ export function useIngredientsStorage() {
 
       const mapped = ingredients.map((x) => {
         if (x.id !== id) return x;
+        const priceChanged =
+          patch.purchaseUnitPrice !== undefined &&
+          patch.purchaseUnitPrice !== prev.purchaseUnitPrice;
         return {
           ...x,
           ...patch,
           id,
           stockLog,
+          lastPriceChangeAt: priceChanged
+            ? new Date().toISOString()
+            : x.lastPriceChangeAt,
           active:
             patch.active !== undefined
               ? patch.active !== false

@@ -401,16 +401,28 @@ export async function updateReservationDiningTable(
   return { error: null };
 }
 
+export type ReservationUpdateResult = {
+  contact_id: string | null;
+};
+
 export async function updateReservation(
   id: string,
   patch: ReservationUpdatePayload,
-): Promise<{ error: Error | null }> {
+): Promise<{ data: ReservationUpdateResult | null; error: Error | null }> {
   const sb = createSupabaseBrowserClient();
-  const { error } = await sb.from("reservations").update(patch).eq("id", id);
+  const { data, error } = await sb
+    .from("reservations")
+    .update(patch)
+    .eq("id", id)
+    .select("contact_id")
+    .single();
   if (error) {
-    return { error: new Error(error.message) };
+    return { data: null, error: new Error(error.message) };
   }
-  return { error: null };
+  return {
+    data: { contact_id: (data?.contact_id as string | null) ?? null },
+    error: null,
+  };
 }
 
 export async function deleteReservation(params: {

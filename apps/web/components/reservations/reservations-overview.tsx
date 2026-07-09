@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Filter,
   Plus,
-  StickyNote,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -62,6 +61,8 @@ import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
+import { ReservationDayNoteOverviewChip } from "@/components/reservations/reservation-day-note-overview-chip";
+import { ReservationDayNotesSheet } from "@/components/reservations/reservation-day-notes-sheet";
 import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservation-day-notes-db";
 import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
@@ -206,6 +207,8 @@ export function ReservationsOverview() {
     Map<string, number>
   >(new Map());
   const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
+  const [dayNotesSheetOpen, setDayNotesSheetOpen] = useState(false);
+  const [dayNotesSheetDay, setDayNotesSheetDay] = useState<Date | null>(null);
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -990,26 +993,31 @@ export function ReservationsOverview() {
                         </Badge>
                       ) : null}
                     </div>
-                    <p className="text-xs text-muted-foreground sm:text-sm">
-                      {resCount === 1
-                        ? "1 Reservierung"
-                        : `${resCount} Reservierungen`}
-                      {" · "}
-                      {partyTotal === 1
-                        ? "1 Person"
-                        : `${partyTotal} Personen`}
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground sm:text-sm">
+                      <span>
+                        {resCount === 1
+                          ? "1 Reservierung"
+                          : `${resCount} Reservierungen`}
+                      </span>
+                      <span aria-hidden>·</span>
+                      <span>
+                        {partyTotal === 1
+                          ? "1 Person"
+                          : `${partyTotal} Personen`}
+                      </span>
                       {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
                         <>
-                          {" · "}
-                          <span className="inline-flex items-center gap-1">
-                            <StickyNote className="size-3.5 shrink-0" aria-hidden />
-                            {dayNoteCountsByDate.get(key) === 1
-                              ? "1 Tagesnotiz"
-                              : `${dayNoteCountsByDate.get(key)} Tagesnotizen`}
-                          </span>
+                          <span aria-hidden>·</span>
+                          <ReservationDayNoteOverviewChip
+                            count={dayNoteCountsByDate.get(key) ?? 0}
+                            onClick={() => {
+                              setDayNotesSheetDay(d);
+                              setDayNotesSheetOpen(true);
+                            }}
+                          />
                         </>
                       ) : null}
-                    </p>
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     <Button
@@ -1078,7 +1086,7 @@ export function ReservationsOverview() {
                           />
                           <div
                             className={cn(
-                              "grid min-w-0 flex-1 items-center gap-x-3 gap-y-0.5",
+                              "grid min-w-0 flex-1 items-start gap-x-3 gap-y-0.5",
                               gwadaReview
                                 ? "grid-cols-[auto_1fr_auto] grid-rows-2"
                                 : "grid-cols-[auto_1fr] grid-rows-2",
@@ -1110,7 +1118,7 @@ export function ReservationsOverview() {
                                 ) : null}
                               </div>
                             </div>
-                            <div className="col-start-2 row-start-2 min-w-0">
+                            <div className="col-start-2 row-start-2 min-w-0 flex flex-col gap-0.5">
                               <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground sm:text-sm">
                                 <span>
                                   {r.party_size}{" "}
@@ -1122,12 +1130,12 @@ export function ReservationsOverview() {
                                 {r.guest_phone ? (
                                   <span className="truncate">{r.guest_phone}</span>
                                 ) : null}
-                                {r.guest_email ? (
-                                  <span className="min-w-0 truncate">
-                                    {r.guest_email}
-                                  </span>
-                                ) : null}
                               </div>
+                              {r.guest_email ? (
+                                <div className="min-w-0 truncate text-xs text-muted-foreground sm:text-sm">
+                                  {r.guest_email}
+                                </div>
+                              ) : null}
                             </div>
                             {gwadaReview ? (
                               <ReservationGwadaReviewStarButton
@@ -1204,6 +1212,21 @@ export function ReservationsOverview() {
         }
         onDataChanged={() => setReloadNonce((n) => n + 1)}
         onDayNotesChanged={() => setDayNotesReloadNonce((n) => n + 1)}
+      />
+
+      <ReservationDayNotesSheet
+        open={dayNotesSheetOpen}
+        onOpenChange={(open) => {
+          setDayNotesSheetOpen(open);
+          if (!open) setDayNotesSheetDay(null);
+        }}
+        restaurantId={workspaceRestaurantId}
+        serviceDate={
+          dayNotesSheetDay ? localDayKey(dayNotesSheetDay) : null
+        }
+        dayLabel={
+          dayNotesSheetDay ? formatDayHeadingDe(dayNotesSheetDay) : null
+        }
       />
 
       <ReservationEditDrawer

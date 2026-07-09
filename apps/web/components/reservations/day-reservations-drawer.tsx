@@ -788,7 +788,7 @@ export function DayReservationsDrawer({
         />
         <div
           className={cn(
-            "grid min-w-0 flex-1 items-center gap-x-3 gap-y-0.5",
+            "grid min-w-0 flex-1 items-start gap-x-3 gap-y-0.5",
             gwadaReview
               ? "grid-cols-[auto_1fr_auto] grid-rows-2"
               : "grid-cols-[auto_1fr] grid-rows-2",
@@ -818,17 +818,23 @@ export function DayReservationsDrawer({
               ) : null}
             </div>
           </div>
-          <div className="col-start-2 row-start-2 min-w-0">
+          <div className="col-start-2 row-start-2 min-w-0 flex flex-col gap-0.5">
             <p className="text-xs text-muted-foreground">
               {r.party_size} {r.party_size === 1 ? "Person" : "Personen"}
               {" · "}
               <span className="tabular-nums">bis {endLabel}</span>
+              {r.guest_phone ? (
+                <>
+                  {" · "}
+                  <span className="truncate">{r.guest_phone}</span>
+                </>
+              ) : null}
             </p>
-            {(r.guest_phone || r.guest_email) && (
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {[r.guest_phone, r.guest_email].filter(Boolean).join(" · ")}
+            {r.guest_email ? (
+              <p className="truncate text-xs text-muted-foreground">
+                {r.guest_email}
               </p>
-            )}
+            ) : null}
           </div>
           {gwadaReview ? (
             <ReservationGwadaReviewStarButton
@@ -993,7 +999,7 @@ export function DayReservationsDrawer({
           ref={viewMode === "floor" ? floorPlanMeasureRef : undefined}
           data-vaul-no-drag
           className={cn(
-            "min-h-0 min-w-0 flex-1 overflow-x-hidden px-6",
+            "min-h-0 min-w-0 flex-1 overflow-x-hidden px-6 pt-3",
             viewMode === "floor"
               ? "overflow-y-auto overscroll-x-none overscroll-y-contain touch-pan-y"
               : "overflow-hidden",

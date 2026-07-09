@@ -10,6 +10,7 @@ import {
   GOOGLE_AUTH_NONCE_COOKIE,
   googleAuthOAuthCallbackUrl,
   humanizeGoogleAuthSessionError,
+  readGoogleAuthNonceCookie,
 } from "@/lib/integrations/google-platform-oauth";
 import { resolveRequestOriginFromRequest } from "@/lib/navigation/request-origin";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
@@ -75,13 +76,18 @@ export async function handleGoogleOAuthCallback(
   }
 
   const cookieStore = await cookies();
-  const nonceCookie = cookieStore.get(GOOGLE_AUTH_NONCE_COOKIE)?.value;
-  if (!nonceCookie || nonceCookie !== state.nonce) {
-    return redirectLogin(
-      origin,
-      "Anmelde-Sitzung abgelaufen. Bitte erneut mit Google starten.",
-      state.next,
+  if (!state.verified) {
+    const nonceCookie = readGoogleAuthNonceCookie(
+      request,
+      cookieStore.get(GOOGLE_AUTH_NONCE_COOKIE)?.value,
     );
+    if (!nonceCookie || nonceCookie !== state.nonce) {
+      return redirectLogin(
+        origin,
+        "Anmelde-Sitzung abgelaufen. Bitte erneut mit Google starten.",
+        state.next,
+      );
+    }
   }
 
   const platformCfg = await getGoogleOAuthPlatformConfigAdmin();

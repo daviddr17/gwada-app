@@ -1,23 +1,54 @@
 import "server-only";
 
+import { createHmac, timingSafeEqual } from "crypto";
+import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { readPlatformIntegrationEnabled } from "@/lib/supabase/platform-integration-enabled";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { getPublicSiteUrl } from "@/lib/public-env";
 
 export const GOOGLE_AUTH_OAUTH_SCOPES = ["openid", "email", "profile"] as const;
 
 export { GOOGLE_AUTH_NONCE_COOKIE } from "@/lib/cookies/bloated-request-cookies";
+import { GOOGLE_AUTH_NONCE_COOKIE } from "@/lib/cookies/bloated-request-cookies";
 
 export type GoogleOAuthPlatformConfig = {
   clientId: string;
   clientSecret: string;
 };
 
+const AUTH_STATE_TTL_SEC = 600;
+
 export type GoogleAuthOAuthState = {
   next?: string;
   link?: boolean;
   nonce: string;
 };
+
+type GoogleAuthOAuthStatePayload = GoogleAuthOAuthState & {
+  exp: number;
+};
+
+export type DecodedGoogleAuthOAuthState = GoogleAuthOAuthState & {
+  /** HMAC-signierter State — Nonce-Cookie nicht nötig (Domain-Mismatch-sicher). */
+  verified: boolean;
+};
+
+function authStateSecret(): string | null {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || null;
+}
+
+function signAuthStateBody(body: string, secret: string): string {
+  return createHmac("sha256", secret).update(body).digest("base64url");
+}
+
+function parseAuthStatePayload(raw: unknown): GoogleAuthOAuthState | null {
+  const parsed = raw as GoogleAuthOAuthStatePayload;
+  if (!parsed?.nonce || typeof parsed.nonce !== "string") return null;
+  return {
+    nonce: parsed.nonce,
+    next: typeof parsed.next === "string" ? parsed.next : undefined,
+    link: parsed.link === true,
+  };
+}
 
 export async function getGoogleOAuthPlatformConfigAdmin(): Promise<GoogleOAuthPlatformConfig | null> {
   const admin = createSupabaseAdminClient();
@@ -41,29 +72,79 @@ export async function getGoogleOAuthPlatformConfigAdmin(): Promise<GoogleOAuthPl
 }
 
 export function googleAuthOAuthCallbackUrl(req: Request): string {
-  const site = getPublicSiteUrl();
-  if (site) return `${site}/api/auth/google/callback`;
-  return `${new URL(req.url).origin}/api/auth/google/callback`;
+  return `${resolvePublicAppOrigin(req)}/api/auth/google/callback`;
 }
 
 export function encodeGoogleAuthOAuthState(payload: GoogleAuthOAuthState): string {
-  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const secret = authStateSecret();
+  const full: GoogleAuthOAuthStatePayload = {
+    ...payload,
+    exp: Date.now() + AUTH_STATE_TTL_SEC * 1000,
+  };
+  const body = Buffer.from(JSON.stringify(full), "utf8").toString("base64url");
+  if (!secret) return body;
+  return `${body}.${signAuthStateBody(body, secret)}`;
 }
 
 export function decodeGoogleAuthOAuthState(
   state: string,
-): GoogleAuthOAuthState | null {
+): DecodedGoogleAuthOAuthState | null {
+  const trimmed = state.trim();
+  if (!trimmed) return null;
+
+  const secret = authStateSecret();
+  const parts = trimmed.split(".");
+  if (parts.length === 2 && secret) {
+    const [body, sig] = parts;
+    const expected = signAuthStateBody(body, secret);
+    const a = Buffer.from(sig);
+    const b = Buffer.from(expected);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+    try {
+      const parsed = JSON.parse(
+        Buffer.from(body, "base64url").toString("utf8"),
+      ) as GoogleAuthOAuthStatePayload;
+      if (
+        typeof parsed.exp !== "number" ||
+        Date.now() > parsed.exp ||
+        !parsed.nonce
+      ) {
+        return null;
+      }
+      const payload = parseAuthStatePayload(parsed);
+      return payload ? { ...payload, verified: true } : null;
+    } catch {
+      return null;
+    }
+  }
+
   try {
-    const raw = Buffer.from(state, "base64url").toString("utf8");
-    const parsed = JSON.parse(raw) as GoogleAuthOAuthState;
-    if (!parsed.nonce || typeof parsed.nonce !== "string") return null;
-    return {
-      nonce: parsed.nonce,
-      next: typeof parsed.next === "string" ? parsed.next : undefined,
-      link: parsed.link === true,
-    };
+    const raw = Buffer.from(trimmed, "base64url").toString("utf8");
+    const payload = parseAuthStatePayload(JSON.parse(raw));
+    return payload ? { ...payload, verified: false } : null;
   } catch {
     return null;
+  }
+}
+
+/** Nonce-Cookie aus Request (Fallback wenn `cookies()` den Wert nicht liefert). */
+export function readGoogleAuthNonceCookie(
+  request: Request,
+  cookieFromStore?: string | null,
+): string | null {
+  const fromStore = cookieFromStore?.trim();
+  if (fromStore) return fromStore;
+
+  const cookieHeader = request.headers.get("cookie");
+  if (!cookieHeader) return null;
+  const match = cookieHeader.match(
+    new RegExp(`(?:^|; )${GOOGLE_AUTH_NONCE_COOKIE}=([^;]*)`),
+  );
+  if (!match?.[1]) return null;
+  try {
+    return decodeURIComponent(match[1]).trim() || null;
+  } catch {
+    return match[1].trim() || null;
   }
 }
 

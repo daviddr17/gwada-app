@@ -87,6 +87,7 @@ import {
   tablePlanTextClass,
 } from "@/components/reservations/floor-plan-geometry";
 import { DayReservationsExportSheet } from "@/components/reservations/day-reservations-export-sheet";
+import { ReservationDayNotesSection } from "@/components/reservations/reservation-day-notes-section";
 import { AutoAssignTablesButton } from "@/components/reservations/auto-assign-tables-button";
 import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/reservations/reservations-day-drawer-toolbar";
 import { toAutoAssignReservation } from "@/lib/reservations/auto-table-assignment";
@@ -121,6 +122,7 @@ type DayReservationsDrawerProps = {
     startsAt: Date;
   }) => void;
   onDataChanged?: () => void;
+  onDayNotesChanged?: () => void;
 };
 
 function sortReservations(
@@ -405,6 +407,7 @@ export function DayReservationsDrawer({
   onEdit,
   onCreateReservation,
   onDataChanged,
+  onDayNotesChanged,
 }: DayReservationsDrawerProps) {
   const { getProfileForRestaurantId, isReady: profileReady } = useRestaurantProfile();
   const [viewMode, setViewMode] = useState<DayViewMode>("list");
@@ -864,6 +867,7 @@ export function DayReservationsDrawer({
   );
 
   const dayTitle = day ? formatDayHeadingDe(day) : "";
+  const serviceDateYmd = day ? localDateStringForDate(day) : null;
 
   return (
     <>
@@ -954,6 +958,14 @@ export function DayReservationsDrawer({
             </div>
           )}
         </DrawerHeader>
+
+        <ReservationDayNotesSection
+          open={open}
+          restaurantId={restaurantId}
+          serviceDate={serviceDateYmd}
+          onNotesChanged={onDayNotesChanged}
+          className="px-6"
+        />
 
         {viewMode === "floor" && areas.length > 1 ? (
           <div className="min-w-0 shrink-0 overflow-x-hidden border-b border-border/40 px-6 pb-2">

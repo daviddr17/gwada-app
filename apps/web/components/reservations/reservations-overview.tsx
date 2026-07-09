@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Filter,
   Plus,
+  StickyNote,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -61,6 +62,7 @@ import { cn } from "@/lib/utils";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
+import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservation-day-notes-db";
 import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
@@ -200,6 +202,10 @@ export function ReservationsOverview() {
     guestLabel: string;
     reservationNumber: number | null;
   } | null>(null);
+  const [dayNoteCountsByDate, setDayNoteCountsByDate] = useState<
+    Map<string, number>
+  >(new Map());
+  const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
 
   const reservationIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const gwadaReviewsByReservation = useReservationGwadaReviews(
@@ -307,6 +313,36 @@ export function ReservationsOverview() {
       cancelled = true;
     };
   }, [reservationIdParam, rows, dbOk, workspaceRestaurantId, pathname, router]);
+
+  useEffect(() => {
+    if (!workspaceRestaurantId || !dbOk) {
+      setDayNoteCountsByDate(new Map());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await fetchReservationDayNoteCountsForRange(
+        workspaceRestaurantId,
+        monthFromYmd,
+        monthToYmd,
+      );
+      if (cancelled) return;
+      if (error) {
+        setDayNoteCountsByDate(new Map());
+        return;
+      }
+      setDayNoteCountsByDate(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    workspaceRestaurantId,
+    dbOk,
+    monthFromYmd,
+    monthToYmd,
+    dayNotesReloadNonce,
+  ]);
 
   const editReservation = useMemo((): ReservationListRow | null => {
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
@@ -962,6 +998,17 @@ export function ReservationsOverview() {
                       {partyTotal === 1
                         ? "1 Person"
                         : `${partyTotal} Personen`}
+                      {(dayNoteCountsByDate.get(key) ?? 0) > 0 ? (
+                        <>
+                          {" · "}
+                          <span className="inline-flex items-center gap-1">
+                            <StickyNote className="size-3.5 shrink-0" aria-hidden />
+                            {dayNoteCountsByDate.get(key) === 1
+                              ? "1 Tagesnotiz"
+                              : `${dayNoteCountsByDate.get(key)} Tagesnotizen`}
+                          </span>
+                        </>
+                      ) : null}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -1156,6 +1203,7 @@ export function ReservationsOverview() {
             : undefined
         }
         onDataChanged={() => setReloadNonce((n) => n + 1)}
+        onDayNotesChanged={() => setDayNotesReloadNonce((n) => n + 1)}
       />
 
       <ReservationEditDrawer

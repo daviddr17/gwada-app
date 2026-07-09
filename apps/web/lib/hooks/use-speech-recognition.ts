@@ -222,6 +222,29 @@ function extractFinalWithAlternatives(ev: {
   return { transcript: primary, alternatives };
 }
 
+type SpeechResultEvent = NonNullable<BrowserSpeechRecognition["onresult"]> extends (
+  ev: infer E,
+) => void
+  ? E
+  : never;
+
+/** Safari liefert oft nur Interim-Ergebnisse — ohne Fallback „Keine Sprache erkannt“. */
+function extractBestTranscript(ev: SpeechResultEvent): {
+  transcript: string;
+  alternatives: string[];
+} {
+  const final = extractFinalWithAlternatives(ev);
+  if (final.transcript) return final;
+
+  let combined = "";
+  for (let i = 0; i < ev.results.length; i++) {
+    const result = ev.results[i];
+    combined += result?.[0]?.transcript ?? "";
+  }
+
+  return { transcript: combined.trim(), alternatives: [] };
+}
+
 function extractInterimTranscript(ev: {
   resultIndex: number;
   results: {
@@ -304,6 +327,8 @@ export function useSpeechRecognition(params?: {
   );
   const safariAudioEndedRef = useRef(false);
   const sessionDeliveredRef = useRef(false);
+  const latestResultsEventRef = useRef<SpeechResultEvent | null>(null);
+  const lastHeardTranscriptRef = useRef("");
 
   const clearSafariFinalizeTimer = useCallback(() => {
     if (safariFinalizeTimerRef.current != null) {
@@ -321,6 +346,8 @@ export function useSpeechRecognition(params?: {
     recognitionRef.current = null;
     safariAudioEndedRef.current = false;
     sessionDeliveredRef.current = false;
+    latestResultsEventRef.current = null;
+    lastHeardTranscriptRef.current = "";
     releaseHeldMicrophone();
     setListening(false);
   }, [clearSafariFinalizeTimer]);
@@ -339,13 +366,13 @@ export function useSpeechRecognition(params?: {
   );
 
   const scheduleSafariFinalize = useCallback(
-    (
-      recognition: BrowserSpeechRecognition,
-      ev: Parameters<NonNullable<BrowserSpeechRecognition["onresult"]>>[0],
-    ) => {
+    (recognition: BrowserSpeechRecognition) => {
       const finalize = () => {
         clearSafariFinalizeTimer();
-        const { transcript, alternatives } = extractFinalWithAlternatives(ev);
+        const ev = latestResultsEventRef.current;
+        const { transcript, alternatives } = ev
+          ? extractBestTranscript(ev)
+          : { transcript: lastHeardTranscriptRef.current.trim(), alternatives: [] as string[] };
         stopSafariRecognition(recognition);
         recognitionRef.current = null;
         safariAudioEndedRef.current = false;
@@ -386,6 +413,8 @@ export function useSpeechRecognition(params?: {
     setInterim("");
     safariAudioEndedRef.current = false;
     sessionDeliveredRef.current = false;
+    latestResultsEventRef.current = null;
+    lastHeardTranscriptRef.current = "";
 
     const recognition = createRecognition(Ctor, lang);
     const useSafariWebKitWorkaround =
@@ -395,6 +424,16 @@ export function useSpeechRecognition(params?: {
     recognition.onend = () => {
       clearSafariFinalizeTimer();
       if (!sessionDeliveredRef.current) {
+        const ev = latestResultsEventRef.current;
+        const transcript = ev
+          ? extractBestTranscript(ev).transcript
+          : lastHeardTranscriptRef.current.trim();
+        if (transcript) {
+          deliverFinalTranscript(transcript);
+        } else {
+          releaseHeldMicrophone();
+        }
+      } else {
         releaseHeldMicrophone();
       }
       setListening(false);
@@ -405,6 +444,20 @@ export function useSpeechRecognition(params?: {
     };
     recognition.onerror = (ev) => {
       if (ev.error === "aborted") return;
+      if (sessionDeliveredRef.current) return;
+      if (ev.error === "no-speech") {
+        const fallback = lastHeardTranscriptRef.current.trim();
+        if (fallback) {
+          clearSafariFinalizeTimer();
+          stopSafariRecognition(recognition);
+          recognitionRef.current = null;
+          safariAudioEndedRef.current = false;
+          releaseHeldMicrophone();
+          setListening(false);
+          deliverFinalTranscript(fallback);
+          return;
+        }
+      }
       onErrorRef.current?.(speechRecognitionErrorMessage(ev.error));
       releaseHeldMicrophone();
       setListening(false);
@@ -417,11 +470,15 @@ export function useSpeechRecognition(params?: {
     }
 
     recognition.onresult = (ev) => {
+      latestResultsEventRef.current = ev;
       const interimText = extractInterimTranscript(ev);
       if (interimText) setInterim(interimText);
 
+      const best = extractBestTranscript(ev).transcript;
+      if (best) lastHeardTranscriptRef.current = best;
+
       if (useSafariWebKitWorkaround) {
-        scheduleSafariFinalize(recognition, ev);
+        scheduleSafariFinalize(recognition);
         return;
       }
 

@@ -1,12 +1,19 @@
 import {
   downloadTableCsv,
   downloadTablePdf,
+  type TableDocumentExportOptions,
 } from "@/lib/export/table-document-export";
 import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
+import {
+  filterIngredientsForTableExport,
+  type InventoryTableExportFilters,
+} from "@/lib/inventory/inventory-table-export-filters";
+import { compareCategoryThenName } from "@/lib/inventory/sort-by-category";
 import type {
   Ingredient,
   InventoryTaxonomyDefinition,
 } from "@/lib/types/inventory";
+import type { MenuItem } from "@/lib/types/menu";
 
 const HEADERS = [
   "Name",
@@ -62,8 +69,46 @@ function ingredientToRow(
 
 export function buildInventoryExportRows(ctx: InventoryExportContext): string[][] {
   return [...ctx.ingredients]
-    .sort((a, b) => a.name.localeCompare(b.name, "de"))
+    .sort((a, b) =>
+      compareCategoryThenName(
+        a.categoryId,
+        a.name.trim(),
+        b.categoryId,
+        b.name.trim(),
+        ctx.categories,
+      ),
+    )
     .map((row) => ingredientToRow(row, ctx));
+}
+
+export function buildInventoryTableExportOptions(
+  ingredients: Ingredient[],
+  filters: InventoryTableExportFilters,
+  ctx: Omit<InventoryExportContext, "ingredients">,
+  options?: { search?: string; menuItems?: MenuItem[] },
+): TableDocumentExportOptions {
+  const filtered = filterIngredientsForTableExport(ingredients, filters, {
+    search: options?.search,
+    menuItems: options?.menuItems,
+    categories: ctx.categories,
+  });
+  const exportCtx: InventoryExportContext = { ...ctx, ingredients: filtered };
+  const rows = filtered.map((row) => ingredientToRow(row, exportCtx));
+
+  return {
+    documentTitle: "Bestand",
+    filenamePrefix: "bestand",
+    headers: [...HEADERS],
+    rows,
+    summaryLine: `${filtered.length} Zutat${filtered.length === 1 ? "" : "en"}`,
+    orientation: "landscape",
+    columnStyles: {
+      1: { cellWidth: 18, halign: "right" },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 22 },
+      4: { cellWidth: 22 },
+    },
+  };
 }
 
 export function downloadInventoryCsv(

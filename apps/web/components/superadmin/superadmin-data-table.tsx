@@ -63,6 +63,7 @@ export function SuperadminDataTable<T>({
   sortKey: controlledSortKey,
   sortDir: controlledSortDir,
   onToggleSort,
+  embedded = false,
 }: {
   columns: readonly SuperadminColumn<T>[];
   rows: readonly T[];
@@ -72,6 +73,8 @@ export function SuperadminDataTable<T>({
   sortKey?: string | null;
   sortDir?: SuperadminSortDir;
   onToggleSort?: (id: string) => void;
+  /** Ohne Karten-Hülle — für Tabellen-Vollbild-Overlay. */
+  embedded?: boolean;
 }) {
   const [internalSortKey, setInternalSortKey] = useState<string | null>(null);
   const [internalSortDir, setInternalSortDir] = useState<SuperadminSortDir>("asc");
@@ -122,50 +125,58 @@ export function SuperadminDataTable<T>({
     );
   }
 
-  return (
-    <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-card">
-      <table className="w-full min-w-[640px] border-collapse text-left text-sm">
-        <thead>
-          <tr className={moduleDataTableHeadRowMutedClassName}>
-            {columns.map((col) => (
-              <th
-                key={col.id}
-                scope="col"
-                className={cn(moduleDataTableHeadCellClassName, col.className)}
+  const table = (
+    <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+      <thead>
+        <tr className={moduleDataTableHeadRowMutedClassName}>
+          {columns.map((col) => (
+            <th
+              key={col.id}
+              scope="col"
+              className={cn(moduleDataTableHeadCellClassName, col.className)}
+            >
+              <button
+                type="button"
+                onClick={() => toggleSort(col.id)}
+                className={moduleDataTableHeadSortButtonCn(sortKey === col.id, "normal-case")}
               >
-                <button
-                  type="button"
-                  onClick={() => toggleSort(col.id)}
-                  className={moduleDataTableHeadSortButtonCn(sortKey === col.id, "normal-case")}
-                >
-                  {col.header}
-                  {sortKey === col.id ? (
-                    sortDir === "asc" ? (
-                      <ArrowUp className="size-3.5 shrink-0 opacity-70" />
-                    ) : (
-                      <ArrowDown className="size-3.5 shrink-0 opacity-70" />
-                    )
-                  ) : null}
-                </button>
-              </th>
+                {col.header}
+                {sortKey === col.id ? (
+                  sortDir === "asc" ? (
+                    <ArrowUp className="size-3.5 shrink-0 opacity-70" />
+                  ) : (
+                    <ArrowDown className="size-3.5 shrink-0 opacity-70" />
+                  )
+                ) : null}
+              </button>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {sortedRows.map((row) => (
+          <tr
+            key={rowKey(row)}
+            className="border-b border-border/40 last:border-0 hover:bg-muted/20"
+          >
+            {columns.map((col) => (
+              <td key={col.id} className={cn("px-4 py-3", col.className)}>
+                {col.cell(row)}
+              </td>
             ))}
           </tr>
-        </thead>
-        <tbody>
-          {sortedRows.map((row) => (
-            <tr
-              key={rowKey(row)}
-              className="border-b border-border/40 last:border-0 hover:bg-muted/20"
-            >
-              {columns.map((col) => (
-                <td key={col.id} className={cn("px-4 py-3", col.className)}>
-                  {col.cell(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  if (embedded) {
+    return table;
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border/50 bg-card shadow-card">
+      {table}
     </div>
   );
 }

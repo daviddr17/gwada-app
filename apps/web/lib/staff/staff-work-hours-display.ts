@@ -8,9 +8,26 @@ export type WorkHoursListItem =
   | { kind: "entry"; entry: RestaurantStaffWorkEntryRow }
   | { kind: "display_shift"; shiftId: string; segments: RestaurantStaffWorkEntryRow[] };
 
+function workHoursListItemStaffId(item: WorkHoursListItem): string {
+  if (item.kind === "entry") return item.entry.staff_id;
+  return (
+    item.segments.find((s) => s.entry_type === "work")?.staff_id ??
+    item.segments[0]!.staff_id
+  );
+}
+
+function workHoursListItemStartIso(item: WorkHoursListItem): string {
+  if (item.kind === "entry") return item.entry.starts_at;
+  return item.segments[0]!.starts_at;
+}
+
 /** Gruppiert Display-Segmente einer Schicht (shift_id) zu einer Zeile pro Tag. */
 export function groupWorkHoursDayEntries(
   entries: RestaurantStaffWorkEntryRow[],
+  options?: {
+    /** Übersicht „Alle Mitarbeiter“: zuerst Name, dann Startzeit. */
+    staffNameById?: ReadonlyMap<string, string>;
+  },
 ): WorkHoursListItem[] {
   const manual: WorkHoursListItem[] = [];
   const displayByShift = new Map<string, RestaurantStaffWorkEntryRow[]>();
@@ -38,11 +55,16 @@ export function groupWorkHoursDayEntries(
 
   const out = [...manual, ...display];
   out.sort((a, b) => {
-    const aStart =
-      a.kind === "entry" ? a.entry.starts_at : a.segments[0]!.starts_at;
-    const bStart =
-      b.kind === "entry" ? b.entry.starts_at : b.segments[0]!.starts_at;
-    return new Date(aStart).getTime() - new Date(bStart).getTime();
+    if (options?.staffNameById) {
+      const nameA = options.staffNameById.get(workHoursListItemStaffId(a)) ?? "";
+      const nameB = options.staffNameById.get(workHoursListItemStaffId(b)) ?? "";
+      const byName = nameA.localeCompare(nameB, "de");
+      if (byName !== 0) return byName;
+    }
+    return (
+      new Date(workHoursListItemStartIso(a)).getTime() -
+      new Date(workHoursListItemStartIso(b)).getTime()
+    );
   });
   return out;
 }

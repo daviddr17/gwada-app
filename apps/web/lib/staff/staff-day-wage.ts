@@ -201,7 +201,77 @@ export type StaffPeriodWageSummary = {
   /** Mittelwert der Mitarbeiter-Gesamtlöhne im Zeitraum. */
   generalAvgWageCents: number | null;
   staffWithWageCount: number;
+  /** Entgeltfortzahlung für erfasste Kranktage (Stundenlohn × Soll-Tag). */
+  sickPayCents: number;
+  /** Kranktage mit berechenbarem Stundenlohn. */
+  sickDaysWithPay: number;
 };
+
+/** Tages-Soll aus Vertrags-Wochenstunden (Soll ÷ 7). */
+export function staffSickDayPaidHours(
+  contract: Pick<RestaurantStaffContractRow, "target_weekly_minutes">,
+): number | null {
+  const weeklyMinutes = contract.target_weekly_minutes;
+  if (weeklyMinutes == null || weeklyMinutes <= 0) return null;
+  return weeklyMinutes / 7 / 60;
+}
+
+function collectSickDayKeysInPeriod(
+  entries: readonly RestaurantStaffWorkEntryRow[],
+  periodStart: Date,
+  periodEnd: Date,
+): Set<string> {
+  const periodStartMs = startOfLocalDay(periodStart).getTime();
+  const periodEndMs = startOfLocalDay(periodEnd).getTime();
+  const sickDayKeys = new Set<string>();
+  for (const entry of entries) {
+    if (entry.entry_type !== "sick") continue;
+    const dayYmd = localDayKey(new Date(entry.starts_at));
+    const dayMs = startOfLocalDay(parseLocalDayYmd(dayYmd)).getTime();
+    if (dayMs < periodStartMs || dayMs > periodEndMs) continue;
+    sickDayKeys.add(`${entry.staff_id}:${dayYmd}`);
+  }
+  return sickDayKeys;
+}
+
+function computeStaffPeriodSickPayCents(params: {
+  entries: readonly RestaurantStaffWorkEntryRow[];
+  contracts: readonly RestaurantStaffContractRow[];
+  periodStart: Date;
+  periodEnd: Date;
+}): { sickPayCents: number; sickDaysWithPay: number } {
+  const sickDayKeys = collectSickDayKeysInPeriod(
+    params.entries,
+    params.periodStart,
+    params.periodEnd,
+  );
+
+  let sickPayCents = 0;
+  let sickDaysWithPay = 0;
+
+  for (const key of sickDayKeys) {
+    const [staffId, dayYmd] = key.split(":");
+    if (!staffId || !dayYmd) continue;
+
+    const contract = findStaffContractForDay(
+      params.contracts,
+      staffId,
+      dayYmd,
+    );
+    if (!contract || isStaffFixedPayType(contract.pay_type)) continue;
+
+    const hourlyRateCents = contract.hourly_rate_cents;
+    if (hourlyRateCents == null || hourlyRateCents <= 0) continue;
+
+    const paidHours = staffSickDayPaidHours(contract);
+    if (paidHours == null || paidHours <= 0) continue;
+
+    sickPayCents += Math.round(paidHours * hourlyRateCents);
+    sickDaysWithPay += 1;
+  }
+
+  return { sickPayCents, sickDaysWithPay };
+}
 
 export function computeStaffPeriodWageSummary(params: {
   entries: readonly RestaurantStaffWorkEntryRow[];
@@ -253,6 +323,7 @@ export function computeStaffPeriodWageSummary(params: {
   }
 
   const staffWages = [...wageByStaff.values()].filter((c) => c > 0);
+  const sickPay = computeStaffPeriodSickPayCents(params);
 
   return {
     totalWageCents,
@@ -269,6 +340,8 @@ export function computeStaffPeriodWageSummary(params: {
           )
         : null,
     staffWithWageCount: staffWages.length,
+    sickPayCents: sickPay.sickPayCents,
+    sickDaysWithPay: sickPay.sickDaysWithPay,
   };
 }
 

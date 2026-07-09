@@ -30,6 +30,12 @@ import { formatListPageSummary } from "@/lib/ui/list-range-count";
 import type { ModuleTableExportSource } from "@/lib/ui/module-table-export";
 import { cn } from "@/lib/utils";
 
+export type ModuleTableExportSheetRenderProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  overlayLabel: string;
+};
+
 /** Vollbild-Toggle in der oberen Pagination-Zeile — optisch wie Filter-Icon. */
 export const moduleTableFullscreenToggleButtonClassName =
   "size-9 shrink-0 rounded-full border-border/60";
@@ -54,6 +60,10 @@ export type ModulePaginatedDataTableProps = ListPaginationProps & {
   fullscreenChromeInsetClassName?: string;
   /** CSV/PDF-Export im Vollbild-Overlay (alle gefilterten Zeilen). */
   tableExport?: ModuleTableExportSource;
+  /** Eigener Export-Drawer statt Standard-Sheet (z. B. mit Filtern). */
+  renderTableExportSheet?: (
+    props: ModuleTableExportSheetRenderProps,
+  ) => ReactNode;
 };
 
 function ModuleTableShell({
@@ -90,6 +100,7 @@ export function ModulePaginatedDataTable({
   fullscreenTitle,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
   tableExport,
+  renderTableExportSheet,
   itemLabel,
   page,
   totalPages,
@@ -102,6 +113,7 @@ export function ModulePaginatedDataTable({
   const closeFullscreen = useCallback(() => setExpanded(false), []);
 
   const overlayLabel = fullscreenTitle?.trim() || itemLabel?.trim() || "Tabelle";
+  const hasTableExport = Boolean(tableExport || renderTableExportSheet);
   const summaryText = formatListPageSummary({
     shown,
     totalCount,
@@ -181,7 +193,7 @@ export function ModulePaginatedDataTable({
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {tableExport ? (
+              {hasTableExport ? (
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -247,14 +259,20 @@ export function ModulePaginatedDataTable({
         ) : null}
       </AppFullscreenOverlay>
 
-      {tableExport ? (
-        <ModuleTableExportSheet
-          open={exportOpen}
-          onOpenChange={setExportOpen}
-          exportSource={tableExport}
-          title={`${overlayLabel} exportieren`}
-        />
-      ) : null}
+      {renderTableExportSheet
+        ? renderTableExportSheet({
+            open: exportOpen,
+            onOpenChange: setExportOpen,
+            overlayLabel,
+          })
+        : tableExport ? (
+            <ModuleTableExportSheet
+              open={exportOpen}
+              onOpenChange={setExportOpen}
+              exportSource={tableExport}
+              title={`${overlayLabel} exportieren`}
+            />
+          ) : null}
     </>
   );
 }
@@ -272,6 +290,9 @@ export type ModuleDataTableFrameProps = {
   summaryText?: string;
   fullscreenChromeInsetClassName?: string;
   tableExport?: ModuleTableExportSource;
+  renderTableExportSheet?: (
+    props: ModuleTableExportSheetRenderProps,
+  ) => ReactNode;
 };
 
 /** Tabellenhülle ohne Pagination (Protokoll, Drawer). */
@@ -285,12 +306,14 @@ export function ModuleDataTableFrame({
   summaryText,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
   tableExport,
+  renderTableExportSheet,
 }: ModuleDataTableFrameProps) {
   const [expanded, setExpanded] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const closeFullscreen = useCallback(() => setExpanded(false), []);
 
   const overlayLabel = fullscreenTitle?.trim() || "Tabelle";
+  const hasTableExport = Boolean(tableExport || renderTableExportSheet);
 
   const expandButton =
     tableFullscreen && !expanded ? (
@@ -369,7 +392,7 @@ export function ModuleDataTableFrame({
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {tableExport ? (
+              {hasTableExport ? (
                 <Tooltip>
                   <TooltipTrigger
                     render={
@@ -423,14 +446,20 @@ export function ModuleDataTableFrame({
         ) : null}
       </AppFullscreenOverlay>
 
-      {tableExport ? (
-        <ModuleTableExportSheet
-          open={exportOpen}
-          onOpenChange={setExportOpen}
-          exportSource={tableExport}
-          title={`${overlayLabel} exportieren`}
-        />
-      ) : null}
+      {renderTableExportSheet
+        ? renderTableExportSheet({
+            open: exportOpen,
+            onOpenChange: setExportOpen,
+            overlayLabel,
+          })
+        : tableExport ? (
+            <ModuleTableExportSheet
+              open={exportOpen}
+              onOpenChange={setExportOpen}
+              exportSource={tableExport}
+              title={`${overlayLabel} exportieren`}
+            />
+          ) : null}
     </>
   );
 }

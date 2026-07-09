@@ -309,7 +309,7 @@ export function StaffWorkHoursView({
                   : " — Alle Mitarbeiter"}
               </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <CardContent className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               <p className="flex items-center gap-2">
                 <StaffWorkEntryTypeStripe
                   color={STAFF_SUMMARY_LOGGED_COLOR}
@@ -358,6 +358,18 @@ export function StaffWorkHoursView({
                   </span>
                 </span>
               </p>
+              <p className="flex items-center gap-2">
+                <StaffWorkEntryTypeStripe
+                  type="sick"
+                  className="h-4 self-center"
+                />
+                <span>
+                  Krank:{" "}
+                  <span className="font-medium tabular-nums">
+                    {summary.sickDays}
+                  </span>
+                </span>
+              </p>
               <p>
                 Lohn:{" "}
                 <span className="font-medium tabular-nums">
@@ -367,6 +379,21 @@ export function StaffWorkHoursView({
                   Erfasste Zeiten × Vertragslohn
                 </span>
               </p>
+              {summary.sickDays > 0 ? (
+                <p>
+                  Kranklohn:{" "}
+                  <span className="font-medium tabular-nums">
+                    {wageSummary.sickPayCents > 0
+                      ? formatStaffEuroCents(wageSummary.sickPayCents)
+                      : "—"}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {wageSummary.sickPayCents > 0
+                      ? `${wageSummary.sickDaysWithPay} Kranktag${wageSummary.sickDaysWithPay === 1 ? "" : "e"} × Soll-Tag (Woche ÷ 7)`
+                      : "Festlohn oder Soll-Stunden im Vertrag fehlen"}
+                  </span>
+                </p>
+              ) : null}
               {!staffId ? (
                 <p>
                   Ø Stundenlohn:{" "}
@@ -497,7 +524,10 @@ export function StaffWorkHoursView({
                     {dayEntries.length === 0 ? (
                       <p className="text-xs text-muted-foreground">—</p>
                     ) : (
-                      groupWorkHoursDayEntries(dayEntries).map((item) => {
+                      groupWorkHoursDayEntries(
+                        dayEntries,
+                        !staffId ? { staffNameById: staffNameById } : undefined,
+                      ).map((item) => {
                         if (item.kind === "display_shift") {
                           const shiftStaffId =
                             item.segments.find((s) => s.entry_type === "work")

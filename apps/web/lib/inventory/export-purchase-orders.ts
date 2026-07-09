@@ -1,8 +1,15 @@
 import {
   downloadTableCsv,
   downloadTablePdf,
+  type TableDocumentExportOptions,
 } from "@/lib/export/table-document-export";
-import type { Ingredient } from "@/lib/types/inventory";
+import { sortPurchaseOrderLines } from "@/lib/inventory/sort-purchase-order-lines";
+import {
+  DEFAULT_PURCHASE_ORDER_LINE_EXPORT_FILTERS,
+  filterPurchaseOrderLinesForExport,
+  type PurchaseOrderLineExportFilters,
+} from "@/lib/inventory/purchase-order-line-export-filters";
+import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import type { PurchaseOrder } from "@/lib/types/purchase-order";
 
 const HEADERS = [
@@ -48,6 +55,7 @@ function formatDeliveryYmd(ymd: string | null): string {
 export type PurchaseOrdersExportContext = {
   orders: PurchaseOrder[];
   ingredients: Ingredient[];
+  categories: InventoryTaxonomyDefinition[];
 };
 
 function stockForIngredient(
@@ -87,7 +95,15 @@ export function buildPurchaseOrdersExportRows(
       continue;
     }
 
-    for (const line of order.lines) {
+    const sortedLines = sortPurchaseOrderLines(
+      order.lines,
+      ctx.ingredients,
+      ctx.categories,
+      "categoryId",
+      "asc",
+    );
+
+    for (const line of sortedLines) {
       rows.push([
         order.supplierName,
         status,
@@ -110,6 +126,52 @@ export function purchaseOrdersExportLineCount(
   ctx: PurchaseOrdersExportContext,
 ): number {
   return buildPurchaseOrdersExportRows(ctx).length;
+}
+
+/** CSV/PDF-Quelle für Tabellen-Export einer einzelnen Bestellung (Vollbild-Overlay). */
+export function buildPurchaseOrderTableExport(
+  order: PurchaseOrder,
+  ctx: Pick<PurchaseOrdersExportContext, "ingredients" | "categories">,
+  filters: PurchaseOrderLineExportFilters = DEFAULT_PURCHASE_ORDER_LINE_EXPORT_FILTERS,
+): TableDocumentExportOptions {
+  const filteredLines = sortPurchaseOrderLines(
+    filterPurchaseOrderLinesForExport(order.lines, ctx.ingredients, filters),
+    ctx.ingredients,
+    ctx.categories,
+    "categoryId",
+    "asc",
+  );
+
+  const status = order.status === "open" ? "Offen" : "Abgeschlossen";
+  const created = formatWhen(order.createdAt);
+  const delivery = formatDeliveryYmd(order.deliveryDate);
+
+  const rows = filteredLines.map((line) => [
+    order.supplierName,
+    status,
+    created,
+    delivery,
+    line.ingredientName,
+    line.brandLabel?.trim() ?? "",
+    stockForIngredient(ctx.ingredients, line.ingredientId),
+    String(line.quantity),
+    line.unitLabel,
+    line.deliveredAt ? "Ja" : "Nein",
+  ]);
+
+  const lineCount = filteredLines.length;
+  return {
+    documentTitle: `Bestellung · ${order.supplierName}`,
+    filenamePrefix: "bestellung",
+    headers: [...HEADERS],
+    rows,
+    summaryLine: `${lineCount} Position${lineCount === 1 ? "" : "en"}`,
+    orientation: "landscape",
+    columnStyles: {
+      6: { cellWidth: 16, halign: "right" },
+      7: { cellWidth: 16, halign: "right" },
+    },
+  };
 }
 
 export function downloadPurchaseOrdersCsv(

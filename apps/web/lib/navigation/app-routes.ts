@@ -16,7 +16,6 @@ export const APP_ROUTES = {
     overview: "/dashboard/inventory/uebersicht",
     order: "/dashboard/inventory/bestellung",
     statistics: "/dashboard/inventory/statistiken",
-    export: "/dashboard/inventory/export",
   },
   reservierungen: {
     root: "/dashboard/reservierungen",
@@ -166,5 +165,9 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   {
     source: "/dashboard/mitarbeiter/todos/:path*",
     destination: "/dashboard/checklisten",
+  },
+  {
+    source: "/dashboard/inventory/export",
+    destination: APP_ROUTES.inventory.overview,
   },
 ];

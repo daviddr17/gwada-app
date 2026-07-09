@@ -1,3 +1,4 @@
+import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 
 export type StaffWorkHoursSummary = {
@@ -9,6 +10,8 @@ export type StaffWorkHoursSummary = {
   /** Anwesenheit brutto (Arbeit + Pause), nur zur Einordnung. */
   presenceH: number;
   vacationDays: number;
+  /** Eindeutige Kranktage (Mitarbeiter × Kalendertag). */
+  sickDays: number;
 };
 
 export function summarizeStaffWorkEntries(
@@ -18,6 +21,7 @@ export function summarizeStaffWorkEntries(
   let workMs = 0;
   let breakMs = 0;
   let vacationDays = 0;
+  const sickDayKeys = new Set<string>();
   for (const e of entries) {
     const startMs = new Date(e.starts_at).getTime();
     const endMs = e.is_open ? now.getTime() : new Date(e.ends_at).getTime();
@@ -25,12 +29,22 @@ export function summarizeStaffWorkEntries(
     if (e.entry_type === "work") workMs += ms;
     else if (e.entry_type === "break") breakMs += ms;
     else if (e.entry_type === "vacation") vacationDays += 1;
+    else if (e.entry_type === "sick") {
+      sickDayKeys.add(`${e.staff_id}:${localDayKey(new Date(e.starts_at))}`);
+    }
   }
   const loggedH = workMs / 3_600_000;
   const breakH = breakMs / 3_600_000;
   const presenceH = (workMs + breakMs) / 3_600_000;
   const netWorkH = Math.max(0, loggedH - breakH);
-  return { loggedH, breakH, netWorkH, presenceH, vacationDays };
+  return {
+    loggedH,
+    breakH,
+    netWorkH,
+    presenceH,
+    vacationDays,
+    sickDays: sickDayKeys.size,
+  };
 }
 
 export function entryDurationHours(e: RestaurantStaffWorkEntryRow): number {
@@ -51,5 +65,6 @@ export function formatStaffWorkHoursSummaryLine(
     `Pause ${formatHoursDe(summary.breakH)}`,
     `Netto-Arbeitszeit ${formatHoursDe(summary.netWorkH)}`,
     `Urlaub ${summary.vacationDays} Eintrag${summary.vacationDays === 1 ? "" : "e"}`,
+    `Krank ${summary.sickDays} Tag${summary.sickDays === 1 ? "" : "e"}`,
   ].join(" · ");
 }

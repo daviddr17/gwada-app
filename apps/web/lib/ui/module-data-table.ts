@@ -64,6 +64,12 @@ export const moduleTableStickyIdentityHeadBgClassName =
 /** Tabellenkopf — gleiche Fläche wie Sidebar-Kopf/-Fuß und App-Header. */
 export const moduleDataTableHeadRowClassName = moduleDataTableHeadBaseClassName;
 
+/** Tabellenkopf ohne Uppercase (Bestellungen, Display-Bestellliste, …). */
+export const moduleDataTableHeadRowNormalCaseClassName = cn(
+  moduleDataTableHeadBaseClassName,
+  "normal-case [&_button]:normal-case [&_span]:normal-case",
+);
+
 export const moduleDataTableHeadCellClassName = "px-4 py-3 text-left";
 
 /** Kompakter Kopf (Bestand — enge Tabellen). */

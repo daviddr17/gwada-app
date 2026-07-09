@@ -23,6 +23,7 @@ import {
   startOAuthFlow,
 } from "@/lib/supabase/oauth";
 import type { StaffInviteViewerStatus } from "@/lib/types/staff";
+import { staffInvitePrimaryButtonClassName } from "@/lib/ui/staff-invite-auth-button";
 
 type InvitePreview = {
   invite_id: string;
@@ -304,45 +305,36 @@ export default function StaffInvitePage() {
       return;
     }
     setBusy(true);
-    const sb = createSupabaseBrowserClient();
     const gn = givenName.trim();
     const fn = familyName.trim();
-    const { data, error } = await sb.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: {
-          given_name: gn,
-          family_name: fn,
-        },
-      },
+    const res = await fetch("/api/public/staff-invite/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        token,
+        email: email.trim(),
+        password,
+        givenName: gn,
+        familyName: fn,
+      }),
     });
-    if (error) {
-      setBusy(false);
-      toast.error(error.message);
-      return;
-    }
-    const userId = data.user?.id;
-    if (!userId) {
-      setBusy(false);
-      toast.info(
-        "Bitte bestätige deine E-Mail — danach den Link erneut öffnen.",
-      );
-      return;
-    }
-    if (!data.session) {
-      setBusy(false);
-      toast.info(
-        "Bitte bestätige deine E-Mail — danach den Einladungslink erneut öffnen und anmelden.",
-      );
-      return;
-    }
-    const ok = await acceptInvite(userId, { givenName: gn, familyName: fn });
+    const body = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      needsConfirmation?: boolean;
+      message?: string;
+    };
     setBusy(false);
-    if (ok) {
-      toast.success(`Willkommen bei ${invite.restaurant_name}!`);
-      goDashboard();
+    if (!res.ok || !body.ok) {
+      toast.error(
+        body.message ??
+          "Registrierung fehlgeschlagen. Bitte erneut versuchen.",
+      );
+      return;
     }
+    toast.success(
+      "Bestätigungs-E-Mail gesendet — bitte Posteingang prüfen (auch Spam). Danach den Einladungslink erneut öffnen und anmelden.",
+      { duration: 10_000 },
+    );
   };
 
   const handleLoginAndAccept = async () => {
@@ -408,7 +400,7 @@ export default function StaffInvitePage() {
         <InviteCard title={copy.title} description={copy.description}>
           <Button
             type="button"
-            className="w-full rounded-xl"
+            className={staffInvitePrimaryButtonClassName}
             onClick={() => {
               if (viewerStatus === "already_member") {
                 goDashboard();
@@ -460,7 +452,7 @@ export default function StaffInvitePage() {
               </p>
               <Button
                 type="button"
-                className="w-full rounded-xl"
+                className={staffInvitePrimaryButtonClassName}
                 disabled={busy}
                 onClick={() => void handleAcceptLoggedIn()}
               >
@@ -523,7 +515,7 @@ export default function StaffInvitePage() {
           </div>
           <Button
             type="button"
-            className="w-full rounded-xl"
+            className={staffInvitePrimaryButtonClassName}
             disabled={busy}
             onClick={() => void handleRegister()}
           >
@@ -532,7 +524,7 @@ export default function StaffInvitePage() {
           <Button
             type="button"
             variant="outline"
-            className="w-full rounded-xl"
+            className={staffInvitePrimaryButtonClassName}
             disabled={busy}
             onClick={() => void handleLoginAndAccept()}
           >

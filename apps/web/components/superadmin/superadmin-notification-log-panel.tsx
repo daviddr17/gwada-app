@@ -6,6 +6,7 @@ import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { SuperadminDataTable } from "@/components/superadmin/superadmin-data-table";
+import type { SuperadminColumn } from "@/components/superadmin/superadmin-data-table";
 import { SuperadminSearchToolbar } from "@/components/superadmin/superadmin-search-toolbar";
 import { superadminDateCellClass } from "@/components/superadmin/superadmin-table-cells";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,8 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
+import { SuperadminTableFullscreenSurround } from "@/components/superadmin/superadmin-table-fullscreen-surround";
+import { formatListPageSummary } from "@/lib/ui/list-range-count";
 import {
   Select,
   SelectContent,
@@ -206,6 +208,125 @@ export function SuperadminNotificationLogPanel() {
     [],
   );
 
+  const notificationLogColumns = useMemo(
+    (): SuperadminColumn<SuperadminNotificationLogRow>[] => [
+      {
+        id: "event_at",
+        header: "Event",
+        className: superadminDateCellClass,
+        sortValue: (r) => r.event_created_at,
+        cell: (r) => (
+          <button
+            type="button"
+            className={cn(superadminDateCellClass, "text-left hover:underline")}
+            onClick={() => setSelected(r)}
+          >
+            {formatNotificationLogDt(r.event_created_at)}
+          </button>
+        ),
+      },
+      {
+        id: "sent_at",
+        header: "Versand",
+        className: superadminDateCellClass,
+        sortValue: (r) => r.sent_at ?? "",
+        cell: (r) => (
+          <span className={superadminDateCellClass}>
+            {formatNotificationLogDt(r.sent_at)}
+          </span>
+        ),
+      },
+      {
+        id: "source_at",
+        header: "Quelle",
+        className: superadminDateCellClass,
+        sortValue: (r) => sourceTimestampFromPayload(r.module, r.payload) ?? "",
+        cell: (r) => (
+          <span className={superadminDateCellClass}>
+            {formatNotificationLogDt(
+              sourceTimestampFromPayload(r.module, r.payload),
+            )}
+          </span>
+        ),
+      },
+      {
+        id: "restaurant",
+        header: "Restaurant",
+        sortValue: (r) => restaurantLabelForLogRow(r),
+        cell: (r) => restaurantLabelForLogRow(r),
+      },
+      {
+        id: "module",
+        header: "Zweck",
+        sortValue: (r) => notificationModuleLabel(r.module),
+        cell: (r) => (
+          <Badge variant="outline" className="font-normal">
+            {notificationModuleLabel(r.module)}
+          </Badge>
+        ),
+      },
+      {
+        id: "recipient",
+        header: "An wen",
+        sortValue: (r) => recipientLabelForLogRow(r),
+        cell: (r) => (
+          <span className="block max-w-[14rem] truncate">
+            {recipientLabelForLogRow(r)}
+          </span>
+        ),
+      },
+      {
+        id: "channel",
+        header: "Kanal",
+        sortValue: (r) => r.channel ?? "",
+        cell: (r) => notificationChannelLabel(r.channel),
+      },
+      {
+        id: "status",
+        header: "Status",
+        sortValue: (r) => r.delivery_status ?? r.row_kind,
+        cell: (r) =>
+          r.row_kind === "event_only" ? (
+            <Badge variant="outline" className="font-normal">
+              Nur Event
+            </Badge>
+          ) : (
+            <Badge
+              variant="outline"
+              className={statusBadgeClass(r.delivery_status)}
+            >
+              {notificationDeliveryStatusLabel(r.delivery_status)}
+            </Badge>
+          ),
+      },
+      {
+        id: "summary",
+        header: "Inhalt (Kurz)",
+        sortValue: (r) => formatNotificationPayloadSummary(r.module, r.payload),
+        cell: (r) => (
+          <button
+            type="button"
+            className="max-w-[18rem] truncate text-left text-muted-foreground hover:text-foreground hover:underline"
+            onClick={() => setSelected(r)}
+          >
+            {formatNotificationPayloadSummary(r.module, r.payload)}
+          </button>
+        ),
+      },
+      {
+        id: "reference",
+        header: "Referenz",
+        sortValue: (r) => r.reference_id,
+        cell: (r) => (
+          <span className="font-mono text-xs text-muted-foreground">
+            {r.reference_id}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -292,7 +413,7 @@ export function SuperadminNotificationLogPanel() {
         </div>
       </div>
 
-      <ListPaginationSurround
+      <SuperadminTableFullscreenSurround
         classNameAbove="pb-4"
         classNameBelow="pt-4"
         page={page}
@@ -305,6 +426,30 @@ export function SuperadminNotificationLogPanel() {
         busy={loading}
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+        overlayLabel="Benachrichtigungs-Log"
+        summaryText={
+          formatListPageSummary({
+            shown: rows.length,
+            totalCount,
+            itemLabel: "Einträge",
+            page,
+            totalPages,
+          }) ?? undefined
+        }
+        fullscreenChildren={
+          <SuperadminDataTable
+            embedded
+            loading={loading}
+            rows={rows}
+            rowKey={(r) => r.delivery_id ?? `event:${r.event_id}`}
+            emptyMessage={
+              debouncedSearch || moduleFilter !== "all" || channelFilter !== "all" || statusFilter !== "all"
+                ? "Keine Treffer für diese Filter."
+                : "Keine Benachrichtigungen im Log."
+            }
+            columns={notificationLogColumns}
+          />
+        }
       >
       <SuperadminDataTable
         loading={loading}
@@ -315,125 +460,9 @@ export function SuperadminNotificationLogPanel() {
             ? "Keine Treffer für diese Filter."
             : "Keine Benachrichtigungen im Log."
         }
-        columns={[
-          {
-            id: "event_at",
-            header: "Event",
-            className: superadminDateCellClass,
-            sortValue: (r) => r.event_created_at,
-            cell: (r) => (
-              <button
-                type="button"
-                className={cn(superadminDateCellClass, "text-left hover:underline")}
-                onClick={() => setSelected(r)}
-              >
-                {formatNotificationLogDt(r.event_created_at)}
-              </button>
-            ),
-          },
-          {
-            id: "sent_at",
-            header: "Versand",
-            className: superadminDateCellClass,
-            sortValue: (r) => r.sent_at ?? "",
-            cell: (r) => (
-              <span className={superadminDateCellClass}>
-                {formatNotificationLogDt(r.sent_at)}
-              </span>
-            ),
-          },
-          {
-            id: "source_at",
-            header: "Quelle",
-            className: superadminDateCellClass,
-            sortValue: (r) =>
-              sourceTimestampFromPayload(r.module, r.payload) ?? "",
-            cell: (r) => (
-              <span className={superadminDateCellClass}>
-                {formatNotificationLogDt(
-                  sourceTimestampFromPayload(r.module, r.payload),
-                )}
-              </span>
-            ),
-          },
-          {
-            id: "restaurant",
-            header: "Restaurant",
-            sortValue: (r) => restaurantLabelForLogRow(r),
-            cell: (r) => restaurantLabelForLogRow(r),
-          },
-          {
-            id: "module",
-            header: "Zweck",
-            sortValue: (r) => notificationModuleLabel(r.module),
-            cell: (r) => (
-              <Badge variant="outline" className="font-normal">
-                {notificationModuleLabel(r.module)}
-              </Badge>
-            ),
-          },
-          {
-            id: "recipient",
-            header: "An wen",
-            sortValue: (r) => recipientLabelForLogRow(r),
-            cell: (r) => (
-              <span className="block max-w-[14rem] truncate">
-                {recipientLabelForLogRow(r)}
-              </span>
-            ),
-          },
-          {
-            id: "channel",
-            header: "Kanal",
-            sortValue: (r) => r.channel ?? "",
-            cell: (r) => notificationChannelLabel(r.channel),
-          },
-          {
-            id: "status",
-            header: "Status",
-            sortValue: (r) => r.delivery_status ?? r.row_kind,
-            cell: (r) =>
-              r.row_kind === "event_only" ? (
-                <Badge variant="outline" className="font-normal">
-                  Nur Event
-                </Badge>
-              ) : (
-                <Badge
-                  variant="outline"
-                  className={statusBadgeClass(r.delivery_status)}
-                >
-                  {notificationDeliveryStatusLabel(r.delivery_status)}
-                </Badge>
-              ),
-          },
-          {
-            id: "summary",
-            header: "Inhalt (Kurz)",
-            sortValue: (r) =>
-              formatNotificationPayloadSummary(r.module, r.payload),
-            cell: (r) => (
-              <button
-                type="button"
-                className="max-w-[18rem] truncate text-left text-muted-foreground hover:text-foreground hover:underline"
-                onClick={() => setSelected(r)}
-              >
-                {formatNotificationPayloadSummary(r.module, r.payload)}
-              </button>
-            ),
-          },
-          {
-            id: "reference",
-            header: "Referenz",
-            sortValue: (r) => r.reference_id,
-            cell: (r) => (
-              <span className="font-mono text-xs text-muted-foreground">
-                {r.reference_id}
-              </span>
-            ),
-          },
-        ]}
+        columns={notificationLogColumns}
       />
-      </ListPaginationSurround>
+      </SuperadminTableFullscreenSurround>
 
       <Drawer
         open={selected != null}

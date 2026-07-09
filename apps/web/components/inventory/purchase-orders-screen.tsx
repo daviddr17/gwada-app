@@ -13,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
-import { INVENTORY_PRODUCTION_SITES_KEY } from "@/lib/constants/inventory-storage";
-import { SEED_PRODUCTION_SITES } from "@/lib/data/inventory-seeds";
+import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY } from "@/lib/constants/inventory-storage";
+import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES } from "@/lib/data/inventory-seeds";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
@@ -31,7 +32,24 @@ import {
   moduleSearchFilterButtonWrapClassName,
 } from "@/lib/ui/module-search-filter-toolbar";
 import { cn } from "@/lib/utils";
-import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
+import { PurchaseOrderTableExportSheet } from "@/components/inventory/purchase-order-table-export-sheet";
+import {
+  sortPurchaseOrderLines,
+  type PurchaseOrderLineSortDir,
+  type PurchaseOrderLineSortKey,
+} from "@/lib/inventory/sort-purchase-order-lines";
+import {
+  ModuleDataTableFrame,
+} from "@/lib/ui/module-paginated-data-table";
+import {
+  moduleDataTableHeadCellDenseClassName,
+  moduleDataTableHeadRowNormalCaseClassName,
+  moduleTableFullscreenChromeInsetDenseClassName,
+} from "@/lib/ui/module-data-table";
+import {
+  ModuleTableSortHeader,
+  ModuleTableStaticColumnHeader,
+} from "@/lib/ui/module-table-sort-header";
 
 const scopeItems = {
   active: "Aktive Bestellungen",
@@ -125,6 +143,7 @@ function OrderLineQtyCell({
 }
 
 export function PurchaseOrdersScreen() {
+  const { profile } = useRestaurantProfile();
   const { actor, isHydrated: userNameHydrated } = usePersonalProfileNames();
   const {
     orders,
@@ -145,6 +164,14 @@ export function PurchaseOrdersScreen() {
     INVENTORY_PRODUCTION_SITES_KEY,
     SEED_PRODUCTION_SITES,
   );
+  const brands = useInventoryTaxonomyStorage(
+    INVENTORY_BRANDS_KEY,
+    SEED_BRANDS,
+  );
+  const ingredientCategories = useInventoryTaxonomyStorage(
+    INVENTORY_INGREDIENT_CATEGORIES_KEY,
+    SEED_INGREDIENT_CATEGORIES,
+  );
   const [scope, setScope] = useState<keyof typeof scopeItems>("active");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
   const [productionFilterId, setProductionFilterId] = useState<string>("all");
@@ -152,6 +179,20 @@ export function PurchaseOrdersScreen() {
   const [protocolOrderId, setProtocolOrderId] = useState<string | null>(null);
   const [protocolOpen, setProtocolOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [lineSortKey, setLineSortKey] =
+    useState<PurchaseOrderLineSortKey>("categoryId");
+  const [lineSortDir, setLineSortDir] = useState<PurchaseOrderLineSortDir>("asc");
+
+  const toggleLineSort = useCallback((key: PurchaseOrderLineSortKey) => {
+    setLineSortKey((prev) => {
+      if (prev !== key) {
+        setLineSortDir("asc");
+        return key;
+      }
+      setLineSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return prev;
+    });
+  }, []);
 
   const protocolOrder = useMemo(
     () => (protocolOrderId ? orders.find((o) => o.id === protocolOrderId) ?? null : null),
@@ -319,6 +360,8 @@ export function PurchaseOrdersScreen() {
     },
     [actor, ingredients, orders, unmarkLineDelivered, updateIngredient],
   );
+
+  const restaurantName = profile.name.trim() || undefined;
 
   return (
     <div
@@ -500,22 +543,96 @@ export function PurchaseOrdersScreen() {
                       ) : null}
                     </div>
 
-                    <div className="overflow-x-auto">
+                    <ModuleDataTableFrame
+                      tableFullscreen
+                      fullscreenTitle={`Bestellung · ${order.supplierName}`}
+                      summaryText={`${order.lines.length} Position${order.lines.length === 1 ? "" : "en"}`}
+                      shellClassName="overflow-hidden rounded-none bg-transparent ring-0 shadow-none"
+                      scrollClassName="overflow-x-auto"
+                      fullscreenChromeInsetClassName={
+                        moduleTableFullscreenChromeInsetDenseClassName
+                      }
+                      renderTableExportSheet={
+                        order.lines.length > 0
+                          ? ({ open, onOpenChange }) => (
+                              <PurchaseOrderTableExportSheet
+                                open={open}
+                                onOpenChange={onOpenChange}
+                                order={order}
+                                ingredients={ingredients}
+                                categories={ingredientCategories.items}
+                                productionSites={productionSites.items}
+                                brands={brands.items}
+                                restaurantName={restaurantName}
+                              />
+                            )
+                          : undefined
+                      }
+                    >
                       <table className="w-full min-w-[920px] text-sm">
                         <thead>
-                          <tr className={moduleDataTableHeadRowMutedClassName}>
-                            <th className="min-w-[12rem] px-3 py-2.5">Zutat</th>
-                            <th className="min-w-[8rem] px-3 py-2.5 normal-case">
-                              Marke
-                            </th>
-                            <th className="min-w-[6rem] px-3 py-2.5 text-right normal-case">
-                              Bestand
-                            </th>
-                            <th className="w-36 px-3 py-2.5 text-right">Menge</th>
-                            <th className="min-w-[8rem] px-3 py-2.5">Einheit</th>
-                            <th className="min-w-[12rem] px-3 py-2.5 normal-case">
-                              Lieferung
-                            </th>
+                          <tr className={moduleDataTableHeadRowNormalCaseClassName}>
+                            <ModuleTableSortHeader
+                              label="Zutat"
+                              sortKey="categoryId"
+                              activeKey={lineSortKey}
+                              dir={lineSortDir}
+                              onSort={toggleLineSort}
+                              className={cn(
+                                "min-w-[12rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableSortHeader
+                              label="Marke"
+                              sortKey="brandLabel"
+                              activeKey={lineSortKey}
+                              dir={lineSortDir}
+                              onSort={toggleLineSort}
+                              className={cn(
+                                "min-w-[8rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableSortHeader
+                              label="Bestand"
+                              sortKey="currentStock"
+                              activeKey={lineSortKey}
+                              dir={lineSortDir}
+                              onSort={toggleLineSort}
+                              align="right"
+                              className={cn(
+                                "min-w-[6rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableSortHeader
+                              label="Menge"
+                              sortKey="quantity"
+                              activeKey={lineSortKey}
+                              dir={lineSortDir}
+                              onSort={toggleLineSort}
+                              align="right"
+                              className={cn("w-36", moduleDataTableHeadCellDenseClassName)}
+                            />
+                            <ModuleTableSortHeader
+                              label="Einheit"
+                              sortKey="unitLabel"
+                              activeKey={lineSortKey}
+                              dir={lineSortDir}
+                              onSort={toggleLineSort}
+                              className={cn(
+                                "min-w-[8rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
+                            <ModuleTableStaticColumnHeader
+                              label="Lieferung"
+                              className={cn(
+                                "min-w-[12rem]",
+                                moduleDataTableHeadCellDenseClassName,
+                              )}
+                            />
                           </tr>
                         </thead>
                         <tbody>
@@ -529,7 +646,13 @@ export function PurchaseOrdersScreen() {
                               </td>
                             </tr>
                           ) : (
-                            order.lines.map((line) => {
+                            sortPurchaseOrderLines(
+                              order.lines,
+                              ingredients,
+                              ingredientCategories.items,
+                              lineSortKey,
+                              lineSortDir,
+                            ).map((line) => {
                               const ingRow = ingredients.find((i) => i.id === line.ingredientId);
                               return (
                               <tr
@@ -599,7 +722,7 @@ export function PurchaseOrdersScreen() {
                           )}
                         </tbody>
                       </table>
-                    </div>
+                    </ModuleDataTableFrame>
                   </div>
                 ) : null}
               </section>

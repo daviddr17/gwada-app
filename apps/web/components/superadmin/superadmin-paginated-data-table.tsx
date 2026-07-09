@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import {
   clampListPage,
   LIST_PAGE_SIZE_DEFAULT,
@@ -13,6 +12,8 @@ import {
   type SuperadminColumn,
   type SuperadminSortDir,
 } from "@/components/superadmin/superadmin-data-table";
+import { SuperadminTableFullscreenSurround } from "@/components/superadmin/superadmin-table-fullscreen-surround";
+import { formatListPageSummary } from "@/lib/ui/list-range-count";
 
 type SuperadminPaginatedDataTableProps<T> = {
   columns: readonly SuperadminColumn<T>[];
@@ -25,6 +26,10 @@ type SuperadminPaginatedDataTableProps<T> = {
   resetPageKey?: string;
   classNameAbove?: string;
   classNameBelow?: string;
+  /** Tabellen-Vollbild (Standard: an). */
+  tableFullscreen?: boolean;
+  /** Titel im Vollbild-Overlay — Standard: `itemLabel`. */
+  fullscreenTitle?: string;
 };
 
 export function SuperadminPaginatedDataTable<T>({
@@ -37,6 +42,8 @@ export function SuperadminPaginatedDataTable<T>({
   resetPageKey = "",
   classNameAbove,
   classNameBelow,
+  tableFullscreen = true,
+  fullscreenTitle,
 }: SuperadminPaginatedDataTableProps<T>) {
   const [page, setPage] = useState(1);
   const [sortKey, setSortKey] = useState<string | null>(null);
@@ -69,10 +76,29 @@ export function SuperadminPaginatedDataTable<T>({
     setSortDir((d) => (d === "asc" ? "desc" : "asc"));
   };
 
+  const overlayLabel = fullscreenTitle?.trim() || itemLabel.trim() || "Tabelle";
+  const summaryText =
+    formatListPageSummary({
+      shown: paginatedRows.length,
+      totalCount,
+      itemLabel,
+      page: currentPage,
+      totalPages,
+    }) ?? undefined;
+
+  const tableProps = {
+    loading,
+    rows: paginatedRows,
+    rowKey,
+    emptyMessage,
+    columns,
+    sortKey,
+    sortDir,
+    onToggleSort: toggleSort,
+  };
+
   return (
-    <ListPaginationSurround
-      classNameAbove={classNameAbove}
-      classNameBelow={classNameBelow}
+    <SuperadminTableFullscreenSurround
       page={currentPage}
       totalPages={totalPages}
       shown={paginatedRows.length}
@@ -83,17 +109,14 @@ export function SuperadminPaginatedDataTable<T>({
       busy={loading}
       onPrevious={() => setPage((p) => Math.max(1, p - 1))}
       onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+      overlayLabel={overlayLabel}
+      summaryText={summaryText}
+      classNameAbove={classNameAbove}
+      classNameBelow={classNameBelow}
+      tableFullscreen={tableFullscreen}
+      fullscreenChildren={<SuperadminDataTable {...tableProps} embedded />}
     >
-      <SuperadminDataTable
-        loading={loading}
-        rows={paginatedRows}
-        rowKey={rowKey}
-        emptyMessage={emptyMessage}
-        columns={columns}
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onToggleSort={toggleSort}
-      />
-    </ListPaginationSurround>
+      <SuperadminDataTable {...tableProps} />
+    </SuperadminTableFullscreenSurround>
   );
 }

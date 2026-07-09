@@ -25,6 +25,7 @@ import {
   InventoryFilterDrawer,
 } from "@/components/inventory/inventory-filter-drawer";
 import { InventoryScreenSkeleton } from "@/components/inventory/inventory-screen-skeleton";
+import { InventoryTableExportSheet } from "@/components/inventory/inventory-table-export-sheet";
 import type { CategoryDrawerLabels } from "@/components/menu/category-drawer";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
 import { CategoryDrawer } from "@/components/menu/category-drawer";
@@ -63,7 +64,7 @@ import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-pe
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
-import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
+import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import {
   getDishesUsingIngredient,
   ingredientRowMatchesDishSearch,
@@ -613,6 +614,7 @@ export function InventoryScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { profile } = useRestaurantProfile();
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "inventory");
   const suppliers = useInventoryTaxonomyStorage(
@@ -665,7 +667,7 @@ export function InventoryScreen() {
   const [filterBrand, setFilterBrand] = useState<string>("all");
   const [filterOpen, setFilterOpen] = useState(false);
 
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey | null>("categoryId");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [page, setPage] = useState(1);
 
@@ -774,13 +776,15 @@ export function InventoryScreen() {
               "de",
             ) * dir
           );
-        case "categoryId":
-          return (
+        case "categoryId": {
+          const cat =
             nameById(ingredientCategories.items, a.categoryId).localeCompare(
               nameById(ingredientCategories.items, b.categoryId),
               "de",
-            ) * dir
-          );
+            ) * dir;
+          if (cat !== 0) return cat;
+          return a.name.localeCompare(b.name, "de") * dir;
+        }
         case "productionSiteId":
           return (
             nameById(productionSites.items, a.productionSiteId).localeCompare(
@@ -880,68 +884,7 @@ export function InventoryScreen() {
     [filterBrand, filterCategory, filterProduction, filterSupplier],
   );
 
-  const tableExport = useMemo(() => {
-    const taxonomyName = (
-      items: InventoryTaxonomyDefinition[],
-      id: string,
-    ): string => {
-      const hit = items.find((i) => i.id === id);
-      if (!hit) return "";
-      return hit.active === false ? `${hit.name} (inaktiv)` : hit.name;
-    };
-
-    const rows = filteredSorted.map((row) => {
-      const unitLabel = inventoryUnitLabelDe(
-        row.unit,
-        taxonomyName(units.items, row.unit) || undefined,
-      );
-      return [
-        row.name.trim(),
-        String(row.currentStock),
-        unitLabel,
-        "",
-        "",
-        taxonomyName(suppliers.items, row.supplierId),
-        taxonomyName(ingredientCategories.items, row.categoryId),
-        taxonomyName(productionSites.items, row.productionSiteId),
-        taxonomyName(brands.items, row.brandId),
-        row.active === false ? "Inaktiv" : "Aktiv",
-      ];
-    });
-
-    return {
-      documentTitle: "Bestand",
-      filenamePrefix: "bestand",
-      headers: [
-        "Name",
-        "Bestand",
-        "Einheit",
-        "Neuer Bestand",
-        "Bestellung",
-        "Lieferant",
-        "Kategorie",
-        "Produktion",
-        "Marke",
-        "Status",
-      ],
-      rows,
-      summaryLine: `${filteredSorted.length} Zutat${filteredSorted.length === 1 ? "" : "en"}`,
-      orientation: "landscape" as const,
-      columnStyles: {
-        1: { cellWidth: 18, halign: "right" as const },
-        2: { cellWidth: 22 },
-        3: { cellWidth: 22 },
-        4: { cellWidth: 22 },
-      },
-    };
-  }, [
-    filteredSorted,
-    suppliers.items,
-    ingredientCategories.items,
-    productionSites.items,
-    brands.items,
-    units.items,
-  ]);
+  const restaurantName = profile.name.trim() || undefined;
 
   const ready =
     ingredientsHydrated &&
@@ -1078,7 +1021,27 @@ export function InventoryScreen() {
         canNext={currentPage < totalPages}
         onPrevious={() => setPage((p) => Math.max(1, p - 1))}
         onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
-        tableExport={tableExport}
+        renderTableExportSheet={({ open, onOpenChange }) => (
+          <InventoryTableExportSheet
+            open={open}
+            onOpenChange={onOpenChange}
+            ingredients={ingredients}
+            suppliers={suppliers.items}
+            categories={ingredientCategories.items}
+            productionSites={productionSites.items}
+            brands={brands.items}
+            units={units.items}
+            menuItems={menuItems}
+            restaurantName={restaurantName}
+            initialSearch={search}
+            initialFilters={{
+              supplierId: filterSupplier,
+              categoryId: filterCategory,
+              productionSiteId: filterProduction,
+              brandId: filterBrand,
+            }}
+          />
+        )}
       >
         <table className="w-full min-w-[1260px] text-sm">
           <thead>

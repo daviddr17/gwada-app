@@ -23,11 +23,6 @@ const INVENTORY_NAV: readonly ModuleSubnavItem[] = [
     label: "Statistiken",
     matchMode: "exact",
   },
-  {
-    href: "/dashboard/inventory/export",
-    label: "Export",
-    matchMode: "exact",
-  },
 ];
 
 export default function InventoryLayout({

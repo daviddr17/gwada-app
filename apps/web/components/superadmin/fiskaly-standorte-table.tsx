@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CopyToClipboardButton } from "@/components/ui/copy-to-clipboard-button";
+import { ModuleDataTableFrame } from "@/lib/ui/module-paginated-data-table";
 import type { FiskalyProvisionLocation } from "@/lib/superadmin/fiskaly-provision-api";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +69,14 @@ export function FiskalyStandorteTable({
   }
 
   return (
-    <div className="mt-3 overflow-x-auto rounded-xl border border-border/50">
+    <ModuleDataTableFrame
+      className="mt-3"
+      tableFullscreen
+      fullscreenTitle="Fiskaly Standorte"
+      summaryText={`${locations.length} Standort${locations.length === 1 ? "" : "e"}`}
+      shellClassName="overflow-hidden rounded-xl border border-border/50 bg-transparent ring-0 shadow-none"
+      scrollClassName="overflow-x-auto"
+    >
       <table className="w-full min-w-[640px] text-left text-xs">
         <thead className="border-b border-border/50 bg-muted/40 text-muted-foreground">
           <tr>
@@ -177,6 +185,6 @@ export function FiskalyStandorteTable({
           })}
         </tbody>
       </table>
-    </div>
+    </ModuleDataTableFrame>
   );
 }

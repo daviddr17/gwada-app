@@ -30,7 +30,6 @@ const PATH_PAGE_TITLES: Record<string, string> = {
   "/dashboard/inventory/uebersicht": "Bestand",
   "/dashboard/inventory/bestellung": "Bestellung",
   "/dashboard/inventory/statistiken": "Statistiken",
-  "/dashboard/inventory/export": "Export",
   "/dashboard/kontakte": "Nachrichten",
   "/dashboard/kontakte/nachrichten": "Nachrichten",
   "/dashboard/kontakte/uebersicht": "Kontakte",

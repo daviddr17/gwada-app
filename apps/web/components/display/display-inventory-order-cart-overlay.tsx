@@ -9,7 +9,7 @@ import type { DisplayInventoryIngredientRow } from "@/lib/display/display-invent
 import { appFullscreenOverlayScrollClassName } from "@/components/ui/app-fullscreen-overlay";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import {
-  moduleDataTableHeadRowClassName,
+  moduleDataTableHeadRowNormalCaseClassName,
   moduleDataTableShellClassName,
 } from "@/lib/ui/module-data-table";
 import { cn } from "@/lib/utils";
@@ -154,7 +154,7 @@ export function DisplayInventoryOrderCartOverlay({
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[36rem] border-collapse text-sm">
                       <thead>
-                        <tr className={moduleDataTableHeadRowClassName}>
+                        <tr className={moduleDataTableHeadRowNormalCaseClassName}>
                           {ORDER_TABLE_HEADERS.map((header) => (
                             <th
                               key={header}

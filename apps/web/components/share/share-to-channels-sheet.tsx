@@ -18,7 +18,6 @@ import {
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName } from "@/lib/ui/drawer-form-section";
-import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import type { ShareSourceType } from "@/lib/constants/share-channels";
 import { SHARE_SOURCE_TYPE_LABELS } from "@/lib/constants/share-channels";
 import type { ShareContentPayload } from "@/lib/share/share-types";
@@ -244,29 +243,18 @@ export function ShareToChannelsSheet({
         </div>
 
         <DrawerFooter>
-          <DrawerFormFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={publishing}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              className={brandActionButtonRoundedClassName}
-              disabled={
-                publishing ||
-                loading ||
-                !hasConnectedChannel ||
-                selectableChannels.length === 0
-              }
-              onClick={() => void publish()}
-            >
-              {publishing ? "Wird veröffentlicht …" : "Jetzt veröffentlichen"}
-            </Button>
-          </DrawerFormFooter>
+          <DrawerFormFooter
+            contentPadding={4}
+            onCancel={() => onOpenChange(false)}
+            cancelDisabled={publishing}
+            submitLabel="Jetzt veröffentlichen"
+            submitPending={publishing}
+            submitType="button"
+            onSubmit={() => void publish()}
+            submitDisabled={
+              loading || !hasConnectedChannel || selectableChannels.length === 0
+            }
+          />
         </DrawerFooter>
       </DrawerContent>
     </Drawer>

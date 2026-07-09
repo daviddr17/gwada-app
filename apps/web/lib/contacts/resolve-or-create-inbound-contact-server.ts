@@ -1,7 +1,6 @@
 import "server-only";
 
 import { resolveContactIdByMetaSender } from "@/lib/contact-messages/resolve-meta-sender-server";
-import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { upsertContactMessagingId } from "@/lib/contact-messages/link-meta-thread-server";
 import {
   displayNameFromWahaChatId,
@@ -11,72 +10,11 @@ import {
 import {
   resolveWahaInboundIdentity,
 } from "@/lib/contact-messages/waha-inbound-identity-server";
+import { executeContactIdentityResolution, splitPersonName, touchContactRow } from "@/lib/contacts/contact-identity-resolver";
 import { fetchRestaurantContactSettingsAdmin } from "@/lib/contacts/contact-settings-server";
-import {
-  normalizeContactEmail,
-  normalizeContactPhone,
-} from "@/lib/contacts/normalize-contact-identity";
+import { resolveContactIdByWhatsappChat } from "@/lib/contacts/resolve-contact-by-whatsapp-chat";
 import { isWahaLidChatId } from "@/lib/waha/waha-lids";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-async function touchContact(
-  admin: SupabaseClient,
-  contactId: string,
-  patch?: { firstName?: string; lastName?: string },
-): Promise<void> {
-  const now = new Date().toISOString();
-  const updates: Record<string, string> = {
-    last_interaction_at: now,
-    updated_at: now,
-  };
-  if (patch?.firstName?.trim()) {
-    updates.first_name = patch.firstName.trim();
-  }
-  if (patch?.lastName?.trim()) {
-    updates.last_name = patch.lastName.trim();
-  }
-  await admin.from("contacts").update(updates).eq("id", contactId);
-}
-
-async function insertContactRow(
-  admin: SupabaseClient,
-  params: {
-    restaurantId: string;
-    firstName: string;
-    lastName?: string;
-  },
-): Promise<string | null> {
-  const now = new Date().toISOString();
-  const { data, error } = await admin
-    .from("contacts")
-    .insert({
-      restaurant_id: params.restaurantId,
-      first_name: params.firstName.trim() || "Gast",
-      last_name: params.lastName?.trim() ?? "",
-      last_interaction_at: now,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    console.warn("[contact-auto-create] insert contact", error?.message);
-    return null;
-  }
-  return (data as { id: string }).id;
-}
-
-function splitPersonName(fullName: string): {
-  firstName: string;
-  lastName: string;
-} {
-  const parts = fullName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return { firstName: "Gast", lastName: "" };
-  if (parts.length === 1) return { firstName: parts[0]!, lastName: "" };
-  return {
-    firstName: parts[0]!,
-    lastName: parts.slice(1).join(" "),
-  };
-}
 
 async function linkWhatsappLidToContact(
   admin: SupabaseClient,
@@ -120,7 +58,7 @@ export async function resolveOrCreateContactForWhatsappInbound(
   if (existing) {
     const readable = pickReadableName(params.pushName) ?? pickReadableName(identity.displayLabel);
     const patch = readable ? splitPersonName(readable) : undefined;
-    await touchContact(admin, existing, patch);
+    await touchContactRow(admin, existing, patch);
     if (identity.isLidChat) {
       await linkWhatsappLidToContact(admin, {
         restaurantId: params.restaurantId,
@@ -136,33 +74,6 @@ export async function resolveOrCreateContactForWhatsappInbound(
     return null;
   }
 
-  const settings = await fetchRestaurantContactSettingsAdmin(
-    admin,
-    params.restaurantId,
-  );
-  if (!settings.autoCreateFromMessages) return null;
-
-  const byPhone = await admin
-    .from("contact_phones")
-    .select("contact_id")
-    .eq("restaurant_id", params.restaurantId)
-    .eq("phone_normalized", identity.phoneNormalized)
-    .maybeSingle();
-  const raceContactId =
-    (byPhone.data as { contact_id: string } | null)?.contact_id ?? null;
-  if (raceContactId) {
-    await touchContact(admin, raceContactId);
-    if (identity.isLidChat) {
-      await linkWhatsappLidToContact(admin, {
-        restaurantId: params.restaurantId,
-        contactId: raceContactId,
-        lidChatId: identity.sourceChatId,
-        label: identity.displayLabel,
-      });
-    }
-    return raceContactId;
-  }
-
   const readable = pickReadableName(params.pushName) ?? pickReadableName(identity.displayLabel);
   const phoneDisplay =
     identity.phoneDisplay ??
@@ -173,45 +84,16 @@ export async function resolveOrCreateContactForWhatsappInbound(
     ? splitPersonName(readable)
     : { firstName: phoneDisplay, lastName: "" };
 
-  const contactId = await insertContactRow(admin, {
+  const { contactId } = await executeContactIdentityResolution(admin, {
     restaurantId: params.restaurantId,
+    eventType: "message",
+    whatsappChatId: matchChatId,
+    phoneDisplay,
     firstName: name.firstName,
     lastName: name.lastName,
   });
+
   if (!contactId) return null;
-
-  const { error: phoneErr } = await admin.from("contact_phones").insert({
-    contact_id: contactId,
-    restaurant_id: params.restaurantId,
-    phone_display: phoneDisplay,
-    phone_normalized: identity.phoneNormalized,
-    is_primary: true,
-  });
-
-  if (phoneErr) {
-    const retry = await admin
-      .from("contact_phones")
-      .select("contact_id")
-      .eq("restaurant_id", params.restaurantId)
-      .eq("phone_normalized", identity.phoneNormalized)
-      .maybeSingle();
-    const recovered =
-      (retry.data as { contact_id: string } | null)?.contact_id ?? null;
-    if (recovered) {
-      await admin.from("contacts").delete().eq("id", contactId);
-      await touchContact(admin, recovered);
-      if (identity.isLidChat) {
-        await linkWhatsappLidToContact(admin, {
-          restaurantId: params.restaurantId,
-          contactId: recovered,
-          lidChatId: identity.sourceChatId,
-          label: identity.displayLabel,
-        });
-      }
-      return recovered;
-    }
-    return null;
-  }
 
   if (identity.isLidChat) {
     await linkWhatsappLidToContact(admin, {
@@ -223,26 +105,6 @@ export async function resolveOrCreateContactForWhatsappInbound(
   }
 
   return contactId;
-}
-
-async function findContactIdByEmail(
-  admin: SupabaseClient,
-  restaurantId: string,
-  emailNormalized: string,
-): Promise<string | null> {
-  const { data } = await admin
-    .from("contact_emails")
-    .select("contact_id")
-    .eq("restaurant_id", restaurantId)
-    .eq("email_normalized", emailNormalized)
-    .maybeSingle();
-  return (data as { contact_id: string } | null)?.contact_id ?? null;
-}
-
-function firstNameFromEmail(emailNormalized: string): string {
-  const local = emailNormalized.split("@")[0]?.trim() ?? "";
-  if (!local || local.length < 2) return "Gast";
-  return local.slice(0, 80);
 }
 
 export async function resolveOrCreateContactForMetaInbound(
@@ -265,15 +127,9 @@ export async function resolveOrCreateContactForMetaInbound(
   if (existing) {
     const readable = pickReadableName(params.senderName);
     const patch = readable ? splitPersonName(readable) : undefined;
-    await touchContact(admin, existing, patch);
+    await touchContactRow(admin, existing, patch);
     return existing;
   }
-
-  const settings = await fetchRestaurantContactSettingsAdmin(
-    admin,
-    params.restaurantId,
-  );
-  if (!settings.autoCreateFromMessages) return null;
 
   const readable = pickReadableName(params.senderName);
   const fallback =
@@ -282,11 +138,42 @@ export async function resolveOrCreateContactForMetaInbound(
     ? splitPersonName(readable)
     : { firstName: fallback, lastName: "" };
 
-  const contactId = await insertContactRow(admin, {
+  let contactId: string | null = null;
+  const resolution = await executeContactIdentityResolution(admin, {
     restaurantId: params.restaurantId,
+    eventType: "message",
     firstName: name.firstName,
     lastName: name.lastName,
   });
+  contactId = resolution.contactId;
+
+  if (!contactId) {
+    const settings = await fetchRestaurantContactSettingsAdmin(
+      admin,
+      params.restaurantId,
+    );
+    if (!settings.autoLinkEnabled || !settings.autoCreateFromMessages) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const { data: created, error } = await admin
+      .from("contacts")
+      .insert({
+        restaurant_id: params.restaurantId,
+        first_name: name.firstName,
+        last_name: name.lastName,
+        last_interaction_at: now,
+      })
+      .select("id")
+      .single();
+    if (error || !created?.id) {
+      console.warn("[contact-auto-create] meta insert", error?.message);
+      return null;
+    }
+    contactId = created.id as string;
+  }
+
   if (!contactId) return null;
 
   const link = await upsertContactMessagingId(admin, {
@@ -305,7 +192,7 @@ export async function resolveOrCreateContactForMetaInbound(
     });
     if (retry) {
       await admin.from("contacts").delete().eq("id", contactId);
-      await touchContact(admin, retry);
+      await touchContactRow(admin, retry);
       return retry;
     }
     return null;
@@ -322,60 +209,16 @@ export async function resolveOrCreateContactForEmailInbound(
     displayName?: string | null;
   },
 ): Promise<string | null> {
-  const emailNormalized = normalizeContactEmail(params.email);
-  if (!emailNormalized) return null;
-
-  const existing = await findContactIdByEmail(
-    admin,
-    params.restaurantId,
-    emailNormalized,
-  );
-  if (existing) {
-    const readable = pickReadableName(params.displayName);
-    const patch = readable ? splitPersonName(readable) : undefined;
-    await touchContact(admin, existing, patch);
-    return existing;
-  }
-
-  const settings = await fetchRestaurantContactSettingsAdmin(
-    admin,
-    params.restaurantId,
-  );
-  if (!settings.autoCreateFromMessages) return null;
-
   const readable = pickReadableName(params.displayName);
-  const name = readable
-    ? splitPersonName(readable)
-    : { firstName: firstNameFromEmail(emailNormalized), lastName: "" };
+  const name = readable ? splitPersonName(readable) : undefined;
 
-  const contactId = await insertContactRow(admin, {
+  const { contactId } = await executeContactIdentityResolution(admin, {
     restaurantId: params.restaurantId,
-    firstName: name.firstName,
-    lastName: name.lastName,
+    eventType: "message",
+    email: params.email,
+    firstName: name?.firstName,
+    lastName: name?.lastName,
   });
-  if (!contactId) return null;
-
-  const { error: emailErr } = await admin.from("contact_emails").insert({
-    contact_id: contactId,
-    restaurant_id: params.restaurantId,
-    email: params.email.trim(),
-    email_normalized: emailNormalized,
-    is_primary: true,
-  });
-
-  if (emailErr) {
-    const recovered = await findContactIdByEmail(
-      admin,
-      params.restaurantId,
-      emailNormalized,
-    );
-    if (recovered) {
-      await admin.from("contacts").delete().eq("id", contactId);
-      await touchContact(admin, recovered);
-      return recovered;
-    }
-    return null;
-  }
 
   return contactId;
 }

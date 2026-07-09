@@ -26,7 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
 import {
   COUNTRIES_REFERENCE_FALLBACK,
   type CountryReference,
@@ -100,16 +99,6 @@ function emptyFormSnapshot(defaultIso2: string): string {
   });
 }
 
-function formatReservationWhen(iso: string): string {
-  return new Date(iso).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export function ContactEditDrawer({
   open,
   onOpenChange,
@@ -160,7 +149,6 @@ export function ContactEditDrawer({
     canLinkToLexoffice: boolean;
   } | null>(null);
   const [assignedTagIds, setAssignedTagIds] = useState<string[]>([]);
-  const [timelineRefreshKey, setTimelineRefreshKey] = useState(0);
   const linkExistingLexofficeId = initialDraft?.linkExistingLexofficeId ?? null;
 
   useEffect(() => {
@@ -581,8 +569,8 @@ export function ContactEditDrawer({
     })();
   };
 
-  const linkedReservations = detail?.reservations ?? [];
   const stackedSheetZClass = stackAboveInboxOverlay ? "z-[210]" : undefined;
+  const nestedFilterZClass = stackAboveInboxOverlay ? "z-[220]" : "z-[210]";
 
   return (
     <>
@@ -607,7 +595,7 @@ export function ContactEditDrawer({
                 </DrawerTitle>
                 <DrawerDescription className="text-base">
                   {isEdit
-                    ? "Stammdaten, Tags, Aktivitäten und verknüpfte Reservierungen."
+                    ? "Stammdaten, Tags, Notizen und Aktivitäten."
                     : "Kontakt mit E-Mail, Telefon und optionaler Adresse anlegen."}
                 </DrawerDescription>
               </div>
@@ -630,6 +618,15 @@ export function ContactEditDrawer({
           {open ? (
             <>
           <div className={drawerScrollAreaClassName(6)}>
+            {isEdit && detail && contactId ? (
+              <DrawerFormSection title="Schnellaktionen" className="py-2.5">
+                <ContactQuickActionsBar
+                  restaurantId={restaurantId}
+                  contact={detail}
+                />
+              </DrawerFormSection>
+            ) : null}
+
             <DrawerFormSection title="Stammdaten">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
@@ -709,20 +706,6 @@ export function ContactEditDrawer({
 
             <DrawerFormSection title="E-Mail-Adressen">
             <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="sr-only">E-Mail-Adressen</span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1"
-                  disabled={loading}
-                  onClick={() => setEmails((list) => [...list, emptyEmail()])}
-                >
-                  <Plus className="size-3.5" />
-                  Hinzufügen
-                </Button>
-              </div>
               {emails.map((row, idx) => (
                 <div
                   key={row.key}
@@ -775,26 +758,24 @@ export function ContactEditDrawer({
                   ) : null}
                 </div>
               ))}
-            </div>
-            </DrawerFormSection>
-
-            <DrawerFormSection title="Telefonnummern">
-            <div className="space-y-2">
-              <div className="flex items-center justify-end gap-2">
+              <div className="flex items-center justify-start gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   className="h-8 gap-1"
                   disabled={loading}
-                  onClick={() =>
-                    setPhones((list) => [...list, emptyPhone(defaultCountryIso2)])
-                  }
+                  onClick={() => setEmails((list) => [...list, emptyEmail()])}
                 >
                   <Plus className="size-3.5" />
                   Hinzufügen
                 </Button>
               </div>
+            </div>
+            </DrawerFormSection>
+
+            <DrawerFormSection title="Telefonnummern">
+            <div className="space-y-2">
               {phones.map((row, idx) => (
                   <div
                     key={row.key}
@@ -856,6 +837,21 @@ export function ContactEditDrawer({
                     ) : null}
                   </div>
               ))}
+              <div className="flex items-center justify-start gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  disabled={loading}
+                  onClick={() =>
+                    setPhones((list) => [...list, emptyPhone(defaultCountryIso2)])
+                  }
+                >
+                  <Plus className="size-3.5" />
+                  Hinzufügen
+                </Button>
+              </div>
             </div>
             </DrawerFormSection>
 
@@ -924,36 +920,18 @@ export function ContactEditDrawer({
             ) : null}
 
             {isEdit && detail && contactId ? (
-              <>
-                <DrawerFormSection title="Schnellaktionen">
-                  <ContactQuickActionsBar
-                    restaurantId={restaurantId}
-                    contact={detail}
-                    onNoteAdded={() => setTimelineRefreshKey((k) => k + 1)}
-                  />
-                </DrawerFormSection>
-
-                <DrawerFormSection title="Tags">
-                  <ContactTagsEditor
-                    restaurantId={restaurantId}
-                    contactId={contactId}
-                    assignedTagIds={assignedTagIds}
-                    disabled={loading || saving}
-                    onTagsChanged={(ids) => {
-                      setAssignedTagIds(ids);
-                      onSaved?.();
-                    }}
-                  />
-                </DrawerFormSection>
-
-                <DrawerFormSection title="Aktivitäten">
-                  <ContactTimelineSection
-                    restaurantId={restaurantId}
-                    contact={detail}
-                    refreshKey={timelineRefreshKey}
-                  />
-                </DrawerFormSection>
-              </>
+              <DrawerFormSection title="Tags">
+                <ContactTagsEditor
+                  restaurantId={restaurantId}
+                  contactId={contactId}
+                  assignedTagIds={assignedTagIds}
+                  disabled={loading || saving}
+                  onTagsChanged={(ids) => {
+                    setAssignedTagIds(ids);
+                    onSaved?.();
+                  }}
+                />
+              </DrawerFormSection>
             ) : null}
 
             <DrawerFormSection title="Notizen">
@@ -965,6 +943,16 @@ export function ContactEditDrawer({
                 className="rounded-xl resize-y min-h-[5rem]"
               />
             </DrawerFormSection>
+
+            {isEdit && detail && contactId ? (
+              <DrawerFormSection>
+                <ContactTimelineSection
+                  restaurantId={restaurantId}
+                  contact={detail}
+                  stackZClass={nestedFilterZClass}
+                />
+              </DrawerFormSection>
+            ) : null}
 
             {isEdit && detail && detail.message_count > 0 ? (
               <DrawerFormSection title="Nachrichten">
@@ -994,54 +982,6 @@ export function ContactEditDrawer({
               </DrawerFormSection>
             ) : null}
 
-            {isEdit && linkedReservations.length > 0 ? (
-              <DrawerFormSection title="Reservierungen">
-              <ul className="space-y-2">
-                  {linkedReservations.map((r) => (
-                    <li
-                      key={r.id}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-sm"
-                    >
-                      <div className="min-w-0 space-y-0.5">
-                        <p className="font-medium tabular-nums">
-                          #{r.reservation_number} · {r.party_size} Pers.
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatReservationWhen(r.starts_at)}
-                        </p>
-                        {r.reservation_statuses ? (
-                          <ReservationStatusLabel
-                            status={r.reservation_statuses}
-                            compact
-                          />
-                        ) : null}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0"
-                        render={
-                          <Link
-                            href={`/dashboard/reservierungen/uebersicht?reservation=${r.id}`}
-                            prefetch
-                          />
-                        }
-                      >
-                        Öffnen
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </DrawerFormSection>
-            ) : isEdit && !loading ? (
-              <DrawerFormSection title="Reservierungen">
-                <p className="text-xs text-muted-foreground">
-                  Noch keine verknüpften Reservierungen. Neue Reservierungen mit
-                  passender E-Mail oder Telefonnummer werden automatisch verknüpft.
-                </p>
-              </DrawerFormSection>
-            ) : null}
           </div>
 
           {dirty ? (

@@ -2657,6 +2657,8 @@ export type Database = {
         Row: {
           auto_create_from_messages: boolean
           auto_create_from_reservations: boolean
+          auto_create_from_reviews: boolean
+          auto_link_enabled: boolean
           guest_chat_code_valid_hours: number
           guest_chat_session_hours: number
           guest_chat_url_template: string | null
@@ -2666,6 +2668,8 @@ export type Database = {
         Insert: {
           auto_create_from_messages?: boolean
           auto_create_from_reservations?: boolean
+          auto_create_from_reviews?: boolean
+          auto_link_enabled?: boolean
           guest_chat_code_valid_hours?: number
           guest_chat_session_hours?: number
           guest_chat_url_template?: string | null
@@ -2675,6 +2679,8 @@ export type Database = {
         Update: {
           auto_create_from_messages?: boolean
           auto_create_from_reservations?: boolean
+          auto_create_from_reviews?: boolean
+          auto_link_enabled?: boolean
           guest_chat_code_valid_hours?: number
           guest_chat_session_hours?: number
           guest_chat_url_template?: string | null

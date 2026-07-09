@@ -7,8 +7,7 @@ import {
 } from "@/lib/reviews/gwada-review-invitation-server";
 import { contactHasSubmittedGwadaReview } from "@/lib/reviews/contact-gwada-review-server";
 import { buildManualReviewInvitationMessage } from "@/lib/reviews/review-invitation-messages";
-import { normalizeContactEmail } from "@/lib/contacts/normalize-contact-identity";
-import { normalizeContactPhone } from "@/lib/contacts/normalize-contact-identity";
+import { executeContactIdentityResolution } from "@/lib/contacts/contact-identity-resolver";
 import { sendContactMessageServer } from "@/lib/contact-messages/send-contact-message-server";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { wahaCheckNumberExists, wahaGetSession } from "@/lib/waha/waha-client";
@@ -88,36 +87,6 @@ export async function createManualGwadaReviewInvitation(
   };
 }
 
-async function findContactIdByEmail(
-  admin: SupabaseClient,
-  restaurantId: string,
-  emailNormalized: string,
-): Promise<string | null> {
-  const { data } = await admin
-    .from("contact_emails")
-    .select("contact_id")
-    .eq("restaurant_id", restaurantId)
-    .eq("email_normalized", emailNormalized)
-    .limit(1)
-    .maybeSingle();
-  return (data?.contact_id as string | undefined) ?? null;
-}
-
-async function findContactIdByPhone(
-  admin: SupabaseClient,
-  restaurantId: string,
-  phoneNormalized: string,
-): Promise<string | null> {
-  const { data } = await admin
-    .from("contact_phones")
-    .select("contact_id")
-    .eq("restaurant_id", restaurantId)
-    .eq("phone_normalized", phoneNormalized)
-    .limit(1)
-    .maybeSingle();
-  return (data?.contact_id as string | undefined) ?? null;
-}
-
 async function resolveOrCreateContactForInvite(
   admin: SupabaseClient,
   params: {
@@ -127,108 +96,35 @@ async function resolveOrCreateContactForInvite(
     guestFirstName: string | null;
   },
 ): Promise<{ contactId: string } | { error: string }> {
-  const phoneNorm = params.guestPhone
-    ? normalizeContactPhone(params.guestPhone)
-    : null;
-  const emailNorm = params.guestEmail
-    ? normalizeContactEmail(params.guestEmail)
-    : null;
-
-  if (!phoneNorm && !emailNorm) {
+  if (!params.guestPhone?.trim() && !params.guestEmail?.trim()) {
     return { error: "contact_required" };
   }
 
-  let contactId: string | null = null;
-  if (phoneNorm) {
-    contactId = await findContactIdByPhone(
-      admin,
-      params.restaurantId,
-      phoneNorm,
-    );
-  }
-  if (!contactId && emailNorm) {
-    contactId = await findContactIdByEmail(
-      admin,
-      params.restaurantId,
-      emailNorm,
-    );
-  }
+  const { contactId, resolution } = await executeContactIdentityResolution(
+    admin,
+    {
+      restaurantId: params.restaurantId,
+      eventType: "review",
+      phone: params.guestPhone,
+      phoneDisplay: params.guestPhone,
+      email: params.guestEmail,
+      firstName: params.guestFirstName,
+    },
+  );
 
-  if (!contactId) {
-    const firstName = params.guestFirstName?.trim() || "Gast";
-    const { data: created, error: createErr } = await admin
-      .from("contacts")
-      .insert({
-        restaurant_id: params.restaurantId,
-        first_name: firstName,
-        last_name: "",
-        last_interaction_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (createErr || !created?.id) {
-      return { error: "contact_create_failed" };
-    }
-    contactId = created.id as string;
-
-    if (emailNorm) {
-      const { error: emErr } = await admin.from("contact_emails").insert({
-        restaurant_id: params.restaurantId,
-        contact_id: contactId,
-        email: params.guestEmail!.trim(),
-        email_normalized: emailNorm,
-        label: null,
-      });
-      if (emErr) return { error: "contact_email_failed" };
-    }
-
-    if (phoneNorm) {
-      const { error: phErr } = await admin.from("contact_phones").insert({
-        restaurant_id: params.restaurantId,
-        contact_id: contactId,
-        phone: params.guestPhone!.trim(),
-        phone_normalized: phoneNorm,
-        label: "Mobil",
-      });
-      if (phErr) return { error: "contact_phone_failed" };
-    }
-  } else {
-    if (emailNorm) {
-      const has = await findContactIdByEmail(
-        admin,
-        params.restaurantId,
-        emailNorm,
-      );
-      if (!has) {
-        await admin.from("contact_emails").insert({
-          restaurant_id: params.restaurantId,
-          contact_id: contactId,
-          email: params.guestEmail!.trim(),
-          email_normalized: emailNorm,
-          label: null,
-        });
-      }
-    }
-    if (phoneNorm) {
-      const has = await findContactIdByPhone(
-        admin,
-        params.restaurantId,
-        phoneNorm,
-      );
-      if (!has) {
-        await admin.from("contact_phones").insert({
-          restaurant_id: params.restaurantId,
-          contact_id: contactId,
-          phone: params.guestPhone!.trim(),
-          phone_normalized: phoneNorm,
-          label: "Mobil",
-        });
-      }
-    }
+  if (contactId) {
+    return { contactId };
   }
 
-  return { contactId };
+  if (resolution.action === "ambiguous") {
+    return { error: "contact_ambiguous" };
+  }
+
+  if (resolution.action === "skip" && resolution.reason === "auto_create_disabled") {
+    return { error: "contact_create_disabled" };
+  }
+
+  return { error: "contact_create_failed" };
 }
 
 export async function checkReviewInviteWhatsappNumber(

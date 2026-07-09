@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  normalizeContactEmail,
-  normalizeContactPhone,
-} from "@/lib/contacts/normalize-contact-identity";
+import { resolveContactIdByGuestIdentity } from "@/lib/contacts/contact-identity-resolver";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 function extractReviewTokensFromBodies(
@@ -15,65 +12,6 @@ function extractReviewTokensFromBodies(
     if (match?.[1]) tokens.add(match[1]);
   }
   return [...tokens];
-}
-
-async function findContactIdByEmail(
-  admin: SupabaseClient,
-  restaurantId: string,
-  emailNormalized: string,
-): Promise<string | null> {
-  const { data } = await admin
-    .from("contact_emails")
-    .select("contact_id")
-    .eq("restaurant_id", restaurantId)
-    .eq("email_normalized", emailNormalized)
-    .limit(1)
-    .maybeSingle();
-  return (data?.contact_id as string | undefined) ?? null;
-}
-
-async function findContactIdByPhone(
-  admin: SupabaseClient,
-  restaurantId: string,
-  phoneNormalized: string,
-): Promise<string | null> {
-  const { data } = await admin
-    .from("contact_phones")
-    .select("contact_id")
-    .eq("restaurant_id", restaurantId)
-    .eq("phone_normalized", phoneNormalized)
-    .limit(1)
-    .maybeSingle();
-  return (data?.contact_id as string | undefined) ?? null;
-}
-
-export async function resolveContactIdByGuestIdentity(
-  admin: SupabaseClient,
-  params: {
-    restaurantId: string;
-    guestPhone?: string | null;
-    guestEmail?: string | null;
-  },
-): Promise<string | null> {
-  const phoneNorm = params.guestPhone
-    ? normalizeContactPhone(params.guestPhone)
-    : null;
-  const emailNorm = params.guestEmail
-    ? normalizeContactEmail(params.guestEmail)
-    : null;
-
-  if (phoneNorm) {
-    const byPhone = await findContactIdByPhone(
-      admin,
-      params.restaurantId,
-      phoneNorm,
-    );
-    if (byPhone) return byPhone;
-  }
-  if (emailNorm) {
-    return findContactIdByEmail(admin, params.restaurantId, emailNorm);
-  }
-  return null;
 }
 
 /** Kontakt hat bereits mindestens eine Gwada-Bewertung abgegeben. */

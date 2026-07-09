@@ -1,4 +1,9 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  splitPersonName,
+  touchContactRow,
+} from "@/lib/contacts/contact-identity-resolver";
+import { resolveContactIdForGwadaReview } from "@/lib/reviews/contact-gwada-review-server";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +102,20 @@ export async function POST(
     .from("gwada_review_invitations")
     .update({ completed_at: new Date().toISOString() })
     .eq("id", inv.id);
+
+  const contactId = await resolveContactIdForGwadaReview(admin, {
+    restaurantId: inv.restaurant_id as string,
+    reservationId: (inv.reservation_id as string | null) ?? null,
+    invitationToken: token.trim(),
+  });
+  if (contactId) {
+    const guestName = body.guestName?.trim();
+    await touchContactRow(
+      admin,
+      contactId,
+      guestName ? splitPersonName(guestName) : undefined,
+    );
+  }
 
   return Response.json({ ok: true });
 }

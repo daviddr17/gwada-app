@@ -10,7 +10,7 @@ import {
   reservationGuestThreadKeys,
 } from "@/lib/contact-messages/reservation-message-thread-keys";
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
-import { resolveContactIdByGuestIdentity } from "@/lib/reviews/contact-gwada-review-server";
+import { resolveContactIdByGuestIdentity } from "@/lib/contacts/contact-identity-resolver";
 import {
   mapContactMessageRowFromRecord,
   type ContactMessageRow,

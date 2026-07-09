@@ -18,10 +18,9 @@ import {
   sendPublicProfileContactConfirmation,
   type ProfileContactConfirmationChannel,
 } from "@/lib/contacts/public-profile-contact-confirmation-server";
-import { resolveContactIdByGuestIdentity } from "@/lib/reviews/contact-gwada-review-server";
+import { executeContactIdentityResolution } from "@/lib/contacts/contact-identity-resolver";
 import { fetchPublicEmbedRestaurant } from "@/lib/reservations/public-reservation-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PublicProfileContactBody = {
   first_name: string;
@@ -41,112 +40,8 @@ export type PublicProfileContactResult = {
   messageId: string;
 };
 
-async function touchContact(
-  admin: SupabaseClient,
-  contactId: string,
-  patch: { firstName: string; lastName: string },
-): Promise<void> {
-  const now = new Date().toISOString();
-  await admin
-    .from("contacts")
-    .update({
-      first_name: patch.firstName.trim() || "Gast",
-      last_name: patch.lastName.trim(),
-      last_interaction_at: now,
-      updated_at: now,
-    })
-    .eq("id", contactId);
-}
-
-async function insertContactRow(
-  admin: SupabaseClient,
-  params: {
-    restaurantId: string;
-    firstName: string;
-    lastName: string;
-  },
-): Promise<string | null> {
-  const now = new Date().toISOString();
-  const { data, error } = await admin
-    .from("contacts")
-    .insert({
-      restaurant_id: params.restaurantId,
-      first_name: params.firstName.trim() || "Gast",
-      last_name: params.lastName.trim(),
-      last_interaction_at: now,
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) {
-    console.warn("[profile-contact] insert contact", error?.message);
-    return null;
-  }
-  return (data as { id: string }).id;
-}
-
-async function ensureContactEmail(
-  admin: SupabaseClient,
-  restaurantId: string,
-  contactId: string,
-  email: string,
-  emailNormalized: string,
-): Promise<void> {
-  const { data: existing } = await admin
-    .from("contact_emails")
-    .select("id")
-    .eq("restaurant_id", restaurantId)
-    .eq("contact_id", contactId)
-    .eq("email_normalized", emailNormalized)
-    .maybeSingle();
-  if (existing) return;
-
-  const { count } = await admin
-    .from("contact_emails")
-    .select("id", { count: "exact", head: true })
-    .eq("contact_id", contactId);
-
-  await admin.from("contact_emails").insert({
-    contact_id: contactId,
-    restaurant_id: restaurantId,
-    email,
-    email_normalized: emailNormalized,
-    is_primary: (count ?? 0) === 0,
-  });
-}
-
-async function ensureContactPhone(
-  admin: SupabaseClient,
-  restaurantId: string,
-  contactId: string,
-  phoneDisplay: string,
-  phoneNormalized: string,
-): Promise<void> {
-  const { data: existing } = await admin
-    .from("contact_phones")
-    .select("id")
-    .eq("restaurant_id", restaurantId)
-    .eq("contact_id", contactId)
-    .eq("phone_normalized", phoneNormalized)
-    .maybeSingle();
-  if (existing) return;
-
-  const { count } = await admin
-    .from("contact_phones")
-    .select("id", { count: "exact", head: true })
-    .eq("contact_id", contactId);
-
-  await admin.from("contact_phones").insert({
-    contact_id: contactId,
-    restaurant_id: restaurantId,
-    phone_display: phoneDisplay,
-    phone_normalized: phoneNormalized,
-    is_primary: (count ?? 0) === 0,
-  });
-}
-
 async function resolveOrCreateProfileContact(
-  admin: SupabaseClient,
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   params: {
     restaurantId: string;
     firstName: string;
@@ -157,71 +52,14 @@ async function resolveOrCreateProfileContact(
     phoneNormalized: string | null;
   },
 ): Promise<string | null> {
-  const existingId = await resolveContactIdByGuestIdentity(admin, {
+  const { contactId } = await executeContactIdentityResolution(admin, {
     restaurantId: params.restaurantId,
-    guestEmail: params.email,
-    guestPhone: params.phoneDisplay,
-  });
-
-  if (existingId) {
-    await touchContact(admin, existingId, {
-      firstName: params.firstName,
-      lastName: params.lastName,
-    });
-    if (params.email && params.emailNormalized) {
-      await ensureContactEmail(
-        admin,
-        params.restaurantId,
-        existingId,
-        params.email,
-        params.emailNormalized,
-      );
-    }
-    if (params.phoneDisplay && params.phoneNormalized) {
-      await ensureContactPhone(
-        admin,
-        params.restaurantId,
-        existingId,
-        params.phoneDisplay,
-        params.phoneNormalized,
-      );
-    }
-    return existingId;
-  }
-
-  const contactId = await insertContactRow(admin, {
-    restaurantId: params.restaurantId,
+    eventType: "message",
+    email: params.email,
+    phoneDisplay: params.phoneDisplay,
     firstName: params.firstName,
     lastName: params.lastName,
   });
-  if (!contactId) return null;
-
-  if (params.email && params.emailNormalized) {
-    const { error } = await admin.from("contact_emails").insert({
-      contact_id: contactId,
-      restaurant_id: params.restaurantId,
-      email: params.email,
-      email_normalized: params.emailNormalized,
-      is_primary: true,
-    });
-    if (error) {
-      console.warn("[profile-contact] insert email", error.message);
-    }
-  }
-
-  if (params.phoneDisplay && params.phoneNormalized) {
-    const { error } = await admin.from("contact_phones").insert({
-      contact_id: contactId,
-      restaurant_id: params.restaurantId,
-      phone_display: params.phoneDisplay,
-      phone_normalized: params.phoneNormalized,
-      is_primary: !params.email,
-    });
-    if (error) {
-      console.warn("[profile-contact] insert phone", error.message);
-    }
-  }
-
   return contactId;
 }
 

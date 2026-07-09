@@ -22,8 +22,10 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { cn } from "@/lib/utils";
 
 type SettingsSnapshot = {
+  autoLinkEnabled: boolean;
   autoCreateFromReservations: boolean;
   autoCreateFromMessages: boolean;
+  autoCreateFromReviews: boolean;
 };
 
 function ContactSettingsToggleRow({
@@ -62,9 +64,11 @@ function ContactSettingsToggleRow({
 export function ContactSettingsForm() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
+  const [autoLinkEnabled, setAutoLinkEnabled] = useState(true);
   const [autoCreateFromReservations, setAutoCreateFromReservations] =
     useState(true);
   const [autoCreateFromMessages, setAutoCreateFromMessages] = useState(true);
+  const [autoCreateFromReviews, setAutoCreateFromReviews] = useState(true);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const savedRef = useRef<string | null>(null);
@@ -72,14 +76,23 @@ export function ContactSettingsForm() {
   const snapshot = useMemo(
     () =>
       JSON.stringify({
+        autoLinkEnabled,
         autoCreateFromReservations,
         autoCreateFromMessages,
+        autoCreateFromReviews,
       } satisfies SettingsSnapshot),
-    [autoCreateFromReservations, autoCreateFromMessages],
+    [
+      autoLinkEnabled,
+      autoCreateFromReservations,
+      autoCreateFromMessages,
+      autoCreateFromReviews,
+    ],
   );
 
   const dirty =
     savedRef.current !== null && !loading && snapshot !== savedRef.current;
+
+  const moduleTogglesDisabled = loading || !autoLinkEnabled;
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -95,12 +108,16 @@ export function ContactSettingsForm() {
         return;
       }
       const next: SettingsSnapshot = {
+        autoLinkEnabled: data?.auto_link_enabled ?? true,
         autoCreateFromReservations:
           data?.auto_create_from_reservations ?? true,
         autoCreateFromMessages: data?.auto_create_from_messages ?? true,
+        autoCreateFromReviews: data?.auto_create_from_reviews ?? true,
       };
+      setAutoLinkEnabled(next.autoLinkEnabled);
       setAutoCreateFromReservations(next.autoCreateFromReservations);
       setAutoCreateFromMessages(next.autoCreateFromMessages);
+      setAutoCreateFromReviews(next.autoCreateFromReviews);
       savedRef.current = JSON.stringify(next);
     })();
     return () => {
@@ -114,8 +131,10 @@ export function ContactSettingsForm() {
     void (async () => {
       const { error } = await upsertContactSettings({
         restaurantId,
+        autoLinkEnabled,
         autoCreateFromReservations,
         autoCreateFromMessages,
+        autoCreateFromReviews,
       });
       setSaving(false);
       if (error) toast.error(error.message);
@@ -154,11 +173,19 @@ export function ContactSettingsForm() {
         <Card className="border-border/50 shadow-card">
           <CardContent className="space-y-3">
             <ContactSettingsToggleRow
+              id="auto-link-contacts"
+              label="Automatische Kontakt-Verknüpfung"
+              description="Master-Schalter: Bestehende Kontakte per E-Mail, Telefon oder WhatsApp-Chat erkennen und verknüpfen. Wenn aus, greifen die Modul-Toggles unten nicht."
+              checked={autoLinkEnabled}
+              disabled={loading}
+              onCheckedChange={setAutoLinkEnabled}
+            />
+            <ContactSettingsToggleRow
               id="auto-create-contacts-reservations"
               label="Kontakte aus Reservierungen"
               description="Bei neuer oder geänderter Reservierung wird anhand von Telefonnummer oder E-Mail ein bestehender Kontakt verknüpft. Ist keiner vorhanden und diese Option aktiv, wird automatisch ein neuer Kontakt angelegt."
               checked={autoCreateFromReservations}
-              disabled={loading}
+              disabled={moduleTogglesDisabled}
               onCheckedChange={setAutoCreateFromReservations}
             />
             <ContactSettingsToggleRow
@@ -166,8 +193,16 @@ export function ContactSettingsForm() {
               label="Kontakte aus Nachrichten"
               description="Bei eingehender WhatsApp-, E-Mail- oder Facebook/Instagram-Nachricht wird ein passender Kontakt gesucht. Ist keiner vorhanden und diese Option aktiv, wird automatisch ein neuer Kontakt angelegt und die Nachricht zugeordnet."
               checked={autoCreateFromMessages}
-              disabled={loading}
+              disabled={moduleTogglesDisabled}
               onCheckedChange={setAutoCreateFromMessages}
+            />
+            <ContactSettingsToggleRow
+              id="auto-create-contacts-reviews"
+              label="Kontakte aus Bewertungen"
+              description="Beim Versenden einer Bewertungs-Einladung oder bei passender Gast-Identität wird ein Kontakt verknüpft oder — wenn diese Option aktiv — neu angelegt."
+              checked={autoCreateFromReviews}
+              disabled={moduleTogglesDisabled}
+              onCheckedChange={setAutoCreateFromReviews}
             />
           </CardContent>
         </Card>

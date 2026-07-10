@@ -34,7 +34,13 @@ import {
 import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
 import { normalizeRestaurantPositionColor } from "@/lib/restaurant/restaurant-position-colors";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { moduleDataTableHeadRowClassName } from "@/lib/ui/module-data-table";
+import {
+  moduleDataTableHeadCellClassName,
+  moduleDataTableHeadRowClassName,
+} from "@/lib/ui/module-data-table";
+import { ModuleDataTableFrame } from "@/lib/ui/module-paginated-data-table";
+import { ModuleTableStaticColumnHeader } from "@/lib/ui/module-table-sort-header";
+import { cn } from "@/lib/utils";
 
 type ProfileJoin = {
   given_name: string | null;
@@ -198,19 +204,28 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
   }
 
   const teamTable = (
-    <table className="w-full border-collapse text-sm">
-      <thead>
-        <tr className={moduleDataTableHeadRowClassName}>
-          <th className="py-3 pr-4">Name</th>
-          <th className="py-3 pr-4">Rolle</th>
-          <th className="w-[120px] py-3 text-center">Aktiv</th>
-          {canManage ? (
-            <th className="w-[140px] py-3 text-right">Zugang</th>
-          ) : null}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => {
+    <ModuleDataTableFrame>
+      <table className="w-full min-w-[36rem] border-collapse text-sm">
+        <thead>
+          <tr className={moduleDataTableHeadRowClassName}>
+            <ModuleTableStaticColumnHeader label="Name" />
+            <ModuleTableStaticColumnHeader label="Rolle" />
+            <ModuleTableStaticColumnHeader
+              label="Aktiv"
+              align="center"
+              className="w-[120px]"
+            />
+            {canManage ? (
+              <ModuleTableStaticColumnHeader
+                label="Zugang"
+                align="right"
+                className="w-[9.25rem] min-w-[9.25rem]"
+              />
+            ) : null}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
           const isOnlyActiveOwner =
             row.role === "owner" && row.isActive && activeOwnerCount === 1;
           const disabledRow = busyId === row.id;
@@ -223,9 +238,14 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
             ? normalizeRestaurantPositionColor(rolePosition.color, rolePosition.id)
             : undefined;
           return (
-            <tr key={row.id} className="border-b border-border/60">
-              <td className="py-3 pr-4 font-medium">{row.label}</td>
-              <td className="py-3 pr-4">
+            <tr
+              key={row.id}
+              className="border-b border-border/60 last:border-0 hover:bg-muted/20"
+            >
+              <td className={cn(moduleDataTableHeadCellClassName, "font-medium")}>
+                {row.label}
+              </td>
+              <td className={moduleDataTableHeadCellClassName}>
                 {canManage ? (
                   <RestaurantPositionSelect
                     positions={positions}
@@ -246,7 +266,7 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
                   </Badge>
                 )}
               </td>
-              <td className="py-3 text-center">
+              <td className={cn(moduleDataTableHeadCellClassName, "text-center")}>
                 {canManage ? (
                   <Switch
                     checked={row.isActive}
@@ -261,7 +281,7 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
                 )}
               </td>
               {canManage ? (
-                <td className="py-3 text-right">
+                <td className={cn(moduleDataTableHeadCellClassName, "text-right")}>
                   {row.isActive ? (
                     <Button
                       type="button"
@@ -284,8 +304,9 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
             </tr>
           );
         })}
-      </tbody>
-    </table>
+        </tbody>
+      </table>
+    </ModuleDataTableFrame>
   );
 
   return (
@@ -325,16 +346,14 @@ export function RestaurantTeamPanel({ embedded = false }: { embedded?: boolean }
               {rows.length} Eintrag{rows.length === 1 ? "" : "e"}
             </CardDescription>
           </CardHeader>
-          <CardContent className="overflow-x-auto px-4 sm:px-6">
-            {teamTable}
-          </CardContent>
+          <CardContent>{teamTable}</CardContent>
         </Card>
       ) : (
         <>
-          <p className="mb-4 text-sm text-muted-foreground">
+          <p className="mb-3 text-sm text-muted-foreground">
             {rows.length} Eintrag{rows.length === 1 ? "" : "e"}
           </p>
-          <div className="overflow-x-auto">{teamTable}</div>
+          {teamTable}
         </>
       )}
 

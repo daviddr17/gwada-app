@@ -25,6 +25,7 @@ import type {
 } from "@/lib/types/staff";
 import { StaffLastLoginCell } from "@/components/staff/staff-last-login-cell";
 import { StaffAppAccessStatus } from "@/components/staff/staff-app-access-status";
+import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
 import {
   formatStaffLastLogin,
   resolveStaffLastLogin,
@@ -48,6 +49,10 @@ import {
   moduleDataTableHeadRowClassName,
   moduleDataTableHeadSortButtonCn,
 } from "@/lib/ui/module-data-table";
+import {
+  moduleTableStickyHeadCellClassName,
+  useModuleTableHorizontalScroll,
+} from "@/lib/ui/module-table-sticky-column";
 import {
   ModuleTableActionsCell,
   ModuleTableIconActionButton,
@@ -121,6 +126,43 @@ function SortHeader({
         </span>
       ) : null}
     </button>
+  );
+}
+
+function SortHeaderCell({
+  label,
+  sortKey,
+  activeKey,
+  dir,
+  onSort,
+  className,
+  stickyIdentityColumn = false,
+}: {
+  label: string;
+  sortKey: StaffSortKey;
+  activeKey: StaffSortKey;
+  dir: SortDir;
+  onSort: (key: StaffSortKey) => void;
+  className?: string;
+  stickyIdentityColumn?: boolean;
+}) {
+  const canScrollX = useModuleTableHorizontalScroll();
+
+  return (
+    <th
+      className={moduleTableStickyHeadCellClassName(
+        stickyIdentityColumn && canScrollX,
+        cn(moduleDataTableHeadCellClassName, className),
+      )}
+    >
+      <SortHeader
+        label={label}
+        sortKey={sortKey}
+        activeKey={activeKey}
+        dir={dir}
+        onSort={onSort}
+      />
+    </th>
   );
 }
 
@@ -509,15 +551,15 @@ export function StaffOverviewTable({
         <table className="w-full min-w-[72rem] text-left text-sm">
           <thead>
             <tr className={moduleDataTableHeadRowClassName}>
-              <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
-                <SortHeader
-                  label="Nachname"
-                  sortKey="lastName"
-                  activeKey={sortKey}
-                  dir={sortDir}
-                  onSort={toggleSort}
-                />
-              </th>
+              <SortHeaderCell
+                label="Nachname"
+                sortKey="lastName"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+                className="min-w-[7rem]"
+                stickyIdentityColumn
+              />
               <th className={cn(moduleDataTableHeadCellClassName, "min-w-[7rem]")}>
                 <SortHeader
                   label="Vorname"
@@ -615,10 +657,15 @@ export function StaffOverviewTable({
               return (
                 <tr
                   key={row.id}
-                  className="cursor-pointer border-b border-border/40 last:border-0 hover:bg-muted/30"
+                  className="group/tr cursor-pointer border-b border-border/40 last:border-0 hover:bg-muted/30"
                   onClick={() => onEdit(row)}
                 >
-                  <td className="px-4 py-3 font-medium">{row.family_name}</td>
+                  <ModuleTableStickyBodyCell
+                    tone="muted-hover-20"
+                    className="px-4 py-3 font-medium"
+                  >
+                    {row.family_name}
+                  </ModuleTableStickyBodyCell>
                   <td className="px-4 py-3">{row.given_name}</td>
                   <td className="px-4 py-3">
                     {tag ? (

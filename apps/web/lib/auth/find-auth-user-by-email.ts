@@ -17,13 +17,15 @@ export async function findAuthUserIdByEmailAdmin(
   const { data, error } = await admin.rpc("auth_user_id_by_email", {
     p_email: normalized,
   });
-  if (!error && typeof data === "string" && data.trim()) {
-    return data.trim();
+  if (!error) {
+    return typeof data === "string" && data.trim() ? data.trim() : null;
   }
-  if (error && !/could not find the function|does not exist/i.test(error.message)) {
+  if (!/could not find the function|does not exist/i.test(error.message)) {
     console.warn("[auth] auth_user_id_by_email", error.message);
+    return null;
   }
 
+  // Fallback nur wenn Migration noch nicht auf der DB (Dev ohne Push).
   let page = 1;
   const perPage = 200;
   while (page <= 25) {

@@ -2,10 +2,10 @@
 export const GWADA_SUPABASE_SIGNIN_TIMEOUT_MS = 22_000;
 
 /** Obergrenze für Auth-Mail-Versand (generateLink + SMTP) — verhindert hängende Login-Buttons. */
-export const AUTH_EMAIL_SEND_TIMEOUT_MS = 22_000;
+export const AUTH_EMAIL_SEND_TIMEOUT_MS = 35_000;
 
 /** Browser-Timeout für `/api/auth/magic-link` und `/api/auth/forgot-password`. */
-export const AUTH_EMAIL_FETCH_TIMEOUT_MS = 25_000;
+export const AUTH_EMAIL_FETCH_TIMEOUT_MS = 40_000;
 
 
 /** Obergrenze für Browser→Supabase, damit UI nicht endlos hängt (TCP kann sonst sehr lange blockieren). */

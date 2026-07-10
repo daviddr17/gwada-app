@@ -46,8 +46,13 @@ export async function fetchPasskeyServerStatus(): Promise<PasskeyServerStatus> {
   }
 
   let gotrueVersion: string | null = null;
+  const authHeaders = {
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
+  };
   try {
     const healthRes = await fetch(`${upstream}/auth/v1/health`, {
+      headers: authHeaders,
       cache: "no-store",
     });
     if (healthRes.ok) {
@@ -73,8 +78,7 @@ export async function fetchPasskeyServerStatus(): Promise<PasskeyServerStatus> {
       {
         method: "POST",
         headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${anonKey}`,
+          ...authHeaders,
           "Content-Type": "application/json",
         },
         body: "{}",

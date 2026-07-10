@@ -601,31 +601,25 @@ export function LoginForm() {
 
                   <div className="flex flex-col gap-2">
                     {showPasskey ? (
-                      <div className="space-y-1.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                          disabled={passkeyBusy || isEntering}
-                          onClick={() => void handlePasskeySignIn()}
-                        >
-                          {passkeyBusy ? (
-                            <>
-                              <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden />
-                              Passkey wird geprüft…
-                            </>
-                          ) : (
-                            <>
-                              <Fingerprint className="size-5 shrink-0" aria-hidden />
-                              Mit Passkey anmelden
-                            </>
-                          )}
-                        </Button>
-                        <p className="text-center text-xs text-muted-foreground">
-                          Nur wenn du unter Profil → Anmeldung bereits einen Passkey
-                          angelegt hast.
-                        </p>
-                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                        disabled={passkeyBusy || isEntering}
+                        onClick={() => void handlePasskeySignIn()}
+                      >
+                        {passkeyBusy ? (
+                          <>
+                            <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden />
+                            Passkey wird geprüft…
+                          </>
+                        ) : (
+                          <>
+                            <Fingerprint className="size-5 shrink-0" aria-hidden />
+                            Mit Passkey anmelden
+                          </>
+                        )}
+                      </Button>
                     ) : null}
                     {showGoogle ? (
                       <Button

@@ -1,11 +1,12 @@
 import { enforceAuthEmailRateLimit } from "@/lib/api/auth-email-rate-limit";
-import { withAuthEmailSendTimeout } from "@/lib/auth/auth-email-send-timeout";
-import { sendPasswordResetEmailServer } from "@/lib/auth/password-reset-email-server";
+import { scheduleAuthEmailInBackground } from "@/lib/auth/auth-email-background-dispatch";
+import { withAuthEmailPrepareTimeout } from "@/lib/auth/auth-email-send-timeout";
+import { preparePasswordResetEmailServer } from "@/lib/auth/password-reset-email-server";
 import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 20;
 
 export async function POST(req: Request) {
   let body: { email?: string; next?: string | null };
@@ -25,10 +26,10 @@ export async function POST(req: Request) {
 
   const origin = resolvePublicAppOrigin(req);
   const admin = createSupabaseAdminClient();
-  let result: Awaited<ReturnType<typeof sendPasswordResetEmailServer>>;
+  let prepared: Awaited<ReturnType<typeof preparePasswordResetEmailServer>>;
   try {
-    result = await withAuthEmailSendTimeout(
-      sendPasswordResetEmailServer({
+    prepared = await withAuthEmailPrepareTimeout(
+      preparePasswordResetEmailServer({
         email,
         origin,
         nextPath: body.next ?? null,
@@ -37,11 +38,11 @@ export async function POST(req: Request) {
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    if (/E-Mail-Versand: keine Antwort/i.test(msg)) {
+    if (/E-Mail-Vorbereitung: keine Antwort/i.test(msg)) {
       return Response.json(
         {
           error:
-            "E-Mail-Versand hat zu lange gedauert. Bitte später erneut versuchen.",
+            "Die Anfrage hat zu lange gedauert. Bitte in ein paar Sekunden erneut versuchen.",
         },
         { status: 504 },
       );
@@ -50,8 +51,9 @@ export async function POST(req: Request) {
   }
 
   if (
-    !result.ok &&
-    (result.error === "smtp_not_configured" || result.error === "smtp_incomplete")
+    !prepared.ok &&
+    (prepared.error === "smtp_not_configured" ||
+      prepared.error === "smtp_incomplete")
   ) {
     return Response.json(
       { error: "E-Mail-Versand ist derzeit nicht eingerichtet." },
@@ -59,9 +61,18 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!result.ok) {
-    console.warn("forgot-password send", result.error);
+  if (!prepared.ok) {
+    if (prepared.error === "admin_unavailable") {
+      return Response.json(
+        { error: "E-Mail-Versand ist derzeit nicht verfügbar." },
+        { status: 503 },
+      );
+    }
+    console.warn("forgot-password prepare", prepared.error);
+    return Response.json({ error: "invalid_email" }, { status: 400 });
   }
+
+  scheduleAuthEmailInBackground(prepared.prepared);
 
   return Response.json({ ok: true });
 }

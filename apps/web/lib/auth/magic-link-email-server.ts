@@ -16,21 +16,26 @@ import { findAuthUserIdByEmailAdmin } from "@/lib/auth/find-auth-user-by-email";
 import { generateAdminAuthActionLink } from "@/lib/auth/generate-admin-auth-action-link";
 import { isSignupAllowedForEmailAdmin } from "@/lib/auth/staff-invite-signup-gate";
 import { GWADA_PUBLIC_SIGNUP_ENABLED } from "@/lib/auth/public-signup-gate";
+import type { PreparedAuthEmailJob } from "@/lib/auth/auth-email-background-dispatch";
 
-export async function sendMagicLinkEmailServer(params: {
+type PrepareResult =
+  | { ok: true; prepared: PreparedAuthEmailJob }
+  | { ok: false; error: string; fatal: boolean };
+
+export async function prepareMagicLinkEmailServer(params: {
   email: string;
   origin: string;
   nextPath?: string | null;
   brandingClient?: SupabaseClient;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
+}): Promise<PrepareResult> {
   const email = params.email.trim().toLowerCase();
   if (!email || !email.includes("@")) {
-    return { ok: false, error: "invalid_email" };
+    return { ok: false, error: "invalid_email", fatal: true };
   }
 
   const admin = createSupabaseAdminClient();
   if (!admin) {
-    return { ok: false, error: "admin_unavailable" };
+    return { ok: false, error: "admin_unavailable", fatal: true };
   }
 
   if (!GWADA_PUBLIC_SIGNUP_ENABLED) {
@@ -38,20 +43,19 @@ export async function sendMagicLinkEmailServer(params: {
     if (!existingUserId) {
       const allowed = await isSignupAllowedForEmailAdmin(admin, email);
       if (!allowed) {
-        // Kein Leak: gleiche Antwort wie bei unbekannter Adresse
-        return { ok: true };
+        return { ok: true, prepared: { kind: "noop" } };
       }
     }
   }
 
   const platformEmail = await fetchPlatformEmailSmtpConfigAdmin();
   if (!platformEmail?.enabled) {
-    return { ok: false, error: "smtp_not_configured" };
+    return { ok: false, error: "smtp_not_configured", fatal: true };
   }
 
   const smtp = smtpCredentialsFromConfig(platformEmail.config);
   if (!smtp) {
-    return { ok: false, error: "smtp_incomplete" };
+    return { ok: false, error: "smtp_incomplete", fatal: true };
   }
 
   const next = safeInternalPath(params.nextPath);
@@ -70,7 +74,7 @@ export async function sendMagicLinkEmailServer(params: {
 
   if (!linkResult.ok) {
     console.warn("magic link generateLink", linkResult.error);
-    return { ok: false, error: linkResult.error };
+    return { ok: true, prepared: { kind: "noop" } };
   }
 
   const branding = await fetchTransactionalEmailBranding(
@@ -89,17 +93,46 @@ export async function sendMagicLinkEmailServer(params: {
     logoUrl: branding.logoUrl,
   };
 
-  const sent = await sendViaSmtp(smtp, {
-    to: email,
-    subject: `Anmeldung bei ${branding.appName}`,
-    text: buildMagicLinkEmailText(emailContent),
-    html: buildMagicLinkEmailHtml(emailContent),
-    fromName: sender.name,
-  });
+  return {
+    ok: true,
+    prepared: {
+      kind: "send",
+      smtp,
+      logLabel: "magic-link",
+      payload: {
+        to: email,
+        subject: `Anmeldung bei ${branding.appName}`,
+        text: buildMagicLinkEmailText(emailContent),
+        html: buildMagicLinkEmailHtml(emailContent),
+        fromName: sender.name,
+      },
+    },
+  };
+}
 
+/** @deprecated Prefer prepare + scheduleAuthEmailInBackground in API routes. */
+export async function sendMagicLinkEmailServer(params: {
+  email: string;
+  origin: string;
+  nextPath?: string | null;
+  brandingClient?: SupabaseClient;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const prepared = await prepareMagicLinkEmailServer(params);
+  if (!prepared.ok) {
+    if (!prepared.fatal) {
+      return { ok: true };
+    }
+    return { ok: false, error: prepared.error };
+  }
+  if (prepared.prepared.kind === "noop") {
+    return { ok: true };
+  }
+  const sent = await sendViaSmtp(
+    prepared.prepared.smtp,
+    prepared.prepared.payload,
+  );
   if (!sent.ok) {
     return { ok: false, error: sent.error };
   }
-
   return { ok: true };
 }

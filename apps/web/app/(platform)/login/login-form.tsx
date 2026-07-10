@@ -316,14 +316,23 @@ export function LoginForm() {
         );
         return;
       }
-      toast.success("E-Mail zum Zurücksetzen gesendet.", {
+      toast.success("E-Mail wird gesendet.", {
         description:
-          "Falls ein Konto mit dieser Adresse existiert, findest du den Link in deinem Postfach.",
+          "Falls ein Konto mit dieser Adresse existiert, findest du den Link in deinem Postfach — der Versand kann 1–2 Minuten dauern.",
       });
       setForgotMode(false);
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      loginToastError("Der Link konnte nicht gesendet werden.", raw);
+      const timedOut =
+        e instanceof DOMException
+          ? e.name === "TimeoutError" || e.name === "AbortError"
+          : /aborted|timeout/i.test(raw);
+      loginToastError(
+        timedOut
+          ? "Die Anfrage hat zu lange gedauert. Bitte erneut versuchen."
+          : "Der Link konnte nicht gesendet werden.",
+        timedOut ? undefined : raw,
+      );
     } finally {
       setForgotBusy(false);
     }
@@ -359,12 +368,22 @@ export function LoginForm() {
         );
         return;
       }
-      toast.success("Anmelde-Link gesendet.", {
-        description: "Prüfe dein Postfach und klicke auf den Link in der E-Mail.",
+      toast.success("Anmelde-Link wird gesendet.", {
+        description:
+          "Prüfe dein Postfach in Kürze — der Versand kann 1–2 Minuten dauern.",
       });
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
-      loginToastError("Der Anmelde-Link konnte nicht gesendet werden.", raw);
+      const timedOut =
+        e instanceof DOMException
+          ? e.name === "TimeoutError" || e.name === "AbortError"
+          : /aborted|timeout/i.test(raw);
+      loginToastError(
+        timedOut
+          ? "Die Anfrage hat zu lange gedauert. Bitte erneut versuchen."
+          : "Der Anmelde-Link konnte nicht gesendet werden.",
+        timedOut ? undefined : raw,
+      );
     } finally {
       setMagicLinkBusy(false);
     }

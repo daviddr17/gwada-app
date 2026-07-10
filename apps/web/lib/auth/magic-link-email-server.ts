@@ -65,7 +65,7 @@ export async function sendMagicLinkEmailServer(params: {
       email,
       options: { redirectTo },
     },
-    { siteUrl: origin, redirectTo },
+    { siteUrl: origin, redirectTo, nextPath: next },
   );
 
   if (!linkResult.ok) {

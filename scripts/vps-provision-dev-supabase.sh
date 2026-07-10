@@ -113,6 +113,10 @@ upsert_env "SUPABASE_PUBLIC_URL" "http://${VPS_PUBLIC_HOST}:${KONG_HOST_PORT}"
 upsert_env "ADDITIONAL_REDIRECT_URLS" "http://localhost:3000/auth/callback,http://localhost:3000/api/auth/google/callback"
 upsert_env "GOTRUE_MAILER_AUTOCONFIRM" "true"
 upsert_env "ENABLE_EMAIL_SIGNUP" "true"
+upsert_env "GOTRUE_PASSKEY_ENABLED" "true"
+upsert_env "GOTRUE_WEBAUTHN_RP_ID" "localhost"
+upsert_env "GOTRUE_WEBAUTHN_RP_DISPLAY_NAME" "gwada"
+upsert_env "GOTRUE_WEBAUTHN_RP_ORIGINS" "http://localhost:3000,http://127.0.0.1:3000"
 
 if [[ "${GWADA_DEV_FORCE_VOLUME_RESET:-0}" == "1" ]]; then
   log "Volume-Reset angefordert — übersprungen (bereits oben ausgeführt)."

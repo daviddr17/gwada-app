@@ -16,7 +16,7 @@ set -euo pipefail
 production="$1"
 legacy="$2"
 
-allow_list="${production}/auth/callback,${legacy}/auth/callback,${production},${legacy}"
+allow_list="${production}/auth/callback,${production}/auth/callback/**,${legacy}/auth/callback,${legacy}/auth/callback/**,${production}/auth/neues-passwort,${production},${legacy}"
 
 echo "  Suche Auth/GoTrue-Container…"
 auth_names="$(docker ps --format '{{.Names}}' | grep -iE 'auth|gotrue' || true)"

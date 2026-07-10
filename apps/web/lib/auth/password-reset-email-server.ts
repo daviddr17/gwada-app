@@ -53,7 +53,7 @@ export async function sendPasswordResetEmailServer(params: {
       email,
       options: { redirectTo },
     },
-    { siteUrl: origin, redirectTo },
+    { siteUrl: origin, redirectTo, nextPath: next },
   );
 
   if (!linkResult.ok) {

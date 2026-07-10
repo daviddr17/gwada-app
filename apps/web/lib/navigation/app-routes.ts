@@ -118,6 +118,7 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   source: string;
   destination: string;
 }> = [
+  { source: "/dashboard/overview", destination: DASHBOARD_HOME },
   { source: "/menu", destination: APP_ROUTES.menu.overview },
   { source: "/menu/:path*", destination: "/dashboard/menu/:path*" },
   { source: "/inventory", destination: APP_ROUTES.inventory.overview },

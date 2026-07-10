@@ -32,6 +32,13 @@ export async function buildSignupConfirmationLinkAdmin(
     {
       siteUrl: params.siteUrl,
       redirectTo: params.redirectTo,
+      nextPath: (() => {
+        try {
+          return new URL(params.redirectTo).searchParams.get("next");
+        } catch {
+          return null;
+        }
+      })(),
     },
   );
 

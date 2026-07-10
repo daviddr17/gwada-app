@@ -20,6 +20,9 @@ export function createSupabaseBrowserClient(): SupabaseClient {
 
   browserClient = createBrowserClient(url, anonKey, {
     cookieOptions: gwadaSupabaseCookieOptions,
+    auth: {
+      experimental: { passkey: true },
+    },
   });
 
   return browserClient;

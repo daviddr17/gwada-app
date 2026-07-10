@@ -32,6 +32,13 @@ export function humanizeLoginErrorMessage(raw: string | undefined | null): strin
   ) {
     return "Die Anmeldung mit Google ist abgelaufen. Bitte erneut versuchen.";
   }
+  if (
+    /otp_expired|email link is invalid|token has expired|invalid.*token|flow_state_expired/i.test(
+      t,
+    )
+  ) {
+    return "Der Link ist ungültig oder abgelaufen. Bitte einen neuen anfordern.";
+  }
   if (isLikelyNetworkAuthFailure(t)) {
     return "Keine Verbindung zum Anmeldedienst. Bitte Netzwerk prüfen und es später erneut versuchen.";
   }

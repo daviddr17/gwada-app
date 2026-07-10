@@ -22,11 +22,12 @@ export const LEGACY_AUTH_COOKIES_TO_CLEAR = [
   OAUTH_PENDING_ID_COOKIE,
 ] as const;
 
-/** Beim Auth-Einstieg (Login-Seitenaufruf, Callback) per Set-Cookie löschen. */
-export const AUTH_ENTRY_COOKIES_TO_CLEAR = [
-  ...LEGACY_AUTH_COOKIES_TO_CLEAR,
-  GOOGLE_AUTH_NONCE_COOKIE,
-] as const;
+/**
+ * Beim Auth-Einstieg (Login, Callback) per Set-Cookie löschen.
+ * Nicht den Google-OAuth-Nonce — der wird nur im Callback-Handler geleert;
+ * sonst Race: /login oder / während laufendem Google-OAuth → „Sitzung abgelaufen“.
+ */
+export const AUTH_ENTRY_COOKIES_TO_CLEAR = [...LEGACY_AUTH_COOKIES_TO_CLEAR] as const;
 
 const SUPABASE_SESSION_COOKIE = gwadaSupabaseCookieOptions.name;
 const SUPABASE_SESSION_CHUNK_RE = new RegExp(

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useState } from "react";
 import { toast } from "sonner";
-import { Apple, ArrowLeft, Loader2 } from "lucide-react";
+import { Apple, ArrowLeft, Fingerprint, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,6 +46,8 @@ import {
   LOGIN_REAUTH_MESSAGE,
   loginErrorBannerText,
 } from "@/lib/auth/login-error-messages";
+import { signInWithPasskeyClient } from "@/lib/auth/passkey-auth";
+import { usePasskeyLoginAvailability } from "@/lib/hooks/use-passkey-login-availability";
 
 const backNavLinkClass =
   "inline-flex items-center gap-1.5 self-start text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline";
@@ -88,6 +90,8 @@ export function LoginForm() {
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotBusy, setForgotBusy] = useState(false);
   const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
+  const { showPasskey } = usePasskeyLoginAvailability();
+  const showAlternativeSignIn = showPasskey || showOAuthSection;
 
   useLayoutEffect(() => {
     setDocumentTitleOverride(screen === "register" ? "Registrieren" : "Login");
@@ -194,6 +198,27 @@ export function LoginForm() {
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       loginToastError("Anmeldung fehlgeschlagen.", raw);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handlePasskeySignIn = async () => {
+    setBusy(true);
+    try {
+      const { error, cancelled } = await signInWithPasskeyClient();
+      if (cancelled) return;
+      if (error) {
+        loginToastError(error.message);
+        return;
+      }
+      clearLoginError();
+      enterApp(() => {
+        window.location.assign(authEnterHref(searchParams.get("next")));
+      });
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      loginToastError("Passkey-Anmeldung fehlgeschlagen.", raw);
     } finally {
       setBusy(false);
     }
@@ -593,7 +618,7 @@ export function LoginForm() {
                 </>
               )}
 
-              {showOAuthSection ? (
+              {showAlternativeSignIn ? (
                 <>
                   <div className="relative py-1">
                     <Separator />
@@ -603,6 +628,18 @@ export function LoginForm() {
                   </div>
 
                   <div className="flex flex-col gap-2">
+                    {showPasskey ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                        disabled={busy || isEntering}
+                        onClick={() => void handlePasskeySignIn()}
+                      >
+                        <Fingerprint className="size-5 shrink-0" aria-hidden />
+                        Mit Passkey anmelden
+                      </Button>
+                    ) : null}
                     {showGoogle ? (
                       <Button
                         type="button"

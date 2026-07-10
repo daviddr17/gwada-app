@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
-import { ProfileAnmeldungSkeleton } from "@/components/profile/profile-anmeldung-skeleton";
+import { ProfilePasskeysCard } from "@/components/profile/profile-passkeys-card";
 import { PasswordStrengthBar } from "@/components/auth/password-strength-bar";
 import {
   PASSWORD_POLICY_ERROR_MESSAGE,
@@ -283,6 +283,11 @@ function ProfileAnmeldungContent() {
 
   return (
     <div className="space-y-6 pb-4">
+      <ProfilePasskeysCard
+        hasOtherSignInMethods={
+          googleConnected || appleConnected || canChangePassword
+        }
+      />
       {oauthFlagsResolved && showOAuthProviders ? (
         <Card className="border-border/50 shadow-card">
           <CardHeader className="gap-2">

@@ -13,6 +13,7 @@ export type GwadaPublicEnv = {
   siteUrl?: string;
   gwadaSupabaseOnly?: boolean;
   gwadaWorkspaceSlug?: string;
+  passkeyEnabled?: boolean;
 };
 
 declare global {
@@ -96,6 +97,13 @@ export function getPublicGwadaWorkspaceSlug(): string | undefined {
   return baked || undefined;
 }
 
+export function isPublicPasskeyEnabled(): boolean {
+  const injected = runtimeEnv()?.passkeyEnabled;
+  if (injected === true) return true;
+  if (injected === false) return false;
+  return envTruthy(process.env.NEXT_PUBLIC_PASSKEY_ENABLED);
+}
+
 function trimOrigin(origin: string): string {
   return origin.replace(/\/+$/, "");
 }
@@ -132,5 +140,6 @@ export function buildGwadaPublicEnvForScript(
     gwadaSupabaseOnly: envTruthy(process.env.NEXT_PUBLIC_GWADA_SUPABASE_ONLY),
     gwadaWorkspaceSlug:
       process.env.NEXT_PUBLIC_GWADA_WORKSPACE_SLUG?.trim() || undefined,
+    passkeyEnabled: envTruthy(process.env.NEXT_PUBLIC_PASSKEY_ENABLED),
   };
 }

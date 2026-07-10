@@ -1,0 +1,38 @@
+name: Sync GoTrue auth config live
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: sync-gotrue-auth-live
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Sync GoTrue passkeys + redirect allow list on VPS
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
+          export GWADA_SSH_BATCH=1
+          export LIVE_VPS_HOST
+          bash scripts/sync-gotrue-passkey-env.sh live
+          bash scripts/vps-patch-gotrue-redirects.sh
+
+      - name: Hinweis Verifikation
+        run: |
+          echo "Passkey: https://gwada.app/sb/auth/v1/passkey/authentication/options (401 = Endpoint aktiv)"
+          echo "Auth-Links: Magic Link / Passwort-Reset neu anfordern und testen"

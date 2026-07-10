@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
+import { ProfileAnmeldungSkeleton } from "@/components/profile/profile-anmeldung-skeleton";
 import { ProfilePasskeysCard } from "@/components/profile/profile-passkeys-card";
 import { PasswordStrengthBar } from "@/components/auth/password-strength-bar";
 import {

@@ -65,6 +65,7 @@ import {
   fetchShiftTemplates,
   updateScheduledShift,
 } from "@/lib/supabase/staff-shift-schedule-db";
+import { fetchStaffAvailabilitySlotsForRestaurant } from "@/lib/supabase/staff-availability-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useShiftPlanWeatherByDate } from "@/lib/hooks/use-shift-plan-weather-by-date";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
@@ -78,6 +79,7 @@ import type {
   ShiftScheduleSortKey,
   ShiftScheduleViewMode,
 } from "@/lib/types/staff-shift-schedule";
+import type { RestaurantStaffAvailabilitySlotRow } from "@/lib/types/staff-availability";
 import { scheduledShiftDurationMinutes } from "@/lib/types/staff-shift-schedule";
 import { STAFF_CONTRACTS_UPDATED_EVENT } from "@/lib/staff/staff-contract-events";
 import {
@@ -117,6 +119,9 @@ export function StaffShiftPlanScreen({
   const [templates, setTemplates] = useState<RestaurantShiftTemplateRow[]>([]);
   const [shifts, setShifts] = useState<RestaurantStaffScheduledShiftRow[]>([]);
   const [absenceEntries, setAbsenceEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
+  const [availabilitySlots, setAvailabilitySlots] = useState<
+    RestaurantStaffAvailabilitySlotRow[]
+  >([]);
   const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
   const [requiresAcceptance, setRequiresAcceptance] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
@@ -221,7 +226,7 @@ export function StaffShiftPlanScreen({
     try {
       const staffScope =
         personalMode && personalStaffId ? personalStaffId : null;
-      const [shiftsRes, absencesRes] = await Promise.all([
+      const [shiftsRes, absencesRes, availabilityRes] = await Promise.all([
         fetchScheduledShiftsInRange(
           restaurantId,
           range.rangeStart,
@@ -234,6 +239,10 @@ export function StaffShiftPlanScreen({
           range.rangeStart,
           range.rangeEnd,
         ),
+        fetchStaffAvailabilitySlotsForRestaurant(
+          restaurantId,
+          staffScope ? { staffId: staffScope } : undefined,
+        ),
       ]);
       if (requestId !== shiftsRequestIdRef.current) return;
       if (shiftsRes.error) toast.error(shiftsRes.error);
@@ -242,6 +251,8 @@ export function StaffShiftPlanScreen({
       else {
         setAbsenceEntries(absencesRes.data.filter(isShiftPlanAbsenceEntry));
       }
+      if (availabilityRes.error) toast.error(availabilityRes.error);
+      else setAvailabilitySlots(availabilityRes.data);
     } finally {
       if (requestId === shiftsRequestIdRef.current) {
         setRangeFetching(false);
@@ -427,6 +438,11 @@ export function StaffShiftPlanScreen({
     const ids = new Set(filteredStaff.map((s) => s.id));
     return absenceEntries.filter((e) => ids.has(e.staff_id));
   }, [absenceEntries, filteredStaff]);
+
+  const visibleAvailabilitySlots = useMemo(() => {
+    const ids = new Set(filteredStaff.map((s) => s.id));
+    return availabilitySlots.filter((slot) => ids.has(slot.staff_id));
+  }, [availabilitySlots, filteredStaff]);
 
   const periodSummary = useMemo(
     () =>
@@ -769,6 +785,7 @@ export function StaffShiftPlanScreen({
           positionTags={positionTags.items}
           shifts={visibleShifts}
           absenceEntries={visibleAbsences}
+          availabilitySlots={visibleAvailabilitySlots}
           holidaysByDate={holidaysByDate}
           weatherByDate={weatherByDate}
           contracts={contracts}
@@ -788,6 +805,7 @@ export function StaffShiftPlanScreen({
           positionTags={positionTags.items}
           shifts={visibleShifts}
           absenceEntries={visibleAbsences}
+          availabilitySlots={visibleAvailabilitySlots}
           holidaysByDate={holidaysByDate}
           weatherByDate={weatherByDate}
           contracts={contracts}

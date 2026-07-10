@@ -244,6 +244,50 @@ export function formatRestaurantDateTime(
   return createRestaurantDateTimeFormatter(timeZone, options).format(date);
 }
 
+const RESERVATION_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+};
+
+const RESERVATION_SLOT_OPTIONS: Intl.DateTimeFormatOptions = {
+  weekday: "short",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+};
+
+const RESERVATION_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+};
+
+/** Reservierungs-Uhrzeit (HH:MM) in Restaurant-Zeitzone. */
+export function formatReservationTimeInRestaurantTz(
+  iso: string | Date | null | undefined,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  return formatRestaurantDateTime(iso, timeZone, RESERVATION_TIME_OPTIONS);
+}
+
+/** Reservierungs-Datum (dd.mm.yyyy) in Restaurant-Zeitzone. */
+export function formatReservationDateInRestaurantTz(
+  iso: string | Date | null | undefined,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  return formatRestaurantDateTime(iso, timeZone, RESERVATION_DATE_OPTIONS);
+}
+
+/** Reservierungstermin mit Wochentag in Restaurant-Zeitzone. */
+export function formatReservationSlotInRestaurantTz(
+  iso: string | Date | null | undefined,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  return formatRestaurantDateTime(iso, timeZone, RESERVATION_SLOT_OPTIONS);
+}
+
 export function parseRestaurantYmdKey(
   ymd: string,
 ): { year: number; month: number; day: number } | null {

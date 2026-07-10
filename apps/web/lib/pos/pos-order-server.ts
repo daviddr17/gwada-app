@@ -2,6 +2,7 @@ import "server-only";
 
 import { assertPosOrderStatusTransition, type PosOrderStatus } from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 
 export type CreatePosOrderLineInput = {
@@ -122,7 +123,7 @@ export async function createPosOrder(params: {
   const menuItemIds = [...new Set(params.items.map((i) => i.menuItemId))];
   const { data: menuItems, error: menuError } = await params.supabase
     .from("menu_items")
-    .select("id, name, price, vat_rate, is_active, restaurant_id")
+    .select("id, name, price, vat_rate, is_active, restaurant_id, available_from, available_to")
     .in("id", menuItemIds)
     .eq("restaurant_id", params.restaurantId);
 
@@ -138,7 +139,21 @@ export async function createPosOrder(params: {
   for (let i = 0; i < params.items.length; i++) {
     const input = params.items[i]!;
     const menuItem = menuById.get(input.menuItemId);
-    if (!menuItem || !menuItem.is_active) {
+    if (
+      !menuItem ||
+      !isMenuItemPubliclyAvailable({
+        id: menuItem.id as string,
+        name: menuItem.name as string,
+        description: "",
+        price: Number(menuItem.price),
+        category: "",
+        imageUrl: "",
+        tags: [],
+        active: Boolean(menuItem.is_active),
+        availableFrom: (menuItem.available_from as string | null) ?? null,
+        availableTo: (menuItem.available_to as string | null) ?? null,
+      })
+    ) {
       return { ok: false, error: "invalid_menu_item", status: 400 };
     }
 

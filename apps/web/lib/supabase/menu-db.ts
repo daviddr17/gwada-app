@@ -1,4 +1,5 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { normalizeMenuAvailabilityYmd } from "@/lib/menu/item-utils";
 import {
   getWorkspaceRestaurantId,
   workspacePersistenceConfigured,
@@ -24,6 +25,8 @@ type MenuItemRow = {
   is_active: boolean;
   list_number: number | null;
   category_id: string;
+  available_from: string | null;
+  available_to: string | null;
   menu_item_tags: { tag_id: string }[] | null;
   menu_item_allergens: { allergen_id: string }[] | null;
   menu_item_recipe_lines:
@@ -53,6 +56,8 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
     active: row.is_active,
     listNumber: row.list_number,
     recipe,
+    availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
+    availableTo: normalizeMenuAvailabilityYmd(row.available_to),
   };
 }
 
@@ -496,6 +501,7 @@ export async function loadMenuItemsRelational(
     .select(
       `
       id, name, description, price, image_url, is_active, list_number, category_id,
+      available_from, available_to,
       menu_item_tags(tag_id),
       menu_item_allergens(allergen_id),
       menu_item_recipe_lines(ingredient_id, amount)
@@ -526,6 +532,8 @@ export async function insertMenuItemRelational(item: MenuItem): Promise<boolean>
     image_url: item.imageUrl,
     is_active: item.active !== false,
     list_number: item.listNumber ?? null,
+    available_from: normalizeMenuAvailabilityYmd(item.availableFrom),
+    available_to: normalizeMenuAvailabilityYmd(item.availableTo),
   });
   if (error) {
     console.warn("[gwada] insert menu_items", error.message);
@@ -553,6 +561,8 @@ export async function updateMenuItemRelational(item: MenuItem): Promise<boolean>
       image_url: item.imageUrl,
       is_active: item.active !== false,
       list_number: item.listNumber ?? null,
+      available_from: normalizeMenuAvailabilityYmd(item.availableFrom),
+      available_to: normalizeMenuAvailabilityYmd(item.availableTo),
     })
     .eq("id", item.id);
   if (error) {

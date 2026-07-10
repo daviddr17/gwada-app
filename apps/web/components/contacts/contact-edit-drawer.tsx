@@ -147,6 +147,7 @@ export function ContactEditDrawer({
     inLexoffice: boolean;
     canAddToLexoffice: boolean;
     canLinkToLexoffice: boolean;
+    lexofficeContactId: string | null;
   } | null>(null);
   const [assignedTagIds, setAssignedTagIds] = useState<string[]>([]);
   const linkExistingLexofficeId = initialDraft?.linkExistingLexofficeId ?? null;
@@ -257,6 +258,7 @@ export function ContactEditDrawer({
               inLexoffice: boolean;
               canAddToLexoffice: boolean;
               canLinkToLexoffice: boolean;
+              lexofficeContactId: string | null;
             };
           })
         : Promise.resolve(null);
@@ -488,6 +490,26 @@ export function ContactEditDrawer({
                 ? "Kontakt gespeichert (bereits mit Lexware verknüpft)."
                 : "Kontakt gespeichert und mit Lexware verknüpft.",
           );
+        } else if (lexofficeLinkStatus?.linked) {
+          const pushRes = await fetch("/api/contacts/lexoffice-push", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ restaurantId, contactId }),
+          });
+          setSaving(false);
+          if (!pushRes.ok) {
+            const pushData = (await pushRes.json()) as { error?: string };
+            if (pushData.error?.includes("deaktiviert")) {
+              toast.success("Kontakt gespeichert.");
+            } else {
+              toast.error(
+                pushData.error ??
+                  "Kontakt gespeichert, Lexware-Update fehlgeschlagen.",
+              );
+            }
+          } else {
+            toast.success("Kontakt gespeichert und in Lexware aktualisiert.");
+          }
         } else {
           setSaving(false);
           toast.success("Kontakt gespeichert.");
@@ -883,20 +905,69 @@ export function ContactEditDrawer({
                   Mit Lexware Office verknüpft.
                 </p>
               ) : lexofficeLinkStatus?.canLinkToLexoffice ? (
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Mit Lexware verknüpfen</p>
-                    <p className="text-xs text-muted-foreground">
-                      Gleiche E-Mail oder Telefonnummer ist bereits in Lexware
-                      hinterlegt.
-                    </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium">Mit Lexware verknüpfen</p>
+                      <p className="text-xs text-muted-foreground">
+                        Gleiche E-Mail oder Telefonnummer ist bereits in Lexware
+                        hinterlegt.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={syncToLexoffice}
+                      disabled={loading || saving}
+                      onCheckedChange={(v) => setSyncToLexoffice(v === true)}
+                      aria-label="Mit Lexware verknüpfen"
+                    />
                   </div>
-                  <Switch
-                    checked={syncToLexoffice}
-                    disabled={loading || saving}
-                    onCheckedChange={(v) => setSyncToLexoffice(v === true)}
-                    aria-label="Mit Lexware verknüpfen"
-                  />
+                  {lexofficeLinkStatus.lexofficeContactId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={loading || saving}
+                      onClick={() => {
+                        if (!lexofficeLinkStatus.lexofficeContactId) return;
+                        setSaving(true);
+                        void (async () => {
+                          const res = await fetch("/api/contacts/lexoffice-import", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              restaurantId,
+                              lexofficeContactId:
+                                lexofficeLinkStatus.lexofficeContactId,
+                            }),
+                          });
+                          const data = (await res.json()) as {
+                            error?: string;
+                            contactId?: string;
+                            linked?: boolean;
+                          };
+                          setSaving(false);
+                          if (!res.ok) {
+                            toast.error(data.error ?? "Import fehlgeschlagen.");
+                            return;
+                          }
+                          toast.success(
+                            data.linked
+                              ? "Mit bestehendem Gwada-Kontakt verknüpft."
+                              : "Kontakt aus Lexware importiert.",
+                          );
+                          if (data.contactId) {
+                            dispatchDashboardWidgetLiveFetch(restaurantId, "contacts", {
+                              immediate: true,
+                            });
+                            onSaved?.({ contactId: data.contactId, created: false });
+                            onOpenChange(false);
+                          }
+                        })();
+                      }}
+                    >
+                      Aus Lexware importieren
+                    </Button>
+                  ) : null}
                 </div>
               ) : lexofficeLinkStatus?.canAddToLexoffice ? (
                 <div className="flex items-center justify-between gap-4">

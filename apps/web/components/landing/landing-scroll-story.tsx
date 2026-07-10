@@ -112,7 +112,7 @@ function StoryCopy({ scrollYProgress }: StoryCopyProps) {
   return (
     <div className="relative z-10 max-w-lg lg:pr-8">
       <p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-        Funktionen
+        Module
       </p>
       <motion.h2
         key={feature.title}
@@ -135,7 +135,7 @@ function StoryCopy({ scrollYProgress }: StoryCopyProps) {
       <div className="mt-8 flex gap-2">
         {LANDING_FEATURE_ITEMS.map((item, i) => (
           <div
-            key={item.title}
+            key={item.id}
             className={cn(
               "h-1.5 rounded-full transition-all duration-300",
               i === activeIndex
@@ -171,11 +171,11 @@ export function LandingScrollStory() {
       {reduce ? (
         <div className="mx-auto max-w-3xl space-y-8 px-6 py-24">
           <h2 className="text-center text-3xl font-semibold tracking-tight">
-            Funktionen
+            Module
           </h2>
           <ul className="space-y-6">
             {LANDING_FEATURE_ITEMS.map((f) => (
-              <li key={f.title} className="rounded-2xl border border-border/60 p-6">
+              <li key={f.id} className="rounded-2xl border border-border/60 p-6">
                 <h3 className="text-lg font-semibold">{f.title}</h3>
                 <p className="mt-2 text-muted-foreground">{f.description}</p>
               </li>
@@ -192,7 +192,7 @@ export function LandingScrollStory() {
             <div className="relative aspect-square max-h-[min(72vw,460px)] w-full max-w-md justify-self-center lg:max-h-[min(48vw,480px)]">
               {LANDING_FEATURE_ITEMS.map((item, index) => (
                 <FeatureSlide
-                  key={item.title}
+                  key={item.id}
                   index={index}
                   scrollYProgress={scrollYProgress}
                 />

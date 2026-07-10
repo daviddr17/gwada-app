@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useNotificationSummary } from "@/lib/hooks/use-notification-summary";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { NOTIFICATION_SUMMARY_STALE_MS } from "@/lib/query/dashboard-query-policy";
 import { queryKeys } from "@/lib/query/query-keys";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
@@ -24,6 +25,7 @@ export function AppChromeNotificationBell() {
   const [open, setOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { summary, totalCount, isLoading, isFetching, ready, markRead, markModuleRead, refresh } =
     useNotificationSummary();
   const showSkeleton = useDeferredSkeleton(
@@ -84,6 +86,7 @@ export function AppChromeNotificationBell() {
               <NotificationBellPanel
                 summary={summary}
                 loading={isFetching && !summary}
+                timeZone={restaurantTimeZone}
                 onMarkRead={markRead}
                 onMarkModuleRead={markModuleRead}
                 onNavigate={() => setOpen(false)}

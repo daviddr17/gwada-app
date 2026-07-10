@@ -15,10 +15,21 @@ import {
   nextStatusCodeAfterChangeRequestApprove,
   nextStatusCodeAfterChangeRequestDecline,
 } from "@/lib/reservations/reservation-open-status";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import {
   formatReservationSlotDe,
   reservationChangeDiffKeys,
 } from "@/lib/reservations/reservation-pending-change";
+import {
+  reservationDateTimeChanged,
+  shouldRescheduleTimedOutbox,
+} from "@/lib/reservations/reservation-datetime-reschedule";
+import {
+  triggerReservationEmailDispatch,
+} from "@/lib/reservations/trigger-email-dispatch";
+import {
+  triggerReservationWhatsappDispatch,
+} from "@/lib/reservations/trigger-whatsapp-dispatch";
 import { cn } from "@/lib/utils";
 
 function DiffRow({
@@ -53,6 +64,7 @@ export function ReservationChangeRequestPanel({
   className?: string;
 }) {
   const [busy, setBusy] = useState<"approve" | "decline" | null>(null);
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const pending = getReservationPendingChange(reservation);
 
   if (reservation.reservation_statuses?.code !== "change_requested" || !pending) {
@@ -82,6 +94,27 @@ export function ReservationChangeRequestPanel({
       previousStatusCode: "change_requested",
       nextStatusCode: nextStatusCodeAfterChangeRequestApprove(statuses, reservation),
     });
+    const restoredStatusCode = nextStatusCodeAfterChangeRequestApprove(
+      statuses,
+      reservation,
+    );
+    const datetimeChanged = reservationDateTimeChanged(
+      {
+        starts_at: reservation.starts_at,
+        ends_at: reservation.ends_at,
+      },
+      { starts_at: pending.starts_at, ends_at: pending.ends_at },
+    );
+    if (shouldRescheduleTimedOutbox(restoredStatusCode, datetimeChanged)) {
+      const notifyWhatsapp = pending.notify_whatsapp ?? reservation.notify_whatsapp;
+      const notifyEmail = pending.notify_email ?? reservation.notify_email;
+      if (notifyWhatsapp) {
+        void triggerReservationWhatsappDispatch(reservation.id, "rescheduled");
+      }
+      if (notifyEmail) {
+        void triggerReservationEmailDispatch(reservation.id, "rescheduled");
+      }
+    }
     toast.success("Änderung übernommen.");
     onResolved();
   };
@@ -137,8 +170,8 @@ export function ReservationChangeRequestPanel({
         {diffKeys.includes("starts_at") ? (
           <DiffRow
             label="Termin"
-            before={formatReservationSlotDe(reservation.starts_at)}
-            after={formatReservationSlotDe(pending.starts_at)}
+            before={formatReservationSlotDe(reservation.starts_at, restaurantTimeZone)}
+            after={formatReservationSlotDe(pending.starts_at, restaurantTimeZone)}
           />
         ) : null}
         {diffKeys.includes("guest_phone") ? (

@@ -177,6 +177,53 @@ export async function createLexofficeContact(
   return { ok: true, id: result.data.id, version: result.data.version };
 }
 
+export async function fetchLexofficeContact(
+  apiKey: string,
+  contactId: string,
+): Promise<
+  | { ok: true; contact: LexofficeContact }
+  | { ok: false; error: string; status?: number }
+> {
+  const result = await lexofficeFetch<LexofficeContact>(
+    apiKey,
+    `/v1/contacts/${contactId}`,
+  );
+  if (!result.ok) return result;
+  return { ok: true, contact: result.data };
+}
+
+export async function updateLexofficeContact(
+  apiKey: string,
+  contactId: string,
+  payload: Record<string, unknown>,
+): Promise<
+  | { ok: true; version?: number }
+  | { ok: false; error: string; status?: number }
+> {
+  const result = await lexofficeFetch<{ version?: number }>(
+    apiKey,
+    `/v1/contacts/${contactId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!result.ok) return result;
+  return { ok: true, version: result.data.version };
+}
+
+export function gwadaPayloadToLexofficeUpdateBody(
+  payload: ContactUpsertPayload,
+  existing: LexofficeContact,
+): Record<string, unknown> {
+  const createBody = gwadaPayloadToLexofficeCreateBody(payload);
+  return {
+    ...createBody,
+    version: existing.version ?? 0,
+    roles: existing.roles ?? { customer: {} },
+  };
+}
+
 export function extractLexofficeEmails(contact: LexofficeContact): string[] {
   const out: string[] = [];
   const groups = contact.emailAddresses;

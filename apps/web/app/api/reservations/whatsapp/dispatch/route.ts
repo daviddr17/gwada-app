@@ -13,7 +13,8 @@ export async function POST(req: Request) {
       | "confirmed"
       | "cancelled"
       | "declined"
-      | "no_show";
+      | "no_show"
+      | "rescheduled";
   };
 
   const reservationId = body.reservationId?.trim() ?? "";
@@ -24,6 +25,7 @@ export async function POST(req: Request) {
     "cancelled",
     "declined",
     "no_show",
+    "rescheduled",
   ]);
   if (!isUuidRestaurantId(reservationId) || !event || !validEvents.has(event)) {
     return Response.json({ error: "invalid_request" }, { status: 400 });

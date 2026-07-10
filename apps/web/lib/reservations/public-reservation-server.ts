@@ -27,6 +27,7 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
@@ -132,7 +133,7 @@ export async function fetchPublicEmbedRestaurant(
 
   const { data: row, error } = await admin
     .from("restaurants")
-    .select("id, name, slug, brand_accent_hex, is_published")
+    .select("id, name, slug, brand_accent_hex, is_published, timezone")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -170,6 +171,11 @@ export async function fetchPublicEmbedRestaurant(
   const footerRaw = settingsRes.data?.embed_form_footer_text;
   const embedFormFooterText =
     typeof footerRaw === "string" && footerRaw.trim() ? footerRaw.trim() : null;
+  const timezoneRaw = (row as { timezone?: string | null }).timezone;
+  const timezone =
+    typeof timezoneRaw === "string" && timezoneRaw.trim()
+      ? timezoneRaw.trim()
+      : DEFAULT_RESTAURANT_TIMEZONE;
 
   return {
     data: {
@@ -177,6 +183,7 @@ export async function fetchPublicEmbedRestaurant(
       name: row.name,
       slug: row.slug,
       accentHex,
+      timezone,
       defaultDwellMinutes,
       bookingLeadTimeHours,
       minMinutesBeforeClosing,
@@ -387,7 +394,7 @@ export async function createPublicReservation(
       guestLast,
     ),
     details: buildReservationLogDetails(
-      buildReservationLogChanges(null, after),
+      buildReservationLogChanges(null, after, restaurant.timezone),
       { actorSource: "guest", summary: "Online gebucht" },
     ),
   });

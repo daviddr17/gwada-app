@@ -76,8 +76,8 @@ export function DisplayOpenReservationCard({
             </div>
             <p className="text-lg font-semibold leading-snug">{guestName}</p>
             <p className="text-sm text-muted-foreground">
-              {formatReservationSlotDe(r.starts_at, timeZone)} · {timeFmt.format(new Date(r.starts_at))}
-              –{timeFmt.format(new Date(r.ends_at))} · {r.party_size} Pers.
+              {formatReservationSlotDe(r.starts_at, timeZone)} –{" "}
+              {timeFmt.format(new Date(r.ends_at))} · {r.party_size} Pers.
             </p>
             {isChangeRequest && changeHint ? (
               <p className="text-sm text-foreground/90">{changeHint}</p>

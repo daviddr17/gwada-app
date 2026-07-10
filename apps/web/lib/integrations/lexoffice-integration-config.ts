@@ -12,6 +12,8 @@ export type LexofficeIntegrationConfig = {
   business_features?: LexofficeBusinessFeature[];
   connected_user_name?: string;
   connected_user_email?: string;
+  /** eventType → subscription id (Lexware event-subscriptions). */
+  webhook_subscription_ids?: Record<string, string>;
 };
 
 export type LexofficeIntegrationConfigPublic = {
@@ -23,6 +25,19 @@ export type LexofficeIntegrationConfigPublic = {
   connected_user_name: string | null;
   connected_user_email: string | null;
 };
+
+function parseLexofficeWebhookSubscriptionIds(
+  raw: unknown,
+): Record<string, string> | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const ids: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" && value.trim().length > 0) {
+      ids[key] = value;
+    }
+  }
+  return Object.keys(ids).length > 0 ? ids : undefined;
+}
 
 export function lexofficeConfigFromJson(raw: unknown): LexofficeIntegrationConfig {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -43,6 +58,9 @@ export function lexofficeConfigFromJson(raw: unknown): LexofficeIntegrationConfi
       typeof o.connected_user_name === "string" ? o.connected_user_name : undefined,
     connected_user_email:
       typeof o.connected_user_email === "string" ? o.connected_user_email : undefined,
+    webhook_subscription_ids: parseLexofficeWebhookSubscriptionIds(
+      o.webhook_subscription_ids,
+    ),
   };
 }
 

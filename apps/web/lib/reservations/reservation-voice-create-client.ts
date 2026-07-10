@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  datetimeLocalValueToIso,
-  ymdAndHmToDatetimeLocal,
-} from "@/lib/reservations/datetime-local";
+import { ymdHmToRestaurantIso } from "@/lib/restaurant/restaurant-timezone";
 import {
   normalizeReservationGuestFirstName,
   normalizeReservationGuestLastName,
@@ -30,6 +27,7 @@ export async function createReservationFromVoiceParsed(params: {
   restaurantId: string;
   parsed: ParsedReservationVoice;
   defaultDwellMinutes: number;
+  restaurantTimeZone: string;
   statuses?: ReservationStatusJoin[];
   isSuperadmin?: boolean;
 }): Promise<{ ok: true; reservationNumber: number } | { ok: false; error: string }> {
@@ -47,15 +45,22 @@ export async function createReservationFromVoiceParsed(params: {
     return { ok: false, error: "Kein Reservierungsstatus verfügbar." };
   }
 
-  const startsLocal = ymdAndHmToDatetimeLocal(
-    params.parsed.dateYmd,
-    params.parsed.timeHm,
-  );
-  const startsIso = datetimeLocalValueToIso(startsLocal);
+  let startsIso: string;
+  try {
+    startsIso = ymdHmToRestaurantIso(
+      params.parsed.dateYmd,
+      params.parsed.timeHm,
+      params.restaurantTimeZone,
+    );
+  } catch {
+    return { ok: false, error: "Ungültiges Datum oder Uhrzeit." };
+  }
   const dwell = params.defaultDwellMinutes;
-  const endsIso = new Date(
-    new Date(startsIso).getTime() + dwell * 60 * 1000,
-  ).toISOString();
+  const startMs = new Date(startsIso).getTime();
+  if (Number.isNaN(startMs)) {
+    return { ok: false, error: "Ungültiges Datum oder Uhrzeit." };
+  }
+  const endsIso = new Date(startMs + dwell * 60 * 1000).toISOString();
 
   const payload = {
     guest_first_name: normalizeReservationGuestFirstName(params.parsed.guestFirstName),

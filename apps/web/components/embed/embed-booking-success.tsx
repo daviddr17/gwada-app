@@ -2,6 +2,10 @@
 
 import { motion } from "framer-motion";
 import { formatReservationSlotDe } from "@/lib/reservations/reservation-pending-change";
+import {
+  formatReservationTimeInRestaurantTz,
+  DEFAULT_RESTAURANT_TIMEZONE,
+} from "@/lib/restaurant/restaurant-timezone";
 
 export type EmbedBookingSuccessDetails = {
   reservation_number: number;
@@ -18,17 +22,16 @@ export type EmbedBookingSuccessDetails = {
 export function EmbedBookingSuccess({
   details,
   changeRequest,
+  timeZone = DEFAULT_RESTAURANT_TIMEZONE,
 }: {
   details: EmbedBookingSuccessDetails;
   changeRequest?: boolean;
+  timeZone?: string;
 }) {
   const guest =
     `${details.guest_first_name} ${details.guest_last_name}`.trim();
-  const slot = formatReservationSlotDe(details.starts_at);
-  const endHm = new Intl.DateTimeFormat("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(details.ends_at));
+  const slot = formatReservationSlotDe(details.starts_at, timeZone);
+  const endHm = formatReservationTimeInRestaurantTz(details.ends_at, timeZone);
 
   return (
     <motion.div

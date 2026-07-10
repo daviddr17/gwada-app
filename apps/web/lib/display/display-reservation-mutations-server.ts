@@ -8,6 +8,10 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
+import {
+  reservationDateTimeChanged,
+  shouldRescheduleTimedOutbox,
+} from "@/lib/reservations/reservation-datetime-reschedule";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import { formatDiningTableLabel } from "@/lib/supabase/dining-floor-db";
@@ -395,6 +399,26 @@ export async function updateDisplayReservation(
     void dispatchReservationEmail(admin, reservationId, dispatchEvent).catch(
       () => undefined,
     );
+  }
+
+  const datetimeChanged = reservationDateTimeChanged(
+    {
+      starts_at: reservation.starts_at as string,
+      ends_at: reservation.ends_at as string,
+    },
+    { starts_at: input.starts_at, ends_at: input.ends_at },
+  );
+  if (shouldRescheduleTimedOutbox(newCode, datetimeChanged)) {
+    if (notifyWhatsapp) {
+      void dispatchReservationWhatsapp(admin, reservationId, "rescheduled").catch(
+        () => undefined,
+      );
+    }
+    if (notifyEmail) {
+      void dispatchReservationEmail(admin, reservationId, "rescheduled").catch(
+        () => undefined,
+      );
+    }
   }
 
   return { ok: true };

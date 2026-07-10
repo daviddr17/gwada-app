@@ -27,6 +27,10 @@ import {
   AppModuleChromeProvider,
   useAppModuleChrome,
 } from "@/lib/contexts/app-module-chrome-context";
+import {
+  DashboardGlobalSearchChrome,
+  DashboardGlobalSearchTrigger,
+} from "@/components/search/dashboard-global-search-chrome";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { useAccentColor } from "@/lib/contexts/accent-color-context";
@@ -111,6 +115,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <AppChromeCenterFavicon />
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
             <div className="flex shrink-0 items-center gap-2">
+              <DashboardGlobalSearchTrigger />
               <AppChromeNotificationBell />
               <AppChromeRestaurantProfileLink />
               <Button
@@ -177,9 +182,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <AuthLogoutTransitionProvider>
         <AppModuleChromeProvider>
-          <AppSidebar />
-          <AppInsetWithChrome>{children}</AppInsetWithChrome>
-          <DashboardUploadOverlay />
+          <DashboardGlobalSearchChrome>
+            <AppSidebar />
+            <AppInsetWithChrome>{children}</AppInsetWithChrome>
+            <DashboardUploadOverlay />
+          </DashboardGlobalSearchChrome>
         </AppModuleChromeProvider>
       </AuthLogoutTransitionProvider>
     </SidebarProvider>

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import { isMenuItemActive } from "@/lib/menu/item-utils";
+import { MenuItemAvailabilityBadge } from "@/components/menu/menu-item-availability-badge";
 import {
   Card,
   CardContent,
@@ -75,6 +76,7 @@ export function MenuItemCard({
               Inaktiv
             </Badge>
           )}
+          <MenuItemAvailabilityBadge item={item} />
         </CardTitle>
         <CardDescription className="line-clamp-2 text-[0.9375rem] leading-relaxed">
           {item.description}

@@ -49,31 +49,16 @@ export function parseReservationPendingChange(
   };
 }
 
-const timeDe = new Intl.DateTimeFormat("de-DE", {
-  weekday: "short",
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatReservationSlotInRestaurantTz,
+} from "@/lib/restaurant/restaurant-timezone";
 
 export function formatReservationSlotDe(
   iso: string,
-  timeZone?: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): string {
-  if (timeZone) {
-    return new Intl.DateTimeFormat("de-DE", {
-      timeZone,
-      weekday: "short",
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(iso));
-  }
-  return timeDe.format(new Date(iso));
+  return formatReservationSlotInRestaurantTz(iso, timeZone);
 }
 
 export type ReservationChangeFieldKey =

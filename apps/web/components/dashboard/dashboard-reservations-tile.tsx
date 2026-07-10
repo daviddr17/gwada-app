@@ -11,30 +11,24 @@ import {
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservation-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { formatReservationSlotInRestaurantTz, formatReservationTimeInRestaurantTz } from "@/lib/restaurant/restaurant-timezone";
 import type { DashboardReservationRecent } from "@/lib/reservations/compute-dashboard-reservation-summary";
 
 type DashboardReservationsView = "unconfirmed" | "today";
 
-function formatReservationWhen(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString("de-DE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatReservationWhen(iso: string, timeZone: string): string {
+  return formatReservationSlotInRestaurantTz(iso, timeZone);
 }
 
-function formatReservationTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatReservationTime(iso: string, timeZone: string): string {
+  return formatReservationTimeInRestaurantTz(iso, timeZone);
 }
 
 export function DashboardReservationsTile() {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { summary, loading, error, ready } = useDashboardReservationStats();
   const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const [view, setView] = useState<DashboardReservationsView>("unconfirmed");
@@ -109,8 +103,8 @@ export function DashboardReservationsTile() {
                   meta={`${row.partySize} Pers. · ${row.statusName}`}
                   trailing={
                     view === "today"
-                      ? formatReservationTime(row.startsAt)
-                      : formatReservationWhen(row.startsAt)
+                      ? formatReservationTime(row.startsAt, restaurantTimeZone)
+                      : formatReservationWhen(row.startsAt, restaurantTimeZone)
                   }
                   stripeVariant={row.unconfirmed ? "attention" : undefined}
                 />

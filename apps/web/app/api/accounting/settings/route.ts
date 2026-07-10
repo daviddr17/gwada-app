@@ -41,6 +41,7 @@ export async function PATCH(req: Request) {
     quotationNumberIncludeYear?: boolean;
     invoiceNumberMinDigits?: number;
     quotationNumberMinDigits?: number;
+    lexofficeFeatures?: Partial<import("@/lib/accounting/accounting-connector-settings").LexofficeConnectorFeatureFlags>;
   };
   const restaurantId = restaurantIdFromRequest(req, body);
   const auth = await assertAccountingApi(restaurantId, "update");
@@ -62,6 +63,7 @@ export async function PATCH(req: Request) {
     quotationNumberIncludeYear: body.quotationNumberIncludeYear,
     invoiceNumberMinDigits: body.invoiceNumberMinDigits,
     quotationNumberMinDigits: body.quotationNumberMinDigits,
+    lexofficeFeatures: body.lexofficeFeatures,
   });
 
   if (error || !row) {

@@ -5,6 +5,7 @@ import type { ContactMessagePlatform } from "@/lib/constants/contact-message-pla
 import { composeOutboundWithReservationContext } from "@/lib/contact-messages/compose-reservation-message-text";
 import { resolveWhatsappPhoneForContact } from "@/lib/contact-messages/resolve-whatsapp-phone";
 import { wahaChatIdFromPseudoContactId } from "@/lib/contact-messages/whatsapp-pseudo-contact";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
@@ -122,21 +123,35 @@ async function loadReservationMessageContext(
 } | null> {
   const wa = await fetchReservationForWhatsapp(admin, reservationId);
   if (!wa) return null;
-  const { data: settings } = await admin
-    .from("restaurant_reservation_settings")
-    .select("guest_manage_url_template")
-    .eq("restaurant_id", wa.restaurant_id)
-    .maybeSingle();
+  const [{ data: settings }, { data: restaurant }] = await Promise.all([
+    admin
+      .from("restaurant_reservation_settings")
+      .select("guest_manage_url_template")
+      .eq("restaurant_id", wa.restaurant_id)
+      .maybeSingle(),
+    admin
+      .from("restaurants")
+      .select("timezone")
+      .eq("id", wa.restaurant_id)
+      .maybeSingle(),
+  ]);
 
   const template =
     (settings as { guest_manage_url_template: string | null } | null)
       ?.guest_manage_url_template ?? null;
+  const timeZoneRaw = (restaurant as { timezone?: string | null } | null)
+    ?.timezone;
+  const timeZone =
+    typeof timeZoneRaw === "string" && timeZoneRaw.trim()
+      ? timeZoneRaw.trim()
+      : DEFAULT_RESTAURANT_TIMEZONE;
 
   const ctx: ReservationMessageContext = {
     guestFirstName: wa.guest_first_name,
     guestLastName: wa.guest_last_name,
     partySize: wa.party_size,
     startsAt: new Date(wa.starts_at),
+    timeZone,
     reservationNumber: wa.reservation_number,
     guestPin: wa.guest_pin,
     restaurantName: restaurantName?.trim() || undefined,

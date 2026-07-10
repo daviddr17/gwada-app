@@ -98,6 +98,27 @@ export async function fetchRestaurantLexofficeApiKey(
   return key || null;
 }
 
+export async function fetchRestaurantIdByLexofficeOrganizationId(
+  organizationId: string,
+): Promise<string | null> {
+  const trimmed = organizationId.trim();
+  if (!trimmed) return null;
+
+  const admin = createSupabaseAdminClient();
+  if (!admin) return null;
+
+  const { data, error } = await admin
+    .from("restaurant_integrations")
+    .select("restaurant_id")
+    .eq("integration_key", LEXOFFICE_KEY)
+    .eq("status", "working")
+    .contains("config", { organization_id: trimmed })
+    .maybeSingle();
+
+  if (error || !data) return null;
+  return (data as { restaurant_id: string }).restaurant_id;
+}
+
 export async function upsertRestaurantLexofficeIntegration(
   sb: SupabaseClient,
   restaurantId: string,

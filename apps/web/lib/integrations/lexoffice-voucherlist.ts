@@ -269,6 +269,7 @@ export type LexofficeSalesDetail = {
     totalTaxAmount?: number;
   };
   taxConditions?: { taxType?: string };
+  shippingConditions?: Record<string, unknown>;
   title?: string | null;
   introduction?: string | null;
   remark?: string | null;

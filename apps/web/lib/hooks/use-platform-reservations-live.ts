@@ -15,6 +15,7 @@ import {
 } from "@/lib/reservations/reservation-live-toast";
 import type { ReservationsLiveSignal } from "@/lib/reservations/reservations-live-signal";
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useVisibleIntervalPolling } from "@/lib/hooks/use-visible-interval-polling";
 import { isPublicSupabaseProxyEnabled } from "@/lib/public-env";
@@ -31,6 +32,7 @@ const UPDATE_PATCH_DEBOUNCE_MS = 500;
  */
 export function usePlatformReservationsLive() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { user, ready: authReady } = useWorkspaceAuthSession();
   const hasUserRef = useRef(Boolean(user));
   const toastRef = useRef(false);
@@ -70,7 +72,7 @@ export function usePlatformReservationsLive() {
     ) => {
       if (!toastRef.current) {
         toastRef.current = true;
-        showNewReservationToast(row);
+        showNewReservationToast(row, restaurantTimeZone);
         setTimeout(() => {
           toastRef.current = false;
         }, 2_000);
@@ -84,7 +86,7 @@ export function usePlatformReservationsLive() {
       }
       scheduleUpdatePatch();
     },
-    [restaurantId, scheduleUpdatePatch],
+    [restaurantId, restaurantTimeZone, scheduleUpdatePatch],
   );
 
   const handleLiveSignal = useCallback(

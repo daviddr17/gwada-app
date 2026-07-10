@@ -1,5 +1,11 @@
 import { toast } from "sonner";
 
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatReservationDateInRestaurantTz,
+  formatReservationTimeInRestaurantTz,
+} from "@/lib/restaurant/restaurant-timezone";
+
 export type ReservationLiveToastFields = {
   starts_at: string;
   guest_first_name: string | null;
@@ -10,17 +16,10 @@ export type ReservationLiveToastFields = {
 /** z. B. `04.06.2026, 19:30 · Mustermann, Max | 4 Pers.` */
 export function formatReservationLiveToastDescription(
   row: ReservationLiveToastFields,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): string {
-  const d = new Date(row.starts_at);
-  const date = d.toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const date = formatReservationDateInRestaurantTz(row.starts_at, timeZone);
+  const time = formatReservationTimeInRestaurantTz(row.starts_at, timeZone);
   const family = row.guest_last_name?.trim() || "—";
   const given = row.guest_first_name?.trim() || "—";
   const pers = row.party_size;
@@ -49,10 +48,13 @@ export function reservationLiveToastFromRecord(
   };
 }
 
-export function showNewReservationToast(row: ReservationLiveToastFields | null) {
+export function showNewReservationToast(
+  row: ReservationLiveToastFields | null,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+) {
   toast.info("Neue Reservierung", {
     description: row
-      ? formatReservationLiveToastDescription(row)
+      ? formatReservationLiveToastDescription(row, timeZone)
       : "Wird aktualisiert …",
     duration: 4_000,
   });

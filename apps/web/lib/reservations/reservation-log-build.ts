@@ -76,6 +76,7 @@ export function reservationSnapshotFromPayload(
 export function buildReservationLogChanges(
   before: ReservationLogSnapshot | null,
   after: ReservationLogSnapshot,
+  timeZone?: string,
 ): ReservationLogChange[] {
   const changes: ReservationLogChange[] = [];
 
@@ -87,7 +88,7 @@ export function buildReservationLogChanges(
       "starts_at",
       "Termin",
       null,
-      formatReservationSlotDe(after.starts_at),
+      formatReservationSlotDe(after.starts_at, timeZone),
     );
     pushChange(changes, "status", "Status", null, after.status_name);
     pushChange(changes, "table", "Tisch", null, after.dining_table_label);
@@ -106,8 +107,8 @@ export function buildReservationLogChanges(
     changes,
     "starts_at",
     "Termin",
-    formatReservationSlotDe(before.starts_at),
-    formatReservationSlotDe(after.starts_at),
+    formatReservationSlotDe(before.starts_at, timeZone),
+    formatReservationSlotDe(after.starts_at, timeZone),
   );
   pushChange(
     changes,

@@ -1,8 +1,13 @@
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  readRestaurantZonedParts,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
+import {
   hhmmToMinutes,
   openingDaySlotStartsMinutes,
-  resolveHoursForLocalCalendarDay,
+  resolveHoursForRestaurantCalendarDay,
 } from "@/lib/reservations/day-opening-slots";
 import type {
   DateHoursException,
@@ -15,6 +20,8 @@ export type PublicEmbedRestaurant = {
   name: string;
   slug: string;
   accentHex: string;
+  /** IANA-Zeitzone des Restaurants (z. B. Europe/Berlin). */
+  timezone: string;
   defaultDwellMinutes: number;
   /** Mindest-Vorlauf in Stunden (ab „jetzt“) für öffentliche Buchungen. */
   bookingLeadTimeHours: number;
@@ -87,14 +94,14 @@ export function normalizeMinMinutesBeforeClosing(
 export function filterSlotsForMinMinutesBeforeClosing(
   slots: string[],
   config: Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
-  day: Date,
+  dateYmd: string,
   minMinutesBeforeClosing: number,
 ): string[] {
   const buffer = normalizeMinMinutesBeforeClosing(minMinutesBeforeClosing);
   if (buffer <= 0 || slots.length === 0) return slots;
 
-  const hours = resolveHoursForLocalCalendarDay(
-    day,
+  const hours = resolveHoursForRestaurantCalendarDay(
+    dateYmd,
     config.weeklyHours,
     config.dateExceptions,
   );
@@ -104,12 +111,12 @@ export function filterSlotsForMinMinutesBeforeClosing(
   return slots.filter((hm) => hhmmToMinutes(hm) <= latestStartM);
 }
 
-export function publicTimeSlotsForDay(
+export function publicTimeSlotsForYmd(
   config: Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
-  day: Date,
+  dateYmd: string,
 ): string[] {
-  const hours = resolveHoursForLocalCalendarDay(
-    day,
+  const hours = resolveHoursForRestaurantCalendarDay(
+    dateYmd,
     config.weeklyHours,
     config.dateExceptions,
   );
@@ -129,18 +136,33 @@ export function publicCountries() {
   return COUNTRIES_REFERENCE_FALLBACK;
 }
 
+/** @deprecated Nutze {@link publicTimeSlotsForYmd}. */
+export function publicTimeSlotsForDay(
+  config: Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
+  day: Date,
+): string[] {
+  const ymd = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  return publicTimeSlotsForYmd(config, ymd);
+}
+
 /** Prüft, ob gewählte Zeit in Öffnungszeiten liegt (grobe Validierung). */
 export function isStartWithinOpeningHours(
-  config: Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
+  config: Pick<
+    PublicEmbedRestaurant,
+    "weeklyHours" | "dateExceptions" | "timezone"
+  >,
   startsAtIso: string,
 ): boolean {
+  const timeZone = config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
   const d = new Date(startsAtIso);
-  const slots = publicTimeSlotsForDay(config, d);
+  const ymd = restaurantZonedDateKey(d, timeZone);
+  const slots = publicTimeSlotsForYmd(config, ymd);
   if (slots.length === 0) return false;
-  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const z = readRestaurantZonedParts(d, timeZone);
+  const hm = `${String(z.hour).padStart(2, "0")}:${String(z.minute).padStart(2, "0")}`;
   const minutes = hhmmToMinutes(hm);
-  const hours = resolveHoursForLocalCalendarDay(
-    d,
+  const hours = resolveHoursForRestaurantCalendarDay(
+    ymd,
     config.weeklyHours,
     config.dateExceptions,
   );

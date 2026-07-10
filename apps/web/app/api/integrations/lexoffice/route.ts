@@ -1,6 +1,7 @@
 import { syncLexofficeContactsCache } from "@/lib/contacts/lexoffice-contacts-sync-server";
 import { fetchLexofficeProfile } from "@/lib/integrations/lexoffice-api";
 import { mergeLexofficeApiKey } from "@/lib/integrations/lexoffice-integration-config";
+import { ensureLexofficeWebhooksForRestaurant } from "@/lib/integrations/lexoffice-webhook-register-server";
 import { assertPlatformLexofficeEnabled } from "@/lib/integrations/platform-messaging-guard";
 import {
   fetchRestaurantLexofficeConfig,
@@ -119,20 +120,32 @@ export async function POST(req: Request) {
   }
 
   const { profile } = profileResult;
+  const baseConfig = {
+    api_key: mergedKey,
+    organization_id: profile.organizationId,
+    company_name: profile.companyName,
+    tax_type: profile.taxType,
+    business_features: profile.businessFeatures ?? [],
+    connected_user_name: profile.created?.userName,
+    connected_user_email: profile.created?.userEmail,
+  };
+
+  const configWithWebhooks = await ensureLexofficeWebhooksForRestaurant(
+    auth.sb,
+    restaurantId,
+    mergedKey,
+    {
+      ...existing?.config,
+      ...baseConfig,
+    },
+  );
+
   const { error } = await upsertRestaurantLexofficeIntegration(auth.sb, restaurantId, {
     status: "working",
     display_name: profile.companyName,
     connected_at: existing?.connected_at ?? new Date().toISOString(),
     last_error: null,
-    config: {
-      api_key: mergedKey,
-      organization_id: profile.organizationId,
-      company_name: profile.companyName,
-      tax_type: profile.taxType,
-      business_features: profile.businessFeatures ?? [],
-      connected_user_name: profile.created?.userName,
-      connected_user_email: profile.created?.userEmail,
-    },
+    config: configWithWebhooks,
   });
 
   if (error) {

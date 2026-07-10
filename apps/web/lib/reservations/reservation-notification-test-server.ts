@@ -1,6 +1,7 @@
 import "server-only";
 
 import { sendReservationEmail } from "@/lib/email/send-reservation-email";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { buildGuestManageUrl } from "@/lib/reservations/guest-manage-url";
 import { resolveEmailDeliveryForRestaurant } from "@/lib/reservations/reservation-email-dispatch";
 import { oauthConfigFromJson, type MetaOAuthIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
@@ -36,6 +37,7 @@ const TEST_MESSAGE_FOOTER =
 export function sampleReservationMessageContext(params: {
   guestManageUrlTemplate?: string | null;
   restaurantName?: string | null;
+  timeZone?: string;
 }): ReservationMessageContext {
   const startsAt = new Date();
   startsAt.setDate(startsAt.getDate() + 2);
@@ -46,6 +48,7 @@ export function sampleReservationMessageContext(params: {
     guestLastName: "Mustermann",
     partySize: 4,
     startsAt,
+    timeZone: params.timeZone?.trim() || DEFAULT_RESTAURANT_TIMEZONE,
     reservationNumber: 12345,
     guestPin: "4829",
     restaurantName: params.restaurantName?.trim() || "Restaurant Beispiel",

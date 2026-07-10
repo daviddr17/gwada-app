@@ -40,10 +40,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import type { CountryReference } from "@/lib/constants/countries";
 import {
-  datetimeLocalValueToIso,
-  localDayToYmd,
-  ymdAndHmToDatetimeLocal,
-} from "@/lib/reservations/datetime-local";
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantIsoToYmdHm,
+  ymdHmToRestaurantIso,
+} from "@/lib/restaurant/restaurant-timezone";
 import {
   earliestBookableYmd,
   filterPublicBookableTimeSlots,
@@ -210,7 +210,7 @@ export function EmbedReservationWidget({
       return filterSlotsForMinMinutesBeforeClosing(
         publicTimeSlotsForDay(config, day),
         config,
-        day,
+        dateYmd,
         config.minMinutesBeforeClosing,
       );
     }
@@ -270,24 +270,22 @@ export function EmbedReservationWidget({
       setPhoneLocal(parsed.local);
       setEmail(r.guest_email ?? "");
       setPartySize(String(r.party_size));
-      const start = new Date(r.starts_at);
-      setDateYmd(localDayToYmd(start));
-      setTimeHm(
-        `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`,
-      );
+      const timeZone = config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
+      const { ymd, hm } = restaurantIsoToYmdHm(r.starts_at, timeZone);
+      setDateYmd(ymd);
+      setTimeHm(hm);
       setNotifyEmail(r.notify_email);
       setNotifyWhatsapp(r.notify_whatsapp);
       setTermsAccepted(r.terms_accepted);
     },
-    [countries],
+    [config.timezone, countries],
   );
 
   const buildPayload = () => {
     const ps = Number(partySize);
     if (!Number.isFinite(ps) || ps < 1) return null;
-    const startsIso = datetimeLocalValueToIso(
-      ymdAndHmToDatetimeLocal(dateYmd, timeHm),
-    );
+    const timeZone = config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
+    const startsIso = ymdHmToRestaurantIso(dateYmd, timeHm, timeZone);
     const endsIso = buildEndsIso(startsIso, config.defaultDwellMinutes);
     return {
       guest_first_name: normalizeReservationGuestFirstName(firstName),
@@ -830,7 +828,10 @@ export function EmbedReservationWidget({
         {tab === "book" ? (
           <div className="w-full min-w-0 space-y-4">
             {bookSuccess ? (
-              <EmbedBookingSuccess details={bookSuccess} />
+              <EmbedBookingSuccess
+                details={bookSuccess}
+                timeZone={config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE}
+              />
             ) : (
               <>
                 {formFields}
@@ -889,6 +890,7 @@ export function EmbedReservationWidget({
               <EmbedBookingSuccess
                 details={manageSuccess.details}
                 changeRequest={manageSuccess.changeRequest}
+                timeZone={config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE}
               />
             ) : !loadedReservation ? (
               <EmbedSubmitButton

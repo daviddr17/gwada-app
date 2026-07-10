@@ -147,7 +147,7 @@ function IntegrationStoryCopy({ scrollYProgress }: StoryCopyProps) {
         {item.description}
       </motion.p>
       <p className="mt-6 text-sm text-muted-foreground/80">
-        Weitere Kanäle — z. B. E-Mail und Buchungsportale — folgen schrittweise.
+        Weitere Anbindungen — z. B. E-Mail — folgen schrittweise.
       </p>
       <div className="mt-8 flex gap-2">
         {LANDING_INTEGRATION_ITEMS.map((entry, i) => (
@@ -212,7 +212,7 @@ export function LandingIntegrationsScrollStory() {
             })}
           </ul>
           <p className="text-center text-sm text-muted-foreground">
-            Weitere Kanäle folgen.
+            Weitere Anbindungen folgen.
           </p>
         </div>
       ) : (

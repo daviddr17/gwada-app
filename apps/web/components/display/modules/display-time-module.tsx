@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Coffee, LogIn, LogOut, Pause } from "lucide-react";
+import { Coffee, CalendarClock, LogIn, LogOut, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DisplayTimeTeamPresence } from "@/components/display/modules/display-time-team-presence";
 import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
@@ -10,6 +10,7 @@ import {
   DisplayTimeRequestSheet,
   useDisplayTimeRequestPending,
 } from "@/components/display/modules/display-time-request-sheet";
+import { DisplayAvailabilitySheet } from "@/components/display/modules/display-availability-sheet";
 import {
   DisplayTimeActionCelebration,
   type DisplayTimeCelebrationAction,
@@ -118,12 +119,16 @@ const displayTimeDestructiveButtonClassName =
 
 export function DisplayTimeModule({
   initial,
+  restaurantId,
+  staffId,
   onChanged,
   onSessionChange,
   onClockOutSuccess,
   prepareAndGate,
 }: {
   initial: TimeState | null;
+  restaurantId: string;
+  staffId: string;
   onChanged: () => void;
   /** Live-Sync für Kopfzeile o. Ä. */
   onSessionChange?: (state: TimeState) => void;
@@ -153,6 +158,7 @@ export function DisplayTimeModule({
   const [contentHidden, setContentHidden] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
   const [requestSheetOpen, setRequestSheetOpen] = useState(false);
+  const [availabilitySheetOpen, setAvailabilitySheetOpen] = useState(false);
   const { pending: pendingTimeRequest, refresh: refreshPendingTimeRequest } =
     useDisplayTimeRequestPending();
   const reduceMotion = useReducedMotion() ?? false;
@@ -301,6 +307,13 @@ export function DisplayTimeModule({
           onChanged();
         }}
       />
+      <DisplayAvailabilitySheet
+        open={availabilitySheetOpen}
+        onOpenChange={setAvailabilitySheetOpen}
+        restaurantId={restaurantId}
+        staffId={staffId}
+        disabled={actionsBlocked}
+      />
       <DisplayTimeActionCelebration
         action={celebrationAction}
         onExitStart={() => {
@@ -352,6 +365,16 @@ export function DisplayTimeModule({
               {displayTimeStatusLabel(state.status)}
             </motion.p>
           </AnimatePresence>
+          <Button
+            type="button"
+            variant="outline"
+            className="absolute top-1/2 left-0 h-8 -translate-y-1/2 rounded-full border-border/60 px-3.5 text-sm"
+            disabled={actionsBlocked}
+            onClick={() => setAvailabilitySheetOpen(true)}
+          >
+            <CalendarClock className="size-4" />
+            Verfügbarkeit
+          </Button>
           <Button
             type="button"
             variant="outline"

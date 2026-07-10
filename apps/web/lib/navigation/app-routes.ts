@@ -108,6 +108,7 @@ export const APP_ROUTES = {
     notifications: "/dashboard/profile/benachrichtigungen",
     workHours: "/dashboard/profile/arbeitszeiten",
     schedule: "/dashboard/profile/dienstplan",
+    availability: "/dashboard/profile/verfuegbarkeit",
     documents: "/dashboard/profile/dokumente",
     displayPin: "/dashboard/profile/display-pin",
   },

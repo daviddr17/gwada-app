@@ -11,6 +11,7 @@ import { appendReviewRequestToMessage } from "@/lib/reviews/review-request-appen
 import { wahaSendText } from "@/lib/whatsapp/waha-send-text";
 import { fetchRestaurantWhatsappIntegration } from "@/lib/supabase/restaurant-integrations-db";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { wahaGetSession } from "@/lib/waha/waha-client";
 import { getWahaServerConfigAdmin } from "@/lib/waha/waha-config";
 import { wahaSessionNameForRestaurant } from "@/lib/waha/waha-session-name";
@@ -168,12 +169,14 @@ export async function fetchReservationWhatsappSettings(
 function messageContext(
   row: ReservationForWhatsapp,
   settings: ReservationWhatsappSettings | null,
+  timeZone: string,
 ): ReservationMessageContext {
   return {
     guestFirstName: row.guest_first_name,
     guestLastName: row.guest_last_name,
     partySize: row.party_size,
     startsAt: new Date(row.starts_at),
+    timeZone,
     reservationNumber: row.reservation_number,
     guestPin: row.guest_pin,
     manageUrl: buildGuestManageUrl(
@@ -188,8 +191,13 @@ function buildText(
   kind: OutboxKind,
   row: ReservationForWhatsapp,
   settings: ReservationWhatsappSettings | null,
+  timeZone: string,
 ): string {
-  return buildWhatsappMessage(settings, kind, messageContext(row, settings));
+  return buildWhatsappMessage(
+    settings,
+    kind,
+    messageContext(row, settings, timeZone),
+  );
 }
 
 async function upsertOutbox(
@@ -198,6 +206,14 @@ async function upsertOutbox(
   kind: OutboxKind,
   sendAt: Date,
 ): Promise<void> {
+  const { data: existing } = await sb
+    .from("reservation_whatsapp_outbox")
+    .select("sent_at")
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .maybeSingle();
+  if (existing?.sent_at) return;
+
   await sb.from("reservation_whatsapp_outbox").upsert(
     {
       restaurant_id: row.restaurant_id,
@@ -235,7 +251,8 @@ export async function sendImmediateKind(
   const chatId = guestPhoneToWhatsAppChatId(row.guest_phone);
   if (!chatId) return { sent: false, error: "no_phone" };
 
-  const text = buildText(kind, row, settings);
+  const timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
+  const text = buildText(kind, row, settings, timeZone);
   const result = await wahaSendText({
     restaurantId: row.restaurant_id,
     chatId,
@@ -317,10 +334,11 @@ export type DispatchEvent =
   | "confirmed"
   | "cancelled"
   | "declined"
-  | "no_show";
+  | "no_show"
+  | "rescheduled";
 
 const EVENT_TO_KIND: Record<
-  Exclude<DispatchEvent, "created">,
+  Exclude<DispatchEvent, "created" | "rescheduled">,
   WhatsappImmediateKind
 > = {
   confirmed: "confirmed",
@@ -367,6 +385,11 @@ export async function dispatchReservationWhatsapp(
 
   const settings = await fetchReservationWhatsappSettings(sb, row.restaurant_id);
   if (!settings) return { ok: true, skipped: "no_settings" };
+
+  if (event === "rescheduled") {
+    await scheduleTimedMessages(sb, row, settings);
+    return { ok: true };
+  }
 
   if (event === "created") {
     if (row.status_code === "pending") {
@@ -420,6 +443,7 @@ export async function processDueWhatsappOutbox(
   let sent = 0;
   let failed = 0;
   const settingsByRestaurant = new Map<string, ReservationWhatsappSettings | null>();
+  const timezoneByRestaurant = new Map<string, string>();
 
   for (const item of due) {
     const row = await fetchReservationForWhatsapp(sb, item.reservation_id as string);
@@ -484,7 +508,13 @@ export async function processDueWhatsappOutbox(
       continue;
     }
 
-    let text = buildText(kind, row, settings);
+    let timeZone = timezoneByRestaurant.get(row.restaurant_id);
+    if (timeZone === undefined) {
+      timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
+      timezoneByRestaurant.set(row.restaurant_id, timeZone);
+    }
+
+    let text = buildText(kind, row, settings, timeZone);
     if (kind === "thanks") {
       text = await appendReviewRequestToMessage(sb, {
         restaurantId: row.restaurant_id,

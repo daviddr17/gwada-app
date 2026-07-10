@@ -1,3 +1,4 @@
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import type { ReservationMessageContext } from "@/lib/whatsapp/reservation-message-templates";
 
 /** Sofortnachrichten + geplante Erinnerung/Danke. */
@@ -134,21 +135,21 @@ export function resolveWhatsappTemplate(
   return custom || DEFAULT_WHATSAPP_TEMPLATES[kind];
 }
 
-function formatDateDe(d: Date): string {
+function formatDateDe(d: Date, timeZone: string): string {
   return d.toLocaleDateString("de-DE", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
-    timeZone: "Europe/Berlin",
+    timeZone,
   });
 }
 
-function formatTimeDe(d: Date): string {
+function formatTimeDe(d: Date, timeZone: string): string {
   return d.toLocaleTimeString("de-DE", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
-    timeZone: "Europe/Berlin",
+    timeZone,
   });
 }
 
@@ -168,12 +169,13 @@ export function renderWhatsappMessageTemplate(
   template: string,
   ctx: ReservationMessageContext,
 ): string {
+  const timeZone = ctx.timeZone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
   const replacements: Record<string, string> = {
     "{anrede}": guestGreeting(ctx),
     "{vorname}": ctx.guestFirstName.trim(),
     "{nachname}": ctx.guestLastName.trim(),
-    "{datum}": formatDateDe(ctx.startsAt),
-    "{uhrzeit}": formatTimeDe(ctx.startsAt),
+    "{datum}": formatDateDe(ctx.startsAt, timeZone),
+    "{uhrzeit}": formatTimeDe(ctx.startsAt, timeZone),
     "{personen}": String(ctx.partySize),
     "{nummer}": String(ctx.reservationNumber),
     "{pin}": ctx.guestPin,
@@ -181,8 +183,8 @@ export function renderWhatsappMessageTemplate(
     "{ANREDE}": guestGreeting(ctx),
     "{VORNAME}": ctx.guestFirstName.trim(),
     "{NACHNAME}": ctx.guestLastName.trim(),
-    "{DATUM}": formatDateDe(ctx.startsAt),
-    "{UHRZEIT}": formatTimeDe(ctx.startsAt),
+    "{DATUM}": formatDateDe(ctx.startsAt, timeZone),
+    "{UHRZEIT}": formatTimeDe(ctx.startsAt, timeZone),
     "{PERSONEN}": String(ctx.partySize),
     "{NUMMER}": String(ctx.reservationNumber),
     "{PIN}": ctx.guestPin,

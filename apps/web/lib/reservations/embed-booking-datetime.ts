@@ -1,9 +1,15 @@
 import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  addRestaurantCalendarDaysYmd,
+  readRestaurantZonedParts,
+  restaurantTodayYmd,
+  ymdHmToRestaurantIso,
+} from "@/lib/restaurant/restaurant-timezone";
+import {
   filterSlotsForMinMinutesBeforeClosing,
-  publicTimeSlotsForDay,
+  publicTimeSlotsForYmd,
   type PublicEmbedRestaurant,
 } from "@/lib/reservations/public-embed-shared";
-import { localDayToYmd } from "@/lib/reservations/datetime-local";
 
 export type PublicEmbedBookingConfig = Pick<
   PublicEmbedRestaurant,
@@ -11,20 +17,37 @@ export type PublicEmbedBookingConfig = Pick<
   | "dateExceptions"
   | "bookingLeadTimeHours"
   | "minMinutesBeforeClosing"
+  | "timezone"
 >;
 
 const MAX_SLOT_SEARCH_DAYS = 90;
 
-/** Morgen, Uhrzeit auf nächste volle Stunde gerundet (lokale Zeit). */
-export function defaultEmbedBookingYmdHm(): { ymd: string; hm: string } {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  if (d.getMinutes() !== 0 || d.getSeconds() !== 0 || d.getMilliseconds() !== 0) {
-    d.setHours(d.getHours() + 1);
-    d.setMinutes(0, 0, 0);
+function configTimeZone(config: PublicEmbedBookingConfig): string {
+  return config.timezone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
+}
+
+function ymdHmToInstant(
+  ymd: string,
+  hm: string,
+  timeZone: string,
+): Date {
+  return new Date(ymdHmToRestaurantIso(ymd, hm, timeZone));
+}
+
+/** Morgen, Uhrzeit auf nächste volle Stunde gerundet (Restaurant-Zeit). */
+export function defaultEmbedBookingYmdHm(
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+  now = new Date(),
+): { ymd: string; hm: string } {
+  const todayYmd = restaurantTodayYmd(timeZone, now);
+  const tomorrowYmd = addRestaurantCalendarDaysYmd(todayYmd, 1, timeZone);
+  const z = readRestaurantZonedParts(now, timeZone);
+  let hour = z.hour;
+  if (z.minute !== 0) {
+    hour += 1;
   }
-  const hm = `${String(d.getHours()).padStart(2, "0")}:00`;
-  return { ymd: localDayToYmd(d), hm };
+  const hm = `${String(Math.min(hour, 23)).padStart(2, "0")}:00`;
+  return { ymd: tomorrowYmd, hm };
 }
 
 export function normalizeBookingLeadTimeHours(
@@ -34,8 +57,11 @@ export function normalizeBookingLeadTimeHours(
   return Math.min(168, Math.max(0, value));
 }
 
-/** Frühester erlaubter Buchungsbeginn (lokale Browser-/Server-Zeit des Clients bzw. UTC→local bei ISO). */
-export function minimumBookingStartsAt(leadTimeHours: number, now = new Date()): Date {
+/** Frühester erlaubter Buchungsbeginn (Restaurant-Zeitzone). */
+export function minimumBookingStartsAt(
+  leadTimeHours: number,
+  now = new Date(),
+): Date {
   const ms = normalizeBookingLeadTimeHours(leadTimeHours) * 60 * 60 * 1000;
   return new Date(now.getTime() + ms);
 }
@@ -50,12 +76,6 @@ export function isStartsAtWithinBookingLeadTime(
   return starts >= minimumBookingStartsAt(leadTimeHours, now).getTime();
 }
 
-function ymdHmToLocalDate(ymd: string, hm: string): Date {
-  const [y, m, d] = ymd.split("-").map(Number);
-  const [h, min] = hm.split(":").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1, h ?? 0, min ?? 0, 0, 0);
-}
-
 /** Öffnungs-Slots mit Schließ-Puffer und optional Vorlaufzeit. */
 export function filterPublicBookableTimeSlots(
   config: PublicEmbedBookingConfig,
@@ -63,17 +83,19 @@ export function filterPublicBookableTimeSlots(
   options?: { enforceLeadTime?: boolean; now?: Date },
 ): string[] {
   const now = options?.now ?? new Date();
-  const day = ymdHmToLocalDate(dateYmd, "12:00");
-  let slots = publicTimeSlotsForDay(config, day);
+  const timeZone = configTimeZone(config);
+  let slots = publicTimeSlotsForYmd(config, dateYmd);
   slots = filterSlotsForMinMinutesBeforeClosing(
     slots,
     config,
-    day,
+    dateYmd,
     config.minMinutesBeforeClosing,
   );
   if (options?.enforceLeadTime === false) return slots;
   const minAt = minimumBookingStartsAt(config.bookingLeadTimeHours, now).getTime();
-  return slots.filter((hm) => ymdHmToLocalDate(dateYmd, hm).getTime() >= minAt);
+  return slots.filter(
+    (hm) => ymdHmToInstant(dateYmd, hm, timeZone).getTime() >= minAt,
+  );
 }
 
 /** @deprecated Nutze {@link filterPublicBookableTimeSlots}. */
@@ -91,17 +113,21 @@ export function filterTimeSlotsForBookingLead(
 }
 
 export function isStartPublicBookable(
-  config: PublicEmbedBookingConfig & Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
+  config: PublicEmbedBookingConfig &
+    Pick<PublicEmbedRestaurant, "weeklyHours" | "dateExceptions">,
   startsAtIso: string,
   now = new Date(),
 ): boolean {
+  const timeZone = configTimeZone(config);
   const d = new Date(startsAtIso);
   if (!Number.isFinite(d.getTime())) return false;
-  const ymd = localDayToYmd(d);
-  const hm = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-  return filterPublicBookableTimeSlots(config, ymd, { enforceLeadTime: true, now }).includes(
-    hm,
-  );
+  const z = readRestaurantZonedParts(d, timeZone);
+  const ymd = `${z.year}-${String(z.month).padStart(2, "0")}-${String(z.day).padStart(2, "0")}`;
+  const hm = `${String(z.hour).padStart(2, "0")}:${String(z.minute).padStart(2, "0")}`;
+  return filterPublicBookableTimeSlots(config, ymd, {
+    enforceLeadTime: true,
+    now,
+  }).includes(hm);
 }
 
 /** Frühestes wählbares Datum (`yyyy-MM-dd`) für den DatePicker. */
@@ -110,7 +136,7 @@ export function earliestBookableYmd(
   now = new Date(),
 ): string {
   const first = firstBookableEmbedSlot(config, now);
-  return first?.ymd ?? localDayToYmd(now);
+  return first?.ymd ?? restaurantTodayYmd(configTimeZone(config), now);
 }
 
 /** Erster buchbarer Slot (Öffnungszeiten, Schließ-Puffer, Vorlauf). */
@@ -118,18 +144,16 @@ export function firstBookableEmbedSlot(
   config: PublicEmbedBookingConfig,
   now = new Date(),
 ): { ymd: string; hm: string } | null {
+  const timeZone = configTimeZone(config);
   const minAt = minimumBookingStartsAt(config.bookingLeadTimeHours, now);
-  const startYmd = localDayToYmd(minAt);
-  const [sy, sm, sd] = startYmd.split("-").map(Number);
-  const cursor = new Date(sy!, (sm ?? 1) - 1, sd ?? 1);
+  const startYmd = restaurantTodayYmd(timeZone, minAt);
 
   for (let i = 0; i < MAX_SLOT_SEARCH_DAYS; i++) {
-    const ymd = localDayToYmd(cursor);
+    const ymd = addRestaurantCalendarDaysYmd(startYmd, i, timeZone);
     const slots = filterPublicBookableTimeSlots(config, ymd, { now });
     if (slots.length > 0) {
       return { ymd, hm: slots[0]! };
     }
-    cursor.setDate(cursor.getDate() + 1);
   }
   return null;
 }
@@ -139,8 +163,13 @@ export function resolveEmbedBookingDefaultYmdHm(
   config: PublicEmbedBookingConfig,
   now = new Date(),
 ): { ymd: string; hm: string } {
-  const preferred = defaultEmbedBookingYmdHm();
-  const preferredMs = ymdHmToLocalDate(preferred.ymd, preferred.hm).getTime();
+  const timeZone = configTimeZone(config);
+  const preferred = defaultEmbedBookingYmdHm(timeZone, now);
+  const preferredMs = ymdHmToInstant(
+    preferred.ymd,
+    preferred.hm,
+    timeZone,
+  ).getTime();
   const minAt = minimumBookingStartsAt(config.bookingLeadTimeHours, now).getTime();
 
   if (preferredMs >= minAt) {
@@ -162,7 +191,9 @@ export function isYmdHmPublicBookable(
   timeHm: string,
   now = new Date(),
 ): boolean {
-  return filterPublicBookableTimeSlots(config, dateYmd, { now }).includes(timeHm);
+  return filterPublicBookableTimeSlots(config, dateYmd, { now }).includes(
+    timeHm,
+  );
 }
 
 /** @deprecated Nutze {@link isYmdHmPublicBookable}. */
@@ -181,14 +212,9 @@ export function isYmdHmWithinBookingLead(
   );
 }
 
-export function ymdToLocalDayStart(ymd: string): Date {
-  const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y!, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0);
-}
-
 export function isYmdBeforeEarliestBookable(
   dateYmd: string,
   earliestYmd: string,
 ): boolean {
-  return ymdToLocalDayStart(dateYmd).getTime() < ymdToLocalDayStart(earliestYmd).getTime();
+  return dateYmd < earliestYmd;
 }

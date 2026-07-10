@@ -37,6 +37,7 @@ import {
 } from "@/lib/notifications/notification-deliver-claim";
 import { buildNotificationPushText } from "@/lib/notifications/notification-push-message";
 import { actorProfileIdFromPayload } from "@/lib/notifications/notification-self-origin";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Budget für Sofort-Zustellung eines einzelnen Events (Webhook-Pfad). */
@@ -392,6 +393,7 @@ async function deliverOne(
   admin: SupabaseClient,
   delivery: DeliveryRow,
   restaurantNames: Map<string, string | null>,
+  restaurantTimezones: Map<string, string>,
 ): Promise<"sent" | "failed" | "skipped"> {
   const event = eventFromDeliveryJoin(delivery.notification_events);
   if (!event || !isNotificationModuleId(event.module)) {
@@ -403,6 +405,8 @@ async function deliverOne(
 
   const restaurantName =
     restaurantNames.get(delivery.context_restaurant_id) ?? null;
+  const timeZone =
+    restaurantTimezones.get(delivery.context_restaurant_id) ?? undefined;
   const { text, subject, emailDetails, href, platformCode } =
     buildNotificationPushText(
     {
@@ -410,6 +414,7 @@ async function deliverOne(
       payload: event.payload ?? {},
     },
     restaurantName,
+    timeZone,
   );
 
   const contact = await loadProfilePushContact(admin, delivery.profile_id);
@@ -513,6 +518,7 @@ async function processPendingDeliveries(
   skipped: number;
 }> {
   const restaurantNames = new Map<string, string | null>();
+  const restaurantTimezones = new Map<string, string>();
   let processed = 0;
   let sent = 0;
   let failed = 0;
@@ -549,8 +555,19 @@ async function processPendingDeliveries(
           await fetchRestaurantName(admin, restaurantId),
         );
       }
+      if (!restaurantTimezones.has(restaurantId)) {
+        restaurantTimezones.set(
+          restaurantId,
+          await fetchRestaurantTimezoneServer(admin, restaurantId),
+        );
+      }
 
-      const outcome = await deliverOne(admin, delivery, restaurantNames);
+      const outcome = await deliverOne(
+        admin,
+        delivery,
+        restaurantNames,
+        restaurantTimezones,
+      );
       if (outcome === "sent") sent += 1;
       else if (outcome === "skipped") skipped += 1;
       else failed += 1;
@@ -609,6 +626,7 @@ export async function runNotificationDeliverForEvent(
   const deadlineMs = Date.now() + NOTIFICATION_IMMEDIATE_DELIVER_BUDGET_MS;
   const eventRow = event as NotificationEventRow;
   const restaurantNames = new Map<string, string | null>();
+  const restaurantTimezones = new Map<string, string>();
   let sent = 0;
   let failed = 0;
   let skipped = 0;
@@ -637,6 +655,12 @@ export async function runNotificationDeliverForEvent(
           await fetchRestaurantName(admin, restaurantId),
         );
       }
+      if (!restaurantTimezones.has(restaurantId)) {
+        restaurantTimezones.set(
+          restaurantId,
+          await fetchRestaurantTimezoneServer(admin, restaurantId),
+        );
+      }
 
       const outcome = await deliverOne(
         admin,
@@ -645,6 +669,7 @@ export async function runNotificationDeliverForEvent(
           notification_events: eventRow,
         },
         restaurantNames,
+        restaurantTimezones,
       );
       if (outcome === "sent") sent += 1;
       else if (outcome === "skipped") skipped += 1;

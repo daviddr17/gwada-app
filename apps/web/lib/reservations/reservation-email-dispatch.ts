@@ -19,6 +19,7 @@ import {
 } from "@/lib/email/email-delivery";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
 import { fetchRestaurantEmailSmtpConfig } from "@/lib/supabase/restaurant-email-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -246,12 +247,14 @@ export async function fetchReservationEmailSettings(
 function messageContext(
   row: ReservationForEmail,
   settings: ReservationEmailSettings | null,
+  timeZone: string,
 ): ReservationMessageContext {
   return {
     guestFirstName: row.guest_first_name,
     guestLastName: row.guest_last_name,
     partySize: row.party_size,
     startsAt: new Date(row.starts_at),
+    timeZone,
     reservationNumber: row.reservation_number,
     guestPin: row.guest_pin,
     manageUrl: buildGuestManageUrl(
@@ -266,8 +269,13 @@ function buildText(
   kind: OutboxKind,
   row: ReservationForEmail,
   settings: ReservationEmailSettings | null,
+  timeZone: string,
 ): string {
-  return buildEmailMessage(settings, kind, messageContext(row, settings));
+  return buildEmailMessage(
+    settings,
+    kind,
+    messageContext(row, settings, timeZone),
+  );
 }
 
 async function upsertOutbox(
@@ -276,6 +284,14 @@ async function upsertOutbox(
   kind: OutboxKind,
   sendAt: Date,
 ): Promise<void> {
+  const { data: existing } = await sb
+    .from("reservation_email_outbox")
+    .select("sent_at")
+    .eq("reservation_id", row.id)
+    .eq("message_kind", kind)
+    .maybeSingle();
+  if (existing?.sent_at) return;
+
   await sb.from("reservation_email_outbox").upsert(
     {
       restaurant_id: row.restaurant_id,
@@ -313,8 +329,9 @@ export async function sendImmediateKind(
   const to = row.guest_email?.trim();
   if (!isValidGuestEmail(to ?? null)) return { sent: false, error: "no_email" };
 
-  const ctx = messageContext(row, settings);
-  const text = buildText(kind, row, settings);
+  const timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
+  const ctx = messageContext(row, settings, timeZone);
+  const text = buildText(kind, row, settings, timeZone);
   const subject = buildEmailSubject(settings, kind, ctx);
   const delivery = await resolveEmailDeliveryForRestaurant(
     row.restaurant_id,
@@ -403,10 +420,11 @@ export type DispatchEvent =
   | "confirmed"
   | "cancelled"
   | "declined"
-  | "no_show";
+  | "no_show"
+  | "rescheduled";
 
 const EVENT_TO_KIND: Record<
-  Exclude<DispatchEvent, "created">,
+  Exclude<DispatchEvent, "created" | "rescheduled">,
   WhatsappImmediateKind
 > = {
   confirmed: "confirmed",
@@ -449,6 +467,11 @@ export async function dispatchReservationEmail(
 
   const settings = await fetchReservationEmailSettings(sb, row.restaurant_id);
   if (!settings) return { ok: true, skipped: "no_settings" };
+
+  if (event === "rescheduled") {
+    await scheduleTimedMessages(sb, row, settings);
+    return { ok: true };
+  }
 
   if (event === "created") {
     if (row.status_code === "pending") {
@@ -513,6 +536,7 @@ export async function processDueEmailOutbox(
   let failed = 0;
   const settingsByRestaurant = new Map<string, ReservationEmailSettings | null>();
   const deliveryByRestaurant = new Map<string, EmailDelivery>();
+  const timezoneByRestaurant = new Map<string, string>();
 
   for (const item of due) {
     const row = await fetchReservationForEmail(sb, item.reservation_id as string);
@@ -578,8 +602,14 @@ export async function processDueEmailOutbox(
       continue;
     }
 
-    const ctx = messageContext(row, settings);
-    let text = buildText(kind, row, settings);
+    let timeZone = timezoneByRestaurant.get(row.restaurant_id);
+    if (timeZone === undefined) {
+      timeZone = await fetchRestaurantTimezoneServer(sb, row.restaurant_id);
+      timezoneByRestaurant.set(row.restaurant_id, timeZone);
+    }
+
+    const ctx = messageContext(row, settings, timeZone);
+    let text = buildText(kind, row, settings, timeZone);
     if (kind === "thanks") {
       text = await appendReviewRequestToMessage(sb, {
         restaurantId: row.restaurant_id,

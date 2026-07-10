@@ -6,7 +6,9 @@ import {
   connectorLastSyncAt,
   setConnectorAutoSync,
   setConnectorLastSync,
+  setLexofficeConnectorFeatures,
   type AccountingConnectorSyncScope,
+  type LexofficeConnectorFeatureFlags,
 } from "@/lib/accounting/accounting-connector-settings";
 import type { AccountingConnectorKey } from "@/lib/accounting/connectors/connector-meta";
 import type {
@@ -64,6 +66,7 @@ export async function upsertAccountingSettings(
     quotationNumberIncludeYear?: boolean;
     invoiceNumberMinDigits?: number;
     quotationNumberMinDigits?: number;
+    lexofficeFeatures?: Partial<LexofficeConnectorFeatureFlags>;
   },
 ): Promise<{ row: AccountingSettingsRow | null; error: string | null }> {
   const payload: Record<string, unknown> = {
@@ -127,6 +130,14 @@ export async function upsertAccountingSettings(
     payload.quotation_number_min_digits = Math.min(
       10,
       Math.max(1, patch.quotationNumberMinDigits),
+    );
+  }
+
+  if (patch.lexofficeFeatures && Object.keys(patch.lexofficeFeatures).length > 0) {
+    const current = await getAccountingSettings(sb, restaurantId);
+    payload.connector_settings = setLexofficeConnectorFeatures(
+      current.connector_settings,
+      patch.lexofficeFeatures,
     );
   }
 

@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePickerField } from "@/components/ui/date-picker";
 import type {
   MenuCategoryDefinition,
   MenuItem,
@@ -41,6 +42,8 @@ type FormState = {
   tags: MenuTag[];
   active: boolean;
   listNumber: string;
+  availableFrom: string;
+  availableTo: string;
   recipe: { ingredientId: string; amount: string }[];
 };
 
@@ -53,6 +56,8 @@ const emptyForm: FormState = {
   tags: [],
   active: true,
   listNumber: "",
+  availableFrom: "",
+  availableTo: "",
   recipe: [],
 };
 
@@ -87,6 +92,8 @@ function itemToFormState(item: MenuItem): FormState {
       item.listNumber != null && !Number.isNaN(item.listNumber)
         ? String(item.listNumber)
         : "",
+    availableFrom: item.availableFrom ?? "",
+    availableTo: item.availableTo ?? "",
     recipe: (item.recipe ?? []).map((l) => ({
       ingredientId: l.ingredientId,
       amount: String(l.amount),
@@ -204,6 +211,11 @@ export function DishForm({
         next.listNumber = "Ganze Zahl ≥ 0";
       }
     }
+    const from = form.availableFrom.trim();
+    const to = form.availableTo.trim();
+    if (from && to && to < from) {
+      next.availableTo = "Enddatum darf nicht vor Startdatum liegen";
+    }
     form.recipe.forEach((line, i) => {
       if (!line.ingredientId.trim()) return;
       const a = Number.parseFloat(line.amount.replace(",", "."));
@@ -241,6 +253,8 @@ export function DishForm({
       tags: form.tags,
       active: form.active,
       listNumber,
+      availableFrom: form.availableFrom.trim() || null,
+      availableTo: form.availableTo.trim() || null,
       recipe: recipe.length > 0 ? recipe : null,
     });
     if (mode === "create") reset();
@@ -367,6 +381,54 @@ export function DishForm({
               }
               className="shrink-0"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label className={dishFieldLabelClassName}>Anzeige von / bis</Label>
+            <p className="text-xs text-muted-foreground">
+              Optional — z. B. für Tages- oder Wochengerichte. Leer = dauerhaft
+              sichtbar (wenn aktiv).
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="dish-available-from" className="text-xs">
+                  Von
+                </Label>
+                <DatePickerField
+                  id="dish-available-from"
+                  fullWidth
+                  value={form.availableFrom || null}
+                  onChange={(v) =>
+                    setForm((p) => ({
+                      ...p,
+                      availableFrom: v ?? "",
+                      availableTo:
+                        v && p.availableTo && p.availableTo < v ? "" : p.availableTo,
+                    }))
+                  }
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dish-available-to" className="text-xs">
+                  Bis
+                </Label>
+                <DatePickerField
+                  id="dish-available-to"
+                  fullWidth
+                  value={form.availableTo || null}
+                  onChange={(v) =>
+                    setForm((p) => ({ ...p, availableTo: v ?? "" }))
+                  }
+                  placeholder="Optional"
+                  minYmd={form.availableFrom.trim() || undefined}
+                  aria-invalid={!!errors.availableTo}
+                />
+                {errors.availableTo ? (
+                  <p className="text-sm text-destructive">{errors.availableTo}</p>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">

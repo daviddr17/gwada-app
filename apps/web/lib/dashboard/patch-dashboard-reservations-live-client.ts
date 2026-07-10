@@ -1,5 +1,9 @@
 import type { DashboardReservationSummary } from "@/lib/reservations/compute-dashboard-reservation-summary";
-import { weekRangeUtcIso } from "@/lib/reservations/dashboard-period-range";
+import { restaurantWeekRangeUtcIso } from "@/lib/reservations/dashboard-period-range";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationStatusJoin } from "@/lib/supabase/reservations-db";
 
@@ -67,24 +71,16 @@ const DEFAULT_PENDING_STATUS: ReservationStatusJoin = {
 const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 4;
 const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
 
-function localDayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function dayKeyFromIso(iso: string, timeZone: string): string {
+  return restaurantZonedDateKey(new Date(iso), timeZone);
 }
 
-function dayKeyFromIso(iso: string): string {
-  return localDayKey(new Date(iso));
-}
-
-function countsTowardGuestTotals(statusCode: string): boolean {
-  return (
-    statusCode !== "cancelled" &&
-    statusCode !== "declined" &&
-    statusCode !== "no_show"
-  );
-}
-
-function isInWeekRange(startsAtIso: string, today: Date): boolean {
-  const week = weekRangeUtcIso(today);
+function isInWeekRange(
+  startsAtIso: string,
+  today: Date,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): boolean {
+  const week = restaurantWeekRangeUtcIso(timeZone, today);
   const t = new Date(startsAtIso).getTime();
   return (
     t >= new Date(week.rangeStartIso).getTime() &&
@@ -138,11 +134,20 @@ export function reservationLiveInsertFromRecord(
   };
 }
 
+function countsTowardGuestTotals(statusCode: string): boolean {
+  return (
+    statusCode !== "cancelled" &&
+    statusCode !== "declined" &&
+    statusCode !== "no_show"
+  );
+}
+
 /** Inkrementelles KPI-Patch — kein Batch-Refetch nötig. */
 export function patchDashboardReservationSummaryFromInsert(
   summary: DashboardReservationSummary,
   insert: ReservationLiveInsertFields,
   today: Date = new Date(),
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): DashboardReservationSummary {
   const statusJoin: ReservationStatusJoin = {
     ...DEFAULT_PENDING_STATUS,
@@ -151,8 +156,8 @@ export function patchDashboardReservationSummaryFromInsert(
   };
   const rowLike = { reservation_statuses: statusJoin };
   const guests = Math.max(0, insert.party_size);
-  const todayKey = localDayKey(today);
-  const inWeek = isInWeekRange(insert.starts_at, today);
+  const todayKey = restaurantZonedDateKey(today, timeZone);
+  const inWeek = isInWeekRange(insert.starts_at, today, timeZone);
   const counts = countsTowardGuestTotals(insert.statusCode);
 
   let next = { ...summary };
@@ -167,7 +172,7 @@ export function patchDashboardReservationSummaryFromInsert(
       weekReservations: next.weekReservations + 1,
       weekGuests: next.weekGuests + guests,
     };
-    if (dayKeyFromIso(insert.starts_at) === todayKey) {
+    if (dayKeyFromIso(insert.starts_at, timeZone) === todayKey) {
       next = {
         ...next,
         todayReservations: next.todayReservations + 1,
@@ -210,7 +215,7 @@ export function patchDashboardReservationSummaryFromInsert(
     };
   }
 
-  if (counts && inWeek && dayKeyFromIso(insert.starts_at) === todayKey) {
+  if (counts && inWeek && dayKeyFromIso(insert.starts_at, timeZone) === todayKey) {
     const withoutDup = next.todayList.filter((r) => r.id !== insert.id);
     next = {
       ...next,
@@ -257,8 +262,9 @@ export function reservationInsertInMonthRange(
 export function reservationInsertOnLocalDay(
   startsAtIso: string,
   dayYmd: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): boolean {
-  return dayKeyFromIso(startsAtIso) === dayYmd;
+  return dayKeyFromIso(startsAtIso, timeZone) === dayYmd;
 }
 
 /** Display-Tagesstatistik (+1 Reservierung / Gäste). */

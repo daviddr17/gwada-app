@@ -13,6 +13,7 @@ const VALID_EVENTS = new Set([
   "cancelled",
   "declined",
   "no_show",
+  "rescheduled",
 ]);
 
 export async function POST(req: Request) {

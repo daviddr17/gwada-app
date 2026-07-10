@@ -50,6 +50,11 @@ import { ReservationInternalNoteIndicator } from "@/components/reservations/rese
 import { reservationInternalNoteText } from "@/lib/reservations/reservation-internal-note";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import {
+  createRestaurantDateTimeFormatter,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
@@ -62,8 +67,10 @@ import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { reservationListRowButtonClassName } from "@/lib/ui/reservation-list-row-interactive";
 import { DayReservationsDrawer } from "@/components/reservations/day-reservations-drawer";
 import { ReservationDayNoteOverviewChip } from "@/components/reservations/reservation-day-note-overview-chip";
+import { ReservationDayShiftStaffOverviewChip } from "@/components/reservations/reservation-day-shift-staff-overview-chip";
 import { ReservationDayNotesSheet } from "@/components/reservations/reservation-day-notes-sheet";
 import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservation-day-notes-db";
+import { fetchScheduledStaffCountsByDayForRange } from "@/lib/supabase/staff-shift-schedule-db";
 import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
@@ -86,11 +93,6 @@ import {
 } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
 
-const timeDe = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
 
@@ -102,8 +104,8 @@ function localHmFromDate(d: Date): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function dayKeyFromIso(iso: string): string {
-  return localDayKey(new Date(iso));
+function dayKeyFromIso(iso: string, timeZone: string): string {
+  return restaurantZonedDateKey(new Date(iso), timeZone);
 }
 
 function useMonthCursor() {
@@ -175,6 +177,15 @@ export function ReservationsOverview() {
     supabaseEnvOk,
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(workspaceRestaurantId);
+  const timeFmt = useMemo(
+    () =>
+      createRestaurantDateTimeFormatter(restaurantTimeZone, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [restaurantTimeZone],
+  );
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "reservations");
 
@@ -204,6 +215,9 @@ export function ReservationsOverview() {
     reservationNumber: number | null;
   } | null>(null);
   const [dayNoteCountsByDate, setDayNoteCountsByDate] = useState<
+    Map<string, number>
+  >(new Map());
+  const [shiftStaffCountsByDate, setShiftStaffCountsByDate] = useState<
     Map<string, number>
   >(new Map());
   const [dayNotesReloadNonce, setDayNotesReloadNonce] = useState(0);
@@ -351,6 +365,35 @@ export function ReservationsOverview() {
     monthFromYmd,
     monthToYmd,
     dayNotesReloadNonce,
+  ]);
+
+  useEffect(() => {
+    if (!workspaceRestaurantId || !dbOk) {
+      setShiftStaffCountsByDate(new Map());
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await fetchScheduledStaffCountsByDayForRange(
+        workspaceRestaurantId,
+        rangeStartIso,
+        rangeEndExclusiveIso,
+      );
+      if (cancelled) return;
+      if (error) {
+        setShiftStaffCountsByDate(new Map());
+        return;
+      }
+      setShiftStaffCountsByDate(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    workspaceRestaurantId,
+    dbOk,
+    rangeStartIso,
+    rangeEndExclusiveIso,
   ]);
 
   const editReservation = useMemo((): ReservationListRow | null => {
@@ -636,7 +679,7 @@ export function ReservationsOverview() {
   const byDay = useMemo(() => {
     const map = new Map<string, ReservationListRow[]>();
     for (const r of rowsFiltered) {
-      const k = dayKeyFromIso(r.starts_at);
+      const k = dayKeyFromIso(r.starts_at, restaurantTimeZone);
       const arr = map.get(k);
       if (arr) arr.push(r);
       else map.set(k, [r]);
@@ -648,7 +691,7 @@ export function ReservationsOverview() {
       );
     }
     return map;
-  }, [rowsFiltered]);
+  }, [rowsFiltered, restaurantTimeZone]);
 
   const unconfirmedDayList = useMemo(() => {
     const keys = [...byDay.keys()].sort();
@@ -1033,6 +1076,14 @@ export function ReservationsOverview() {
                           />
                         </>
                       ) : null}
+                      {(shiftStaffCountsByDate.get(key) ?? 0) > 0 ? (
+                        <>
+                          <span aria-hidden>·</span>
+                          <ReservationDayShiftStaffOverviewChip
+                            count={shiftStaffCountsByDate.get(key) ?? 0}
+                          />
+                        </>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
@@ -1076,8 +1127,8 @@ export function ReservationsOverview() {
                           : "#64748b";
                       const guest =
                         `${r.guest_first_name} ${r.guest_last_name}`.trim();
-                      const timeLabel = timeDe.format(new Date(r.starts_at));
-                      const endLabel = timeDe.format(
+                      const timeLabel = timeFmt.format(new Date(r.starts_at));
+                      const endLabel = timeFmt.format(
                         new Date(reservationEndsAtFromLiveInsert(r)),
                       );
                       const tableLabel = reservationDiningTableLabel(r);

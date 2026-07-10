@@ -1,3 +1,7 @@
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 import { isUnconfirmedReservation } from "@/lib/reservations/unconfirmed-reservations";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 
@@ -31,12 +35,8 @@ function statusCode(row: ReservationListRow): string {
   return row.reservation_statuses?.code ?? "";
 }
 
-function localDayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function dayKeyFromIso(iso: string): string {
-  return localDayKey(new Date(iso));
+function dayKeyFromIso(iso: string, timeZone: string): string {
+  return restaurantZonedDateKey(new Date(iso), timeZone);
 }
 
 /** Zählt in Kennzahlen (keine Stornos / Absagen / No-Shows). */
@@ -75,9 +75,10 @@ function buildRecentList(
 export function computeDashboardReservationSummary(
   weekRows: ReservationListRow[],
   upcomingRows: ReservationListRow[],
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
   today: Date = new Date(),
 ): DashboardReservationSummary {
-  const todayKey = localDayKey(today);
+  const todayKey = restaurantZonedDateKey(today, timeZone);
 
   const unconfirmedCount = upcomingRows.filter(isUnconfirmedReservation).length;
 
@@ -91,7 +92,7 @@ export function computeDashboardReservationSummary(
     const guests = Math.max(0, row.party_size ?? 0);
     weekReservations += 1;
     weekGuests += guests;
-    if (dayKeyFromIso(row.starts_at) === todayKey) {
+    if (dayKeyFromIso(row.starts_at, timeZone) === todayKey) {
       todayReservations += 1;
       todayGuests += guests;
     }
@@ -111,7 +112,7 @@ export function computeDashboardReservationSummary(
     weekRows.filter(
       (row) =>
         countsTowardGuestTotals(row) &&
-        dayKeyFromIso(row.starts_at) === todayKey,
+        dayKeyFromIso(row.starts_at, timeZone) === todayKey,
     ),
     DASHBOARD_RESERVATION_TODAY_LIMIT,
   );

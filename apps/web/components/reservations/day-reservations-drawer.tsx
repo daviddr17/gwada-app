@@ -93,12 +93,9 @@ import { reservationsDayDrawerHeaderActionButtonClassName } from "@/components/r
 import { toAutoAssignReservation } from "@/lib/reservations/auto-table-assignment";
 import { reservationEndsAtFromLiveInsert } from "@/lib/dashboard/patch-dashboard-reservations-live-client";
 import { reservationsAtTableForInstant } from "@/lib/reservations/reservations-table-occupancy";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { createRestaurantDateTimeFormatter } from "@/lib/restaurant/restaurant-timezone";
 import { cn } from "@/lib/utils";
-
-const timeDe = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
 
 type DayViewMode = "list" | "grid" | "floor";
 type DaySortBy = "time" | "lastname" | "party" | "table";
@@ -409,6 +406,15 @@ export function DayReservationsDrawer({
   onDataChanged,
   onDayNotesChanged,
 }: DayReservationsDrawerProps) {
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
+  const timeFmt = useMemo(
+    () =>
+      createRestaurantDateTimeFormatter(restaurantTimeZone, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [restaurantTimeZone],
+  );
   const { getProfileForRestaurantId, isReady: profileReady } = useRestaurantProfile();
   const [viewMode, setViewMode] = useState<DayViewMode>("list");
   const [sortBy, setSortBy] = useState<DaySortBy>("time");
@@ -703,8 +709,8 @@ export function DayReservationsDrawer({
     const stripe =
       st?.color_hex && /^#[0-9A-Fa-f]{6}$/i.test(st.color_hex) ? st.color_hex : "#64748b";
     const guest = `${r.guest_first_name} ${r.guest_last_name}`.trim();
-    const t = timeDe.format(new Date(r.starts_at));
-    const endLabel = timeDe.format(
+    const t = timeFmt.format(new Date(r.starts_at));
+    const endLabel = timeFmt.format(
       new Date(reservationEndsAtFromLiveInsert(r)),
     );
     const tableLabel = compact
@@ -1300,7 +1306,7 @@ export function DayReservationsDrawer({
                                                         cellLayout.slotFontPx,
                                                       lineHeight: 1.12,
                                                     }}
-                                                    aria-label={`Neue Reservierung um ${timeDe.format(slotInstant)}`}
+                                                    aria-label={`Neue Reservierung um ${timeFmt.format(slotInstant)}`}
                                                     onClick={() =>
                                                       onCreateReservation({
                                                         diningTableId: t.id,
@@ -1320,7 +1326,7 @@ export function DayReservationsDrawer({
                                                   Neue Reservierung
                                                 </p>
                                                 <p className="text-background/85">
-                                                  {timeDe.format(slotInstant)} ·
+                                                  {timeFmt.format(slotInstant)} ·
                                                   Tisch{" "}
                                                   {formatDiningTableLabel(t)}
                                                 </p>

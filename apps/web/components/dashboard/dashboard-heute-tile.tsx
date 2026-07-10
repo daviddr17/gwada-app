@@ -28,6 +28,12 @@ import { useDashboardReservationStats } from "@/lib/hooks/use-dashboard-reservat
 import { useDashboardStaffStats } from "@/lib/hooks/use-dashboard-staff-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePlatformWeatherAvailable } from "@/lib/hooks/use-platform-weather-available";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import {
+  formatReservationTimeInRestaurantTz,
+  restaurantTodayYmd,
+} from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
@@ -41,15 +47,8 @@ const todayHeadingFmt = new Intl.DateTimeFormat("de-DE", {
   month: "long",
 });
 
-function formatReservationTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function todayYmd(now = new Date()): string {
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+function formatReservationTime(iso: string, timeZone: string): string {
+  return formatReservationTimeInRestaurantTz(iso, timeZone);
 }
 
 type HeuteMetricTone =
@@ -193,6 +192,8 @@ function DashboardHeuteTileSkeleton() {
 }
 
 export function DashboardHeuteTile() {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const { available: weatherAvailable } = usePlatformWeatherAvailable();
   const reservations = useDashboardReservationStats();
@@ -269,7 +270,7 @@ export function DashboardHeuteTile() {
     (can.messages && (messages.summary?.unread.length ?? 0) > 0) ||
     (can.staff && workingStaff.length > 0);
 
-  const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${todayYmd()}`;
+  const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${restaurantTodayYmd(restaurantTimeZone)}`;
   const staffHoursLabel = staff.summary
     ? formatDashboardStaffTodayWorkLabel(staff.summary.todayWorkHours)
     : null;
@@ -395,7 +396,7 @@ export function DashboardHeuteTile() {
                       href={row.href}
                       title={row.guestLabel}
                       meta={`${row.partySize} P. · ${row.statusName}`}
-                      trailing={formatReservationTime(row.startsAt)}
+                      trailing={formatReservationTime(row.startsAt, restaurantTimeZone)}
                       stripeVariant={row.unconfirmed ? "attention" : undefined}
                       className="py-2"
                     />
@@ -421,7 +422,7 @@ export function DashboardHeuteTile() {
                       href={row.href}
                       title={row.guestLabel}
                       meta={`${row.partySize} P.`}
-                      trailing={formatReservationTime(row.startsAt)}
+                      trailing={formatReservationTime(row.startsAt, restaurantTimeZone)}
                       stripeVariant="attention"
                       className="py-2"
                     />

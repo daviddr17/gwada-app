@@ -8,6 +8,10 @@ import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import {
+  isMenuItemPubliclyAvailable,
+  normalizeMenuAvailabilityYmd,
+} from "@/lib/menu/item-utils";
 import type {
   MenuCategoryDefinition,
   MenuItem,
@@ -43,6 +47,8 @@ type MenuItemRow = {
   is_active: boolean;
   list_number: number | null;
   category_id: string;
+  available_from: string | null;
+  available_to: string | null;
   menu_item_tags: { tag_id: string }[] | null;
   menu_item_allergens: { allergen_id: string }[] | null;
 };
@@ -61,6 +67,8 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
     active: row.is_active,
     listNumber: row.list_number,
     recipe: null,
+    availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
+    availableTo: normalizeMenuAvailabilityYmd(row.available_to),
   };
 }
 
@@ -114,6 +122,7 @@ export async function fetchPublicEmbedMenu(
       .select(
         `
         id, name, description, price, image_url, is_active, list_number, category_id,
+        available_from, available_to,
         menu_item_tags(tag_id),
         menu_item_allergens(allergen_id)
       `,
@@ -173,7 +182,8 @@ export async function fetchPublicEmbedMenu(
 
   const items: MenuItem[] = (itemsRes.data as unknown as MenuItemRow[] | null ?? [])
     .filter((item) => activeCategoryIds.has(item.category_id))
-    .map(rowToMenuItem);
+    .map(rowToMenuItem)
+    .filter((item) => isMenuItemPubliclyAvailable(item));
 
   const tagDefinitions: MenuTaxonomyDefinition[] = [
     ...(tagsRes.data ?? []).map((t) => ({

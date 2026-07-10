@@ -5,6 +5,7 @@ import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
 import {
   isCategoryActive,
   isMenuItemActive,
+  normalizeMenuAvailabilityYmd,
   sortItemsInCategoryForDisplay,
 } from "@/lib/menu/item-utils";
 import type {
@@ -20,6 +21,8 @@ const HEADERS = [
   "Beschreibung",
   "Preis (EUR)",
   "Status",
+  "Anzeige von",
+  "Anzeige bis",
   "Eigenschaften",
 ] as const;
 
@@ -67,6 +70,8 @@ function itemToRow(
     item.description.trim(),
     priceCsvFmt.format(item.price),
     isMenuItemActive(item) ? "Aktiv" : "Inaktiv",
+    normalizeMenuAvailabilityYmd(item.availableFrom) ?? "",
+    normalizeMenuAvailabilityYmd(item.availableTo) ?? "",
     tags,
   ];
 }

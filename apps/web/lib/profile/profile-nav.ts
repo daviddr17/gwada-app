@@ -5,6 +5,7 @@ export type ProfileVisibilitySettings = {
   profile_show_work_hours: boolean;
   profile_show_shift_plan: boolean;
   profile_show_documents: boolean;
+  profile_show_availability: boolean;
   profile_allow_display_pin_self_service: boolean;
 };
 
@@ -12,6 +13,7 @@ export const DEFAULT_PROFILE_VISIBILITY: ProfileVisibilitySettings = {
   profile_show_work_hours: true,
   profile_show_shift_plan: true,
   profile_show_documents: true,
+  profile_show_availability: true,
   profile_allow_display_pin_self_service: false,
 };
 
@@ -22,6 +24,7 @@ export function parseProfileVisibility(
     profile_show_work_hours: row?.profile_show_work_hours ?? true,
     profile_show_shift_plan: row?.profile_show_shift_plan ?? true,
     profile_show_documents: row?.profile_show_documents ?? true,
+    profile_show_availability: row?.profile_show_availability ?? true,
     profile_allow_display_pin_self_service:
       row?.profile_allow_display_pin_self_service ?? false,
   };
@@ -59,6 +62,12 @@ const PROFILE_STAFF_ITEMS: readonly (ModuleSubnavItem & {
     label: "Dienstplan",
     matchMode: "exact",
     visibilityKey: "profile_show_shift_plan",
+  },
+  {
+    href: APP_ROUTES.profile.availability,
+    label: "Verfügbarkeit",
+    matchMode: "exact",
+    visibilityKey: "profile_show_availability",
   },
   {
     href: APP_ROUTES.profile.documents,

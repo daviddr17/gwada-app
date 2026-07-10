@@ -18,23 +18,24 @@ import type { NotificationSummary } from "@/lib/notifications/notification-types
 import { isLinkedContactId } from "@/lib/contact-messages/is-linked-contact-id";
 import { inboxUnreadHintLabel } from "@/lib/contact-messages/inbox-unread-hint-ui";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatReservationTimeInRestaurantTz,
+} from "@/lib/restaurant/restaurant-timezone";
 import { cn } from "@/lib/utils";
 
-function formatNotificationWhen(iso: string): string {
+function formatNotificationWhen(iso: string, timeZone: string): string {
   const d = new Date(iso);
-  const day = d.toLocaleString("de-DE", { day: "2-digit" });
-  const month = d.toLocaleString("de-DE", { month: "2-digit" });
-  const time = d.toLocaleString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  const day = d.toLocaleString("de-DE", { day: "2-digit", timeZone });
+  const month = d.toLocaleString("de-DE", { month: "2-digit", timeZone });
+  const time = formatReservationTimeInRestaurantTz(iso, timeZone);
   return `${day}.${month}, ${time}`;
 }
 
 type NotificationBellPanelProps = {
   summary: NotificationSummary | null;
   loading: boolean;
+  timeZone?: string;
   onMarkRead: (params: {
     module: NotificationModuleId;
     itemId: string;
@@ -49,6 +50,7 @@ type NotificationBellPanelProps = {
 export function NotificationBellPanel({
   summary,
   loading,
+  timeZone = DEFAULT_RESTAURANT_TIMEZONE,
   onMarkRead,
   onMarkModuleRead,
   onNavigate,
@@ -190,7 +192,7 @@ export function NotificationBellPanel({
                           ) : null}
                         </div>
                         <span className="shrink-0 pt-0.5 text-[10px] tabular-nums text-muted-foreground">
-                          {formatNotificationWhen(item.at)}
+                          {formatNotificationWhen(item.at, timeZone)}
                         </span>
                       </Link>
                       <Button

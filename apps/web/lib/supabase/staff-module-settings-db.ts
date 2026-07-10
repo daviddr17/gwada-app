@@ -9,6 +9,7 @@ export type RestaurantStaffModuleSettingsRow = {
   profile_show_work_hours: boolean;
   profile_show_shift_plan: boolean;
   profile_show_documents: boolean;
+  profile_show_availability: boolean;
   profile_allow_display_pin_self_service: boolean;
   contract_two_step_signing: boolean;
 };
@@ -25,7 +26,7 @@ export async function fetchStaffModuleSettings(
   const { data, error } = await sb
     .from("restaurant_staff_module_settings")
     .select(
-      "restaurant_id, contract_document_tag_id, profile_show_work_hours, profile_show_shift_plan, profile_show_documents, profile_allow_display_pin_self_service, contract_two_step_signing",
+      "restaurant_id, contract_document_tag_id, profile_show_work_hours, profile_show_shift_plan, profile_show_documents, profile_show_availability, profile_allow_display_pin_self_service, contract_two_step_signing",
     )
     .eq("restaurant_id", restaurantId)
     .maybeSingle();
@@ -64,6 +65,7 @@ export async function upsertStaffModuleSettings(params: {
   profileShowWorkHours?: boolean;
   profileShowShiftPlan?: boolean;
   profileShowDocuments?: boolean;
+  profileShowAvailability?: boolean;
   profileAllowDisplayPinSelfService?: boolean;
   contractTwoStepSigning?: boolean;
 }): Promise<{ error: Error | null }> {
@@ -84,6 +86,9 @@ export async function upsertStaffModuleSettings(params: {
   }
   if (params.profileShowDocuments !== undefined) {
     patch.profile_show_documents = params.profileShowDocuments;
+  }
+  if (params.profileShowAvailability !== undefined) {
+    patch.profile_show_availability = params.profileShowAvailability;
   }
   if (params.profileAllowDisplayPinSelfService !== undefined) {
     patch.profile_allow_display_pin_self_service =

@@ -11,6 +11,12 @@ import {
   type ReservationLogSnapshot,
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
+import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
+import {
+  reservationDateTimeChanged,
+  shouldRescheduleTimedOutbox,
+} from "@/lib/reservations/reservation-datetime-reschedule";
+import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
 import { RESERVATION_STATUS_EMBED } from "@/lib/supabase/reservations-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -152,7 +158,7 @@ export async function approveDisplayReservationChangeRequest(
   const { data: restoreStatus } = restoreStatusId
     ? await admin
         .from("reservation_statuses")
-        .select("id, name")
+        .select("id, name, code")
         .eq("id", restoreStatusId)
         .maybeSingle()
     : { data: null };
@@ -195,6 +201,29 @@ export async function approveDisplayReservationChangeRequest(
     before: beforeSnapshot,
     after: afterSnapshot,
   });
+
+  const restoreStatusCode = (restoreStatus?.code as string | undefined) ?? "";
+  const datetimeChanged = reservationDateTimeChanged(
+    {
+      starts_at: row.starts_at as string,
+      ends_at: row.ends_at as string,
+    },
+    { starts_at: pending.starts_at, ends_at: pending.ends_at },
+  );
+  if (shouldRescheduleTimedOutbox(restoreStatusCode, datetimeChanged)) {
+    const notifyWhatsapp = pending.notify_whatsapp ?? Boolean(row.notify_whatsapp);
+    const notifyEmail = pending.notify_email ?? Boolean(row.notify_email);
+    if (notifyWhatsapp) {
+      void dispatchReservationWhatsapp(admin, reservationId, "rescheduled").catch(
+        () => undefined,
+      );
+    }
+    if (notifyEmail) {
+      void dispatchReservationEmail(admin, reservationId, "rescheduled").catch(
+        () => undefined,
+      );
+    }
+  }
 
   return { ok: true };
 }

@@ -1489,6 +1489,8 @@ export type Database = {
       }
       menu_items: {
         Row: {
+          available_from: string | null
+          available_to: string | null
           category_id: string
           created_at: string
           description: string
@@ -1503,6 +1505,8 @@ export type Database = {
           vat_rate: number
         }
         Insert: {
+          available_from?: string | null
+          available_to?: string | null
           category_id: string
           created_at?: string
           description?: string
@@ -1517,6 +1521,8 @@ export type Database = {
           vat_rate?: number
         }
         Update: {
+          available_from?: string | null
+          available_to?: string | null
           category_id?: string
           created_at?: string
           description?: string
@@ -4136,6 +4142,63 @@ export type Database = {
           },
         ]
       }
+      restaurant_staff_availability_slots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_time: string
+          id: string
+          note: string | null
+          restaurant_id: string
+          service_date: string | null
+          staff_id: string
+          start_time: string
+          updated_at: string
+          weekday: Database["public"]["Enums"]["staff_availability_weekday"] | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_time: string
+          id?: string
+          note?: string | null
+          restaurant_id: string
+          service_date?: string | null
+          staff_id: string
+          start_time: string
+          updated_at?: string
+          weekday?: Database["public"]["Enums"]["staff_availability_weekday"] | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_time?: string
+          id?: string
+          note?: string | null
+          restaurant_id?: string
+          service_date?: string | null
+          staff_id?: string
+          start_time?: string
+          updated_at?: string
+          weekday?: Database["public"]["Enums"]["staff_availability_weekday"] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_staff_availability_slots_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "restaurant_staff_availability_slots_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "restaurant_staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_staff_scheduled_shifts: {
         Row: {
           created_at: string
@@ -4702,6 +4765,14 @@ export type Database = {
         | "other"
       staff_invite_channel: "email" | "whatsapp"
       staff_invite_status: "pending" | "accepted" | "expired" | "revoked"
+      staff_availability_weekday:
+        | "monday"
+        | "tuesday"
+        | "wednesday"
+        | "thursday"
+        | "friday"
+        | "saturday"
+        | "sunday"
       staff_scheduled_shift_status: "confirmed" | "pending" | "declined"
       staff_work_entry_type: "work" | "break" | "vacation" | "sick" | "other"
     }
@@ -4868,6 +4939,15 @@ export const Constants = {
       ],
       staff_invite_channel: ["email", "whatsapp"],
       staff_invite_status: ["pending", "accepted", "expired", "revoked"],
+      staff_availability_weekday: [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+      ],
       staff_scheduled_shift_status: ["confirmed", "pending", "declined"],
       staff_work_entry_type: ["work", "break", "vacation", "sick", "other"],
     },

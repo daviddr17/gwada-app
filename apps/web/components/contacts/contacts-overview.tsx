@@ -849,6 +849,7 @@ export function ContactsOverview() {
         }}
         contactName={linksDrawer?.name ?? ""}
         reservations={linksDrawer?.reservations ?? []}
+        restaurantId={restaurantId}
       />
 
       {restaurantId && messagesDrawer ? (

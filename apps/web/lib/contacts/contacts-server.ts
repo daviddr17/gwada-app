@@ -8,9 +8,15 @@ import {
 import { findLexofficeContactByIdentity } from "@/lib/contacts/build-unified-contacts-server";
 import {
   createLexofficeContact,
+  fetchLexofficeContact,
   gwadaPayloadToLexofficeCreateBody,
+  gwadaPayloadToLexofficeUpdateBody,
+  lexofficeContactToGwadaDraft,
+  updateLexofficeContact,
   type LexofficeContact,
 } from "@/lib/integrations/lexoffice-contacts";
+import { getAccountingSettings } from "@/lib/accounting/accounting-settings-server";
+import { lexofficeConnectorFeatures } from "@/lib/accounting/accounting-connector-settings";
 import { readLexofficeContactsCache } from "@/lib/contacts/lexoffice-contacts-cache-db";
 import {
   syncLexofficeContactsCache,
@@ -1092,5 +1098,204 @@ export async function patchContactMissingFieldsServer(
     ok: true,
     contactId: data.id,
     updatedFields,
+  };
+}
+
+export async function pushLinkedContactToLexofficeServer(
+  sb: SupabaseClient,
+  restaurantId: string,
+  contactId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isUuidRestaurantId(restaurantId) || !isUuidRestaurantId(contactId)) {
+    return { ok: false, error: "Ungültige ID." };
+  }
+
+  const settings = await getAccountingSettings(sb, restaurantId);
+  const { pushContactUpdates } = lexofficeConnectorFeatures(
+    settings.connector_settings,
+  );
+  if (!pushContactUpdates) {
+    return { ok: false, error: "Kontakt-Update zu Lexware ist deaktiviert." };
+  }
+
+  const link = await fetchContactLexofficeLinkForContact(
+    sb,
+    restaurantId,
+    contactId,
+  );
+  if (!link) {
+    return { ok: false, error: "Kontakt ist nicht mit Lexware verknüpft." };
+  }
+
+  const resolved = await resolveLexofficeContactsIntegration(sb, restaurantId);
+  if (!resolved.ok) {
+    return { ok: false, error: resolved.error ?? "Lexware nicht verbunden." };
+  }
+
+  const { payload, error } = await fetchContactUpsertPayloadServer(
+    sb,
+    restaurantId,
+    contactId,
+  );
+  if (error || !payload) {
+    return { ok: false, error: error?.message ?? "Kontakt nicht gefunden." };
+  }
+
+  const remote = await fetchLexofficeContact(
+    resolved.apiKey,
+    link.lexoffice_contact_id,
+  );
+  if (!remote.ok) {
+    return { ok: false, error: remote.error };
+  }
+
+  const updateBody = gwadaPayloadToLexofficeUpdateBody(payload, remote.contact);
+  const updated = await updateLexofficeContact(
+    resolved.apiKey,
+    link.lexoffice_contact_id,
+    updateBody,
+  );
+  if (!updated.ok) {
+    return { ok: false, error: updated.error };
+  }
+
+  void syncLexofficeContactsCache(restaurantId, resolved.apiKey);
+  return { ok: true };
+}
+
+export async function importLexofficeContactToGwadaServer(
+  sb: SupabaseClient,
+  restaurantId: string,
+  lexofficeContactId: string,
+): Promise<
+  | { ok: true; contactId: string; linked: boolean }
+  | { ok: false; error: string }
+> {
+  if (
+    !isUuidRestaurantId(restaurantId) ||
+    !isUuidRestaurantId(lexofficeContactId)
+  ) {
+    return { ok: false, error: "Ungültige ID." };
+  }
+
+  const resolved = await resolveLexofficeContactsIntegration(sb, restaurantId);
+  if (!resolved.ok) {
+    return { ok: false, error: "Lexware Office ist nicht verbunden." };
+  }
+
+  const remote = await fetchLexofficeContact(
+    resolved.apiKey,
+    lexofficeContactId,
+  );
+  if (!remote.ok) {
+    return { ok: false, error: remote.error };
+  }
+
+  const draft = lexofficeContactToGwadaDraft(remote.contact);
+  const emails = draft.emails ?? [];
+  const phones = draft.phones ?? [];
+  if (emails.length === 0 && phones.length === 0) {
+    return {
+      ok: false,
+      error: "Lexware-Kontakt hat keine E-Mail oder Telefonnummer.",
+    };
+  }
+
+  const loaded = await loadLexofficeContactsForRestaurant(sb, restaurantId, {
+    apiKey: resolved.apiKey,
+  });
+  const lexMatch = findLexofficeContactByIdentity(
+    loaded.contacts,
+    emails.map((e) => e.email),
+    phones.map((p) => p.phoneDisplay),
+  );
+
+  if (lexMatch && lexMatch.id !== lexofficeContactId) {
+    return {
+      ok: false,
+      error: "Ein Gwada-Kontakt mit gleicher E-Mail/Telefon existiert bereits.",
+    };
+  }
+
+  const { data: existingLinks } = await sb
+    .from("contact_lexoffice_links")
+    .select("contact_id")
+    .eq("restaurant_id", restaurantId)
+    .eq("lexoffice_contact_id", lexofficeContactId)
+    .maybeSingle();
+
+  if (existingLinks) {
+    return {
+      ok: true,
+      contactId: (existingLinks as { contact_id: string }).contact_id,
+      linked: true,
+    };
+  }
+
+  const conflict = await findContactIdentityConflictServer(sb, {
+    restaurantId,
+    emails,
+    phones,
+    lexofficeContacts: loaded.contacts,
+    allowLexofficeMatch: false,
+  });
+  if (conflict?.kind === "gwada") {
+    const emailNorm = normalizeContactEmail(emails[0]?.email ?? "");
+    if (emailNorm) {
+      const { data: emailRow } = await sb
+        .from("contact_emails")
+        .select("contact_id")
+        .eq("restaurant_id", restaurantId)
+        .eq("email_normalized", emailNorm)
+        .maybeSingle();
+      const existingContactId = (emailRow as { contact_id: string } | null)
+        ?.contact_id;
+      if (existingContactId) {
+        await upsertContactLexofficeLink(sb, {
+          restaurantId,
+          contactId: existingContactId,
+          lexofficeContactId,
+        });
+        return {
+          ok: true,
+          contactId: existingContactId,
+          linked: true,
+        };
+      }
+    }
+    return { ok: false, error: conflict.message };
+  }
+
+  const payload: ContactUpsertPayload = {
+    restaurantId,
+    firstName: draft.firstName ?? "Gast",
+    lastName: draft.lastName ?? "",
+    company: draft.company ?? null,
+    addressStreet: draft.addressStreet ?? null,
+    addressPostalCode: draft.addressPostalCode ?? null,
+    addressCity: draft.addressCity ?? null,
+    addressCountry: draft.addressCountry ?? null,
+    notes: draft.notes ?? null,
+    emails,
+    phones,
+  };
+
+  const created = await insertContactServer(sb, payload, {
+    linkExistingLexofficeId: lexofficeContactId,
+    lexofficeApiKey: resolved.apiKey,
+    lexofficeContactsCache: loaded.contacts,
+  });
+
+  if (created.error || !created.data) {
+    return {
+      ok: false,
+      error: created.error?.message ?? "Import fehlgeschlagen.",
+    };
+  }
+
+  return {
+    ok: true,
+    contactId: created.data.id,
+    linked: Boolean(created.data.lexofficeContactId),
   };
 }

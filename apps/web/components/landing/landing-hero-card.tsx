@@ -84,7 +84,7 @@ export function LandingHeroCard({
           className="h-12 rounded-full border-neutral-300 bg-white/90 px-8 text-base font-medium text-neutral-900 backdrop-blur-md hover:bg-neutral-50 dark:border-white/25 dark:bg-white/10 dark:text-white dark:hover:bg-white/20"
           onClick={() => onScrollToSection("features")}
         >
-          Funktionen
+          Module
         </Button>
       </div>
     </div>

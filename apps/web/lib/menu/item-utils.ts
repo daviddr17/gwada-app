@@ -5,8 +5,98 @@ import type {
 } from "@/lib/types/menu";
 import { normalizeRecipeLines } from "@/lib/menu/recipe-utils";
 
+function ymdLocal(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function normalizeMenuAvailabilityYmd(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+export function menuItemHasAvailabilityWindow(
+  item: Pick<MenuItem, "availableFrom" | "availableTo">,
+): boolean {
+  return Boolean(
+    normalizeMenuAvailabilityYmd(item.availableFrom) ||
+      normalizeMenuAvailabilityYmd(item.availableTo),
+  );
+}
+
+export function isMenuItemWithinAvailabilityWindow(
+  item: Pick<MenuItem, "availableFrom" | "availableTo">,
+  onDate: Date = new Date(),
+): boolean {
+  const ymd = ymdLocal(onDate);
+  const from = normalizeMenuAvailabilityYmd(item.availableFrom);
+  const to = normalizeMenuAvailabilityYmd(item.availableTo);
+  if (!from && !to) return true;
+  if (from && ymd < from) return false;
+  if (to && ymd > to) return false;
+  return true;
+}
+
 export function isMenuItemActive(item: MenuItem): boolean {
   return item.active !== false;
+}
+
+/** Aktiv-Schalter + optionaler Anzeigezeitraum (für Gäste/POS). */
+export function isMenuItemPubliclyAvailable(
+  item: MenuItem,
+  onDate: Date = new Date(),
+): boolean {
+  return (
+    isMenuItemActive(item) && isMenuItemWithinAvailabilityWindow(item, onDate)
+  );
+}
+
+export type MenuItemAvailabilityPhase = "upcoming" | "active" | "expired";
+
+export function menuItemAvailabilityPhase(
+  item: Pick<MenuItem, "availableFrom" | "availableTo">,
+  onDate: Date = new Date(),
+): MenuItemAvailabilityPhase | null {
+  if (!menuItemHasAvailabilityWindow(item)) return null;
+  const ymd = ymdLocal(onDate);
+  const from = normalizeMenuAvailabilityYmd(item.availableFrom);
+  const to = normalizeMenuAvailabilityYmd(item.availableTo);
+  if (from && ymd < from) return "upcoming";
+  if (to && ymd > to) return "expired";
+  return "active";
+}
+
+const menuAvailabilityDateDe = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+export function formatMenuAvailabilityYmdDe(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  return menuAvailabilityDateDe.format(new Date(y, m - 1, d));
+}
+
+export function formatMenuItemAvailabilityRangeDe(
+  from: string | null | undefined,
+  to: string | null | undefined,
+): string {
+  const f = normalizeMenuAvailabilityYmd(from);
+  const t = normalizeMenuAvailabilityYmd(to);
+  if (f && t) {
+    if (f === t) return formatMenuAvailabilityYmdDe(f);
+    if (f.slice(0, 4) === t.slice(0, 4)) {
+      return `${f.slice(8, 10)}.${f.slice(5, 7)}.–${formatMenuAvailabilityYmdDe(t)}`;
+    }
+    return `${formatMenuAvailabilityYmdDe(f)} – ${formatMenuAvailabilityYmdDe(t)}`;
+  }
+  if (f) return `ab ${formatMenuAvailabilityYmdDe(f)}`;
+  if (t) return `bis ${formatMenuAvailabilityYmdDe(t)}`;
+  return "";
 }
 
 export function isCategoryActive(cat: MenuCategoryDefinition): boolean {
@@ -66,5 +156,7 @@ export function normalizeMenuItem(
     listNumber:
       typeof listNum === "number" && !Number.isNaN(listNum) ? listNum : null,
     recipe: recipe ?? undefined,
+    availableFrom: normalizeMenuAvailabilityYmd(raw.availableFrom),
+    availableTo: normalizeMenuAvailabilityYmd(raw.availableTo),
   };
 }

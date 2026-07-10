@@ -239,6 +239,7 @@ export async function saveAccountingSettings(
     quotationNumberIncludeYear?: boolean;
     invoiceNumberMinDigits?: number;
     quotationNumberMinDigits?: number;
+    lexofficeFeatures?: import("@/lib/accounting/accounting-connector-settings").LexofficeConnectorFeatureFlags;
   },
 ) {
   const res = await fetch("/api/accounting/settings", {
@@ -519,6 +520,20 @@ export async function sendSalesDocument(
   const data = await res.json();
   if (!res.ok) throw new Error(data.error ?? "send_failed");
   return data as { channels: string[] };
+}
+
+export async function sendLexofficeInvoiceDunning(
+  restaurantId: string,
+  invoiceId: string,
+) {
+  const res = await fetch("/api/accounting/invoices/dunning", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ restaurantId, invoiceId }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error ?? "dunning_failed");
+  return data as { ok: true; dunningId: string };
 }
 
 async function catalogJson(

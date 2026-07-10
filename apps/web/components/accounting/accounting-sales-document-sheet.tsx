@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, Loader2, Pencil, RotateCcw, Send } from "lucide-react";
+import { ExternalLink, Loader2, MailWarning, Pencil, RotateCcw, Send } from "lucide-react";
 import { toast } from "sonner";
 import { AccountingSendSection } from "@/components/accounting/accounting-send-section";
 import { AccountingDocumentProtocolPanel } from "@/components/accounting/accounting-document-protocol-panel";
@@ -20,6 +20,7 @@ import {
 } from "@/lib/accounting/accounting-corrections";
 import {
   salesDocumentPdfUrl,
+  sendLexofficeInvoiceDunning,
   sendSalesDocument,
 } from "@/lib/accounting/accounting-api";
 import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
@@ -68,6 +69,7 @@ export function AccountingSalesDocumentSheet({
   const [sendEmail, setSendEmail] = useState(false);
   const [sendWhatsapp, setSendWhatsapp] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendingDunning, setSendingDunning] = useState(false);
 
   const { whatsappConnected } = useRestaurantChannelConnections(
     open ? restaurantId : null,
@@ -85,6 +87,12 @@ export function AccountingSalesDocumentSheet({
     row &&
     canCreateAccountingCorrection(row.document_variant) &&
     onCreateCorrection;
+
+  const showDunningAction =
+    canManage &&
+    documentKind === "invoice" &&
+    row?.source === "lexoffice" &&
+    (row.status === "open" || row.status === "overdue");
 
   const pdfSrc = useMemo(() => {
     if (!row) return null;
@@ -130,6 +138,20 @@ export function AccountingSalesDocumentSheet({
       toast.error(e instanceof Error ? e.message : "Versand fehlgeschlagen.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDunning = async () => {
+    if (!row || documentKind !== "invoice") return;
+    setSendingDunning(true);
+    try {
+      await sendLexofficeInvoiceDunning(restaurantId, row.id);
+      toast.success("Mahnung in Lexware angelegt.");
+      onSent?.();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Mahnung fehlgeschlagen.");
+    } finally {
+      setSendingDunning(false);
     }
   };
 
@@ -241,6 +263,21 @@ export function AccountingSalesDocumentSheet({
               >
                 <RotateCcw className="size-4" />
                 Korrektur anlegen
+              </Button>
+            ) : null}
+            {showDunningAction ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={sendingDunning}
+                onClick={() => void handleDunning()}
+              >
+                {sendingDunning ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <MailWarning className="size-4" />
+                )}
+                Mahnung senden
               </Button>
             ) : null}
           </div>

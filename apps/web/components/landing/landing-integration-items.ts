@@ -2,9 +2,15 @@ import type { ComponentType } from "react";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
+import { LexofficeGlyph } from "@/components/icons/lexoffice-glyph";
 import { WhatsAppGlyph } from "@/components/icons/whatsapp-glyph";
 
-export type LandingIntegrationId = "google" | "facebook" | "instagram" | "whatsapp";
+export type LandingIntegrationId =
+  | "google"
+  | "facebook"
+  | "instagram"
+  | "whatsapp"
+  | "lexoffice";
 
 export type IntegrationGlyphProps = {
   className?: string;
@@ -57,5 +63,14 @@ export const LANDING_INTEGRATION_ITEMS: LandingIntegrationItem[] = [
     Glyph: WhatsAppGlyph,
     accent: "from-emerald-500/25 via-teal-500/10 to-transparent",
     brandGlow: "bg-emerald-500/25",
+  },
+  {
+    id: "lexoffice",
+    title: "Lexware Office",
+    description:
+      "Rechnungen, Angebote und Belege — synchron mit Lexware Office für eure Buchführung und Kontakte.",
+    Glyph: LexofficeGlyph,
+    accent: "from-teal-500/25 via-emerald-500/10 to-transparent",
+    brandGlow: "bg-[#00A88F]/25",
   },
 ];

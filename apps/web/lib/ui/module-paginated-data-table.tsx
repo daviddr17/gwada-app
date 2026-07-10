@@ -2,10 +2,7 @@
 
 import { useCallback, useState, type ReactNode } from "react";
 import { Download, Maximize2, Minimize2 } from "lucide-react";
-import {
-  AppFullscreenOverlay,
-  appFullscreenOverlayScrollClassName,
-} from "@/components/ui/app-fullscreen-overlay";
+import { AppFullscreenOverlay } from "@/components/ui/app-fullscreen-overlay";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -40,11 +37,12 @@ export type ModuleTableExportSheetRenderProps = {
 export const moduleTableFullscreenToggleButtonClassName =
   "size-9 shrink-0 rounded-full border-border/60";
 
-/** Scroll-Bereich für Tabellen im Vollbild (eine Tabelle, sticky thead). */
-export const moduleTableFullscreenBodyScrollClassName = cn(
-  appFullscreenOverlayScrollClassName,
-  "w-full overflow-auto",
-);
+/**
+ * Scroll-Bereich für Tabellen im Vollbild — beide Achsen (nicht `appFullscreenOverlayScrollClassName`:
+ * dort `touch-pan-y` + `overflow-x-hidden`, blockiert horizontales Wischen auf iOS).
+ */
+export const moduleTableFullscreenBodyScrollClassName =
+  "min-h-0 min-w-0 flex-1 basis-0 w-full overflow-auto overscroll-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]";
 
 export type ModulePaginatedDataTableProps = ListPaginationProps & {
   children: ReactNode;
@@ -77,9 +75,7 @@ function ModuleTableShell({
 }) {
   return (
     <div className={shellClassName}>
-      <ModuleTableHorizontalScrollRegion
-        className={cn("overflow-x-auto", scrollClassName)}
-      >
+      <ModuleTableHorizontalScrollRegion className={scrollClassName}>
         {children}
       </ModuleTableHorizontalScrollRegion>
     </div>
@@ -338,9 +334,7 @@ export function ModuleDataTableFrame({
 
   const tableShell = (
     <div className={cn(shellClassName, className)}>
-      <ModuleTableHorizontalScrollRegion
-        className={cn("overflow-x-auto", scrollClassName)}
-      >
+      <ModuleTableHorizontalScrollRegion className={scrollClassName}>
         {children}
       </ModuleTableHorizontalScrollRegion>
     </div>

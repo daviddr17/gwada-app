@@ -14,16 +14,12 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { ReservationStatusLabel } from "@/components/reservations/reservation-status-label";
+import { formatReservationSlotInRestaurantTz } from "@/lib/restaurant/restaurant-timezone";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import type { ContactReservationLink } from "@/lib/supabase/contacts-db";
 
-function formatWhen(iso: string): string {
-  return new Date(iso).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatWhen(iso: string, timeZone: string): string {
+  return formatReservationSlotInRestaurantTz(iso, timeZone);
 }
 
 export function ContactReservationsDrawer({
@@ -31,12 +27,15 @@ export function ContactReservationsDrawer({
   onOpenChange,
   contactName,
   reservations,
+  restaurantId,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactName: string;
   reservations: ContactReservationLink[];
+  restaurantId: string | null;
 }) {
+  const timeZone = useRestaurantIanaTimezone(restaurantId);
   return (
     <Drawer
       open={open}
@@ -74,7 +73,7 @@ export function ContactReservationsDrawer({
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground pl-6">
-                      {formatWhen(r.starts_at)}
+                      {formatWhen(r.starts_at, timeZone)}
                     </p>
                     {r.reservation_statuses ? (
                       <div className="pl-6">

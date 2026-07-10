@@ -53,6 +53,10 @@ export interface MenuItem {
   listNumber?: number | null;
   /** Optional: Rezept aus Bestandszutaten mit Mengen */
   recipe?: MenuRecipeLine[] | null;
+  /** Optional: Anzeige ab (YYYY-MM-DD, inklusive). */
+  availableFrom?: string | null;
+  /** Optional: Anzeige bis (YYYY-MM-DD, inklusive). */
+  availableTo?: string | null;
 }
 
 export type NewMenuItem = Omit<MenuItem, "id">;

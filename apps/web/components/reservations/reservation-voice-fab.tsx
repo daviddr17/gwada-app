@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 export function ReservationVoiceFab() {
   const { restaurantId, ready } = useWorkspaceRestaurantUuid();
   const { isSuperadmin } = useIsSuperadmin();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const [mounted, setMounted] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pending, setPending] = useState<ParsedReservationVoice | null>(null);
@@ -81,6 +83,7 @@ export function ReservationVoiceFab() {
       restaurantId,
       parsed: pending,
       defaultDwellMinutes: defaultDwellRef.current,
+      restaurantTimeZone,
       isSuperadmin,
     });
     if (!result.ok) {

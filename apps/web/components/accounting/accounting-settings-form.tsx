@@ -65,6 +65,11 @@ export function AccountingSettingsForm() {
     useState(true);
   const [invoiceNumberMinDigits, setInvoiceNumberMinDigits] = useState(4);
   const [quotationNumberMinDigits, setQuotationNumberMinDigits] = useState(4);
+  const [lexofficePushContactUpdates, setLexofficePushContactUpdates] =
+    useState(false);
+  const [lexofficeImportPdfsToDocuments, setLexofficeImportPdfsToDocuments] =
+    useState(false);
+  const [lexofficeUseWebhooks, setLexofficeUseWebhooks] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -87,6 +92,9 @@ export function AccountingSettingsForm() {
         quotationNumberIncludeYear,
         invoiceNumberMinDigits,
         quotationNumberMinDigits,
+        lexofficePushContactUpdates,
+        lexofficeImportPdfsToDocuments,
+        lexofficeUseWebhooks,
       }),
     [
       documentFormat,
@@ -101,6 +109,9 @@ export function AccountingSettingsForm() {
       quotationNumberIncludeYear,
       invoiceNumberMinDigits,
       quotationNumberMinDigits,
+      lexofficePushContactUpdates,
+      lexofficeImportPdfsToDocuments,
+      lexofficeUseWebhooks,
     ],
   );
 
@@ -119,6 +130,10 @@ export function AccountingSettingsForm() {
       const nextDeductInventory = row.deduct_inventory_on_invoice;
       const nextReverseInventory = row.reverse_inventory_on_invoice_correction;
       const nextDesign = parseAccountingDocumentDesign(row.document_design);
+      const lex = row.connector_settings.lexoffice;
+      const nextPushContacts = lex?.pushContactUpdates ?? false;
+      const nextImportPdfs = lex?.importPdfsToDocuments ?? false;
+      const nextUseWebhooks = lex?.useWebhooks ?? true;
       setSettings(row);
       setDocumentFormat(nextFormat);
       setConnectorAutoSyncEnabledState(nextAutoSync);
@@ -132,6 +147,9 @@ export function AccountingSettingsForm() {
       setQuotationNumberIncludeYear(row.quotation_number_include_year);
       setInvoiceNumberMinDigits(row.invoice_number_min_digits);
       setQuotationNumberMinDigits(row.quotation_number_min_digits);
+      setLexofficePushContactUpdates(nextPushContacts);
+      setLexofficeImportPdfsToDocuments(nextImportPdfs);
+      setLexofficeUseWebhooks(nextUseWebhooks);
       savedRef.current = JSON.stringify({
         documentFormat: nextFormat,
         connectorAutoSyncEnabledState: nextAutoSync,
@@ -145,6 +163,9 @@ export function AccountingSettingsForm() {
         quotationNumberIncludeYear: row.quotation_number_include_year,
         invoiceNumberMinDigits: row.invoice_number_min_digits,
         quotationNumberMinDigits: row.quotation_number_min_digits,
+        lexofficePushContactUpdates: nextPushContacts,
+        lexofficeImportPdfsToDocuments: nextImportPdfs,
+        lexofficeUseWebhooks: nextUseWebhooks,
       });
     } catch {
       toast.error("Einstellungen konnten nicht geladen werden.");
@@ -181,6 +202,15 @@ export function AccountingSettingsForm() {
         quotationNumberIncludeYear,
         invoiceNumberMinDigits,
         quotationNumberMinDigits,
+        ...(activeConnectorKey === "lexoffice"
+          ? {
+              lexofficeFeatures: {
+                pushContactUpdates: lexofficePushContactUpdates,
+                importPdfsToDocuments: lexofficeImportPdfsToDocuments,
+                useWebhooks: lexofficeUseWebhooks,
+              },
+            }
+          : {}),
       });
       setSettings(row);
       savedRef.current = snapshot;
@@ -272,7 +302,8 @@ export function AccountingSettingsForm() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Rechnungen, Angebote und Belege aus {connector.displayName}{" "}
-                      regelmäßig in die Datenbank synchronisieren (ca. alle 30 Min.).
+                      regelmäßig synchronisieren (Cron alle 10 Min., Webhooks
+                      wenn aktiviert).
                     </p>
                   </div>
                   <Switch
@@ -281,6 +312,57 @@ export function AccountingSettingsForm() {
                     disabled={loading || saving}
                   />
                 </div>
+              ) : null}
+
+              {activeConnectorKey === "lexoffice" ? (
+                <>
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">Lexware-Webhooks</p>
+                      <p className="text-xs text-muted-foreground">
+                        Echtzeit-Events für Kontakte und Belege — Cron bleibt
+                        Fallback.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={lexofficeUseWebhooks}
+                      onCheckedChange={setLexofficeUseWebhooks}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">
+                        Kontakt-Änderungen zu Lexware senden
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Verknüpfte Gwada-Kontakte beim Speichern per PUT in
+                        Lexware aktualisieren.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={lexofficePushContactUpdates}
+                      onCheckedChange={setLexofficePushContactUpdates}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">
+                        Lexware-PDFs in Dokumente importieren
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Rechnungen, Angebote und Belege nach Sync/Webhook als
+                        PDF ins Dokumenten-Modul — ohne Duplikate.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={lexofficeImportPdfsToDocuments}
+                      onCheckedChange={setLexofficeImportPdfsToDocuments}
+                      disabled={loading || saving}
+                    />
+                  </div>
+                </>
               ) : null}
 
               <div className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-muted/10 px-3 py-2.5">

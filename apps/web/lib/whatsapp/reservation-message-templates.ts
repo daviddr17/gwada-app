@@ -3,6 +3,8 @@ export type ReservationMessageContext = {
   guestLastName: string;
   partySize: number;
   startsAt: Date;
+  /** IANA-Zeitzone des Restaurants für {datum}/{uhrzeit}. */
+  timeZone: string;
   reservationNumber: number;
   guestPin: string;
   restaurantName?: string;

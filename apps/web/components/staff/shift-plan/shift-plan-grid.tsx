@@ -35,10 +35,13 @@ import {
 import { staffDisplayName } from "@/lib/types/staff";
 import { ShiftPlanShiftCard } from "@/components/staff/shift-plan/shift-plan-shift-card";
 import { ShiftPlanAbsenceCard } from "@/components/staff/shift-plan/shift-plan-absence-card";
+import { ShiftPlanAvailabilityCard } from "@/components/staff/shift-plan/shift-plan-availability-card";
 import {
   buildAbsenceMaps,
   isShiftPlanAbsenceEntry,
 } from "@/lib/staff/shift-plan-absence";
+import { buildAvailabilityMaps } from "@/lib/staff/shift-plan-availability";
+import type { RestaurantStaffAvailabilitySlotRow } from "@/lib/types/staff-availability";
 import {
   shiftPlanDayHeaderMinHeightClassName,
   ShiftPlanHolidayLabel,
@@ -64,6 +67,7 @@ function ShiftPlanDropCell({
   day,
   shifts,
   absences = [],
+  availabilitySlots = [],
   onAdd,
   onEditShift,
   onDeleteShift,
@@ -77,6 +81,7 @@ function ShiftPlanDropCell({
   day: Date;
   shifts: RestaurantStaffScheduledShiftRow[];
   absences?: RestaurantStaffWorkEntryRow[];
+  availabilitySlots?: RestaurantStaffAvailabilitySlotRow[];
   onAdd: () => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
@@ -100,7 +105,11 @@ function ShiftPlanDropCell({
 
   const showCompactAdd = editable && maxShiftsInRow > 0 && !hasAbsence;
   const visibleShifts = hasAbsence ? [] : shifts;
-  const cellItemCount = visibleShifts.length + (hasAbsence ? absences.length : 0);
+  const showAvailability = availabilitySlots.length > 0 && !hasAbsence;
+  const cellItemCount =
+    visibleShifts.length +
+    (hasAbsence ? absences.length : 0) +
+    (showAvailability ? 1 : 0);
   const trailingSpacerCount = Math.max(
     0,
     maxShiftsInRow - cellItemCount - (cellItemCount === 0 && editable && !hasAbsence ? 1 : 0),
@@ -131,6 +140,11 @@ function ShiftPlanDropCell({
           </div>
         ) : null,
       )}
+      {showAvailability ? (
+        <div className="pointer-events-auto shrink-0">
+          <ShiftPlanAvailabilityCard slots={availabilitySlots} compact />
+        </div>
+      ) : null}
       {visibleShifts.map((shift) => (
         <div key={shift.id} className="pointer-events-auto shrink-0">
           <ShiftPlanShiftCard
@@ -257,6 +271,7 @@ type ShiftPlanViewProps = {
   positionTags: StaffPositionTagDefinition[];
   shifts: RestaurantStaffScheduledShiftRow[];
   absenceEntries?: readonly RestaurantStaffWorkEntryRow[];
+  availabilitySlots?: readonly RestaurantStaffAvailabilitySlotRow[];
   holidaysByDate?: Record<string, string>;
   weatherByDate?: ReadonlyMap<string, ShiftPlanDayWeather>;
   contracts?: readonly RestaurantStaffContractRow[];
@@ -421,6 +436,7 @@ function ShiftPlanGroupGrid({
   staffRows,
   shiftsByCell,
   absencesByCell,
+  availabilityByCell,
   minutesByStaff,
   holidaysByDate,
   weatherByDate,
@@ -441,6 +457,7 @@ function ShiftPlanGroupGrid({
   staffRows: RestaurantStaffRow[];
   shiftsByCell: Map<string, RestaurantStaffScheduledShiftRow[]>;
   absencesByCell: Map<string, RestaurantStaffWorkEntryRow[]>;
+  availabilityByCell: Map<string, RestaurantStaffAvailabilitySlotRow[]>;
   minutesByStaff: Map<string, number>;
   holidaysByDate: Record<string, string>;
   weatherByDate?: ReadonlyMap<string, ShiftPlanDayWeather>;
@@ -579,6 +596,7 @@ function ShiftPlanGroupGrid({
                     day={day}
                     shifts={shiftsByCell.get(cellKey) ?? []}
                     absences={absencesByCell.get(cellKey) ?? []}
+                    availabilitySlots={availabilityByCell.get(cellKey) ?? []}
                     onAdd={() => onAddShift(staff.id, day)}
                     onEditShift={onEditShift}
                     onDeleteShift={onDeleteShift}
@@ -604,6 +622,7 @@ export function ShiftPlanGrid({
   positionTags,
   shifts,
   absenceEntries = [],
+  availabilitySlots = [],
   holidaysByDate = {},
   weatherByDate,
   contracts = [],
@@ -630,6 +649,10 @@ export function ShiftPlanGrid({
     () => buildAbsenceMaps(absenceEntries),
     [absenceEntries],
   );
+  const availabilityByCell = useMemo(
+    () => buildAvailabilityMaps(availabilitySlots, days),
+    [availabilitySlots, days],
+  );
 
   if (groups.length === 0) {
     return (
@@ -653,6 +676,7 @@ export function ShiftPlanGrid({
               staffRows={group.staff}
               shiftsByCell={shiftsByCell}
               absencesByCell={absencesByCell}
+              availabilityByCell={availabilityByCell}
               minutesByStaff={minutesByStaff}
               holidaysByDate={holidaysByDate}
               weatherByDate={weatherByDate}
@@ -681,6 +705,7 @@ function ShiftPlanDayStaffRow({
   day,
   shifts,
   absences,
+  availabilitySlots,
   onAddShift,
   onEditShift,
   onDeleteShift,
@@ -692,6 +717,7 @@ function ShiftPlanDayStaffRow({
   day: Date;
   shifts: RestaurantStaffScheduledShiftRow[];
   absences: RestaurantStaffWorkEntryRow[];
+  availabilitySlots: RestaurantStaffAvailabilitySlotRow[];
   onAddShift: (staffId: string, day: Date) => void;
   onEditShift: (shift: RestaurantStaffScheduledShiftRow) => void;
   onDeleteShift?: (shift: RestaurantStaffScheduledShiftRow) => void;
@@ -699,7 +725,10 @@ function ShiftPlanDayStaffRow({
   onStaffClick?: (staff: RestaurantStaffRow) => void;
   editable: boolean;
 }) {
-  const cellItemCount = shifts.length + absences.length;
+  const cellItemCount =
+    shifts.length +
+    absences.length +
+    (availabilitySlots.length > 0 && !absences.some(isShiftPlanAbsenceEntry) ? 1 : 0);
   return (
     <div className="flex flex-wrap items-start gap-3 border-b border-border/40 px-3 py-2 last:border-0">
       <div className="min-w-[8rem] shrink-0 pt-1">
@@ -715,6 +744,7 @@ function ShiftPlanDayStaffRow({
           day={day}
           shifts={shifts}
           absences={absences}
+          availabilitySlots={availabilitySlots}
           onAdd={() => onAddShift(staff.id, day)}
           onEditShift={onEditShift}
           onDeleteShift={onDeleteShift}
@@ -733,6 +763,7 @@ function ShiftPlanMonthDayCard({
   groups,
   shiftsByCell,
   absencesByCell,
+  availabilityByCell,
   holidayName,
   weather,
   onAddShift,
@@ -746,6 +777,7 @@ function ShiftPlanMonthDayCard({
   groups: ReturnType<typeof groupStaffByPositionTag>;
   shiftsByCell: Map<string, RestaurantStaffScheduledShiftRow[]>;
   absencesByCell: Map<string, RestaurantStaffWorkEntryRow[]>;
+  availabilityByCell: Map<string, RestaurantStaffAvailabilitySlotRow[]>;
   holidayName?: string;
   weather?: ShiftPlanDayWeather;
   onAddShift: (staffId: string, day: Date) => void;
@@ -763,7 +795,8 @@ function ShiftPlanMonthDayCard({
       const cellKey = `${s.id}__${key}`;
       return (
         (shiftsByCell.get(cellKey) ?? []).length > 0 ||
-        (absencesByCell.get(cellKey) ?? []).length > 0
+        (absencesByCell.get(cellKey) ?? []).length > 0 ||
+        (availabilityByCell.get(cellKey) ?? []).length > 0
       );
     }),
   );
@@ -821,6 +854,7 @@ function ShiftPlanMonthDayCard({
                     day={day}
                     shifts={shiftsByCell.get(`${staff.id}__${key}`) ?? []}
                     absences={absencesByCell.get(`${staff.id}__${key}`) ?? []}
+                    availabilitySlots={availabilityByCell.get(`${staff.id}__${key}`) ?? []}
                     onAddShift={onAddShift}
                     onEditShift={onEditShift}
                     onDeleteShift={onDeleteShift}
@@ -850,6 +884,7 @@ export function ShiftPlanMonthView({
   positionTags,
   shifts,
   absenceEntries = [],
+  availabilitySlots = [],
   holidaysByDate = {},
   weatherByDate,
   contracts = [],
@@ -867,6 +902,10 @@ export function ShiftPlanMonthView({
   const absencesByCell = useMemo(
     () => buildAbsenceMaps(absenceEntries),
     [absenceEntries],
+  );
+  const availabilityByCell = useMemo(
+    () => buildAvailabilityMaps(availabilitySlots, days),
+    [availabilitySlots, days],
   );
 
   if (groups.length === 0) {
@@ -888,6 +927,7 @@ export function ShiftPlanMonthView({
             groups={groups}
             shiftsByCell={shiftsByCell}
             absencesByCell={absencesByCell}
+            availabilityByCell={availabilityByCell}
             holidayName={holidaysByDate[key]}
             weather={weatherByDate?.get(key)}
             onAddShift={onAddShift}

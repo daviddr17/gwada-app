@@ -12,6 +12,7 @@ import {
   moduleDataTableHeadRowNormalCaseClassName,
   moduleDataTableShellClassName,
 } from "@/lib/ui/module-data-table";
+import { ModuleTableHorizontalScrollRegion } from "@/lib/ui/module-table-sticky-column";
 import { cn } from "@/lib/utils";
 
 const ORDER_TABLE_HEADERS = [
@@ -151,7 +152,7 @@ export function DisplayInventoryOrderCartOverlay({
                   </p>
                 </div>
                 <div className={moduleDataTableShellClassName}>
-                  <div className="overflow-x-auto">
+                  <ModuleTableHorizontalScrollRegion>
                     <table className="w-full min-w-[36rem] border-collapse text-sm">
                       <thead>
                         <tr className={moduleDataTableHeadRowNormalCaseClassName}>
@@ -201,7 +202,7 @@ export function DisplayInventoryOrderCartOverlay({
                         ))}
                       </tbody>
                     </table>
-                  </div>
+                  </ModuleTableHorizontalScrollRegion>
                 </div>
               </section>
             ))}

@@ -21,8 +21,8 @@ const dockScrollItems = [
   { id: "home" as const, label: "Home", shortLabel: "Home", icon: Home },
   {
     id: "features" as const,
-    label: "Funktionen",
-    shortLabel: "Funktionen",
+    label: "Module",
+    shortLabel: "Module",
     icon: LayoutGrid,
   },
   { id: "pricing" as const, label: "Preise", shortLabel: "Preise", icon: CreditCard },

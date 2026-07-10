@@ -9,6 +9,7 @@ import {
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
 
 type MenuRow = {
   id: string;
@@ -17,6 +18,8 @@ type MenuRow = {
   price: number;
   is_active: boolean;
   category_id: string;
+  available_from: string | null;
+  available_to: string | null;
   menu_categories: { name: string; sort_order: number } | { name: string; sort_order: number }[] | null;
 };
 
@@ -62,7 +65,7 @@ export async function syncMenuToGoogleBusiness(
   const { data: rows, error: menuErr } = await admin
     .from("menu_items")
     .select(
-      "id, name, description, price, is_active, category_id, menu_categories(name, sort_order)",
+      "id, name, description, price, is_active, category_id, available_from, available_to, menu_categories(name, sort_order)",
     )
     .eq("restaurant_id", restaurantId)
     .eq("is_active", true)
@@ -73,7 +76,20 @@ export async function syncMenuToGoogleBusiness(
     return { ok: false, error: menuErr.message };
   }
 
-  const items = (rows ?? []) as MenuRow[];
+  const items = (rows ?? []).filter((item) =>
+    isMenuItemPubliclyAvailable({
+      id: item.id,
+      name: item.name,
+      description: item.description ?? "",
+      price: Number(item.price),
+      category: item.category_id,
+      imageUrl: "",
+      tags: [],
+      active: item.is_active,
+      availableFrom: item.available_from,
+      availableTo: item.available_to,
+    }),
+  ) as MenuRow[];
   if (items.length === 0) {
     return { ok: false, error: "menu_empty" };
   }

@@ -3,9 +3,10 @@ import "server-only";
 import { computeDashboardReservationSummary } from "@/lib/reservations/compute-dashboard-reservation-summary";
 import type { DashboardReservationSummary } from "@/lib/reservations/compute-dashboard-reservation-summary";
 import {
-  fromTodayUtcIsoRange,
-  weekRangeUtcIso,
+  restaurantFromTodayUtcIsoRange,
+  restaurantWeekRangeUtcIso,
 } from "@/lib/reservations/dashboard-period-range";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import {
   mapRawToReservationListRow,
   RESERVATION_LIST_ROW_SELECT,
@@ -39,8 +40,9 @@ export async function loadDashboardReservationSummaryServer(
   sb: SupabaseClient,
   restaurantId: string,
 ): Promise<DashboardReservationSummary> {
-  const week = weekRangeUtcIso();
-  const upcoming = fromTodayUtcIsoRange();
+  const timeZone = await fetchRestaurantTimezoneServer(sb, restaurantId);
+  const week = restaurantWeekRangeUtcIso(timeZone);
+  const upcoming = restaurantFromTodayUtcIsoRange(timeZone);
 
   const [weekRows, upcomingRows] = await Promise.all([
     fetchReservationsRangeServer(sb, {
@@ -55,5 +57,5 @@ export async function loadDashboardReservationSummaryServer(
     }),
   ]);
 
-  return computeDashboardReservationSummary(weekRows, upcomingRows);
+  return computeDashboardReservationSummary(weekRows, upcomingRows, timeZone);
 }

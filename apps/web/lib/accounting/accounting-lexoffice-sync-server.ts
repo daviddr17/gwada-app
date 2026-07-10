@@ -28,6 +28,7 @@ import {
   insertAccountingDocumentLog,
   salesDocumentCreatedLogSummary,
 } from "@/lib/accounting/accounting-document-log-server";
+import { importLexofficeSalesPdfAfterSync } from "@/lib/integrations/lexoffice-webhook-handler";
 import {
   fetchAllLexofficeVoucherList,
   fetchLexofficeSalesDetail,
@@ -439,6 +440,12 @@ export async function syncLexofficeSalesDocuments(
               }),
             },
           });
+          void importLexofficeSalesPdfAfterSync(sb, {
+            restaurantId: params.restaurantId,
+            kind: params.kind,
+            externalId: item.id,
+            voucherNumber: inserted.voucher_number as string | null,
+          });
         }
       }
     } else {
@@ -470,6 +477,12 @@ export async function syncLexofficeSalesDocuments(
           totals:
             (payload.totals as AccountingTotals | null | undefined) ??
             existing!.totals,
+        });
+        void importLexofficeSalesPdfAfterSync(sb, {
+          restaurantId: params.restaurantId,
+          kind: params.kind,
+          externalId: item.id,
+          voucherNumber: item.voucherNumber,
         });
       }
     }

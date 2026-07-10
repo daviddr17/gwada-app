@@ -15,7 +15,10 @@ const APP_FULLSCREEN_OVERLAY_CLOSE_MS = 260;
 
 export const APP_FULLSCREEN_OVERLAY_Z_INDEX = APP_LAYER_Z_INDEX.fullscreenOverlay;
 
-/** Scroll-Bereich in Vollbild-Overlays — Touch-Scroll ohne vorherigen Input-Fokus (iPad). */
+/**
+ * Scroll-Bereich in Vollbild-Overlays (Formulare, Listen) — nur vertikal.
+ * Tabellen-Vollbild: `moduleTableFullscreenBodyScrollClassName` (beide Achsen).
+ */
 export const appFullscreenOverlayScrollClassName =
   "min-h-0 min-w-0 flex-1 basis-0 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-x-none overscroll-y-contain [-webkit-overflow-scrolling:touch]";
 

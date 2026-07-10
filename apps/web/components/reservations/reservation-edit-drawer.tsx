@@ -49,13 +49,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DatePickerField } from "@/components/ui/date-picker";
+import { localDayToYmd } from "@/lib/reservations/datetime-local";
 import {
-  datetimeLocalValueToIso,
-  datetimeLocalValueToYmdHm,
-  isoToDatetimeLocalValue,
-  localDayToYmd,
-  ymdAndHmToDatetimeLocal,
-} from "@/lib/reservations/datetime-local";
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantIsoToYmdHm,
+  ymdHmToRestaurantIso,
+} from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantIanaTimezone } from "@/lib/supabase/restaurant-timezone-db";
 import {
   COUNTRIES_REFERENCE_FALLBACK,
   resolveCountryIso2FromLabel,
@@ -80,6 +80,10 @@ import {
   whatsappDispatchUserMessage,
 } from "@/lib/reservations/trigger-whatsapp-dispatch";
 import { reservationStatusDispatchEvent } from "@/lib/reservations/reservation-status-dispatch-event";
+import {
+  reservationDateTimeChanged,
+  shouldRescheduleTimedOutbox,
+} from "@/lib/reservations/reservation-datetime-reschedule";
 import {
   dispatchDashboardReservationCreateLivePatch,
   dispatchDashboardReservationUpdateLivePatch,
@@ -214,6 +218,9 @@ export function ReservationEditDrawer({
   const [tableId, setTableId] = useState<string>("__none__");
   const [internalNote, setInternalNote] = useState("");
   const [protocolRefreshKey, setProtocolRefreshKey] = useState(0);
+  const [restaurantTimeZone, setRestaurantTimeZone] = useState(
+    DEFAULT_RESTAURANT_TIMEZONE,
+  );
 
   /** Wenn ein Modal (Löschen / Tisch teilen) offen ist, unterdrückt Vaul fälschlich `onOpenChange(false)` — außer nach explizitem Schließen. */
   const allowDrawerCloseRef = useRef(false);
@@ -318,13 +325,16 @@ export function ReservationEditDrawer({
   useEffect(() => {
     if (!open || !restaurantIdForFetch) return;
     void (async () => {
-      const [{ data: tData, error: tErr }, { data: sData }] = await Promise.all([
-        fetchDiningTables(restaurantIdForFetch),
-        fetchReservationSettings(restaurantIdForFetch),
-      ]);
+      const [{ data: tData, error: tErr }, { data: sData }, timeZone] =
+        await Promise.all([
+          fetchDiningTables(restaurantIdForFetch),
+          fetchReservationSettings(restaurantIdForFetch),
+          fetchRestaurantIanaTimezone(restaurantIdForFetch),
+        ]);
       if (tErr) toast.error(tErr.message);
       setTables(tData);
       setDefaultDwellMinutes(sData?.default_dwell_minutes ?? 120);
+      setRestaurantTimeZone(timeZone);
     })();
   }, [open, restaurantIdForFetch]);
 
@@ -364,8 +374,10 @@ export function ReservationEditDrawer({
       setPhoneLocal(parsed.local);
       setEmail(reservation.guest_email ?? "");
       setPartySize(String(reservation.party_size));
-      const dl = isoToDatetimeLocalValue(reservation.starts_at);
-      const { ymd, hm } = datetimeLocalValueToYmdHm(dl);
+      const { ymd, hm } = restaurantIsoToYmdHm(
+        reservation.starts_at,
+        restaurantTimeZone,
+      );
       setDateYmd(ymd);
       setTimeHm(hm);
       setStatusId(reservation.reservation_statuses?.id ?? "");
@@ -447,6 +459,7 @@ export function ReservationEditDrawer({
     createFor?.initialDiningTableId,
     createFor?.initialContactId,
     restaurantIdForFetch,
+    restaurantTimeZone,
     getProfileForRestaurantId,
     countriesForPhone,
   ]);
@@ -498,8 +511,7 @@ export function ReservationEditDrawer({
       toast.error("Bitte einen Status wählen.");
       return null;
     }
-    const startsLocalCombined = ymdAndHmToDatetimeLocal(dateYmd, timeHm);
-    const startsIso = datetimeLocalValueToIso(startsLocalCombined);
+    const startsIso = ymdHmToRestaurantIso(dateYmd, timeHm, restaurantTimeZone);
     if (!lastName.trim()) {
       toast.error("Bitte einen Nachnamen eingeben.");
       return null;
@@ -609,6 +621,21 @@ export function ReservationEditDrawer({
             if (msg) toast.warning(msg);
           },
         );
+      }
+      const datetimeChanged = reservationDateTimeChanged(
+        {
+          starts_at: reservation.starts_at,
+          ends_at: reservation.ends_at,
+        },
+        { starts_at: payload.starts_at, ends_at: payload.ends_at },
+      );
+      if (shouldRescheduleTimedOutbox(newStatusCode, datetimeChanged)) {
+        if (payload.notify_whatsapp) {
+          void triggerReservationWhatsappDispatch(reservation.id, "rescheduled");
+        }
+        if (payload.notify_email) {
+          void triggerReservationEmailDispatch(reservation.id, "rescheduled");
+        }
       }
       const previousStatusCode = initialStatusCodeRef.current ?? "";
       initialStatusCodeRef.current = newStatusCode;

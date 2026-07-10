@@ -51,6 +51,7 @@ import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { queryKeys } from "@/lib/query/query-keys";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 const BATCH_RECONCILE_DEBOUNCE_MS = 20_000;
@@ -65,6 +66,7 @@ const WIDGET_RECONCILE_DEBOUNCE_MS = 15_000;
 export function AppDashboardLivePatchMount() {
   const queryClient = useQueryClient();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { batchWidgets } = useDashboardEffectiveWidgetPrefs();
   const batchReconcileRef = useRef<number | null>(null);
   const reservationReconcileRef = useRef<number | null>(null);
@@ -285,6 +287,8 @@ export function AppDashboardLivePatchMount() {
             reservations: patchDashboardReservationSummaryFromInsert(
               old.data.reservations,
               detail.insert,
+              new Date(),
+              restaurantTimeZone,
             ),
           },
         };
@@ -416,6 +420,7 @@ export function AppDashboardLivePatchMount() {
     batchWidgets,
     queryClient,
     restaurantId,
+    restaurantTimeZone,
     workspaceReady,
   ]);
 

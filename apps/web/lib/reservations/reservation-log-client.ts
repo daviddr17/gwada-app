@@ -5,6 +5,7 @@ import {
   type ReservationLogSnapshot,
 } from "@/lib/reservations/reservation-log-build";
 import { insertReservationLogFromBrowser } from "@/lib/reservations/reservation-log-insert";
+import { fetchRestaurantIanaTimezone } from "@/lib/supabase/restaurant-timezone-db";
 import { formatDiningTableLabel, type DiningTableRow } from "@/lib/supabase/dining-floor-db";
 import type {
   ReservationListRow,
@@ -73,7 +74,8 @@ export async function logReservationMutationFromBrowser(params: {
   before: ReservationLogSnapshot | null;
   after: ReservationLogSnapshot;
 }): Promise<void> {
-  const changes = buildReservationLogChanges(params.before, params.after);
+  const timeZone = await fetchRestaurantIanaTimezone(params.restaurantId);
+  const changes = buildReservationLogChanges(params.before, params.after, timeZone);
   if (params.action === "updated" && changes.length === 0) return;
 
   await insertReservationLogFromBrowser({

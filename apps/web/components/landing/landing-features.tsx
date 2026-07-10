@@ -32,7 +32,7 @@ export function LandingFeatures() {
         <div className="mx-auto max-w-2xl text-center">
           <p className="inline-flex items-center gap-2 text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
             <Sparkles className="size-3.5" aria-hidden />
-            Funktionen
+            Module
           </p>
           <h2 className="mt-4 text-balance text-3xl font-semibold tracking-tight md:text-4xl">
             Alles, was ein moderner Betrieb braucht — ohne Überladung.

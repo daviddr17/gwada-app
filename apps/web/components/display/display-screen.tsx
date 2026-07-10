@@ -727,6 +727,8 @@ export function DisplayScreen({ slug }: { slug: string }) {
             {currentModule === "time" ? (
               <DisplayTimeModule
                 initial={context.time_session}
+                restaurantId={context.restaurant!.id}
+                staffId={session.staff.id}
                 onSessionChange={patchTimeSession}
                 prepareAndGate={prepareAndGate}
                 onChanged={() => {

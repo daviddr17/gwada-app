@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { labelForTagId } from "@/lib/constants/menu-labels";
 import { isMenuItemActive } from "@/lib/menu/item-utils";
+import { MenuItemAvailabilityBadge } from "@/components/menu/menu-item-availability-badge";
 import type { UseSortableReorderResult } from "@/lib/hooks/use-sortable-reorder";
 import type { MenuItem, MenuTaxonomyDefinition } from "@/lib/types/menu";
 import { getTagChipVisual } from "@/lib/utils/tag-styles";
@@ -104,6 +105,7 @@ export function MenuItemCompactRow({
               Inaktiv
             </Badge>
           ) : null}
+          <MenuItemAvailabilityBadge item={item} />
           {item.tags.map((tag) => {
             const vis = getTagChipVisual(tag, tagDefinitions);
             return (

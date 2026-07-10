@@ -8,6 +8,12 @@ export type AccountingConnectorSyncScope =
 export type AccountingConnectorSettingsEntry = {
   autoSync: boolean;
   lastSync: Partial<Record<AccountingConnectorSyncScope, string | null>>;
+  /** Gwada-Kontaktänderungen an verknüpften Lexware-Kontakt senden (PUT). */
+  pushContactUpdates?: boolean;
+  /** Lexware-PDFs nach Sync/Webhook in Dokumente importieren. */
+  importPdfsToDocuments?: boolean;
+  /** Event-Subscriptions bei Verbindung registrieren (Cron bleibt Fallback). */
+  useWebhooks?: boolean;
 };
 
 export type AccountingConnectorSettingsMap = Partial<
@@ -17,6 +23,9 @@ export type AccountingConnectorSettingsMap = Partial<
 const DEFAULT_LEXOFFICE_ENTRY: AccountingConnectorSettingsEntry = {
   autoSync: true,
   lastSync: {},
+  pushContactUpdates: false,
+  importPdfsToDocuments: false,
+  useWebhooks: true,
 };
 
 export function salesDocumentKindToSyncScope(
@@ -82,6 +91,18 @@ function parseConnectorSettingsEntry(
         ? obj.autoSync
         : DEFAULT_LEXOFFICE_ENTRY.autoSync,
     lastSync,
+    pushContactUpdates:
+      typeof obj.pushContactUpdates === "boolean"
+        ? obj.pushContactUpdates
+        : DEFAULT_LEXOFFICE_ENTRY.pushContactUpdates,
+    importPdfsToDocuments:
+      typeof obj.importPdfsToDocuments === "boolean"
+        ? obj.importPdfsToDocuments
+        : DEFAULT_LEXOFFICE_ENTRY.importPdfsToDocuments,
+    useWebhooks:
+      typeof obj.useWebhooks === "boolean"
+        ? obj.useWebhooks
+        : DEFAULT_LEXOFFICE_ENTRY.useWebhooks,
   };
 }
 
@@ -123,6 +144,38 @@ export function setConnectorAutoSync(
       ...prev,
       autoSync: enabled,
     },
+  };
+}
+
+export type LexofficeConnectorFeatureFlags = Pick<
+  AccountingConnectorSettingsEntry,
+  "pushContactUpdates" | "importPdfsToDocuments" | "useWebhooks"
+>;
+
+export function setLexofficeConnectorFeatures(
+  map: AccountingConnectorSettingsMap,
+  flags: Partial<LexofficeConnectorFeatureFlags>,
+): AccountingConnectorSettingsMap {
+  const prev = map.lexoffice ?? DEFAULT_LEXOFFICE_ENTRY;
+  return {
+    ...map,
+    lexoffice: {
+      ...prev,
+      ...flags,
+    },
+  };
+}
+
+export function lexofficeConnectorFeatures(
+  map: AccountingConnectorSettingsMap,
+): Required<LexofficeConnectorFeatureFlags> {
+  const entry = map.lexoffice ?? DEFAULT_LEXOFFICE_ENTRY;
+  return {
+    pushContactUpdates:
+      entry.pushContactUpdates ?? DEFAULT_LEXOFFICE_ENTRY.pushContactUpdates!,
+    importPdfsToDocuments:
+      entry.importPdfsToDocuments ?? DEFAULT_LEXOFFICE_ENTRY.importPdfsToDocuments!,
+    useWebhooks: entry.useWebhooks ?? DEFAULT_LEXOFFICE_ENTRY.useWebhooks!,
   };
 }
 

@@ -1,6 +1,10 @@
 import { deleteLexofficeContactsCache } from "@/lib/contacts/lexoffice-contacts-cache-db";
+import { teardownLexofficeWebhooks } from "@/lib/integrations/lexoffice-webhook-register-server";
 import { assertPlatformLexofficeEnabled } from "@/lib/integrations/platform-messaging-guard";
-import { upsertRestaurantLexofficeIntegration } from "@/lib/supabase/restaurant-lexoffice-integration-db";
+import {
+  fetchRestaurantLexofficeConfig,
+  upsertRestaurantLexofficeIntegration,
+} from "@/lib/supabase/restaurant-lexoffice-integration-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -37,6 +41,12 @@ export async function POST(req: Request) {
   if (!allowed) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
+
+  const existing = await fetchRestaurantLexofficeConfig(sb, restaurantId);
+  await teardownLexofficeWebhooks(
+    existing?.config.api_key ?? null,
+    existing?.config ?? {},
+  );
 
   const { error } = await upsertRestaurantLexofficeIntegration(sb, restaurantId, {
     status: "disconnected",

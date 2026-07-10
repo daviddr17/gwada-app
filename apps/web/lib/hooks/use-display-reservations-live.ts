@@ -8,6 +8,7 @@ import {
   GWADA_DISPLAY_RESERVATIONS_OWN_CREATE_EVENT,
   type DisplayReservationsOwnCreateDetail,
 } from "@/lib/display/display-reservations-live-events";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import type { DisplayReservationRow } from "@/lib/display/display-reservations-server";
 import { showNewReservationToast } from "@/lib/reservations/reservation-live-toast";
 import { reservationLiveToastFromRecord } from "@/lib/reservations/reservation-live-toast";
@@ -28,6 +29,7 @@ type DisplayLiveSnapshot = {
  * stille Reconciliation debounced — INSERT und UPDATE (Status/Tisch).
  */
 export function useDisplayReservationsLive(enabled: boolean) {
+  const restaurantTimeZone = useDisplayRestaurantTimezone();
   const lastRevisionRef = useRef<string | null>(null);
   const lastCreatedRef = useRef<string | null>(null);
   const toastRef = useRef(false);
@@ -78,6 +80,7 @@ export function useDisplayReservationsLive(enabled: boolean) {
                 guest_last_name: snapshot.latest.guest_last_name,
                 party_size: snapshot.latest.party_size,
               }),
+              restaurantTimeZone,
             );
             window.setTimeout(() => {
               toastRef.current = false;
@@ -90,7 +93,7 @@ export function useDisplayReservationsLive(enabled: boolean) {
       lastRevisionRef.current = revision;
       lastCreatedRef.current = latestCreatedAt;
     },
-    [scheduleReconcile],
+    [restaurantTimeZone, scheduleReconcile],
   );
 
   useEffect(() => {

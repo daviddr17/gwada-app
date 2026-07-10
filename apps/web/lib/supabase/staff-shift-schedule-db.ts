@@ -1,3 +1,4 @@
+import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import type {
   RestaurantShiftScheduleSettingsRow,
@@ -175,6 +176,38 @@ export async function fetchScheduledShiftsInRange(
     data: (data ?? []).map((r) => mapShiftRow(r as Record<string, unknown>)),
     error: null,
   };
+}
+
+/** Eindeutige geplante Mitarbeiter pro Kalendertag (ohne abgelehnte Schichten). */
+export async function fetchScheduledStaffCountsByDayForRange(
+  restaurantId: string,
+  rangeStartIso: string,
+  rangeEndExclusiveIso: string,
+): Promise<{ data: Map<string, number>; error: string | null }> {
+  const sb = createSupabaseBrowserClient();
+  const { data, error } = await sb
+    .from("restaurant_staff_scheduled_shifts")
+    .select("staff_id, starts_at, status")
+    .eq("restaurant_id", restaurantId)
+    .gte("starts_at", rangeStartIso)
+    .lt("starts_at", rangeEndExclusiveIso);
+
+  if (error) return { data: new Map(), error: error.message };
+
+  const staffByDay = new Map<string, Set<string>>();
+  for (const row of data ?? []) {
+    if ((row.status as string) === "declined") continue;
+    const dayKey = localDayKey(new Date(row.starts_at as string));
+    const bucket = staffByDay.get(dayKey) ?? new Set<string>();
+    bucket.add(row.staff_id as string);
+    staffByDay.set(dayKey, bucket);
+  }
+
+  const counts = new Map<string, number>();
+  for (const [dayKey, staffIds] of staffByDay) {
+    counts.set(dayKey, staffIds.size);
+  }
+  return { data: counts, error: null };
 }
 
 export type CreateScheduledShiftInput = {

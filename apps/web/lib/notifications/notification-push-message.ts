@@ -7,6 +7,7 @@ import {
 import {
   senderPhoneDistinctFromName,
 } from "@/lib/notifications/message-notification-sender";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { GWADA_PRODUCTION_ORIGIN } from "@/lib/constants/gwada-domains";
 import { getPublicSiteUrl } from "@/lib/public-env";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
@@ -22,19 +23,25 @@ type NotificationEventRow = {
   payload: Record<string, unknown>;
 };
 
-const pushDateTimeFormatter = new Intl.DateTimeFormat("de-DE", {
-  weekday: "short",
-  day: "2-digit",
-  month: "short",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+function pushDateTimeFormatter(timeZone: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("de-DE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  });
+}
 
-const pushTimeFormatter = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
+function pushTimeFormatter(timeZone: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat("de-DE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone,
+  });
+}
 
 function pickString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -44,20 +51,22 @@ function pickNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function formatPushDateTime(iso: unknown): string | null {
+function formatPushDateTime(iso: unknown, timeZone?: string): string | null {
   const raw = pickString(iso);
   if (!raw) return null;
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return null;
-  return pushDateTimeFormatter.format(date);
+  const tz = timeZone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
+  return pushDateTimeFormatter(tz).format(date);
 }
 
-function formatPushTime(iso: unknown): string | null {
+function formatPushTime(iso: unknown, timeZone?: string): string | null {
   const raw = pickString(iso);
   if (!raw) return null;
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return null;
-  return pushTimeFormatter.format(date);
+  const tz = timeZone?.trim() || DEFAULT_RESTAURANT_TIMEZONE;
+  return pushTimeFormatter(tz).format(date);
 }
 
 function formatStockAmount(value: unknown): string {
@@ -156,10 +165,13 @@ function buildPushMessage(params: {
   };
 }
 
-function reservationDetails(payload: Record<string, unknown>): string {
+function reservationDetails(
+  payload: Record<string, unknown>,
+  timeZone?: string,
+): string {
   const guest = pickString(payload.guestLabel) ?? "Gast";
   const party = pickNumber(payload.partySize);
-  const when = formatPushDateTime(payload.startsAt);
+  const when = formatPushDateTime(payload.startsAt, timeZone);
   const number = pickNumber(payload.reservationNumber);
   const phone = pickString(payload.guestPhone);
   const email = pickString(payload.guestEmail);
@@ -181,6 +193,7 @@ function reservationDetails(payload: Record<string, unknown>): string {
 export function buildNotificationPushText(
   event: NotificationEventRow,
   restaurantName: string | null,
+  timeZone?: string,
 ): NotificationPushMessageResult {
   const prefix = restaurantName ? `${restaurantName}: ` : "";
   const moduleDef = NOTIFICATION_MODULES[event.module];
@@ -192,7 +205,7 @@ export function buildNotificationPushText(
       const subjectName = messagePushSubjectName(p);
       const platformCode = pickString(p.platform)?.toLowerCase() ?? null;
       const platform = platformLabel(p.platform);
-      const when = formatPushDateTime(p.messageCreatedAt);
+      const when = formatPushDateTime(p.messageCreatedAt, timeZone);
       const preview = quotePreview(p.preview);
       return buildPushMessage({
         prefix,
@@ -213,7 +226,7 @@ export function buildNotificationPushText(
       const rating = pickNumber(p.rating);
       const stars = rating != null && rating > 0 ? formatRatingStars(rating) : null;
       const platform = platformLabel(p.platform);
-      const when = formatPushDateTime(p.reviewCreatedAt);
+      const when = formatPushDateTime(p.reviewCreatedAt, timeZone);
       const preview = quotePreview(p.commentPreview);
       const ratingLine =
         stars != null
@@ -239,7 +252,7 @@ export function buildNotificationPushText(
         headline: "Neue unbestätigte Reservierung",
         subject: `${prefix}Neue Reservierung — ${guest}`,
         href,
-        details: reservationDetails(p),
+        details: reservationDetails(p, timeZone),
       });
     }
     case "reservations_change_request": {
@@ -249,7 +262,7 @@ export function buildNotificationPushText(
         headline: "Änderungsanfrage zur Reservierung",
         subject: `${prefix}Änderungsanfrage — ${guest}`,
         href,
-        details: reservationDetails(p),
+        details: reservationDetails(p, timeZone),
       });
     }
     case "reservations_cancellation": {
@@ -259,16 +272,17 @@ export function buildNotificationPushText(
         headline: "Stornierung einer Reservierung",
         subject: `${prefix}Stornierung — ${guest}`,
         href,
-        details: reservationDetails(p),
+        details: reservationDetails(p, timeZone),
       });
     }
     case "staff_shift_start": {
       const staffName = pickString(p.staffName) ?? "Mitarbeiter";
       const label = pickString(p.label);
-      const start = formatPushTime(p.startsAt);
-      const end = formatPushTime(p.endsAt);
+      const start = formatPushTime(p.startsAt, timeZone);
+      const end = formatPushTime(p.endsAt, timeZone);
       const timeRange =
         start && end ? `${start}–${end} Uhr` : start ? `${start} Uhr` : null;
+      const startAtLabel = formatPushDateTime(p.startsAt, timeZone);
       return buildPushMessage({
         prefix,
         headline: "Schichtbeginn",
@@ -278,19 +292,18 @@ export function buildNotificationPushText(
           `Mitarbeiter: ${staffName}`,
           label ? `Schicht: ${label}` : null,
           timeRange ? `Zeit: ${timeRange}` : null,
-          formatPushDateTime(p.startsAt)
-            ? `Beginn: ${formatPushDateTime(p.startsAt)}`
-            : null,
+          startAtLabel ? `Beginn: ${startAtLabel}` : null,
         ]),
       });
     }
     case "staff_shift_end": {
       const staffName = pickString(p.staffName) ?? "Mitarbeiter";
       const label = pickString(p.label);
-      const start = formatPushTime(p.startsAt);
-      const end = formatPushTime(p.endsAt);
+      const start = formatPushTime(p.startsAt, timeZone);
+      const end = formatPushTime(p.endsAt, timeZone);
       const timeRange =
         start && end ? `${start}–${end} Uhr` : end ? `${end} Uhr` : null;
+      const endAtLabel = formatPushDateTime(p.endsAt, timeZone);
       return buildPushMessage({
         prefix,
         headline: "Schichtende",
@@ -300,9 +313,7 @@ export function buildNotificationPushText(
           `Mitarbeiter: ${staffName}`,
           label ? `Schicht: ${label}` : null,
           timeRange ? `Geplant: ${timeRange}` : null,
-          formatPushDateTime(p.endsAt)
-            ? `Ende: ${formatPushDateTime(p.endsAt)}`
-            : null,
+          endAtLabel ? `Ende: ${endAtLabel}` : null,
         ]),
       });
     }
@@ -450,7 +461,7 @@ export function buildNotificationPushText(
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);
-      const when = formatPushDateTime(p.publishedAt);
+      const when = formatPushDateTime(p.publishedAt, timeZone);
       return buildPushMessage({
         prefix: "",
         headline: "Neu im Changelog",

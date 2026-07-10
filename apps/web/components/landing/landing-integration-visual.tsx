@@ -283,11 +283,86 @@ function WhatsAppVisual({ item, active }: SceneProps) {
   );
 }
 
+function LexofficeVisual({ item, active }: SceneProps) {
+  const { Glyph } = item;
+  const docs = [
+    { label: "Rechnung #1042", amount: "1.240 €", synced: true },
+    { label: "Angebot Event", amount: "890 €", synced: true },
+    { label: "Beleg Lieferant", amount: "156 €", synced: false },
+  ];
+  return (
+    <SceneStage active={active}>
+      <GlowOrb active={active} className={cn("left-1/3 top-1/4 size-44", item.brandGlow)} />
+      <motion.div
+        className="absolute right-3 top-10 z-20 w-[12.5rem]"
+        animate={active ? { y: [0, -6, 0], rotate: [3, 0, 3] } : {}}
+        transition={scrollSceneLoop(active, { duration: 4.5, ease: "easeInOut" })}
+      >
+        <GlassPanel active={active} className="p-3">
+          <p className="text-[10px] font-semibold text-muted-foreground">Buchführung</p>
+          <div className="mt-2 space-y-2">
+            {docs.map((doc, i) => (
+              <motion.div
+                key={doc.label}
+                className="flex items-center justify-between gap-2 border-b border-border/30 pb-2 last:border-0 last:pb-0"
+                animate={active ? { x: [5, 0, 5], opacity: [0.65, 1, 0.65] } : {}}
+                transition={scrollSceneLoop(active, {
+                  duration: 2.8,
+                  delay: i * 0.12,
+                  ease: "easeInOut",
+                })}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-[10px] font-medium text-foreground">
+                    {doc.label}
+                  </p>
+                  <p className="text-[9px] font-semibold tabular-nums text-[#00A88F]">
+                    {doc.amount}
+                  </p>
+                </div>
+                {doc.synced ? (
+                  <span className="shrink-0 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">
+                    Sync
+                  </span>
+                ) : (
+                  <motion.span
+                    className="size-1.5 shrink-0 rounded-full bg-amber-500"
+                    animate={active ? { opacity: [0.4, 1, 0.4] } : {}}
+                    transition={scrollSceneLoop(active, { duration: 1.5, ease: "easeInOut" })}
+                  />
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </GlassPanel>
+      </motion.div>
+      <motion.div
+        className="absolute bottom-20 left-6 rounded-xl border border-[#00A88F]/30 bg-[#00A88F]/10 px-3 py-2 shadow-sm"
+        animate={active ? { x: [0, 5, 0] } : {}}
+        transition={scrollSceneLoop(active, { duration: 3.5, ease: "easeInOut" })}
+      >
+        <p className="text-[10px] font-semibold text-[#007A68] dark:text-[#5eead4]">
+          Kontakte verknüpft
+        </p>
+      </motion.div>
+      <HeroBrand Glyph={Glyph} active={active} className="absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2" />
+      <motion.span
+        className="absolute bottom-10 right-8 rounded-full bg-[#00A88F]/15 px-3 py-1 text-[10px] font-semibold text-[#007A68] ring-1 ring-[#00A88F]/25 dark:text-[#5eead4]"
+        animate={active ? { opacity: [0.6, 1, 0.6] } : {}}
+        transition={scrollSceneLoop(active, { duration: 2.5, ease: "easeInOut" })}
+      >
+        Verbunden
+      </motion.span>
+    </SceneStage>
+  );
+}
+
 const VISUALS: Record<LandingIntegrationId, ComponentType<SceneProps>> = {
   google: GoogleVisual,
   facebook: FacebookVisual,
   instagram: InstagramVisual,
   whatsapp: WhatsAppVisual,
+  lexoffice: LexofficeVisual,
 };
 
 export function LandingIntegrationVisual({

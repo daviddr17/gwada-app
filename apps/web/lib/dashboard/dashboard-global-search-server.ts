@@ -397,6 +397,11 @@ async function searchEvents(
   pattern: string,
   limit: number,
 ): Promise<DashboardGlobalSearchResultItem[]> {
+  const admin = createSupabaseAdminClient();
+  const timeZone = admin
+    ? await fetchRestaurantTimezoneServer(admin, restaurantId)
+    : DEFAULT_RESTAURANT_TIMEZONE;
+
   const { data } = await sb
     .from("gwada_events")
     .select("id, title, status, start_at")
@@ -410,7 +415,9 @@ async function searchEvents(
       "events",
       row.id,
       row.title?.trim() || "Event",
-      [row.status, formatDeDateTimeLocal(row.start_at)].filter(Boolean).join(" · "),
+      [row.status, formatReservationSearchDateTime(row.start_at, timeZone)]
+        .filter(Boolean)
+        .join(" · "),
     ),
   );
 }

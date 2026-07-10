@@ -12,6 +12,8 @@ export async function POST(req: Request) {
     caption?: string | null;
     category?: string | null;
     storagePath?: string;
+    thumbStoragePath?: string | null;
+    blurDataUrl?: string | null;
     mimeType?: string;
     sizeBytes?: number;
     width?: number | null;
@@ -44,6 +46,8 @@ export async function POST(req: Request) {
       caption: body?.caption?.trim() || null,
       category: body?.category?.trim() || null,
       storage_path: storagePath,
+      thumb_storage_path: body?.thumbStoragePath?.trim() || null,
+      blur_data_url: body?.blurDataUrl?.trim() || null,
       mime_type: mimeType,
       size_bytes: sizeBytes,
       width: body?.width ?? null,

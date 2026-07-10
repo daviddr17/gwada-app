@@ -4,9 +4,13 @@ export type NewsMediaPreview = {
   id: string;
   kind: "image" | "video";
   url: string | null;
+  thumbUrl?: string | null;
   storagePath: string | null;
   mimeType: string | null;
   sortOrder: number;
+  width?: number | null;
+  height?: number | null;
+  blurDataUrl?: string | null;
 };
 
 export type NewsInsights = {

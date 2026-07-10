@@ -57,12 +57,19 @@ async function signedUrlsForMedia(
   const admin = createSupabaseAdminClient();
   const map = new Map<string, string>();
   if (!admin) return map;
+
+  const paths = new Set<string>();
+  for (const item of media) {
+    paths.add(item.storagePath);
+    if (item.thumbStoragePath) paths.add(item.thumbStoragePath);
+  }
+
   await Promise.all(
-    media.map(async (m) => {
+    [...paths].map(async (path) => {
       const { data } = await admin.storage
         .from(NEWS_MEDIA_BUCKET)
-        .createSignedUrl(m.storagePath, 3600);
-      if (data?.signedUrl) map.set(m.storagePath, data.signedUrl);
+        .createSignedUrl(path, 3600);
+      if (data?.signedUrl) map.set(path, data.signedUrl);
     }),
   );
   return map;

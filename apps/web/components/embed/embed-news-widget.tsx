@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
-import { EmbedResizeReporter } from "@/components/embed/embed-resize-reporter";
+import { EmbedFeedResizeReporter } from "@/components/embed/embed-feed-resize-reporter";
+import {
+  countNewsFeedImages,
+  FeedScreenLayoutStable,
+} from "@/components/feed/feed-screen-layout-stable";
 import {
   NewsListView,
   NewsMasonryGrid,
@@ -157,8 +161,9 @@ export function EmbedNewsWidget({
       textTheme={textTheme}
       brandFooter={variant !== "profileSheet"}
     >
-      <EmbedResizeReporter widget="news" deps={resizeDeps} />
-      <div className={paddingClass}>
+      <FeedScreenLayoutStable imageCount={countNewsFeedImages(displayItems)}>
+        <EmbedFeedResizeReporter widget="news" deps={resizeDeps} />
+        <div className={paddingClass}>
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">
             <NewsPlatformFilterChips
@@ -223,7 +228,8 @@ export function EmbedNewsWidget({
         ) : (
           newsContent
         )}
-      </div>
+        </div>
+      </FeedScreenLayoutStable>
       <NewsStoryViewer
         ring={activeRing}
         open={storyOpen}

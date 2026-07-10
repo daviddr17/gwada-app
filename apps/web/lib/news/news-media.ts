@@ -9,6 +9,10 @@ export type NewsMediaRow = {
   storagePath: string;
   mimeType: string;
   sortOrder: number;
+  width?: number | null;
+  height?: number | null;
+  thumbStoragePath?: string | null;
+  blurDataUrl?: string | null;
 };
 
 export function parseNewsMedia(raw: unknown): NewsMediaRow[] {
@@ -27,6 +31,11 @@ export function parseNewsMedia(raw: unknown): NewsMediaRow[] {
       storagePath,
       mimeType: typeof o.mimeType === "string" ? o.mimeType : "application/octet-stream",
       sortOrder: typeof o.sortOrder === "number" ? o.sortOrder : rows.length,
+      width: typeof o.width === "number" ? o.width : null,
+      height: typeof o.height === "number" ? o.height : null,
+      thumbStoragePath:
+        typeof o.thumbStoragePath === "string" ? o.thumbStoragePath : null,
+      blurDataUrl: typeof o.blurDataUrl === "string" ? o.blurDataUrl : null,
     });
   }
   return rows.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -43,6 +52,12 @@ export function newsMediaToPreview(
     mimeType: m.mimeType,
     sortOrder: m.sortOrder,
     url: signedUrls.get(m.storagePath) ?? null,
+    thumbUrl: m.thumbStoragePath
+      ? (signedUrls.get(m.thumbStoragePath) ?? null)
+      : null,
+    width: m.width ?? null,
+    height: m.height ?? null,
+    blurDataUrl: m.blurDataUrl ?? null,
   }));
 }
 
@@ -55,6 +70,15 @@ export function buildNewsMediaStoragePath(params: {
 }): string {
   const safe = params.fileName.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
   return `${params.restaurantId}/${params.postId}/${Date.now()}_${safe}`;
+}
+
+export function buildNewsMediaVariantPath(params: {
+  restaurantId: string;
+  postId: string;
+  mediaId: string;
+  variant: "preview" | "thumb";
+}): string {
+  return `${params.restaurantId}/${params.postId}/${params.mediaId}_${params.variant}.webp`;
 }
 
 export async function resolveNewsMediaSignedUrls(

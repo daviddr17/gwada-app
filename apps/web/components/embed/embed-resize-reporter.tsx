@@ -78,12 +78,15 @@ export function EmbedResizeReporter({
   widget: widgetProp,
   resizeMode = "content",
   viewportHeightPx,
+  layoutStable = true,
 }: {
   deps: unknown[];
   widget?: GwadaEmbedWidgetId;
   /** `viewport`: feste iframe-Höhe (interner Scroll). `content`: wächst mit Inhalt. */
   resizeMode?: "content" | "viewport";
   viewportHeightPx?: number;
+  /** Feed-Bilder fertig — erst dann aggressive Nachlauf-Messungen. */
+  layoutStable?: boolean;
 }) {
   const ctx = useMemo(() => readEmbedContext(), []);
   const widget = widgetProp ?? ctx.widget;
@@ -131,9 +134,11 @@ export function EmbedResizeReporter({
       ro.observe(measureTarget);
     }
 
-    const followupTimers = EMBED_RESIZE_FOLLOWUP_MS.map((ms) =>
-      window.setTimeout(() => measureAndSend(true), ms),
-    );
+    const followupTimers = layoutStable
+      ? EMBED_RESIZE_FOLLOWUP_MS.map((ms) =>
+          window.setTimeout(() => measureAndSend(true), ms),
+        )
+      : [];
 
     return () => {
       ro?.disconnect();
@@ -141,7 +146,28 @@ export function EmbedResizeReporter({
       window.clearTimeout(debounceTimer);
       for (const id of followupTimers) window.clearTimeout(id);
     };
-  }, [deps, embedId, widget, resizeMode, viewportHeightPx]);
+  }, [deps, embedId, widget, resizeMode, viewportHeightPx, layoutStable]);
+
+  useEffect(() => {
+    if (!layoutStable || resizeMode !== "content") return;
+    const root = document.getElementById("gwada-embed-root");
+    const measureTarget = root ?? document.body;
+    let raf = 0;
+    const run = () => {
+      const height = measureEmbedContentHeight(measureTarget, resizeMode, viewportHeightPx);
+      postEmbedHeight(Math.ceil(height), embedId, widget);
+    };
+    raf = window.requestAnimationFrame(run);
+    const followupTimers = EMBED_RESIZE_FOLLOWUP_MS.map((ms) =>
+      window.setTimeout(() => {
+        raf = window.requestAnimationFrame(run);
+      }, ms),
+    );
+    return () => {
+      window.cancelAnimationFrame(raf);
+      for (const id of followupTimers) window.clearTimeout(id);
+    };
+  }, [layoutStable, embedId, widget, resizeMode, viewportHeightPx]);
 
   return null;
 }

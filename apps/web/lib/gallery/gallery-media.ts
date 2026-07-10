@@ -13,6 +13,14 @@ export function buildGalleryMediaStoragePath(params: {
   return `${params.restaurantId}/${params.itemId}/${Date.now()}_${safe}`;
 }
 
+export function buildGalleryMediaVariantPath(params: {
+  restaurantId: string;
+  itemId: string;
+  variant: "preview" | "thumb";
+}): string {
+  return `${params.restaurantId}/${params.itemId}/${Date.now()}_${params.variant}.webp`;
+}
+
 export function galleryMediaKindFromMime(mime: string): "image" | "video" {
   return mime.startsWith("video/") ? "video" : "image";
 }

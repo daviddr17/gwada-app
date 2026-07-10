@@ -1,7 +1,9 @@
 "use client";
 
 import { StaffAvailabilityEditor } from "@/components/staff/staff-availability-editor";
+import { StaffAvailabilityEditorSkeleton } from "@/components/staff/staff-availability-editor-skeleton";
 import { useMyRestaurantStaff } from "@/lib/hooks/use-my-restaurant-staff";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -12,9 +14,14 @@ export function ProfileAvailabilityScreen() {
   const { profile } = useRestaurantProfile();
   const { restaurantId, workspaceReady, staff, staffId, loading } =
     useMyRestaurantStaff();
+  const showSkeleton = useDeferredSkeleton(loading);
 
   if (!workspaceReady) return <WorkspaceRestaurantResolvePlaceholder />;
   if (!restaurantId) return <WorkspaceRestaurantMissingMessage />;
+
+  if (loading && showSkeleton) {
+    return <StaffAvailabilityEditorSkeleton />;
+  }
 
   if (loading) {
     return <div className="min-h-[20rem]" aria-busy="true" />;

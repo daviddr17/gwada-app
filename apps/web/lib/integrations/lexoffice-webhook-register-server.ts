@@ -10,22 +10,41 @@ import {
 import type { LexofficeIntegrationConfig } from "@/lib/integrations/lexoffice-integration-config";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type LexofficeWebhookEnsureResult = {
+  config: LexofficeIntegrationConfig;
+  webhookWarning: string | null;
+};
+
 export async function ensureLexofficeWebhooksForRestaurant(
   sb: SupabaseClient,
   restaurantId: string,
   apiKey: string,
   existingConfig: LexofficeIntegrationConfig,
-): Promise<LexofficeIntegrationConfig> {
+): Promise<LexofficeWebhookEnsureResult> {
   const settings = await getAccountingSettings(sb, restaurantId);
   const { useWebhooks } = lexofficeConnectorFeatures(settings.connector_settings);
   if (!useWebhooks) {
-    return existingConfig;
+    return {
+      config: {
+        ...existingConfig,
+        webhook_registration_warning: null,
+      },
+      webhookWarning: null,
+    };
   }
 
   const callbackUrl = resolveLexofficeWebhookPublicUrl();
   if (!callbackUrl) {
+    const warning =
+      "Live-Webhooks konnten nicht registriert werden: öffentliche Callback-URL fehlt (NEXT_PUBLIC_APP_URL).";
     console.warn("[lexoffice] webhook URL nicht auflösbar");
-    return existingConfig;
+    return {
+      config: {
+        ...existingConfig,
+        webhook_registration_warning: warning,
+      },
+      webhookWarning: warning,
+    };
   }
 
   const registered = await registerLexofficeWebhooksForRestaurant(
@@ -33,13 +52,24 @@ export async function ensureLexofficeWebhooksForRestaurant(
     callbackUrl,
   );
   if (!registered.ok) {
+    const warning = `Live-Webhooks konnten nicht registriert werden: ${registered.error}`;
     console.warn("[lexoffice] webhook registration", registered.error);
-    return existingConfig;
+    return {
+      config: {
+        ...existingConfig,
+        webhook_registration_warning: warning,
+      },
+      webhookWarning: warning,
+    };
   }
 
   return {
-    ...existingConfig,
-    webhook_subscription_ids: registered.subscriptionIds,
+    config: {
+      ...existingConfig,
+      webhook_subscription_ids: registered.subscriptionIds,
+      webhook_registration_warning: null,
+    },
+    webhookWarning: null,
   };
 }
 

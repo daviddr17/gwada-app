@@ -14,6 +14,7 @@ import { DatePickerField, formScheduleTimeInputFullWidthClassName } from "@/comp
 import { Input } from "@/components/ui/input";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
+import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import {
   createStaffAvailabilitySlot,
   deleteStaffAvailabilitySlot,
@@ -30,6 +31,7 @@ import {
   STAFF_AVAILABILITY_WEEKDAY_ORDER,
 } from "@/lib/types/staff-availability";
 import { cn } from "@/lib/utils";
+import { StaffAvailabilityEditorSkeleton } from "@/components/staff/staff-availability-editor-skeleton";
 
 const kindOptions: SearchableSelectOption[] = [
   { value: "weekly", label: "Wöchentlich (Wochentag)" },
@@ -85,6 +87,8 @@ export function StaffAvailabilityEditor({
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("18:00");
   const [note, setNote] = useState("");
+
+  const showSkeleton = useDeferredSkeleton(loading);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -202,6 +206,12 @@ export function StaffAvailabilityEditor({
     return slot ? formatAvailabilitySlotLabelDe(slot) : "";
   }, [deleteId, slots]);
 
+  if (showSkeleton) {
+    return (
+      <StaffAvailabilityEditorSkeleton compact={compact} className={className} />
+    );
+  }
+
   return (
     <div className={cn("space-y-4", className)}>
       <Card size="sm" className="border-border/50 shadow-card">
@@ -217,11 +227,7 @@ export function StaffAvailabilityEditor({
           ) : null}
         </CardHeader>
         <CardContent className="space-y-4">
-          {loading ? (
-            <p className="text-sm text-muted-foreground" aria-busy="true">
-              Laden …
-            </p>
-          ) : slots.length === 0 ? (
+          {slots.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               Noch keine Verfügbarkeiten hinterlegt.
             </p>

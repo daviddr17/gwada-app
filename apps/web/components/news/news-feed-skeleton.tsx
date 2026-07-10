@@ -3,12 +3,29 @@
 import type { ComponentProps } from "react";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import type { NewsViewMode } from "@/lib/constants/news-platforms";
+import { feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
+import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
 import { cn } from "@/lib/utils";
 
-function NewsCardSkeleton({ withImage = true }: { withImage?: boolean }) {
+const CARD_IMAGE_ASPECTS = [
+  "aspect-[4/5]",
+  "aspect-[3/4]",
+  "aspect-square",
+  "aspect-[5/4]",
+] as const;
+
+function NewsCardSkeleton({
+  withImage = true,
+  imageAspect = CARD_IMAGE_ASPECTS[0],
+}: {
+  withImage?: boolean;
+  imageAspect?: (typeof CARD_IMAGE_ASPECTS)[number];
+}) {
   return (
     <SkeletonCardFrame className="overflow-hidden shadow-card">
-      {withImage ? <Skeleton className="h-40 w-full rounded-none" /> : null}
+      {withImage ? (
+        <Skeleton className={cn("w-full rounded-none", imageAspect)} />
+      ) : null}
       <div className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-2">
           <Skeleton className="h-5 w-24 rounded-full" />
@@ -19,6 +36,25 @@ function NewsCardSkeleton({ withImage = true }: { withImage?: boolean }) {
         <Skeleton className="h-3 w-[85%] rounded-md" />
       </div>
     </SkeletonCardFrame>
+  );
+}
+
+function NewsGridSkeleton({ count = 8 }: { count?: number }) {
+  const { columnCount, mounted } = useFeedMasonryColumns(feedMasonryColumnCount);
+  const cols = mounted ? columnCount : feedMasonryColumnCount(1024);
+  return (
+    <div
+      className="grid gap-4"
+      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <NewsCardSkeleton
+          key={i}
+          withImage={i % 3 !== 2}
+          imageAspect={CARD_IMAGE_ASPECTS[i % CARD_IMAGE_ASPECTS.length]!}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -46,15 +82,10 @@ export function NewsFeedSkeleton({
     <div
       aria-busy
       aria-label="News werden geladen"
-      className={cn(
-        "pointer-events-none columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4 [contain:layout]",
-        className,
-      )}
+      className={cn("pointer-events-none", className)}
       {...props}
     >
-      {Array.from({ length: 8 }).map((_, i) => (
-        <NewsCardSkeleton key={i} withImage={i % 3 !== 2} />
-      ))}
+      <NewsGridSkeleton />
     </div>
   );
 }

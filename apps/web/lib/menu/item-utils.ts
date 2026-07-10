@@ -4,12 +4,16 @@ import type {
   MenuMainCategoryDefinition,
 } from "@/lib/types/menu";
 import { normalizeRecipeLines } from "@/lib/menu/recipe-utils";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 
-function ymdLocal(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+function menuAvailabilityYmd(
+  onDate: Date,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  return restaurantZonedDateKey(onDate, timeZone);
 }
 
 export function normalizeMenuAvailabilityYmd(raw: unknown): string | null {
@@ -30,8 +34,9 @@ export function menuItemHasAvailabilityWindow(
 export function isMenuItemWithinAvailabilityWindow(
   item: Pick<MenuItem, "availableFrom" | "availableTo">,
   onDate: Date = new Date(),
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): boolean {
-  const ymd = ymdLocal(onDate);
+  const ymd = menuAvailabilityYmd(onDate, timeZone);
   const from = normalizeMenuAvailabilityYmd(item.availableFrom);
   const to = normalizeMenuAvailabilityYmd(item.availableTo);
   if (!from && !to) return true;
@@ -48,9 +53,11 @@ export function isMenuItemActive(item: MenuItem): boolean {
 export function isMenuItemPubliclyAvailable(
   item: MenuItem,
   onDate: Date = new Date(),
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): boolean {
   return (
-    isMenuItemActive(item) && isMenuItemWithinAvailabilityWindow(item, onDate)
+    isMenuItemActive(item) &&
+    isMenuItemWithinAvailabilityWindow(item, onDate, timeZone)
   );
 }
 
@@ -59,9 +66,10 @@ export type MenuItemAvailabilityPhase = "upcoming" | "active" | "expired";
 export function menuItemAvailabilityPhase(
   item: Pick<MenuItem, "availableFrom" | "availableTo">,
   onDate: Date = new Date(),
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): MenuItemAvailabilityPhase | null {
   if (!menuItemHasAvailabilityWindow(item)) return null;
-  const ymd = ymdLocal(onDate);
+  const ymd = menuAvailabilityYmd(onDate, timeZone);
   const from = normalizeMenuAvailabilityYmd(item.availableFrom);
   const to = normalizeMenuAvailabilityYmd(item.availableTo);
   if (from && ymd < from) return "upcoming";

@@ -50,6 +50,7 @@ function toResponse(
     connectedAt: row?.connected_at ?? null,
     apiKeyConfigured: Boolean(config?.api_key_configured),
     lastError: row?.last_error ?? null,
+    webhookWarning: config?.webhook_registration_warning ?? null,
   };
 }
 
@@ -130,7 +131,8 @@ export async function POST(req: Request) {
     connected_user_email: profile.created?.userEmail,
   };
 
-  const configWithWebhooks = await ensureLexofficeWebhooksForRestaurant(
+  const { config: configWithWebhooks, webhookWarning } =
+    await ensureLexofficeWebhooksForRestaurant(
     auth.sb,
     restaurantId,
     mergedKey,
@@ -155,5 +157,9 @@ export async function POST(req: Request) {
   void syncLexofficeContactsCache(restaurantId, mergedKey);
 
   const row = await fetchRestaurantLexofficeIntegration(auth.sb, restaurantId);
-  return Response.json(toResponse(row));
+  const response = toResponse(row);
+  if (webhookWarning) {
+    response.webhookWarning = webhookWarning;
+  }
+  return Response.json(response);
 }

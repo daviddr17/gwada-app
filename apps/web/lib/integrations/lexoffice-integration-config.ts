@@ -14,6 +14,8 @@ export type LexofficeIntegrationConfig = {
   connected_user_email?: string;
   /** eventType → subscription id (Lexware event-subscriptions). */
   webhook_subscription_ids?: Record<string, string>;
+  /** Letzter Fehler bei Webhook-Registrierung (Verbindung bleibt aktiv). */
+  webhook_registration_warning?: string | null;
 };
 
 export type LexofficeIntegrationConfigPublic = {
@@ -24,6 +26,7 @@ export type LexofficeIntegrationConfigPublic = {
   business_features: LexofficeBusinessFeature[];
   connected_user_name: string | null;
   connected_user_email: string | null;
+  webhook_registration_warning: string | null;
 };
 
 function parseLexofficeWebhookSubscriptionIds(
@@ -61,6 +64,12 @@ export function lexofficeConfigFromJson(raw: unknown): LexofficeIntegrationConfi
     webhook_subscription_ids: parseLexofficeWebhookSubscriptionIds(
       o.webhook_subscription_ids,
     ),
+    webhook_registration_warning:
+      typeof o.webhook_registration_warning === "string"
+        ? o.webhook_registration_warning
+        : o.webhook_registration_warning === null
+          ? null
+          : undefined,
   };
 }
 
@@ -76,6 +85,7 @@ export function lexofficeConfigToPublic(
     business_features: config.business_features ?? [],
     connected_user_name: config.connected_user_name ?? null,
     connected_user_email: config.connected_user_email ?? null,
+    webhook_registration_warning: config.webhook_registration_warning ?? null,
   };
 }
 

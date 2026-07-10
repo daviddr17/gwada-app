@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { syncRestaurantGalleryPlatforms } from "@/lib/gallery/gallery-feed-sync-server";
+import { optimizeLegacyGalleryMediaBatch } from "@/lib/gallery/optimize-gallery-media-server";
 import { authorizeGalleryRestaurant } from "@/lib/gallery/route-auth";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -23,5 +24,6 @@ export async function POST(req: Request) {
   }
 
   const result = await syncRestaurantGalleryPlatforms(admin, restaurantId);
+  void optimizeLegacyGalleryMediaBatch(admin, restaurantId);
   return NextResponse.json(result);
 }

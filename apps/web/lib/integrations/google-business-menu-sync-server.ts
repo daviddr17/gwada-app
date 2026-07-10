@@ -9,6 +9,7 @@ import {
   googleReviewsParentPath,
 } from "@/lib/integrations/google-business-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
 
 type MenuRow = {
@@ -76,6 +77,8 @@ export async function syncMenuToGoogleBusiness(
     return { ok: false, error: menuErr.message };
   }
 
+  const restaurantTimeZone = await fetchRestaurantTimezoneServer(admin, restaurantId);
+
   const items = (rows ?? []).filter((item) =>
     isMenuItemPubliclyAvailable({
       id: item.id,
@@ -88,7 +91,7 @@ export async function syncMenuToGoogleBusiness(
       active: item.is_active,
       availableFrom: item.available_from,
       availableTo: item.available_to,
-    }),
+    }, new Date(), restaurantTimeZone),
   ) as MenuRow[];
   if (items.length === 0) {
     return { ok: false, error: "menu_empty" };

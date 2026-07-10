@@ -8,6 +8,7 @@ import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import {
   isMenuItemPubliclyAvailable,
   normalizeMenuAvailabilityYmd,
@@ -90,7 +91,7 @@ export async function fetchPublicEmbedMenu(
 
   const { data: row, error } = await admin
     .from("restaurants")
-    .select("id, name, slug, brand_accent_hex, is_published")
+    .select("id, name, slug, brand_accent_hex, is_published, timezone")
     .eq("slug", slug)
     .maybeSingle();
 
@@ -102,6 +103,9 @@ export async function fetchPublicEmbedMenu(
   }
 
   const restaurantId = row.id as string;
+  const restaurantTimeZone =
+    (row.timezone as string | null | undefined)?.trim() ||
+    DEFAULT_RESTAURANT_TIMEZONE;
 
   const [mainCategoriesRes, categoriesRes, itemsRes, tagsRes, allergensRes, settingsRes] =
     await Promise.all([
@@ -183,7 +187,7 @@ export async function fetchPublicEmbedMenu(
   const items: MenuItem[] = (itemsRes.data as unknown as MenuItemRow[] | null ?? [])
     .filter((item) => activeCategoryIds.has(item.category_id))
     .map(rowToMenuItem)
-    .filter((item) => isMenuItemPubliclyAvailable(item));
+    .filter((item) => isMenuItemPubliclyAvailable(item, new Date(), restaurantTimeZone));
 
   const tagDefinitions: MenuTaxonomyDefinition[] = [
     ...(tagsRes.data ?? []).map((t) => ({

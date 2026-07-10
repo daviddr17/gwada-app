@@ -15,7 +15,11 @@ import { GalleryHighlightComposeDrawer } from "@/components/gallery/gallery-high
 import { GalleryHighlightViewer } from "@/components/gallery/gallery-highlight-viewer";
 import { GalleryHighlightsRow } from "@/components/gallery/gallery-highlights-row";
 import { GalleryItemActionSheet } from "@/components/gallery/gallery-item-action-sheet";
-import { GalleryMasonryGrid } from "@/components/gallery/gallery-masonry-grid";
+import { GalleryMasonryGrid, GalleryMasonryGridSkeleton } from "@/components/gallery/gallery-masonry-grid";
+import {
+  countGalleryFeedImages,
+  FeedScreenLayoutStable,
+} from "@/components/feed/feed-screen-layout-stable";
 import { GalleryPlatformFilterChips } from "@/components/gallery/gallery-platform-filter-chips";
 import {
   GALLERY_CATEGORY_ALL,
@@ -381,23 +385,21 @@ export function GalleryScreen() {
         }}
       >
         {loading && items.length === 0 ? (
-          <div
-            className="min-h-[8rem] rounded-2xl border border-border/50"
-            aria-busy
-            aria-label="Galerie wird geladen"
-          />
+          <GalleryMasonryGridSkeleton />
         ) : paginatedItems.length === 0 ? (
           <p className="py-12 text-center text-sm text-muted-foreground">
             {syncMeta?.stale ? "Synchronisiere Galerie …" : "Noch keine Bilder in dieser Ansicht."}
           </p>
         ) : (
-          <GalleryMasonryGrid
-            items={paginatedItems}
-            onItemClick={(item) => {
-              setSelectedItem(item);
-              setSheetOpen(true);
-            }}
-          />
+          <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginatedItems)}>
+            <GalleryMasonryGrid
+              items={paginatedItems}
+              onItemClick={(item) => {
+                setSelectedItem(item);
+                setSheetOpen(true);
+              }}
+            />
+          </FeedScreenLayoutStable>
         )}
       </ListPaginationSurround>
 

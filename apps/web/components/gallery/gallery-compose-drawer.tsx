@@ -40,8 +40,12 @@ export function GalleryComposeDrawer({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pendingUpload, setPendingUpload] = useState<{
     storagePath: string;
+    thumbStoragePath?: string | null;
+    blurDataUrl?: string | null;
     mimeType: string;
     sizeBytes: number;
+    width?: number | null;
+    height?: number | null;
   } | null>(null);
 
   const reset = useCallback(() => {
@@ -70,8 +74,12 @@ export function GalleryComposeDrawer({
         const data = (await res.json()) as {
           error?: string;
           storagePath?: string;
+          thumbStoragePath?: string | null;
+          blurDataUrl?: string | null;
           mimeType?: string;
           sizeBytes?: number;
+          width?: number | null;
+          height?: number | null;
           previewUrl?: string;
         };
         if (!res.ok) {
@@ -80,8 +88,12 @@ export function GalleryComposeDrawer({
         }
         setPendingUpload({
           storagePath: data.storagePath!,
+          thumbStoragePath: data.thumbStoragePath ?? null,
+          blurDataUrl: data.blurDataUrl ?? null,
           mimeType: data.mimeType!,
           sizeBytes: data.sizeBytes!,
+          width: data.width ?? null,
+          height: data.height ?? null,
         });
         setPreviewUrl(data.previewUrl ?? URL.createObjectURL(file));
       } finally {

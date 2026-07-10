@@ -26,6 +26,8 @@ type GwadaGalleryRow = {
   caption: string | null;
   category: string | null;
   storage_path: string;
+  thumb_storage_path: string | null;
+  blur_data_url: string | null;
   mime_type: string;
   size_bytes: number;
   width: number | null;
@@ -39,6 +41,9 @@ async function mapRow(
 ): Promise<UnifiedGalleryItem | null> {
   const signedUrl = await resolveGalleryMediaSignedUrl(row.storage_path);
   if (!signedUrl) return null;
+  const thumbUrl = row.thumb_storage_path
+    ? await resolveGalleryMediaSignedUrl(row.thumb_storage_path)
+    : null;
   const kind = galleryMediaKindFromMime(row.mime_type);
   return {
     id: `gwada:${row.id}`,
@@ -52,6 +57,8 @@ async function mapRow(
     mediaKind: kind,
     previewUrl: signedUrl,
     fullUrl: signedUrl,
+    thumbUrl,
+    blurDataUrl: row.blur_data_url,
     width: row.width,
     height: row.height,
     storagePath: row.storage_path,
@@ -78,7 +85,7 @@ export const gwadaGalleryConnector: GalleryPlatformConnector = {
     const { data, error } = await sb
       .from("gwada_gallery_items")
       .select(
-        "id, restaurant_id, title, caption, category, storage_path, mime_type, size_bytes, width, height, created_at, is_pinned",
+        "id, restaurant_id, title, caption, category, storage_path, thumb_storage_path, blur_data_url, mime_type, size_bytes, width, height, created_at, is_pinned",
       )
       .eq("restaurant_id", restaurantId)
       .order("created_at", { ascending: false });
@@ -102,7 +109,7 @@ export async function fetchGwadaGalleryItemById(
   const { data, error } = await sb
     .from("gwada_gallery_items")
     .select(
-      "id, restaurant_id, title, caption, category, storage_path, mime_type, size_bytes, width, height, created_at",
+      "id, restaurant_id, title, caption, category, storage_path, thumb_storage_path, blur_data_url, mime_type, size_bytes, width, height, created_at",
     )
     .eq("restaurant_id", restaurantId)
     .eq("id", itemId)

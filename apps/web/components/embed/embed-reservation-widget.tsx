@@ -112,6 +112,29 @@ const ERROR_DE: Record<string, string> = {
   update_failed: "Änderung konnte nicht gespeichert werden.",
 };
 
+const FIELD_ERROR_HINTS: Record<keyof EmbedFieldErrors, string> = {
+  date: "Bitte ein Datum wählen.",
+  time: "Bitte eine gültige Uhrzeit wählen.",
+  party: "Bitte Personenzahl angeben (mindestens 1).",
+  lastName: "Nachname ist Pflicht.",
+  contact: "Telefon oder E-Mail angeben.",
+  notifyChannel: "Mindestens E-Mail- oder WhatsApp-Benachrichtigung aktivieren.",
+  terms: "Bitte die Bedingungen bestätigen.",
+  manageNumber: "Reservierungsnummer eingeben.",
+  managePin: "PIN eingeben.",
+};
+
+function EmbedFieldErrorHint({
+  field,
+  errors,
+}: {
+  field: keyof EmbedFieldErrors;
+  errors: EmbedFieldErrors;
+}) {
+  if (!errors[field]) return null;
+  return <p className="text-xs text-destructive">{FIELD_ERROR_HINTS[field]}</p>;
+}
+
 function errorMessage(code: string | undefined): string {
   if (!code) return "Ein Fehler ist aufgetreten.";
   return ERROR_DE[code] ?? ERROR_DE.invalid_request;
@@ -372,11 +395,13 @@ export function EmbedReservationWidget({
         time: timeSlots.length === 0,
         party: true,
       });
+      setError("Bitte markierte Felder prüfen.");
       return;
     }
     const errors = collectFieldErrors(payload);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
+      setError("Bitte markierte Felder prüfen.");
       return;
     }
     setFieldErrors({});
@@ -422,6 +447,7 @@ export function EmbedReservationWidget({
     if (managePin.length !== 6) loadErrors.managePin = true;
     if (Object.keys(loadErrors).length > 0) {
       setFieldErrors(loadErrors);
+      setError("Bitte markierte Felder prüfen.");
       return;
     }
     setFieldErrors({});
@@ -467,6 +493,7 @@ export function EmbedReservationWidget({
     const errors = collectFieldErrors(payload);
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
+      setError("Bitte markierte Felder prüfen.");
       return;
     }
     setFieldErrors({});
@@ -533,6 +560,7 @@ export function EmbedReservationWidget({
                 "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
             )}
           />
+          <EmbedFieldErrorHint field="date" errors={fieldErrors} />
         </div>
         <div className="min-w-0 space-y-1.5">
           <Label className="text-xs sm:text-sm">Uhrzeit</Label>
@@ -569,6 +597,7 @@ export function EmbedReservationWidget({
               </SelectContent>
             </Select>
           )}
+          <EmbedFieldErrorHint field="time" errors={fieldErrors} />
         </div>
         <div className="min-w-0 space-y-1.5">
           <Label htmlFor="embed-party" className="text-xs sm:text-sm">
@@ -587,6 +616,7 @@ export function EmbedReservationWidget({
             aria-invalid={fieldErrors.party || undefined}
             className="h-10 rounded-xl"
           />
+          <EmbedFieldErrorHint field="party" errors={fieldErrors} />
         </div>
       </div>
 
@@ -604,6 +634,7 @@ export function EmbedReservationWidget({
             aria-invalid={fieldErrors.lastName || undefined}
             className="h-10 rounded-xl"
           />
+          <EmbedFieldErrorHint field="lastName" errors={fieldErrors} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="embed-first">Vorname</Label>
@@ -658,6 +689,7 @@ export function EmbedReservationWidget({
             className="h-10 rounded-xl"
           />
         </div>
+        <EmbedFieldErrorHint field="contact" errors={fieldErrors} />
       </div>
 
       <div className="flex w-full min-w-0 flex-col gap-3 rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -717,6 +749,7 @@ export function EmbedReservationWidget({
           />
         </div>
       </div>
+      <EmbedFieldErrorHint field="notifyChannel" errors={fieldErrors} />
 
       <div
         className="flex w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-border/50 bg-muted/20 p-3"
@@ -755,6 +788,7 @@ export function EmbedReservationWidget({
           aria-labelledby="embed-terms-label"
         />
       </div>
+      <EmbedFieldErrorHint field="terms" errors={fieldErrors} />
       <input
         type="text"
         name="website"
@@ -865,6 +899,7 @@ export function EmbedReservationWidget({
                       "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
                   )}
                 />
+                <EmbedFieldErrorHint field="manageNumber" errors={fieldErrors} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="embed-pin">PIN (6 Ziffern)</Label>
@@ -884,6 +919,7 @@ export function EmbedReservationWidget({
                       "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
                   )}
                 />
+                <EmbedFieldErrorHint field="managePin" errors={fieldErrors} />
               </div>
             </div>
             {manageSuccess ? (

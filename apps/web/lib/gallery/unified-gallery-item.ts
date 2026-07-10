@@ -14,6 +14,8 @@ export type UnifiedGalleryItem = {
   mediaKind: GalleryMediaKind;
   previewUrl: string;
   fullUrl: string | null;
+  thumbUrl?: string | null;
+  blurDataUrl?: string | null;
   width: number | null;
   height: number | null;
   storagePath: string | null;

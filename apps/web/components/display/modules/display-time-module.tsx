@@ -159,6 +159,7 @@ export function DisplayTimeModule({
   const [actionBusy, setActionBusy] = useState(false);
   const [requestSheetOpen, setRequestSheetOpen] = useState(false);
   const [availabilitySheetOpen, setAvailabilitySheetOpen] = useState(false);
+  const [availabilityEnabled, setAvailabilityEnabled] = useState(true);
   const { pending: pendingTimeRequest, refresh: refreshPendingTimeRequest } =
     useDisplayTimeRequestPending();
   const reduceMotion = useReducedMotion() ?? false;
@@ -219,6 +220,26 @@ export function DisplayTimeModule({
       window.removeEventListener(GWADA_DISPLAY_TIME_REFRESH_EVENT, onLiveRefresh);
     };
   }, [refresh]);
+
+  useEffect(() => {
+    void fetch("/api/display/availability", {
+      credentials: "include",
+      cache: "no-store",
+    })
+      .then(async (res) => {
+        if (res.status === 403) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          if (body.error === "availability_disabled") {
+            setAvailabilityEnabled(false);
+          }
+          return;
+        }
+        setAvailabilityEnabled(res.ok);
+      })
+      .catch(() => {
+        /* keep default visible */
+      });
+  }, []);
 
   const runTimeAction = useCallback(
     async (action: TimeAction): Promise<boolean> => {
@@ -349,44 +370,53 @@ export function DisplayTimeModule({
           ease: MOTION_EASE_IN_OUT,
         }}
       >
-        <div className="relative flex min-h-8 w-full items-center justify-center">
-          <AnimatePresence mode="wait" initial={false}>
-            <motion.p
-              key={state.status}
-              className={cn(
-                "text-sm font-medium uppercase tracking-wide",
-                displayTimeStatusClassName(state.status),
-              )}
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
-              transition={statusTransition}
-            >
-              {displayTimeStatusLabel(state.status)}
-            </motion.p>
-          </AnimatePresence>
-          <Button
-            type="button"
-            variant="outline"
-            className="absolute top-1/2 left-0 h-8 -translate-y-1/2 rounded-full border-border/60 px-3.5 text-sm"
-            disabled={actionsBlocked}
-            onClick={() => setAvailabilitySheetOpen(true)}
-          >
-            <CalendarClock className="size-4" />
-            Verfügbarkeit
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="absolute top-1/2 right-0 h-8 -translate-y-1/2 rounded-full border-border/60 px-3.5 text-sm"
-            disabled={actionsBlocked}
-            onClick={() => setRequestSheetOpen(true)}
-          >
-            Nachtragen
-            {pendingTimeRequest ? (
-              <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-accent" />
+        <div className="flex w-full flex-col gap-3">
+          <div className="flex min-h-8 w-full items-center justify-center">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={state.status}
+                className={cn(
+                  "text-sm font-medium uppercase tracking-wide",
+                  displayTimeStatusClassName(state.status),
+                )}
+                initial={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: reduceMotion ? 0 : -6 }}
+                transition={statusTransition}
+              >
+                {displayTimeStatusLabel(state.status)}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+          <div className="flex w-full items-stretch justify-center gap-2">
+            {availabilityEnabled ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 min-w-0 flex-1 rounded-full border-border/60 px-3 text-sm sm:h-10 sm:px-3.5"
+                disabled={actionsBlocked}
+                onClick={() => setAvailabilitySheetOpen(true)}
+              >
+                <CalendarClock className="size-4 shrink-0" />
+                <span className="truncate">Verfügbarkeit</span>
+              </Button>
             ) : null}
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(
+                "relative h-9 min-w-0 rounded-full border-border/60 px-3 text-sm sm:h-10 sm:px-3.5",
+                availabilityEnabled ? "flex-1" : "w-full max-w-xs",
+              )}
+              disabled={actionsBlocked}
+              onClick={() => setRequestSheetOpen(true)}
+            >
+              <span className="truncate">Nachtragen</span>
+              {pendingTimeRequest ? (
+                <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-accent" />
+              ) : null}
+            </Button>
+          </div>
         </div>
 
         <div className="relative mx-auto flex w-full max-w-md flex-col gap-8">

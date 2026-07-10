@@ -1,4 +1,7 @@
-import { localDayKey } from "@/lib/staff/shift-schedule-range";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 import type { Weekday } from "@/lib/types/restaurant";
 import type { RestaurantStaffAvailabilitySlotRow } from "@/lib/types/staff-availability";
 import { STAFF_AVAILABILITY_WEEKDAY_LABELS } from "@/lib/types/staff-availability";
@@ -17,6 +20,12 @@ export const SHIFT_PLAN_AVAILABILITY_COLOR = "#22c55e";
 
 export function weekdayFromLocalDate(d: Date): Weekday {
   return JS_DAY_TO_WEEKDAY[d.getDay()]!;
+}
+
+function weekdayFromRestaurantDayKey(dayKey: string): Weekday {
+  const [y, m, day] = dayKey.split("-").map(Number);
+  const jsDay = new Date(Date.UTC(y!, (m ?? 1) - 1, day ?? 1)).getUTCDay();
+  return JS_DAY_TO_WEEKDAY[jsDay]!;
 }
 
 export function formatAvailabilityTimeHm(time: string): string {
@@ -51,9 +60,10 @@ export function resolveAvailabilitySlotsForDay(
   slots: readonly RestaurantStaffAvailabilitySlotRow[],
   staffId: string,
   day: Date,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): RestaurantStaffAvailabilitySlotRow[] {
-  const dayKey = localDayKey(day);
-  const weekday = weekdayFromLocalDate(day);
+  const dayKey = restaurantZonedDateKey(day, timeZone);
+  const weekday = weekdayFromRestaurantDayKey(dayKey);
   return slots
     .filter((slot) => {
       if (slot.staff_id !== staffId) return false;
@@ -66,13 +76,19 @@ export function resolveAvailabilitySlotsForDay(
 export function buildAvailabilityMaps(
   slots: readonly RestaurantStaffAvailabilitySlotRow[],
   days: readonly Date[],
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): Map<string, RestaurantStaffAvailabilitySlotRow[]> {
   const map = new Map<string, RestaurantStaffAvailabilitySlotRow[]>();
   for (const day of days) {
-    const dayKey = localDayKey(day);
+    const dayKey = restaurantZonedDateKey(day, timeZone);
     const staffIds = new Set(slots.map((s) => s.staff_id));
     for (const staffId of staffIds) {
-      const resolved = resolveAvailabilitySlotsForDay(slots, staffId, day);
+      const resolved = resolveAvailabilitySlotsForDay(
+        slots,
+        staffId,
+        day,
+        timeZone,
+      );
       if (resolved.length === 0) continue;
       map.set(`${staffId}__${dayKey}`, resolved);
     }
@@ -80,10 +96,10 @@ export function buildAvailabilityMaps(
   return map;
 }
 
-export function staffHasAvailabilityOnDay(
-  slots: readonly RestaurantStaffAvailabilitySlotRow[],
-  staffId: string,
+/** @deprecated Nur für Legacy-Aufrufe — bevorzugt restaurantZonedDateKey. */
+export function availabilityDayKey(
   day: Date,
-): boolean {
-  return resolveAvailabilitySlotsForDay(slots, staffId, day).length > 0;
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  return restaurantZonedDateKey(day, timeZone);
 }

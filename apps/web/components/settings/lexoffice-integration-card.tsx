@@ -90,6 +90,9 @@ export function LexofficeIntegrationCard() {
     }
     toast.success("Lexware Office verbunden.");
     applyResponse(data);
+    if (data.webhookWarning) {
+      toast.warning(data.webhookWarning);
+    }
   }, [restaurantId, apiKey]);
 
   useRegisterSettingsIntegrationSave("lexoffice", dirty && canManage, save);
@@ -145,6 +148,10 @@ export function LexofficeIntegrationCard() {
         alertLine={
           state?.lastError ? (
             <span className="text-destructive">{state.lastError}</span>
+          ) : state?.webhookWarning ? (
+            <span className="text-amber-700 dark:text-amber-400">
+              {state.webhookWarning}
+            </span>
           ) : !state?.platformEnabled ? (
             RESTAURANT_INTEGRATION_NOT_ENABLED_MESSAGE
           ) : undefined

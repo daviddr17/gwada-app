@@ -7,6 +7,8 @@ import {
   menuItemAvailabilityPhase,
   menuItemHasAvailabilityWindow,
 } from "@/lib/menu/item-utils";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { MenuItem } from "@/lib/types/menu";
 import { cn } from "@/lib/utils";
 
@@ -19,9 +21,12 @@ export function MenuItemAvailabilityBadge({
   item,
   className,
 }: MenuItemAvailabilityBadgeProps) {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const timeZone = useRestaurantIanaTimezone(restaurantId);
+
   if (!menuItemHasAvailabilityWindow(item)) return null;
 
-  const phase = menuItemAvailabilityPhase(item);
+  const phase = menuItemAvailabilityPhase(item, new Date(), timeZone);
   const label = formatMenuItemAvailabilityRangeDe(
     item.availableFrom,
     item.availableTo,

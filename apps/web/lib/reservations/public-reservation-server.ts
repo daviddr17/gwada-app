@@ -27,6 +27,10 @@ import {
 import { insertReservationLogEntry } from "@/lib/reservations/reservation-log-insert";
 import { dispatchReservationEmail } from "@/lib/reservations/reservation-email-dispatch";
 import { dispatchReservationWhatsapp } from "@/lib/reservations/reservation-whatsapp-dispatch";
+import {
+  reservationDateTimeChanged,
+  shouldRescheduleTimedOutbox,
+} from "@/lib/reservations/reservation-datetime-reschedule";
 import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import { normalizeRestaurantSlugInput } from "@/lib/restaurant/restaurant-slug";
 import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
@@ -634,10 +638,22 @@ export async function updatePublicReservation(
         patch.guest_last_name,
       ),
       details: buildReservationLogDetails(
-        buildReservationLogChanges(before, after),
+        buildReservationLogChanges(before, after, restaurantRes.data.timezone),
         { actorSource: "guest" },
       ),
     });
+    const datetimeChanged = reservationDateTimeChanged(
+      { starts_at: existing.starts_at, ends_at: existing.ends_at },
+      { starts_at: patch.starts_at, ends_at: patch.ends_at },
+    );
+    if (shouldRescheduleTimedOutbox(existing.status_code, datetimeChanged)) {
+      if (body.notify_whatsapp) {
+        void dispatchReservationWhatsapp(admin, existing.id, "rescheduled");
+      }
+      if (body.notify_email) {
+        void dispatchReservationEmail(admin, existing.id, "rescheduled");
+      }
+    }
     if (body.notify_email || body.notify_whatsapp) {
       await dispatchGuestNotifications(existing.id);
     }
@@ -723,7 +739,7 @@ export async function updatePublicReservation(
       patch.guest_last_name,
     ),
     details: buildReservationLogDetails(
-      buildReservationLogChanges(before, after),
+      buildReservationLogChanges(before, after, restaurantRes.data.timezone),
       { actorSource: "guest", summary: "Änderungsanfrage vom Gast" },
     ),
   });

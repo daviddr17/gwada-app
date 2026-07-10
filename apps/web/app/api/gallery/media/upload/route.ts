@@ -1,15 +1,17 @@
-import { randomUUID } from "crypto";
 import {
   GALLERY_MEDIA_BUCKET,
   buildGalleryMediaStoragePath,
+  buildGalleryMediaVariantPath,
+  galleryMediaKindFromMime,
   resolveGalleryMediaSignedUrl,
 } from "@/lib/gallery/gallery-media";
 import { authorizeGalleryRestaurant } from "@/lib/gallery/route-auth";
-import {
-  galleryMediaKindFromMime,
-  validateGalleryMediaFile,
-} from "@/lib/gallery/validate-gallery-media-file";
+import { validateGalleryMediaFile } from "@/lib/gallery/validate-gallery-media-file";
 import { assertWorkspaceStorageAvailable } from "@/lib/gallery/workspace-storage-server";
+import {
+  FEED_MEDIA_OUTPUT_MIME,
+  processFeedMediaImage,
+} from "@/lib/images/process-feed-media-image";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -36,14 +38,74 @@ export async function POST(req: Request) {
     return Response.json({ error: "invalid_file" }, { status: 400 });
   }
 
-  const quota = await assertWorkspaceStorageAvailable(auth.sb, restaurantId, file.size);
-  if (!quota.ok) {
-    return Response.json({ error: quota.error }, { status: quota.status });
-  }
-
   const admin = createSupabaseAdminClient();
   if (!admin) {
     return Response.json({ error: "server_misconfigured" }, { status: 503 });
+  }
+
+  const kind = galleryMediaKindFromMime(file.type);
+
+  if (kind === "image") {
+    const input = Buffer.from(await file.arrayBuffer());
+    const processed = await processFeedMediaImage(input);
+    const storagePath = buildGalleryMediaVariantPath({
+      restaurantId,
+      itemId,
+      variant: "preview",
+    });
+    const thumbStoragePath = buildGalleryMediaVariantPath({
+      restaurantId,
+      itemId,
+      variant: "thumb",
+    });
+    const sizeBytes = processed.previewSizeBytes + processed.thumbSizeBytes;
+
+    const quota = await assertWorkspaceStorageAvailable(
+      auth.sb,
+      restaurantId,
+      sizeBytes,
+    );
+    if (!quota.ok) {
+      return Response.json({ error: quota.error }, { status: quota.status });
+    }
+
+    const [previewUpload, thumbUpload] = await Promise.all([
+      admin.storage.from(GALLERY_MEDIA_BUCKET).upload(storagePath, processed.preview, {
+        contentType: FEED_MEDIA_OUTPUT_MIME,
+        upsert: false,
+      }),
+      admin.storage.from(GALLERY_MEDIA_BUCKET).upload(thumbStoragePath, processed.thumb, {
+        contentType: FEED_MEDIA_OUTPUT_MIME,
+        upsert: false,
+      }),
+    ]);
+
+    if (previewUpload.error || thumbUpload.error) {
+      return Response.json(
+        { error: previewUpload.error?.message ?? thumbUpload.error?.message },
+        { status: 500 },
+      );
+    }
+
+    const signedUrl = await resolveGalleryMediaSignedUrl(storagePath);
+
+    return Response.json({
+      itemId,
+      storagePath,
+      thumbStoragePath,
+      blurDataUrl: processed.blurDataUrl,
+      width: processed.width,
+      height: processed.height,
+      mimeType: FEED_MEDIA_OUTPUT_MIME,
+      kind,
+      sizeBytes,
+      previewUrl: signedUrl,
+    });
+  }
+
+  const quota = await assertWorkspaceStorageAvailable(auth.sb, restaurantId, file.size);
+  if (!quota.ok) {
+    return Response.json({ error: quota.error }, { status: quota.status });
   }
 
   const storagePath = buildGalleryMediaStoragePath({
@@ -67,7 +129,7 @@ export async function POST(req: Request) {
     itemId,
     storagePath,
     mimeType: file.type,
-    kind: galleryMediaKindFromMime(file.type),
+    kind,
     sizeBytes: file.size,
     previewUrl: signedUrl,
   });

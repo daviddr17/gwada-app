@@ -25,7 +25,7 @@ function DashboardGlobalSearchTrigger() {
       variant="outline"
       size="sm"
       className={cn(
-        "hidden h-8 shrink-0 gap-2 rounded-full border-border/60 bg-card/70 px-3 text-muted-foreground shadow-none sm:inline-flex",
+        "flex h-8 shrink-0 gap-2 rounded-full border-border/60 bg-card/70 px-3 text-muted-foreground shadow-none sm:inline-flex",
         "hover:bg-card hover:text-foreground",
       )}
       aria-label="Globale Suche öffnen"

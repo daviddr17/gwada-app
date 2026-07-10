@@ -67,6 +67,7 @@ import {
 } from "@/lib/supabase/staff-shift-schedule-db";
 import { fetchStaffAvailabilitySlotsForRestaurant } from "@/lib/supabase/staff-availability-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useShiftPlanWeatherByDate } from "@/lib/hooks/use-shift-plan-weather-by-date";
 import { usePublicHolidaysByDate } from "@/lib/hooks/use-public-holidays-by-date";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
@@ -93,6 +94,11 @@ import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primar
 import { moduleTableFullscreenToggleButtonClassName } from "@/lib/ui/module-paginated-data-table";
 import { cn } from "@/lib/utils";
 import {
+  parseRestaurantYmdKey,
+  restaurantZonedDateKey,
+  utcInstantForRestaurantLocal,
+} from "@/lib/restaurant/restaurant-timezone";
+import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
@@ -111,6 +117,7 @@ export function StaffShiftPlanScreen({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const positionTags = useStaffPositionTagsStorage(restaurantId);
 
   const [view, setView] = useState<ShiftScheduleViewMode>("week");
@@ -179,6 +186,28 @@ export function StaffShiftPlanScreen({
       setDrawerOpen(true);
     }
   }, [searchParams, router, pathname]);
+
+  useEffect(() => {
+    const dayParam = searchParams.get("day");
+    if (!dayParam) return;
+    const parsed = parseRestaurantYmdKey(dayParam);
+    if (!parsed) return;
+    setAnchor(
+      utcInstantForRestaurantLocal(
+        parsed.year,
+        parsed.month,
+        parsed.day,
+        12,
+        0,
+        restaurantTimeZone,
+      ),
+    );
+    setView("day");
+    const p = new URLSearchParams(searchParams.toString());
+    p.delete("day");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname, restaurantTimeZone]);
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [shiftToDelete, setShiftToDelete] =
@@ -786,6 +815,7 @@ export function StaffShiftPlanScreen({
           shifts={visibleShifts}
           absenceEntries={visibleAbsences}
           availabilitySlots={visibleAvailabilitySlots}
+          restaurantTimeZone={restaurantTimeZone}
           holidaysByDate={holidaysByDate}
           weatherByDate={weatherByDate}
           contracts={contracts}
@@ -806,13 +836,16 @@ export function StaffShiftPlanScreen({
           shifts={visibleShifts}
           absenceEntries={visibleAbsences}
           availabilitySlots={visibleAvailabilitySlots}
+          restaurantTimeZone={restaurantTimeZone}
           holidaysByDate={holidaysByDate}
           weatherByDate={weatherByDate}
           contracts={contracts}
           targetSummaryDays={targetSummaryDays}
           viewMode={view}
           hoursSummaryDayKeys={
-            view === "week" ? anchorWeekDays.map(localDayKey) : undefined
+            view === "week"
+              ? anchorWeekDays.map((d) => restaurantZonedDateKey(d, restaurantTimeZone))
+              : undefined
           }
           onPrevWeek={() => setAnchor((a) => navigateAnchor(a, view, -1))}
           onNextWeek={() => setAnchor((a) => navigateAnchor(a, view, 1))}

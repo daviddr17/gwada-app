@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { parseProfileVisibility } from "@/lib/profile/profile-nav";
 import type {
   CreateStaffAvailabilitySlotInput,
   StaffAvailabilitySlotKind,
@@ -10,6 +11,25 @@ import type {
 
 const SLOT_SELECT =
   "id, restaurant_id, staff_id, weekday, service_date, start_time, end_time, note, created_by, created_at, updated_at";
+
+async function assertAvailabilityEnabled(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  restaurantId: string,
+): Promise<Response | null> {
+  const { data } = await admin
+    .from("restaurant_staff_module_settings")
+    .select("profile_show_availability")
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  const visibility = parseProfileVisibility(data);
+  if (!visibility.profile_show_availability) {
+    return NextResponse.json(
+      { error: "availability_disabled", enabled: false },
+      { status: 403 },
+    );
+  }
+  return null;
+}
 
 function normalizeHmInput(value: string): string | null {
   const trimmed = value.trim();
@@ -28,6 +48,9 @@ export async function GET() {
   if (!admin) {
     return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
   }
+
+  const disabled = await assertAvailabilityEnabled(admin, access.restaurantId);
+  if (disabled) return disabled;
 
   const { data, error } = await admin
     .from("restaurant_staff_availability_slots")
@@ -56,6 +79,9 @@ export async function POST(request: Request) {
   if (!admin) {
     return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
   }
+
+  const disabled = await assertAvailabilityEnabled(admin, access.restaurantId);
+  if (disabled) return disabled;
 
   let body: Partial<CreateStaffAvailabilitySlotInput> & {
     kind?: StaffAvailabilitySlotKind;
@@ -124,6 +150,9 @@ export async function DELETE(request: Request) {
   if (!admin) {
     return NextResponse.json({ error: "server_misconfigured" }, { status: 503 });
   }
+
+  const disabled = await assertAvailabilityEnabled(admin, access.restaurantId);
+  if (disabled) return disabled;
 
   const { searchParams } = new URL(request.url);
   const slotId = searchParams.get("id");

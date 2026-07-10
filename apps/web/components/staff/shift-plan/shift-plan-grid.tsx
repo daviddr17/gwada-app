@@ -28,6 +28,8 @@ import {
   resolveShiftPlanStaffTargetMinutes,
 } from "@/lib/staff/shift-plan-target-hours";
 import { localDayKey, weekdayLabelShort } from "@/lib/staff/shift-schedule-range";
+import { restaurantZonedDateKey } from "@/lib/restaurant/restaurant-timezone";
+import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
 import {
   groupStaffByPositionTag,
   positionGroupHeaderStyle,
@@ -272,6 +274,7 @@ type ShiftPlanViewProps = {
   shifts: RestaurantStaffScheduledShiftRow[];
   absenceEntries?: readonly RestaurantStaffWorkEntryRow[];
   availabilitySlots?: readonly RestaurantStaffAvailabilitySlotRow[];
+  restaurantTimeZone?: string;
   holidaysByDate?: Record<string, string>;
   weatherByDate?: ReadonlyMap<string, ShiftPlanDayWeather>;
   contracts?: readonly RestaurantStaffContractRow[];
@@ -437,6 +440,7 @@ function ShiftPlanGroupGrid({
   shiftsByCell,
   absencesByCell,
   availabilityByCell,
+  restaurantTimeZone = DEFAULT_RESTAURANT_TIMEZONE,
   minutesByStaff,
   holidaysByDate,
   weatherByDate,
@@ -458,6 +462,7 @@ function ShiftPlanGroupGrid({
   shiftsByCell: Map<string, RestaurantStaffScheduledShiftRow[]>;
   absencesByCell: Map<string, RestaurantStaffWorkEntryRow[]>;
   availabilityByCell: Map<string, RestaurantStaffAvailabilitySlotRow[]>;
+  restaurantTimeZone?: string;
   minutesByStaff: Map<string, number>;
   holidaysByDate: Record<string, string>;
   weatherByDate?: ReadonlyMap<string, ShiftPlanDayWeather>;
@@ -589,6 +594,7 @@ function ShiftPlanGroupGrid({
               {showWeekNav ? <ShiftPlanWeekNavSpacer /> : null}
               {days.map((day) => {
                 const cellKey = `${staff.id}__${localDayKey(day)}`;
+                const availabilityKey = `${staff.id}__${restaurantZonedDateKey(day, restaurantTimeZone)}`;
                 return (
                   <ShiftPlanDropCell
                     key={cellKey}
@@ -596,7 +602,7 @@ function ShiftPlanGroupGrid({
                     day={day}
                     shifts={shiftsByCell.get(cellKey) ?? []}
                     absences={absencesByCell.get(cellKey) ?? []}
-                    availabilitySlots={availabilityByCell.get(cellKey) ?? []}
+                    availabilitySlots={availabilityByCell.get(availabilityKey) ?? []}
                     onAdd={() => onAddShift(staff.id, day)}
                     onEditShift={onEditShift}
                     onDeleteShift={onDeleteShift}
@@ -623,6 +629,7 @@ export function ShiftPlanGrid({
   shifts,
   absenceEntries = [],
   availabilitySlots = [],
+  restaurantTimeZone = DEFAULT_RESTAURANT_TIMEZONE,
   holidaysByDate = {},
   weatherByDate,
   contracts = [],
@@ -650,8 +657,8 @@ export function ShiftPlanGrid({
     [absenceEntries],
   );
   const availabilityByCell = useMemo(
-    () => buildAvailabilityMaps(availabilitySlots, days),
-    [availabilitySlots, days],
+    () => buildAvailabilityMaps(availabilitySlots, days, restaurantTimeZone),
+    [availabilitySlots, days, restaurantTimeZone],
   );
 
   if (groups.length === 0) {
@@ -677,6 +684,7 @@ export function ShiftPlanGrid({
               shiftsByCell={shiftsByCell}
               absencesByCell={absencesByCell}
               availabilityByCell={availabilityByCell}
+              restaurantTimeZone={restaurantTimeZone}
               minutesByStaff={minutesByStaff}
               holidaysByDate={holidaysByDate}
               weatherByDate={weatherByDate}
@@ -764,6 +772,7 @@ function ShiftPlanMonthDayCard({
   shiftsByCell,
   absencesByCell,
   availabilityByCell,
+  restaurantTimeZone = DEFAULT_RESTAURANT_TIMEZONE,
   holidayName,
   weather,
   onAddShift,
@@ -786,8 +795,10 @@ function ShiftPlanMonthDayCard({
   onDeleteAbsence?: (entry: RestaurantStaffWorkEntryRow) => void;
   onStaffClick?: (staff: RestaurantStaffRow) => void;
   editable: boolean;
+  restaurantTimeZone?: string;
 }) {
   const key = localDayKey(day);
+  const availabilityKey = restaurantZonedDateKey(day, restaurantTimeZone);
   const todayKey = localDayKey(new Date());
   const isToday = key === todayKey;
   const dayHasEntries = groups.some((g) =>
@@ -796,7 +807,7 @@ function ShiftPlanMonthDayCard({
       return (
         (shiftsByCell.get(cellKey) ?? []).length > 0 ||
         (absencesByCell.get(cellKey) ?? []).length > 0 ||
-        (availabilityByCell.get(cellKey) ?? []).length > 0
+        (availabilityByCell.get(`${s.id}__${availabilityKey}`) ?? []).length > 0
       );
     }),
   );
@@ -854,7 +865,7 @@ function ShiftPlanMonthDayCard({
                     day={day}
                     shifts={shiftsByCell.get(`${staff.id}__${key}`) ?? []}
                     absences={absencesByCell.get(`${staff.id}__${key}`) ?? []}
-                    availabilitySlots={availabilityByCell.get(`${staff.id}__${key}`) ?? []}
+                    availabilitySlots={availabilityByCell.get(`${staff.id}__${availabilityKey}`) ?? []}
                     onAddShift={onAddShift}
                     onEditShift={onEditShift}
                     onDeleteShift={onDeleteShift}
@@ -885,6 +896,7 @@ export function ShiftPlanMonthView({
   shifts,
   absenceEntries = [],
   availabilitySlots = [],
+  restaurantTimeZone = DEFAULT_RESTAURANT_TIMEZONE,
   holidaysByDate = {},
   weatherByDate,
   contracts = [],
@@ -904,8 +916,8 @@ export function ShiftPlanMonthView({
     [absenceEntries],
   );
   const availabilityByCell = useMemo(
-    () => buildAvailabilityMaps(availabilitySlots, days),
-    [availabilitySlots, days],
+    () => buildAvailabilityMaps(availabilitySlots, days, restaurantTimeZone),
+    [availabilitySlots, days, restaurantTimeZone],
   );
 
   if (groups.length === 0) {
@@ -928,6 +940,7 @@ export function ShiftPlanMonthView({
             shiftsByCell={shiftsByCell}
             absencesByCell={absencesByCell}
             availabilityByCell={availabilityByCell}
+            restaurantTimeZone={restaurantTimeZone}
             holidayName={holidaysByDate[key]}
             weather={weatherByDate?.get(key)}
             onAddShift={onAddShift}

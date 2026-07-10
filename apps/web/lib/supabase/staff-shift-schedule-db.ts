@@ -1,5 +1,8 @@
-import { localDayKey } from "@/lib/staff/shift-schedule-range";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  restaurantZonedDateKey,
+} from "@/lib/restaurant/restaurant-timezone";
 import type {
   RestaurantShiftScheduleSettingsRow,
   RestaurantShiftTemplateRow,
@@ -183,6 +186,7 @@ export async function fetchScheduledStaffCountsByDayForRange(
   restaurantId: string,
   rangeStartIso: string,
   rangeEndExclusiveIso: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
 ): Promise<{ data: Map<string, number>; error: string | null }> {
   const sb = createSupabaseBrowserClient();
   const { data, error } = await sb
@@ -197,7 +201,10 @@ export async function fetchScheduledStaffCountsByDayForRange(
   const staffByDay = new Map<string, Set<string>>();
   for (const row of data ?? []) {
     if ((row.status as string) === "declined") continue;
-    const dayKey = localDayKey(new Date(row.starts_at as string));
+    const dayKey = restaurantZonedDateKey(
+      new Date(row.starts_at as string),
+      timeZone,
+    );
     const bucket = staffByDay.get(dayKey) ?? new Set<string>();
     bucket.add(row.staff_id as string);
     staffByDay.set(dayKey, bucket);

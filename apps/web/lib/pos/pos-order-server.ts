@@ -4,6 +4,7 @@ import { assertPosOrderStatusTransition, type PosOrderStatus } from "@gwada/pos-
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 
 export type CreatePosOrderLineInput = {
   menuItemId: string;
@@ -133,6 +134,12 @@ export async function createPosOrder(params: {
 
   const menuById = new Map(menuItems.map((m) => [m.id as string, m]));
 
+  const admin = params.supabase;
+  const restaurantTimeZone = await fetchRestaurantTimezoneServer(
+    admin,
+    params.restaurantId,
+  );
+
   let subtotalCents = 0;
   const lineRows: Array<Record<string, unknown>> = [];
 
@@ -152,7 +159,7 @@ export async function createPosOrder(params: {
         active: Boolean(menuItem.is_active),
         availableFrom: (menuItem.available_from as string | null) ?? null,
         availableTo: (menuItem.available_to as string | null) ?? null,
-      })
+      }, new Date(), restaurantTimeZone)
     ) {
       return { ok: false, error: "invalid_menu_item", status: 400 };
     }

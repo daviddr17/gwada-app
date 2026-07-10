@@ -2,6 +2,8 @@
 
 import { memo, useCallback, useState, type MouseEvent } from "react";
 import { ExternalLink } from "lucide-react";
+import { Masonry } from "masonic";
+import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
@@ -10,6 +12,9 @@ import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
+import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
+import { feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
+import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
 import { cn } from "@/lib/utils";
 
 const PREVIEW_BODY_CHAR_THRESHOLD = 200;
@@ -90,14 +95,15 @@ const NewsCard = memo(function NewsCard({
   const cardContent = (
     <>
       {preview?.url ? (
-        <div className="relative w-full shrink-0 bg-muted/30">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+        <div className="max-h-80 w-full overflow-hidden">
+          <FeedMediaImage
             src={preview.url}
+            thumbSrc={preview.thumbUrl}
+            blurDataUrl={preview.blurDataUrl}
+            width={preview.width}
+            height={preview.height}
             alt=""
-            loading="lazy"
-            decoding="async"
-            className="block max-h-80 w-full object-cover"
+            fit="cover"
           />
         </div>
       ) : null}
@@ -171,7 +177,7 @@ const NewsFeedCardRow = memo(function NewsFeedCardRow({
   );
 });
 
-/** Pinterest-Raster: CSS-Columns, neueste links oben. */
+/** Virtualisiertes Masonry-Raster (masonic) — stabile Kachelhöhen, kein CSS-Columns-Reflow. */
 export function NewsMasonryGrid({
   items,
   onItemClick,
@@ -182,18 +188,34 @@ export function NewsMasonryGrid({
   /** Profil & Einbindung: Text per „Mehr anzeigen“ in der Karte aufklappen (kein Drawer). */
   inlineExpandBody?: boolean;
 }) {
+  const { columnCount, mounted } = useFeedMasonryColumns(feedMasonryColumnCount);
+
+  const render = useCallback(
+    ({ data }: { data: UnifiedNewsItem }) => (
+      <NewsFeedCardRow
+        item={data}
+        onItemClick={onItemClick}
+        inlineExpandBody={inlineExpandBody}
+      />
+    ),
+    [onItemClick, inlineExpandBody],
+  );
+
+  if (items.length === 0) return null;
+
+  if (!mounted) {
+    return <NewsFeedSkeleton viewMode="grid" />;
+  }
+
   return (
-    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 xl:columns-4 [contain:layout]">
-      {items.map((item) => (
-        <NewsFeedCardRow
-          key={item.id}
-          item={item}
-          masonry
-          onItemClick={onItemClick}
-          inlineExpandBody={inlineExpandBody}
-        />
-      ))}
-    </div>
+    <Masonry
+      items={items}
+      columnCount={columnCount}
+      columnGutter={16}
+      rowGutter={16}
+      itemKey={(item) => item.id}
+      render={render}
+    />
   );
 }
 

@@ -125,5 +125,7 @@ export type LexofficeIntegrationResponse = {
   connectedAt: string | null;
   apiKeyConfigured: boolean;
   lastError: string | null;
+  /** Verbindung ok, aber Webhook-Registrierung fehlgeschlagen. */
+  webhookWarning: string | null;
   message?: string;
 };

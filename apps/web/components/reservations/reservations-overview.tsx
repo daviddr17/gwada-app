@@ -53,6 +53,7 @@ import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import {
   createRestaurantDateTimeFormatter,
+  restaurantTodayYmd,
   restaurantZonedDateKey,
 } from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
@@ -96,8 +97,8 @@ import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
 const selectValueNoShrink =
   "[&_[data-slot=select-value]]:!min-w-0 [&_[data-slot=select-value]]:!shrink-0 [&_[data-slot=select-value]]:!grow-0 [&_[data-slot=select-value]]:overflow-visible [&_[data-slot=select-value]]:whitespace-nowrap";
 
-function localDayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function gridDayKey(d: Date, timeZone: string): string {
+  return restaurantZonedDateKey(d, timeZone);
 }
 
 function localHmFromDate(d: Date): string {
@@ -141,7 +142,6 @@ function useMonthCursor() {
 
 export function ReservationsOverview() {
   const { cursor, setMonth, setYear, prevMonth, nextMonth } = useMonthCursor();
-  const today = useMemo(() => startOfLocalDay(new Date()), []);
 
   const monthStart = useMemo(
     () => startOfLocalDay(new Date(cursor.year, cursor.month, 1)),
@@ -166,9 +166,6 @@ export function ReservationsOverview() {
     [monthEnd],
   );
 
-  const isViewingCurrentMonth =
-    cursor.year === today.getFullYear() && cursor.month === today.getMonth();
-
   const [rows, setRows] = useState<ReservationListRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -178,6 +175,11 @@ export function ReservationsOverview() {
     ready: workspaceReady,
   } = useWorkspaceRestaurantUuid();
   const restaurantTimeZone = useRestaurantIanaTimezone(workspaceRestaurantId);
+  const todayYmd = restaurantTodayYmd(restaurantTimeZone);
+  const today = useMemo(() => {
+    const [y, m, d] = todayYmd.split("-").map(Number);
+    return startOfLocalDay(new Date(y!, (m ?? 1) - 1, d ?? 1));
+  }, [todayYmd]);
   const timeFmt = useMemo(
     () =>
       createRestaurantDateTimeFormatter(restaurantTimeZone, {
@@ -189,8 +191,9 @@ export function ReservationsOverview() {
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "reservations");
 
-  const monthFromYmd = localDayKey(monthStart);
-  const monthToYmd = localDayKey(monthEnd);
+  const monthFromYmd = gridDayKey(monthStart, restaurantTimeZone);
+  const monthToYmd = gridDayKey(monthEnd, restaurantTimeZone);
+  const isViewingCurrentMonth = monthFromYmd.slice(0, 7) === todayYmd.slice(0, 7);
   const { byDate: holidaysByDate } = usePublicHolidaysByDate(
     workspaceRestaurantId,
     monthFromYmd,
@@ -378,6 +381,7 @@ export function ReservationsOverview() {
         workspaceRestaurantId,
         rangeStartIso,
         rangeEndExclusiveIso,
+        restaurantTimeZone,
       );
       if (cancelled) return;
       if (error) {
@@ -394,6 +398,7 @@ export function ReservationsOverview() {
     dbOk,
     rangeStartIso,
     rangeEndExclusiveIso,
+    restaurantTimeZone,
   ]);
 
   const editReservation = useMemo((): ReservationListRow | null => {
@@ -486,7 +491,7 @@ export function ReservationsOverview() {
     ) => {
       const p = new URLSearchParams();
       p.set("new", "1");
-      p.set("day", localDayKey(d));
+      p.set("day", gridDayKey(d, restaurantTimeZone));
       if (extras?.timeHm && /^\d{2}:\d{2}$/.test(extras.timeHm)) {
         p.set("time", extras.timeHm);
       }
@@ -705,17 +710,17 @@ export function ReservationsOverview() {
     if (unconfirmedMode) {
       if (!hideEmptyDays) return unconfirmedDayList;
       return unconfirmedDayList.filter(
-        (d) => (byDay.get(localDayKey(d))?.length ?? 0) > 0,
+        (d) => (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0,
       );
     }
     let out = days;
     if (isViewingCurrentMonth && hidePastReservations) {
       out = out.filter(
-        (d) => startOfLocalDay(d).getTime() >= today.getTime(),
+        (d) => gridDayKey(d, restaurantTimeZone) >= todayYmd,
       );
     }
     if (hideEmptyDays) {
-      out = out.filter((d) => (byDay.get(localDayKey(d))?.length ?? 0) > 0);
+      out = out.filter((d) => (byDay.get(gridDayKey(d, restaurantTimeZone))?.length ?? 0) > 0);
     }
     return out;
   }, [
@@ -726,7 +731,8 @@ export function ReservationsOverview() {
     isViewingCurrentMonth,
     hidePastReservations,
     hideEmptyDays,
-    today,
+    restaurantTimeZone,
+    todayYmd,
   ]);
 
   const visiblePeriodStats = useMemo(() => {
@@ -734,7 +740,7 @@ export function ReservationsOverview() {
     let guestCount = 0;
     let daysWithReservations = 0;
     for (const d of visibleDays) {
-      const list = byDay.get(localDayKey(d)) ?? [];
+      const list = byDay.get(gridDayKey(d, restaurantTimeZone)) ?? [];
       if (list.length > 0) daysWithReservations++;
       reservationCount += list.length;
       guestCount += list.reduce((sum, r) => sum + r.party_size, 0);
@@ -747,7 +753,7 @@ export function ReservationsOverview() {
       daysWithReservations,
       dayCount: visibleDays.length,
     };
-  }, [visibleDays, byDay]);
+  }, [visibleDays, byDay, restaurantTimeZone]);
 
   const filterActiveCount = useMemo(() => {
     if (unconfirmedMode) {
@@ -1017,7 +1023,7 @@ export function ReservationsOverview() {
       <div className="space-y-2">
         {visibleDays.map((d) => {
           const isToday = d.getTime() === today.getTime();
-          const key = localDayKey(d);
+          const key = gridDayKey(d, restaurantTimeZone);
           const holidayName = holidaysByDate[key];
           const list = byDay.get(key) ?? [];
           const resCount = list.length;
@@ -1081,6 +1087,7 @@ export function ReservationsOverview() {
                           <span aria-hidden>·</span>
                           <ReservationDayShiftStaffOverviewChip
                             count={shiftStaffCountsByDate.get(key) ?? 0}
+                            dayKey={key}
                           />
                         </>
                       ) : null}
@@ -1250,7 +1257,7 @@ export function ReservationsOverview() {
         day={daySheetDay}
         restaurantId={workspaceRestaurantId}
         reservations={
-          daySheetDay ? (byDay.get(localDayKey(daySheetDay)) ?? []) : []
+          daySheetDay ? (byDay.get(gridDayKey(daySheetDay, restaurantTimeZone)) ?? []) : []
         }
         onEdit={(r) => {
           if (daySheetDay) {
@@ -1289,7 +1296,7 @@ export function ReservationsOverview() {
         }}
         restaurantId={workspaceRestaurantId}
         serviceDate={
-          dayNotesSheetDay ? localDayKey(dayNotesSheetDay) : null
+          dayNotesSheetDay ? gridDayKey(dayNotesSheetDay, restaurantTimeZone) : null
         }
         dayLabel={
           dayNotesSheetDay ? formatDayHeadingDe(dayNotesSheetDay) : null

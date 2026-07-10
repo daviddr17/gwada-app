@@ -14,6 +14,7 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
+  Coins,
   Package,
   ShoppingCart,
   Truck,
@@ -37,6 +38,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import {
   computeInventoryStatistics,
+  formatInventoryMoney,
   type InventoryStatsPeriod,
 } from "@/lib/inventory/compute-inventory-statistics";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -74,6 +76,18 @@ const orderSupplierConfig = {
 
 const statusConfig = {
   count: { label: "Bestellungen", color: "var(--chart-3)" },
+} satisfies ChartConfig;
+
+const stockValueCategoryConfig = {
+  value: { label: "Lagerwert", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+const orderValueMonthConfig = {
+  value: { label: "Bestellwert", color: "var(--accent)" },
+} satisfies ChartConfig;
+
+const orderValueSupplierConfig = {
+  value: { label: "Bestellwert", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
 function ChartEmpty({ message }: { message: string }) {
@@ -189,7 +203,7 @@ export function InventoryStatisticsScreen() {
 
       {showSkeleton ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 16 }).map((_, i) => (
             <SkeletonCardFrame key={i} className="min-h-[5.5rem] py-4">
               <Skeleton className="h-3 w-24 rounded-md" />
               <Skeleton className="mt-3 h-8 w-16 rounded-lg" />
@@ -253,6 +267,72 @@ export function InventoryStatisticsScreen() {
               label="Top-Lieferant"
               value={stats.topOrderSupplier ?? "—"}
               hint="Meiste Bestellungen im Zeitraum"
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={Coins}
+              label="Lagerwert"
+              value={formatInventoryMoney(stats.totalStockValue)}
+              hint="Aktiver Bestand × EK (nur bepreiste Zutaten)"
+            />
+            <KpiCard
+              icon={Coins}
+              label="Zutaten mit EK"
+              value={`${stats.pricedIngredientsCount} / ${stats.activeIngredients}`}
+              hint={
+                stats.unpricedIngredientsCount > 0
+                  ? `${stats.unpricedIngredientsCount} ohne Einkaufspreis`
+                  : "Alle aktiv bepreist"
+              }
+            />
+            <KpiCard
+              icon={Coins}
+              label="Ø Einkaufspreis"
+              value={
+                stats.avgPurchasePrice != null
+                  ? formatInventoryMoney(stats.avgPurchasePrice)
+                  : "—"
+              }
+              hint="Pro Lagereinheit (bepreiste Zutaten)"
+            />
+            <KpiCard
+              icon={Package}
+              label="Top-Kategorie (Wert)"
+              value={stats.stockValueByCategory[0]?.name ?? "—"}
+              hint={
+                stats.stockValueByCategory[0]
+                  ? formatInventoryMoney(stats.stockValueByCategory[0].value)
+                  : "Lagerwert nach Kategorie"
+              }
+            />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={Coins}
+              label="Offener Bestellwert"
+              value={formatInventoryMoney(stats.openOrdersValue)}
+              hint="Geschätzt aus EK × Menge"
+            />
+            <KpiCard
+              icon={Coins}
+              label="Bestellwert"
+              value={formatInventoryMoney(stats.ordersValueInPeriod)}
+              hint="Neue Bestellungen im Zeitraum"
+            />
+            <KpiCard
+              icon={Truck}
+              label="Geliefert (Wert)"
+              value={formatInventoryMoney(stats.deliveredValueInPeriod)}
+              hint="Gebuchte Lieferungen im Zeitraum"
+            />
+            <KpiCard
+              icon={ShoppingCart}
+              label="Ohne EK"
+              value={String(stats.unpricedOrderLinesInPeriod)}
+              hint="Bestellpositionen ohne Einkaufspreis"
             />
           </div>
         </>
@@ -463,6 +543,125 @@ export function InventoryStatisticsScreen() {
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="min-w-0 border-border/50 shadow-card">
           <CardHeader>
+            <CardTitle className="text-lg">Lagerwert nach Kategorie</CardTitle>
+            <CardDescription>
+              Aktiver Bestand × Einkaufspreis (nur bepreiste Zutaten).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-0">
+            {showSkeleton ? (
+              <Skeleton className="mx-6 h-[240px] w-auto rounded-xl" />
+            ) : !stats || stats.stockValueByCategory.length === 0 ? (
+              <ChartEmpty message="Noch kein Lagerwert mit Einkaufspreisen berechenbar." />
+            ) : (
+              <ChartContainer
+                config={stockValueCategoryConfig}
+                className="aspect-auto h-[260px] w-full min-w-0"
+              >
+                <BarChart
+                  accessibilityLayer
+                  data={stats.stockValueByCategory}
+                  layout="vertical"
+                  margin={{ left: 8, right: 8, top: 8, bottom: 0 }}
+                >
+                  <CartesianGrid horizontal={false} strokeDasharray="4 4" />
+                  <XAxis
+                    type="number"
+                    tickLine={false}
+                    axisLine={false}
+                    className="tabular-nums text-[10px]"
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    width={112}
+                    className="text-xs"
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) =>
+                          formatInventoryMoney(Number(value))
+                        }
+                      />
+                    }
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill="var(--color-value)"
+                    radius={[0, 6, 6, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="min-w-0 border-border/50 shadow-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Bestellwert pro Monat</CardTitle>
+            <CardDescription>
+              Geschätzter Wert neuer Bestellungen (EK × Menge).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-0">
+            {showSkeleton ? (
+              <Skeleton className="mx-6 h-[240px] w-auto rounded-xl" />
+            ) : !stats || stats.orderValueByMonth.length === 0 ? (
+              <ChartEmpty message="Noch kein Bestellwert im gewählten Zeitraum." />
+            ) : (
+              <ChartContainer
+                config={orderValueMonthConfig}
+                className="aspect-auto h-[260px] w-full min-w-0"
+              >
+                <LineChart
+                  accessibilityLayer
+                  data={stats.orderValueByMonth}
+                  margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="month"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    className="text-[10px]"
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    className="tabular-nums text-[10px]"
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) =>
+                          formatInventoryMoney(Number(value))
+                        }
+                      />
+                    }
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="var(--color-value)"
+                    strokeWidth={2}
+                    dot={{ r: 3, fill: "var(--color-value)" }}
+                    activeDot={{ r: 5 }}
+                  />
+                </LineChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="min-w-0 border-border/50 shadow-card">
+          <CardHeader>
             <CardTitle className="text-lg">Bestellungen nach Lieferant</CardTitle>
             <CardDescription>Im gewählten Zeitraum.</CardDescription>
           </CardHeader>
@@ -510,6 +709,65 @@ export function InventoryStatisticsScreen() {
 
         <Card className="min-w-0 border-border/50 shadow-card">
           <CardHeader>
+            <CardTitle className="text-lg">Bestellwert nach Lieferant</CardTitle>
+            <CardDescription>
+              Geschätzter Wert im Zeitraum (EK × Menge).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-0">
+            {showSkeleton ? (
+              <Skeleton className="mx-6 h-[240px] w-auto rounded-xl" />
+            ) : !stats || stats.orderValueBySupplier.length === 0 ? (
+              <ChartEmpty message="Noch kein Bestellwert im Zeitraum." />
+            ) : (
+              <ChartContainer
+                config={orderValueSupplierConfig}
+                className="aspect-auto h-[260px] w-full min-w-0"
+              >
+                <BarChart
+                  accessibilityLayer
+                  data={stats.orderValueBySupplier}
+                  margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={8}
+                    interval={0}
+                    className="text-[10px]"
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={48}
+                    className="tabular-nums text-[10px]"
+                  />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={(value) =>
+                          formatInventoryMoney(Number(value))
+                        }
+                      />
+                    }
+                  />
+                  <Bar
+                    dataKey="value"
+                    fill="var(--color-value)"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="min-w-0 border-border/50 shadow-card">
+          <CardHeader>
             <CardTitle className="text-lg">Bestellstatus im Zeitraum</CardTitle>
             <CardDescription>
               Offen vs. abgeschlossen (nach Anlegedatum).
@@ -554,54 +812,54 @@ export function InventoryStatisticsScreen() {
             )}
           </CardContent>
         </Card>
-      </div>
 
-      <Card className="min-w-0 border-border/50 shadow-card">
-        <CardHeader>
-          <CardTitle className="text-lg">Bestellungen nach Wochentag</CardTitle>
-          <CardDescription>
-            Wann Bestellungen im Zeitraum angelegt wurden.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pl-0">
-          {showSkeleton ? (
-            <Skeleton className="mx-6 h-[240px] w-auto rounded-xl" />
-          ) : !stats || stats.ordersInPeriod === 0 ? (
-            <ChartEmpty message="Noch keine Bestellungen im gewählten Zeitraum." />
-          ) : (
-            <ChartContainer
-              config={weekdayConfig}
-              className="aspect-auto h-[260px] w-full min-w-0"
-            >
-              <BarChart
-                accessibilityLayer
-                data={stats.ordersByWeekday}
-                margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+        <Card className="min-w-0 border-border/50 shadow-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Bestellungen nach Wochentag</CardTitle>
+            <CardDescription>
+              Wann Bestellungen im Zeitraum angelegt wurden.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-0">
+            {showSkeleton ? (
+              <Skeleton className="mx-6 h-[240px] w-auto rounded-xl" />
+            ) : !stats || stats.ordersInPeriod === 0 ? (
+              <ChartEmpty message="Noch keine Bestellungen im gewählten Zeitraum." />
+            ) : (
+              <ChartContainer
+                config={weekdayConfig}
+                className="aspect-auto h-[260px] w-full min-w-0"
               >
-                <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                <XAxis
-                  dataKey="day"
-                  tickLine={false}
-                  axisLine={false}
-                  tickMargin={12}
-                />
-                <YAxis
-                  tickLine={false}
-                  axisLine={false}
-                  width={32}
-                  allowDecimals={false}
-                />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar
-                  dataKey="count"
-                  fill="var(--color-count)"
-                  radius={[6, 6, 0, 0]}
-                />
-              </BarChart>
-            </ChartContainer>
-          )}
-        </CardContent>
-      </Card>
+                <BarChart
+                  accessibilityLayer
+                  data={stats.ordersByWeekday}
+                  margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                >
+                  <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                  <XAxis
+                    dataKey="day"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={12}
+                  />
+                  <YAxis
+                    tickLine={false}
+                    axisLine={false}
+                    width={32}
+                    allowDecimals={false}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar
+                    dataKey="count"
+                    fill="var(--color-count)"
+                    radius={[6, 6, 0, 0]}
+                  />
+                </BarChart>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -28,6 +28,10 @@ import type {
   InventoryTaxonomyDefinition,
   NewIngredient,
 } from "@/lib/types/inventory";
+import {
+  formatPurchaseUnitPriceDisplay,
+  parsePurchaseUnitPriceInput,
+} from "@/lib/inventory/format-purchase-unit-price";
 import { cn } from "@/lib/utils";
 
 type IngredientDrawerProps = {
@@ -140,9 +144,8 @@ export function IngredientDrawer({
     let parsedPrice: number | null = null;
     const priceRaw = purchaseUnitPrice.trim();
     if (priceRaw !== "") {
-      const p = Number.parseFloat(priceRaw.replace(",", "."));
-      if (Number.isNaN(p) || p < 0) return;
-      parsedPrice = p;
+      parsedPrice = parsePurchaseUnitPriceInput(priceRaw);
+      if (parsedPrice == null) return;
     }
     void (async () => {
       const ok = await Promise.resolve(
@@ -238,6 +241,12 @@ export function IngredientDrawer({
                   inputMode="decimal"
                   value={purchaseUnitPrice}
                   onChange={(e) => setPurchaseUnitPrice(e.target.value)}
+                  onBlur={() => {
+                    const parsed = parsePurchaseUnitPriceInput(purchaseUnitPrice);
+                    if (parsed != null) {
+                      setPurchaseUnitPrice(formatPurchaseUnitPriceDisplay(parsed));
+                    }
+                  }}
                   placeholder="optional, z. B. 2,50"
                   className="h-12 rounded-xl"
                 />

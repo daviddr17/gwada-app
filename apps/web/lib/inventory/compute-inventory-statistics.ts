@@ -1,6 +1,7 @@
 import type { Ingredient } from "@/lib/types/inventory";
 import type { IngredientStockLogEntry } from "@/lib/types/ingredient-stock-log";
-import type { PurchaseOrder } from "@/lib/types/purchase-order";
+import type { PurchaseOrder, PurchaseOrderLine } from "@/lib/types/purchase-order";
+import { roundPurchaseUnitPrice } from "@/lib/inventory/format-purchase-unit-price";
 
 const WEEKDAY_SHORT = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"] as const;
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -46,14 +47,33 @@ export type InventoryStatisticsResult = {
   invoiceMovementsInPeriod: number;
   topCategory: string | null;
   topOrderSupplier: string | null;
+  pricedIngredientsCount: number;
+  unpricedIngredientsCount: number;
+  totalStockValue: number;
+  avgPurchasePrice: number | null;
+  openOrdersValue: number;
+  ordersValueInPeriod: number;
+  deliveredValueInPeriod: number;
+  unpricedOrderLinesInPeriod: number;
   byCategory: Array<{ name: string; count: number }>;
   bySupplier: Array<{ name: string; count: number }>;
   byOrderSupplier: Array<{ name: string; count: number }>;
+  stockValueByCategory: Array<{ name: string; value: number }>;
+  orderValueBySupplier: Array<{ name: string; value: number }>;
   byMovementKind: Array<{ kind: string; label: string; count: number; fill: string }>;
   ordersByMonth: Array<{ month: string; count: number }>;
+  orderValueByMonth: Array<{ month: string; value: number }>;
   ordersByWeekday: Array<{ day: string; dayIndex: number; count: number }>;
   orderStatusInPeriod: Array<{ name: string; count: number; fill: string }>;
 };
+
+export function formatInventoryMoney(amount: number, currency = "EUR"): string {
+  return new Intl.NumberFormat("de-DE", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
 
 function inPeriod(iso: string, start: Date, end: Date): boolean {
   const t = new Date(iso).getTime();
@@ -91,6 +111,48 @@ function collectStockMovementsInPeriod(
     }
   }
   return out;
+}
+
+function ingredientUnitPrice(ingredient: Ingredient | undefined): number | null {
+  const price = ingredient?.purchaseUnitPrice;
+  if (price == null || !Number.isFinite(price) || price < 0) return null;
+  return price;
+}
+
+function ingredientsById(ingredients: Ingredient[]): Map<string, Ingredient> {
+  return new Map(ingredients.map((ingredient) => [ingredient.id, ingredient]));
+}
+
+function lineEstimatedValue(
+  line: PurchaseOrderLine,
+  byId: Map<string, Ingredient>,
+): number | null {
+  const price = ingredientUnitPrice(byId.get(line.ingredientId));
+  if (price == null || line.quantity <= 0) return null;
+  return roundPurchaseUnitPrice(line.quantity * price);
+}
+
+function stockValueForIngredient(ingredient: Ingredient): number | null {
+  const price = ingredientUnitPrice(ingredient);
+  if (price == null || ingredient.currentStock <= 0) return null;
+  return roundPurchaseUnitPrice(ingredient.currentStock * price);
+}
+
+function sumOrderLinesValue(
+  lines: PurchaseOrderLine[],
+  byId: Map<string, Ingredient>,
+): { value: number; unpricedLines: number } {
+  let value = 0;
+  let unpricedLines = 0;
+  for (const line of lines) {
+    const lineValue = lineEstimatedValue(line, byId);
+    if (lineValue == null) {
+      if (line.quantity > 0) unpricedLines += 1;
+      continue;
+    }
+    value += lineValue;
+  }
+  return { value: roundPurchaseUnitPrice(value), unpricedLines };
 }
 
 export function computeInventoryStatistics(
@@ -213,6 +275,104 @@ export function computeInventoryStatistics(
     },
   ].filter((row) => row.count > 0);
 
+  const byIngredientId = ingredientsById(input.ingredients);
+  const pricedActive = active.filter(
+    (ingredient) => ingredientUnitPrice(ingredient) != null,
+  );
+  const pricedIngredientsCount = pricedActive.length;
+  const unpricedIngredientsCount = active.length - pricedIngredientsCount;
+
+  let totalStockValue = 0;
+  const stockValueCategoryTotals = new Map<string, number>();
+  for (const ingredient of active) {
+    const value = stockValueForIngredient(ingredient);
+    if (value == null) continue;
+    totalStockValue += value;
+    const categoryName =
+      input.categoryNames.get(ingredient.categoryId) ?? "Ohne Kategorie";
+    stockValueCategoryTotals.set(
+      categoryName,
+      roundPurchaseUnitPrice(
+        (stockValueCategoryTotals.get(categoryName) ?? 0) + value,
+      ),
+    );
+  }
+  totalStockValue = roundPurchaseUnitPrice(totalStockValue);
+
+  const avgPurchasePrice =
+    pricedActive.length > 0
+      ? roundPurchaseUnitPrice(
+          pricedActive.reduce(
+            (sum, ingredient) => sum + (ingredientUnitPrice(ingredient) ?? 0),
+            0,
+          ) / pricedActive.length,
+        )
+      : null;
+
+  const stockValueByCategory = [...stockValueCategoryTotals.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
+
+  let openOrdersValue = 0;
+  for (const order of openOrdersList) {
+    openOrdersValue += sumOrderLinesValue(order.lines, byIngredientId).value;
+  }
+  openOrdersValue = roundPurchaseUnitPrice(openOrdersValue);
+
+  let ordersValueInPeriod = 0;
+  let unpricedOrderLinesInPeriod = 0;
+  const orderValueMonthTotals = new Map<string, number>();
+  const orderValueSupplierTotals = new Map<string, number>();
+  for (const order of ordersInPeriod) {
+    const { value, unpricedLines } = sumOrderLinesValue(
+      order.lines,
+      byIngredientId,
+    );
+    ordersValueInPeriod += value;
+    unpricedOrderLinesInPeriod += unpricedLines;
+    const month = monthKey(order.createdAt);
+    orderValueMonthTotals.set(
+      month,
+      roundPurchaseUnitPrice((orderValueMonthTotals.get(month) ?? 0) + value),
+    );
+    const supplierName = order.supplierName?.trim() || "Unbekannt";
+    orderValueSupplierTotals.set(
+      supplierName,
+      roundPurchaseUnitPrice(
+        (orderValueSupplierTotals.get(supplierName) ?? 0) + value,
+      ),
+    );
+  }
+  ordersValueInPeriod = roundPurchaseUnitPrice(ordersValueInPeriod);
+
+  const orderValueByMonth = [...orderValueMonthTotals.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, value]) => ({
+      month: formatMonthLabel(key),
+      value,
+    }));
+
+  const orderValueBySupplier = [...orderValueSupplierTotals.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+
+  let deliveredValueInPeriod = 0;
+  for (const order of input.orders) {
+    for (const line of order.lines) {
+      if (
+        !line.deliveredAt ||
+        !inPeriod(line.deliveredAt, input.periodStart, input.periodEnd)
+      ) {
+        continue;
+      }
+      const lineValue = lineEstimatedValue(line, byIngredientId);
+      if (lineValue != null) deliveredValueInPeriod += lineValue;
+    }
+  }
+  deliveredValueInPeriod = roundPurchaseUnitPrice(deliveredValueInPeriod);
+
   return {
     activeIngredients: active.length,
     emptyStockCount,
@@ -227,11 +387,22 @@ export function computeInventoryStatistics(
     invoiceMovementsInPeriod,
     topCategory,
     topOrderSupplier,
+    pricedIngredientsCount,
+    unpricedIngredientsCount,
+    totalStockValue,
+    avgPurchasePrice,
+    openOrdersValue,
+    ordersValueInPeriod,
+    deliveredValueInPeriod,
+    unpricedOrderLinesInPeriod,
     byCategory,
     bySupplier,
     byOrderSupplier,
+    stockValueByCategory,
+    orderValueBySupplier,
     byMovementKind,
     ordersByMonth,
+    orderValueByMonth,
     ordersByWeekday,
     orderStatusInPeriod,
   };

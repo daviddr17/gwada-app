@@ -59,6 +59,10 @@ import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-stor
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
+import {
+  formatPurchaseUnitPriceDisplay,
+  parsePurchaseUnitPriceInput,
+} from "@/lib/inventory/format-purchase-unit-price";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
@@ -353,11 +357,11 @@ function InventoryPurchasePriceInputCell({
   onCommitPrice: (id: string, nextPrice: number | null) => void;
 }) {
   const [draft, setDraft] = useState(() =>
-    purchaseUnitPrice != null ? String(purchaseUnitPrice) : "",
+    formatPurchaseUnitPriceDisplay(purchaseUnitPrice),
   );
 
   useEffect(() => {
-    setDraft(purchaseUnitPrice != null ? String(purchaseUnitPrice) : "");
+    setDraft(formatPurchaseUnitPriceDisplay(purchaseUnitPrice));
   }, [ingredientId, purchaseUnitPrice]);
 
   const commit = useCallback(() => {
@@ -367,12 +371,13 @@ function InventoryPurchasePriceInputCell({
       onCommitPrice(ingredientId, null);
       return;
     }
-    const n = Number.parseFloat(raw.replace(",", "."));
-    if (Number.isNaN(n) || n < 0) {
+    const n = parsePurchaseUnitPriceInput(raw);
+    if (n == null) {
       toast.error("Bitte einen gültigen Einkaufspreis (≥ 0) eingeben.");
-      setDraft(purchaseUnitPrice != null ? String(purchaseUnitPrice) : "");
+      setDraft(formatPurchaseUnitPriceDisplay(purchaseUnitPrice));
       return;
     }
+    setDraft(formatPurchaseUnitPriceDisplay(n));
     if (purchaseUnitPrice != null && n === purchaseUnitPrice) return;
     onCommitPrice(ingredientId, n);
   }, [draft, ingredientId, onCommitPrice, purchaseUnitPrice]);

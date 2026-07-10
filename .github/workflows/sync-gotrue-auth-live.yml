@@ -29,7 +29,7 @@ jobs:
           export GWADA_SSH_IDENTITY=~/.ssh/id_ed25519
           export GWADA_SSH_BATCH=1
           export LIVE_VPS_HOST
-          bash scripts/sync-gotrue-passkey-env.sh live
+          bash scripts/upgrade-gotrue-passkey-live-remote.sh
           bash scripts/vps-patch-gotrue-redirects.sh
 
       - name: Hinweis Verifikation

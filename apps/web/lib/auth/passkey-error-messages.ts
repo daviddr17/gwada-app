@@ -21,7 +21,17 @@ export function humanizePasskeyErrorMessage(
 ): string {
   const t = raw?.trim() ?? "";
   if (!t || isPasskeyUserCancelled(t)) return "";
-  if (/passkey_disabled/i.test(t)) {
+  if (/Browser does not support WebAuthn/i.test(t)) {
+    return "Dieser Browser unterstützt keine Passkeys.";
+  }
+  if (
+    /expected pattern/i.test(t) ||
+    /Unexpected token/i.test(t) ||
+    /invalid base64/i.test(t)
+  ) {
+    return "Passkey-Server antwortet nicht korrekt (Auth zu alt oder nicht konfiguriert). Bitte kurz warten und erneut versuchen.";
+  }
+  if (/passkey_disabled|webauthn.*disabled/i.test(t)) {
     return "Passkey-Anmeldung ist auf dem Auth-Server noch nicht aktiviert.";
   }
   if (/webauthn_credential_not_found/i.test(t)) {
@@ -35,9 +45,6 @@ export function humanizePasskeyErrorMessage(
   }
   if (/webauthn_challenge_expired/i.test(t)) {
     return "Passkey-Anfrage abgelaufen. Bitte erneut versuchen.";
-  }
-  if (/Browser does not support WebAuthn/i.test(t)) {
-    return "Dieser Browser unterstützt keine Passkeys.";
   }
   if (/email_not_confirmed|phone_not_confirmed/i.test(t)) {
     return "Bitte bestätige zuerst deine E-Mail-Adresse, bevor du dich mit Passkey anmeldest.";

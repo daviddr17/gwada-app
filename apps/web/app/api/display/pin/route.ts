@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import {
+  checkDisplayPinRateLimit,
+  clearDisplayPinFailures,
+  DISPLAY_PIN_MAX_FAILURES,
+  recordDisplayPinFailure,
+} from "@/lib/api/display-pin-rate-limit";
+import {
   assertDisplayDeviceFromCookies,
   buildDisplayContext,
   endDisplaySession,
@@ -41,6 +47,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  const pinLimit = checkDisplayPinRateLimit(deviceResult.display.id);
+  if (!pinLimit.allowed) {
+    return NextResponse.json(
+      { error: "pin_locked" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(pinLimit.retryAfterSec),
+          "X-RateLimit-Limit": String(DISPLAY_PIN_MAX_FAILURES),
+        },
+      },
+    );
+  }
+
   let staffId: string | null = null;
 
   if (body.staff_id?.trim()) {
@@ -62,8 +82,11 @@ export async function POST(request: Request) {
   }
 
   if (!staffId) {
+    recordDisplayPinFailure(deviceResult.display.id);
     return NextResponse.json({ error: "pin_invalid" }, { status: 401 });
   }
+
+  clearDisplayPinFailures(deviceResult.display.id);
 
   await admin
     .from("restaurant_display_sessions")

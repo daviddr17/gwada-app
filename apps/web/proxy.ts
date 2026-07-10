@@ -110,10 +110,12 @@ export async function proxy(request: NextRequest) {
   });
 
   // RSC-Soft-Nav: Session aus JWT (lokal) — kein Roundtrip zu auth/v1/user pro Klick.
-  // Volle Document-Loads: getUser() zur Server-Validierung.
-  const user = isAppRscRequest(request)
-    ? (await supabase.auth.getSession()).data.session?.user ?? null
-    : (await supabase.auth.getUser()).data.user ?? null;
+  // Volle Document-Loads + Superadmin: getUser() zur Server-Validierung.
+  const useStrictAuth =
+    !isAppRscRequest(request) || isSuperadminAppPath(pathname);
+  const user = useStrictAuth
+    ? (await supabase.auth.getUser()).data.user ?? null
+    : (await supabase.auth.getSession()).data.session?.user ?? null;
 
   if (isPublicPath(pathname)) {
     if (pathname.startsWith("/login") && user) {

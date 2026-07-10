@@ -22,9 +22,11 @@ export async function submitDisplayPin(
 
   if (!res.ok) {
     const message =
-      data.error === "pin_invalid"
-        ? "PIN falsch oder nicht vergeben."
-        : "PIN falsch.";
+      data.error === "pin_locked"
+        ? "Zu viele Fehlversuche. Bitte in ein paar Minuten erneut versuchen."
+        : data.error === "pin_invalid"
+          ? "PIN falsch oder nicht vergeben."
+          : "PIN falsch.";
     return { ok: false, message };
   }
 

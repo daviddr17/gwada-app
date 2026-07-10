@@ -83,6 +83,7 @@
     "sync:gotrue:google:live:remote": "GWADA_SSH_BATCH=1 bash scripts/sync-gotrue-google-oauth-live-remote.sh",
     "sync:gotrue:google:live:dry-run": "dotenv -e .env.production -- bash scripts/sync-gotrue-google-oauth-live.sh --dry-run",
     "sync:gotrue:passkey:live": "bash scripts/sync-gotrue-passkey-env.sh live",
+    "upgrade:gotrue:passkey:live": "bash scripts/upgrade-gotrue-passkey-live-remote.sh",
     "bootstrap:new-gwada-app": "bash scripts/bootstrap-new-gwada-app.sh",
     "deploy:app:live": "bash scripts/deploy-app-live.sh",
     "deploy:app:live:dry-run": "bash scripts/deploy-app-live.sh --dry-run",

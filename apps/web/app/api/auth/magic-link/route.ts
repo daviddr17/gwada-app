@@ -1,3 +1,4 @@
+import { enforceAuthEmailRateLimit } from "@/lib/api/auth-email-rate-limit";
 import { sendMagicLinkEmailServer } from "@/lib/auth/magic-link-email-server";
 import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,6 +17,9 @@ export async function POST(req: Request) {
   if (!email || !email.includes("@")) {
     return Response.json({ error: "invalid_email" }, { status: 400 });
   }
+
+  const rateLimited = enforceAuthEmailRateLimit(req, email);
+  if (rateLimited) return rateLimited;
 
   const origin = resolvePublicAppOrigin(req);
   const sb = await createSupabaseServerClient();

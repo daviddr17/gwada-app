@@ -32,6 +32,12 @@ export function humanizeLoginErrorMessage(raw: string | undefined | null): strin
   ) {
     return "Die Anmeldung mit Google ist abgelaufen. Bitte erneut versuchen.";
   }
+  if (/rate_limit_exceeded/i.test(t)) {
+    return "Zu viele Anfragen. Bitte in einer Stunde erneut versuchen.";
+  }
+  if (/E-Mail-Versand hat zu lange gedauert|timeout|aborted|abgebrochen/i.test(t)) {
+    return "E-Mail-Versand hat zu lange gedauert. Bitte später erneut versuchen.";
+  }
   if (
     /otp_expired|email link is invalid|token has expired|invalid.*token|flow_state_expired/i.test(
       t,

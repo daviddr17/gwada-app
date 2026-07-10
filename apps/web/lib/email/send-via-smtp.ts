@@ -27,6 +27,9 @@ export async function sendViaSmtp(
     host: smtp.smtpHost,
     port: smtp.smtpPort,
     secure: smtp.smtpPort === 465,
+    connectionTimeout: 12_000,
+    greetingTimeout: 12_000,
+    socketTimeout: 20_000,
     auth: {
       user: smtp.email,
       pass: smtp.password,

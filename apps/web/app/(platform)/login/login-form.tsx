@@ -24,6 +24,7 @@ import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
+  AUTH_EMAIL_FETCH_TIMEOUT_MS,
   GWADA_SUPABASE_SIGNIN_TIMEOUT_MS,
   raceWithTimeout,
 } from "@/lib/supabase/race-timeout";
@@ -294,28 +295,13 @@ export function LoginForm() {
       return;
     }
 
-    if (isSupabaseOnlyMode()) {
-      let reach: { ok: boolean; message: string };
-      try {
-        reach = await ensureReachable();
-      } catch {
-        loginToastError("Die Datenbank konnte nicht geprüft werden.");
-        return;
-      }
-      if (!reach.ok) {
-        loginToastError(
-          "Aktuell gibt es Probleme mit der Datenbank. Ein Zurücksetzen ist zurzeit nicht möglich.",
-        );
-        return;
-      }
-    }
-
     setForgotBusy(true);
     try {
       const res = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
+        signal: AbortSignal.timeout(AUTH_EMAIL_FETCH_TIMEOUT_MS),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -349,22 +335,6 @@ export function LoginForm() {
       return;
     }
 
-    if (isSupabaseOnlyMode()) {
-      let reach: { ok: boolean; message: string };
-      try {
-        reach = await ensureReachable();
-      } catch {
-        loginToastError("Die Datenbank konnte nicht geprüft werden.");
-        return;
-      }
-      if (!reach.ok) {
-        loginToastError(
-          "Aktuell gibt es Probleme mit der Datenbank. Ein Anmelde-Link kann zurzeit nicht gesendet werden.",
-        );
-        return;
-      }
-    }
-
     setMagicLinkBusy(true);
     try {
       const res = await fetch("/api/auth/magic-link", {
@@ -374,6 +344,7 @@ export function LoginForm() {
           email: trimmed,
           next: safeInternalPath(nextParam),
         }),
+        signal: AbortSignal.timeout(AUTH_EMAIL_FETCH_TIMEOUT_MS),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;

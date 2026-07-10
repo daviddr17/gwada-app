@@ -41,6 +41,7 @@ function isSupabaseSessionCookie(name: string): boolean {
 /** Cookies, die Kong/GoTrue nicht braucht — vom Request vor /sb-Proxy entfernen. */
 export function shouldStripCookieFromSupabaseProxy(name: string): boolean {
   if (name === DISPLAY_DEVICE_COOKIE || name === DISPLAY_SESSION_COOKIE) return false;
+  if (name === GOOGLE_AUTH_NONCE_COOKIE) return false;
   if (isSupabaseSessionCookie(name)) return false;
   if (
     (AUTH_ENTRY_COOKIES_TO_CLEAR as readonly string[]).includes(name) ||

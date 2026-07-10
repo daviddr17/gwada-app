@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
 import {
   Bell,
   Building2,
@@ -42,7 +43,6 @@ import {
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { formatOrderProtocolUserName } from "@/lib/types/purchase-order";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
@@ -96,7 +96,7 @@ const SIDEBAR_MODULE_SKELETON_WIDTHS = [
 
 export function AppSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
+  const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
   const { profile } = useRestaurantProfile();
   const { firstName, lastName } = usePersonalProfileNames();
@@ -472,13 +472,9 @@ export function AppSidebar() {
               type="button"
               tooltip="Abmelden"
               className="text-sidebar-foreground/80"
+              disabled={isLoggingOut}
               onClick={() => {
-                void (async () => {
-                  const sb = createSupabaseBrowserClient();
-                  await sb.auth.signOut();
-                  router.replace("/login");
-                  router.refresh();
-                })();
+                logout();
               }}
             >
               <LogOut />

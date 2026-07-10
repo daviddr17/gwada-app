@@ -14,15 +14,28 @@ export async function findAuthUserIdByEmailAdmin(
   const normalized = normalizeEmail(email);
   if (!normalized) return null;
 
+  const { data, error } = await admin.rpc("auth_user_id_by_email", {
+    p_email: normalized,
+  });
+  if (!error && typeof data === "string" && data.trim()) {
+    return data.trim();
+  }
+  if (error && !/could not find the function|does not exist/i.test(error.message)) {
+    console.warn("[auth] auth_user_id_by_email", error.message);
+  }
+
   let page = 1;
   const perPage = 200;
   while (page <= 25) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage });
-    if (error) {
-      console.warn("[auth] email lookup", error.message);
+    const { data: listed, error: listError } = await admin.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+    if (listError) {
+      console.warn("[auth] email lookup", listError.message);
       return null;
     }
-    const users = data.users ?? [];
+    const users = listed.users ?? [];
     const match = users.find(
       (user) => normalizeEmail(user.email ?? "") === normalized,
     );

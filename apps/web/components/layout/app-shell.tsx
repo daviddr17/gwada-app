@@ -12,6 +12,7 @@ import { AppChromeCenterFavicon } from "@/components/layout/app-chrome-center-fa
 import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
 import { AppChromeRestaurantProfileLink } from "@/components/layout/app-chrome-restaurant-profile-link";
 import { DashboardPwaInstallButton } from "@/components/dashboard/dashboard-pwa-install-button";
+import { AuthLogoutTransitionProvider } from "@/components/auth/auth-logout-transition-provider";
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
@@ -174,11 +175,13 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <AppModuleChromeProvider>
-        <AppSidebar />
-        <AppInsetWithChrome>{children}</AppInsetWithChrome>
-        <DashboardUploadOverlay />
-      </AppModuleChromeProvider>
+      <AuthLogoutTransitionProvider>
+        <AppModuleChromeProvider>
+          <AppSidebar />
+          <AppInsetWithChrome>{children}</AppInsetWithChrome>
+          <DashboardUploadOverlay />
+        </AppModuleChromeProvider>
+      </AuthLogoutTransitionProvider>
     </SidebarProvider>
   );
 }

@@ -1,9 +1,11 @@
 import { enforceAuthEmailRateLimit } from "@/lib/api/auth-email-rate-limit";
+import { withAuthEmailSendTimeout } from "@/lib/auth/auth-email-send-timeout";
 import { sendPasswordResetEmailServer } from "@/lib/auth/password-reset-email-server";
 import { resolvePublicAppOrigin } from "@/lib/navigation/request-origin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
   let body: { email?: string; next?: string | null };
@@ -22,13 +24,30 @@ export async function POST(req: Request) {
   if (rateLimited) return rateLimited;
 
   const origin = resolvePublicAppOrigin(req);
-  const sb = await createSupabaseServerClient();
-  const result = await sendPasswordResetEmailServer({
-    email,
-    origin,
-    nextPath: body.next ?? null,
-    brandingClient: sb,
-  });
+  const admin = createSupabaseAdminClient();
+  let result: Awaited<ReturnType<typeof sendPasswordResetEmailServer>>;
+  try {
+    result = await withAuthEmailSendTimeout(
+      sendPasswordResetEmailServer({
+        email,
+        origin,
+        nextPath: body.next ?? null,
+        brandingClient: admin ?? undefined,
+      }),
+    );
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/E-Mail-Versand: keine Antwort/i.test(msg)) {
+      return Response.json(
+        {
+          error:
+            "E-Mail-Versand hat zu lange gedauert. Bitte später erneut versuchen.",
+        },
+        { status: 504 },
+      );
+    }
+    throw e;
+  }
 
   if (
     !result.ok &&

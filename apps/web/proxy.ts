@@ -75,7 +75,7 @@ export async function proxy(request: NextRequest) {
 
   if (
     isAuthEntryPath(pathname) ||
-    pathname.startsWith("/api/auth/google/") ||
+    pathname.startsWith("/api/auth/") ||
     pathname === "/docs" ||
     pathname.startsWith("/docs/") ||
     pathname === "/impressum" ||

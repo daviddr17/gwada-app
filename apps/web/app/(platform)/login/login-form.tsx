@@ -23,8 +23,8 @@ import { useWorkspaceDatabaseGate } from "@/components/providers/supabase-databa
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { safeInternalPath } from "@/lib/navigation/safe-internal-path";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { createAuthEmailFetchSignal } from "@/lib/auth/auth-email-fetch-signal";
 import {
-  AUTH_EMAIL_FETCH_TIMEOUT_MS,
   GWADA_SUPABASE_SIGNIN_TIMEOUT_MS,
   raceWithTimeout,
 } from "@/lib/supabase/race-timeout";
@@ -90,6 +90,7 @@ export function LoginForm() {
   const [magicLinkBusy, setMagicLinkBusy] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
   const [forgotBusy, setForgotBusy] = useState(false);
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
   const { showGoogle, showApple, showOAuthSection } = usePublicOAuthAvailability();
   const { showPasskey } = usePasskeyLoginAvailability();
   const showAlternativeSignIn = showPasskey || showOAuthSection;
@@ -205,7 +206,7 @@ export function LoginForm() {
   };
 
   const handlePasskeySignIn = async () => {
-    setBusy(true);
+    setPasskeyBusy(true);
     try {
       const { error, cancelled } = await signInWithPasskeyClient();
       if (cancelled) return;
@@ -221,7 +222,7 @@ export function LoginForm() {
       const raw = e instanceof Error ? e.message : String(e);
       loginToastError("Passkey-Anmeldung fehlgeschlagen.", raw);
     } finally {
-      setBusy(false);
+      setPasskeyBusy(false);
     }
   };
 
@@ -301,7 +302,7 @@ export function LoginForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
-        signal: AbortSignal.timeout(AUTH_EMAIL_FETCH_TIMEOUT_MS),
+        signal: createAuthEmailFetchSignal(),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -344,7 +345,7 @@ export function LoginForm() {
           email: trimmed,
           next: safeInternalPath(nextParam),
         }),
-        signal: AbortSignal.timeout(AUTH_EMAIL_FETCH_TIMEOUT_MS),
+        signal: createAuthEmailFetchSignal(),
       });
       const data = (await res.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -600,16 +601,31 @@ export function LoginForm() {
 
                   <div className="flex flex-col gap-2">
                     {showPasskey ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
-                        disabled={busy || isEntering}
-                        onClick={() => void handlePasskeySignIn()}
-                      >
-                        <Fingerprint className="size-5 shrink-0" aria-hidden />
-                        Mit Passkey anmelden
-                      </Button>
+                      <div className="space-y-1.5">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 w-full gap-2 rounded-xl border-border/80 bg-background font-normal"
+                          disabled={passkeyBusy || isEntering}
+                          onClick={() => void handlePasskeySignIn()}
+                        >
+                          {passkeyBusy ? (
+                            <>
+                              <Loader2 className="size-5 shrink-0 animate-spin" aria-hidden />
+                              Passkey wird geprüft…
+                            </>
+                          ) : (
+                            <>
+                              <Fingerprint className="size-5 shrink-0" aria-hidden />
+                              Mit Passkey anmelden
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-center text-xs text-muted-foreground">
+                          Nur wenn du unter Profil → Anmeldung bereits einen Passkey
+                          angelegt hast.
+                        </p>
+                      </div>
                     ) : null}
                     {showGoogle ? (
                       <Button

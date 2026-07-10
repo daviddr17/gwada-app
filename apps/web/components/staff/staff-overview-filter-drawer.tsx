@@ -64,8 +64,8 @@ const STATUS_OPTIONS: { value: StaffOverviewStatusFilter; label: string }[] = [
 
 const APP_OPTIONS: { value: StaffOverviewAppFilter; label: string }[] = [
   { value: "all", label: "Alle" },
-  { value: "linked", label: "Mit App-Verknüpfung" },
-  { value: "unlinked", label: "Ohne App-Verknüpfung" },
+  { value: "linked", label: "Mit Dashboard-Zugang" },
+  { value: "unlinked", label: "Ohne Dashboard-Zugang" },
 ];
 
 const PRESENCE_OPTIONS: { value: StaffOverviewPresenceFilter; label: string }[] = [
@@ -174,7 +174,7 @@ export function StaffOverviewFilterDrawer({
             </div>
           </DrawerFormSection>
 
-          <DrawerFormSection title="App-Verknüpfung">
+          <DrawerFormSection title="Dashboard-Zugang">
             <SearchableSelect
               value={filters.appFilter}
               onValueChange={(value) => {

@@ -251,6 +251,7 @@ export default function StaffInvitePage() {
       error?: string;
       already_member?: boolean;
       restaurant_id?: string;
+      staff_id?: string;
     };
     if (!result?.ok) {
       const messages: Record<string, string> = {
@@ -266,6 +267,16 @@ export default function StaffInvitePage() {
           "Einladung konnte nicht angenommen werden.",
       );
       return false;
+    }
+    if (result.restaurant_id && result.staff_id) {
+      void fetch("/api/public/staff-invite/accept-audit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: result.restaurant_id,
+          staffId: result.staff_id,
+        }),
+      });
     }
     if (result.already_member) {
       toast.info("Du bist bereits bei diesem Restaurant angemeldet.");

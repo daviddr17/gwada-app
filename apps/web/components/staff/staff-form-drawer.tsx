@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { COUNTRIES_REFERENCE_FALLBACK } from "@/lib/constants/countries";
 import {
+  fetchStaffDisplayPinSuggestionClient,
   fetchStaffInviteContactCheckClient,
   sendStaffInviteClient,
   deleteStaffClient,
@@ -312,6 +313,14 @@ export function StaffFormDrawer({
     setAvatarFile(null);
   }, [staff, countries]);
 
+  const loadDisplayPinSuggestion = useCallback(async () => {
+    const { pin } = await fetchStaffDisplayPinSuggestionClient({ restaurantId });
+    if (pin) {
+      setDisplayPin(pin);
+      setClearDisplayPinOnSave(false);
+    }
+  }, [restaurantId]);
+
   const reloadLog = useCallback(async () => {
     if (!staff || mode !== "edit") {
       setLogEntries([]);
@@ -364,8 +373,11 @@ export function StaffFormDrawer({
       const sb = createSupabaseBrowserClient();
       const { rows } = await fetchRestaurantPositions(sb, restaurantId);
       setPositions(rows.filter((p) => p.slug !== "owner"));
+      if (mode === "create") {
+        await loadDisplayPinSuggestion();
+      }
     })();
-  }, [open, resetFromStaff, restaurantId]);
+  }, [open, resetFromStaff, restaurantId, mode, loadDisplayPinSuggestion]);
 
   const invitePositions = useMemo(
     () => positions.filter((p) => p.slug !== "owner"),
@@ -545,6 +557,17 @@ export function StaffFormDrawer({
           "created",
           changes,
         );
+        if (displayPin.length === 4) {
+          const pinResult = await persistStaffDisplayPin(ins.id, displayPin);
+          if (!pinResult.ok) {
+            toast.error(
+              `Mitarbeiter angelegt — Display-PIN: ${pinResult.message}`,
+            );
+            onSaved(savedStaffId);
+            onOpenChange(false);
+            return;
+          }
+        }
         toast.success("Mitarbeiter angelegt");
       } else if (staff) {
         const ok = await updateStaff(staff.id, payload);
@@ -845,6 +868,7 @@ export function StaffFormDrawer({
                     <DatePickerField
                       value={birthDate || null}
                       onChange={(v) => setBirthDate(v ?? "")}
+                      fallbackMonth={new Date(1990, 0)}
                       fullWidth
                       className="!h-11 w-full"
                     />
@@ -1004,76 +1028,95 @@ export function StaffFormDrawer({
 
               <FormSection title="Display">
                 <div className="space-y-3">
-                  {mode === "edit" && staff ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="staff-display-pin">Display-PIN (4 Stellen)</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Pro Restaurant eindeutig — jede PIN darf nur einmal vergeben
+                      werden.
+                      {mode === "create"
+                        ? " Vorschlag ist frei verfügbar, bei Bedarf anpassen."
+                        : " Neue PIN eingeben und unten speichern."}
+                    </p>
                     <div className="space-y-1.5">
-                      <Label htmlFor="staff-display-pin">Display-PIN (4 Stellen)</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Pro Restaurant eindeutig — jede PIN darf nur einmal vergeben
-                        werden. Neue PIN eingeben und unten speichern.
-                      </p>
-                      <div className="space-y-1.5">
-                        <Input
-                          id="staff-display-pin"
-                          inputMode="numeric"
-                          autoComplete="off"
-                          maxLength={4}
-                          value={displayPin}
-                          placeholder={hasDisplayPin ? "••••" : "1234"}
-                          onChange={(e) => {
-                            setClearDisplayPinOnSave(false);
-                            setDisplayPin(
-                              e.target.value.replace(/\D/g, "").slice(0, 4),
-                            );
-                          }}
-                          className={staffDrawerFieldClassName}
-                        />
-                        {clearDisplayPinOnSave ? (
+                      <Input
+                        id="staff-display-pin"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={4}
+                        value={displayPin}
+                        placeholder={hasDisplayPin ? "••••" : "1234"}
+                        onChange={(e) => {
+                          setClearDisplayPinOnSave(false);
+                          setDisplayPin(
+                            e.target.value.replace(/\D/g, "").slice(0, 4),
+                          );
+                        }}
+                        className={staffDrawerFieldClassName}
+                      />
+                      {mode === "create" ? (
+                        displayPin.length === 4 ? (
                           <p className="text-xs text-muted-foreground">
-                            PIN wird beim Speichern entfernt.
+                            Wird beim Anlegen gesetzt.
                           </p>
-                        ) : displayPin.length === 4 ? (
+                        ) : (
                           <p className="text-xs text-muted-foreground">
-                            Neue PIN wird beim Speichern gesetzt.
+                            Leer lassen, wenn noch keine Display-PIN gewünscht
+                            ist.
                           </p>
-                        ) : hasDisplayPin ? (
-                          <p className="text-xs text-muted-foreground">
-                            Aktuell gesetzt. Neue vier Stellen zum Ersetzen
-                            eingeben.
-                          </p>
-                        ) : null}
-                      </div>
-                      {hasDisplayPin && !clearDisplayPinOnSave ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2 text-destructive hover:text-destructive"
-                          disabled={pending}
-                          onClick={() => {
-                            setClearDisplayPinOnSave(true);
-                            setDisplayPin("");
-                          }}
-                        >
-                          PIN entfernen
-                        </Button>
+                        )
                       ) : clearDisplayPinOnSave ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 px-2"
-                          disabled={pending}
-                          onClick={() => setClearDisplayPinOnSave(false)}
-                        >
-                          Entfernen abbrechen
-                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          PIN wird beim Speichern entfernt.
+                        </p>
+                      ) : displayPin.length === 4 ? (
+                        <p className="text-xs text-muted-foreground">
+                          Neue PIN wird beim Speichern gesetzt.
+                        </p>
+                      ) : hasDisplayPin ? (
+                        <p className="text-xs text-muted-foreground">
+                          Aktuell gesetzt. Neue vier Stellen zum Ersetzen
+                          eingeben.
+                        </p>
                       ) : null}
                     </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Display-PIN kann nach dem Anlegen gesetzt werden.
-                    </p>
-                  )}
+                    {mode === "create" ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        disabled={pending}
+                        onClick={() => void loadDisplayPinSuggestion()}
+                      >
+                        Anderen Vorschlag
+                      </Button>
+                    ) : hasDisplayPin && !clearDisplayPinOnSave ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2 text-destructive hover:text-destructive"
+                        disabled={pending}
+                        onClick={() => {
+                          setClearDisplayPinOnSave(true);
+                          setDisplayPin("");
+                        }}
+                      >
+                        PIN entfernen
+                      </Button>
+                    ) : clearDisplayPinOnSave ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 px-2"
+                        disabled={pending}
+                        onClick={() => setClearDisplayPinOnSave(false)}
+                      >
+                        Entfernen abbrechen
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </FormSection>
 

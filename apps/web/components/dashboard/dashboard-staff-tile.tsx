@@ -47,7 +47,7 @@ export function DashboardStaffTile() {
     >
       <DashboardCompactInlineMetrics>
         <DashboardCompactMetricPill
-          label="Aktiv"
+          label="Live aktiv"
           value={String(active)}
           highlight={active > 0}
           stripeVariant="active"

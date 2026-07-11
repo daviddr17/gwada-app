@@ -5,6 +5,7 @@ import {
   DayPicker,
   getDefaultClassNames,
   type DayButton,
+  type DropdownProps,
   type Locale,
   useDayPicker,
 } from "react-day-picker"
@@ -16,7 +17,65 @@ import {
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent"
+import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
 import { cn } from "@/lib/utils"
+
+/** Monat/Jahr per App-Select statt native `<select>` — funktioniert in Popover/Drawern. */
+function CalendarNavDropdown({
+  options,
+  value,
+  onChange,
+  disabled,
+  "aria-label": ariaLabel,
+  className,
+}: DropdownProps) {
+  const selected = options?.find((option) => option.value === value)
+  const selectValue = value != null ? String(value) : undefined
+
+  return (
+    <Select
+      value={selectValue}
+      onValueChange={(next) => {
+        if (!onChange) return
+        onChange({
+          target: { value: next },
+        } as React.ChangeEvent<HTMLSelectElement>)
+      }}
+      disabled={disabled}
+    >
+      <SelectTrigger
+        aria-label={ariaLabel}
+        size="sm"
+        className={appSelectTriggerAccentCn(
+          "h-8 min-h-8 w-auto min-w-[4.75rem] shrink-0 rounded-xl px-2 font-medium shadow-none",
+          mobileFormControlFontClassName,
+          className,
+        )}
+      >
+        <SelectValue placeholder={selected?.label ?? "—"} />
+      </SelectTrigger>
+      <SelectContent align="start" elevatedLayer>
+        {options?.map((option) => (
+          <SelectItem
+            key={option.value}
+            value={String(option.value)}
+            disabled={option.disabled}
+          >
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
 
 function CalendarPreviousMonthButton(props: React.ComponentProps<"button">) {
   const { children: _children, className, ...rest } = props
@@ -113,15 +172,10 @@ function Calendar({
           defaultClassNames.dropdowns,
         ),
         dropdown_root: cn(
-          "border-input bg-background relative isolate z-10 rounded-xl border shadow-none outline-none transition-colors",
-          "hover:bg-muted/60 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
-          "dark:border-input dark:bg-input/30",
+          "relative isolate z-10 shrink-0",
           defaultClassNames.dropdown_root,
         ),
-        dropdown: cn(
-          "pointer-events-auto absolute inset-0 z-20 cursor-pointer appearance-none border-0 bg-transparent opacity-0",
-          defaultClassNames.dropdown,
-        ),
+        dropdown: cn("shrink-0", defaultClassNames.dropdown),
         caption_label: cn(
           "select-none font-medium",
           captionLayout === "label"
@@ -207,6 +261,7 @@ function Calendar({
             <ChevronDownIcon className={cn("size-4", chClassName)} {...chProps} />
           )
         },
+        Dropdown: CalendarNavDropdown,
         DayButton: (dayButtonProps) => (
           <CalendarDayButton locale={locale} {...dayButtonProps} />
         ),

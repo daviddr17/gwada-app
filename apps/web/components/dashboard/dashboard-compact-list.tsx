@@ -143,6 +143,7 @@ export function DashboardCompactMetricPill({
   highlight,
   stripeVariant,
   icon,
+  title,
 }: {
   label: string;
   value: string;
@@ -151,6 +152,8 @@ export function DashboardCompactMetricPill({
   highlight?: boolean;
   stripeVariant?: DashboardCompactStripeVariant;
   icon?: React.ReactNode;
+  /** Vollständiger Label-Text (z. B. bei abgekürztem Pill-Label). */
+  title?: string;
 }) {
   const shellClass = cn(
     "inline-flex min-w-0 rounded-lg border text-left",
@@ -172,7 +175,9 @@ export function DashboardCompactMetricPill({
       <div className="flex min-w-0 flex-col">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
           {icon ? <span className="shrink-0 [&_svg]:size-3.5">{icon}</span> : null}
-          <span className="truncate">{label}</span>
+          <span className="truncate" title={title}>
+            {label}
+          </span>
         </span>
         <span className="text-sm font-semibold tabular-nums text-foreground">
           {value}

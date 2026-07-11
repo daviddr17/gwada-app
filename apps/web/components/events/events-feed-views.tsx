@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import { ExternalLink, Ticket } from "lucide-react";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
 import {
@@ -30,18 +30,21 @@ const EventCard = memo(function EventCard({
 }) {
   const dateLabel = formatEventCardDate(item);
   const fullRange = formatEventDateRange(item);
+  const [coverBroken, setCoverBroken] = useState(false);
+  const showCover = Boolean(item.coverUrl) && !coverBroken;
 
   const content = (
     <>
-      {item.coverUrl ? (
-        <div className="relative w-full shrink-0 bg-muted/30">
+      {showCover ? (
+        <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted/30">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={item.coverUrl}
+            src={item.coverUrl!}
             alt=""
             loading="lazy"
             decoding="async"
-            className="block max-h-48 w-full object-cover"
+            className="size-full object-cover object-center"
+            onError={() => setCoverBroken(true)}
           />
         </div>
       ) : null}

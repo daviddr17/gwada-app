@@ -46,8 +46,9 @@ export function NewsPlatformFilterChips({
           <span>{NEWS_FILTER_LABELS.all}</span>
         </button>
       ) : null}
-      {NEWS_PLATFORM_ORDER.filter((platform) => availablePlatforms.has(platform)).map(
-        (platform) => (
+      {NEWS_PLATFORM_ORDER.filter((platform) =>
+        availablePlatforms.has(platform),
+      ).map((platform) => (
         <NewsPlatformChip
           key={platform}
           platform={platform}
@@ -55,8 +56,7 @@ export function NewsPlatformFilterChips({
           onSelect={() => onChange(platform)}
           disabled={disabled}
         />
-      ),
-      )}
+      ))}
     </div>
   );
 }

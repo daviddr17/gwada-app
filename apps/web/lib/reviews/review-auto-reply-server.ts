@@ -3,6 +3,8 @@ import "server-only";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { replyToFacebookRecommendation } from "@/lib/reviews/facebook-reviews-api";
 import { replyToGoogleReview } from "@/lib/reviews/google-reviews-api";
+import { loadGwadaReviewsForFeed } from "@/lib/reviews/reviews-gwada-feed-server";
+import { readCachedReviews } from "@/lib/reviews/reviews-cache-db";
 import { fetchReviewAutoReplyRules } from "@/lib/reviews/review-settings-db";
 import {
   interpolateReviewAutoReplyTemplate,
@@ -40,7 +42,7 @@ async function alreadyAutoReplied(
   return Boolean(data);
 }
 
-async function logAutoReply(
+export async function logReviewAutoReply(
   admin: SupabaseClient,
   restaurantId: string,
   platform: ReviewPlatform,
@@ -56,7 +58,7 @@ async function logAutoReply(
   );
 }
 
-async function updateCachedReviewReply(
+export async function updateCachedReviewReply(
   admin: SupabaseClient,
   restaurantId: string,
   platform: ReviewPlatform,
@@ -84,23 +86,50 @@ async function updateCachedReviewReply(
     .eq("external_id", externalId);
 }
 
+async function replyToGwadaReview(
+  admin: SupabaseClient,
+  restaurantId: string,
+  reviewId: string,
+  comment: string,
+): Promise<{ ok: true } | { error: string }> {
+  const now = new Date().toISOString();
+  const { data, error } = await admin
+    .from("gwada_reviews")
+    .update({
+      owner_reply: comment,
+      owner_reply_at: now,
+    })
+    .eq("id", reviewId)
+    .eq("restaurant_id", restaurantId)
+    .is("owner_reply", null)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    return { error: error.message };
+  }
+  if (!data) {
+    return { error: "already_replied" };
+  }
+  return { ok: true };
+}
+
 export async function tryAutoReplyToReview(
   restaurantId: string,
   review: UnifiedReview,
-): Promise<void> {
-  if (review.platform === "gwada") return;
-  if (review.reply?.trim()) return;
-  if (!review.canReply) return;
+): Promise<boolean> {
+  if (review.reply?.trim()) return false;
+  if (!review.canReply) return false;
 
   const rating = Math.round(review.rating);
-  if (rating < 1 || rating > 5) return;
+  if (rating < 1 || rating > 5) return false;
 
   const admin = createSupabaseAdminClient();
-  if (!admin) return;
+  if (!admin) return false;
 
   const externalId = reviewExternalId(review);
   if (await alreadyAutoReplied(admin, restaurantId, review.platform, externalId)) {
-    return;
+    return false;
   }
 
   const rules = await fetchReviewAutoReplyRules(admin, restaurantId);
@@ -111,7 +140,7 @@ export async function tryAutoReplyToReview(
       entry.enabled &&
       entry.replyTemplate.trim().length > 0,
   );
-  if (!rule) return;
+  if (!rule) return false;
 
   const restaurantName = await fetchRestaurantName(admin, restaurantId);
   const comment = interpolateReviewAutoReplyTemplate(rule.replyTemplate, {
@@ -119,7 +148,7 @@ export async function tryAutoReplyToReview(
     rating,
     restaurantName,
   }).trim();
-  if (!comment) return;
+  if (!comment) return false;
 
   let sent = false;
   if (review.platform === "google") {
@@ -129,6 +158,13 @@ export async function tryAutoReplyToReview(
       comment,
     });
     sent = !("error" in result);
+    if (!sent) {
+      console.warn("[gwada] review auto-reply google failed", {
+        restaurantId,
+        externalId,
+        error: "error" in result ? result.error : "unknown",
+      });
+    }
   } else if (review.platform === "facebook") {
     const result = await replyToFacebookRecommendation({
       restaurantId,
@@ -136,30 +172,86 @@ export async function tryAutoReplyToReview(
       message: comment,
     });
     sent = !("error" in result);
+    if (!sent) {
+      console.warn("[gwada] review auto-reply facebook failed", {
+        restaurantId,
+        externalId,
+        error: "error" in result ? result.error : "unknown",
+      });
+    }
+  } else if (review.platform === "gwada") {
+    const result = await replyToGwadaReview(admin, restaurantId, review.id, comment);
+    sent = !("error" in result);
+    if ("error" in result && result.error !== "already_replied") {
+      console.warn("[gwada] review auto-reply gwada failed", {
+        restaurantId,
+        externalId,
+        error: result.error,
+      });
+    }
   }
 
-  if (!sent) return;
+  if (!sent) return false;
 
-  await logAutoReply(admin, restaurantId, review.platform, externalId);
-  await updateCachedReviewReply(
-    admin,
-    restaurantId,
-    review.platform,
-    externalId,
-    comment,
-  );
+  await logReviewAutoReply(admin, restaurantId, review.platform, externalId);
+
+  if (review.platform === "google" || review.platform === "facebook") {
+    await updateCachedReviewReply(
+      admin,
+      restaurantId,
+      review.platform,
+      externalId,
+      comment,
+    );
+  }
+
+  return true;
 }
 
+/** Alle offenen Bewertungen (nicht nur neu beim Sync) — Retry + Backfill. */
+export async function tryAutoReplyToPendingReviews(
+  restaurantId: string,
+  reviews: UnifiedReview[],
+  platform?: ReviewPlatform,
+): Promise<{ attempted: number; sent: number }> {
+  let attempted = 0;
+  let sent = 0;
+
+  for (const review of reviews) {
+    if (platform && review.platform !== platform) continue;
+    if (review.reply?.trim()) continue;
+    attempted += 1;
+    const ok = await tryAutoReplyToReview(restaurantId, review);
+    if (ok) sent += 1;
+  }
+
+  return { attempted, sent };
+}
+
+/** Nach Speichern der Regeln oder manuell: alle Plattformen durchlaufen. */
+export async function runReviewAutoReplyBackfill(
+  restaurantId: string,
+): Promise<{ attempted: number; sent: number }> {
+  const admin = createSupabaseAdminClient();
+  if (!admin) return { attempted: 0, sent: 0 };
+
+  const [gwadaReviews, cachedReviews] = await Promise.all([
+    loadGwadaReviewsForFeed(admin, restaurantId),
+    readCachedReviews(admin, restaurantId),
+  ]);
+
+  return tryAutoReplyToPendingReviews(restaurantId, [
+    ...gwadaReviews,
+    ...cachedReviews,
+  ]);
+}
+
+/** @deprecated Alias — bitte `tryAutoReplyToPendingReviews` nutzen. */
 export async function tryAutoReplyToNewReviews(
   restaurantId: string,
   reviews: UnifiedReview[],
-  previousExternalIds: Set<string>,
+  _previousExternalIds: Set<string>,
   platform: ReviewPlatform,
 ): Promise<void> {
-  for (const review of reviews) {
-    if (review.platform !== platform) continue;
-    const externalId = reviewExternalId(review);
-    if (previousExternalIds.has(externalId)) continue;
-    await tryAutoReplyToReview(restaurantId, review);
-  }
+  await tryAutoReplyToPendingReviews(restaurantId, reviews, platform);
 }

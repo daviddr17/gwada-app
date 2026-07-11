@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -90,7 +91,7 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
   const reloadGeneration = useRef(0);
   const hydratedCacheRef = useRef(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!authReady || !workspaceReady || !user || !restaurantId) return;
     if (hydratedCacheRef.current) return;
     const cached = readPermissionsSessionCache(restaurantId, user.id);

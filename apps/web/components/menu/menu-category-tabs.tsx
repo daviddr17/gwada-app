@@ -181,7 +181,7 @@ export function MenuCategoryTabs({
                     else tabBtnRefs.current.delete(cat.id);
                   }}
                   className={cn(
-                    "inline-flex max-w-[200px] items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                    "inline-flex max-w-none shrink-0 items-center rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
                     selected
                       ? cn(
                           "border-border/60 text-foreground shadow-none dark:shadow-sm",
@@ -191,8 +191,9 @@ export function MenuCategoryTabs({
                     !catLive && "opacity-70",
                   )}
                   onClick={() => onCategorySelect(cat.id)}
+                  title={cat.name}
                 >
-                  <span className="truncate">{cat.name}</span>
+                  <span className="whitespace-nowrap">{cat.name}</span>
                 </button>
                 <Button
                   type="button"

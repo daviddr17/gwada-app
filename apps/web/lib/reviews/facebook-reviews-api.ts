@@ -16,7 +16,15 @@ type FacebookRatingRaw = {
   review_text?: string;
   recommendation_type?: string;
   reviewer?: { name?: string };
-  open_graph_story?: { id?: string };
+  open_graph_story?: {
+    id?: string;
+    comments?: {
+      data?: Array<{
+        message?: string;
+        from?: { id?: string; name?: string };
+      }>;
+    };
+  };
 };
 
 /** Stabile ID ohne open_graph_story — Index würde bei API-Reihenfolge Push-Duplikate erzeugen. */
@@ -62,7 +70,7 @@ export async function fetchFacebookReviewsForRestaurant(
     "review_text",
     "recommendation_type",
     "reviewer{name}",
-    "open_graph_story{id}",
+    "open_graph_story{id,comments.limit(5){message,from{id}}}",
   ].join(",");
 
   const url = `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}/ratings?fields=${encodeURIComponent(fields)}&limit=50`;
@@ -89,6 +97,12 @@ export async function fetchFacebookReviewsForRestaurant(
           : r.recommendation_type === "negative"
             ? 1
             : 0;
+    const storyId = r.open_graph_story?.id?.trim();
+    const pageReply = (r.open_graph_story?.comments?.data ?? []).find(
+      (comment) => comment.from?.id === pageId,
+    );
+    const reply = pageReply?.message?.trim() || null;
+
     return {
       id: stableFacebookReviewExternalId(pageId, r),
       platform: "facebook" as const,
@@ -96,8 +110,8 @@ export async function fetchFacebookReviewsForRestaurant(
       comment: r.review_text?.trim() || null,
       authorName: r.reviewer?.name?.trim() || null,
       createdAt: r.created_time ?? new Date().toISOString(),
-      reply: null,
-      canReply: Boolean(r.open_graph_story?.id),
+      reply,
+      canReply: Boolean(storyId) && !reply,
       externalUrl: null,
     };
   });

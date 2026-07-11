@@ -233,14 +233,18 @@ export function StaffWorkHoursView({
     return map;
   }, [staffList]);
 
-  const absenceByDayKey = useMemo(() => {
+  const drawerStaffId = editEntry?.staff_id ?? staffId ?? null;
+
+  const absenceByDayKeyForDrawer = useMemo(() => {
+    if (!drawerStaffId) return undefined;
     const map = new Map<string, "vacation" | "sick">();
     for (const e of entries) {
+      if (e.staff_id !== drawerStaffId) continue;
       if (!isShiftPlanAbsenceEntry(e)) continue;
       map.set(dayKeyFromIso(e.starts_at), e.entry_type);
     }
     return map;
-  }, [entries]);
+  }, [entries, drawerStaffId]);
 
   const today = useMemo(() => startOfLocalDay(new Date()), []);
   const yearMin = today.getFullYear() - 1;
@@ -274,22 +278,25 @@ export function StaffWorkHoursView({
     "flex w-full items-start gap-2 rounded-lg border border-border/40 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45";
 
   const siblingEntries = useMemo(() => {
-    if (!drawerOpen) return [];
+    if (!drawerOpen || !drawerStaffId) return [];
     const day = editEntry
       ? startOfLocalDay(new Date(editEntry.starts_at))
       : dayForNew
         ? startOfLocalDay(dayForNew)
         : null;
-    if (!day) return entries;
-    const dayEntries = byDay.get(localDayKey(day)) ?? [];
+    if (!day) return [];
+    const dayEntries = (byDay.get(localDayKey(day)) ?? []).filter(
+      (e) => e.staff_id === drawerStaffId,
+    );
     const openElsewhere = entries.filter(
       (e) =>
+        e.staff_id === drawerStaffId &&
         e.is_open &&
         e.entry_type === "work" &&
         localDayKey(new Date(e.starts_at)) !== localDayKey(day),
     );
     return [...dayEntries, ...openElsewhere];
-  }, [drawerOpen, editEntry, dayForNew, byDay, entries]);
+  }, [drawerOpen, editEntry, dayForNew, byDay, entries, drawerStaffId]);
 
   return (
     <div className="pb-16">
@@ -608,7 +615,7 @@ export function StaffWorkHoursView({
             staffId={editEntry?.staff_id ?? staffId ?? ""}
             entry={editEntry}
             defaultDay={dayForNew}
-            absenceByDayKey={absenceByDayKey}
+            absenceByDayKey={absenceByDayKeyForDrawer}
             allowEdit={allowEdit}
             siblingEntries={siblingEntries}
             onSaved={() => void reload()}

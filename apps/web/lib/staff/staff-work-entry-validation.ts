@@ -48,9 +48,11 @@ function isTimedBreakEntry(entry: RestaurantStaffWorkEntryRow): boolean {
 function filterSiblings(
   siblings: readonly RestaurantStaffWorkEntryRow[],
   dayKey: string,
+  staffId: string,
   excludeId?: string,
 ): RestaurantStaffWorkEntryRow[] {
   return siblings.filter((entry) => {
+    if (entry.staff_id !== staffId) return false;
     if (excludeId && entry.id === excludeId) return false;
     if (isShiftPlanAbsenceEntry(entry)) return false;
     return localDayKey(new Date(entry.starts_at)) === dayKey;
@@ -100,12 +102,25 @@ export function validateStaffWorkEntryTiming(params: {
   entryType: StaffWorkEntryType;
   startsAt: string;
   endsAt: string;
+  staffId: string;
   entryId?: string;
   isOpen?: boolean;
   siblings: readonly RestaurantStaffWorkEntryRow[];
 }): StaffWorkEntryValidationResult {
+  if (!params.staffId.trim()) {
+    return { ok: false, message: "Mitarbeiter fehlt." };
+  }
+
+  const staffSiblings = params.siblings.filter(
+    (entry) => entry.staff_id === params.staffId,
+  );
   const dayKey = localDayKey(new Date(params.startsAt));
-  const sameDay = filterSiblings(params.siblings, dayKey, params.entryId);
+  const sameDay = filterSiblings(
+    staffSiblings,
+    dayKey,
+    params.staffId,
+    params.entryId,
+  );
   const candidate = toRange(params.startsAt, params.endsAt, params.isOpen);
 
   if (!params.isOpen && candidate.endMs <= candidate.startMs) {
@@ -114,7 +129,7 @@ export function validateStaffWorkEntryTiming(params: {
 
   if (params.entryType === "work") {
     if (params.isOpen) {
-      for (const other of params.siblings.filter(isTimedWorkEntry)) {
+      for (const other of staffSiblings.filter(isTimedWorkEntry)) {
         if (params.entryId && other.id === params.entryId) continue;
         if (other.is_open) {
           return {

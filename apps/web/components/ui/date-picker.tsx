@@ -15,6 +15,7 @@ import {
   PopoverPositioner,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
 import { cn } from "@/lib/utils"
 
 /**
@@ -26,7 +27,8 @@ import { cn } from "@/lib/utils"
  * unterbricht die Segment-Eingabe (z. B. „12“ wird zu „02“).
  */
 const formScheduleTimeInputBaseClassName = cn(
-  "h-11 min-w-0 shrink-0 rounded-xl border border-input bg-transparent px-3 py-1 text-sm tabular-nums transition-colors outline-none shadow-none",
+  "h-11 min-w-0 shrink-0 rounded-xl border border-input bg-transparent px-3 py-1 tabular-nums transition-colors outline-none shadow-none",
+  mobileFormControlFontClassName,
   "placeholder:text-muted-foreground text-foreground",
   "hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/40",
   "focus:border-ring focus:ring-3 focus:ring-ring/50",
@@ -44,6 +46,9 @@ export const formScheduleTimeInputFullWidthClassName = cn(
   formScheduleTimeInputBaseClassName,
   "w-full",
 )
+
+const DATE_PICKER_DEFAULT_START_MONTH = new Date(1940, 0)
+const DATE_PICKER_DEFAULT_END_MONTH = new Date(new Date().getFullYear() + 5, 11)
 
 function parseYmdToDate(ymd: string | null | undefined): Date | undefined {
   if (!ymd?.trim()) return undefined
@@ -77,6 +82,10 @@ export function DatePickerField({
   size = "default",
   fullWidth = false,
   minYmd,
+  startMonth = DATE_PICKER_DEFAULT_START_MONTH,
+  endMonth = DATE_PICKER_DEFAULT_END_MONTH,
+  /** Kalender-Start, wenn noch kein Wert gesetzt ist (z. B. Geburtsdatum → 1990). */
+  fallbackMonth,
   open: openProp,
   onOpenChange,
 }: {
@@ -91,6 +100,12 @@ export function DatePickerField({
   fullWidth?: boolean
   /** Frühestes wählbares Datum (`yyyy-MM-dd`, inklusive). */
   minYmd?: string | null
+  /** Frühester Monat in Monats-/Jahres-Dropdowns. */
+  startMonth?: Date
+  /** Spätester Monat in Monats-/Jahres-Dropdowns. */
+  endMonth?: Date
+  /** Kalender-Start ohne gesetztes Datum (sonst heute). */
+  fallbackMonth?: Date
   /** Optional controlled popover (z. B. schließen bei Tages-Pfeilen). */
   open?: boolean
   onOpenChange?: (open: boolean) => void
@@ -101,6 +116,7 @@ export function DatePickerField({
   const selected = React.useMemo(() => parseYmdToDate(value ?? null), [value])
   const minDate = React.useMemo(() => parseYmdToDate(minYmd ?? null), [minYmd])
   const hasDate = Boolean(value?.trim())
+  const initialMonth = selected ?? minDate ?? fallbackMonth ?? new Date()
 
   /** Kurzes lokales Datum — passt zur schmalen shadcn-Triggerbreite. */
   const labelText = selected
@@ -128,7 +144,8 @@ export function DatePickerField({
               disabled={disabled}
               data-empty={!hasDate}
               className={cn(
-                "h-11 shrink-0 justify-between gap-2 rounded-xl border border-input bg-transparent px-3 text-left text-sm font-normal shadow-none",
+                "h-11 shrink-0 justify-between gap-2 rounded-xl border border-input bg-transparent px-3 text-left font-normal shadow-none",
+                mobileFormControlFontClassName,
                 fullWidth ? "w-full" : "w-[240px]",
                 "text-foreground outline-none transition-colors",
                 "hover:bg-muted/50 dark:bg-input/30 dark:hover:bg-input/40",
@@ -171,12 +188,11 @@ export function DatePickerField({
                 className="rounded-2xl p-3"
                 locale={localeDe}
                 mode="single"
-                /* Kein captionLayout="dropdown": native <select>-Listen liegen außerhalb des Popover-DOM;
-                   Floating UI wertet Klicks/Fokus dann oft als "outside" — UI wirkt eingefroren. */
-                startMonth={new Date(2020, 0)}
-                endMonth={new Date(2035, 11)}
+                captionLayout="dropdown"
+                startMonth={startMonth}
+                endMonth={endMonth}
                 selected={selected}
-                defaultMonth={selected ?? minDate}
+                defaultMonth={initialMonth}
                 disabled={minDate ? { before: minDate } : undefined}
                 onSelect={(d) => {
                   onChange(d ? format(d, "yyyy-MM-dd") : null)

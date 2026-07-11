@@ -74,7 +74,9 @@ export function StaffOverviewScreen() {
   const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
   const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const showSkeleton = useDeferredSkeleton(loading && rows.length === 0);
+  const [dayStatsLoading, setDayStatsLoading] = useState(true);
+  const showTableSkeleton = useDeferredSkeleton(loading && rows.length === 0);
+  const showDayStatsSkeleton = useDeferredSkeleton(dayStatsLoading);
   const [dayDate, setDayDate] = useState(() => localDayKey(new Date()));
   const [liveNow, setLiveNow] = useState(() => new Date());
   const autoFollowTodayRef = useRef(true);
@@ -155,6 +157,7 @@ export function StaffOverviewScreen() {
 
   const reloadDayStats = useCallback(async () => {
     if (!restaurantId || !dayDate) return;
+    setDayStatsLoading(true);
     const [y, m, d] = dayDate.split("-").map(Number);
     const day = new Date(y, m - 1, d);
     const start = localDayStartToUtcIso(day);
@@ -186,6 +189,7 @@ export function StaffOverviewScreen() {
     setPresenceRows(presence);
     setDayEntries(entries);
     setLastDisplayLoginByStaffId(displayLogins);
+    setDayStatsLoading(false);
   }, [restaurantId, dayDate]);
 
   useEffect(() => {
@@ -291,7 +295,7 @@ export function StaffOverviewScreen() {
               }}
             />
           </div>
-          {showSkeleton ? (
+          {showDayStatsSkeleton ? (
             <StaffOverviewDayStatsSkeleton />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -303,7 +307,7 @@ export function StaffOverviewScreen() {
                   "hover:border-accent/35 hover:bg-accent/5 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/45",
                 )}
               >
-                <p className="text-xs text-muted-foreground">Aktiv</p>
+                <p className="text-xs text-muted-foreground">Live aktiv</p>
                 <p className="text-2xl font-semibold tabular-nums">
                   {workingIds.size}
                 </p>
@@ -392,10 +396,10 @@ export function StaffOverviewScreen() {
         </Button>
       </div>
 
-          {loading && !showSkeleton ? (
+          {loading && !showTableSkeleton ? (
             <div className="min-h-[22rem]" aria-busy="true" />
           ) : null}
-          {showSkeleton ? (
+          {showTableSkeleton ? (
             <StaffOverviewTableSkeleton />
           ) : (
             <StaffOverviewTable

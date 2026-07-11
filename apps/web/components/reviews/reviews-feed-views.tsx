@@ -11,6 +11,7 @@ import {
 } from "@/lib/constants/review-platforms";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
+import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
 import { cn } from "@/lib/utils";
 
 function StarsDisplay({ rating }: { rating: number }) {
@@ -222,11 +223,14 @@ export function ReviewCard({
                 </p>
               )
             ) : null}
-            {review.comment ? (
-              <p className="text-sm leading-relaxed text-foreground">{review.comment}</p>
-            ) : (
-              <p className="text-sm text-muted-foreground">Kein Kommentar</p>
-            )}
+            {(() => {
+              const comment = formatReviewCommentDisplay(review.comment);
+              return comment ? (
+                <p className="text-sm leading-relaxed text-foreground">{comment}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">Kein Kommentar</p>
+              );
+            })()}
             {review.reply ? (
               <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
                 <span className="font-medium text-muted-foreground">Antwort: </span>
@@ -332,11 +336,14 @@ export function ReviewCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3 pt-0">
-        {review.comment ? (
-          <p className="text-sm leading-relaxed text-foreground">{review.comment}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">Kein Kommentar</p>
-        )}
+        {(() => {
+          const comment = formatReviewCommentDisplay(review.comment);
+          return comment ? (
+            <p className="text-sm leading-relaxed text-foreground">{comment}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Kein Kommentar</p>
+          );
+        })()}
         {review.reply ? (
           <div className="rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-sm">
             <span className="font-medium text-muted-foreground">Antwort: </span>

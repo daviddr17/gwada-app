@@ -138,7 +138,7 @@ async function loadConnectedPlatformReviewsUncached(
 
   const { data: reviewRows } = await admin
     .from("gwada_reviews")
-    .select("id, rating, comment, guest_display_name, created_at, is_pinned")
+    .select("id, rating, comment, guest_display_name, created_at, is_pinned, owner_reply")
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false })
     .limit(PUBLIC_REVIEW_LIMIT);
@@ -151,7 +151,9 @@ async function loadConnectedPlatformReviewsUncached(
       guest_display_name: string | null;
       created_at: string;
       is_pinned?: boolean;
+      owner_reply?: string | null;
     };
+    const ownerReply = raw.owner_reply?.trim() || null;
     return {
       id: raw.id,
       platform: "gwada" as const,
@@ -159,7 +161,7 @@ async function loadConnectedPlatformReviewsUncached(
       comment: raw.comment?.trim() || null,
       authorName: raw.guest_display_name?.trim() || null,
       createdAt: raw.created_at,
-      reply: null,
+      reply: ownerReply,
       canReply: false,
       externalUrl: null,
       isPinned: Boolean(raw.is_pinned),

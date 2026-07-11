@@ -503,6 +503,12 @@ export default function StaffInvitePage() {
               onChange={(e) => setEmail(e.target.value)}
               className="rounded-xl"
             />
+            {invite?.staff_email ? (
+              <p className="text-xs text-muted-foreground">
+                Vorausgefüllt aus dem Mitarbeiterprofil — du kannst eine andere
+                E-Mail für dein App-Konto wählen.
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="inv-pw">Passwort</Label>

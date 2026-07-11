@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   if (!result.ok) {
     const status =
-      result.error === "already_registered" || result.error === "email_mismatch"
+      result.error === "already_registered"
         ? 400
         : result.error === "smtp_not_configured" || result.error === "smtp_incomplete"
           ? 503

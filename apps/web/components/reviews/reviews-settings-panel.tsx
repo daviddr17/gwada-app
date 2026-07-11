@@ -130,13 +130,22 @@ export function ReviewsSettingsPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restaurantId, rules }),
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as {
+        error?: string;
+        autoRepliesSent?: number;
+      };
       if (!res.ok) {
         toast.error(json.error ?? "Speichern fehlgeschlagen.");
         return;
       }
       setInitialRules(rules);
-      toast.success("Einstellungen gespeichert.");
+      if (typeof json.autoRepliesSent === "number" && json.autoRepliesSent > 0) {
+        toast.success(
+          `Einstellungen gespeichert — ${json.autoRepliesSent} automatische Antwort${json.autoRepliesSent === 1 ? "" : "en"} gesendet.`,
+        );
+      } else {
+        toast.success("Einstellungen gespeichert.");
+      }
     } catch {
       toast.error("Netzwerkfehler beim Speichern.");
     } finally {
@@ -152,9 +161,9 @@ export function ReviewsSettingsPanel() {
       return "Facebook ist nicht verbunden — automatische Antworten werden erst nach Verknüpfung gesendet.";
     }
     if (platform === "gwada") {
-      return "Gwada-Bewertungen haben keine externe Antwort-Funktion — Regeln werden vorbereitet, aber noch nicht automatisch versendet.";
+      return "Antworten erscheinen öffentlich auf Profil und Einbindung. Beim Speichern werden offene Bewertungen nachträglich beantwortet.";
     }
-    return "Bei neuen Bewertungen ohne bestehende Antwort wird die Vorlage automatisch veröffentlicht.";
+    return "Bei neuen und noch offenen Bewertungen wird die Vorlage automatisch veröffentlicht (auch nach dem Aktivieren).";
   };
 
   if (!ready) {
@@ -219,9 +228,14 @@ export function ReviewsSettingsPanel() {
                         }
                         rows={3}
                         placeholder="Danke für deine Bewertung, {authorName} …"
-                        disabled={!rule.enabled}
-                        className={cn(!rule.enabled && "opacity-60")}
+                        className={cn(!rule.enabled && "border-dashed opacity-90")}
                       />
+                      {!rule.enabled ? (
+                        <p className="text-xs text-muted-foreground">
+                          Schalter aus — Vorlage wird gespeichert, aber noch nicht automatisch
+                          gesendet.
+                        </p>
+                      ) : null}
                     </div>
                   ))}
                 </CardContent>

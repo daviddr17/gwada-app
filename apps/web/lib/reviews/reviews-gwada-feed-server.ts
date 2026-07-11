@@ -31,7 +31,7 @@ export async function loadGwadaReviewsForFeed(
   const { data, error } = await sb
     .from("gwada_reviews")
     .select(
-      "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id, is_pinned",
+      "id, rating, comment, guest_display_name, created_at, reservation_id, invitation_id, is_pinned, owner_reply",
     )
     .eq("restaurant_id", restaurantId)
     .order("created_at", { ascending: false })
@@ -79,6 +79,7 @@ export async function loadGwadaReviewsForFeed(
 
   return rows.map((r) => {
     const reservationId = (r.reservation_id as string | null) ?? null;
+    const ownerReply = (r.owner_reply as string | null)?.trim() || null;
     return {
       id: r.id as string,
       platform: "gwada" as const,
@@ -86,8 +87,8 @@ export async function loadGwadaReviewsForFeed(
       comment: (r.comment as string | null) ?? null,
       authorName: (r.guest_display_name as string | null) ?? null,
       createdAt: r.created_at as string,
-      reply: null,
-      canReply: false,
+      reply: ownerReply,
+      canReply: !ownerReply,
       externalUrl: null,
       contactId: contactByReviewId.get(r.id as string) ?? null,
       reservationId,

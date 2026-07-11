@@ -75,14 +75,29 @@ function profileInitials(firstName: string, lastName: string): string {
   const b = la.slice(0, 1).toLocaleUpperCase("de-DE");
   if (a && b) return a + b;
   if (a && fi.length >= 2) return a + fi.slice(1, 2).toLocaleUpperCase("de-DE");
-  if (a) return `${a}?`;
+  if (a) return a;
   if (b && la.length >= 2)
     return (
       la.slice(0, 1).toLocaleUpperCase("de-DE") +
       la.slice(1, 2).toLocaleUpperCase("de-DE")
     );
-  if (b) return `?${b}`;
-  return "?";
+  if (b) return b;
+  return "";
+}
+
+function restaurantInitials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) {
+    return (
+      words[0].slice(0, 1).toLocaleUpperCase("de-DE") +
+      words[1].slice(0, 1).toLocaleUpperCase("de-DE")
+    );
+  }
+  const word = words[0] ?? "";
+  if (word.length >= 2) {
+    return word.slice(0, 2).toLocaleUpperCase("de-DE");
+  }
+  return word.slice(0, 1).toLocaleUpperCase("de-DE");
 }
 
 const SIDEBAR_MODULE_SKELETON_WIDTHS = [
@@ -98,12 +113,19 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
-  const { profile } = useRestaurantProfile();
-  const { firstName, lastName } = usePersonalProfileNames();
+  const { profile, isReady: profileReady } = useRestaurantProfile();
+  const { firstName, lastName, isHydrated: profileNamesHydrated } =
+    usePersonalProfileNames();
   const { isSuperadmin } = useIsSuperadmin();
   const { order: sidebarModuleOrder } = useSidebarModuleOrder();
-  const { has, loading: permissionsLoading, error: permissionsError, reload: reloadPermissions } =
-    useRestaurantPermissions();
+  const {
+    has,
+    permissions,
+    loading: permissionsLoading,
+    error: permissionsError,
+    reload: reloadPermissions,
+  } = useRestaurantPermissions();
+  const permissionsPending = permissionsLoading && permissions.size === 0;
   const inSuperadmin = pathname.startsWith("/superadmin");
   const { summary: notificationSummary } = useNotificationSummary();
   const { count: pendingChangelogCount } = useSuperadminChangelogPendingCount(
@@ -116,20 +138,21 @@ export function AppSidebar() {
       sidebarModuleOrder
         .map((id: SidebarModuleId) => SIDEBAR_MODULE_BY_ID.get(id))
         .filter((mod): mod is NonNullable<typeof mod> => mod != null)
-        .filter(
-          (mod) =>
-            permissionsLoading || hasSidebarModuleAccess(has, mod.id),
-        ),
-    [sidebarModuleOrder, has, permissionsLoading],
+        .filter((mod) => hasSidebarModuleAccess(has, mod.id)),
+    [sidebarModuleOrder, has],
   );
 
-  const displayName =
-    profile.name.trim() || "Restaurant";
-
-  const userFullName =
-    formatOrderProtocolUserName({ firstName, lastName }) || "Profil";
-  const initials = profileInitials(firstName, lastName);
-  const headerTooltip = `${userFullName} · ${displayName}`;
+  const displayName = profile.name.trim() || (profileReady ? "Restaurant" : "");
+  const userFullName = formatOrderProtocolUserName({ firstName, lastName });
+  const headerUserLabel =
+    userFullName || (profileNamesHydrated ? "Profil" : "");
+  const headerInitials =
+    userFullName.length > 0
+      ? profileInitials(firstName, lastName)
+      : restaurantInitials(displayName) || "R";
+  const headerTooltip = userFullName
+    ? `${userFullName} · ${displayName || "Restaurant"}`
+    : displayName || "Restaurant";
 
   useEffect(() => {
     if (isMobile) {
@@ -172,7 +195,7 @@ export function AppSidebar() {
                   "col-start-1 row-start-1 flex size-8 shrink-0 items-center justify-center place-self-center rounded-lg bg-sidebar-primary text-[0.625rem] font-bold leading-none tracking-tight text-sidebar-primary-foreground group-data-[sidebar-icon-compact]/sidebar-wrapper:rounded-full",
                 )}
               >
-                {initials}
+                {headerInitials}
               </div>
               <div
                 className={cn(
@@ -180,12 +203,26 @@ export function AppSidebar() {
                   SIDEBAR_LABEL_MOTION,
                 )}
               >
-                <span className="truncate font-semibold tracking-tight">
-                  {userFullName}
-                </span>
-                <span className="truncate text-[10px] text-sidebar-foreground/70">
-                  {displayName}
-                </span>
+                {headerUserLabel ? (
+                  <span className="truncate font-semibold tracking-tight">
+                    {headerUserLabel}
+                  </span>
+                ) : (
+                  <span
+                    className="block h-4 w-24 max-w-full rounded-md bg-sidebar-accent/50 skeleton-shimmer"
+                    aria-hidden
+                  />
+                )}
+                {displayName ? (
+                  <span className="truncate text-[10px] text-sidebar-foreground/70">
+                    {displayName}
+                  </span>
+                ) : profileReady ? null : (
+                  <span
+                    className="mt-0.5 block h-3 w-32 max-w-full rounded-md bg-sidebar-accent/40 skeleton-shimmer"
+                    aria-hidden
+                  />
+                )}
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -333,7 +370,7 @@ export function AppSidebar() {
                       <span>Dashboard</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  {permissionsLoading ? (
+                  {permissionsPending ? (
                     Array.from({ length: 6 }, (_, i) => (
                       <SidebarMenuItem key={`perm-skeleton-${i}`}>
                         <SidebarMenuSkeleton

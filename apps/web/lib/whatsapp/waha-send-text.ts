@@ -6,6 +6,8 @@ export async function wahaSendText(params: {
   restaurantId: string;
   chatId: string;
   text: string;
+  /** WAHA: Link-Vorschau bei URLs (Standard aus — weniger Ballast bei Push/Systemnachrichten). */
+  linkPreview?: boolean;
 }): Promise<
   | { ok: true; wahaMessageId?: string | null }
   | { ok: false; error: string }
@@ -31,6 +33,7 @@ export async function wahaSendText(params: {
         session,
         chatId: params.chatId,
         text: params.text,
+        linkPreview: params.linkPreview ?? false,
       }),
       cache: "no-store",
     });

@@ -85,14 +85,18 @@ export async function POST(
     return Response.json({ error: "expired" }, { status: 410 });
   }
 
-  const { error: reviewErr } = await admin.from("gwada_reviews").insert({
-    restaurant_id: inv.restaurant_id,
-    reservation_id: inv.reservation_id,
-    invitation_id: inv.id,
-    rating: Math.round(rating),
-    comment: body.comment?.trim() || null,
-    guest_display_name: body.guestName?.trim() || null,
-  });
+  const { data: inserted, error: reviewErr } = await admin
+    .from("gwada_reviews")
+    .insert({
+      restaurant_id: inv.restaurant_id,
+      reservation_id: inv.reservation_id,
+      invitation_id: inv.id,
+      rating: Math.round(rating),
+      comment: body.comment?.trim() || null,
+      guest_display_name: body.guestName?.trim() || null,
+    })
+    .select("id, rating, comment, guest_display_name, created_at")
+    .single();
 
   if (reviewErr) {
     return Response.json({ error: reviewErr.message }, { status: 500 });
@@ -115,6 +119,23 @@ export async function POST(
       contactId,
       guestName ? splitPersonName(guestName) : undefined,
     );
+  }
+
+  if (inserted) {
+    const { tryAutoReplyToReview } = await import(
+      "@/lib/reviews/review-auto-reply-server"
+    );
+    void tryAutoReplyToReview(inv.restaurant_id as string, {
+      id: inserted.id as string,
+      platform: "gwada",
+      rating: Number(inserted.rating),
+      comment: (inserted.comment as string | null) ?? null,
+      authorName: (inserted.guest_display_name as string | null) ?? null,
+      createdAt: inserted.created_at as string,
+      reply: null,
+      canReply: true,
+      externalUrl: null,
+    });
   }
 
   return Response.json({ ok: true });

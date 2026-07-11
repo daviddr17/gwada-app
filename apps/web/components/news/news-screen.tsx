@@ -43,6 +43,7 @@ import { useNewsPlatformConnections } from "@/lib/hooks/use-news-platform-connec
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { dedupeCrossPlatformNewsItems } from "@/lib/news/dedupe-cross-platform-news";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
 import {
   peekNewsFeedCache,
@@ -264,6 +265,14 @@ export function NewsScreen() {
 
   const sortedItems = useMemo(() => sortNewsItemsByDate(items), [items]);
 
+  const displayItems = useMemo(
+    () =>
+      platformFilter === NEWS_FILTER_ALL
+        ? dedupeCrossPlatformNewsItems(sortedItems)
+        : sortedItems,
+    [sortedItems, platformFilter],
+  );
+
   useEffect(() => {
     setPage(1);
   }, [platformFilter, search]);
@@ -271,8 +280,8 @@ export function NewsScreen() {
   const filtered = useMemo(() => {
     let list =
       platformFilter === NEWS_FILTER_ALL
-        ? sortedItems
-        : sortedItems.filter((i) => i.platform === platformFilter);
+        ? displayItems
+        : displayItems.filter((i) => i.platform === platformFilter);
     const q = search.trim().toLowerCase();
     if (q) {
       list = list.filter(
@@ -282,7 +291,7 @@ export function NewsScreen() {
       );
     }
     return list;
-  }, [sortedItems, platformFilter, search]);
+  }, [displayItems, platformFilter, search]);
 
   const totalCount = filtered.length;
   const totalPages = totalPagesFromCount(totalCount, NEWS_FEED_PAGE_SIZE);

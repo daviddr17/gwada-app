@@ -218,7 +218,8 @@ export function DashboardWeatherTile() {
               value={formatPercent(today?.precipprob ?? cur.precipprob)}
             />
             <DashboardCompactMetricPill
-              label="Feuchtigkeit"
+              label="Feuchte"
+              title="Feuchtigkeit"
               value={formatPercent(cur.humidity)}
             />
             {(today?.sunrise || today?.sunset) && (

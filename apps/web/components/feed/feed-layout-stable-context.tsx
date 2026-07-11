@@ -32,12 +32,14 @@ export function FeedLayoutStableProvider({
 }) {
   const pendingRef = useRef(0);
   const stableRef = useRef(!enabled || itemCount === 0);
+  const initialBatchRef = useRef(true);
   const rafRef = useRef(0);
   const [stable, setStable] = useState(stableRef.current);
 
   useEffect(() => {
     pendingRef.current = 0;
     stableRef.current = !enabled || itemCount === 0;
+    initialBatchRef.current = true;
     setStable(stableRef.current);
   }, [itemCount, enabled]);
 
@@ -59,7 +61,7 @@ export function FeedLayoutStableProvider({
   }, []);
 
   const registerPending = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !initialBatchRef.current) return;
     pendingRef.current += 1;
     if (stableRef.current) {
       stableRef.current = false;
@@ -68,9 +70,12 @@ export function FeedLayoutStableProvider({
   }, [enabled]);
 
   const markLoaded = useCallback(() => {
-    if (!enabled) return;
+    if (!enabled || !initialBatchRef.current) return;
     pendingRef.current = Math.max(0, pendingRef.current - 1);
     scheduleStableCheck();
+    if (pendingRef.current === 0) {
+      initialBatchRef.current = false;
+    }
   }, [enabled, scheduleStableCheck]);
 
   const value = useMemo(

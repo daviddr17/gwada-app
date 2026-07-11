@@ -244,6 +244,9 @@ export function MenuOverviewScreen() {
     [categories, activeMainCategoryId],
   );
 
+  const catalogReady =
+    isHydrated && (items.length === 0 || categoriesInMain.length > 0);
+
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       if (
@@ -541,7 +544,7 @@ export function MenuOverviewScreen() {
 
   return (
     <>
-      {!isHydrated ? (
+      {!catalogReady ? (
         <MenuOverviewSkeleton />
       ) : (
         <div className="w-full pb-16">

@@ -5,7 +5,7 @@ import {
   isReviewsCacheablePlatform,
   type ReviewsCacheablePlatform,
 } from "@/lib/reviews/reviews-cache-constants";
-import { tryAutoReplyToNewReviews } from "@/lib/reviews/review-auto-reply-server";
+import { tryAutoReplyToPendingReviews } from "@/lib/reviews/review-auto-reply-server";
 import { scheduleDeliverForNotificationReferences } from "@/lib/notifications/schedule-notification-deliver";
 import { reviewExternalId } from "@/lib/reviews/review-settings-types";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
@@ -151,12 +151,7 @@ export async function upsertReviewsPlatformCache(
     if (upsertError) {
       console.warn("[gwada] reviews cache upsert", platform, upsertError.message);
     } else {
-      void tryAutoReplyToNewReviews(
-        restaurantId,
-        reviews,
-        previousExternalIds,
-        platform,
-      );
+      void tryAutoReplyToPendingReviews(restaurantId, reviews, platform);
 
       const newReferenceIds = [...seenExternalIds]
         .filter((id) => !previousExternalIds.has(id))

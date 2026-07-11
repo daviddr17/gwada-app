@@ -4,6 +4,7 @@ import * as React from "react"
 import { Combobox } from "@base-ui/react/combobox"
 
 import { useDrawerFloatingPortalHost } from "@/lib/contexts/drawer-floating-portal"
+import { mobileFormControlFontClassName } from "@/lib/ui/mobile-form-control-font"
 import { cn } from "@/lib/utils"
 import { labelForTagId } from "@/lib/constants/menu-labels"
 import { getTagChipVisual } from "@/lib/utils/tag-styles"
@@ -228,11 +229,13 @@ export function SearchableSelect({
         )}
         <Combobox.Input
           id={id}
+          data-slot="combobox-input"
           aria-invalid={ariaInvalid}
           aria-label={ariaLabel}
           placeholder={open ? searchPlaceholder : value ? undefined : searchPlaceholder}
           className={cn(
-            "min-h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-[15px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0 sm:text-sm",
+            "min-h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+            mobileFormControlFontClassName,
             "truncate",
             "data-[popup-open]:overflow-x-auto data-[popup-open]:overflow-y-hidden data-[popup-open]:text-clip",
           )}
@@ -420,11 +423,13 @@ export function TagMultiCombobox({
                   )
                 })}
                 <Combobox.Input
+                  data-slot="combobox-input"
                   placeholder={
                     selected.length ? "Weitere Tags suchen…" : "Tags suchen und hinzufügen…"
                   }
                   className={cn(
-                    "min-h-8 min-w-0 max-w-full flex-[1_1_7rem] border-0 bg-transparent px-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+                    "min-h-8 min-w-0 max-w-full flex-[1_1_7rem] border-0 bg-transparent px-1.5 outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+                    mobileFormControlFontClassName,
                     "truncate",
                     "data-[popup-open]:overflow-x-auto data-[popup-open]:overflow-y-hidden data-[popup-open]:text-clip",
                   )}
@@ -592,13 +597,15 @@ export function SearchableMultiSelect({
                   )
                 })}
                 <Combobox.Input
+                  data-slot="combobox-input"
                   placeholder={
                     selected.length
                       ? searchPlaceholder
                       : placeholder
                   }
                   className={cn(
-                    "min-h-8 min-w-0 max-w-full flex-[1_1_7rem] border-0 bg-transparent px-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+                    "min-h-8 min-w-0 max-w-full flex-[1_1_7rem] border-0 bg-transparent px-1.5 outline-none placeholder:text-muted-foreground focus-visible:ring-0",
+                    mobileFormControlFontClassName,
                     "truncate",
                     "data-[popup-open]:overflow-x-auto data-[popup-open]:overflow-y-hidden data-[popup-open]:text-clip",
                   )}

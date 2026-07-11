@@ -9,6 +9,7 @@ import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-wi
 import type { DashboardWidgetId } from "@/lib/constants/dashboard-widgets";
 import { groupDashboardLayoutSections } from "@/lib/dashboard/group-dashboard-layout-sections";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
+import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
 
@@ -111,12 +112,13 @@ export function DashboardHomePage() {
     visibility,
     order,
     isReady,
-    permissionsLoading,
     permissionsError,
     reloadPermissions,
   } = useDashboardEffectiveWidgetPrefs();
+  const { loading: permissionsLoading, permissions } = useRestaurantPermissions();
 
-  const prefsLoading = !isReady || permissionsLoading;
+  const permissionsPending = permissionsLoading && permissions.size === 0;
+  const prefsLoading = !isReady || permissionsPending;
 
   if (prefsLoading) {
     return <DashboardHomeSkeleton />;

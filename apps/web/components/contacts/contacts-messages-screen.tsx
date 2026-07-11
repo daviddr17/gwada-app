@@ -226,6 +226,8 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+import { inboxConversationAvatarInitials } from "@/lib/contacts/inbox-conversation-avatar-initials";
+import { stripHtmlToPlainText } from "@/lib/text/strip-html-to-plain-text";
 import { cn } from "@/lib/utils";
 
 const LIST_SILENT_REFRESH_DEBOUNCE_MS = 3_000;
@@ -244,7 +246,7 @@ function previewSnippet(
   attachmentKind?: ContactConversationPreview["last_attachment_kind"],
   max = 72,
 ): string {
-  const t = body.replace(/\s+/g, " ").trim();
+  const t = stripHtmlToPlainText(body).replace(/\s+/g, " ").trim();
   if (t) {
     if (t.length <= max) return t;
     return `${t.slice(0, max - 1)}…`;
@@ -2503,7 +2505,7 @@ export function ContactsMessagesScreen() {
                       )}
                       aria-hidden
                     >
-                      {listName.slice(0, 1).toUpperCase()}
+                      {inboxConversationAvatarInitials(listName)}
                       {unread ? (
                         <span
                           className={cn(

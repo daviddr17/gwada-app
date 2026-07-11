@@ -157,9 +157,12 @@ export function StaffWorkEntryDrawer({
       setEntryType(entry.entry_type);
       setDateStr(toDateInput(s));
       setStartTime(toTimeInput(s));
-      setStillRunning(false);
+      const openWork = entry.is_open && entry.entry_type === "work";
+      setStillRunning(openWork);
       setEndTime(
-        entry.is_open ? toTimeInput(new Date()) : toTimeInput(new Date(entry.ends_at)),
+        openWork
+          ? toTimeInput(new Date())
+          : toTimeInput(new Date(entry.ends_at)),
       );
     } else {
       const day = defaultDay ?? new Date();
@@ -199,19 +202,14 @@ export function StaffWorkEntryDrawer({
     if (pending || readOnly) return;
     const starts_at = combineLocal(dateStr, startTime);
     const ends_at_input = combineLocal(dateStr, endTime);
-    const startMs = new Date(starts_at).getTime();
-    const endMs = new Date(ends_at_input).getTime();
-    const closingOpenEntry =
-      isOpenEntry && endMs <= Date.now() && endMs > startMs;
-    const willStayOpen =
-      entryType === "work" &&
-      ((isOpenEntry && !closingOpenEntry) || (!entry && stillRunning));
+    const willStayOpen = entryType === "work" && stillRunning;
     const ends_at = willStayOpen ? starts_at : ends_at_input;
 
     const timing = validateStaffWorkEntryTiming({
       entryType,
       startsAt: starts_at,
       endsAt: ends_at,
+      staffId,
       entryId: entry?.id,
       isOpen: willStayOpen,
       siblings: siblingEntries,
@@ -288,7 +286,6 @@ export function StaffWorkEntryDrawer({
     onOpenChange,
     absenceByDayKey,
     siblingEntries,
-    isOpenEntry,
     stillRunning,
   ]);
 
@@ -314,11 +311,10 @@ export function StaffWorkEntryDrawer({
           >
             <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
               <DrawerFormSection>
-              {isOpenEntry || stillRunning ? (
+              {stillRunning ? (
                 <p className="rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-foreground">
-                  {isOpenEntry
-                    ? "Läuft noch — Zeiten sind bearbeitbar. „Bis“ in der Vergangenheit beendet den Eintrag."
-                    : "Ende offen — der Mitarbeiter kann sich später am Display ausstempeln."}
+                  Ende offen — Start und Datum sind bearbeitbar. Zum Beenden
+                  Haken entfernen und „Bis“ setzen (oder am Display ausstempeln).
                 </p>
               ) : null}
               {isDisplayEntry ? (
@@ -399,23 +395,29 @@ export function StaffWorkEntryDrawer({
                   <input
                     type="time"
                     value={endTime}
-                    disabled={readOnly || (!entry && stillRunning)}
+                    disabled={readOnly || stillRunning}
                     onChange={(e) => setEndTime(e.target.value)}
                     className={formScheduleTimeInputClassName}
                   />
                 </div>
               </div>
-              {entryType === "work" && !entry && !readOnly ? (
+              {entryType === "work" && !readOnly && (!entry || isOpenEntry) ? (
                 <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/50 p-3">
                   <Checkbox
                     checked={stillRunning}
-                    onCheckedChange={(v) => setStillRunning(v === true)}
+                    onCheckedChange={(v) => {
+                      const next = v === true;
+                      setStillRunning(next);
+                      if (!next && !endTime) {
+                        setEndTime(toTimeInput(new Date()));
+                      }
+                    }}
                     disabled={pending}
                     className="mt-0.5"
                   />
                   <span className="text-sm leading-snug">
-                    Läuft noch — Ende offen lassen (Mitarbeiter stempelt später am
-                    Display aus)
+                    Läuft noch — Ende offen lassen (Mitarbeiter stempelt später
+                    am Display aus)
                   </span>
                 </label>
               ) : null}

@@ -18,7 +18,7 @@ export function GallerySettingsPanel() {
       <Card className="border-border/50 shadow-card">
         <CardContent className="space-y-2 p-4 text-sm text-muted-foreground">
           <p>
-            Highlights legst du in der Galerie-Übersicht über „Neu“ neben den runden
+            Highlights legst du in der Galerie-Übersicht über „Highlight“ neben den runden
             Vorschauen an — nur mit eigenen Gwada-Bildern.
           </p>
           <p>

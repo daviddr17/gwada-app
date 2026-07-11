@@ -17,9 +17,13 @@ import { cn } from "@/lib/utils";
 
 const ModuleTableHorizontalScrollContext = createContext(false);
 
-/** iOS: horizontaler Tabellen-Scroll — nicht `touch-pan-y` / `overflow-x-hidden` mischen. */
+/**
+ * iOS: horizontaler Tabellen-Scroll.
+ * `touch-pan-y` mit `overflow-x-auto` — sonst frisst `touch-pan-x` allein vertikales Seiten-Scrollen
+ * (Finger auf der Tabelle). Nicht mit `overflow-x-hidden` kombinieren (siehe Vollbild-Overlay).
+ */
 export const moduleTableHorizontalScrollClassName =
-  "overflow-x-auto overscroll-x-contain touch-pan-x [-webkit-overflow-scrolling:touch]";
+  "overflow-x-auto overflow-y-visible overscroll-x-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]";
 
 export function useModuleTableHorizontalScroll() {
   return useContext(ModuleTableHorizontalScrollContext);

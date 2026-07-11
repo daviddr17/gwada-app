@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { isReviewPlatform } from "@/lib/constants/review-platforms";
+import { runReviewAutoReplyBackfill } from "@/lib/reviews/review-auto-reply-server";
 import {
   fetchReviewAutoReplyRules,
   upsertReviewAutoReplyRules,
@@ -55,7 +56,7 @@ export async function PUT(req: Request) {
     rules?: unknown;
   };
   const restaurantId = body.restaurantId?.trim() ?? "";
-  const auth = await authorizeReviewsRestaurant(restaurantId);
+  const auth = await authorizeReviewsRestaurant(restaurantId, "update");
   if (!auth.ok) {
     return NextResponse.json({ error: "forbidden" }, { status: auth.status });
   }
@@ -70,5 +71,11 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  const backfill = await runReviewAutoReplyBackfill(restaurantId);
+
+  return NextResponse.json({
+    ok: true,
+    autoRepliesSent: backfill.sent,
+    autoRepliesAttempted: backfill.attempted,
+  });
 }

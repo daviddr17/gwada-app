@@ -5,15 +5,14 @@ import { ExternalLink } from "lucide-react";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
+import { stripMarkdownBold } from "@/lib/changelog/changelog-entry-normalize";
 import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
 import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
-import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
-import { feedGridTemplateColumns, feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
-import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
+import { feedNewsGridClassName } from "@/lib/feed/feed-media-layout";
 import { cn } from "@/lib/utils";
 
 const PREVIEW_BODY_CHAR_THRESHOLD = 200;
@@ -61,7 +60,7 @@ const NewsCard = memo(function NewsCard({
           showClampedBody ? "line-clamp-4" : "whitespace-pre-wrap",
         )}
       >
-        {item.body}
+        {stripMarkdownBold(item.body)}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
         <div className="flex flex-col items-start gap-1.5">
@@ -94,17 +93,17 @@ const NewsCard = memo(function NewsCard({
   const cardContent = (
     <>
       {preview?.url ? (
-        <div className="max-h-80 w-full overflow-hidden">
-          <FeedMediaImage
-            src={preview.url}
-            thumbSrc={preview.thumbUrl}
-            blurDataUrl={preview.blurDataUrl}
-            width={preview.width}
-            height={preview.height}
-            alt=""
-            fit="cover"
-          />
-        </div>
+        <FeedMediaImage
+          src={preview.url}
+          thumbSrc={preview.thumbUrl}
+          blurDataUrl={preview.blurDataUrl}
+          width={preview.width}
+          height={preview.height}
+          alt=""
+          fit="cover"
+          feedOptimized
+          clampAspect
+        />
       ) : null}
       <div className="space-y-2 p-4">
         <div className="flex items-start justify-between gap-2">
@@ -176,7 +175,7 @@ const NewsFeedCardRow = memo(function NewsFeedCardRow({
   );
 });
 
-/** Raster — CSS-Grid mit reservierten Bild-Slots (stabile Höhe, kein Columns-Reflow). */
+/** Raster — mobil 1 Spalte, Desktop responsive Grid (CSS-only, kein JS-Reflow). */
 export function NewsMasonryGrid({
   items,
   onItemClick,
@@ -187,19 +186,10 @@ export function NewsMasonryGrid({
   /** Profil & Einbindung: Text per „Mehr anzeigen“ in der Karte aufklappen (kein Drawer). */
   inlineExpandBody?: boolean;
 }) {
-  const { columnCount, mounted } = useFeedMasonryColumns(feedMasonryColumnCount);
-
   if (items.length === 0) return null;
 
-  if (!mounted) {
-    return <NewsFeedSkeleton viewMode="grid" />;
-  }
-
   return (
-    <div
-      className="grid w-full gap-4"
-      style={{ gridTemplateColumns: feedGridTemplateColumns(columnCount) }}
-    >
+    <div className={feedNewsGridClassName}>
       {items.map((item) => (
         <NewsFeedCardRow
           key={item.id}

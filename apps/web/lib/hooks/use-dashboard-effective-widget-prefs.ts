@@ -23,18 +23,24 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 export function useDashboardEffectiveWidgetPrefs() {
   const mounted = useClientMounted();
   const prefs = useDashboardWidgetPreferences();
-  const { has, loading: permissionsLoading, error: permissionsError, reload: reloadPermissions } =
-    useRestaurantPermissions();
+  const {
+    has,
+    permissions,
+    loading: permissionsLoading,
+    error: permissionsError,
+    reload: reloadPermissions,
+  } = useRestaurantPermissions();
+  const permissionsPending = permissionsLoading && permissions.size === 0;
   const { available: weatherAvailable, loading: weatherLoading } =
     usePlatformWeatherAvailable();
 
   const accessOptions = useMemo<DashboardWidgetAccessOptions>(
     () => ({
-      permissionsLoading: !mounted || permissionsLoading,
+      permissionsLoading: !mounted || permissionsPending,
       weatherAvailable,
       weatherLoading: !mounted || weatherLoading,
     }),
-    [mounted, permissionsLoading, weatherAvailable, weatherLoading],
+    [mounted, permissionsPending, weatherAvailable, weatherLoading],
   );
 
   const visibility = useMemo(
@@ -54,11 +60,11 @@ export function useDashboardEffectiveWidgetPrefs() {
         ? effectiveDashboardShortcutVisibility(
             prefs.shortcuts.visibility,
             has,
-            permissionsLoading,
+            permissionsPending,
           )
         : prefs.shortcuts.visibility,
     }),
-    [mounted, prefs.shortcuts, has, permissionsLoading],
+    [mounted, prefs.shortcuts, has, permissionsPending],
   );
 
   const batchWidgets = useMemo(
@@ -78,10 +84,10 @@ export function useDashboardEffectiveWidgetPrefs() {
     () =>
       mounted
         ? (Object.keys(shortcuts.visibility) as DashboardShortcutId[]).filter(
-            (id) => permissionsLoading || hasDashboardShortcutAccess(has, id),
+            (id) => permissionsPending || hasDashboardShortcutAccess(has, id),
           )
         : (Object.keys(prefs.shortcuts.visibility) as DashboardShortcutId[]),
-    [mounted, shortcuts.visibility, prefs.shortcuts.visibility, has, permissionsLoading],
+    [mounted, shortcuts.visibility, prefs.shortcuts.visibility, has, permissionsPending],
   );
 
   return {
@@ -91,7 +97,7 @@ export function useDashboardEffectiveWidgetPrefs() {
     batchWidgets,
     permittedWidgetIds,
     permittedShortcutIds,
-    permissionsLoading,
+    permissionsLoading: permissionsPending,
     permissionsError,
     reloadPermissions,
     weatherAvailable,

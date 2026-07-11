@@ -1,11 +1,15 @@
 "use client";
 
+import { memo } from "react";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
-import { feedGalleryColumnCount, feedGridTemplateColumns } from "@/lib/feed/feed-media-layout";
-import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
+import {
+  feedGalleryMasonryClassName,
+  feedGalleryMasonryItemClassName,
+} from "@/lib/feed/feed-media-layout";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
+import { FeedVideoTile } from "@/components/feed/feed-video-tile";
 
 export const galleryMasonryGridShellClassName = "overflow-hidden rounded-[10px]";
 
@@ -15,7 +19,7 @@ type Props = {
   className?: string;
 };
 
-function GalleryMasonryTile({
+const GalleryMasonryTile = memo(function GalleryMasonryTile({
   item,
   onItemClick,
 }: {
@@ -27,20 +31,13 @@ function GalleryMasonryTile({
       type="button"
       onClick={() => onItemClick(item)}
       className={cn(
-        "group relative block w-full overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        feedGalleryMasonryItemClassName,
+        "group relative block overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         item.isPinned && feedPinnedItemSurfaceClassName,
       )}
     >
       {item.mediaKind === "video" ? (
-        <video
-          src={item.previewUrl}
-          className="block aspect-video w-full object-cover"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-        />
+        <FeedVideoTile src={item.previewUrl} />
       ) : (
         <FeedMediaImage
           src={item.previewUrl}
@@ -49,6 +46,8 @@ function GalleryMasonryTile({
           width={item.width}
           height={item.height}
           alt={item.title ?? item.caption ?? ""}
+          feedOptimized
+          naturalSize
           imgClassName="transition duration-300 group-hover:scale-[1.02]"
         />
       )}
@@ -57,29 +56,18 @@ function GalleryMasonryTile({
       </span>
     </button>
   );
-}
+});
 
 export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
-  const { columnCount, mounted } = useFeedMasonryColumns(feedGalleryColumnCount);
-
   if (items.length === 0) return null;
 
-  if (!mounted) {
-    return <GalleryMasonryGridSkeleton count={Math.min(items.length, 8)} className={className} />;
-  }
-
   return (
-    <div
-      className={cn(galleryMasonryGridShellClassName, className)}
-      style={{
-        display: "grid",
-        gap: "1px",
-        gridTemplateColumns: feedGridTemplateColumns(columnCount),
-      }}
-    >
-      {items.map((item) => (
-        <GalleryMasonryTile key={item.id} item={item} onItemClick={onItemClick} />
-      ))}
+    <div className={cn(galleryMasonryGridShellClassName, className)}>
+      <div className={feedGalleryMasonryClassName}>
+        {items.map((item) => (
+          <GalleryMasonryTile key={item.id} item={item} onItemClick={onItemClick} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -100,24 +88,18 @@ export function GalleryMasonryGridSkeleton({
   count?: number;
   className?: string;
 }) {
-  const { columnCount, mounted } = useFeedMasonryColumns(feedGalleryColumnCount);
-  const cols = mounted ? columnCount : feedGalleryColumnCount(1024);
   return (
     <div
       className={cn(galleryMasonryGridShellClassName, className)}
       aria-busy="true"
       aria-label="Galerie wird geladen"
     >
-      <div
-        className="grid gap-px"
-        style={{
-          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-        }}
-      >
+      <div className={feedGalleryMasonryClassName}>
         {Array.from({ length: count }).map((_, i) => (
           <div
             key={i}
             className={cn(
+              feedGalleryMasonryItemClassName,
               "skeleton-shimmer w-full rounded-none bg-muted/60",
               SKELETON_ASPECTS[i % SKELETON_ASPECTS.length],
             )}

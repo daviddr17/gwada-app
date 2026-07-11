@@ -120,6 +120,24 @@ export const LEGACY_MODULE_REDIRECTS: ReadonlyArray<{
   destination: string;
 }> = [
   { source: "/dashboard/overview", destination: DASHBOARD_HOME },
+  { source: "/dashboard/speisekarte", destination: APP_ROUTES.menu.overview },
+  {
+    source: "/dashboard/speisekarte/:path*",
+    destination: "/dashboard/menu/:path*",
+  },
+  {
+    source: "/dashboard/nachrichten",
+    destination: APP_ROUTES.kontakte.messages,
+  },
+  {
+    source: "/dashboard/nachrichten/:path*",
+    destination: "/dashboard/kontakte/nachrichten/:path*",
+  },
+  { source: "/dashboard/bestand", destination: APP_ROUTES.inventory.overview },
+  {
+    source: "/dashboard/bestand/:path*",
+    destination: "/dashboard/inventory/:path*",
+  },
   { source: "/menu", destination: APP_ROUTES.menu.overview },
   { source: "/menu/:path*", destination: "/dashboard/menu/:path*" },
   { source: "/inventory", destination: APP_ROUTES.inventory.overview },

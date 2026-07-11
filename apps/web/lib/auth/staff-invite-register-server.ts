@@ -66,17 +66,6 @@ export async function registerStaffInviteAccountServer(params: {
     };
   }
 
-  const inviteEmail = preview.invite.staff_email
-    ? normalizeEmail(preview.invite.staff_email)
-    : null;
-  if (inviteEmail && inviteEmail !== email) {
-    return {
-      ok: false,
-      error: "email_mismatch",
-      message: "Bitte die E-Mail-Adresse aus der Einladung verwenden.",
-    };
-  }
-
   const nextPath = safeInternalPath(`/einladung/${encodeURIComponent(token)}`);
   const origin = params.origin.replace(/\/$/, "");
   const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;

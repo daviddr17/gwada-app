@@ -10,6 +10,7 @@ import {
   type GoogleReviewsPaginationMeta,
 } from "@/lib/reviews/google-reviews-pagination";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
 
 type GoogleReviewRaw = {
   name?: string;
@@ -39,7 +40,7 @@ function mapGoogleReviewRaw(
       id: r.name ?? r.reviewId ?? `google-${i}`,
       platform: "google" as const,
       rating: stars,
-      comment: r.comment?.trim() || null,
+      comment: formatReviewCommentDisplay(r.comment?.trim() || null),
       authorName: r.reviewer?.displayName?.trim() || null,
       createdAt: r.createTime ?? r.updateTime ?? new Date().toISOString(),
       reply: r.reviewReply?.comment?.trim() || null,

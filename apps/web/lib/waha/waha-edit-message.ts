@@ -23,7 +23,7 @@ export async function wahaEditMessage(params: {
         "Content-Type": "application/json",
         "X-Api-Key": params.config.apiKey,
       },
-      body: JSON.stringify({ text: params.text.trim() }),
+      body: JSON.stringify({ text: params.text.trim(), linkPreview: false }),
       cache: "no-store",
     });
     if (!res.ok) {

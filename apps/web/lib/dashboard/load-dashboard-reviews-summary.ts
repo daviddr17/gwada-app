@@ -15,6 +15,7 @@ import {
 } from "@/lib/reviews/reviews-platform-availability-server";
 import { averageRating } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
+import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -53,7 +54,7 @@ const PLATFORM_HREF: Record<ReviewPlatform, string> = {
 };
 
 function commentPreview(comment: string | null, max = 72): string | null {
-  const t = comment?.trim();
+  const t = formatReviewCommentDisplay(comment);
   if (!t) return null;
   return t.length <= max ? t : `${t.slice(0, max - 1)}…`;
 }

@@ -2,6 +2,24 @@ import type { StaffInviteContactConflictResult } from "@/lib/staff/staff-invite-
 
 export type StaffInviteAction = "copy" | "whatsapp" | "email";
 
+export async function fetchStaffDisplayPinSuggestionClient(params: {
+  restaurantId: string;
+  signal?: AbortSignal;
+}): Promise<{ pin?: string; error?: string }> {
+  const qs = new URLSearchParams({ restaurantId: params.restaurantId });
+  const res = await fetch(`/api/staff/display-pin-suggestion?${qs.toString()}`, {
+    signal: params.signal,
+  });
+  const body = (await res.json().catch(() => ({}))) as {
+    pin?: string;
+    error?: string;
+  };
+  if (!res.ok) {
+    return { error: body.error ?? `pin_suggestion_${res.status}` };
+  }
+  return { pin: body.pin };
+}
+
 export async function fetchStaffInviteContactCheckClient(params: {
   restaurantId: string;
   staffId: string;

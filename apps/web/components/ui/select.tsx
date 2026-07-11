@@ -110,11 +110,14 @@ function SelectContent({
   positionMethod = "fixed",
   anchor,
   container: portalContainerProp,
+  /** Über DatePicker-Popover (z-340) — z. B. Kalender Monat/Jahr in Drawern. */
+  elevatedLayer = false,
   ...props
-}: SelectContentProps) {
+}: SelectContentProps & { elevatedLayer?: boolean }) {
   const drawerFloatingHost = useDrawerFloatingPortalHost()
   const portalContainer =
     portalContainerProp ?? drawerFloatingHost ?? undefined
+  const layerZClassName = elevatedLayer ? "z-[350]" : "z-[320]"
 
   return (
     <SelectPrimitive.Portal container={portalContainer}>
@@ -130,13 +133,14 @@ function SelectContent({
         collisionBoundary={collisionBoundary}
         positionMethod={positionMethod}
         anchor={anchor}
-        className="pointer-events-auto isolate z-[320] outline-none"
+        className={cn("pointer-events-auto isolate outline-none", layerZClassName)}
       >
         <SelectPrimitive.Popup
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
-            "pointer-events-auto relative isolate z-[320] flex max-h-[min(var(--available-height),22rem)] w-(--anchor-width) min-w-[max(10rem,var(--anchor-width))] max-w-[calc(100vw-1.5rem)] origin-(--transform-origin) flex-col overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-none ring-1 ring-black/5 duration-150 dark:shadow-xl dark:ring-white/10",
+            "pointer-events-auto relative isolate flex max-h-[min(var(--available-height),22rem)] w-(--anchor-width) min-w-[max(10rem,var(--anchor-width))] max-w-[calc(100vw-1.5rem)] origin-(--transform-origin) flex-col overflow-hidden rounded-2xl border border-border/60 bg-popover text-popover-foreground shadow-none ring-1 ring-black/5 duration-150 dark:shadow-xl dark:ring-white/10",
+            layerZClassName,
             "data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-[0.98] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-[0.98]",
             className
           )}

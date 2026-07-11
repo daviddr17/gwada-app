@@ -5,7 +5,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Filter,
@@ -1046,7 +1045,13 @@ export function ReservationsOverview() {
                 <div className="flex items-start justify-between gap-3 sm:items-center">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <CardTitle className="text-base font-semibold sm:text-lg">
+                      <CardTitle
+                        className="cursor-pointer text-base font-semibold transition-colors hover:text-accent sm:text-lg"
+                        onClick={() => {
+                          setDaySheetDay(d);
+                          setDaySheetOpen(true);
+                        }}
+                      >
                         {formatDayHeadingDe(d)}
                       </CardTitle>
                       {holidayName ? (
@@ -1092,33 +1097,6 @@ export function ReservationsOverview() {
                         </>
                       ) : null}
                     </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
-                      aria-label="Neue Reservierung"
-                      onClick={() => {
-                        pushReservationCreate(d);
-                      }}
-                    >
-                      <Plus className="size-5" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="size-9 rounded-lg text-muted-foreground hover:text-foreground"
-                      aria-label="Tagesübersicht"
-                      onClick={() => {
-                        setDaySheetDay(d);
-                        setDaySheetOpen(true);
-                      }}
-                    >
-                      <CalendarDays className="size-5" />
-                    </Button>
                   </div>
                 </div>
               </CardHeader>

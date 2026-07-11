@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { NewsConnectorPublicInfo } from "@/lib/types/news-connectors";
+import { isNewsPlatform } from "@/lib/constants/news-platforms";
 
 export function useNewsPlatformConnections(restaurantId: string | null) {
   const [connectors, setConnectors] = useState<NewsConnectorPublicInfo[]>([]);
@@ -34,7 +35,10 @@ export function useNewsPlatformConnections(restaurantId: string | null) {
   }, [restaurantId]);
 
   const availablePlatforms = new Set(
-    connectors.filter((c) => c.key === "gwada" || c.connected).map((c) => c.key),
+    connectors
+      .filter((c) => c.key === "gwada" || c.connected)
+      .map((c) => c.key)
+      .filter(isNewsPlatform),
   );
 
   return { connectors, availablePlatforms, loading };

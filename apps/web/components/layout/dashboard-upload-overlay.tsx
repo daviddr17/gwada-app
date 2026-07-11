@@ -19,8 +19,12 @@ export function DashboardUploadOverlay() {
 
   useEffect(() => subscribeDashboardUploadState(setState), []);
 
-  const progressLabel = `${Math.min(100, Math.round(state.progress))}`;
   const uploading = state.phase === "uploading";
+  const progressLabel = `${Math.min(100, Math.round(state.progress))}`;
+
+  if (state.phase === "idle") {
+    return null;
+  }
 
   return (
     <>

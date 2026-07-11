@@ -22,6 +22,7 @@ import {
 } from "@/lib/constants/news-platforms";
 import { paginateListItems } from "@/lib/constants/list-pagination";
 import { defaultNewsPlatformFilterWithoutAll } from "@/lib/news/news-embed-platforms";
+import { dedupeCrossPlatformNewsItems } from "@/lib/news/dedupe-cross-platform-news";
 import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
 import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
@@ -105,7 +106,9 @@ export function EmbedNewsWidget({
   );
 
   const filtered = useMemo(() => {
-    if (resolvedPlatformFilter === NEWS_FILTER_ALL) return visibleItems;
+    if (resolvedPlatformFilter === NEWS_FILTER_ALL) {
+      return dedupeCrossPlatformNewsItems(visibleItems);
+    }
     return visibleItems.filter((item) => item.platform === resolvedPlatformFilter);
   }, [visibleItems, resolvedPlatformFilter]);
 
@@ -138,7 +141,7 @@ export function EmbedNewsWidget({
       storyRings.length,
       clientPagination.page,
       clientPagination.totalCount,
-      displayItems.map((i) => `${i.id}:${i.body.length}:${i.media.length}`).join("|"),
+      displayItems.map((i) => i.id).join(","),
     ],
     [viewMode, resolvedPlatformFilter, displayItems, storyRings.length, clientPagination],
   );

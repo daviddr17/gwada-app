@@ -2,12 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { DOCS_NAV } from "@/lib/docs/docs-navigation";
+import { DOCS_NAV, type DocsNavItem } from "@/lib/docs/docs-navigation";
 import { cn } from "@/lib/utils";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/docs") return pathname === "/docs";
+  if (href.startsWith("/docs/handbuch/") && pathname.startsWith("/docs/handbuch/")) {
+    return pathname === href;
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function isSectionActive(pathname: string, section: DocsNavItem): boolean {
+  if (isActive(pathname, section.href)) return true;
+  if (section.items?.some((item) => pathname === item.href)) return true;
+  if (
+    section.href.startsWith("/docs/handbuch/") &&
+    pathname.startsWith("/docs/handbuch/")
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function DocsShell({ children }: { children: React.ReactNode }) {
@@ -44,7 +59,7 @@ export function DocsShell({ children }: { children: React.ReactNode }) {
                   href={section.href}
                   className={cn(
                     "block text-sm font-semibold",
-                    isActive(pathname, section.href)
+                    isSectionActive(pathname, section)
                       ? "text-foreground"
                       : "text-muted-foreground hover:text-foreground",
                   )}

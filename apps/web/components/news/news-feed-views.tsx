@@ -28,6 +28,56 @@ import { cn } from "@/lib/utils";
 
 export { newsBodyNeedsExpand } from "@/lib/news/news-feed-preview";
 
+const newsFeedExternalLinkChipClassName =
+  "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border/60 bg-muted/20 px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:border-border hover:bg-muted/40";
+
+function NewsFeedBodyActions({
+  canExpandBody,
+  expanded,
+  externalUrl,
+  platform,
+  onToggleExpanded,
+}: {
+  canExpandBody: boolean;
+  expanded: boolean;
+  externalUrl: string | null;
+  platform: UnifiedNewsItem["platform"];
+  onToggleExpanded: (event: MouseEvent) => void;
+}) {
+  if (!canExpandBody && !(expanded && externalUrl)) return null;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+      {canExpandBody ? (
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          className="text-xs font-medium text-accent hover:underline"
+        >
+          {expanded ? "Weniger" : "Mehr anzeigen"}
+        </button>
+      ) : null}
+      {expanded && externalUrl ? (
+        <a
+          href={externalUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          aria-label={`Auf ${NEWS_PLATFORM_LABELS[platform]} öffnen`}
+          className={cn(
+            newsFeedExternalLinkChipClassName,
+            !canExpandBody && "ml-auto",
+          )}
+        >
+          <NewsPlatformIcon platform={platform} className="size-3" />
+          {NEWS_PLATFORM_LABELS[platform]}
+          <ExternalLink className="size-3 opacity-70" aria-hidden />
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
 const timelineRowSurfaceClassName =
   "flex min-w-0 flex-1 gap-3 rounded-xl border border-border/50 bg-card p-3 text-left shadow-card transition sm:gap-4 sm:p-3.5";
 
@@ -110,29 +160,13 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
           : previewBody}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
-        <div className="flex flex-col items-start gap-1.5">
-          {canExpandBody ? (
-            <button
-              type="button"
-              onClick={toggleExpanded}
-              className="text-xs font-medium text-accent hover:underline"
-            >
-              {expanded ? "Weniger" : "Mehr anzeigen"}
-            </button>
-          ) : null}
-          {expanded && externalUrl ? (
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
-            >
-              <ExternalLink className="size-3.5 shrink-0" />
-              Auf {NEWS_PLATFORM_LABELS[item.platform]} öffnen
-            </a>
-          ) : null}
-        </div>
+        <NewsFeedBodyActions
+          canExpandBody={canExpandBody}
+          expanded={expanded}
+          externalUrl={externalUrl}
+          platform={item.platform}
+          onToggleExpanded={toggleExpanded}
+        />
       ) : null}
     </div>
   ) : null;
@@ -295,29 +329,13 @@ const NewsCard = memo(function NewsCard({
           : previewBody}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
-        <div className="flex flex-col items-start gap-1.5">
-          {canExpandBody ? (
-            <button
-              type="button"
-              onClick={toggleExpanded}
-              className="text-xs font-medium text-accent hover:underline"
-            >
-              {expanded ? "Weniger" : "Mehr anzeigen"}
-            </button>
-          ) : null}
-          {expanded && externalUrl ? (
-            <a
-              href={externalUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(event) => event.stopPropagation()}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline"
-            >
-              <ExternalLink className="size-3.5 shrink-0" />
-              Auf {NEWS_PLATFORM_LABELS[item.platform]} öffnen
-            </a>
-          ) : null}
-        </div>
+        <NewsFeedBodyActions
+          canExpandBody={canExpandBody}
+          expanded={expanded}
+          externalUrl={externalUrl}
+          platform={item.platform}
+          onToggleExpanded={toggleExpanded}
+        />
       ) : null}
     </div>
   ) : null;

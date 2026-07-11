@@ -27,6 +27,7 @@ import type { PublicEmbedNews } from "@/lib/news/public-news-server";
 import { NEWS_FEED_PAGE_SIZE } from "@/lib/news/news-feed-pagination";
 import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
 import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
+import { EMBED_NEWS_STORY_VIEWPORT_PX } from "@/lib/embed/embed-resize-config";
 
 export type EmbedNewsWidgetProps = {
   accentHex: string;
@@ -166,7 +167,14 @@ export function EmbedNewsWidget({
       brandFooter={variant !== "profileSheet"}
     >
       <FeedScreenLayoutStable imageCount={countNewsFeedImages(displayItems)}>
-        <EmbedFeedResizeReporter widget="news" deps={resizeDeps} />
+        <EmbedFeedResizeReporter
+          widget="news"
+          deps={[...resizeDeps, storyOpen]}
+          resizeMode={storyOpen && variant === "embed" ? "viewport" : "content"}
+          viewportHeightPx={
+            storyOpen && variant === "embed" ? EMBED_NEWS_STORY_VIEWPORT_PX : undefined
+          }
+        />
         <div className={paddingClass} data-gwada-embed-content>
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">

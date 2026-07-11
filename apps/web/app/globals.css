@@ -164,6 +164,13 @@
     @apply bg-transparent;
   }
 
+  /* Embed: Höhe kommt per postMessage — kein interner Scroll (kein Geister-Balken). */
+  html:has([data-gwada-embed-route]),
+  html:has([data-gwada-embed-route]) body {
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   /*
    * Helle Schrift auf dunklem Host — nur Typografie, keine Dark-Mode-Flächen.
    * (Nicht Tailwind-.dark — das würde bg-card/bg-input und den iframe füllen.)

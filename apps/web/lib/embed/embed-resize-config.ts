@@ -13,3 +13,9 @@ export const EMBED_HOST_HEIGHT_TRANSITION =
 
 /** Host: Debounce bevor iframe-Höhe gesetzt wird. */
 export const EMBED_HOST_RESIZE_DEBOUNCE_MS = 40;
+
+/** Puffer gegen 1px-Scrollbalken durch Subpixel-Rundung (content-Resize). */
+export const EMBED_CONTENT_HEIGHT_BUFFER_PX = 2;
+
+/** Feste iframe-Höhe während Story-Viewer im Embed (nicht volle Feed-Höhe). */
+export const EMBED_NEWS_STORY_VIEWPORT_PX = 560;

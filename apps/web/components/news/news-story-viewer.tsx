@@ -169,7 +169,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
         </div>
       </div>
 
-      <div className="relative flex min-h-0 flex-1 items-stretch justify-center">
+      <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
         <button
           type="button"
           className="absolute inset-y-0 left-0 z-10 w-[30%] cursor-w-resize"
@@ -184,7 +184,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
         />
 
         <div
-          className="pointer-events-none relative flex w-full flex-1 items-center justify-center px-1 sm:px-4"
+          className="pointer-events-none relative flex h-full min-h-0 w-full max-w-3xl items-center justify-center px-1 sm:px-4"
           style={{
             transform: presented ? "scale(1)" : "scale(0.92)",
             opacity: presented ? 1 : 0,
@@ -195,7 +195,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
         >
           <div
             key={current?.id ?? slideIndex}
-            className="flex max-h-full w-full max-w-3xl items-center justify-center"
+            className="flex max-h-full min-h-0 w-full items-center justify-center"
             style={{
               opacity: slideVisible ? 1 : 0,
               transform: slideVisible ? "scale(1)" : "scale(0.98)",
@@ -208,7 +208,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
               <video
                 key={current.url}
                 src={current.url}
-                className="pointer-events-auto max-h-[calc(100dvh-8rem)] w-full object-contain"
+                className="pointer-events-auto max-h-full max-w-full object-contain"
                 controls
                 playsInline
                 autoPlay
@@ -219,7 +219,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
               <img
                 src={current.url}
                 alt=""
-                className="max-h-[calc(100dvh-8rem)] w-full object-contain"
+                className="max-h-full max-w-full object-contain"
               />
             ) : null}
           </div>

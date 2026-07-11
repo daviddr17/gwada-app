@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import {
+  EMBED_CONTENT_HEIGHT_BUFFER_PX,
   EMBED_RESIZE_DEBOUNCE_MS,
   EMBED_RESIZE_FOLLOWUP_MS,
 } from "@/lib/embed/embed-resize-config";
@@ -41,8 +42,10 @@ function postEmbedHeight(
   height: number,
   embedId: string | null,
   widget: GwadaEmbedWidgetId,
+  options?: { contentBuffer?: boolean },
 ) {
-  const rounded = Math.ceil(height);
+  const rounded =
+    Math.ceil(height) + (options?.contentBuffer ? EMBED_CONTENT_HEIGHT_BUFFER_PX : 0);
   if (rounded <= 0) return;
 
   const payload = embedId
@@ -112,7 +115,9 @@ export function EmbedResizeReporter({
         const rounded = Math.ceil(height);
         if (rounded <= 0 || rounded === lastPosted) return;
         lastPosted = rounded;
-        postEmbedHeight(rounded, embedId, widget);
+        postEmbedHeight(rounded, embedId, widget, {
+          contentBuffer: resizeMode === "content",
+        });
       };
 
       window.cancelAnimationFrame(raf);
@@ -157,7 +162,9 @@ export function EmbedResizeReporter({
     let raf = 0;
     const run = () => {
       const height = measureEmbedContentHeight(measureTarget, resizeMode, viewportHeightPx);
-      postEmbedHeight(Math.ceil(height), embedId, widget);
+      postEmbedHeight(Math.ceil(height), embedId, widget, {
+        contentBuffer: true,
+      });
     };
     raf = window.requestAnimationFrame(run);
     const followupTimers = EMBED_RESIZE_FOLLOWUP_MS.map((ms) =>

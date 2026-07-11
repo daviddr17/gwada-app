@@ -2,12 +2,18 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useLayoutEffect, useRef } from "react";
 import {
   SidebarGroup,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { scheduleModuleSubnavRoutePrefetches } from "@/lib/hooks/module-subnav-route-prefetch";
+import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { cn } from "@/lib/utils";
 
 export type ModuleSubnavItem = {
@@ -56,6 +62,45 @@ export function ModuleChipNav({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const prefetchTimeoutsRef = useRef<number[]>([]);
+
+  useLayoutEffect(() => {
+    for (const timeoutId of prefetchTimeoutsRef.current) {
+      window.clearTimeout(timeoutId);
+    }
+    prefetchTimeoutsRef.current = scheduleModuleSubnavRoutePrefetches(
+      router,
+      queryClient,
+      workspaceReady && restaurantId && isUuidRestaurantId(restaurantId)
+        ? restaurantId
+        : null,
+      items,
+      pathname,
+    );
+    return () => {
+      for (const timeoutId of prefetchTimeoutsRef.current) {
+        window.clearTimeout(timeoutId);
+      }
+      prefetchTimeoutsRef.current = [];
+    };
+  }, [items, pathname, queryClient, restaurantId, router, workspaceReady]);
+
+  const warmOnIntent = useCallback(
+    (href: string) => {
+      if (
+        !workspaceReady ||
+        !restaurantId ||
+        !isUuidRestaurantId(restaurantId)
+      ) {
+        router.prefetch(href);
+        return;
+      }
+      warmModuleRouteIntent(router, queryClient, restaurantId, href);
+    },
+    [queryClient, restaurantId, router, workspaceReady],
+  );
 
   return (
     <nav
@@ -90,8 +135,8 @@ export function ModuleChipNav({
                 <SidebarMenuButton
                   isActive={active}
                   layout="text"
-                  onPointerEnter={() => router.prefetch(item.href)}
-                  onFocus={() => router.prefetch(item.href)}
+                  onPointerEnter={() => warmOnIntent(item.href)}
+                  onFocus={() => warmOnIntent(item.href)}
                   render={<Link href={item.href} prefetch scroll={false} />}
                 >
                   <span>{item.label}</span>

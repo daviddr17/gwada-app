@@ -43,6 +43,40 @@ export function formatEventDateRange(item: Pick<UnifiedEventItem, "startAt" | "e
   return formatRangeTimes(start, end, dateFmt, timeFmt);
 }
 
+const timelineMonthYearFmt = new Intl.DateTimeFormat("de-DE", {
+  month: "long",
+  year: "numeric",
+});
+
+const timelineMonthShortFmt = new Intl.DateTimeFormat("de-DE", {
+  month: "short",
+});
+
+export function formatEventTimelineMonthYear(iso: string): string {
+  return timelineMonthYearFmt.format(new Date(iso));
+}
+
+export function eventTimelineSameMonthYear(leftIso: string, rightIso: string): boolean {
+  const left = new Date(leftIso);
+  const right = new Date(rightIso);
+  return (
+    left.getFullYear() === right.getFullYear() && left.getMonth() === right.getMonth()
+  );
+}
+
+export function formatEventTimelineDay(iso: string): string {
+  return String(new Date(iso).getDate());
+}
+
+export function formatEventTimelineMonthShort(iso: string): string {
+  return timelineMonthShortFmt.format(new Date(iso)).replace(/\.$/, "");
+}
+
+export function isEventPast(item: Pick<UnifiedEventItem, "startAt" | "endAt">): boolean {
+  const end = item.endAt ? new Date(item.endAt) : new Date(item.startAt);
+  return end.getTime() < Date.now();
+}
+
 export function formatEventCardDate(item: UnifiedEventItem): string {
   const start = new Date(item.startAt);
   const now = new Date();

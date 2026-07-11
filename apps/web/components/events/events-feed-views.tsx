@@ -1,14 +1,17 @@
 "use client";
 
-import { memo, useState } from "react";
-import { ExternalLink, Ticket } from "lucide-react";
+import { Fragment, memo, useState } from "react";
+import { CalendarDays, ExternalLink, Ticket } from "lucide-react";
 import { EventsPlatformIcon } from "@/components/events/events-platform-icon";
+import { EVENTS_PLATFORM_LABELS } from "@/lib/constants/events-platforms";
 import {
-  EVENTS_PLATFORM_LABELS,
-} from "@/lib/constants/events-platforms";
-import {
+  eventTimelineSameMonthYear,
   formatEventCardDate,
   formatEventDateRange,
+  formatEventTimelineDay,
+  formatEventTimelineMonthShort,
+  formatEventTimelineMonthYear,
+  isEventPast,
 } from "@/lib/events/format-events-display-date";
 import type { UnifiedEventItem } from "@/lib/events/unified-event-item";
 import { Badge } from "@/components/ui/badge";
@@ -16,87 +19,156 @@ import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
 
-const cardClassName =
-  "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
+const timelineRowSurfaceClassName =
+  "flex min-w-0 flex-1 gap-3 rounded-xl border border-border/50 bg-card p-3 text-left shadow-card transition sm:gap-4 sm:p-3.5";
 
-const EventCard = memo(function EventCard({
+const timelineThumbClassName =
+  "size-[4.5rem] shrink-0 overflow-hidden rounded-lg bg-muted/30 sm:size-20";
+
+const EventTimelineThumb = memo(function EventTimelineThumb({
+  coverUrl,
+  title,
+}: {
+  coverUrl: string | null;
+  title: string;
+}) {
+  const [coverBroken, setCoverBroken] = useState(false);
+  const showCover = Boolean(coverUrl) && !coverBroken;
+
+  if (showCover) {
+    return (
+      <div className={timelineThumbClassName}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={coverUrl!}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover object-center"
+          onError={() => setCoverBroken(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        timelineThumbClassName,
+        "flex items-center justify-center text-muted-foreground/70",
+      )}
+      aria-hidden
+    >
+      <CalendarDays className="size-6 sm:size-7" />
+      <span className="sr-only">{title}</span>
+    </div>
+  );
+});
+
+const EventTimelineRow = memo(function EventTimelineRow({
   item,
   onClick,
-  masonry = false,
+  showConnectorBelow,
 }: {
   item: UnifiedEventItem;
   onClick?: () => void;
-  masonry?: boolean;
+  showConnectorBelow: boolean;
 }) {
-  const dateLabel = formatEventCardDate(item);
   const fullRange = formatEventDateRange(item);
-  const [coverBroken, setCoverBroken] = useState(false);
-  const showCover = Boolean(item.coverUrl) && !coverBroken;
+  const timeLabel = formatEventCardDate(item);
+  const past = isEventPast(item);
 
-  const content = (
+  const body = (
     <>
-      {showCover ? (
-        <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-muted/30">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={item.coverUrl!}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="size-full object-cover object-center"
-            onError={() => setCoverBroken(true)}
+      <div className="relative flex w-14 shrink-0 flex-col items-center sm:w-16">
+        <div
+          className={cn(
+            "z-10 flex w-full flex-col items-center rounded-lg border border-border/40 bg-background px-1 py-1.5 text-center",
+            past && "opacity-80",
+          )}
+        >
+          <span className="text-xl font-semibold tabular-nums leading-none sm:text-2xl">
+            {formatEventTimelineDay(item.startAt)}
+          </span>
+          <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {formatEventTimelineMonthShort(item.startAt)}
+          </span>
+        </div>
+        {showConnectorBelow ? (
+          <div
+            className="absolute top-[calc(100%-0.25rem)] bottom-0 w-px bg-border/60"
+            aria-hidden
           />
+        ) : null}
+      </div>
+
+      <div
+        className={cn(
+          timelineRowSurfaceClassName,
+          item.isPinned && feedPinnedItemSurfaceClassName,
+          past && "opacity-90",
+          onClick && "group-hover/row:border-border group-active/row:scale-[0.995]",
+        )}
+      >
+        <EventTimelineThumb coverUrl={item.coverUrl} title={item.title} />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <Badge variant="secondary" className="gap-1.5">
+                <EventsPlatformIcon platform={item.platform} className="size-3" />
+                {EVENTS_PLATFORM_LABELS[item.platform]}
+              </Badge>
+              {item.isPinned ? <FeedPinnedBadge /> : null}
+              {past ? (
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Vergangen
+                </span>
+              ) : null}
+            </div>
+            <time
+              className="shrink-0 text-xs text-muted-foreground tabular-nums"
+              dateTime={item.startAt}
+              title={fullRange}
+            >
+              {timeLabel}
+            </time>
+          </div>
+          <p className="font-medium leading-snug">{item.title}</p>
+          {item.description ? (
+            <p className="line-clamp-2 text-sm text-muted-foreground whitespace-pre-wrap">
+              {item.description}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {item.location ? <span className="truncate">📍 {item.location}</span> : null}
+            {item.ticketUrl ? (
+              <span className="inline-flex items-center gap-1 font-medium text-accent">
+                <Ticket className="size-3.5 shrink-0" />
+                Tickets
+              </span>
+            ) : null}
+          </div>
         </div>
-      ) : null}
-      <div className="space-y-2 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <Badge variant="secondary" className="gap-1.5">
-            <EventsPlatformIcon platform={item.platform} className="size-3" />
-            {EVENTS_PLATFORM_LABELS[item.platform]}
-          </Badge>
-          {item.isPinned ? <FeedPinnedBadge /> : null}
-          <time className="shrink-0 text-xs text-muted-foreground" dateTime={item.startAt} title={fullRange}>
-            {dateLabel}
-          </time>
-        </div>
-        <p className="font-medium leading-snug">{item.title}</p>
-        {item.description ? (
-          <p className="line-clamp-3 text-sm text-muted-foreground whitespace-pre-wrap">
-            {item.description}
-          </p>
-        ) : null}
-        {item.location ? (
-          <p className="text-xs text-muted-foreground">📍 {item.location}</p>
-        ) : null}
-        {item.ticketUrl ? (
-          <p className="inline-flex items-center gap-1 text-xs font-medium text-accent">
-            <Ticket className="size-3.5" />
-            Tickets verfügbar
-          </p>
-        ) : null}
       </div>
     </>
   );
 
-  const surfaceClassName = cn(
-    cardClassName,
-    masonry && "mb-4 break-inside-avoid",
-    item.isPinned && feedPinnedItemSurfaceClassName,
-    onClick && "cursor-pointer hover:shadow-card active:scale-[0.99]",
-  );
-
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={surfaceClassName}>
-        {content}
+      <button
+        type="button"
+        onClick={onClick}
+        className="group/row flex w-full gap-3 text-left sm:gap-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      >
+        {body}
       </button>
     );
   }
 
-  return <article className={surfaceClassName}>{content}</article>;
+  return <article className="flex w-full gap-3 sm:gap-4">{body}</article>;
 });
 
-export function EventsListView({
+export function EventsTimelineView({
   items,
   onItemClick,
 }: {
@@ -104,33 +176,46 @@ export function EventsListView({
   onItemClick?: (item: UnifiedEventItem) => void;
 }) {
   return (
-    <div className="space-y-3">
-      {items.map((item) => (
-        <EventCard key={item.id} item={item} onClick={onItemClick ? () => onItemClick(item) : undefined} />
-      ))}
-    </div>
+    <ul className="space-y-0">
+      {items.map((item, index) => {
+        const previous = items[index - 1];
+        const showMonthHeader =
+          !previous || !eventTimelineSameMonthYear(previous.startAt, item.startAt);
+
+        return (
+          <Fragment key={item.id}>
+            {showMonthHeader ? (
+              <li
+                className={cn(
+                  "pb-2",
+                  index === 0 ? "pt-0" : "border-t border-border/40 pt-4",
+                )}
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {formatEventTimelineMonthYear(item.startAt)}
+                </p>
+              </li>
+            ) : null}
+            <li className="pb-3 last:pb-0">
+              <EventTimelineRow
+                item={item}
+                showConnectorBelow={index < items.length - 1}
+                onClick={onItemClick ? () => onItemClick(item) : undefined}
+              />
+            </li>
+          </Fragment>
+        );
+      })}
+    </ul>
   );
 }
 
-export function EventsMasonryGrid({
-  items,
-  onItemClick,
-}: {
+/** Chronologische Timeline — Dashboard und Embed. */
+export function EventsListView(props: {
   items: UnifiedEventItem[];
   onItemClick?: (item: UnifiedEventItem) => void;
 }) {
-  return (
-    <div className="columns-1 gap-4 sm:columns-2 lg:columns-3">
-      {items.map((item) => (
-        <EventCard
-          key={item.id}
-          item={item}
-          masonry
-          onClick={onItemClick ? () => onItemClick(item) : undefined}
-        />
-      ))}
-    </div>
-  );
+  return <EventsTimelineView {...props} />;
 }
 
 export function EventsDetailActions({ item }: { item: UnifiedEventItem }) {

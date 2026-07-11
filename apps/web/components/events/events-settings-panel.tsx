@@ -8,13 +8,6 @@ import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -36,7 +29,6 @@ import {
   defaultEventsEmbedPlatforms,
   type EventsEmbedPlatforms,
 } from "@/lib/events/events-embed-platforms";
-import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import {
   publicSurfaceProfileAndEmbedDescription,
   publicSurfaceProfileAndEmbedTitle,
@@ -224,25 +216,13 @@ export function EventsSettingsPanel() {
             {publicSurfaceProfileAndEmbedDescription}
           </p>
         </div>
-        <div className="space-y-2">
-          <Label>Standard-Ansicht</Label>
-          <Select
-            value={settings.default_embed_view}
-            onValueChange={(v) =>
-              setSettings((s) => ({
-                ...s,
-                default_embed_view: v === "grid" ? "grid" : "list",
-              }))
-            }
-          >
-            <SelectTrigger className={appSelectTriggerAccentCn("h-9 w-full max-w-xs")}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="list">Liste</SelectItem>
-              <SelectItem value="grid">Raster</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="space-y-1">
+          <Label>Standard-Ansicht in der Einbindung</Label>
+          <p className="text-sm text-foreground">Timeline</p>
+          <p className="text-xs text-muted-foreground">
+            Chronologische Darstellung mit Datumsspalte und kompaktem Vorschaubild — im
+            Dashboard und in der Website-Einbindung identisch.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="events-embed-max">Max. Events in Einbindung</Label>

@@ -38,6 +38,28 @@ function NewsCardSkeleton({
   );
 }
 
+function NewsTimelineRowSkeleton() {
+  return (
+    <div className="flex w-full gap-3 sm:gap-4">
+      <div className="flex w-14 shrink-0 flex-col items-center sm:w-16">
+        <Skeleton className="h-[3.25rem] w-full rounded-lg sm:h-[3.5rem]" />
+      </div>
+      <SkeletonCardFrame className="flex min-w-0 flex-1 gap-3 p-3 shadow-card sm:gap-4 sm:p-3.5">
+        <Skeleton className="size-[4.5rem] shrink-0 rounded-lg sm:size-20" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <Skeleton className="h-5 w-24 rounded-full" />
+            <Skeleton className="h-3 w-16 shrink-0 rounded-md" />
+          </div>
+          <Skeleton className="h-4 w-[65%] rounded-md" />
+          <Skeleton className="h-3 w-full rounded-md" />
+          <Skeleton className="h-3 w-[80%] rounded-md" />
+        </div>
+      </SkeletonCardFrame>
+    </div>
+  );
+}
+
 function NewsGridSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className={feedNewsGridClassName}>
@@ -52,8 +74,20 @@ function NewsGridSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
+function NewsTimelineSkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <ul className="space-y-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <li key={i}>
+          <NewsTimelineRowSkeleton />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function NewsFeedSkeleton({
-  viewMode = "grid",
+  viewMode = "list",
   className,
   ...props
 }: ComponentProps<"div"> & { viewMode?: NewsViewMode }) {
@@ -62,12 +96,10 @@ export function NewsFeedSkeleton({
       <div
         aria-busy
         aria-label="News werden geladen"
-        className={cn("pointer-events-none space-y-3", className)}
+        className={cn("pointer-events-none", className)}
         {...props}
       >
-        {Array.from({ length: 5 }).map((_, i) => (
-          <NewsCardSkeleton key={i} withImage={i % 2 === 0} />
-        ))}
+        <NewsTimelineSkeleton />
       </div>
     );
   }

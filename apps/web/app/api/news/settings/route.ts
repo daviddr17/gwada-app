@@ -54,7 +54,7 @@ export async function GET(req: Request) {
     whatsapp_channel_ids:
       fromArray.length > 0 ? fromArray : legacy ? [legacy] : [],
     default_embed_view:
-      data?.default_embed_view === "list" ? "list" : "grid",
+      data?.default_embed_view === "grid" ? "grid" : "list",
     embed_max_items: Number(data?.embed_max_items ?? 24),
     embed_platforms: normalizeEmbedPlatforms(data?.embed_platforms),
     embed_show_all_filter: data?.embed_show_all_filter !== false,
@@ -83,7 +83,7 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: "invalid_embed_max_items" }, { status: 400 });
   }
 
-  const defaultEmbedView = body.defaultEmbedView === "list" ? "list" : "grid";
+  const defaultEmbedView = body.defaultEmbedView === "grid" ? "grid" : "list";
   const whatsappChannelIds = normalizeChannelIds(body.whatsappChannelIds);
   const primaryChannelId = whatsappChannelIds[0] ?? null;
 

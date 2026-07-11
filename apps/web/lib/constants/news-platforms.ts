@@ -52,5 +52,5 @@ export function parseNewsPlatformFilter(
 export type NewsViewMode = "grid" | "list";
 
 export function parseNewsViewMode(value: string | null): NewsViewMode {
-  return value === "list" ? "list" : "grid";
+  return value === "grid" ? "grid" : "list";
 }

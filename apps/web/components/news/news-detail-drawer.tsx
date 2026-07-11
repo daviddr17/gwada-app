@@ -144,6 +144,7 @@ export function NewsDetailDrawer({
   if (!item) return null;
 
   const preview = item.media[0];
+  const mediaSrc = preview?.url ?? preview?.thumbUrl ?? null;
   const platform = item.platform as NewsPlatform;
   const pending = saving || deleting;
   const publishedLabel =
@@ -170,19 +171,19 @@ export function NewsDetailDrawer({
 
         <DrawerFormBody>
         <div className={drawerScrollAreaClassName(4)}>
-          {preview?.url ? (
+          {mediaSrc ? (
             <DrawerFormSection contentPadding={4}>
             <div className="overflow-hidden rounded-xl">
-              {preview.kind === "video" ? (
+              {preview?.kind === "video" ? (
                 <video
-                  src={preview.url}
+                  src={mediaSrc}
                   className="max-h-64 w-full object-cover"
                   controls
                   playsInline
                 />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={preview.url} alt="" className="max-h-64 w-full object-cover" />
+                <img src={mediaSrc} alt="" className="max-h-64 w-full object-cover" />
               )}
             </div>
             </DrawerFormSection>

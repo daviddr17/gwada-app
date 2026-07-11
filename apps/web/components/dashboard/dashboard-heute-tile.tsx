@@ -23,6 +23,7 @@ import {
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
 import { StaffOverviewCompletedShiftsSheet } from "@/components/staff/staff-overview-completed-shifts-sheet";
+import { DashboardReservationsListSheet } from "@/components/dashboard/dashboard-reservations-list-sheet";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
@@ -206,6 +207,8 @@ export function DashboardHeuteTile() {
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
+  const [todayReservationsSheetOpen, setTodayReservationsSheetOpen] =
+    useState(false);
 
   const accessOptions = {
     permissionsLoading,
@@ -236,11 +239,6 @@ export function DashboardHeuteTile() {
 
   const todayLabel = useMemo(() => todayHeadingFmt.format(new Date()), []);
 
-  const todayReservations = useMemo(
-    () => reservations.summary?.todayList ?? [],
-    [reservations.summary],
-  );
-
   const unconfirmedRecent = useMemo(
     () => reservations.summary?.unconfirmedList ?? [],
     [reservations.summary],
@@ -265,6 +263,10 @@ export function DashboardHeuteTile() {
   const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${restaurantTodayYmd(restaurantTimeZone)}`;
   const staffTodayYmd = restaurantTodayYmd(restaurantTimeZone);
   const todayWorkHours = staff.summary?.todayWorkHours ?? 0;
+  const todayUpcomingReservations =
+    reservations.summary?.todayUpcomingReservations ?? 0;
+  const todayUpcomingGuests = reservations.summary?.todayUpcomingGuests ?? 0;
+  const todayUpcomingList = reservations.summary?.todayUpcomingList ?? [];
 
   return (
     <DashboardWidgetShell
@@ -302,11 +304,9 @@ export function DashboardHeuteTile() {
             <>
               <HeuteMetricPill
                 label="Reserv."
-                value={`${reservations.summary.todayReservations} · ${reservations.summary.todayGuests} P.`}
+                value={`${todayUpcomingReservations} · ${todayUpcomingGuests} P.`}
                 href={reservationDayHref}
-                tone={
-                  reservations.summary.todayReservations > 0 ? "accent" : "neutral"
-                }
+                tone={todayUpcomingReservations > 0 ? "accent" : "neutral"}
                 icon={<CalendarDays aria-hidden />}
               />
               <HeuteMetricPill
@@ -382,27 +382,38 @@ export function DashboardHeuteTile() {
               title="Reservierungen heute"
               titleClassName="text-accent/90"
             >
-              {todayReservations.length > 0 ? (
-                <DashboardCompactList aria-label="Reservierungen heute">
-                  {todayReservations.slice(0, 4).map((row) => (
-                    <DashboardCompactListItem
-                      key={row.id}
-                      href={row.href}
-                      title={row.guestLabel}
-                      meta={`${row.partySize} P. · ${row.statusName}`}
-                      trailing={formatReservationTime(row.startsAt, restaurantTimeZone)}
-                      stripeVariant={row.unconfirmed ? "attention" : undefined}
-                      className="py-2"
-                    />
-                  ))}
-                </DashboardCompactList>
-              ) : (
-                <p className="px-0.5 text-[11px] text-muted-foreground">
-                  {reservations.summary && reservations.summary.todayReservations > 0
-                    ? "Weitere in der Übersicht."
-                    : "Keine Reservierungen für heute."}
-                </p>
-              )}
+              <button
+                type="button"
+                onClick={() => setTodayReservationsSheetOpen(true)}
+                className="block w-full rounded-md px-0.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <div className="flex flex-wrap gap-x-5 gap-y-2 py-1">
+                  <div>
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Anstehend
+                    </p>
+                    <p className="text-lg font-semibold tabular-nums leading-tight text-foreground">
+                      {todayUpcomingReservations}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {todayUpcomingReservations === 1
+                        ? "Reservierung"
+                        : "Reservierungen"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Personen
+                    </p>
+                    <p className="text-lg font-semibold tabular-nums leading-tight text-foreground">
+                      {todayUpcomingGuests}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {todayUpcomingGuests === 1 ? "Gast" : "Gäste"}
+                    </p>
+                  </div>
+                </div>
+              </button>
             </HeutePanel>
           ) : null}
 
@@ -472,6 +483,17 @@ export function DashboardHeuteTile() {
           dayYmd={staffTodayYmd}
           shifts={staff.completedShifts}
           staffById={staffById}
+        />
+      ) : null}
+
+      {todayReservationsSheetOpen ? (
+        <DashboardReservationsListSheet
+          open={todayReservationsSheetOpen}
+          onOpenChange={setTodayReservationsSheetOpen}
+          mode="today_upcoming"
+          rows={todayUpcomingList}
+          timeZone={restaurantTimeZone}
+          description={`${todayUpcomingReservations} Reservierungen · ${todayUpcomingGuests} Personen`}
         />
       ) : null}
     </DashboardWidgetShell>

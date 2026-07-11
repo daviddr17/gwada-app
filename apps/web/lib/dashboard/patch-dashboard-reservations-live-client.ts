@@ -68,8 +68,9 @@ const DEFAULT_PENDING_STATUS: ReservationStatusJoin = {
   color_hex: "#eab308",
 };
 
-const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 4;
+const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 50;
 const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
+const DASHBOARD_RESERVATION_SHEET_LIMIT = 50;
 
 function dayKeyFromIso(iso: string, timeZone: string): string {
   return restaurantZonedDateKey(new Date(iso), timeZone);
@@ -173,10 +174,14 @@ export function patchDashboardReservationSummaryFromInsert(
       weekGuests: next.weekGuests + guests,
     };
     if (dayKeyFromIso(insert.starts_at, timeZone) === todayKey) {
+      const isUpcoming = new Date(insert.starts_at).getTime() >= today.getTime();
       next = {
         ...next,
         todayReservations: next.todayReservations + 1,
         todayGuests: next.todayGuests + guests,
+        todayUpcomingReservations:
+          next.todayUpcomingReservations + (isUpcoming ? 1 : 0),
+        todayUpcomingGuests: next.todayUpcomingGuests + (isUpcoming ? guests : 0),
       };
     }
     const weekTotal = next.weekReservations;
@@ -226,6 +231,22 @@ export function patchDashboardReservationSummaryFromInsert(
         )
         .slice(0, DASHBOARD_RESERVATION_TODAY_LIMIT),
     };
+
+    const isUpcoming = new Date(insert.starts_at).getTime() >= today.getTime();
+    if (isUpcoming) {
+      const withoutUpcomingDup = (next.todayUpcomingList ?? []).filter(
+        (r) => r.id !== insert.id,
+      );
+      next = {
+        ...next,
+        todayUpcomingList: [recentEntry, ...withoutUpcomingDup]
+          .sort(
+            (a, b) =>
+              new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+          )
+          .slice(0, DASHBOARD_RESERVATION_SHEET_LIMIT),
+      };
+    }
   }
 
   return next;

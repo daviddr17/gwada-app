@@ -48,3 +48,30 @@ export function formatNewsDetailDate(iso: string): string {
     minute: "2-digit",
   });
 }
+
+const timelineMonthYearFmt = new Intl.DateTimeFormat("de-DE", {
+  month: "long",
+  year: "numeric",
+});
+
+const timelineMonthShortFmt = new Intl.DateTimeFormat("de-DE", {
+  month: "short",
+});
+
+export function newsTimelineSameMonthYear(aIso: string, bIso: string): boolean {
+  const a = new Date(aIso);
+  const b = new Date(bIso);
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+export function formatNewsTimelineDay(iso: string): string {
+  return new Date(iso).toLocaleDateString("de-DE", { day: "2-digit" });
+}
+
+export function formatNewsTimelineMonthShort(iso: string): string {
+  return timelineMonthShortFmt.format(new Date(iso)).replace(/\.$/, "");
+}
+
+export function formatNewsTimelineMonthYear(iso: string): string {
+  return timelineMonthYearFmt.format(new Date(iso));
+}

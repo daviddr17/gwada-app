@@ -341,8 +341,8 @@ export function NewsScreen() {
         setViewModeState(next);
       });
       patchNewsScreenQueryUrl(pathname, (params) => {
-        if (next === "grid") params.delete("view");
-        else params.set("view", next);
+        if (next === "list") params.delete("view");
+        else params.set("view", "grid");
       });
     },
     [pathname],
@@ -409,7 +409,7 @@ export function NewsScreen() {
             className="rounded-full"
             aria-pressed={viewMode === "list"}
             onClick={() => setViewMode("list")}
-            aria-label="Liste"
+            aria-label="Timeline"
           >
             <List className="size-4" />
           </Button>

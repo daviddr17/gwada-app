@@ -19,17 +19,23 @@ export type DashboardReservationSummary = {
   unconfirmedCount: number;
   todayReservations: number;
   todayGuests: number;
+  /** Heute, Startzeit ab jetzt — für Heute-Widget. */
+  todayUpcomingReservations: number;
+  todayUpcomingGuests: number;
   weekReservations: number;
   weekGuests: number;
   avgPartySizeWeek: number | null;
-  /** Unbestätigte Reservierungen (Widget-Tab Standard). */
+  /** Unbestätigte Reservierungen (Sheet & Aufmerksamkeit). */
   unconfirmedList: DashboardReservationRecent[];
-  /** Heutige Reservierungen (Widget-Tab „Heute“, Heute-Widget). */
+  /** Heutige Reservierungen (Legacy-Vorschau). */
   todayList: DashboardReservationRecent[];
+  /** Heute anstehend — vollständige Liste für Bottom Sheet. */
+  todayUpcomingList: DashboardReservationRecent[];
 };
 
-const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 4;
+const DASHBOARD_RESERVATION_UNCONFIRMED_LIMIT = 50;
 const DASHBOARD_RESERVATION_TODAY_LIMIT = 6;
+const DASHBOARD_RESERVATION_SHEET_LIMIT = 50;
 
 function statusCode(row: ReservationListRow): string {
   return row.reservation_statuses?.code ?? "";
@@ -84,8 +90,11 @@ export function computeDashboardReservationSummary(
 
   let todayReservations = 0;
   let todayGuests = 0;
+  let todayUpcomingReservations = 0;
+  let todayUpcomingGuests = 0;
   let weekReservations = 0;
   let weekGuests = 0;
+  const nowMs = today.getTime();
 
   for (const row of weekRows) {
     if (!countsTowardGuestTotals(row)) continue;
@@ -95,6 +104,10 @@ export function computeDashboardReservationSummary(
     if (dayKeyFromIso(row.starts_at, timeZone) === todayKey) {
       todayReservations += 1;
       todayGuests += guests;
+      if (new Date(row.starts_at).getTime() >= nowMs) {
+        todayUpcomingReservations += 1;
+        todayUpcomingGuests += guests;
+      }
     }
   }
 
@@ -117,14 +130,27 @@ export function computeDashboardReservationSummary(
     DASHBOARD_RESERVATION_TODAY_LIMIT,
   );
 
+  const todayUpcomingList = buildRecentList(
+    weekRows.filter(
+      (row) =>
+        countsTowardGuestTotals(row) &&
+        dayKeyFromIso(row.starts_at, timeZone) === todayKey &&
+        new Date(row.starts_at).getTime() >= nowMs,
+    ),
+    DASHBOARD_RESERVATION_SHEET_LIMIT,
+  );
+
   return {
     unconfirmedCount,
     todayReservations,
     todayGuests,
+    todayUpcomingReservations,
+    todayUpcomingGuests,
     weekReservations,
     weekGuests,
     avgPartySizeWeek,
     unconfirmedList,
     todayList,
+    todayUpcomingList,
   };
 }

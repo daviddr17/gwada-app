@@ -1,7 +1,7 @@
 {
-  "title": "Handbuch für alle Module & Dashboard-Team",
-  "body": "- **Dokumentation:** Unter gwada.app/docs findest du jetzt ein vollständiges Handbuch — Erste Schritte, Navigation und für jedes Modul eine eigene Seite mit typischen Aufgaben\n- **Heute-Widget:** Team-Übersicht mit Aktiv, Abgeschlossen und Arbeitsstunden (ohne Pausen) — Aufmerksamkeit zeigt nur noch Reservierungen und Nachrichten\n- **Mitarbeiter-Widget:** Namen aller Live-Aktiven und Personen in Pause als Chips direkt im Widget",
-  "superadminBody": "- **Docs:** Handbuch unter `/docs/handbuch/[slug]`, Inhalt in `user-guide-content.ts`, Navigation in `docs-navigation.ts`\n- **Dashboard:** Staff-Chips von Heute-Aufmerksamkeit ins Mitarbeiter-Widget; `completedShiftsToday` in Staff-Summary",
+  "title": "News-Timeline, Bilder-Fix & Dashboard-Reservierungen",
+  "body": "- **News:** Timeline ist jetzt Standard — chronologisch mit Datums-Spalte (Dashboard, Profil & Einbindung); Raster weiter umschaltbar\n- **News-Bilder:** Instagram- und Facebook-Medien laden wieder zuverlässig (auch im Dashboard ohne Veröffentlichung)\n- **Heute & Reservierungen:** Klick auf „Reservierungen heute“ oder Unbestätigt öffnet eine Liste im Bottom Sheet\n- **Verträge:** Digitalen Vertrag nachträglich aus Mustervorlage erstellen; Lohn-Ansicht aktualisiert sich nach Vertragsspeicherung",
+  "superadminBody": "- **News:** `NewsTimelineView`, `meta-news-media-proxy.ts` (app vs public Meta-Proxy), Embed-Default-Migration `20260711160000_news_embed_default_timeline.sql`\n- **Dashboard:** `dashboard-reservations-list-sheet.tsx`, upcoming-only in `compute-dashboard-reservation-summary.ts`\n- **Staff:** Vertrag aus Vorlage im Drawer ohne `current_document_id`; `notifyStaffContractsUpdated` → `dispatchStaffDataRefresh`",
   "audience": "customers",
   "version": "2026.07.11"
 }

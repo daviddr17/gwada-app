@@ -13,6 +13,8 @@ import {
 } from "@/lib/news/news-cache-db";
 import { gwadaNewsConnector } from "@/lib/news/connectors/gwada-connector";
 import { sortNewsItemsByDate } from "@/lib/news/format-news-display-date";
+import type { MetaNewsMediaAudience } from "@/lib/news/meta-news-media-proxy";
+import { resolveNewsFeedMetaMediaUrls } from "@/lib/news/meta-news-media-proxy";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -57,6 +59,7 @@ export async function readNewsFeedFromCache(
   restaurantId: string,
   sb: SupabaseClient,
   platforms?: NewsPlatform[],
+  audience: MetaNewsMediaAudience = "app",
 ): Promise<{ items: UnifiedNewsItem[]; sync: NewsFeedSyncMeta }> {
   const keys = resolvePlatforms(platforms);
   const includeGwada = keys.includes("gwada");
@@ -77,7 +80,13 @@ export async function readNewsFeedFromCache(
   const gwadaItems =
     includeGwada && !("error" in gwadaResult) ? gwadaResult.items : [];
 
-  const items = sortNewsItemsByDate([...gwadaItems, ...cachedItems]);
+  const resolvedCachedItems = resolveNewsFeedMetaMediaUrls(
+    restaurantId,
+    cachedItems,
+    audience,
+  );
+
+  const items = sortNewsItemsByDate([...gwadaItems, ...resolvedCachedItems]);
   const sync = buildSyncMeta(syncRows, cacheable);
 
   return { items, sync };

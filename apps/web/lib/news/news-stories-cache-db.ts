@@ -4,7 +4,6 @@ import {
   isNewsStoriesPlatform,
   type NewsStoriesPlatform,
 } from "@/lib/news/news-stories-cache-constants";
-import { normalizeInstagramNewsMediaProxyUrl } from "@/lib/news/connectors/instagram-media-map";
 import type { UnifiedNewsStorySlide } from "@/lib/news/unified-news-story";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -22,12 +21,6 @@ function parseCachedSlide(raw: unknown): UnifiedNewsStorySlide | null {
   if (typeof o.url !== "string") return null;
   if (o.kind !== "image" && o.kind !== "video") return null;
   return raw as UnifiedNewsStorySlide;
-}
-
-function normalizeCachedStorySlideUrl(slide: UnifiedNewsStorySlide): UnifiedNewsStorySlide {
-  if (slide.platform !== "instagram") return slide;
-  const normalized = normalizeInstagramNewsMediaProxyUrl(slide.url);
-  return normalized === slide.url ? slide : { ...slide, url: normalized };
 }
 
 export function externalIdFromStorySlide(slide: UnifiedNewsStorySlide): string {
@@ -106,7 +99,7 @@ export async function readCachedNewsStorySlides(
     if (rowExpiresAt && !slide.expiresAt) {
       slide.expiresAt = rowExpiresAt;
     }
-    slides.push(normalizeCachedStorySlideUrl(slide));
+    slides.push(slide);
   }
 
   return slides;

@@ -343,12 +343,23 @@ export function StaffContractDrawer({
   const externalMetadataEditable =
     isStaffContractExternalMetadataEditable(contract);
   const formFieldsDisabled = pending || contractTermsLocked;
+  const missingPlatformDocument =
+    Boolean(editId) &&
+    !contract?.current_document_id &&
+    !contract?.employee_signature_pending &&
+    !contractIsExternal;
   const showContractAttachmentSection =
     externalContract ||
     contractIsExternal ||
+    missingPlatformDocument;
+  const showDigitalContractSection =
+    missingPlatformDocument ||
     (Boolean(editId) &&
-      !contract?.current_document_id &&
-      !contract?.employee_signature_pending);
+      !contractIsExternal &&
+      !contract?.employee_signature_pending &&
+      (contractPrepared ||
+        contractIsSigned ||
+        Boolean(contract?.current_document_id)));
   const attachmentUploadDisabled =
     Boolean(contract?.employee_signature_pending) ||
     (contractTermsLocked && Boolean(contract?.current_document_id));
@@ -897,19 +908,128 @@ export function StaffContractDrawer({
             </DrawerFormSection>
           ) : null}
 
+          {showDigitalContractSection ? (
+          <DrawerFormSection title="Digitaler Vertrag" contentPadding={5}>
+            {contract?.employee_signature_pending ? (
+              <p className="mb-3 text-sm text-amber-700">
+                Vom Arbeitgeber unterschrieben — wartet auf Unterschrift des
+                Mitarbeiters im Profil. Für einen neuen Vertrag bitte diesen
+                Vertrag beenden oder löschen und einen neuen anlegen.
+              </p>
+            ) : contractPrepared ? (
+              <div className="mb-3 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Entwurf — Vertragstext ist gespeichert. Unterschrift kann vor
+                  Ort am gemeinsamen Gerät erfolgen.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    disabled={pending || !canSignPreparedContract}
+                    onClick={() => openContractCreation("sign")}
+                  >
+                    Jetzt unterschreiben
+                  </Button>
+                  {canEditPreparedText ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="flex-1"
+                      disabled={pending}
+                      onClick={() => openContractCreation("create")}
+                    >
+                      Text bearbeiten
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : contractIsSigned ? (
+              <p className="mb-3 text-sm text-amber-700">
+                Dieser Vertrag wurde bereits digital unterschrieben
+                {contract?.signed_at
+                  ? ` (${whenFmt.format(new Date(contract.signed_at))})`
+                  : ""}
+                . Für einen neuen Vertrag bitte diesen beenden oder löschen und
+                einen neuen anlegen.
+              </p>
+            ) : missingPlatformDocument ? (
+              <div className="mb-3 space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Vertragsdaten sind gespeichert — Mustervorlage ausfüllen,
+                  unterschreiben und als PDF in Dokumente speichern
+                  {contractTwoStepSigning
+                    ? " (Zweit-Schritt: Mitarbeiter unterschreibt im Profil)."
+                    : "."}
+                </p>
+                {!employmentTypeId ? (
+                  <p className="text-xs text-amber-600">
+                    Bitte zuerst ein Beschäftigungsverhältnis wählen und
+                    speichern.
+                  </p>
+                ) : templatesLoading ? (
+                  <p className="text-xs text-muted-foreground">
+                    Mustervorlagen werden geprüft …
+                  </p>
+                ) : activeTemplateCount === 0 ? (
+                  showCreateTemplateAction ? (
+                    <button
+                      type="button"
+                      className="text-left text-xs text-amber-600 underline-offset-2 hover:underline"
+                      onClick={openTemplateManager}
+                    >
+                      Keine Mustervorlage für dieses Beschäftigungsverhältnis —
+                      anlegen oder importieren.
+                    </button>
+                  ) : (
+                    <p className="text-xs text-amber-600">
+                      Keine Mustervorlage für dieses Beschäftigungsverhältnis.
+                    </p>
+                  )
+                ) : null}
+                <Button
+                  type="button"
+                  className="w-full"
+                  disabled={pending || !canCreateDigitalContract}
+                  onClick={() => openContractCreation("create")}
+                >
+                  Vertrag aus Mustervorlage erstellen
+                </Button>
+              </div>
+            ) : null}
+            {contract?.current_document_id ? (
+              <div className="mb-3">
+                <StaffContractPdfDownloadButton
+                  restaurantId={restaurantId}
+                  documentId={contract.current_document_id}
+                  documentTitle={
+                    contract.contract_body_snapshot?.title?.trim() ||
+                    undefined
+                  }
+                  fullWidth
+                />
+              </div>
+            ) : null}
+          </DrawerFormSection>
+          ) : null}
+
           {showContractAttachmentSection ? (
             <DrawerFormSection
               title={
                 externalContract || contractIsExternal
                   ? "Externer Vertrag (Dokument)"
-                  : "Vertragsdokument"
+                  : missingPlatformDocument
+                    ? "Alternativ: externes Dokument"
+                    : "Vertragsdokument"
               }
               contentPadding={5}
             >
               <p className="mb-3 text-sm text-muted-foreground">
                 {externalContract || contractIsExternal
                   ? "Vertrag wurde außerhalb der Plattform erstellt — PDF oder Foto hier hochladen und Stammdaten pflegen. Keine digitale Unterschrift über Gwada."
-                  : "Noch kein Vertragsdokument hinterlegt — PDF oder Foto (z. B. Scan) nachträglich anhängen."}
+                  : missingPlatformDocument
+                    ? "Vertrag existiert schon auf Papier — PDF oder Foto hochladen statt der Mustervorlage in Gwada."
+                    : "Noch kein Vertragsdokument hinterlegt — PDF oder Foto (z. B. Scan) nachträglich anhängen."}
               </p>
               {contract?.current_document_id ? (
                 <div className="mb-3">
@@ -1042,67 +1162,7 @@ export function StaffContractDrawer({
                 </div>
               </div>
             </DrawerFormSection>
-          ) : (
-          <DrawerFormSection title="Digitaler Vertrag" contentPadding={5}>
-            {contract?.employee_signature_pending ? (
-              <p className="mb-3 text-sm text-amber-700">
-                Vom Arbeitgeber unterschrieben — wartet auf Unterschrift des
-                Mitarbeiters im Profil. Für einen neuen Vertrag bitte diesen
-                Vertrag beenden oder löschen und einen neuen anlegen.
-              </p>
-            ) : contractPrepared ? (
-              <div className="mb-3 space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Entwurf — Vertragstext ist gespeichert. Unterschrift kann vor
-                  Ort am gemeinsamen Gerät erfolgen.
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    className="flex-1"
-                    disabled={pending || !canSignPreparedContract}
-                    onClick={() => openContractCreation("sign")}
-                  >
-                    Jetzt unterschreiben
-                  </Button>
-                  {canEditPreparedText ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="flex-1"
-                      disabled={pending}
-                      onClick={() => openContractCreation("create")}
-                    >
-                      Text bearbeiten
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ) : contractIsSigned ? (
-              <p className="mb-3 text-sm text-amber-700">
-                Dieser Vertrag wurde bereits digital unterschrieben
-                {contract?.signed_at
-                  ? ` (${whenFmt.format(new Date(contract.signed_at))})`
-                  : ""}
-                . Für einen neuen Vertrag bitte diesen beenden oder löschen und
-                einen neuen anlegen.
-              </p>
-            ) : null}
-            {contract?.current_document_id ? (
-              <div className="mb-3">
-                <StaffContractPdfDownloadButton
-                  restaurantId={restaurantId}
-                  documentId={contract.current_document_id}
-                  documentTitle={
-                    contract.contract_body_snapshot?.title?.trim() ||
-                    undefined
-                  }
-                  fullWidth
-                />
-              </div>
-            ) : null}
-          </DrawerFormSection>
-          )}
+          ) : null}
 
           {editId ? (
             <DrawerFormSection title="Protokoll" contentPadding={5}>

@@ -81,7 +81,7 @@ type NewsSettings = {
 function defaultNewsSettings(): NewsSettings {
   return {
     whatsapp_channel_ids: [],
-    default_embed_view: "grid",
+    default_embed_view: "list",
     embed_max_items: 24,
     embed_platforms: defaultEmbedPlatforms(),
     embed_show_all_filter: true,
@@ -502,13 +502,13 @@ export function NewsSettingsPanel() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="list">Timeline</SelectItem>
                 <SelectItem value="grid">Raster (Kacheln)</SelectItem>
-                <SelectItem value="list">Liste</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              {publicSurfaceScopeHint("both")} Raster: neueste Beiträge links oben,
-              zeilenweise. Liste: chronologisch untereinander.
+              {publicSurfaceScopeHint("both")} Timeline: chronologisch mit Datums-Spalte.
+              Raster: neueste Beiträge als Kacheln, zeilenweise.
             </p>
           </div>
 

@@ -5,7 +5,6 @@ import { metaGraphListFetch } from "@/lib/news/connectors/meta-feed-fetch";
 import {
   igMediaKind,
   igMediaPreviewUrl,
-  proxyInstagramNewsMediaUrl,
   type IgMedia,
 } from "@/lib/news/connectors/instagram-media-map";
 import type { UnifiedNewsStorySlide } from "@/lib/news/unified-news-story";
@@ -26,7 +25,7 @@ function mapIgStoryToSlide(
     id: `instagram:${media.id}`,
     platform: "instagram",
     kind,
-    url: proxyInstagramNewsMediaUrl(restaurantId, previewUrl),
+    url: previewUrl,
     caption: media.caption?.trim() ?? null,
     externalUrl: media.permalink ?? null,
     publishedAt,

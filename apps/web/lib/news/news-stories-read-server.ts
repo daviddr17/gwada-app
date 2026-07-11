@@ -10,6 +10,8 @@ import {
   readCachedNewsStorySlides,
   readNewsStoriesPlatformSyncState,
 } from "@/lib/news/news-stories-cache-db";
+import type { MetaNewsMediaAudience } from "@/lib/news/meta-news-media-proxy";
+import { resolveNewsStoriesMetaMediaUrls } from "@/lib/news/meta-news-media-proxy";
 import type {
   NewsStoriesSyncMeta,
   UnifiedNewsStoryRing,
@@ -87,6 +89,7 @@ function groupMetaSlidesIntoRings(
 export async function readNewsStoriesFromCache(
   restaurantId: string,
   sb: SupabaseClient,
+  audience: MetaNewsMediaAudience = "app",
 ): Promise<{
   storyRings: UnifiedNewsStoryRing[];
   storiesSync: NewsStoriesSyncMeta;
@@ -96,7 +99,13 @@ export async function readNewsStoriesFromCache(
     readNewsStoriesPlatformSyncState(sb, restaurantId),
   ]);
 
-  const storyRings = groupMetaSlidesIntoRings(cachedSlides);
+  const resolvedSlides = resolveNewsStoriesMetaMediaUrls(
+    restaurantId,
+    cachedSlides,
+    audience,
+  );
+
+  const storyRings = groupMetaSlidesIntoRings(resolvedSlides);
   const storiesSync = buildStoriesSyncMeta(syncRows, [...NEWS_STORIES_PLATFORMS]);
 
   return { storyRings, storiesSync };

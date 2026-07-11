@@ -56,6 +56,8 @@ import {
 } from "@/lib/types/staff";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { STAFF_CONTRACTS_UPDATED_EVENT } from "@/lib/staff/staff-contract-events";
+import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 
 const timeDe = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
@@ -195,6 +197,24 @@ export function StaffWorkHoursView({
 
   useEffect(() => {
     void reloadContracts();
+  }, [reloadContracts]);
+
+  useEffect(() => {
+    const onContractsChanged = () => {
+      void reloadContracts();
+    };
+    window.addEventListener(STAFF_CONTRACTS_UPDATED_EVENT, onContractsChanged);
+    window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onContractsChanged);
+    return () => {
+      window.removeEventListener(
+        STAFF_CONTRACTS_UPDATED_EVENT,
+        onContractsChanged,
+      );
+      window.removeEventListener(
+        GWADA_STAFF_DATA_REFRESH_EVENT,
+        onContractsChanged,
+      );
+    };
   }, [reloadContracts]);
 
   const byDay = useMemo(() => {

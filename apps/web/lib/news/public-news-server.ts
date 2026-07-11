@@ -156,7 +156,7 @@ async function loadNewsEmbedSettings(
 
   return {
     viewMode:
-      settingsRow?.default_embed_view === "list" ? "list" : "grid",
+      settingsRow?.default_embed_view === "grid" ? "grid" : "list",
     maxItems: Math.min(
       100,
       Math.max(1, Number(settingsRow?.embed_max_items ?? 24)),
@@ -181,8 +181,8 @@ async function loadNewsFeedBaseUncached(restaurantId: string): Promise<{
   }
 
   const [{ items: feedItems }, { storyRings }] = await Promise.all([
-    readNewsFeedFromCache(restaurantId, admin),
-    readNewsStoriesFromCache(restaurantId, admin),
+    readNewsFeedFromCache(restaurantId, admin, undefined, "public"),
+    readNewsStoriesFromCache(restaurantId, admin, "public"),
   ]);
   void triggerNewsFeedSyncIfStale(restaurantId);
   void triggerNewsStoriesSyncIfStale(restaurantId);

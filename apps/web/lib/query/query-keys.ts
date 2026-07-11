@@ -34,4 +34,27 @@ export const queryKeys = {
     summaryRoot: (restaurantId: string) =>
       ["notifications", "summary", restaurantId] as const,
   },
+  staff: {
+    root: (restaurantId: string) => ["staff", restaurantId] as const,
+    list: (restaurantId: string) => ["staff", restaurantId, "list"] as const,
+    dayStats: (restaurantId: string, dayDate: string) =>
+      ["staff", restaurantId, "day-stats", dayDate] as const,
+  },
+  reservations: {
+    root: (restaurantId: string) => ["reservations", restaurantId] as const,
+    month: (
+      restaurantId: string,
+      rangeStartIso: string,
+      rangeEndExclusiveIso: string,
+    ) =>
+      [
+        "reservations",
+        restaurantId,
+        "month",
+        rangeStartIso,
+        rangeEndExclusiveIso,
+      ] as const,
+    unconfirmed: (restaurantId: string) =>
+      ["reservations", restaurantId, "unconfirmed"] as const,
+  },
 } as const;

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -39,8 +40,6 @@ import {
 } from "@/lib/reservations/unconfirmed-reservations";
 import {
   fetchReservationById,
-  fetchReservationsForRestaurant,
-  fetchUnconfirmedReservationsForRestaurant,
   type ReservationListRow,
 } from "@/lib/supabase/reservations-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -82,10 +81,8 @@ import {
   GWADA_DASHBOARD_RESERVATIONS_LIVE_INSERT_EVENT,
   type DashboardReservationsLiveInsertDetail,
 } from "@/lib/dashboard/dashboard-live-events";
-import {
-  peekReservationsMonthCache,
-  writeReservationsMonthCache,
-} from "@/lib/reservations/reservations-month-client-cache";
+import { useReservationsListQuery } from "@/lib/hooks/use-reservations-list-query";
+import { patchReservationsMonthQueryCache } from "@/lib/reservations/reservations-list-query";
 import {
   reservationInsertInMonthRange,
   reservationEndsAtFromLiveInsert,
@@ -164,10 +161,14 @@ export function ReservationsOverview() {
     () => exclusiveUtcIsoAfterLocalVisibleEnd(monthEnd),
     [monthEnd],
   );
+  const monthRange = useMemo(
+    () => ({
+      rangeStartIso,
+      rangeEndExclusiveIso,
+    }),
+    [rangeStartIso, rangeEndExclusiveIso],
+  );
 
-  const [rows, setRows] = useState<ReservationListRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const {
     restaurantId: workspaceRestaurantId,
     supabaseEnvOk,
@@ -190,6 +191,12 @@ export function ReservationsOverview() {
   const { has, loading: permissionsLoading } = useRestaurantPermissions();
   const canRead = hasModuleRead(has, "reservations");
 
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const unconfirmedMode =
+    searchParams.get(RESERVATIONS_UNCONFIRMED_QUERY) === "1";
+
   const monthFromYmd = gridDayKey(monthStart, restaurantTimeZone);
   const monthToYmd = gridDayKey(monthEnd, restaurantTimeZone);
   const isViewingCurrentMonth = monthFromYmd.slice(0, 7) === todayYmd.slice(0, 7);
@@ -205,7 +212,25 @@ export function ReservationsOverview() {
   const [urlReservation, setUrlReservation] = useState<ReservationListRow | null>(
     null,
   );
-  const [reloadNonce, setReloadNonce] = useState(0);
+  const queryClient = useQueryClient();
+  const dbOk =
+    supabaseEnvOk && workspaceReady && workspaceRestaurantId !== null;
+  const {
+    rows,
+    isLoading: loading,
+    error: reservationsQueryError,
+    invalidateAll: invalidateReservations,
+  } = useReservationsListQuery({
+    restaurantId: workspaceRestaurantId,
+    enabled: dbOk,
+    unconfirmedMode,
+    range: monthRange,
+  });
+  const loadError = reservationsQueryError
+    ? reservationsQueryError instanceof Error
+      ? reservationsQueryError.message
+      : String(reservationsQueryError)
+    : null;
   const [filterOpen, setFilterOpen] = useState(false);
   const [statusFilterId, setStatusFilterId] = useState("all");
   /** Nur Auswirkung in Kombination mit aktuellem Monat + `visibleDays`. */
@@ -232,11 +257,6 @@ export function ReservationsOverview() {
     reservationIds,
   );
 
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const unconfirmedMode =
-    searchParams.get(RESERVATIONS_UNCONFIRMED_QUERY) === "1";
   const reservationIdParam = searchParams.get("reservation");
   const isNewParam = searchParams.get("new") === "1";
   const dayParam = searchParams.get("day");
@@ -276,28 +296,9 @@ export function ReservationsOverview() {
     }
   }, [searchParams, pathname, router]);
 
-  const dbOk =
-    supabaseEnvOk && workspaceReady && workspaceRestaurantId !== null;
   const showInitialLoadSkeleton = useDeferredSkeleton(
     dbOk && loading && rows.length === 0,
   );
-
-  useLayoutEffect(() => {
-    if (!workspaceRestaurantId || unconfirmedMode) return;
-    const cached = peekReservationsMonthCache(workspaceRestaurantId, {
-      rangeStartIso,
-      rangeEndExclusiveIso,
-    });
-    if (cached) {
-      setRows(cached.rows);
-      setLoading(false);
-    }
-  }, [
-    workspaceRestaurantId,
-    unconfirmedMode,
-    rangeStartIso,
-    rangeEndExclusiveIso,
-  ]);
 
   useEffect(() => {
     if (!reservationIdParam || !isUuidRestaurantId(reservationIdParam)) {
@@ -550,64 +551,7 @@ export function ReservationsOverview() {
   }, []);
 
   useEffect(() => {
-    if (!dbOk || !workspaceRestaurantId) {
-      setRows([]);
-      setLoadError(null);
-      return;
-    }
-    let cancelled = false;
-    const monthRange = {
-      rangeStartIso,
-      rangeEndExclusiveIso,
-    };
-    const cached = unconfirmedMode
-      ? null
-      : peekReservationsMonthCache(workspaceRestaurantId, monthRange);
-    if (!cached) setLoading(true);
-    else {
-      setRows(cached.rows);
-      setLoading(false);
-    }
-    setLoadError(null);
-    void (async () => {
-      const { data, error } = unconfirmedMode
-        ? await fetchUnconfirmedReservationsForRestaurant(workspaceRestaurantId)
-        : await fetchReservationsForRestaurant({
-            restaurantId: workspaceRestaurantId,
-            rangeStartIso,
-            rangeEndExclusiveIso,
-          });
-      if (cancelled) return;
-      setLoading(false);
-      if (error) {
-        setLoadError(error.message);
-        setRows([]);
-        return;
-      }
-      setRows(data);
-      if (!unconfirmedMode) {
-        writeReservationsMonthCache(workspaceRestaurantId, monthRange, data);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    dbOk,
-    workspaceRestaurantId,
-    unconfirmedMode,
-    rangeStartIso,
-    rangeEndExclusiveIso,
-    reloadNonce,
-  ]);
-
-  useEffect(() => {
     if (!workspaceRestaurantId || unconfirmedMode) return;
-
-    const monthRange = {
-      rangeStartIso,
-      rangeEndExclusiveIso,
-    };
 
     const onLiveInsert = (event: Event) => {
       const detail = (event as CustomEvent<DashboardReservationsLiveInsertDetail>)
@@ -621,16 +565,18 @@ export function ReservationsOverview() {
         reservationLiveInsertListRowRaw(detail.insert, detail.restaurantId),
       );
 
-      setRows((prev) => {
-        if (prev.some((r) => r.id === detail.insert.id)) return prev;
-        const next = [...prev, stubRow].sort(
-          (a, b) =>
-            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
-        );
-        writeReservationsMonthCache(workspaceRestaurantId, monthRange, next);
-        return next;
-      });
-      setLoading(false);
+      patchReservationsMonthQueryCache(
+        queryClient,
+        workspaceRestaurantId,
+        monthRange,
+        (prev) => {
+          if (prev.some((r) => r.id === detail.insert.id)) return prev;
+          return [...prev, stubRow].sort(
+            (a, b) =>
+              new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+          );
+        },
+      );
     };
 
     window.addEventListener(
@@ -643,12 +589,7 @@ export function ReservationsOverview() {
         onLiveInsert,
       );
     };
-  }, [
-    workspaceRestaurantId,
-    unconfirmedMode,
-    rangeStartIso,
-    rangeEndExclusiveIso,
-  ]);
+  }, [workspaceRestaurantId, unconfirmedMode, monthRange, queryClient]);
 
   useEffect(() => {
     if (unconfirmedMode) {
@@ -1262,7 +1203,7 @@ export function ReservationsOverview() {
               }
             : undefined
         }
-        onDataChanged={() => setReloadNonce((n) => n + 1)}
+        onDataChanged={invalidateReservations}
         onDayNotesChanged={() => setDayNotesReloadNonce((n) => n + 1)}
       />
 
@@ -1293,7 +1234,7 @@ export function ReservationsOverview() {
         createFor={createFor}
         overlapReservations={rows}
         onSaved={() => {
-          setReloadNonce((n) => n + 1);
+          invalidateReservations();
           clearReservationUrl();
           consumePendingDaySheetReopen();
         }}

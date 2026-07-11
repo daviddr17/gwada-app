@@ -35,6 +35,8 @@ import {
 } from "@/lib/reservations/reservations-month-client-cache";
 import { NEWS_FILTER_ALL } from "@/lib/constants/news-platforms";
 import { peekStaffListCache } from "@/lib/staff/staff-list-client-cache";
+import { staffListQueryOptions } from "@/lib/staff/staff-list-query";
+import { reservationsMonthQueryOptions } from "@/lib/reservations/reservations-list-query";
 import { peekStaffTodosCache } from "@/lib/staff/staff-todos-client-cache";
 import type { QueryClient } from "@tanstack/react-query";
 
@@ -99,6 +101,11 @@ export function prefetchAppModuleQueryCaches(
   void queryClient.prefetchQuery(menuCategoriesPrefetchOptions(restaurantId));
   void queryClient.prefetchQuery(inventoryIngredientsPrefetchOptions(restaurantId));
   void queryClient.prefetchQuery(notificationSummaryPrefetchOptions(restaurantId));
+  void queryClient.prefetchQuery(staffListQueryOptions(restaurantId));
+  const monthRange = currentMonthReservationRange();
+  void queryClient.prefetchQuery(
+    reservationsMonthQueryOptions(restaurantId, monthRange),
+  );
 }
 
 export function peekAppModuleWarmCachesReady(restaurantId: string): boolean {

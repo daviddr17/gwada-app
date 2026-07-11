@@ -32,3 +32,27 @@ export function invalidateInventoryQueries(
     });
   }
 }
+
+export function invalidateStaffQueries(
+  queryClient: QueryClient,
+  restaurantId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.staff.root(restaurantId),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.dashboard.summaryRoot(restaurantId),
+  });
+}
+
+export function invalidateReservationsQueries(
+  queryClient: QueryClient,
+  restaurantId: string,
+): void {
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.reservations.root(restaurantId),
+  });
+  void queryClient.invalidateQueries({
+    queryKey: queryKeys.dashboard.summaryRoot(restaurantId),
+  });
+}

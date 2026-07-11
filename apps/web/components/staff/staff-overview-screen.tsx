@@ -1,10 +1,8 @@
 "use client";
 
-import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
-import { toast } from "sonner";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
 import { MenuTaxonomyDrawer } from "@/components/menu/menu-taxonomy-drawer";
 import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
@@ -21,13 +19,8 @@ import { StaffDisplayTimeRequestsPanel } from "@/components/staff/staff-display-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker";
-import {
-  fetchStaffContractsForRestaurant,
-  fetchStaffForRestaurant,
-  fetchStaffLastDisplayLoginByStaffId,
-  fetchStaffLivePresence,
-  fetchStaffWorkEntriesInRange,
-} from "@/lib/supabase/staff-db";
+import { useStaffListQuery } from "@/lib/hooks/use-staff-list-query";
+import { useStaffDayStatsQuery } from "@/lib/hooks/use-staff-day-stats-query";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { useStaffEmploymentTypesStorage } from "@/lib/hooks/use-staff-employment-types-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
@@ -36,21 +29,12 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
 import {
   localDayKey,
-  localDayStartToUtcIso,
-  exclusiveUtcIsoAfterLocalVisibleEnd,
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
 import type {
-  RestaurantStaffContractRow,
   RestaurantStaffRow,
-  RestaurantStaffWorkEntryRow,
-  StaffLivePresenceRow,
 } from "@/lib/types/staff";
 import { computeStaffDayWageBreakdown, formatStaffEuroCents } from "@/lib/staff/staff-day-wage";
-import {
-  peekStaffListCache,
-  writeStaffListCache,
-} from "@/lib/staff/staff-list-client-cache";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import { cn } from "@/lib/utils";
 import { moduleManageChipButtonClassName } from "@/lib/ui/module-manage-chip";
@@ -72,22 +56,26 @@ export function StaffOverviewScreen() {
   const canReviewTimeRequests = hasModuleUpdate(has, "staff");
   const positionTags = useStaffPositionTagsStorage(restaurantId);
   const employmentTypes = useStaffEmploymentTypesStorage(restaurantId);
-  const [rows, setRows] = useState<RestaurantStaffRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [dayStatsLoading, setDayStatsLoading] = useState(true);
-  const showTableSkeleton = useDeferredSkeleton(loading && rows.length === 0);
-  const showDayStatsSkeleton = useDeferredSkeleton(dayStatsLoading);
+  const {
+    rows,
+    contracts,
+    isLoading: staffListLoading,
+    invalidate: invalidateStaffList,
+  } = useStaffListQuery(restaurantId, workspaceReady);
+  const showTableSkeleton = useDeferredSkeleton(staffListLoading);
   const [dayDate, setDayDate] = useState(() => localDayKey(new Date()));
   const [liveNow, setLiveNow] = useState(() => new Date());
   const autoFollowTodayRef = useRef(true);
-  const [workingIds, setWorkingIds] = useState<Set<string>>(new Set());
-  const [breakIds, setBreakIds] = useState<Set<string>>(new Set());
-  const [presenceRows, setPresenceRows] = useState<StaffLivePresenceRow[]>([]);
-  const [lastDisplayLoginByStaffId, setLastDisplayLoginByStaffId] = useState(
-    () => new Map<string, string>(),
-  );
-  const [dayEntries, setDayEntries] = useState<RestaurantStaffWorkEntryRow[]>([]);
-  const [contracts, setContracts] = useState<RestaurantStaffContractRow[]>([]);
+  const {
+    workingIds,
+    breakIds,
+    presenceRows,
+    lastDisplayLoginByStaffId,
+    dayEntries,
+    isLoading: dayStatsLoading,
+    invalidate: invalidateDayStats,
+  } = useStaffDayStatsQuery(restaurantId, dayDate);
+  const showDayStatsSkeleton = useDeferredSkeleton(dayStatsLoading);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
@@ -102,47 +90,10 @@ export function StaffOverviewScreen() {
     initial?: { id: string; name: string; active: boolean; backgroundColor: string };
   } | null>(null);
 
-  const applyCachedStaff = useCallback(
-    (cached: ReturnType<typeof peekStaffListCache>) => {
-      if (!cached) return;
-      setRows(cached.rows);
-      setContracts(cached.contracts);
-      setLoading(false);
-    },
-    [],
-  );
-
-  useLayoutEffect(() => {
-    if (!restaurantId) return;
-    applyCachedStaff(peekStaffListCache(restaurantId));
-  }, [restaurantId, applyCachedStaff]);
-
-  const reload = useCallback(async () => {
-    if (!restaurantId) return;
-    const cached = peekStaffListCache(restaurantId);
-    if (cached) applyCachedStaff(cached);
-    else setLoading(true);
-
-    const [staffRes, contractsRes] = await Promise.all([
-      fetchStaffForRestaurant(restaurantId),
-      fetchStaffContractsForRestaurant(restaurantId),
-    ]);
-    setLoading(false);
-    if (staffRes.error) toast.error(staffRes.error);
-    else setRows(staffRes.data);
-    if (contractsRes.error) toast.error(contractsRes.error);
-    else setContracts(contractsRes.data);
-    if (!staffRes.error && !contractsRes.error) {
-      writeStaffListCache(restaurantId, {
-        rows: staffRes.data,
-        contracts: contractsRes.data,
-      });
-    }
-  }, [restaurantId, applyCachedStaff]);
-
-  useEffect(() => {
-    void reload();
-  }, [reload]);
+  const applyStaffRefresh = useCallback(() => {
+    invalidateStaffList();
+    invalidateDayStats();
+  }, [invalidateStaffList, invalidateDayStats]);
 
   useEffect(() => {
     if (searchParams.get("new") !== "1") return;
@@ -154,51 +105,6 @@ export function StaffOverviewScreen() {
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [searchParams, router, pathname]);
-
-  const reloadDayStats = useCallback(async () => {
-    if (!restaurantId || !dayDate) return;
-    setDayStatsLoading(true);
-    const [y, m, d] = dayDate.split("-").map(Number);
-    const day = new Date(y, m - 1, d);
-    const start = localDayStartToUtcIso(day);
-    const end = exclusiveUtcIsoAfterLocalVisibleEnd(day);
-
-    const [
-      { data: presence, error: presenceErr },
-      { data: entries, error: entriesErr },
-      { data: displayLogins, error: displayLoginErr },
-    ] = await Promise.all([
-      fetchStaffLivePresence(restaurantId),
-      fetchStaffWorkEntriesInRange(restaurantId, null, start, end),
-      fetchStaffLastDisplayLoginByStaffId(restaurantId),
-    ]);
-
-    if (presenceErr) toast.error(presenceErr);
-    if (entriesErr) toast.error(entriesErr);
-    if (displayLoginErr) toast.error(displayLoginErr);
-
-    const working = new Set<string>();
-    const onBreak = new Set<string>();
-    for (const s of presence) {
-      if (s.status === "on_break") onBreak.add(s.staff_id);
-      else if (s.status === "working") working.add(s.staff_id);
-    }
-
-    setWorkingIds(working);
-    setBreakIds(onBreak);
-    setPresenceRows(presence);
-    setDayEntries(entries);
-    setLastDisplayLoginByStaffId(displayLogins);
-    setDayStatsLoading(false);
-  }, [restaurantId, dayDate]);
-
-  useEffect(() => {
-    void reloadDayStats();
-    const onRefresh = () => void reloadDayStats();
-    window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
-    return () =>
-      window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
-  }, [reloadDayStats]);
 
   /** Live-Lohn + automatischer Tageswechsel um Mitternacht (nur im „Heute“-Modus). */
   useEffect(() => {
@@ -232,13 +138,6 @@ export function StaffOverviewScreen() {
       window.clearTimeout(midnightTimerId);
     };
   }, []);
-
-  useEffect(() => {
-    const onRefresh = () => void reload();
-    window.addEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
-    return () =>
-      window.removeEventListener(GWADA_STAFF_DATA_REFRESH_EVENT, onRefresh);
-  }, [reload]);
 
   const activeEmploymentTypes = useMemo(
     () => employmentTypes.items.filter((t) => t.active),
@@ -396,7 +295,7 @@ export function StaffOverviewScreen() {
         </Button>
       </div>
 
-          {loading && !showTableSkeleton ? (
+          {staffListLoading && !showTableSkeleton ? (
             <div className="min-h-[22rem]" aria-busy="true" />
           ) : null}
           {showTableSkeleton ? (
@@ -426,7 +325,7 @@ export function StaffOverviewScreen() {
         restaurantId={restaurantId}
         staff={editStaff}
         activePositionTags={activeTags}
-        onSaved={() => void reload()}
+        onSaved={applyStaffRefresh}
       />
 
       <CategoriesManageDrawer

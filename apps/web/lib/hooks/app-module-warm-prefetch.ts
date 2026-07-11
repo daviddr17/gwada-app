@@ -53,6 +53,8 @@ import {
   isStaffTodosCacheFresh,
   writeStaffTodosCache,
 } from "@/lib/staff/staff-todos-client-cache";
+import { reservationsMonthQueryOptions } from "@/lib/reservations/reservations-list-query";
+import { staffListQueryOptions } from "@/lib/staff/staff-list-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 const FEED_STALE_MS = 5 * 60_000;
@@ -156,6 +158,15 @@ async function warmReservationsCurrentMonth(restaurantId: string): Promise<void>
   writeReservationsMonthCache(restaurantId, range, data);
 }
 
+async function warmReservationsCurrentMonthQuery(
+  queryClient: QueryClient,
+  restaurantId: string,
+): Promise<void> {
+  const range = currentMonthReservationRange();
+  if (isReservationsMonthCacheFresh(restaurantId, range, FEED_STALE_MS)) return;
+  await queryClient.prefetchQuery(reservationsMonthQueryOptions(restaurantId, range));
+}
+
 async function warmDocumentsList(restaurantId: string): Promise<void> {
   if (isDocumentsListCacheFresh(restaurantId, FEED_STALE_MS)) return;
 
@@ -189,8 +200,9 @@ export function warmAppModulePriorityCaches(
   restaurantId: string,
 ): void {
   prefetchAppModuleQueryCaches(queryClient, restaurantId);
+  void queryClient.prefetchQuery(staffListQueryOptions(restaurantId));
   void warmStaffList(restaurantId);
-  void warmReservationsCurrentMonth(restaurantId);
+  void warmReservationsCurrentMonthQuery(queryClient, restaurantId);
 }
 
 export function warmAppModuleCaches(

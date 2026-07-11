@@ -5,6 +5,8 @@ import { useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
+  CheckCircle2,
+  Clock,
   MessageCircle,
   Package,
   Sun,
@@ -20,6 +22,7 @@ import {
   StaffOverviewLivePresenceSheet,
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
+import { StaffOverviewCompletedShiftsSheet } from "@/components/staff/staff-overview-completed-shifts-sheet";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
@@ -37,8 +40,7 @@ import {
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
-import { formatDashboardStaffTodayWorkLabel } from "@/lib/staff/compute-dashboard-staff-summary";
-import { staffDisplayName, STAFF_WORK_ENTRY_COLORS } from "@/lib/types/staff";
+import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import { cn } from "@/lib/utils";
 
 const todayHeadingFmt = new Intl.DateTimeFormat("de-DE", {
@@ -203,6 +205,7 @@ export function DashboardHeuteTile() {
 
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
+  const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
 
   const accessOptions = {
     permissionsLoading,
@@ -248,16 +251,6 @@ export function DashboardHeuteTile() {
     [staff.staff],
   );
 
-  const workingStaff = useMemo(
-    () =>
-      staff.presence
-        .filter((p) => p.status === "working")
-        .map((p) => staffById.get(p.staff_id))
-        .filter(Boolean)
-        .slice(0, 5),
-    [staff.presence, staffById],
-  );
-
   const inventoryAlerts =
     (inventory.summary?.emptyStock ?? 0) > 0 ||
     (inventory.summary?.openOrders ?? 0) > 0;
@@ -267,13 +260,11 @@ export function DashboardHeuteTile() {
 
   const hasAufmerksamkeitContent =
     (can.reservations && unconfirmedRecent.length > 0) ||
-    (can.messages && (messages.summary?.unread.length ?? 0) > 0) ||
-    (can.staff && workingStaff.length > 0);
+    (can.messages && (messages.summary?.unread.length ?? 0) > 0);
 
   const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${restaurantTodayYmd(restaurantTimeZone)}`;
-  const staffHoursLabel = staff.summary
-    ? formatDashboardStaffTodayWorkLabel(staff.summary.todayWorkHours)
-    : null;
+  const staffTodayYmd = restaurantTodayYmd(restaurantTimeZone);
+  const todayWorkHours = staff.summary?.todayWorkHours ?? 0;
 
   return (
     <DashboardWidgetShell
@@ -337,22 +328,25 @@ export function DashboardHeuteTile() {
           {can.staff && staff.summary ? (
             <>
               <HeuteMetricPill
-                label="Team"
-                value={
-                  staffHoursLabel
-                    ? `${staff.summary.activeStaff} · ${staffHoursLabel}`
-                    : String(staff.summary.activeStaff)
-                }
+                label="Aktiv"
+                value={String(staff.summary.activeStaff)}
                 onClick={() => setPresenceSheetMode("working")}
                 tone={staff.summary.activeStaff > 0 ? "success" : "neutral"}
                 icon={<UserCheck aria-hidden />}
               />
               <HeuteMetricPill
-                label="Pause"
-                value={String(staff.summary.onBreakStaff)}
-                onClick={() => setPresenceSheetMode("on_break")}
-                tone={staff.summary.onBreakStaff > 0 ? "break" : "neutral"}
-                icon={<UserCheck aria-hidden />}
+                label="Abgeschlossen"
+                value={String(staff.summary.completedShiftsToday)}
+                onClick={() => setCompletedSheetOpen(true)}
+                tone={staff.summary.completedShiftsToday > 0 ? "success" : "neutral"}
+                icon={<CheckCircle2 aria-hidden />}
+              />
+              <HeuteMetricPill
+                label="Heute"
+                value={todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h"}
+                href="/dashboard/mitarbeiter/arbeitszeiten"
+                tone={todayWorkHours > 0 ? "accent" : "neutral"}
+                icon={<Clock aria-hidden />}
               />
             </>
           ) : null}
@@ -445,24 +439,6 @@ export function DashboardHeuteTile() {
                 </DashboardCompactList>
               ) : null}
 
-              {can.staff && workingStaff.length > 0 ? (
-                <ul className="flex flex-wrap gap-1">
-                  {workingStaff.map((member) => (
-                    <li
-                      key={member!.id}
-                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/12 px-1.5 py-0.5 text-[10px] font-medium text-emerald-900 dark:text-emerald-200"
-                    >
-                      <span
-                        className="size-1.5 rounded-full"
-                        style={{ backgroundColor: STAFF_WORK_ENTRY_COLORS.work }}
-                        aria-hidden
-                      />
-                      {staffDisplayName(member!)}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-
               {!canShowAufmerksamkeit ? (
                 <p className="px-0.5 text-[11px] text-muted-foreground">
                   Keine Berechtigung für Tagesmodule.
@@ -485,6 +461,16 @@ export function DashboardHeuteTile() {
           }}
           mode={presenceSheetMode}
           presence={staff.presence}
+          staffById={staffById}
+        />
+      ) : null}
+
+      {completedSheetOpen ? (
+        <StaffOverviewCompletedShiftsSheet
+          open={completedSheetOpen}
+          onOpenChange={setCompletedSheetOpen}
+          dayYmd={staffTodayYmd}
+          shifts={staff.completedShifts}
           staffById={staffById}
         />
       ) : null}

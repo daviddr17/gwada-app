@@ -1,4 +1,5 @@
 import type { DashboardStaffSummary } from "@/lib/staff/compute-dashboard-staff-summary";
+import type { CompletedDisplayShift } from "@/lib/staff/staff-work-hours-display";
 import type {
   RestaurantStaffRow,
   StaffLivePresenceRow,
@@ -8,4 +9,5 @@ export type DashboardStaffSummaryPayload = {
   summary: DashboardStaffSummary;
   staff: RestaurantStaffRow[];
   presence: StaffLivePresenceRow[];
+  completedShifts: CompletedDisplayShift[];
 };

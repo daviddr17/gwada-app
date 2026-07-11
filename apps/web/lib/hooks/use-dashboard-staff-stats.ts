@@ -27,6 +27,9 @@ export function useDashboardStaffStats() {
   const [summary, setSummary] = useState<DashboardStaffSummary | null>(null);
   const [staff, setStaff] = useState<RestaurantStaffRow[]>([]);
   const [presence, setPresence] = useState<StaffLivePresenceRow[]>([]);
+  const [completedShifts, setCompletedShifts] = useState<
+    DashboardStaffSummaryPayload["completedShifts"]
+  >([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +52,7 @@ export function useDashboardStaffStats() {
           setSummary(null);
           setStaff([]);
           setPresence([]);
+          setCompletedShifts([]);
           setError(err);
         }
         if (!silent && initial) setLoading(false);
@@ -58,6 +62,7 @@ export function useDashboardStaffStats() {
       setSummary(data?.summary ?? null);
       setStaff(data?.staff ?? []);
       setPresence(data?.presence ?? []);
+      setCompletedShifts(data?.completedShifts ?? []);
       hasDataRef.current = Boolean(data?.summary);
       if (!silent && initial) setLoading(false);
     },
@@ -72,6 +77,7 @@ export function useDashboardStaffStats() {
       setSummary(null);
       setStaff([]);
       setPresence([]);
+      setCompletedShifts([]);
       setError(null);
       setLoading(false);
       return;
@@ -109,6 +115,7 @@ export function useDashboardStaffStats() {
       summary: payload?.summary ?? null,
       staff: payload?.staff ?? [],
       presence: payload?.presence ?? [],
+      completedShifts: payload?.completedShifts ?? [],
       loading: batchSlice.loading,
       error: batchSlice.error,
       ready: batchSlice.ready,
@@ -119,6 +126,7 @@ export function useDashboardStaffStats() {
     summary,
     staff,
     presence,
+    completedShifts,
     loading,
     error,
     ready: workspaceReady && Boolean(restaurantId && isUuidRestaurantId(restaurantId)),

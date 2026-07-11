@@ -1,6 +1,7 @@
 import "server-only";
 
 import { computeDashboardStaffSummary } from "@/lib/staff/compute-dashboard-staff-summary";
+import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import type { DashboardStaffSummaryPayload } from "@/lib/dashboard/dashboard-staff-summary-types";
 import {
   exclusiveUtcIsoAfterLocalVisibleEnd,
@@ -305,6 +306,7 @@ export async function loadDashboardStaffSummaryServer(
   return {
     staff,
     presence,
+    completedShifts: listCompletedDisplayShifts(todayEntries),
     summary: computeDashboardStaffSummary({
       staff,
       presence,

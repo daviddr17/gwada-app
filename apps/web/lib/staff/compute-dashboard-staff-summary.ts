@@ -1,3 +1,4 @@
+import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import type {
   RestaurantStaffRow,
   RestaurantStaffWorkEntryRow,
@@ -9,7 +10,10 @@ export type DashboardStaffSummary = {
   totalStaff: number;
   activeStaff: number;
   onBreakStaff: number;
+  /** Nur entry_type work — offene und geschlossene Segmente, ohne Pausen. */
   todayWorkHours: number;
+  /** Abgeschlossene Display-Schichten heute. */
+  completedShiftsToday: number;
 };
 
 export function computeDashboardStaffSummary(params: {
@@ -39,6 +43,7 @@ export function computeDashboardStaffSummary(params: {
     activeStaff,
     onBreakStaff,
     todayWorkHours: workMs / 3_600_000,
+    completedShiftsToday: listCompletedDisplayShifts(params.todayEntries).length,
   };
 }
 

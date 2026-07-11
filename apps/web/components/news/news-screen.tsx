@@ -23,10 +23,6 @@ import { NewsComposeDrawer } from "@/components/news/news-compose-drawer";
 import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
 import { NewsListView, NewsMasonryGrid } from "@/components/news/news-feed-views";
-import {
-  countNewsFeedImages,
-  FeedScreenLayoutStable,
-} from "@/components/feed/feed-screen-layout-stable";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import { NewsStoriesRow } from "@/components/news/news-stories-row";
 import { NewsStoryViewer } from "@/components/news/news-story-viewer";
@@ -438,9 +434,7 @@ export function NewsScreen() {
           ) : viewMode === "list" ? (
             <NewsListView items={paginatedItems} onItemClick={openDetail} />
           ) : (
-            <FeedScreenLayoutStable imageCount={countNewsFeedImages(paginatedItems)}>
-              <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
-            </FeedScreenLayoutStable>
+            <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
           )}
         </ListPaginationSurround>
       )}

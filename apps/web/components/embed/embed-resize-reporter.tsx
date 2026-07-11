@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   EMBED_RESIZE_DEBOUNCE_MS,
   EMBED_RESIZE_FOLLOWUP_MS,
@@ -91,6 +91,8 @@ export function EmbedResizeReporter({
   const ctx = useMemo(() => readEmbedContext(), []);
   const widget = widgetProp ?? ctx.widget;
   const embedId = ctx.embedId;
+  const layoutStableRef = useRef(layoutStable);
+  layoutStableRef.current = layoutStable;
 
   useEffect(() => {
     const root = document.getElementById("gwada-embed-root");
@@ -134,7 +136,7 @@ export function EmbedResizeReporter({
       ro.observe(measureTarget);
     }
 
-    const followupTimers = layoutStable
+    const followupTimers = layoutStableRef.current
       ? EMBED_RESIZE_FOLLOWUP_MS.map((ms) =>
           window.setTimeout(() => measureAndSend(true), ms),
         )
@@ -146,7 +148,7 @@ export function EmbedResizeReporter({
       window.clearTimeout(debounceTimer);
       for (const id of followupTimers) window.clearTimeout(id);
     };
-  }, [deps, embedId, widget, resizeMode, viewportHeightPx, layoutStable]);
+  }, [deps, embedId, widget, resizeMode, viewportHeightPx]);
 
   useEffect(() => {
     if (!layoutStable || resizeMode !== "content") return;

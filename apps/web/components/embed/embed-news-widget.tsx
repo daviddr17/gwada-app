@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedFeedResizeReporter } from "@/components/embed/embed-feed-resize-reporter";
+import { EmbedMeasureEnd } from "@/components/embed/embed-measure-boundary";
 import {
   countNewsFeedImages,
   FeedScreenLayoutStable,
@@ -163,7 +164,7 @@ export function EmbedNewsWidget({
     >
       <FeedScreenLayoutStable imageCount={countNewsFeedImages(displayItems)}>
         <EmbedFeedResizeReporter widget="news" deps={resizeDeps} />
-        <div className={paddingClass}>
+        <div className={paddingClass} data-gwada-embed-content>
         {connectedPlatforms.length > 1 ? (
           <div className="mb-4">
             <NewsPlatformFilterChips
@@ -228,6 +229,7 @@ export function EmbedNewsWidget({
         ) : (
           newsContent
         )}
+        <EmbedMeasureEnd />
         </div>
       </FeedScreenLayoutStable>
       <NewsStoryViewer

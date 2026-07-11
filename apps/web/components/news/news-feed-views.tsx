@@ -2,7 +2,6 @@
 
 import { memo, useCallback, useState, type MouseEvent } from "react";
 import { ExternalLink } from "lucide-react";
-import { Masonry } from "masonic";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
@@ -13,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { FeedPinnedBadge } from "@/components/feed-pin/feed-pinned-badge";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
-import { feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
+import { feedGridTemplateColumns, feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
 import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
 import { cn } from "@/lib/utils";
 
@@ -177,7 +176,7 @@ const NewsFeedCardRow = memo(function NewsFeedCardRow({
   );
 });
 
-/** Virtualisiertes Masonry-Raster (masonic) — stabile Kachelhöhen, kein CSS-Columns-Reflow. */
+/** Raster — CSS-Grid mit reservierten Bild-Slots (stabile Höhe, kein Columns-Reflow). */
 export function NewsMasonryGrid({
   items,
   onItemClick,
@@ -190,17 +189,6 @@ export function NewsMasonryGrid({
 }) {
   const { columnCount, mounted } = useFeedMasonryColumns(feedMasonryColumnCount);
 
-  const render = useCallback(
-    ({ data }: { data: UnifiedNewsItem }) => (
-      <NewsFeedCardRow
-        item={data}
-        onItemClick={onItemClick}
-        inlineExpandBody={inlineExpandBody}
-      />
-    ),
-    [onItemClick, inlineExpandBody],
-  );
-
   if (items.length === 0) return null;
 
   if (!mounted) {
@@ -208,14 +196,19 @@ export function NewsMasonryGrid({
   }
 
   return (
-    <Masonry
-      items={items}
-      columnCount={columnCount}
-      columnGutter={16}
-      rowGutter={16}
-      itemKey={(item) => item.id}
-      render={render}
-    />
+    <div
+      className="grid w-full gap-4"
+      style={{ gridTemplateColumns: feedGridTemplateColumns(columnCount) }}
+    >
+      {items.map((item) => (
+        <NewsFeedCardRow
+          key={item.id}
+          item={item}
+          onItemClick={onItemClick}
+          inlineExpandBody={inlineExpandBody}
+        />
+      ))}
+    </div>
   );
 }
 

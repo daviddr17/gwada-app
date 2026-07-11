@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFeedLayoutStable } from "@/components/feed/feed-layout-stable-context";
 import { feedMediaDimensions } from "@/lib/feed/feed-media-layout";
 import { cn } from "@/lib/utils";
@@ -37,16 +37,28 @@ export function FeedMediaImage({
   const [loaded, setLoaded] = useState(false);
   const [useFullRes, setUseFullRes] = useState(!thumbSrc);
   const displaySrc = useFullRes ? src : (thumbSrc ?? src);
+  const pendingRegisteredRef = useRef(false);
+  const loadedRef = useRef(false);
 
   useEffect(() => {
+    loadedRef.current = false;
+    pendingRegisteredRef.current = false;
     setLoaded(false);
     setUseFullRes(!thumbSrc);
     layoutStable?.registerPending();
+    pendingRegisteredRef.current = true;
+
+    return () => {
+      if (pendingRegisteredRef.current && !loadedRef.current) {
+        layoutStable?.markLoaded();
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- ein Pending pro src
   }, [src, thumbSrc]);
 
   const finishLoad = () => {
-    if (!loaded) {
+    if (!loadedRef.current) {
+      loadedRef.current = true;
       setLoaded(true);
       layoutStable?.markLoaded();
       onLoad?.();
@@ -88,13 +100,14 @@ export function FeedMediaImage({
         decoding="async"
         onLoad={finishLoad}
         onError={() => {
-          if (!loaded) {
+          if (!loadedRef.current) {
+            loadedRef.current = true;
             setLoaded(true);
             layoutStable?.markLoaded();
           }
         }}
         className={cn(
-          "absolute inset-0 size-full transition-opacity duration-500 ease-out",
+          "absolute inset-0 size-full transition-opacity duration-300 ease-out",
           fit === "cover" ? "object-cover" : "object-contain",
           loaded ? "opacity-100" : "opacity-0",
           imgClassName,

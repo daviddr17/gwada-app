@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { EmbedAccentRoot } from "@/components/embed/embed-accent-root";
 import { EmbedFeedResizeReporter } from "@/components/embed/embed-feed-resize-reporter";
+import { EmbedMeasureEnd } from "@/components/embed/embed-measure-boundary";
 import {
   countGalleryFeedImages,
   FeedScreenLayoutStable,
@@ -25,7 +26,6 @@ import type { EmbedTextTheme } from "@/lib/embed/embed-appearance";
 import { GALLERY_FEED_PAGE_SIZE } from "@/lib/gallery/gallery-feed-pagination";
 import type { PublicEmbedGallery } from "@/lib/gallery/public-gallery-server";
 import type { UnifiedGalleryHighlight } from "@/lib/gallery/unified-gallery-item";
-import { cn } from "@/lib/utils";
 
 type Props = {
   data: PublicEmbedGallery;
@@ -117,7 +117,10 @@ export function EmbedGalleryWidget({
     <EmbedAccentRoot accentHex={data.accentHex} textTheme={textTheme}>
       <FeedScreenLayoutStable imageCount={countGalleryFeedImages(paginated)}>
         <EmbedFeedResizeReporter widget="gallery" deps={resizeDeps} />
-        <div className={cn("min-h-[480px] p-4")}>{content}</div>
+        <div className="space-y-4 p-4" data-gwada-embed-content>
+          {content}
+          <EmbedMeasureEnd />
+        </div>
       </FeedScreenLayoutStable>
     </EmbedAccentRoot>
   );

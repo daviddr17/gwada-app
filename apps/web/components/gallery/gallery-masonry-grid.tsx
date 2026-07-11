@@ -1,13 +1,11 @@
 "use client";
 
-import { Masonry } from "masonic";
-import { useCallback } from "react";
-import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
-import { feedGalleryColumnCount } from "@/lib/feed/feed-media-layout";
+import { feedGalleryColumnCount, feedGridTemplateColumns } from "@/lib/feed/feed-media-layout";
 import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
 import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
+import { FeedMediaImage } from "@/components/feed/feed-media-image";
 
 export const galleryMasonryGridShellClassName = "overflow-hidden rounded-[10px]";
 
@@ -64,13 +62,6 @@ function GalleryMasonryTile({
 export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
   const { columnCount, mounted } = useFeedMasonryColumns(feedGalleryColumnCount);
 
-  const render = useCallback(
-    ({ data }: { data: UnifiedGalleryItem }) => (
-      <GalleryMasonryTile item={data} onItemClick={onItemClick} />
-    ),
-    [onItemClick],
-  );
-
   if (items.length === 0) return null;
 
   if (!mounted) {
@@ -78,15 +69,17 @@ export function GalleryMasonryGrid({ items, onItemClick, className }: Props) {
   }
 
   return (
-    <div className={cn(galleryMasonryGridShellClassName, className)}>
-      <Masonry
-        items={items}
-        columnCount={columnCount}
-        columnGutter={1}
-        rowGutter={1}
-        itemKey={(item) => item.id}
-        render={render}
-      />
+    <div
+      className={cn(galleryMasonryGridShellClassName, className)}
+      style={{
+        display: "grid",
+        gap: "1px",
+        gridTemplateColumns: feedGridTemplateColumns(columnCount),
+      }}
+    >
+      {items.map((item) => (
+        <GalleryMasonryTile key={item.id} item={item} onItemClick={onItemClick} />
+      ))}
     </div>
   );
 }

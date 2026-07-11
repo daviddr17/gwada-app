@@ -31,26 +31,47 @@ export function FeedLayoutStableProvider({
   enabled?: boolean;
 }) {
   const pendingRef = useRef(0);
-  const [stable, setStable] = useState(!enabled || itemCount === 0);
+  const stableRef = useRef(!enabled || itemCount === 0);
+  const rafRef = useRef(0);
+  const [stable, setStable] = useState(stableRef.current);
 
   useEffect(() => {
     pendingRef.current = 0;
-    setStable(!enabled || itemCount === 0);
+    stableRef.current = !enabled || itemCount === 0;
+    setStable(stableRef.current);
   }, [itemCount, enabled]);
+
+  useEffect(
+    () => () => {
+      window.cancelAnimationFrame(rafRef.current);
+    },
+    [],
+  );
+
+  const scheduleStableCheck = useCallback(() => {
+    window.cancelAnimationFrame(rafRef.current);
+    rafRef.current = window.requestAnimationFrame(() => {
+      const nextStable = pendingRef.current === 0;
+      if (nextStable === stableRef.current) return;
+      stableRef.current = nextStable;
+      setStable(nextStable);
+    });
+  }, []);
 
   const registerPending = useCallback(() => {
     if (!enabled) return;
     pendingRef.current += 1;
-    setStable(false);
+    if (stableRef.current) {
+      stableRef.current = false;
+      setStable(false);
+    }
   }, [enabled]);
 
   const markLoaded = useCallback(() => {
     if (!enabled) return;
     pendingRef.current = Math.max(0, pendingRef.current - 1);
-    if (pendingRef.current === 0) {
-      setStable(true);
-    }
-  }, [enabled]);
+    scheduleStableCheck();
+  }, [enabled, scheduleStableCheck]);
 
   const value = useMemo(
     () => ({ registerPending, markLoaded, stable }),

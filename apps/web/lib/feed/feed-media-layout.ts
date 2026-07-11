@@ -29,3 +29,7 @@ export function feedGalleryColumnCount(viewportWidth: number): number {
   if (viewportWidth >= 640) return 3;
   return 2;
 }
+
+export function feedGridTemplateColumns(columnCount: number): string {
+  return `repeat(${Math.max(1, columnCount)}, minmax(0, 1fr))`;
+}

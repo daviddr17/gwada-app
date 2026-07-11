@@ -3,7 +3,7 @@
 import type { ComponentProps } from "react";
 import { Skeleton, SkeletonCardFrame } from "@/components/ui/skeleton";
 import type { NewsViewMode } from "@/lib/constants/news-platforms";
-import { feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
+import { feedGridTemplateColumns, feedMasonryColumnCount } from "@/lib/feed/feed-media-layout";
 import { useFeedMasonryColumns } from "@/lib/hooks/use-feed-masonry-columns";
 import { cn } from "@/lib/utils";
 
@@ -45,7 +45,7 @@ function NewsGridSkeleton({ count = 8 }: { count?: number }) {
   return (
     <div
       className="grid gap-4"
-      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      style={{ gridTemplateColumns: feedGridTemplateColumns(cols) }}
     >
       {Array.from({ length: count }).map((_, i) => (
         <NewsCardSkeleton

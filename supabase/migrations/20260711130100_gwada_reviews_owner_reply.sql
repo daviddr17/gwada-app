@@ -12,5 +12,6 @@ comment on column public.gwada_reviews.owner_reply_at is
 drop policy if exists "gwada_reviews_staff_update" on public.gwada_reviews;
 create policy "gwada_reviews_staff_update"
   on public.gwada_reviews for update
-  using (public.staff_can_restaurant_module(restaurant_id, 'reviews', 'update'))
-  with check (public.staff_can_restaurant_module(restaurant_id, 'reviews', 'update'));
+  to authenticated
+  using (public.auth_has_restaurant_permission(restaurant_id, 'reviews.manage'))
+  with check (public.auth_has_restaurant_permission(restaurant_id, 'reviews.manage'));

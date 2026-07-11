@@ -157,7 +157,7 @@ export function StaffWorkEntryDrawer({
       setEntryType(entry.entry_type);
       setDateStr(toDateInput(s));
       setStartTime(toTimeInput(s));
-      const openWork = entry.is_open && entry.entry_type === "work";
+      const openWork = Boolean(entry.is_open && entry.entry_type === "work");
       setStillRunning(openWork);
       setEndTime(
         openWork

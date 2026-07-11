@@ -58,7 +58,7 @@ export const AppNavLink = forwardRef<
           event.preventDefault();
           return;
         }
-        if (crossModuleNav && !tryAcquireNavLock(event)) {
+        if (crossModuleNav && !tryAcquireNavLock(event, hrefStr)) {
           return;
         }
       }}

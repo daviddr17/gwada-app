@@ -11,44 +11,58 @@ import {
 import { usePathname } from "next/navigation";
 
 type SoftNavLockValue = {
-  tryAcquireNavLock: (event: { preventDefault: () => void }) => boolean;
+  tryAcquireNavLock: (
+    event: { preventDefault: () => void },
+    targetHref: string,
+  ) => boolean;
 };
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const NAV_LOCK_FAILSAFE_MS = 6_000;
+const NAV_LOCK_FAILSAFE_MS = 2_500;
 
-/** Blockiert parallele Modul-Klicks, bis pathname gewechselt hat (RSC-Flight fertig). */
+function normalizeNavHref(href: string): string {
+  const path = href.split("?")[0]?.split("#")[0] ?? href;
+  if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
+  return path || "/dashboard";
+}
+
+/** Blockiert Doppel-Klicks auf dasselbe Modul; neues Ziel darf vorherigen Flight ersetzen. */
 export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const lockedRef = useRef(false);
+  const lockedTargetRef = useRef<string | null>(null);
   const lockTimerRef = useRef<number | null>(null);
 
-  useEffect(() => {
+  const releaseLock = useCallback(() => {
     lockedRef.current = false;
+    lockedTargetRef.current = null;
     if (lockTimerRef.current != null) {
       window.clearTimeout(lockTimerRef.current);
       lockTimerRef.current = null;
     }
-  }, [pathname]);
+  }, []);
+
+  useEffect(() => {
+    releaseLock();
+  }, [pathname, releaseLock]);
 
   const tryAcquireNavLock = useCallback(
-    (event: { preventDefault: () => void }) => {
+    (event: { preventDefault: () => void }, targetHref: string) => {
+      const target = normalizeNavHref(targetHref);
       if (lockedRef.current) {
-        event.preventDefault();
-        return false;
+        if (lockedTargetRef.current === target) {
+          event.preventDefault();
+          return false;
+        }
+        releaseLock();
       }
       lockedRef.current = true;
-      if (lockTimerRef.current != null) {
-        window.clearTimeout(lockTimerRef.current);
-      }
-      lockTimerRef.current = window.setTimeout(() => {
-        lockedRef.current = false;
-        lockTimerRef.current = null;
-      }, NAV_LOCK_FAILSAFE_MS);
+      lockedTargetRef.current = target;
+      lockTimerRef.current = window.setTimeout(releaseLock, NAV_LOCK_FAILSAFE_MS);
       return true;
     },
-    [],
+    [releaseLock],
   );
 
   useEffect(

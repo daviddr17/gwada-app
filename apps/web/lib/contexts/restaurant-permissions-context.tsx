@@ -18,13 +18,25 @@ import {
 import { useWorkspaceAuthSession } from "@/lib/contexts/workspace-auth-session-context";
 import { useWorkspaceRestaurantContext } from "@/lib/contexts/workspace-restaurant-context";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
-import { GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT } from "@/lib/supabase/workspace-persistence";
+import {
+  GWADA_WORKSPACE_RESTAURANT_CHANGED_EVENT,
+  peekCachedWorkspaceRestaurantSession,
+} from "@/lib/supabase/workspace-persistence";
 
 const PERMISSIONS_RETRY_DELAYS_MS = [800, 1600, 3200] as const;
 const PERMISSIONS_SESSION_CACHE_KEY = "gwada-restaurant-permissions-v1";
 
 function permissionsCacheKey(restaurantId: string, userId: string): string {
   return `${userId}:${restaurantId}`;
+}
+
+function readInitialPermissionsCache(): Set<string> {
+  const session = peekCachedWorkspaceRestaurantSession();
+  if (!session) return new Set();
+  return (
+    readPermissionsSessionCache(session.restaurantId, session.userKey) ??
+    new Set()
+  );
 }
 
 function readPermissionsSessionCache(
@@ -85,11 +97,13 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
     restaurantId,
     ready: workspaceReady,
   } = useWorkspaceRestaurantContext();
-  const [permissions, setPermissions] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState(readInitialPermissionsCache);
+  const [loading, setLoading] = useState(
+    () => readInitialPermissionsCache().size === 0,
+  );
   const [error, setError] = useState<string | null>(null);
   const reloadGeneration = useRef(0);
-  const hydratedCacheRef = useRef(false);
+  const hydratedCacheRef = useRef(readInitialPermissionsCache().size > 0);
 
   useLayoutEffect(() => {
     if (!authReady || !workspaceReady || !user || !restaurantId) return;
@@ -202,12 +216,15 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
     [permissions],
   );
 
+  const blockingLoad =
+    permissions.size === 0 && (!workspaceReady || !authReady || loading);
+
   return useMemo(
     () => ({
       restaurantId,
       permissions,
       has,
-      loading: !workspaceReady || !authReady || loading,
+      loading: blockingLoad,
       error,
       workspaceReady: workspaceReady && authReady,
       reload,
@@ -218,7 +235,7 @@ function useRestaurantPermissionsState(): RestaurantPermissionsValue {
       has,
       workspaceReady,
       authReady,
-      loading,
+      blockingLoad,
       error,
       reload,
     ],

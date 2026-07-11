@@ -9,8 +9,14 @@ import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-pr
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
-const WARM_START_DELAY_MS = 1200;
-const ROUTE_PREFETCH_STAGGER_MS = 120;
+const WARM_START_DELAY_MS = 250;
+const ROUTE_PREFETCH_STAGGER_MS = 60;
+const PRIORITY_MODULE_ROUTES = [
+  "/dashboard/menu/uebersicht",
+  "/dashboard/kontakte/nachrichten",
+  "/dashboard/reservations/uebersicht",
+  "/dashboard/staff/uebersicht",
+] as const;
 
 function runWhenIdleLater(task: () => void, timeoutMs = 6000): void {
   runWhenIdle(task, timeoutMs);
@@ -36,6 +42,10 @@ export function AppModuleWarmPrefetchMount() {
       return;
     }
     startedRef.current = true;
+
+    for (const route of PRIORITY_MODULE_ROUTES) {
+      router.prefetch(route);
+    }
 
     const startTimer = window.setTimeout(() => {
       runWhenIdleLater(() => {

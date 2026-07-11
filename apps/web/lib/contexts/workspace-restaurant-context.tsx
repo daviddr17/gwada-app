@@ -39,7 +39,7 @@ export function WorkspaceRestaurantProvider({ children }: { children: ReactNode 
   const [restaurantId, setRestaurantId] = useState<string | null>(
     readCachedRestaurantId,
   );
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(() => readCachedRestaurantId() != null);
 
   const refresh = useCallback(async () => {
     if (!supabaseEnvOk) {

@@ -3,28 +3,21 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-import { warmAppModuleCaches } from "@/lib/hooks/app-module-warm-prefetch";
+import {
+  warmAppModuleCaches,
+  warmAppModulePriorityCaches,
+} from "@/lib/hooks/app-module-warm-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
-const WARM_START_DELAY_MS = 250;
-const ROUTE_PREFETCH_STAGGER_MS = 60;
-const PRIORITY_MODULE_ROUTES = [
-  "/dashboard/menu/uebersicht",
-  "/dashboard/kontakte/nachrichten",
-  "/dashboard/reservations/uebersicht",
-  "/dashboard/staff/uebersicht",
-] as const;
-
-function runWhenIdleLater(task: () => void, timeoutMs = 6000): void {
-  runWhenIdle(task, timeoutMs);
-}
+const ROUTE_PREFETCH_STAGGER_MS = 40;
 
 /**
- * Nach initialem Dashboard-Load: Modul-Daten + RSC-Routen im Hintergrund wärmen,
- * damit Sidebar-Wechsel instant wirken (Cache + prefetched Flight).
+ * Workspace ready → sofort Priority-Routen + Daten-Caches wärmen,
+ * danach restliche Routen im Idle (SPA-artig: Klick trifft warmen Flight + Cache).
  */
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
@@ -43,27 +36,26 @@ export function AppModuleWarmPrefetchMount() {
     }
     startedRef.current = true;
 
-    for (const route of PRIORITY_MODULE_ROUTES) {
+    for (const route of APP_MODULE_PRIORITY_ROUTES) {
       router.prefetch(route);
     }
 
-    const startTimer = window.setTimeout(() => {
-      runWhenIdleLater(() => {
-        warmAppModuleCaches(queryClient, restaurantId);
-      });
+    warmAppModulePriorityCaches(queryClient, restaurantId);
 
-      runWhenIdleLater(() => {
-        APP_MODULE_PREFETCH_ROUTES.forEach((route, index) => {
-          window.setTimeout(() => {
-            router.prefetch(route);
-          }, index * ROUTE_PREFETCH_STAGGER_MS);
-        });
-      }, 6000);
-    }, WARM_START_DELAY_MS);
+    runWhenIdle(() => {
+      warmAppModuleCaches(queryClient, restaurantId);
+    }, 800);
 
-    return () => {
-      window.clearTimeout(startTimer);
-    };
+    runWhenIdle(() => {
+      let index = 0;
+      for (const route of APP_MODULE_PREFETCH_ROUTES) {
+        if (APP_MODULE_PRIORITY_ROUTES.includes(route)) continue;
+        window.setTimeout(() => {
+          router.prefetch(route);
+        }, index * ROUTE_PREFETCH_STAGGER_MS);
+        index += 1;
+      }
+    }, 1500);
   }, [queryClient, restaurantId, router, workspaceReady]);
 
   return null;

@@ -184,11 +184,20 @@ async function warmStaffTodos(restaurantId: string): Promise<void> {
 /**
  * React-Query + Modul-Caches im Idle wärmen — Sidebar-Wechsel ohne Skeleton.
  */
-export function warmAppModuleCaches(
+export function warmAppModulePriorityCaches(
   queryClient: QueryClient,
   restaurantId: string,
 ): void {
   prefetchAppModuleQueryCaches(queryClient, restaurantId);
+  void warmStaffList(restaurantId);
+  void warmReservationsCurrentMonth(restaurantId);
+}
+
+export function warmAppModuleCaches(
+  queryClient: QueryClient,
+  restaurantId: string,
+): void {
+  warmAppModulePriorityCaches(queryClient, restaurantId);
 
   void warmEventsFeed(restaurantId);
   void warmNewsFeed(restaurantId);

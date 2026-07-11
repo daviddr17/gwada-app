@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuthLogoutTransition } from "@/components/auth/auth-logout-transition-provider";
+import {
+  normalizeNavHref,
+  useSoftNavLock,
+} from "@/components/providers/soft-nav-lock-provider";
 import {
   Bell,
   Building2,
@@ -56,6 +60,7 @@ import {
   type SidebarModuleId,
 } from "@/lib/constants/sidebar-modules";
 import { useSidebarModuleOrder } from "@/lib/contexts/sidebar-module-order-context";
+import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { formatSidebarMenuLabel } from "@/lib/navigation/format-sidebar-menu-label";
 import {
   sidebarChangelogUnreadCount,
@@ -111,6 +116,8 @@ const SIDEBAR_MODULE_SKELETON_WIDTHS = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { pendingHref } = useSoftNavLock();
   const { logout, isLoggingOut } = useAuthLogoutTransition();
   const { isMobile, setOpenMobile } = useSidebar();
   const { profile, isReady: profileReady } = useRestaurantProfile();
@@ -153,6 +160,13 @@ export function AppSidebar() {
   const headerTooltip = userFullName
     ? `${userFullName} · ${displayName || "Restaurant"}`
     : displayName || "Restaurant";
+
+  useEffect(() => {
+    if (permissionsPending) return;
+    for (const href of APP_MODULE_PRIORITY_ROUTES) {
+      router.prefetch(href);
+    }
+  }, [permissionsPending, router]);
 
   useEffect(() => {
     if (isMobile) {
@@ -362,7 +376,10 @@ export function AppSidebar() {
                 <>
                   <SidebarMenuItem>
                     <SidebarMenuButton
-                      isActive={pathname === "/dashboard"}
+                      isActive={
+                        pathname === "/dashboard" ||
+                        pendingHref === "/dashboard"
+                      }
                       tooltip="Dashboard"
                       render={<AppNavLink href="/dashboard" />}
                     >
@@ -404,10 +421,15 @@ export function AppSidebar() {
                         notificationSummary,
                         mod.id,
                       );
+                      const modulePending =
+                        pendingHref != null &&
+                        normalizeNavHref(mod.href) === pendingHref;
                       return (
                         <SidebarMenuItem key={mod.id}>
                           <SidebarMenuButton
-                            isActive={pathname.startsWith(mod.pathPrefix)}
+                            isActive={
+                              pathname.startsWith(mod.pathPrefix) || modulePending
+                            }
                             tooltip={mod.tooltip}
                             render={<AppNavLink href={mod.href} />}
                           >

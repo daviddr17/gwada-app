@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useRef,
+  useState,
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
@@ -15,13 +16,15 @@ type SoftNavLockValue = {
     event: { preventDefault: () => void },
     targetHref: string,
   ) => boolean;
+  /** Ziel-Route während RSC-Flight — sofortiges Sidebar-Feedback. */
+  pendingHref: string | null;
 };
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
 const NAV_LOCK_FAILSAFE_MS = 2_500;
 
-function normalizeNavHref(href: string): string {
+export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;
   if (path.length > 1 && path.endsWith("/")) return path.slice(0, -1);
   return path || "/dashboard";
@@ -33,10 +36,12 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   const lockedRef = useRef(false);
   const lockedTargetRef = useRef<string | null>(null);
   const lockTimerRef = useRef<number | null>(null);
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
 
   const releaseLock = useCallback(() => {
     lockedRef.current = false;
     lockedTargetRef.current = null;
+    setPendingHref(null);
     if (lockTimerRef.current != null) {
       window.clearTimeout(lockTimerRef.current);
       lockTimerRef.current = null;
@@ -59,6 +64,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
       }
       lockedRef.current = true;
       lockedTargetRef.current = target;
+      setPendingHref(target);
       lockTimerRef.current = window.setTimeout(releaseLock, NAV_LOCK_FAILSAFE_MS);
       return true;
     },
@@ -75,7 +81,7 @@ export function SoftNavLockProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <SoftNavLockContext.Provider value={{ tryAcquireNavLock }}>
+    <SoftNavLockContext.Provider value={{ tryAcquireNavLock, pendingHref }}>
       {children}
     </SoftNavLockContext.Provider>
   );

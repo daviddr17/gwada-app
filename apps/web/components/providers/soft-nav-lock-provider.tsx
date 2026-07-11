@@ -22,7 +22,7 @@ type SoftNavLockValue = {
 
 const SoftNavLockContext = createContext<SoftNavLockValue | null>(null);
 
-const NAV_LOCK_FAILSAFE_MS = 2_500;
+const NAV_LOCK_FAILSAFE_MS = 12_000;
 
 export function normalizeNavHref(href: string): string {
   const path = href.split("?")[0]?.split("#")[0] ?? href;

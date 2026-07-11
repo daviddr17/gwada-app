@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  peekPublicHolidaysCache,
+  writePublicHolidaysCache,
+} from "@/lib/reservations/public-holidays-range-cache";
 
 export function usePublicHolidaysByDate(
   restaurantId: string | null,
@@ -10,8 +14,14 @@ export function usePublicHolidaysByDate(
   byDate: Record<string, string>;
   loading: boolean;
 } {
-  const [byDate, setByDate] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
+  const [byDate, setByDate] = useState<Record<string, string>>(() => {
+    if (!restaurantId || !fromYmd || !toYmd) return {};
+    return peekPublicHolidaysCache(restaurantId, fromYmd, toYmd) ?? {};
+  });
+  const [loading, setLoading] = useState(() => {
+    if (!restaurantId || !fromYmd || !toYmd) return false;
+    return peekPublicHolidaysCache(restaurantId, fromYmd, toYmd) == null;
+  });
 
   useEffect(() => {
     if (!restaurantId || !fromYmd || !toYmd || fromYmd > toYmd) {
@@ -20,8 +30,15 @@ export function usePublicHolidaysByDate(
       return;
     }
 
+    const cached = peekPublicHolidaysCache(restaurantId, fromYmd, toYmd);
+    if (cached) {
+      setByDate(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
     let cancelled = false;
-    setLoading(true);
 
     const params = new URLSearchParams({
       restaurantId,
@@ -34,9 +51,11 @@ export function usePublicHolidaysByDate(
         const data = (await res.json().catch(() => ({}))) as {
           byDate?: Record<string, string>;
         };
-        if (!cancelled && res.ok && data.byDate) {
+        if (cancelled) return;
+        if (res.ok && data.byDate) {
+          writePublicHolidaysCache(restaurantId, fromYmd, toYmd, data.byDate);
           setByDate(data.byDate);
-        } else if (!cancelled) {
+        } else {
           setByDate({});
         }
       })

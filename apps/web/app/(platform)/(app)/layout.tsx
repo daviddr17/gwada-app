@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { AppDashboardLivePatchMount } from "@/components/providers/app-dashboard-live-patch-mount";
 import { AppModuleLiveProviders } from "@/components/providers/app-module-live-providers";
 import { AppModuleWarmPrefetchMount } from "@/components/providers/app-module-warm-prefetch-mount";
+import { AppShellReadinessProvider } from "@/components/providers/app-shell-readiness-provider";
 import { AuthCookieCleanupMount } from "@/components/providers/auth-cookie-cleanup-mount";
 import { DashboardBatchPrefetchMount } from "@/components/providers/dashboard-batch-prefetch-mount";
 import { UnifiedInboxBackgroundSyncMount } from "@/components/contacts/unified-inbox-background-sync-mount";
@@ -63,17 +64,19 @@ export default function AppLayout({
               <RestaurantProfileProvider>
                 <DashboardWidgetPreferencesProvider>
                   <AccentColorProvider>
-                    <SoftNavLockProvider>
-                      <DashboardPwaSetup />
-                      <AuthCookieCleanupMount />
-                      <DashboardBatchPrefetchMount />
-                      <AppModuleWarmPrefetchMount />
-                      <UnifiedInboxBackgroundSyncMount />
-                      <AppDashboardLivePatchMount />
-                      <ProfilePresenceHeartbeat />
-                      <AppModuleLiveProviders />
-                      <AppShell>{children}</AppShell>
-                    </SoftNavLockProvider>
+                    <AppShellReadinessProvider>
+                      <SoftNavLockProvider>
+                        <DashboardPwaSetup />
+                        <AuthCookieCleanupMount />
+                        <DashboardBatchPrefetchMount />
+                        <AppModuleWarmPrefetchMount />
+                        <UnifiedInboxBackgroundSyncMount />
+                        <AppDashboardLivePatchMount />
+                        <ProfilePresenceHeartbeat />
+                        <AppModuleLiveProviders />
+                        <AppShell>{children}</AppShell>
+                      </SoftNavLockProvider>
+                    </AppShellReadinessProvider>
                   </AccentColorProvider>
                 </DashboardWidgetPreferencesProvider>
               </RestaurantProfileProvider>

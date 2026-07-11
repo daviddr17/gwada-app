@@ -53,8 +53,6 @@ import {
   isStaffTodosCacheFresh,
   writeStaffTodosCache,
 } from "@/lib/staff/staff-todos-client-cache";
-import { reservationsMonthQueryOptions } from "@/lib/reservations/reservations-list-query";
-import { staffListQueryOptions } from "@/lib/staff/staff-list-query";
 import type { QueryClient } from "@tanstack/react-query";
 
 const FEED_STALE_MS = 5 * 60_000;
@@ -158,15 +156,6 @@ async function warmReservationsCurrentMonth(restaurantId: string): Promise<void>
   writeReservationsMonthCache(restaurantId, range, data);
 }
 
-async function warmReservationsCurrentMonthQuery(
-  queryClient: QueryClient,
-  restaurantId: string,
-): Promise<void> {
-  const range = currentMonthReservationRange();
-  if (isReservationsMonthCacheFresh(restaurantId, range, FEED_STALE_MS)) return;
-  await queryClient.prefetchQuery(reservationsMonthQueryOptions(restaurantId, range));
-}
-
 async function warmDocumentsList(restaurantId: string): Promise<void> {
   if (isDocumentsListCacheFresh(restaurantId, FEED_STALE_MS)) return;
 
@@ -192,25 +181,19 @@ async function warmStaffTodos(restaurantId: string): Promise<void> {
   });
 }
 
-/**
- * React-Query + Modul-Caches im Idle wärmen — Sidebar-Wechsel ohne Skeleton.
- */
+/** React-Query + Modul-Caches — Mitarbeiter/Reservierungen in prefetchCriticalModuleQueries. */
 export function warmAppModulePriorityCaches(
   queryClient: QueryClient,
   restaurantId: string,
 ): void {
   prefetchAppModuleQueryCaches(queryClient, restaurantId);
-  void queryClient.prefetchQuery(staffListQueryOptions(restaurantId));
-  void warmStaffList(restaurantId);
-  void warmReservationsCurrentMonthQuery(queryClient, restaurantId);
 }
 
-export function warmAppModuleCaches(
+/** Feeds, Dokumente, Todos — nach den kritischen Modulen. */
+export function warmAppModuleSecondaryCaches(
   queryClient: QueryClient,
   restaurantId: string,
 ): void {
-  warmAppModulePriorityCaches(queryClient, restaurantId);
-
   void warmEventsFeed(restaurantId);
   void warmNewsFeed(restaurantId);
   void warmGalleryFeed(restaurantId);
@@ -218,4 +201,12 @@ export function warmAppModuleCaches(
   void warmReservationsCurrentMonth(restaurantId);
   void warmDocumentsList(restaurantId);
   void warmStaffTodos(restaurantId);
+}
+
+export function warmAppModuleCaches(
+  queryClient: QueryClient,
+  restaurantId: string,
+): void {
+  warmAppModulePriorityCaches(queryClient, restaurantId);
+  warmAppModuleSecondaryCaches(queryClient, restaurantId);
 }

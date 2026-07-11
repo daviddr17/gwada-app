@@ -2,49 +2,56 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import {
-  warmAppModuleCaches,
-  warmAppModulePriorityCaches,
+  prefetchCriticalModuleQueries,
+  seedPriorityModuleQueryCaches,
+} from "@/lib/hooks/app-module-intent-prefetch";
+import {
+  warmAppModuleSecondaryCaches,
 } from "@/lib/hooks/app-module-warm-prefetch";
+import { prefetchAppModuleQueryCaches } from "@/lib/hooks/app-module-query-prefetch";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { APP_MODULE_PRIORITY_ROUTES } from "@/lib/navigation/app-module-priority-routes";
 import { APP_MODULE_PREFETCH_ROUTES } from "@/lib/navigation/app-module-route-prefetch";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
-const ROUTE_PREFETCH_STAGGER_MS = 40;
+const ROUTE_PREFETCH_STAGGER_MS = 25;
 
 /**
- * Workspace ready → sofort Priority-Routen + Daten-Caches wärmen,
- * danach restliche Routen im Idle (SPA-artig: Klick trifft warmen Flight + Cache).
+ * Workspace ready → synchron Cache seed + sofort Priority-Routen/Daten,
+ * bevor der Nutzer klicken kann (useLayoutEffect, nicht useEffect).
  */
 export function AppModuleWarmPrefetchMount() {
   const queryClient = useQueryClient();
   const router = useRouter();
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
-  const startedRef = useRef(false);
+  const warmedForRef = useRef<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (
-      startedRef.current ||
       !workspaceReady ||
       !restaurantId ||
-      !isUuidRestaurantId(restaurantId)
+      !isUuidRestaurantId(restaurantId) ||
+      warmedForRef.current === restaurantId
     ) {
       return;
     }
-    startedRef.current = true;
+    warmedForRef.current = restaurantId;
+
+    seedPriorityModuleQueryCaches(queryClient, restaurantId);
 
     for (const route of APP_MODULE_PRIORITY_ROUTES) {
       router.prefetch(route);
     }
 
-    warmAppModulePriorityCaches(queryClient, restaurantId);
+    prefetchCriticalModuleQueries(queryClient, restaurantId);
+    prefetchAppModuleQueryCaches(queryClient, restaurantId);
 
     runWhenIdle(() => {
-      warmAppModuleCaches(queryClient, restaurantId);
-    }, 800);
+      warmAppModuleSecondaryCaches(queryClient, restaurantId);
+    }, 400);
 
     runWhenIdle(() => {
       let index = 0;
@@ -55,7 +62,7 @@ export function AppModuleWarmPrefetchMount() {
         }, index * ROUTE_PREFETCH_STAGGER_MS);
         index += 1;
       }
-    }, 1500);
+    }, 600);
   }, [queryClient, restaurantId, router, workspaceReady]);
 
   return null;

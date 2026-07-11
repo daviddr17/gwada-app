@@ -162,11 +162,10 @@ export function AppSidebar() {
     : displayName || "Restaurant";
 
   useEffect(() => {
-    if (permissionsPending) return;
     for (const href of APP_MODULE_PRIORITY_ROUTES) {
       router.prefetch(href);
     }
-  }, [permissionsPending, router]);
+  }, [router]);
 
   useEffect(() => {
     if (isMobile) {

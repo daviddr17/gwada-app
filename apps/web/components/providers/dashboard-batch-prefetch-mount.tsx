@@ -31,7 +31,7 @@ export function DashboardBatchPrefetchMount() {
       void queryClient.prefetchQuery(
         dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
       );
-    });
+    }, 8000);
   }, [queryClient, restaurantId, batchWidgets, workspaceReady]);
 
   return null;

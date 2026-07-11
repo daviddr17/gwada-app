@@ -1,11 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { forwardRef, type MouseEvent, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  forwardRef,
+  useCallback,
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+} from "react";
 import { useSoftNavLock } from "@/components/providers/soft-nav-lock-provider";
+import { warmModuleRouteIntent } from "@/lib/hooks/app-module-intent-prefetch";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { assignCrossAppWorkspaceZone } from "@/lib/navigation/app-zone-navigation";
 import { crossAppModuleNavigation } from "@/lib/navigation/app-module-navigation";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 
 function hrefToString(href: string | { pathname?: string; search?: string }): string {
   if (typeof href === "string") return href;
@@ -39,9 +49,31 @@ export const AppNavLink = forwardRef<
   ref,
 ) {
   const pathname = usePathname();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { tryAcquireNavLock } = useSoftNavLock();
   const hrefStr = hrefToString(href);
   const crossModuleNav = crossAppModuleNavigation(pathname, hrefStr);
+
+  const warmOnIntent = useCallback(() => {
+    if (
+      !crossModuleNav ||
+      !workspaceReady ||
+      !restaurantId ||
+      !isUuidRestaurantId(restaurantId)
+    ) {
+      return;
+    }
+    warmModuleRouteIntent(router, queryClient, restaurantId, hrefStr);
+  }, [
+    crossModuleNav,
+    workspaceReady,
+    restaurantId,
+    router,
+    queryClient,
+    hrefStr,
+  ]);
 
   return (
     <Link
@@ -51,6 +83,8 @@ export const AppNavLink = forwardRef<
       scroll={false}
       className={className}
       aria-label={ariaLabel}
+      onPointerEnter={warmOnIntent}
+      onFocus={warmOnIntent}
       onClick={(event) => {
         onClick?.(event);
         if (event.defaultPrevented) return;

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, UserRound } from "lucide-react";
+import { AppModuleNavigationContentGate } from "@/components/layout/app-module-navigation-content-gate";
 import { AppBrandedBackground } from "@/components/layout/app-branded-background";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
@@ -170,7 +171,9 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           </div>
         ) : null}
         <div className="relative z-[1]">
-          <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
+          <WorkspaceZoneTransition>
+            <AppModuleNavigationContentGate>{children}</AppModuleNavigationContentGate>
+          </WorkspaceZoneTransition>
         </div>
       </div>
     </SidebarInset>

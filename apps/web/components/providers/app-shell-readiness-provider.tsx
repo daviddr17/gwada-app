@@ -48,7 +48,7 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
     useRestaurantPermissionsContext();
 
   const [interactive, setInteractive] = useState(false);
-  const bootstrappedForRef = useRef<string | null>(null);
+  const warmedForRef = useRef<string | null>(null);
 
   const readinessInputs = useMemo(
     () => ({
@@ -85,57 +85,33 @@ export function AppShellReadinessProvider({ children }: { children: ReactNode })
       return;
     }
 
-    if (!restaurantId || !isUuidRestaurantId(restaurantId)) {
-      setInteractive(true);
+    if (tryMarkInteractive()) {
+      if (
+        restaurantId &&
+        isUuidRestaurantId(restaurantId) &&
+        warmedForRef.current !== restaurantId
+      ) {
+        warmedForRef.current = restaurantId;
+        seedPriorityModuleQueryCaches(queryClient, restaurantId);
+        void ensureCriticalModuleDataReady(queryClient, restaurantId);
+      }
       return;
     }
-
-    if (bootstrappedForRef.current !== restaurantId) {
-      bootstrappedForRef.current = restaurantId;
-      setInteractive(false);
-    }
-
-    if (tryMarkInteractive()) return;
 
     let cancelled = false;
     const maxTimer = window.setTimeout(() => {
       if (!cancelled) setInteractive(true);
     }, APP_SHELL_READY_MAX_MS);
 
-    seedPriorityModuleQueryCaches(queryClient, restaurantId);
-
-    void ensureCriticalModuleDataReady(queryClient, restaurantId).then(() => {
-      if (!cancelled) tryMarkInteractive();
-    });
-
-    const unsub = queryClient.getQueryCache().subscribe(() => {
-      if (tryMarkInteractive()) {
-        window.clearTimeout(maxTimer);
-      }
-    });
-
     return () => {
       cancelled = true;
       window.clearTimeout(maxTimer);
-      unsub();
     };
-  }, [
-    authReady,
-    workspaceReady,
-    restaurantId,
-    queryClient,
-    tryMarkInteractive,
-  ]);
+  }, [authReady, workspaceReady, restaurantId, queryClient, tryMarkInteractive]);
 
   useEffect(() => {
-    if (tryMarkInteractive()) return;
+    tryMarkInteractive();
   }, [permissionsLoading, permissions.size, tryMarkInteractive]);
-
-  useEffect(() => {
-    if (restaurantId && bootstrappedForRef.current !== restaurantId) {
-      setInteractive(false);
-    }
-  }, [restaurantId]);
 
   const value = useMemo(() => ({ interactive }), [interactive]);
 

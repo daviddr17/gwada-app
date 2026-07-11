@@ -1,12 +1,16 @@
 "use client";
 
-import { memo, useCallback, useState, type MouseEvent } from "react";
+import { memo, useCallback, useMemo, useState, type MouseEvent } from "react";
 import { ExternalLink } from "lucide-react";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
-import { stripMarkdownBold } from "@/lib/changelog/changelog-entry-normalize";
 import { formatNewsCardDate, newsDisplayTimestamp } from "@/lib/news/format-news-display-date";
+import {
+  newsBodyNeedsExpand,
+  newsCardPreviewBody,
+} from "@/lib/news/news-feed-preview";
+import { stripMarkdownBold } from "@/lib/changelog/changelog-entry-normalize";
 import { NewsInsightsBadges } from "@/components/news/news-insights-badges";
 import { NewsPlatformIcon } from "@/components/news/news-platform-icon";
 import { Badge } from "@/components/ui/badge";
@@ -15,14 +19,7 @@ import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { feedNewsGridClassName } from "@/lib/feed/feed-media-layout";
 import { cn } from "@/lib/utils";
 
-const PREVIEW_BODY_CHAR_THRESHOLD = 200;
-const PREVIEW_BODY_LINE_THRESHOLD = 4;
-
-export function newsBodyNeedsExpand(body: string): boolean {
-  const trimmed = body.trim();
-  if (trimmed.length > PREVIEW_BODY_CHAR_THRESHOLD) return true;
-  return trimmed.split("\n").length > PREVIEW_BODY_LINE_THRESHOLD;
-}
+export { newsBodyNeedsExpand } from "@/lib/news/news-feed-preview";
 
 const newsCardSurfaceClassName =
   "flex w-full flex-col overflow-hidden rounded-xl border border-border/50 bg-card text-left shadow-card transition hover:border-border";
@@ -43,6 +40,7 @@ const NewsCard = memo(function NewsCard({
   const preview = item.media[0];
   const dateLabel = formatNewsCardDate(item);
   const dateTime = newsDisplayTimestamp(item);
+  const previewBody = useMemo(() => newsCardPreviewBody(item.body), [item.body]);
   const canExpandBody = inlineExpandBody && newsBodyNeedsExpand(item.body);
   const showClampedBody = canExpandBody && !expanded;
   const externalUrl = item.externalUrl?.trim() || null;
@@ -60,7 +58,9 @@ const NewsCard = memo(function NewsCard({
           showClampedBody ? "line-clamp-4" : "whitespace-pre-wrap",
         )}
       >
-        {stripMarkdownBold(item.body)}
+        {inlineExpandBody && expanded
+          ? stripMarkdownBold(item.body)
+          : previewBody}
       </p>
       {canExpandBody || (expanded && externalUrl) ? (
         <div className="flex flex-col items-start gap-1.5">

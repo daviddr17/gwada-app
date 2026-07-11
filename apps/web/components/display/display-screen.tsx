@@ -85,6 +85,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
     string | undefined
   >();
   const [pinError, setPinError] = useState<string | null>(null);
+  const [pinRejectNonce, setPinRejectNonce] = useState(0);
   const [activeModule, setActiveModule] = useState<DisplayModule | null>(null);
   const [locked, setLocked] = useState(false);
   const [lockPinError, setLockPinError] = useState<string | null>(null);
@@ -391,6 +392,7 @@ export function DisplayScreen({ slug }: { slug: string }) {
       if (!result.ok) {
         setPinError(result.message);
         setLockPinError(result.message);
+        setPinRejectNonce((value) => value + 1);
         setPin("");
         return;
       }
@@ -562,10 +564,22 @@ export function DisplayScreen({ slug }: { slug: string }) {
               onChange={setPin}
               disabled={pinBusy || screenCelebration === "pin_welcome"}
               busy={pinBusy}
+              rejectNonce={pinRejectNonce}
               onComplete={(p) => void submitPin(p)}
             />
             {pinError ? (
-              <p className="text-sm text-destructive">{pinError}</p>
+              <motion.p
+                key={pinError}
+                className="text-sm text-destructive"
+                initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{
+                  duration: reduceMotion ? 0.08 : 0.22,
+                  ease: MOTION_EASE_OUT,
+                }}
+              >
+                {pinError}
+              </motion.p>
             ) : null}
           </DisplayPinStandbyScene>
         </div>

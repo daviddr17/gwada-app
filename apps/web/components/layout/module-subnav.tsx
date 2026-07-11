@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   SidebarGroup,
   SidebarMenu,
@@ -55,6 +55,7 @@ export function ModuleChipNav({
   className?: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <nav
@@ -89,6 +90,8 @@ export function ModuleChipNav({
                 <SidebarMenuButton
                   isActive={active}
                   layout="text"
+                  onPointerEnter={() => router.prefetch(item.href)}
+                  onFocus={() => router.prefetch(item.href)}
                   render={<Link href={item.href} prefetch scroll={false} />}
                 >
                   <span>{item.label}</span>

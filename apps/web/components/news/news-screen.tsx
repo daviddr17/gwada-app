@@ -49,6 +49,7 @@ import {
   peekNewsFeedCache,
   writeNewsFeedCache,
 } from "@/lib/news/news-feed-client-cache";
+import { sameNewsFeedItems } from "@/lib/news/news-feed-equality";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import { NEWS_PLATFORM_LABELS } from "@/lib/constants/news-platforms";
 import {
@@ -114,9 +115,23 @@ export function NewsScreen() {
       const nextItems = data.items ?? [];
       const nextSync = data.sync ?? null;
       const nextStoryRings = data.storyRings ?? [];
-      setItems(nextItems);
-      setSyncMeta(nextSync);
-      setStoryRings(nextStoryRings);
+      setItems((prev) =>
+        sameNewsFeedItems(prev, nextItems) ? prev : nextItems,
+      );
+      setSyncMeta((prev) =>
+        prev === nextSync ||
+        (prev != null &&
+          nextSync != null &&
+          JSON.stringify(prev) === JSON.stringify(nextSync))
+          ? prev
+          : nextSync,
+      );
+      setStoryRings((prev) =>
+        prev.length === nextStoryRings.length &&
+        prev.every((ring, i) => ring.id === nextStoryRings[i]?.id)
+          ? prev
+          : nextStoryRings,
+      );
       writeNewsFeedCache(cacheRestaurantId, NEWS_FILTER_ALL, nextItems, nextSync);
     },
     [],

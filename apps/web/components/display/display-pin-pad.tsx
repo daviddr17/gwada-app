@@ -5,6 +5,8 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Delete, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  DISPLAY_PIN_REJECT_MS,
+  DISPLAY_PIN_REJECT_REDUCED_MS,
   DISPLAY_PIN_REVEAL_MS,
   DISPLAY_PIN_REVEAL_REDUCED_MS,
   MOTION_EASE_OUT,
@@ -20,8 +22,12 @@ type DisplayPinPadProps = {
   disabled?: boolean;
   /** Während PIN geprüft wird — Punkte pulsieren dezent. */
   busy?: boolean;
+  /** Bei jeder falschen PIN erhöhen — löst Shake + Rot-Flash aus. */
+  rejectNonce?: number;
   className?: string;
 };
+
+const PIN_REJECT_SHAKE_X = [0, -14, 14, -10, 10, -5, 5, 0];
 
 export function DisplayPinPad({
   value,
@@ -30,11 +36,24 @@ export function DisplayPinPad({
   maxLength = 4,
   disabled = false,
   busy = false,
+  rejectNonce = 0,
   className,
 }: DisplayPinPadProps) {
+  const reduceMotion = useReducedMotion() ?? false;
   const lastCompleteRef = useRef<string | null>(null);
   const valueRef = useRef(value);
   valueRef.current = value;
+  const [rejectActive, setRejectActive] = useState(false);
+
+  useEffect(() => {
+    if (rejectNonce <= 0) return;
+    setRejectActive(true);
+    const ms = reduceMotion
+      ? DISPLAY_PIN_REJECT_REDUCED_MS
+      : DISPLAY_PIN_REJECT_MS;
+    const id = window.setTimeout(() => setRejectActive(false), ms);
+    return () => window.clearTimeout(id);
+  }, [rejectNonce, reduceMotion]);
 
   useEffect(() => {
     if (value.length === maxLength && value !== lastCompleteRef.current) {
@@ -105,7 +124,20 @@ export function DisplayPinPad({
       aria-label="PIN-Eingabe. Zifferntasten der Tastatur werden ebenfalls akzeptiert."
       aria-busy={busy}
     >
-      <div className="flex gap-5" aria-hidden>
+      <motion.div
+        className="flex gap-5"
+        aria-hidden
+        animate={
+          rejectActive && !reduceMotion
+            ? { x: PIN_REJECT_SHAKE_X }
+            : { x: 0 }
+        }
+        transition={
+          rejectActive && !reduceMotion
+            ? { duration: DISPLAY_PIN_REJECT_MS / 1000, ease: MOTION_EASE_OUT }
+            : { duration: 0 }
+        }
+      >
         {Array.from({ length: maxLength }).map((_, i) => {
           const filled = i < value.length;
           return (
@@ -113,30 +145,49 @@ export function DisplayPinPad({
               key={i}
               className={cn(
                 "size-7 rounded-full border-[3px]",
-                filled
-                  ? "border-accent bg-accent"
-                  : "border-muted-foreground/35 bg-muted/30",
+                rejectActive
+                  ? "border-destructive bg-destructive/15"
+                  : filled
+                    ? "border-accent bg-accent"
+                    : "border-muted-foreground/35 bg-muted/30",
               )}
               animate={{
                 scale:
-                  busy && filled
+                  busy && filled && !rejectActive
                     ? [1, 1.06, 1]
-                    : filled
+                    : filled && !rejectActive
                       ? 1.12
-                      : 1,
-                opacity: busy && filled ? [1, 0.78, 1] : 1,
+                      : rejectActive
+                        ? [1, 1.08, 1]
+                        : 1,
+                opacity:
+                  busy && filled && !rejectActive ? [1, 0.78, 1] : 1,
               }}
               transition={
-                busy && filled
+                busy && filled && !rejectActive
                   ? { duration: 0.9, repeat: Infinity, ease: "easeInOut" }
-                  : { type: "spring", stiffness: 520, damping: 32, mass: 0.65 }
+                  : rejectActive
+                    ? { duration: DISPLAY_PIN_REJECT_MS / 1000, ease: MOTION_EASE_OUT }
+                    : { type: "spring", stiffness: 520, damping: 32, mass: 0.65 }
               }
             />
           );
         })}
-      </div>
+      </motion.div>
 
-      <div className="grid w-full max-w-[17rem] grid-cols-3 place-items-center gap-4 sm:max-w-[19rem] sm:gap-5">
+      <motion.div
+        className="grid w-full max-w-[17rem] grid-cols-3 place-items-center gap-4 sm:max-w-[19rem] sm:gap-5"
+        animate={
+          rejectActive && !reduceMotion
+            ? { x: PIN_REJECT_SHAKE_X }
+            : { x: 0 }
+        }
+        transition={
+          rejectActive && !reduceMotion
+            ? { duration: DISPLAY_PIN_REJECT_MS / 1000, ease: MOTION_EASE_OUT }
+            : { duration: 0 }
+        }
+      >
         {digits.map((d, idx) => {
           if (d === "") {
             return <div key={`empty-${idx}`} className="size-[4.5rem] sm:size-20" />;
@@ -169,7 +220,7 @@ export function DisplayPinPad({
             </Button>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -192,10 +243,19 @@ export function DisplayLockOverlay({
 }) {
   const reduceMotion = useReducedMotion() ?? false;
   const [pin, setPin] = useState("");
+  const [rejectNonce, setRejectNonce] = useState(0);
 
   useEffect(() => {
-    if (open) setPin("");
+    if (open) {
+      setPin("");
+      setRejectNonce(0);
+    }
   }, [open]);
+
+  useEffect(() => {
+    if (!error) return;
+    setRejectNonce((value) => value + 1);
+  }, [error]);
 
   const revealMs = reduceMotion ? DISPLAY_PIN_REVEAL_REDUCED_MS : DISPLAY_PIN_REVEAL_MS;
 
@@ -231,8 +291,19 @@ export function DisplayLockOverlay({
               onComplete={onUnlock}
               disabled={busy}
               busy={busy}
+              rejectNonce={rejectNonce}
             />
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <motion.p
+                key={error}
+                className="text-sm text-destructive"
+                initial={{ opacity: 0, y: reduceMotion ? 0 : 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: MOTION_EASE_OUT }}
+              >
+                {error}
+              </motion.p>
+            ) : null}
           </DisplayPinStandbyScene>
         </motion.div>
       ) : null}

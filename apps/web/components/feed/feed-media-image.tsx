@@ -54,9 +54,9 @@ export function FeedMediaImage({
     : dims.aspectRatio;
 
   const [loaded, setLoaded] = useState(false);
-  const [useFullRes, setUseFullRes] = useState(!thumbSrc || feedOptimized);
+  const [useFullRes, setUseFullRes] = useState(() => !feedOptimized && !thumbSrc);
   const resolvedSrc = feedOptimized
-    ? src
+    ? (thumbSrc ?? src)
     : useFullRes
       ? src
       : (thumbSrc ?? src);
@@ -68,7 +68,7 @@ export function FeedMediaImage({
     loadedRef.current = false;
     pendingRegisteredRef.current = false;
     setLoaded(false);
-    setUseFullRes(!thumbSrc || feedOptimized);
+    setUseFullRes(!feedOptimized && !thumbSrc);
     layoutStable?.registerPending();
     pendingRegisteredRef.current = true;
 

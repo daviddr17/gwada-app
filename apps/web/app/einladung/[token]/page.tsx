@@ -69,6 +69,11 @@ const INVITE_ERROR_COPY: Record<string, { title: string; description: string }> 
     title: "Einladung bereits angenommen",
     description: "Du kannst dich normal anmelden und das Restaurant im Workspace wählen.",
   },
+  declined: {
+    title: "Einladung abgelehnt",
+    description:
+      "Du hast diese Einladung abgelehnt. Bitte das Restaurant, falls du es dir anders überlegst und erneut eingeladen werden möchtest.",
+  },
   server_config: {
     title: "Einladung vorübergehend nicht verfügbar",
     description: "Bitte später erneut versuchen.",

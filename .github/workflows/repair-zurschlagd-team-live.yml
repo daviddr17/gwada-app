@@ -2,6 +2,8 @@ name: Repair zurschlagd team live
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [repair-zurschlagd-team-live]
 
 concurrency:
   group: repair-zurschlagd-team-live

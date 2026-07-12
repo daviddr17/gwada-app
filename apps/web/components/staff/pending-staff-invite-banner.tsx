@@ -83,6 +83,14 @@ export function PendingStaffInviteBanner({ className }: { className?: string }) 
       ? `${formatInviteLabel(primaryItem.invite)} · ${formatInviteDetail(primaryItem.invite)}`
       : `${formatInviteLabel(primaryItem.membership)} · Zugang aktivieren`;
 
+  const handleDeclined = () => {
+    setSheetOpen(false);
+    setActiveInvite(null);
+    setActiveIncomplete(null);
+    toast.success("Einladung abgelehnt.");
+    router.refresh();
+  };
+
   const handleAccepted = () => {
     setSheetOpen(false);
     setActiveInvite(null);
@@ -131,6 +139,7 @@ export function PendingStaffInviteBanner({ className }: { className?: string }) 
         invite={activeInvite}
         incompleteMembership={activeIncomplete}
         onCompleted={handleAccepted}
+        onDeclined={handleDeclined}
       />
     </>
   );

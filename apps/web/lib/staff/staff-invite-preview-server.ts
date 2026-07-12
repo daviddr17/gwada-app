@@ -24,7 +24,8 @@ export type StaffInvitePreviewError =
   | "not_found"
   | "revoked"
   | "expired"
-  | "accepted";
+  | "accepted"
+  | "declined";
 
 export function normalizeStaffInviteToken(raw: string): string {
   try {
@@ -52,6 +53,7 @@ export async function explainStaffInviteToken(
     status === "revoked" ||
     status === "expired" ||
     status === "accepted" ||
+    status === "declined" ||
     status === "invalid" ||
     status === "not_found"
   ) {

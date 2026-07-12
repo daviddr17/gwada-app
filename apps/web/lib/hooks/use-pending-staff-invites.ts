@@ -172,3 +172,23 @@ export async function repairIncompleteStaffMembershipClient(params?: {
   notifyWorkspaceRestaurantChanged();
   return { ok: true };
 }
+
+export async function declinePendingStaffInviteClient(params: {
+  inviteId: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  const sb = createSupabaseBrowserClient();
+  const { data, error } = await sb.rpc("decline_staff_invite_by_id", {
+    p_invite_id: params.inviteId,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  const result = data as { ok?: boolean; error?: string } | null;
+  if (!result?.ok) {
+    return { ok: false, error: result?.error ?? "decline_failed" };
+  }
+
+  return { ok: true };
+}

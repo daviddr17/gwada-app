@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Drawer,
   DrawerContent,
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   acceptPendingStaffInviteClient,
+  declinePendingStaffInviteClient,
   repairIncompleteStaffMembershipClient,
   type IncompleteStaffMembershipRow,
   type PendingStaffInviteRow,
@@ -30,6 +32,7 @@ const ACCEPT_ERROR_COPY: Record<string, string> = {
   forbidden: "Diese Einladung passt nicht zu deinem Konto.",
   already_member: "Du bist bereits Mitglied dieses Restaurants.",
   nothing_to_repair: "Es gibt nichts zu reparieren — bitte Seite neu laden.",
+  decline_failed: "Einladung konnte nicht abgelehnt werden.",
 };
 
 type PendingStaffInviteSheetProps = {
@@ -38,6 +41,7 @@ type PendingStaffInviteSheetProps = {
   invite: PendingStaffInviteRow | null;
   incompleteMembership: IncompleteStaffMembershipRow | null;
   onCompleted: () => void;
+  onDeclined?: () => void;
 };
 
 export function PendingStaffInviteSheet({
@@ -46,13 +50,21 @@ export function PendingStaffInviteSheet({
   invite,
   incompleteMembership,
   onCompleted,
+  onDeclined,
 }: PendingStaffInviteSheetProps) {
   const { refresh } = usePendingStaffInvites();
   const [givenName, setGivenName] = useState("");
   const [familyName, setFamilyName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [declineConfirmOpen, setDeclineConfirmOpen] = useState(false);
 
   const mode = invite ? "pending" : incompleteMembership ? "repair" : null;
+
+  useEffect(() => {
+    if (!open) {
+      setDeclineConfirmOpen(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -109,7 +121,27 @@ export function PendingStaffInviteSheet({
     onCompleted();
   };
 
+  const handleDeclineConfirm = async () => {
+    if (!invite) return;
+    setBusy(true);
+    const result = await declinePendingStaffInviteClient({
+      inviteId: invite.invite_id,
+    });
+    setBusy(false);
+    if (!result.ok) {
+      toast.error(
+        ACCEPT_ERROR_COPY[result.error ?? ""] ??
+          "Einladung konnte nicht abgelehnt werden.",
+      );
+      return;
+    }
+    await refresh();
+    onOpenChange(false);
+    onDeclined?.();
+  };
+
   return (
+    <>
     <Drawer
       open={open}
       onOpenChange={onOpenChange}
@@ -169,7 +201,7 @@ export function PendingStaffInviteSheet({
           </div>
         ) : null}
 
-        <DrawerFooter>
+        <DrawerFooter className="gap-2">
           <Button
             type="button"
             className={brandActionButtonRoundedClassName}
@@ -189,8 +221,38 @@ export function PendingStaffInviteSheet({
               "Einladung annehmen"
             )}
           </Button>
+          {mode === "pending" ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 w-full rounded-xl"
+              disabled={busy}
+              onClick={() => setDeclineConfirmOpen(true)}
+            >
+              Einladung ablehnen
+            </Button>
+          ) : null}
         </DrawerFooter>
       </DrawerContent>
     </Drawer>
+
+    <ConfirmDialog
+      open={declineConfirmOpen}
+      onOpenChange={setDeclineConfirmOpen}
+      title="Einladung wirklich ablehnen?"
+      description={
+        <>
+          Du trittst <span className="font-medium text-foreground">{restaurantName}</span>{" "}
+          nicht bei. Das Restaurant kann dir später eine neue Einladung senden,
+          falls du es dir anders überlegst.
+        </>
+      }
+      confirmLabel="Ja, ablehnen"
+      cancelLabel="Abbrechen"
+      destructive
+      confirmDisabled={busy}
+      onConfirm={handleDeclineConfirm}
+    />
+    </>
   );
 }

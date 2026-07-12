@@ -116,7 +116,7 @@ export function PendingStaffInviteSheet({
       direction="bottom"
       repositionInputs={false}
     >
-      <DrawerContent className={drawerContentClassName}>
+      <DrawerContent className={drawerContentClassName("invitation")}>
         <DrawerHeader>
           <DrawerTitle>
             {mode === "repair"

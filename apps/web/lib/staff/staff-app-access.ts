@@ -12,7 +12,8 @@ export function resolveStaffAppAccessState(
   row: StaffAppAccessFields,
 ): StaffAppAccessState {
   if (!row.profile_id) return "none";
-  if (row.linked_employee?.is_active === false) return "revoked";
+  if (!row.linked_employee?.id) return "none";
+  if (row.linked_employee.is_active === false) return "revoked";
   return "active";
 }
 

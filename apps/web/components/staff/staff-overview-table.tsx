@@ -25,6 +25,7 @@ import type {
 } from "@/lib/types/staff";
 import { StaffLastLoginCell } from "@/components/staff/staff-last-login-cell";
 import { StaffAppAccessStatus } from "@/components/staff/staff-app-access-status";
+import { StaffRoleAccessIcons } from "@/components/staff/staff-role-access-icons";
 import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
 import {
   formatStaffLastLogin,
@@ -691,6 +692,12 @@ export function StaffOverviewTable({
                           />
                         ) : null}
                         {role.label}
+                        <StaffRoleAccessIcons
+                          profile_id={row.profile_id}
+                          linked_profile={row.linked_profile}
+                          linked_employee={row.linked_employee}
+                          display_pin_set_at={row.display_pin_set_at}
+                        />
                       </span>
                     ) : (
                       "—"

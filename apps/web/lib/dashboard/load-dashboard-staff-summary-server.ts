@@ -135,6 +135,7 @@ function mapStaffRow(r: Record<string, unknown>): RestaurantStaffRow {
     is_active: Boolean(r.is_active),
     avatar_storage_path: (r.avatar_storage_path as string | null) ?? null,
     created_at: r.created_at as string,
+    display_pin_set_at: null,
     position_tag: tagOne
       ? {
           id: tagOne.id,

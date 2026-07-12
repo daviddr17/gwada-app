@@ -8,6 +8,22 @@ export type StaffAppAccessFields = Pick<
   "profile_id" | "linked_profile" | "linked_employee"
 >;
 
+export type StaffAccessChannelFields = StaffAppAccessFields &
+  Pick<RestaurantStaffRow, "display_pin_set_at">;
+
+export type StaffAccessChannels = {
+  dashboard: boolean;
+  display: boolean;
+};
+
+export function resolveStaffAccessChannels(
+  row: StaffAccessChannelFields,
+): StaffAccessChannels {
+  const dashboard = resolveStaffAppAccessState(row) === "active";
+  const display = Boolean(row.display_pin_set_at) && !dashboard;
+  return { dashboard, display };
+}
+
 export function resolveStaffAppAccessState(
   row: StaffAppAccessFields,
 ): StaffAppAccessState {

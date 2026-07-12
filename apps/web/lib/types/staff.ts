@@ -109,6 +109,7 @@ export type RestaurantStaffRow = {
   is_active: boolean;
   avatar_storage_path: string | null;
   created_at: string;
+  display_pin_set_at: string | null;
   position_tag: {
     id: string;
     name: string;

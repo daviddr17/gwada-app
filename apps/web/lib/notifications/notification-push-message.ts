@@ -458,6 +458,42 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_invite_accepted": {
+      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const positionName = pickString(p.positionName);
+      const actorGiven = pickString(p.actorGivenName) ?? "";
+      const actorFamily = pickString(p.actorFamilyName) ?? "";
+      const actor = `${actorGiven} ${actorFamily}`.trim() || staffName;
+      return buildPushMessage({
+        prefix,
+        headline: "Einladung angenommen",
+        subject: `${prefix}Einladung angenommen — ${staffName}`,
+        href,
+        details: detailLines([
+          `${actor} hat die Einladung angenommen.`,
+          `Mitarbeiter: ${staffName}`,
+          positionName ? `App-Rolle: ${positionName}` : null,
+        ]),
+      });
+    }
+    case "staff_invite_declined": {
+      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const positionName = pickString(p.positionName);
+      const actorGiven = pickString(p.actorGivenName) ?? "";
+      const actorFamily = pickString(p.actorFamilyName) ?? "";
+      const actor = `${actorGiven} ${actorFamily}`.trim() || staffName;
+      return buildPushMessage({
+        prefix,
+        headline: "Einladung abgelehnt",
+        subject: `${prefix}Einladung abgelehnt — ${staffName}`,
+        href,
+        details: detailLines([
+          `${actor} hat die Einladung abgelehnt.`,
+          `Mitarbeiter: ${staffName}`,
+          positionName ? `App-Rolle: ${positionName}` : null,
+        ]),
+      });
+    }
     case "changelog": {
       const title = pickString(p.title) ?? "Changelog";
       const version = pickString(p.version);

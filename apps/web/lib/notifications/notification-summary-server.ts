@@ -8,6 +8,9 @@ import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
 import {
+  loadStaffInviteResponseNotificationItems,
+} from "@/lib/notifications/notification-staff-invite-server";
+import {
   NOTIFICATION_MODULES,
   type NotificationModuleId,
 } from "@/lib/notifications/notification-modules";
@@ -386,6 +389,44 @@ const MODULE_BUILDERS: Record<
       {
         restaurantId: ctx.restaurantId,
         userId: ctx.userId,
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_invite_accepted: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_invite_accepted;
+    const { items, totalCount } = await loadStaffInviteResponseNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_invite_accepted",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_invite_declined: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_invite_declined;
+    const { items, totalCount } = await loadStaffInviteResponseNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_invite_declined",
         limit: BELL_ITEMS_PER_MODULE,
       },
     );

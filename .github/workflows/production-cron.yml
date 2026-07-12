@@ -63,8 +63,8 @@ jobs:
   notification-deliver:
     runs-on: ubuntu-latest
     if: |
-      github.event_name == 'workflow_dispatch' &&
-      (inputs.target == 'all' || inputs.target == 'notification-deliver')
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'notification-deliver')) ||
+      (github.event_name == 'schedule' && github.event.schedule == '*/5 * * * *')
     steps:
       - name: Call notification-deliver
         env:

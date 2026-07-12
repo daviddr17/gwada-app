@@ -16,6 +16,8 @@ import {
   TimerReset,
   CheckCircle2,
   Clock,
+  UserCheck,
+  UserX,
 } from "lucide-react";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
@@ -37,6 +39,8 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_todo_deferred",
   "staff_contract_signed",
   "staff_display_time_request",
+  "staff_invite_accepted",
+  "staff_invite_declined",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -215,6 +219,26 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Nachtragungs-Anfragen vom Display in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei Nachtragungs-Anfragen",
     settingsPushEmailLabel: "E-Mail bei Nachtragungs-Anfragen",
+  },
+  staff_invite_accepted: {
+    id: "staff_invite_accepted",
+    label: "Einladung angenommen",
+    labelPlural: "Einladungen angenommen",
+    href: "/dashboard/mitarbeiter/uebersicht",
+    icon: UserCheck,
+    settingsInAppLabel: "Angenommene Einladungen in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei angenommenen Einladungen",
+    settingsPushEmailLabel: "E-Mail bei angenommenen Einladungen",
+  },
+  staff_invite_declined: {
+    id: "staff_invite_declined",
+    label: "Einladung abgelehnt",
+    labelPlural: "Einladungen abgelehnt",
+    href: "/dashboard/mitarbeiter/uebersicht",
+    icon: UserX,
+    settingsInAppLabel: "Abgelehnte Einladungen in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei abgelehnten Einladungen",
+    settingsPushEmailLabel: "E-Mail bei abgelehnten Einladungen",
   },
 };
 

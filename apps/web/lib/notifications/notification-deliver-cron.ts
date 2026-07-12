@@ -18,6 +18,8 @@ import type { NotificationModuleId } from "@/lib/notifications/notification-modu
 import { isNotificationModuleId } from "@/lib/notifications/notification-modules";
 import { filterStaffTodoPushTargets } from "@/lib/notifications/notification-staff-todos-server";
 import { filterStaffContractSignedPushTargets } from "@/lib/notifications/notification-staff-contract-server";
+import { filterStaffInviteResponsePushTargets } from "@/lib/notifications/notification-staff-invite-server";
+import { filterStaffShiftPushTargets } from "@/lib/notifications/notification-staff-shift-server";
 import {
   defaultNotificationPreferences,
   isPushModuleEnabled,
@@ -188,6 +190,15 @@ async function fanOutEvent(
   }
   if (moduleId === "staff_contract_signed") {
     targets = await filterStaffContractSignedPushTargets(admin, event, targets);
+  }
+  if (
+    moduleId === "staff_invite_accepted" ||
+    moduleId === "staff_invite_declined"
+  ) {
+    targets = await filterStaffInviteResponsePushTargets(admin, event, targets);
+  }
+  if (moduleId === "staff_shift_start" || moduleId === "staff_shift_end") {
+    targets = await filterStaffShiftPushTargets(admin, event, targets);
   }
   if (targets.length === 0) return { created: 0, error: null };
 

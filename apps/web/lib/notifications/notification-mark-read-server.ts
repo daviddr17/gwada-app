@@ -53,6 +53,11 @@ import {
   dismissAllStaffDisplayTimeRequestNotifications,
   dismissStaffDisplayTimeRequestNotification,
 } from "@/lib/notifications/notification-staff-display-time-request-server";
+import {
+  dismissAllStaffInviteResponseNotifications,
+  dismissStaffInviteResponseNotification,
+  isStaffInviteResponseModule,
+} from "@/lib/notifications/notification-staff-invite-server";
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
 import { isContactMessagePlatform } from "@/lib/constants/contact-message-platforms";
@@ -306,6 +311,30 @@ export async function markNotificationReadServer(
         restaurantId,
         userId,
         requestId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_invite_accepted":
+    case "staff_invite_declined": {
+      if (!isStaffInviteResponseModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllStaffInviteResponseNotifications(sb, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const inviteId = itemId ?? meta?.inviteId;
+      if (!inviteId) return { ok: false, error: "invalid_request" };
+      const result = await dismissStaffInviteResponseNotification(sb, {
+        restaurantId,
+        userId,
+        inviteId,
+        module,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

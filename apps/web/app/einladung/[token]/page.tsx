@@ -257,6 +257,7 @@ export default function StaffInvitePage() {
       already_member?: boolean;
       restaurant_id?: string;
       staff_id?: string;
+      invite_id?: string;
     };
     if (!result?.ok) {
       const messages: Record<string, string> = {
@@ -280,6 +281,17 @@ export default function StaffInvitePage() {
         body: JSON.stringify({
           restaurantId: result.restaurant_id,
           staffId: result.staff_id,
+        }),
+      });
+    }
+    if (result.restaurant_id && result.invite_id) {
+      void fetch("/api/notifications/deliver-references", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          restaurantId: result.restaurant_id,
+          module: "staff_invite_accepted",
+          referenceIds: [result.invite_id],
         }),
       });
     }

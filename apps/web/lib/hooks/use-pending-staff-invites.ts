@@ -6,6 +6,8 @@ import {
   invalidateWorkspaceRestaurantCache,
   notifyWorkspaceRestaurantChanged,
 } from "@/lib/supabase/workspace-persistence";
+import { triggerNotificationDeliverReferences } from "@/lib/notifications/trigger-notification-deliver-client";
+import { dispatchNotificationsRefresh } from "@/lib/notifications/notification-events";
 
 export type PendingStaffInviteRow = {
   invite_id: string;
@@ -141,9 +143,23 @@ export async function acceptPendingStaffInviteClient(params: {
     return { ok: false, error: error.message };
   }
 
-  const result = data as { ok?: boolean; error?: string } | null;
+  const result = data as {
+    ok?: boolean;
+    error?: string;
+    restaurant_id?: string;
+    invite_id?: string;
+  } | null;
   if (!result?.ok) {
     return { ok: false, error: result?.error ?? "accept_failed" };
+  }
+
+  if (result.restaurant_id && result.invite_id) {
+    void triggerNotificationDeliverReferences({
+      restaurantId: result.restaurant_id,
+      module: "staff_invite_accepted",
+      referenceIds: [result.invite_id],
+    });
+    dispatchNotificationsRefresh();
   }
 
   invalidateWorkspaceRestaurantCache();
@@ -185,9 +201,23 @@ export async function declinePendingStaffInviteClient(params: {
     return { ok: false, error: error.message };
   }
 
-  const result = data as { ok?: boolean; error?: string } | null;
+  const result = data as {
+    ok?: boolean;
+    error?: string;
+    restaurant_id?: string;
+    invite_id?: string;
+  } | null;
   if (!result?.ok) {
     return { ok: false, error: result?.error ?? "decline_failed" };
+  }
+
+  if (result.restaurant_id && result.invite_id) {
+    void triggerNotificationDeliverReferences({
+      restaurantId: result.restaurant_id,
+      module: "staff_invite_declined",
+      referenceIds: [result.invite_id],
+    });
+    dispatchNotificationsRefresh();
   }
 
   return { ok: true };

@@ -3,8 +3,10 @@ import "server-only";
 import type { GalleryPlatformConnector } from "@/lib/gallery/connectors/types";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
 import {
+  ensureTripadvisorAllowlistLocation,
   fetchTripadvisorApi,
   getTripadvisorLocationIdForRestaurant,
+  TRIPADVISOR_DEFAULT_LANGUAGE,
 } from "@/lib/integrations/tripadvisor-api-client";
 
 const CAPABILITIES = {
@@ -22,10 +24,19 @@ type TripadvisorPhotoImageSize = {
   height?: number;
 };
 
+type TripadvisorPhotoInfo = {
+  original_size_url?: string;
+  original_width?: number;
+  original_height?: number;
+  media_type?: string;
+};
+
 type TripadvisorPhotoRaw = {
   id?: number | string;
   caption?: string;
   published_date?: string;
+  publish_ts?: string;
+  photo?: TripadvisorPhotoInfo;
   images?: {
     thumbnail?: TripadvisorPhotoImageSize;
     small?: TripadvisorPhotoImageSize;
@@ -37,6 +48,9 @@ type TripadvisorPhotoRaw = {
 
 type TripadvisorPhotosResponse = {
   data?: TripadvisorPhotoRaw[];
+  pagination?: {
+    total_elements?: number;
+  };
 };
 
 const TRIPADVISOR_PHOTOS_PAGE_SIZE = 50;
@@ -48,6 +62,16 @@ function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
   width: number | null;
   height: number | null;
 } | null {
+  const terraUrl = photo.photo?.original_size_url?.trim();
+  if (terraUrl) {
+    return {
+      url: terraUrl,
+      previewUrl: terraUrl,
+      width: photo.photo?.original_width ?? null,
+      height: photo.photo?.original_height ?? null,
+    };
+  }
+
   const images = photo.images;
   if (!images) return null;
 
@@ -92,9 +116,9 @@ function mapTripadvisorPhoto(photo: TripadvisorPhotoRaw): UnifiedGalleryItem | n
     width: urls.width,
     height: urls.height,
     storagePath: null,
-    mimeType: "image/jpeg",
+    mimeType: photo.photo?.media_type?.trim() || "image/jpeg",
     sizeBytes: null,
-    createdAt: photo.published_date ?? new Date().toISOString(),
+    createdAt: photo.publish_ts ?? photo.published_date ?? new Date().toISOString(),
     canEdit: false,
     canDelete: false,
     externalUrl: urls.url,
@@ -115,6 +139,9 @@ export const tripadvisorGalleryConnector: GalleryPlatformConnector = {
     const auth = await getTripadvisorLocationIdForRestaurant(restaurantId);
     if ("error" in auth) return { error: auth.error };
 
+    const allowlist = await ensureTripadvisorAllowlistLocation(auth.locationId);
+    if ("error" in allowlist) return { error: allowlist.error };
+
     const items: UnifiedGalleryItem[] = [];
 
     for (let page = 1; page <= TRIPADVISOR_PHOTOS_MAX_PAGES; page++) {
@@ -123,6 +150,7 @@ export const tripadvisorGalleryConnector: GalleryPlatformConnector = {
         searchParams: {
           page,
           size: TRIPADVISOR_PHOTOS_PAGE_SIZE,
+          locale: TRIPADVISOR_DEFAULT_LANGUAGE,
         },
       });
       if ("error" in result) {

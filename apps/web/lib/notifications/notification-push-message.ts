@@ -464,11 +464,17 @@ export function buildNotificationPushText(
       const actorGiven = pickString(p.actorGivenName) ?? "";
       const actorFamily = pickString(p.actorFamilyName) ?? "";
       const actor = `${actorGiven} ${actorFamily}`.trim() || staffName;
+      const staffId = pickString(p.staffId);
+      const inviteHref = absoluteAppUrl(
+        staffId
+          ? `${moduleDef.href}?staff=${encodeURIComponent(staffId)}`
+          : moduleDef.href,
+      );
       return buildPushMessage({
         prefix,
         headline: "Einladung angenommen",
         subject: `${prefix}Einladung angenommen — ${staffName}`,
-        href,
+        href: inviteHref,
         details: detailLines([
           `${actor} hat die Einladung angenommen.`,
           `Mitarbeiter: ${staffName}`,
@@ -482,11 +488,17 @@ export function buildNotificationPushText(
       const actorGiven = pickString(p.actorGivenName) ?? "";
       const actorFamily = pickString(p.actorFamilyName) ?? "";
       const actor = `${actorGiven} ${actorFamily}`.trim() || staffName;
+      const staffId = pickString(p.staffId);
+      const inviteHref = absoluteAppUrl(
+        staffId
+          ? `${moduleDef.href}?staff=${encodeURIComponent(staffId)}`
+          : moduleDef.href,
+      );
       return buildPushMessage({
         prefix,
         headline: "Einladung abgelehnt",
         subject: `${prefix}Einladung abgelehnt — ${staffName}`,
-        href,
+        href: inviteHref,
         details: detailLines([
           `${actor} hat die Einladung abgelehnt.`,
           `Mitarbeiter: ${staffName}`,

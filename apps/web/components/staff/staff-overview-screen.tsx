@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Tags } from "lucide-react";
+import { toast } from "sonner";
 import { CategoriesManageDrawer } from "@/components/menu/categories-manage-drawer";
 import { MenuTaxonomyDrawer } from "@/components/menu/menu-taxonomy-drawer";
 import { StaffFormDrawer } from "@/components/staff/staff-form-drawer";
@@ -31,6 +32,7 @@ import {
   localDayKey,
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
+import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type {
   RestaurantStaffRow,
 } from "@/lib/types/staff";
@@ -44,6 +46,7 @@ import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
+
 function formatEuro(cents: number): string {
   return formatStaffEuroCents(cents);
 }
@@ -52,6 +55,7 @@ export function StaffOverviewScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const staffIdFromUrl = searchParams.get("staff")?.trim() ?? "";
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
   const { has } = useRestaurantPermissions();
   const canReviewTimeRequests = hasModuleUpdate(has, "staff");
@@ -67,6 +71,7 @@ export function StaffOverviewScreen() {
   const [dayDate, setDayDate] = useState(() => localDayKey(new Date()));
   const [liveNow, setLiveNow] = useState(() => new Date());
   const autoFollowTodayRef = useRef(true);
+  const openedStaffFromUrlRef = useRef<string | null>(null);
   const {
     workingIds,
     breakIds,
@@ -96,6 +101,14 @@ export function StaffOverviewScreen() {
     invalidateDayStats();
   }, [invalidateStaffList, invalidateDayStats]);
 
+  const clearStaffQueryParam = useCallback(() => {
+    const p = new URLSearchParams(searchParams.toString());
+    if (!p.has("staff")) return;
+    p.delete("staff");
+    const q = p.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [searchParams, router, pathname]);
+
   useEffect(() => {
     if (searchParams.get("new") !== "1") return;
     setFormMode("create");
@@ -106,6 +119,40 @@ export function StaffOverviewScreen() {
     const q = p.toString();
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [searchParams, router, pathname]);
+
+  /** Glocke / Deep-Link: ?staff=<uuid> öffnet genau diesen Mitarbeiter. */
+  useEffect(() => {
+    if (!staffIdFromUrl) {
+      openedStaffFromUrlRef.current = null;
+      return;
+    }
+    if (!isUuidRestaurantId(staffIdFromUrl)) {
+      toast.error("Ungültiger Mitarbeiter-Link.");
+      clearStaffQueryParam();
+      return;
+    }
+    if (staffListLoading) return;
+    if (openedStaffFromUrlRef.current === staffIdFromUrl) return;
+
+    const row = rows.find((r) => r.id === staffIdFromUrl) ?? null;
+    if (!row) {
+      toast.error("Mitarbeiter nicht gefunden.");
+      openedStaffFromUrlRef.current = staffIdFromUrl;
+      clearStaffQueryParam();
+      return;
+    }
+
+    openedStaffFromUrlRef.current = staffIdFromUrl;
+    setFormMode("edit");
+    setEditStaff(row);
+    setFormOpen(true);
+    clearStaffQueryParam();
+  }, [
+    staffIdFromUrl,
+    staffListLoading,
+    rows,
+    clearStaffQueryParam,
+  ]);
 
   /** Live-Lohn + automatischer Tageswechsel um Mitternacht (nur im „Heute“-Modus). */
   useEffect(() => {

@@ -287,22 +287,20 @@ async function platformCards(
   const instagram = platformInsights.instagram;
 
   const googleSync = syncByPlatform.get("google");
-  const googleMetrics = topMetrics([
-    ...google.metrics,
-    ...(googleSync?.meta.totalReviewCount != null
-      ? [
-          {
-            key: "reviews",
-            label: "Bewertungen",
-            value: googleSync.meta.totalReviewCount,
-          },
-        ]
-      : []),
-  ]);
+  const googleMetrics: InsightsPlatformMetric[] = google.metrics
+    .filter((m) =>
+      ["impressions", "interactions", "calls", "website", "directions", "maps"].includes(
+        m.key,
+      ),
+    )
+    .slice(0, 6)
+    .map((m) => ({
+      label: m.label,
+      value: formatInsightCount(m.value),
+    }));
   if (
     googleSync?.meta.averageRating != null &&
-    googleMetrics.length < 4 &&
-    !googleMetrics.some((m) => m.label === "Ø Sterne")
+    googleMetrics.length < 6
   ) {
     googleMetrics.push({
       label: "Ø Sterne",
@@ -395,11 +393,13 @@ async function platformCards(
       metrics: googleMetrics,
       hint: !google.connected
         ? "Unter Einstellungen → Integrationen verbinden."
-        : google.error
-          ? `Google Performance: ${google.error}`
-          : google.available
-            ? "Profil-Aufrufe und Klicks aus Google Business Performance."
-            : "Verbunden — Performance-Daten folgen, sobald Google Werte liefert.",
+        : google.error === "google_location_missing"
+          ? "Standort in der Google-Verbindung fehlt — unter Integrationen Standort wählen."
+          : google.error
+            ? `Google Performance: ${google.error}`
+            : google.available
+              ? "Aufrufe, Anrufe, Website & Routen aus Google Business Performance — Details unter Statistiken."
+              : "Verbunden — Performance-Daten kommen oft mit 2–3 Tagen Verzug von Google.",
     },
     {
       id: "facebook" as const,

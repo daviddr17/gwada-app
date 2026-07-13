@@ -32,6 +32,10 @@ export type GoogleBusinessPlatformInsights = {
   websiteClicks: number;
   callClicks: number;
   directionRequests: number;
+  conversations: number;
+  bookings: number;
+  menuClicks: number;
+  interactions: number;
 };
 
 export type FacebookPagePlatformInsights = {
@@ -84,6 +88,10 @@ export function emptyGoogleInsights(
     websiteClicks: 0,
     callClicks: 0,
     directionRequests: 0,
+    conversations: 0,
+    bookings: 0,
+    menuClicks: 0,
+    interactions: 0,
     ...partial,
   };
 }

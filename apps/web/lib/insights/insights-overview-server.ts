@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  type InsightsFetchRangeParams,
+  type InsightsPeriodDays,
+  resolveInsightsRange,
+} from "@/lib/insights/insights-date-range";
 import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
@@ -9,7 +14,7 @@ import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/go
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type InsightsPeriodDays = 7 | 30 | 90;
+export type { InsightsPeriodDays } from "@/lib/insights/insights-date-range";
 
 export type InsightsPlatformCard = {
   id: "google_business" | "facebook" | "instagram" | "tripadvisor";
@@ -21,8 +26,12 @@ export type InsightsPlatformCard = {
 };
 
 export type InsightsOverviewPayload = {
-  periodDays: InsightsPeriodDays;
+  periodMode: "preset" | "custom";
+  periodDays: InsightsPeriodDays | null;
+  periodStartYmd: string;
+  periodEndYmd: string;
   periodStart: string;
+  periodEnd: string;
   gwada: {
     reservations: { count: number; guests: number };
     reviews: { count: number; avgRating: number | null };
@@ -31,23 +40,18 @@ export type InsightsOverviewPayload = {
   platforms: InsightsPlatformCard[];
 };
 
-function periodStartIso(days: InsightsPeriodDays): string {
-  const start = new Date();
-  start.setDate(start.getDate() - days);
-  start.setHours(0, 0, 0, 0);
-  return start.toISOString();
-}
-
 async function countReservations(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   restaurantId: string,
-  since: string,
+  rangeStartIso: string,
+  rangeEndIso: string,
 ): Promise<{ count: number; guests: number }> {
   const { data, error } = await admin
     .from("reservations")
     .select("party_size")
     .eq("restaurant_id", restaurantId)
-    .gte("starts_at", since);
+    .gte("starts_at", rangeStartIso)
+    .lt("starts_at", rangeEndIso);
 
   if (error) {
     console.warn("insights reservations", error.message);
@@ -64,13 +68,15 @@ async function countReservations(
 async function countReviews(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   restaurantId: string,
-  since: string,
+  rangeStartIso: string,
+  rangeEndIso: string,
 ): Promise<{ count: number; avgRating: number | null }> {
   const { data, error } = await admin
     .from("gwada_reviews")
     .select("rating")
     .eq("restaurant_id", restaurantId)
-    .gte("created_at", since);
+    .gte("created_at", rangeStartIso)
+    .lt("created_at", rangeEndIso);
 
   if (error) {
     console.warn("insights reviews", error.message);
@@ -87,14 +93,16 @@ async function countReviews(
 async function countInboundMessages(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   restaurantId: string,
-  since: string,
+  rangeStartIso: string,
+  rangeEndIso: string,
 ): Promise<number> {
   const { count, error } = await admin
     .from("contact_messages")
     .select("id", { count: "exact", head: true })
     .eq("restaurant_id", restaurantId)
     .eq("direction", "inbound")
-    .gte("created_at", since);
+    .gte("created_at", rangeStartIso)
+    .lt("created_at", rangeEndIso);
 
   if (error) {
     console.warn("insights messages", error.message);
@@ -186,23 +194,32 @@ async function platformCards(
 export async function fetchInsightsOverview(
   sb: SupabaseClient,
   restaurantId: string,
-  periodDays: InsightsPeriodDays,
+  rangeParams: InsightsFetchRangeParams,
 ): Promise<InsightsOverviewPayload | { error: string }> {
+  const range = resolveInsightsRange(rangeParams);
+  if (!range) return { error: "invalid_date_range" };
+
   const admin = createSupabaseAdminClient();
   if (!admin) return { error: "server_misconfigured" };
 
-  const since = periodStartIso(periodDays);
+  const { rangeStartIso, rangeEndIso, periodStartYmd, periodEndYmd } = range;
+  const periodDays =
+    "periodDays" in rangeParams ? rangeParams.periodDays : null;
 
   const [reservations, reviews, messages, platforms] = await Promise.all([
-    countReservations(admin, restaurantId, since),
-    countReviews(admin, restaurantId, since),
-    countInboundMessages(admin, restaurantId, since),
+    countReservations(admin, restaurantId, rangeStartIso, rangeEndIso),
+    countReviews(admin, restaurantId, rangeStartIso, rangeEndIso),
+    countInboundMessages(admin, restaurantId, rangeStartIso, rangeEndIso),
     platformCards(sb, restaurantId),
   ]);
 
   return {
+    periodMode: periodDays != null ? "preset" : "custom",
     periodDays,
-    periodStart: since,
+    periodStartYmd,
+    periodEndYmd,
+    periodStart: rangeStartIso,
+    periodEnd: rangeEndIso,
     gwada: {
       reservations,
       reviews,

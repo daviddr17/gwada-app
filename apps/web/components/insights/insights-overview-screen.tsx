@@ -14,17 +14,21 @@ import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { TripadvisorGlyph } from "@/components/icons/tripadvisor-glyph";
 import { InsightsOverviewSkeleton } from "@/components/insights/insights-overview-skeleton";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/ui/date-picker";
 import { KpiCard } from "@/components/ui/kpi-card";
+import { Label } from "@/components/ui/label";
 import {
   WorkspaceRestaurantMissingMessage,
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import type {
-  InsightsOverviewPayload,
-  InsightsPeriodDays,
-} from "@/lib/insights/insights-overview-server";
+import {
+  insightsPresetRangeYmd,
+  type InsightsPeriodDays,
+} from "@/lib/insights/insights-date-range";
+import type { InsightsOverviewPayload } from "@/lib/insights/insights-overview-server";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
@@ -35,6 +39,10 @@ const PERIOD_OPTIONS: { days: InsightsPeriodDays; label: string }[] = [
   { days: 30, label: "30 Tage" },
   { days: 90, label: "90 Tage" },
 ];
+
+type InsightsPeriodSelection =
+  | { mode: "preset"; days: InsightsPeriodDays }
+  | { mode: "custom"; startYmd: string; endYmd: string };
 
 function PlatformGlyph({
   id,
@@ -48,13 +56,33 @@ function PlatformGlyph({
   return <TripadvisorGlyph className={className} />;
 }
 
+function buildOverviewParams(
+  restaurantId: string,
+  selection: InsightsPeriodSelection,
+): URLSearchParams {
+  const params = new URLSearchParams({ restaurantId });
+  if (selection.mode === "preset") {
+    params.set("periodDays", String(selection.days));
+  } else {
+    params.set("startYmd", selection.startYmd);
+    params.set("endYmd", selection.endYmd);
+  }
+  return params;
+}
+
 export function InsightsOverviewScreen() {
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
-  const [periodDays, setPeriodDays] = useState<InsightsPeriodDays>(30);
+  const [periodSelection, setPeriodSelection] = useState<InsightsPeriodSelection>(
+    () => ({ mode: "preset", days: 30 }),
+  );
   const [data, setData] = useState<InsightsOverviewPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && !data);
+
+  const customRangeInvalid =
+    periodSelection.mode === "custom" &&
+    periodSelection.startYmd > periodSelection.endYmd;
 
   const load = useCallback(async () => {
     if (!restaurantId) {
@@ -62,19 +90,25 @@ export function InsightsOverviewScreen() {
       setLoading(false);
       return;
     }
+    if (customRangeInvalid) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/insights/overview?${new URLSearchParams({
-          restaurantId,
-          periodDays: String(periodDays),
-        })}`,
+        `/api/insights/overview?${buildOverviewParams(restaurantId, periodSelection)}`,
       );
       const body = (await res.json()) as InsightsOverviewPayload & {
         error?: string;
       };
       if (!res.ok) {
-        toast.error(body.error ?? "Insights konnten nicht geladen werden.");
+        toast.error(
+          body.error === "invalid_date_range"
+            ? "Ungültiger Zeitraum — Enddatum muss am oder nach dem Startdatum liegen."
+            : body.error ?? "Insights konnten nicht geladen werden.",
+        );
         setLoading(false);
         return;
       }
@@ -83,7 +117,7 @@ export function InsightsOverviewScreen() {
       toast.error("Netzwerkfehler beim Laden der Insights.");
     }
     setLoading(false);
-  }, [restaurantId, periodDays]);
+  }, [restaurantId, periodSelection, customRangeInvalid]);
 
   useEffect(() => {
     void load();
@@ -115,22 +149,104 @@ export function InsightsOverviewScreen() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        {PERIOD_OPTIONS.map((opt) => (
-          <button
-            key={opt.days}
+      <div className="flex flex-col items-end gap-3">
+        <div
+          className="flex flex-wrap justify-end gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"
+          role="group"
+          aria-label="Zeitraum"
+        >
+          {PERIOD_OPTIONS.map((opt) => (
+            <Button
+              key={opt.days}
+              type="button"
+              size="sm"
+              variant={
+                periodSelection.mode === "preset" &&
+                periodSelection.days === opt.days
+                  ? "default"
+                  : "ghost"
+              }
+              className={cn(
+                "h-8 rounded-lg px-3 text-xs",
+                periodSelection.mode === "preset" &&
+                  periodSelection.days === opt.days &&
+                  "shadow-sm",
+              )}
+              onClick={() =>
+                setPeriodSelection({ mode: "preset", days: opt.days })
+              }
+            >
+              {opt.label}
+            </Button>
+          ))}
+          <Button
             type="button"
-            onClick={() => setPeriodDays(opt.days)}
+            size="sm"
+            variant={periodSelection.mode === "custom" ? "default" : "ghost"}
             className={cn(
-              "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-colors",
-              periodDays === opt.days
-                ? "border-accent/40 bg-accent/10 text-foreground"
-                : "border-border/60 bg-background text-muted-foreground hover:border-border hover:text-foreground",
+              "h-8 rounded-lg px-3 text-xs",
+              periodSelection.mode === "custom" && "shadow-sm",
             )}
+            onClick={() =>
+              setPeriodSelection((current) => {
+                if (current.mode === "custom") return current;
+                const range = insightsPresetRangeYmd(
+                  current.mode === "preset" ? current.days : 30,
+                );
+                return {
+                  mode: "custom",
+                  startYmd: range.startYmd,
+                  endYmd: range.endYmd,
+                };
+              })
+            }
           >
-            {opt.label}
-          </button>
-        ))}
+            Frei
+          </Button>
+        </div>
+
+        {periodSelection.mode === "custom" ? (
+          <div className="grid w-full max-w-md gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="insights-range-start">Von</Label>
+              <DatePickerField
+                id="insights-range-start"
+                value={periodSelection.startYmd}
+                onChange={(v) => {
+                  if (!v) return;
+                  setPeriodSelection({
+                    mode: "custom",
+                    startYmd: v,
+                    endYmd: periodSelection.endYmd,
+                  });
+                }}
+                fullWidth
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="insights-range-end">Bis</Label>
+              <DatePickerField
+                id="insights-range-end"
+                value={periodSelection.endYmd}
+                onChange={(v) => {
+                  if (!v) return;
+                  setPeriodSelection({
+                    mode: "custom",
+                    startYmd: periodSelection.startYmd,
+                    endYmd: v,
+                  });
+                }}
+                minYmd={periodSelection.startYmd}
+                fullWidth
+              />
+            </div>
+            {customRangeInvalid ? (
+              <p className="text-sm text-destructive sm:col-span-2">
+                Das Enddatum muss am oder nach dem Startdatum liegen.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <section aria-label="Gwada-Kennzahlen">

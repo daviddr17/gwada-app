@@ -35,6 +35,10 @@ import {
   dismissAllStaffShiftNotifications,
   dismissStaffShiftNotification,
 } from "@/lib/notifications/notification-staff-shift-server";
+import { loadNotificationAccessContext } from "@/lib/notifications/notification-access-context";
+import {
+  isNotificationModuleVisibleForUser,
+} from "@/lib/notifications/notification-module-permissions";
 import {
   dismissAccountingNotification,
   dismissAllAccountingNotifications,
@@ -85,6 +89,13 @@ export async function markNotificationReadServer(
   }
 
   const admin = adminOrUserClient(sb);
+  const { access, shiftScope } = await loadNotificationAccessContext(sb, {
+    restaurantId,
+    userId,
+  });
+  if (!isNotificationModuleVisibleForUser(module, access)) {
+    return { ok: false, error: "forbidden" };
+  }
 
   switch (module) {
     case "messages": {
@@ -193,6 +204,7 @@ export async function markNotificationReadServer(
           restaurantId,
           userId,
           kind,
+          scope: shiftScope,
         });
         return all.error ? { ok: false, error: all.error } : { ok: true };
       }

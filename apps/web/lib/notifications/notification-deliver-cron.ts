@@ -204,6 +204,12 @@ async function fanOutEvent(
 
   const prefsMap = await loadPreferencesMap(admin, targets);
   const skipProfileId = actorProfileIdFromPayload(event.payload ?? {});
+  const assignedProfileId =
+    moduleId === "staff_shift_start" || moduleId === "staff_shift_end"
+      ? typeof event.payload?.assignedProfileId === "string"
+        ? event.payload.assignedProfileId
+        : null
+      : null;
   const rows: {
     event_id: string;
     profile_id: string;
@@ -213,7 +219,13 @@ async function fanOutEvent(
   }[] = [];
 
   for (const target of targets) {
-    if (skipProfileId && target.profileId === skipProfileId) {
+    // Schicht-Erinnerungen gehen an den Zugewiesenen — auch wenn er die
+    // Schicht selbst angelegt/bearbeitet hat (anders als bei Aktions-Events).
+    if (
+      skipProfileId &&
+      target.profileId === skipProfileId &&
+      target.profileId !== assignedProfileId
+    ) {
       continue;
     }
 

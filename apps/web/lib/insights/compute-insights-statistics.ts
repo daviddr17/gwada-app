@@ -1,5 +1,6 @@
 import type { ContactStatisticsResult } from "@/lib/contacts/compute-contact-statistics";
 import type { NewsStatisticsResult } from "@/lib/news/compute-news-statistics";
+import type { RestaurantUsageInsights } from "@/lib/insights/restaurant-usage-constants";
 import type { PlatformInsightsBundle } from "@/lib/insights/platform-insights-types";
 import type { ReservationStatsResult } from "@/lib/reservations/compute-reservation-stats";
 import type { ReviewStatisticsResult } from "@/lib/reviews/compute-review-statistics";
@@ -38,6 +39,7 @@ export type InsightsStatisticsResult = {
     byMonth: NewsStatisticsResult["byMonth"];
     byPlatform: NewsStatisticsResult["byPlatform"];
   };
+  usage: RestaurantUsageInsights;
   platforms: PlatformInsightsBundle;
 };
 
@@ -50,6 +52,7 @@ export function computeInsightsStatistics(input: {
   messages: ContactStatisticsResult;
   news: NewsStatisticsResult;
   newsEngagement: { likes: number; comments: number; views: number };
+  usage: RestaurantUsageInsights;
   platforms: PlatformInsightsBundle;
 }): InsightsStatisticsResult {
   return {
@@ -84,6 +87,7 @@ export function computeInsightsStatistics(input: {
       byMonth: input.news.byMonth,
       byPlatform: input.news.byPlatform,
     },
+    usage: input.usage,
     platforms: input.platforms,
   };
 }

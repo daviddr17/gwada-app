@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EmbedGalleryWidget } from "@/components/embed/embed-gallery-widget";
+import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import {
   EMBED_PREVIEW_TEXT_THEME_PARAM,
@@ -44,11 +45,21 @@ export default async function EmbedGalleryPage({
     );
   }
 
+  const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
+
   return (
-    <EmbedGalleryWidget
-      data={result.data}
-      variant="embed"
-      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
-    />
+    <>
+      {!isPreview ? (
+        <RestaurantUsageBeacon slug={slug} source="embed" dimension="gallery" />
+      ) : null}
+      <EmbedGalleryWidget
+        data={result.data}
+        variant="embed"
+        textTheme={resolveEmbedTextTheme(
+          textTheme,
+          sp[EMBED_PREVIEW_TEXT_THEME_PARAM],
+        )}
+      />
+    </>
   );
 }

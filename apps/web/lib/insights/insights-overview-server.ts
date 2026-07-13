@@ -7,6 +7,10 @@ import {
 } from "@/lib/insights/insights-date-range";
 import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
 import {
+  fetchRestaurantUsageInsights,
+} from "@/lib/insights/fetch-restaurant-usage-insights";
+import type { RestaurantUsageInsights } from "@/lib/insights/restaurant-usage-constants";
+import {
   formatInsightCount,
   type FacebookPagePlatformInsights,
   type GoogleBusinessPlatformInsights,
@@ -55,6 +59,7 @@ export type InsightsOverviewPayload = {
     reviews: { count: number; avgRating: number | null };
     messages: { inbound: number };
     news: { published: number; likes: number; comments: number };
+    usage: RestaurantUsageInsights;
   };
   /** Google Business Performance (Aufrufe, Anrufe, Interaktionen, …). */
   google: GoogleBusinessPlatformInsights;
@@ -489,12 +494,17 @@ export async function fetchInsightsOverview(
   const periodDays =
     "periodDays" in rangeParams ? rangeParams.periodDays : null;
 
-  const [reservations, reviews, messages, news, platformBundle] =
+  const [reservations, reviews, messages, news, usage, platformBundle] =
     await Promise.all([
       countReservations(admin, restaurantId, rangeStartIso, rangeEndIso),
       countAllReviews(admin, sb, restaurantId, rangeStartIso, rangeEndIso),
       countInboundMessages(admin, restaurantId, rangeStartIso, rangeEndIso),
       countNewsEngagement(admin, restaurantId, rangeStartIso, rangeEndIso),
+      fetchRestaurantUsageInsights({
+        restaurantId,
+        startYmd: periodStartYmd,
+        endYmd: periodEndYmd,
+      }),
       platformCards(
         sb,
         restaurantId,
@@ -517,6 +527,7 @@ export async function fetchInsightsOverview(
       reviews,
       messages: { inbound: messages },
       news,
+      usage,
     },
     google: platformBundle.google,
     facebook: platformBundle.facebook,

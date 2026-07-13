@@ -19,6 +19,14 @@ export type PlatformInsightSeries = {
   byDay: PlatformInsightDayPoint[];
 };
 
+export type GoogleSearchKeywordInsight = {
+  keyword: string;
+  /** Exakte Impressionen, sonst null wenn nur Schwellwert. */
+  impressions: number | null;
+  /** Unter diesem Wert (Datenschutz), wenn impressions null. */
+  threshold: number | null;
+};
+
 export type GoogleBusinessPlatformInsights = {
   platform: "google_business";
   connected: boolean;
@@ -29,13 +37,20 @@ export type GoogleBusinessPlatformInsights = {
   impressions: number;
   searchImpressions: number;
   mapsImpressions: number;
+  searchDesktop: number;
+  searchMobile: number;
+  mapsDesktop: number;
+  mapsMobile: number;
   websiteClicks: number;
   callClicks: number;
   directionRequests: number;
   conversations: number;
   bookings: number;
   menuClicks: number;
+  foodOrders: number;
   interactions: number;
+  /** Top-Suchbegriffe (monatlich aggregiert von Google). */
+  searchKeywords: GoogleSearchKeywordInsight[];
 };
 
 export type FacebookPagePlatformInsights = {
@@ -50,6 +65,10 @@ export type FacebookPagePlatformInsights = {
   postEngagements: number;
   pageViews: number;
   fans: number | null;
+  followsUnique: number;
+  unfollowsUnique: number;
+  ctaClicks: number;
+  videoViews: number;
   needsReconnect: boolean;
 };
 
@@ -64,6 +83,14 @@ export type InstagramAccountPlatformInsights = {
   views: number;
   accountsEngaged: number;
   totalInteractions: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  replies: number;
+  profileLinkTaps: number;
+  follows: number;
+  unfollows: number;
 };
 
 export type PlatformInsightsBundle = {
@@ -85,13 +112,19 @@ export function emptyGoogleInsights(
     impressions: 0,
     searchImpressions: 0,
     mapsImpressions: 0,
+    searchDesktop: 0,
+    searchMobile: 0,
+    mapsDesktop: 0,
+    mapsMobile: 0,
     websiteClicks: 0,
     callClicks: 0,
     directionRequests: 0,
     conversations: 0,
     bookings: 0,
     menuClicks: 0,
+    foodOrders: 0,
     interactions: 0,
+    searchKeywords: [],
     ...partial,
   };
 }
@@ -111,6 +144,10 @@ export function emptyFacebookInsights(
     postEngagements: 0,
     pageViews: 0,
     fans: null,
+    followsUnique: 0,
+    unfollowsUnique: 0,
+    ctaClicks: 0,
+    videoViews: 0,
     needsReconnect: false,
     ...partial,
   };
@@ -130,6 +167,14 @@ export function emptyInstagramInsights(
     views: 0,
     accountsEngaged: 0,
     totalInteractions: 0,
+    likes: 0,
+    comments: 0,
+    shares: 0,
+    saves: 0,
+    replies: 0,
+    profileLinkTaps: 0,
+    follows: 0,
+    unfollows: 0,
     ...partial,
   };
 }

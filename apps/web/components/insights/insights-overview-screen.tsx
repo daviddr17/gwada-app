@@ -1,25 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import {
   CalendarDays,
   Eye,
-  Globe,
   Link2,
-  MapPinned,
   MessageCircle,
-  MousePointerClick,
-  Navigation,
   Newspaper,
-  Phone,
-  Search,
   Star,
-  Users,
 } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { toast } from "sonner";
 import { InsightsOverviewSkeleton } from "@/components/insights/insights-overview-skeleton";
 import { InsightsPlatformFilterChips } from "@/components/insights/insights-platform-filter-chips";
+import {
+  FacebookInsightsPanels,
+  GoogleInsightsPanels,
+  InstagramInsightsPanels,
+} from "@/components/insights/insights-platform-panels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker";
@@ -42,7 +40,6 @@ import {
   type InsightsPeriodDays,
 } from "@/lib/insights/insights-date-range";
 import type { InsightsOverviewPayload } from "@/lib/insights/insights-overview-server";
-import { formatInsightCount } from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
@@ -381,72 +378,7 @@ export function InsightsOverviewScreen() {
               hint={googleCard?.hint ?? "Google unter Integrationen verbinden."}
             />
           ) : (
-            <>
-              {google.error ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  {google.error}
-                </p>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <KpiCard
-                  icon={Eye}
-                  label="Aufrufe"
-                  value={formatInsightCount(google.impressions)}
-                  hint={`${formatInsightCount(google.searchImpressions)} Suche · ${formatInsightCount(google.mapsImpressions)} Maps`}
-                />
-                <KpiCard
-                  icon={MousePointerClick}
-                  label="Interaktionen"
-                  value={formatInsightCount(google.interactions)}
-                  hint="Anrufe, Website, Routen, Chat, Buchungen, Menü"
-                />
-                <KpiCard
-                  icon={Search}
-                  label="Suchaufrufe"
-                  value={formatInsightCount(google.searchImpressions)}
-                  hint="Google Suche Desktop + Mobile"
-                />
-                <KpiCard
-                  icon={MapPinned}
-                  label="Maps-Aufrufe"
-                  value={formatInsightCount(google.mapsImpressions)}
-                  hint="Google Maps Desktop + Mobile"
-                />
-                <KpiCard
-                  icon={Phone}
-                  label="Anrufe"
-                  value={formatInsightCount(google.callClicks)}
-                  hint="Klicks auf Anrufen"
-                />
-                <KpiCard
-                  icon={Globe}
-                  label="Website-Klicks"
-                  value={formatInsightCount(google.websiteClicks)}
-                  hint="Klicks auf die Website"
-                />
-                <KpiCard
-                  icon={Navigation}
-                  label="Wegbeschreibungen"
-                  value={formatInsightCount(google.directionRequests)}
-                  hint="Routenanfragen"
-                />
-                <KpiCard
-                  icon={MessageCircle}
-                  label="Nachrichten & mehr"
-                  value={formatInsightCount(
-                    google.conversations + google.bookings + google.menuClicks,
-                  )}
-                  hint={`${formatInsightCount(google.conversations)} Chat · ${formatInsightCount(google.bookings)} Buchungen · ${formatInsightCount(google.menuClicks)} Menü`}
-                />
-              </div>
-              {!google.available && !google.error ? (
-                <p className="text-xs text-muted-foreground">
-                  Noch keine Performance-Punkte im Zeitraum (Google liefert oft
-                  mit 2–3 Tagen Verzug). Zeitraum erweitern oder später erneut
-                  prüfen.
-                </p>
-              ) : null}
-            </>
+            <GoogleInsightsPanels google={google} />
           )}
         </section>
       ) : null}
@@ -459,45 +391,7 @@ export function InsightsOverviewScreen() {
               hint={fbCard?.hint ?? "Facebook unter Integrationen verbinden."}
             />
           ) : (
-            <>
-              {facebook.error && facebook.error !== "facebook_insights_app_review" ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  {facebook.error}
-                </p>
-              ) : null}
-              {facebook.error === "facebook_insights_app_review" ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Meta muss „Seiten-Statistiken“ (read_insights) freigeben (App
-                  Review). Neu verbinden allein reicht nicht.
-                </p>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <KpiCard
-                  icon={Users}
-                  label="Reichweite"
-                  value={formatInsightCount(facebook.reach)}
-                  hint="Einzigartige Nutzer mit Media-Views"
-                />
-                <KpiCard
-                  icon={Eye}
-                  label="Media-Views"
-                  value={formatInsightCount(facebook.impressions)}
-                  hint="Seiten-Medienaufrufe"
-                />
-                <KpiCard
-                  icon={MousePointerClick}
-                  label="Interaktionen"
-                  value={formatInsightCount(facebook.postEngagements)}
-                  hint="Beitrags-Interaktionen"
-                />
-                <KpiCard
-                  icon={Eye}
-                  label="Seitenaufrufe"
-                  value={formatInsightCount(facebook.pageViews)}
-                  hint="Aufrufe der Facebook-Seite"
-                />
-              </div>
-            </>
+            <FacebookInsightsPanels facebook={facebook} />
           )}
         </section>
       ) : null}
@@ -510,39 +404,7 @@ export function InsightsOverviewScreen() {
               hint={igCard?.hint ?? "Instagram unter Integrationen verbinden."}
             />
           ) : (
-            <>
-              {instagram.error ? (
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  {instagram.error}
-                </p>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <KpiCard
-                  icon={Users}
-                  label="Reichweite"
-                  value={formatInsightCount(instagram.reach)}
-                  hint="Accounts erreicht"
-                />
-                <KpiCard
-                  icon={Eye}
-                  label="Views"
-                  value={formatInsightCount(instagram.views)}
-                  hint="Inhaltsaufrufe"
-                />
-                <KpiCard
-                  icon={MousePointerClick}
-                  label="Interaktionen"
-                  value={formatInsightCount(instagram.totalInteractions)}
-                  hint="Gesamtinteraktionen"
-                />
-                <KpiCard
-                  icon={Users}
-                  label="Accounts engaged"
-                  value={formatInsightCount(instagram.accountsEngaged)}
-                  hint="Interagierende Konten"
-                />
-              </div>
-            </>
+            <InstagramInsightsPanels instagram={instagram} />
           )}
         </section>
       ) : null}

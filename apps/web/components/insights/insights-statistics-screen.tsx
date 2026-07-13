@@ -223,7 +223,7 @@ export function InsightsStatisticsScreen() {
               </h2>
               <p className="text-xs text-muted-foreground">
                 Live-Kennzahlen von Google, Facebook und Instagram. Google
-                Performance oft mit 2–3 Tagen Verzug; Meta meist ~30 Tage.
+                Performance: letzte ~90 Tage (oft 2–3 Tage Verzug); Meta ~30 Tage.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

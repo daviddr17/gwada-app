@@ -23,6 +23,12 @@ const GOOGLE_DAILY_METRICS = [
   "BUSINESS_FOOD_MENU_CLICKS",
 ] as const;
 
+/** Performance-Daten oft 2–3 Tage verzögert. */
+const GOOGLE_PERFORMANCE_LAG_DAYS = 3;
+
+/** Tägliche Metriken sinnvoll max. ~90 Tage (Overview Default / Stats-Clamping). */
+const GOOGLE_PERFORMANCE_MAX_DAYS = 90;
+
 type GoogleDatedValue = {
   date?: { year?: number; month?: number; day?: number };
   value?: string | number;
@@ -44,11 +50,12 @@ type GoogleTimeSeriesPayload = {
     dailyMetricTimeSeries?: GoogleMetricSeriesEntry[];
     daily_metric_time_series?: GoogleMetricSeriesEntry[];
   }>;
+  timeSeries?: { datedValues?: GoogleDatedValue[] };
+  time_series?: { dated_values?: GoogleDatedValue[] };
   error?: { message?: string; status?: string; code?: number };
 };
 
-/** Performance-Daten oft 2–3 Tage verzögert. */
-const GOOGLE_PERFORMANCE_LAG_DAYS = 3;
+type DateParts = { year: number; month: number; day: number };
 
 function locationResourceName(locationName: string): string | null {
   const trimmed = locationName.trim();
@@ -71,7 +78,7 @@ function ymdFromGoogleDate(date?: {
   return `${date.year}-${String(date.month).padStart(2, "0")}-${String(date.day).padStart(2, "0")}`;
 }
 
-function parseYmdParts(ymd: string): { year: number; month: number; day: number } | null {
+function parseYmdParts(ymd: string): DateParts | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
   if (!match) return null;
   return {
@@ -94,15 +101,27 @@ function todayYmd(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function daysBetweenInclusive(startYmd: string, endYmd: string): number {
+  const start = parseYmdParts(startYmd);
+  const end = parseYmdParts(endYmd);
+  if (!start || !end) return 0;
+  const a = Date.UTC(start.year, start.month - 1, start.day);
+  const b = Date.UTC(end.year, end.month - 1, end.day);
+  return Math.floor((b - a) / 86_400_000) + 1;
+}
+
 function clampGooglePerformanceRange(startYmd: string, endYmd: string): {
   startYmd: string;
   endYmd: string;
 } | null {
   const latest = ymdAddDays(todayYmd(), -GOOGLE_PERFORMANCE_LAG_DAYS);
-  const end = endYmd > latest ? latest : endYmd;
+  let end = endYmd > latest ? latest : endYmd;
   let start = startYmd;
   if (start > end) {
-    start = ymdAddDays(end, -30);
+    start = ymdAddDays(end, -(GOOGLE_PERFORMANCE_MAX_DAYS - 1));
+  }
+  if (daysBetweenInclusive(start, end) > GOOGLE_PERFORMANCE_MAX_DAYS) {
+    start = ymdAddDays(end, -(GOOGLE_PERFORMANCE_MAX_DAYS - 1));
   }
   if (start > end) return null;
   return { startYmd: start, endYmd: end };
@@ -174,17 +193,20 @@ function collectMetricSeries(
       if (!key) continue;
       const values =
         entry.timeSeries?.datedValues ?? entry.time_series?.dated_values ?? [];
-      byMetric.set(key, values);
+      const existing = byMetric.get(key) ?? [];
+      byMetric.set(key, existing.concat(values));
     }
   }
   return byMetric;
 }
 
+type ParamStyle = "rest_doc" | "camel_date" | "snake";
+
 function buildPerformanceUrl(
   location: string,
-  start: { year: number; month: number; day: number },
-  end: { year: number; month: number; day: number },
-  style: "camel" | "snake",
+  start: DateParts,
+  end: DateParts,
+  style: ParamStyle,
 ): URL {
   const url = new URL(
     `https://businessprofileperformance.googleapis.com/v1/${location}:fetchMultiDailyMetricsTimeSeries`,
@@ -192,13 +214,22 @@ function buildPerformanceUrl(
   for (const metric of GOOGLE_DAILY_METRICS) {
     url.searchParams.append("dailyMetrics", metric);
   }
-  if (style === "camel") {
+  if (style === "rest_doc") {
+    // Offizielles REST-Beispiel in der Google-Doku
     url.searchParams.set("dailyRange.start_date.year", String(start.year));
     url.searchParams.set("dailyRange.start_date.month", String(start.month));
     url.searchParams.set("dailyRange.start_date.day", String(start.day));
     url.searchParams.set("dailyRange.end_date.year", String(end.year));
     url.searchParams.set("dailyRange.end_date.month", String(end.month));
     url.searchParams.set("dailyRange.end_date.day", String(end.day));
+  } else if (style === "camel_date") {
+    // Client-Libraries (Python/Java) mappen auf startDate
+    url.searchParams.set("dailyRange.startDate.year", String(start.year));
+    url.searchParams.set("dailyRange.startDate.month", String(start.month));
+    url.searchParams.set("dailyRange.startDate.day", String(start.day));
+    url.searchParams.set("dailyRange.endDate.year", String(end.year));
+    url.searchParams.set("dailyRange.endDate.month", String(end.month));
+    url.searchParams.set("dailyRange.endDate.day", String(end.day));
   } else {
     url.searchParams.set("daily_range.start_date.year", String(start.year));
     url.searchParams.set("daily_range.start_date.month", String(start.month));
@@ -210,6 +241,99 @@ function buildPerformanceUrl(
   return url;
 }
 
+function buildSingleMetricUrl(
+  location: string,
+  metric: string,
+  start: DateParts,
+  end: DateParts,
+): URL {
+  const url = new URL(
+    `https://businessprofileperformance.googleapis.com/v1/${location}:getDailyMetricsTimeSeries`,
+  );
+  url.searchParams.set("dailyMetric", metric);
+  url.searchParams.set("dailyRange.start_date.year", String(start.year));
+  url.searchParams.set("dailyRange.start_date.month", String(start.month));
+  url.searchParams.set("dailyRange.start_date.day", String(start.day));
+  url.searchParams.set("dailyRange.end_date.year", String(end.year));
+  url.searchParams.set("dailyRange.end_date.month", String(end.month));
+  url.searchParams.set("dailyRange.end_date.day", String(end.day));
+  return url;
+}
+
+function humanizeGooglePerformanceError(raw: string | null): string | null {
+  if (!raw) return null;
+  const lower = raw.toLowerCase();
+  if (lower.includes("platform_not_configured")) {
+    return "Google OAuth-Credentials fehlen in den Plattform-Integrationen.";
+  }
+  if (lower.includes("unauthenticated") || lower.includes("invalid authentication")) {
+    return "Google-Zugang abgelaufen — bitte unter Integrationen neu verbinden.";
+  }
+  if (lower.includes("permission") || lower.includes("forbidden") || lower.includes("403")) {
+    return "Keine Berechtigung für Google Business Performance — Konto neu verbinden.";
+  }
+  if (lower.includes("not found") || lower.includes("404")) {
+    return "Google-Standort nicht gefunden — Standort in Integrationen prüfen.";
+  }
+  if (lower.includes("businessprofileperformance") || lower.includes("has not been used")) {
+    return "Business Profile Performance API im Google Cloud Projekt aktivieren.";
+  }
+  return raw;
+}
+
+async function fetchMulti(
+  accessToken: string,
+  location: string,
+  start: DateParts,
+  end: DateParts,
+): Promise<{ body: GoogleTimeSeriesPayload; error: string | null }> {
+  let body: GoogleTimeSeriesPayload = {};
+  let lastError: string | null = null;
+
+  for (const style of ["rest_doc", "camel_date", "snake"] as const) {
+    const url = buildPerformanceUrl(location, start, end, style);
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
+    if (res.ok) {
+      return { body, error: null };
+    }
+    lastError = body.error?.message ?? `google_performance_${res.status}`;
+  }
+
+  return { body, error: lastError };
+}
+
+async function fetchPerMetricFallback(
+  accessToken: string,
+  location: string,
+  start: DateParts,
+  end: DateParts,
+): Promise<Map<string, GoogleDatedValue[]>> {
+  const byMetric = new Map<string, GoogleDatedValue[]>();
+  const results = await Promise.all(
+    GOOGLE_DAILY_METRICS.map(async (metric) => {
+      const url = buildSingleMetricUrl(location, metric, start, end);
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+      const body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
+      const values =
+        body.timeSeries?.datedValues ?? body.time_series?.dated_values ?? [];
+      return { metric, values };
+    }),
+  );
+  for (const row of results) {
+    if (!row) continue;
+    byMetric.set(row.metric, row.values);
+  }
+  return byMetric;
+}
+
 export async function fetchGoogleBusinessPlatformInsights(params: {
   restaurantId: string;
   startYmd: string;
@@ -219,7 +343,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   if ("error" in auth) {
     return emptyGoogleInsights({
       connected: false,
-      error: auth.error,
+      error: humanizeGooglePerformanceError(auth.error),
     });
   }
 
@@ -227,7 +351,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   if (!location) {
     return emptyGoogleInsights({
       connected: true,
-      error: "google_location_missing",
+      error: "Standort in der Google-Verbindung fehlt — unter Integrationen wählen.",
     });
   }
 
@@ -235,7 +359,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   if (!clamped) {
     return emptyGoogleInsights({
       connected: true,
-      error: "google_performance_range_empty",
+      error: "Für den gewählten Zeitraum liegen noch keine Google-Performance-Daten vor.",
     });
   }
 
@@ -248,31 +372,26 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     });
   }
 
-  let body: GoogleTimeSeriesPayload = {};
-  let lastError: string | null = null;
+  const multi = await fetchMulti(auth.accessToken, location, start, end);
+  let byMetric = multi.error ? new Map<string, GoogleDatedValue[]>() : collectMetricSeries(multi.body);
 
-  for (const style of ["camel", "snake"] as const) {
-    const url = buildPerformanceUrl(location, start, end, style);
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${auth.accessToken}` },
-      cache: "no-store",
-    });
-    body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
-    if (res.ok) {
-      lastError = null;
-      break;
+  const multiHadData = [...byMetric.values()].some((v) => v.length > 0);
+  if (multi.error || !multiHadData) {
+    const fallback = await fetchPerMetricFallback(
+      auth.accessToken,
+      location,
+      start,
+      end,
+    );
+    if ([...fallback.values()].some((v) => v.length > 0)) {
+      byMetric = fallback;
+    } else if (multi.error) {
+      return emptyGoogleInsights({
+        connected: true,
+        error: humanizeGooglePerformanceError(multi.error),
+      });
     }
-    lastError = body.error?.message ?? `google_performance_${res.status}`;
   }
-
-  if (lastError) {
-    return emptyGoogleInsights({
-      connected: true,
-      error: lastError,
-    });
-  }
-
-  const byMetric = collectMetricSeries(body);
 
   const desktopMaps = seriesFromDatedValues(
     "desktop_maps",
@@ -388,6 +507,9 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
       callClicksSeries,
       websiteClicksSeries,
       directionsSeries,
+      conversationsSeries,
+      bookingsSeries,
+      menuClicksSeries,
     ],
     impressions,
     searchImpressions,

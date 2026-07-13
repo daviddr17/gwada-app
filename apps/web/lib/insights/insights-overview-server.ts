@@ -6,7 +6,10 @@ import {
   resolveInsightsRange,
 } from "@/lib/insights/insights-date-range";
 import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
-import { formatInsightCount } from "@/lib/insights/platform-insights-types";
+import {
+  formatInsightCount,
+  type GoogleBusinessPlatformInsights,
+} from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import { readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
@@ -51,6 +54,8 @@ export type InsightsOverviewPayload = {
     messages: { inbound: number };
     news: { published: number; likes: number; comments: number };
   };
+  /** Google Business Performance (Aufrufe, Anrufe, Interaktionen, …). */
+  google: GoogleBusinessPlatformInsights;
   platforms: InsightsPlatformCard[];
 };
 
@@ -257,7 +262,10 @@ async function platformCards(
   periodEndYmd: string,
   rangeStartIso: string,
   rangeEndIso: string,
-): Promise<InsightsPlatformCard[]> {
+): Promise<{
+  cards: InsightsPlatformCard[];
+  google: GoogleBusinessPlatformInsights;
+}> {
   const flags = await fetchPlatformMessagingFlags(sb);
   const admin = createSupabaseAdminClient();
 
@@ -383,7 +391,7 @@ async function platformCards(
     });
   }
 
-  return [
+  const cards = [
     {
       id: "google_business" as const,
       label: "Google Business",
@@ -393,13 +401,11 @@ async function platformCards(
       metrics: googleMetrics,
       hint: !google.connected
         ? "Unter Einstellungen → Integrationen verbinden."
-        : google.error === "google_location_missing"
-          ? "Standort in der Google-Verbindung fehlt — unter Integrationen Standort wählen."
-          : google.error
-            ? `Google Performance: ${google.error}`
-            : google.available
-              ? "Aufrufe, Anrufe, Website & Routen aus Google Business Performance — Details unter Statistiken."
-              : "Verbunden — Performance-Daten kommen oft mit 2–3 Tagen Verzug von Google.",
+        : google.error
+          ? `Google Performance: ${google.error}`
+          : google.available
+            ? "Aufrufe, Anrufe, Website & Routen — siehe Abschnitt oben und Statistiken."
+            : "Verbunden — Performance-Daten kommen oft mit 2–3 Tagen Verzug von Google.",
     },
     {
       id: "facebook" as const,
@@ -458,6 +464,8 @@ async function platformCards(
         : "Apple Business Connect unter Integrationen einrichten.",
     },
   ].filter((card) => card.enabled);
+
+  return { cards, google };
 }
 
 export async function fetchInsightsOverview(
@@ -475,20 +483,21 @@ export async function fetchInsightsOverview(
   const periodDays =
     "periodDays" in rangeParams ? rangeParams.periodDays : null;
 
-  const [reservations, reviews, messages, news, platforms] = await Promise.all([
-    countReservations(admin, restaurantId, rangeStartIso, rangeEndIso),
-    countAllReviews(admin, sb, restaurantId, rangeStartIso, rangeEndIso),
-    countInboundMessages(admin, restaurantId, rangeStartIso, rangeEndIso),
-    countNewsEngagement(admin, restaurantId, rangeStartIso, rangeEndIso),
-    platformCards(
-      sb,
-      restaurantId,
-      periodStartYmd,
-      periodEndYmd,
-      rangeStartIso,
-      rangeEndIso,
-    ),
-  ]);
+  const [reservations, reviews, messages, news, platformBundle] =
+    await Promise.all([
+      countReservations(admin, restaurantId, rangeStartIso, rangeEndIso),
+      countAllReviews(admin, sb, restaurantId, rangeStartIso, rangeEndIso),
+      countInboundMessages(admin, restaurantId, rangeStartIso, rangeEndIso),
+      countNewsEngagement(admin, restaurantId, rangeStartIso, rangeEndIso),
+      platformCards(
+        sb,
+        restaurantId,
+        periodStartYmd,
+        periodEndYmd,
+        rangeStartIso,
+        rangeEndIso,
+      ),
+    ]);
 
   return {
     periodMode: periodDays != null ? "preset" : "custom",
@@ -503,6 +512,7 @@ export async function fetchInsightsOverview(
       messages: { inbound: messages },
       news,
     },
-    platforms,
+    google: platformBundle.google,
+    platforms: platformBundle.cards,
   };
 }

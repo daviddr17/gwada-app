@@ -3,9 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   CalendarDays,
+  Eye,
+  Globe,
   Link2,
+  MapPinned,
   MessageCircle,
+  MousePointerClick,
+  Navigation,
   Newspaper,
+  Phone,
+  Search,
   Star,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -31,6 +38,7 @@ import {
   type InsightsPeriodDays,
 } from "@/lib/insights/insights-date-range";
 import type { InsightsOverviewPayload } from "@/lib/insights/insights-overview-server";
+import { formatInsightCount } from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
@@ -150,6 +158,7 @@ export function InsightsOverviewScreen() {
   const reviews = data?.gwada.reviews;
   const messages = data?.gwada.messages;
   const news = data?.gwada.news;
+  const google = data?.google;
 
   return (
     <div className="space-y-6">
@@ -290,6 +299,81 @@ export function InsightsOverviewScreen() {
         </div>
       </section>
 
+      {google?.connected ? (
+        <section aria-label="Google Business Performance" className="space-y-3">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-semibold tracking-tight">
+                <GoogleGlyph className="size-4" />
+                Google Business Performance
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Aufrufe, Anrufe und Interaktionen am Google-Profil
+                {google.error ? ` — ${google.error}` : " (oft 2–3 Tage Verzug)."}
+              </p>
+            </div>
+            <Link
+              href={APP_ROUTES.insights.statistics}
+              className="text-xs font-medium text-accent hover:underline"
+            >
+              Tages-Charts
+            </Link>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={Eye}
+              label="Aufrufe gesamt"
+              value={formatInsightCount(google.impressions)}
+              hint={`${formatInsightCount(google.searchImpressions)} Suche · ${formatInsightCount(google.mapsImpressions)} Maps`}
+            />
+            <KpiCard
+              icon={MousePointerClick}
+              label="Interaktionen"
+              value={formatInsightCount(google.interactions)}
+              hint="Anrufe, Website, Routen, Chat, Buchungen, Menü"
+            />
+            <KpiCard
+              icon={Search}
+              label="Suchaufrufe"
+              value={formatInsightCount(google.searchImpressions)}
+              hint="Google Suche Desktop + Mobile"
+            />
+            <KpiCard
+              icon={MapPinned}
+              label="Maps-Aufrufe"
+              value={formatInsightCount(google.mapsImpressions)}
+              hint="Google Maps Desktop + Mobile"
+            />
+            <KpiCard
+              icon={Phone}
+              label="Anrufe"
+              value={formatInsightCount(google.callClicks)}
+              hint="Klicks auf Anrufen"
+            />
+            <KpiCard
+              icon={Globe}
+              label="Website-Klicks"
+              value={formatInsightCount(google.websiteClicks)}
+              hint="Klicks auf die Website"
+            />
+            <KpiCard
+              icon={Navigation}
+              label="Wegbeschreibungen"
+              value={formatInsightCount(google.directionRequests)}
+              hint="Routenanfragen"
+            />
+            <KpiCard
+              icon={MessageCircle}
+              label="Nachrichten & mehr"
+              value={formatInsightCount(
+                google.conversations + google.bookings + google.menuClicks,
+              )}
+              hint={`${formatInsightCount(google.conversations)} Chat · ${formatInsightCount(google.bookings)} Buchungen · ${formatInsightCount(google.menuClicks)} Menü`}
+            />
+          </div>
+        </section>
+      ) : null}
+
       <section aria-label="Plattform-Verbindungen" className="space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <div>
@@ -297,7 +381,7 @@ export function InsightsOverviewScreen() {
               Plattformen
             </h2>
             <p className="text-xs text-muted-foreground">
-              Live-Kennzahlen pro Kanal — Charts unter Insights → Statistiken
+              Verbindungsstatus und Kennzahlen — Charts unter Insights → Statistiken
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

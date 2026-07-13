@@ -15,11 +15,8 @@ export type GoogleBusinessPlatformConfig = {
   clientSecret: string;
 };
 
-export async function getGoogleBusinessPlatformConfigAdmin(): Promise<GoogleBusinessPlatformConfig | null> {
-  if (!(await isPlatformIntegrationEnabledAdmin("google_business"))) {
-    return null;
-  }
-
+/** OAuth-Client-Secrets lesen — auch wenn die Integration aktuell deaktiviert ist (Token-Refresh bestehender Verbindungen). */
+export async function getGoogleBusinessPlatformSecretsAdmin(): Promise<GoogleBusinessPlatformConfig | null> {
   const admin = createSupabaseAdminClient();
   if (!admin) return null;
 
@@ -37,6 +34,13 @@ export async function getGoogleBusinessPlatformConfigAdmin(): Promise<GoogleBusi
     typeof cfg.client_secret === "string" ? cfg.client_secret.trim() : "";
   if (!clientId || !clientSecret) return null;
   return { clientId, clientSecret };
+}
+
+export async function getGoogleBusinessPlatformConfigAdmin(): Promise<GoogleBusinessPlatformConfig | null> {
+  if (!(await isPlatformIntegrationEnabledAdmin("google_business"))) {
+    return null;
+  }
+  return getGoogleBusinessPlatformSecretsAdmin();
 }
 
 export function googleBusinessOAuthCallbackUrl(req: Request): string {

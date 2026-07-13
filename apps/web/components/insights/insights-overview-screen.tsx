@@ -5,9 +5,11 @@ import {
   CalendarDays,
   Link2,
   MessageCircle,
+  Newspaper,
   Star,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AppleGlyph } from "@/components/icons/apple-glyph";
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
@@ -53,6 +55,7 @@ function PlatformGlyph({
   if (id === "google_business") return <GoogleGlyph className={className} />;
   if (id === "facebook") return <FacebookGlyph className={className} />;
   if (id === "instagram") return <InstagramGlyph className={className} />;
+  if (id === "apple_business_connect") return <AppleGlyph className={className} />;
   return <TripadvisorGlyph className={className} />;
 }
 
@@ -146,6 +149,7 @@ export function InsightsOverviewScreen() {
   const reservations = data?.gwada.reservations;
   const reviews = data?.gwada.reviews;
   const messages = data?.gwada.messages;
+  const news = data?.gwada.news;
 
   return (
     <div className="space-y-6">
@@ -250,7 +254,7 @@ export function InsightsOverviewScreen() {
       </div>
 
       <section aria-label="Gwada-Kennzahlen">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             label="Reservierungen"
             value={String(reservations?.count ?? 0)}
@@ -262,7 +266,7 @@ export function InsightsOverviewScreen() {
             value={String(reviews?.count ?? 0)}
             hint={
               reviews?.avgRating != null
-                ? `Ø ${formatReviewRating(reviews.avgRating)} Sterne`
+                ? `Ø ${formatReviewRating(reviews.avgRating)} Sterne (alle Plattformen)`
                 : "Keine Bewertungen im Zeitraum"
             }
             icon={Star}
@@ -272,6 +276,16 @@ export function InsightsOverviewScreen() {
             value={String(messages?.inbound ?? 0)}
             hint="WhatsApp, E-Mail, Social"
             icon={MessageCircle}
+          />
+          <KpiCard
+            label="News-Beiträge"
+            value={String(news?.published ?? 0)}
+            hint={
+              (news?.likes ?? 0) + (news?.comments ?? 0) > 0
+                ? `${news?.likes ?? 0} Likes · ${news?.comments ?? 0} Kommentare`
+                : "Veröffentlicht im Zeitraum"
+            }
+            icon={Newspaper}
           />
         </div>
       </section>
@@ -283,16 +297,24 @@ export function InsightsOverviewScreen() {
               Plattformen
             </h2>
             <p className="text-xs text-muted-foreground">
-              Verbindungsstatus und geplante Profil-Insights
+              Verbindungsstatus und verfügbare Kennzahlen
             </p>
           </div>
-          <Link
-            href={APP_ROUTES.settings.integrations}
-            className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
-          >
-            <Link2 className="size-3.5" aria-hidden />
-            Integrationen verwalten
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href={APP_ROUTES.insights.statistics}
+              className="inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+            >
+              Statistiken
+            </Link>
+            <Link
+              href={APP_ROUTES.settings.integrations}
+              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-accent hover:underline"
+            >
+              <Link2 className="size-3.5" aria-hidden />
+              Integrationen
+            </Link>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
@@ -330,10 +352,24 @@ export function InsightsOverviewScreen() {
                     </span>
                     {platform.insightsAvailable ? (
                       <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
-                        Insights vorbereitet
+                        Daten verfügbar
                       </span>
                     ) : null}
                   </div>
+                  {platform.metrics.length > 0 ? (
+                    <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                      {platform.metrics.map((metric) => (
+                        <div key={metric.label} className="min-w-0">
+                          <dt className="text-[10px] text-muted-foreground">
+                            {metric.label}
+                          </dt>
+                          <dd className="text-sm font-medium tabular-nums">
+                            {metric.value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  ) : null}
                   <p className="mt-1 text-xs text-muted-foreground">
                     {platform.hint}
                   </p>

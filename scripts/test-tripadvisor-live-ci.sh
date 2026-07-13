@@ -93,8 +93,8 @@ terra_get() {
 }
 
 echo ""
-echo "--- GET /allowlist?version=v1 ---"
-ALLOW_GET="$(terra_get "/allowlist?version=v1")"
+echo "--- GET /allowlist?version=1 ---"
+ALLOW_GET="$(terra_get "/allowlist?version=1")"
 echo "${ALLOW_GET}" | sed '$d' | head -c 400
 echo ""
 echo "${ALLOW_GET}" | tail -1
@@ -103,7 +103,7 @@ echo ""
 echo "--- POST /allowlist (APPEND, Terra-Schema) ---"
 ALLOW_POST_CODE="$(
   curl -sS -o /tmp/ta-allow-post.json -w "%{http_code}" \
-    -X POST "https://terra.tripadvisor.com/api/allowlist?version=v1" \
+    -X POST "https://terra.tripadvisor.com/api/allowlist?version=1" \
     -H "Accept: application/json" \
     -H "Content-Type: application/json" \
     -H "X-API-Key: ${API_KEY}" \
@@ -114,8 +114,8 @@ head -c 400 /tmp/ta-allow-post.json || true
 echo ""
 
 echo ""
-echo "--- GET /locations/${TEST_LOCATION}?version=1&locale=de ---"
-LOC_GET="$(terra_get "/locations/${TEST_LOCATION}?version=1&locale=de")"
+echo "--- GET /locations/${TEST_LOCATION}?version=1&locale=de-DE ---"
+LOC_GET="$(terra_get "/locations/${TEST_LOCATION}?version=1&locale=de-DE")"
 echo "${LOC_GET}" | sed '$d' | head -c 500
 echo ""
 LOC_CODE="$(echo "${LOC_GET}" | tail -1 | sed 's/HTTP://')"
@@ -128,6 +128,13 @@ echo "${CAT_GET}" | sed '$d' | head -c 500
 echo ""
 CAT_CODE="$(echo "${CAT_GET}" | tail -1 | sed 's/HTTP://')"
 echo "${CAT_GET}" | tail -1
+
+echo ""
+echo "--- GET /locations/${TEST_LOCATION}/reviews?version=1&language=de&page=1&size=5 ---"
+REV_GET="$(terra_get "/locations/${TEST_LOCATION}/reviews?version=1&language=de&page=1&size=5")"
+echo "${REV_GET}" | sed '$d' | head -c 400
+echo ""
+echo "${REV_GET}" | tail -1
 
 if [[ "${ALLOW_POST_CODE}" != "200" && "${LOC_CODE}" != "200" && "${CAT_CODE}" != "200" ]]; then
   echo "::error::Alle Terra-Tests fehlgeschlagen (allowlist=${ALLOW_POST_CODE}, location=${LOC_CODE}, catalog=${CAT_CODE})"

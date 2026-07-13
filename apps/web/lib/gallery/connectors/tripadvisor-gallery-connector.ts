@@ -6,7 +6,7 @@ import {
   ensureTripadvisorAllowlistLocation,
   fetchTripadvisorApi,
   getTripadvisorLocationIdForRestaurant,
-  TRIPADVISOR_DEFAULT_LANGUAGE,
+  TRIPADVISOR_DEFAULT_LOCALE,
 } from "@/lib/integrations/tripadvisor-api-client";
 
 const CAPABILITIES = {
@@ -140,17 +140,17 @@ export const tripadvisorGalleryConnector: GalleryPlatformConnector = {
     if ("error" in auth) return { error: auth.error };
 
     const allowlist = await ensureTripadvisorAllowlistLocation(auth.locationId);
-    if ("error" in allowlist) return { error: allowlist.error };
+    void allowlist;
 
     const items: UnifiedGalleryItem[] = [];
 
     for (let page = 1; page <= TRIPADVISOR_PHOTOS_MAX_PAGES; page++) {
       const result = await fetchTripadvisorApi<TripadvisorPhotosResponse>({
         path: `/locations/${encodeURIComponent(auth.locationId)}/photos`,
+        locales: [TRIPADVISOR_DEFAULT_LOCALE],
         searchParams: {
           page,
           size: TRIPADVISOR_PHOTOS_PAGE_SIZE,
-          locale: TRIPADVISOR_DEFAULT_LANGUAGE,
         },
       });
       if ("error" in result) {

@@ -9,13 +9,16 @@ export const TRIPADVISOR_TERRA_API_BASE = "https://terra.tripadvisor.com/api";
 
 export const TRIPADVISOR_API_VERSION = "1";
 
+/** Faktische Locales (Location/Photos) — siehe Terra locales-Doku. */
+export const TRIPADVISOR_DEFAULT_LOCALE = "de-DE";
+
+/** UGC-Sprache für Reviews. */
 export const TRIPADVISOR_DEFAULT_LANGUAGE = "de";
 
 type TripadvisorFetchOptions = {
   path: string;
   searchParams?: Record<string, string | number | undefined>;
-  /** Allowlist-Endpoints nutzen version=v1 statt version=1 */
-  allowlist?: boolean;
+  locales?: string[];
 };
 
 type TerraProblemBody = {
@@ -40,7 +43,11 @@ async function tripadvisorFetch(
   options: TripadvisorFetchOptions,
 ): Promise<Response> {
   const url = new URL(`${TRIPADVISOR_TERRA_API_BASE}${options.path}`);
-  url.searchParams.set("version", options.allowlist ? "v1" : TRIPADVISOR_API_VERSION);
+  url.searchParams.set("version", TRIPADVISOR_API_VERSION);
+
+  for (const locale of options.locales ?? []) {
+    if (locale) url.searchParams.append("locale", locale);
+  }
 
   for (const [key, value] of Object.entries(options.searchParams ?? {})) {
     if (value === undefined || value === "") continue;
@@ -92,7 +99,7 @@ export async function appendTripadvisorAllowlistLocations(
   if (!platform.enabled) return { error: "tripadvisor_disabled" };
   if (!platform.apiKey) return { error: "tripadvisor_api_key_missing" };
 
-  const postRes = await fetch(`${TRIPADVISOR_TERRA_API_BASE}/allowlist?version=v1`, {
+  const postRes = await fetch(`${TRIPADVISOR_TERRA_API_BASE}/allowlist?version=1`, {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -214,7 +221,7 @@ export async function fetchTripadvisorLocationDetails(
 
   const result = await fetchTripadvisorApi<TerraLocationRaw>({
     path: `/locations/${encodeURIComponent(locationId)}`,
-    searchParams: { locale: TRIPADVISOR_DEFAULT_LANGUAGE },
+    locales: [TRIPADVISOR_DEFAULT_LOCALE],
   });
   if (!("error" in result)) {
     return { location: normalizeLocationDetails(result.data) };

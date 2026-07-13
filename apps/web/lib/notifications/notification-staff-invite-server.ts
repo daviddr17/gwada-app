@@ -107,6 +107,13 @@ export async function loadStaffInviteResponseNotificationItems(
       typeof payload.positionName === "string" ? payload.positionName.trim() : "";
     const actor = actorDisplayName(payload);
 
+    const staffId =
+      typeof payload.staffId === "string" ? payload.staffId.trim() : "";
+    const href =
+      staffId.length > 0
+        ? `${def.href}?staff=${encodeURIComponent(staffId)}`
+        : def.href;
+
     return {
       id: row.reference_id,
       title:
@@ -116,12 +123,11 @@ export async function loadStaffInviteResponseNotificationItems(
       subtitle: positionName
         ? `${actor} · ${staffName} · ${positionName}`
         : `${actor} · ${staffName}`,
-      href: def.href,
+      href,
       at: row.created_at,
       meta: {
         inviteId: row.reference_id,
-        staffId:
-          typeof payload.staffId === "string" ? payload.staffId : "",
+        staffId,
       },
     };
   });

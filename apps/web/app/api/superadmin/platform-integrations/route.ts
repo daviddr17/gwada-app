@@ -17,6 +17,7 @@ const KEYS = new Set<string>([
   "weather",
   "fiskaly",
   "lexoffice",
+  "tripadvisor",
 ]);
 
 function isKey(k: string): k is PlatformIntegrationKey {

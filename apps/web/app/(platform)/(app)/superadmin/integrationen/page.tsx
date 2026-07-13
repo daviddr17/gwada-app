@@ -11,6 +11,7 @@ import { IntegrationProviderCard } from "@/components/superadmin/integration-pro
 import { PlatformEmailSmtpCard } from "@/components/superadmin/platform-email-smtp-card";
 import { PlatformFiskalyFeatureCard } from "@/components/superadmin/platform-fiskaly-feature-card";
 import { PlatformLexofficeFeatureCard } from "@/components/superadmin/platform-lexoffice-feature-card";
+import { PlatformTripadvisorFeatureCard } from "@/components/superadmin/platform-tripadvisor-feature-card";
 import { PlatformWeatherFeatureCard } from "@/components/superadmin/platform-weather-feature-card";
 import { PlatformWhatsappFeatureCard } from "@/components/superadmin/platform-whatsapp-feature-card";
 import { Button } from "@/components/ui/button";
@@ -106,6 +107,7 @@ const EMPTY_PLATFORM_ROW: Record<PlatformIntegrationKey, PlatformIntegrationRow>
   weather: { key: "weather", enabled: false, config: {}, updated_at: "" },
   fiskaly: { key: "fiskaly", enabled: false, config: { env: "TEST" }, updated_at: "" },
   lexoffice: { key: "lexoffice", enabled: false, config: {}, updated_at: "" },
+  tripadvisor: { key: "tripadvisor", enabled: false, config: {}, updated_at: "" },
 };
 
 function SuperadminIntegrationsContent() {
@@ -188,6 +190,12 @@ function SuperadminIntegrationsContent() {
         </p>
       ) : (
         <div className="space-y-4">
+          <PlatformTripadvisorFeatureCard
+            row={byKey.get("tripadvisor") ?? EMPTY_PLATFORM_ROW.tripadvisor}
+            onSaved={() => void load()}
+            connection={healthMap.tripadvisor}
+            connectionChecking={healthLoading}
+          />
           <PlatformLexofficeFeatureCard
             row={byKey.get("lexoffice") ?? EMPTY_PLATFORM_ROW.lexoffice}
             onSaved={() => void load()}

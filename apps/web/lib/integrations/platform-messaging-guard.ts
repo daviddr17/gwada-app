@@ -60,3 +60,13 @@ export async function assertPlatformLexofficeEnabled(
   }
   return { ok: true };
 }
+
+export async function assertPlatformTripadvisorEnabled(
+  sb: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const flags = await fetchPlatformMessagingFlags(sb);
+  if (!flags.tripadvisorEnabled) {
+    return { ok: false, error: "tripadvisor_disabled" };
+  }
+  return { ok: true };
+}

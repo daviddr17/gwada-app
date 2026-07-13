@@ -33,6 +33,7 @@ const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   weather: "Wetter",
   fiskaly: "Fiskaly",
   lexoffice: "Lexoffice",
+  tripadvisor: "TripAdvisor",
 };
 
 type PlatformAlert = {

@@ -11,6 +11,10 @@ import {
   weatherConfigFromJson,
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
+import {
+  tripadvisorConfigFromJson,
+  tripadvisorConfigToUi,
+} from "@/lib/integrations/platform-tripadvisor-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 /** Antwort für Superadmin-UI — niemals Klartext-Secrets. */
@@ -26,6 +30,10 @@ export function platformIntegrationConfigForUi(
 
   if (key === "weather") {
     return weatherConfigToUi(weatherConfigFromJson(raw));
+  }
+
+  if (key === "tripadvisor") {
+    return tripadvisorConfigToUi(tripadvisorConfigFromJson(raw));
   }
 
   if (key === "fiskaly") {

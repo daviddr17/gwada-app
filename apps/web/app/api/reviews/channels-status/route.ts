@@ -17,7 +17,9 @@ export async function GET(req: Request) {
   return Response.json({
     googleConnected: state.googleConnected,
     facebookConnected: state.facebookConnected,
+    tripadvisorConnected: state.tripadvisorConnected,
     googleVisible: state.googleVisible,
     facebookVisible: state.facebookVisible,
+    tripadvisorVisible: state.tripadvisorVisible,
   });
 }

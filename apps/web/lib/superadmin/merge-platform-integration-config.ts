@@ -14,6 +14,10 @@ import {
   mergeWeatherApiKey,
   weatherConfigFromJson,
 } from "@/lib/integrations/platform-weather-config";
+import {
+  mergeTripadvisorApiKey,
+  tripadvisorConfigFromJson,
+} from "@/lib/integrations/platform-tripadvisor-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 export function mergePlatformIntegrationConfig(
@@ -54,6 +58,15 @@ export function mergePlatformIntegrationConfig(
       typeof incoming.api_key === "string" ? incoming.api_key : undefined;
     merged.api_key = mergeWeatherApiKey(incKey, ex);
     delete merged.visual_crossing_api_key;
+    return merged;
+  }
+
+  if (key === "tripadvisor") {
+    const ex = tripadvisorConfigFromJson(existing);
+    const incKey =
+      typeof incoming.api_key === "string" ? incoming.api_key : undefined;
+    merged.api_key = mergeTripadvisorApiKey(incKey, ex);
+    delete merged.tripadvisor_api_key;
     return merged;
   }
 

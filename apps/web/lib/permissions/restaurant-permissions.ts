@@ -31,6 +31,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.instagram",
   "integrations.google_business",
   "integrations.lexoffice",
+  "integrations.tripadvisor",
   "settings.restaurant",
   "settings.opening_hours",
   "settings.branding",
@@ -176,6 +177,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "integrations.lexoffice",
       label: "Lexware Office",
       description: "Lexware Office (Lexoffice) per API-Key verbinden.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.tripadvisor",
+      label: "TripAdvisor",
+      description: "TripAdvisor-Profil per Location-ID verknüpfen.",
       group: "integrationen",
     },
     {

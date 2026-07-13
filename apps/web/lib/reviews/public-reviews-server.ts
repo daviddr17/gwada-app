@@ -27,6 +27,7 @@ import { DEFAULT_ACCENT_HEX } from "@/lib/theme/constants";
 import { normalizeHex } from "@/lib/theme/color-utils";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
+import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type PublicEmbedReview = {
@@ -168,24 +169,30 @@ async function loadConnectedPlatformReviewsUncached(
     };
   });
 
-  const [googleIntegration, facebookIntegration, cachedFeed] = await Promise.all([
+  const [googleIntegration, facebookIntegration, tripadvisorIntegration, cachedFeed] =
+    await Promise.all([
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
       oauthConfigFromJson(raw),
     ),
     fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
       oauthConfigFromJson(raw),
     ),
-    readReviewsFeedFromCache(restaurantId, admin, ["google", "facebook"]),
+    fetchRestaurantTripadvisorConfigAdmin(restaurantId),
+    readReviewsFeedFromCache(restaurantId, admin, ["google", "facebook", "tripadvisor"]),
   ]);
 
-  void triggerReviewsFeedSyncIfStale(restaurantId, ["google", "facebook"]);
+  void triggerReviewsFeedSyncIfStale(restaurantId, ["google", "facebook", "tripadvisor"]);
 
   const googleConnected = googleIntegration?.status === "working";
   const facebookConnected = facebookIntegration?.status === "working";
+  const tripadvisorConnected = tripadvisorIntegration?.status === "working";
 
   const googleReviews = cachedFeed.reviews.filter((r) => r.platform === "google");
   const facebookReviews = cachedFeed.reviews.filter(
     (r) => r.platform === "facebook",
+  );
+  const tripadvisorReviews = cachedFeed.reviews.filter(
+    (r) => r.platform === "tripadvisor",
   );
 
   const googleOk =
@@ -194,12 +201,21 @@ async function loadConnectedPlatformReviewsUncached(
   const facebookOk =
     facebookConnected &&
     (facebookReviews.length > 0 || !cachedFeed.sync.platformErrors.facebook);
+  const tripadvisorOk =
+    tripadvisorConnected &&
+    (tripadvisorReviews.length > 0 || !cachedFeed.sync.platformErrors.tripadvisor);
 
   const connectedPlatforms: ReviewPlatform[] = ["gwada"];
   if (googleOk) connectedPlatforms.push("google");
   if (facebookOk) connectedPlatforms.push("facebook");
+  if (tripadvisorOk) connectedPlatforms.push("tripadvisor");
 
-  const reviews = [...gwadaReviews, ...googleReviews, ...facebookReviews].sort(
+  const reviews = [
+    ...gwadaReviews,
+    ...googleReviews,
+    ...facebookReviews,
+    ...tripadvisorReviews,
+  ].sort(
     (a, b) => {
       const pinDiff = Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned));
       if (pinDiff !== 0) return pinDiff;

@@ -1,4 +1,4 @@
-export const REVIEW_PLATFORMS = ["gwada", "google", "facebook"] as const;
+export const REVIEW_PLATFORMS = ["gwada", "google", "facebook", "tripadvisor"] as const;
 
 export type ReviewPlatform = (typeof REVIEW_PLATFORMS)[number];
 
@@ -6,6 +6,7 @@ export const REVIEW_PLATFORM_LABELS: Record<ReviewPlatform, string> = {
   gwada: "Gwada",
   google: "Google",
   facebook: "Facebook",
+  tripadvisor: "TripAdvisor",
 };
 
 /** Reihenfolge in der Bewertungen-Übersicht (Gwada zuerst). */

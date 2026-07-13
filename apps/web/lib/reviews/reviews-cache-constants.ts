@@ -4,6 +4,7 @@ import type { ReviewPlatform } from "@/lib/constants/review-platforms";
 export const REVIEWS_CACHEABLE_PLATFORMS = [
   "google",
   "facebook",
+  "tripadvisor",
 ] as const satisfies readonly ReviewPlatform[];
 
 export type ReviewsCacheablePlatform = (typeof REVIEWS_CACHEABLE_PLATFORMS)[number];

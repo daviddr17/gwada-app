@@ -13,6 +13,7 @@ import {
 } from "@/lib/reviews/reviews-cache-db";
 import { fetchFacebookReviewsForRestaurant } from "@/lib/reviews/facebook-reviews-api";
 import { fetchGoogleReviewsForRestaurant } from "@/lib/reviews/google-reviews-api";
+import { fetchTripadvisorReviewsForRestaurant } from "@/lib/reviews/tripadvisor-reviews-api";
 import { GOOGLE_REVIEWS_PAGE_SIZE } from "@/lib/reviews/google-reviews-pagination";
 import { isReviewsPlatformConnected, isReviewsCacheablePlatformEnabledBySuperadmin } from "@/lib/reviews/reviews-platform-connected-server";
 import { fetchReviewPlatformMessagingFlags } from "@/lib/reviews/reviews-platform-availability-server";
@@ -66,6 +67,14 @@ async function fetchReviewsForPlatform(
 > {
   if (platform === "google") {
     return fetchAllGoogleReviewsForSync(restaurantId);
+  }
+  if (platform === "tripadvisor") {
+    const result = await fetchTripadvisorReviewsForRestaurant(restaurantId);
+    if ("error" in result) return result;
+    return {
+      reviews: result.reviews,
+      meta: { totalReviewCount: result.meta.totalReviewCount },
+    };
   }
   const result = await fetchFacebookReviewsForRestaurant(restaurantId);
   if ("error" in result) return result;

@@ -6,6 +6,7 @@ import { FacebookIntegrationCard } from "@/components/settings/facebook-integrat
 import { GoogleBusinessIntegrationCard } from "@/components/settings/google-business-integration-card";
 import { LexofficeIntegrationCard } from "@/components/settings/lexoffice-integration-card";
 import { InstagramIntegrationCard } from "@/components/settings/instagram-integration-card";
+import { TripadvisorIntegrationCard } from "@/components/settings/tripadvisor-integration-card";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import {
   SettingsIntegrationSaveProvider,
@@ -32,6 +33,7 @@ function IntegrationenContent({
     instagramEnabled,
     googleBusinessEnabled,
     lexofficeEnabled,
+    tripadvisorEnabled,
     loading,
   } = usePlatformMessagingFlags(initialPlatformFlags);
   const { dirty, saving, saveAll } = useSettingsIntegrationSave();
@@ -55,7 +57,8 @@ function IntegrationenContent({
     facebookEnabled ||
     instagramEnabled ||
     googleBusinessEnabled ||
-    lexofficeEnabled;
+    lexofficeEnabled ||
+    tripadvisorEnabled;
 
   if (!anyEnabled) {
     return (
@@ -88,9 +91,10 @@ function IntegrationenContent({
           <EmailIntegrationCard key={emailReload} onSaved={onEmailSaved} />
         ) : null}
         {lexofficeEnabled ? <LexofficeIntegrationCard /> : null}
+        {tripadvisorEnabled ? <TripadvisorIntegrationCard /> : null}
       </div>
 
-      {emailEnabled || lexofficeEnabled ? (
+      {emailEnabled || lexofficeEnabled || tripadvisorEnabled ? (
         <SettingsStickySaveBar show={dirty}>
           <Button
             type="button"

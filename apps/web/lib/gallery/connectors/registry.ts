@@ -5,6 +5,7 @@ import { facebookGalleryConnector } from "@/lib/gallery/connectors/facebook-gall
 import { googleBusinessGalleryConnector } from "@/lib/gallery/connectors/google-business-gallery-connector";
 import { gwadaGalleryConnector } from "@/lib/gallery/connectors/gwada-gallery-connector";
 import { instagramGalleryConnector } from "@/lib/gallery/connectors/instagram-gallery-connector";
+import { tripadvisorGalleryConnector } from "@/lib/gallery/connectors/tripadvisor-gallery-connector";
 import type { GalleryPlatformConnector } from "@/lib/gallery/connectors/types";
 import type { GalleryConnectorPublicInfo } from "@/lib/types/gallery-connectors";
 import {
@@ -22,6 +23,7 @@ const CONNECTORS: Record<GalleryPlatform, GalleryPlatformConnector> = {
   facebook: facebookGalleryConnector,
   instagram: instagramGalleryConnector,
   google_business: googleBusinessGalleryConnector,
+  tripadvisor: tripadvisorGalleryConnector,
 };
 
 export function getGalleryConnector(
@@ -48,6 +50,7 @@ export async function getGalleryConnectorPublicInfo(
         instagramEnabled: false,
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
+        tripadvisorEnabled: false,
       };
 
   const platforms = Object.keys(CONNECTORS) as GalleryPlatform[];

@@ -8,7 +8,9 @@ import {
 import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
 import {
   formatInsightCount,
+  type FacebookPagePlatformInsights,
   type GoogleBusinessPlatformInsights,
+  type InstagramAccountPlatformInsights,
 } from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import { readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
@@ -56,6 +58,8 @@ export type InsightsOverviewPayload = {
   };
   /** Google Business Performance (Aufrufe, Anrufe, Interaktionen, …). */
   google: GoogleBusinessPlatformInsights;
+  facebook: FacebookPagePlatformInsights;
+  instagram: InstagramAccountPlatformInsights;
   platforms: InsightsPlatformCard[];
 };
 
@@ -265,6 +269,8 @@ async function platformCards(
 ): Promise<{
   cards: InsightsPlatformCard[];
   google: GoogleBusinessPlatformInsights;
+  facebook: FacebookPagePlatformInsights;
+  instagram: InstagramAccountPlatformInsights;
 }> {
   const flags = await fetchPlatformMessagingFlags(sb);
   const admin = createSupabaseAdminClient();
@@ -465,7 +471,7 @@ async function platformCards(
     },
   ].filter((card) => card.enabled);
 
-  return { cards, google };
+  return { cards, google, facebook, instagram };
 }
 
 export async function fetchInsightsOverview(
@@ -513,6 +519,8 @@ export async function fetchInsightsOverview(
       news,
     },
     google: platformBundle.google,
+    facebook: platformBundle.facebook,
+    instagram: platformBundle.instagram,
     platforms: platformBundle.cards,
   };
 }

@@ -19,6 +19,7 @@ import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email
 import { testFiskalyAuth } from "@/lib/pos/fiskaly-auth";
 import { fetchPlatformFiskalyConfigAdmin } from "@/lib/supabase/platform-fiskaly-secrets-db";
 import { fetchTripadvisorApi } from "@/lib/integrations/tripadvisor-api-client";
+import { tripadvisorErrorMessageForUser } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { fetchPlatformTripadvisorConfigAdmin } from "@/lib/supabase/platform-tripadvisor-secrets-db";
 import { fetchPlatformWeatherConfigAdmin } from "@/lib/supabase/platform-weather-secrets-db";
 import { fetchPlatformWhatsappWahaConfigAdmin } from "@/lib/supabase/platform-whatsapp-secrets-db";
@@ -80,8 +81,13 @@ async function checkTripadvisorConnection(): Promise<SuperadminIntegrationConnec
   try {
     const { latencyMs } = await timed(async () => {
       const result = await fetchTripadvisorApi({ path: "/allowlist" });
-      if ("error" in result && (result.status === 401 || result.status === 403)) {
-        throw new Error(result.error);
+      if ("error" in result) {
+        if (result.status === 429) {
+          throw new Error(tripadvisorErrorMessageForUser(result.error, result.status));
+        }
+        if (result.status === 401 || result.status === 403) {
+          throw new Error(tripadvisorErrorMessageForUser(result.error, result.status));
+        }
       }
     });
     return health("ok", "Terra API antwortet.", latencyMs);

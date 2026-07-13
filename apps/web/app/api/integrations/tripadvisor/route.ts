@@ -1,4 +1,8 @@
-import { fetchTripadvisorLocationDetails } from "@/lib/integrations/tripadvisor-api-client";
+import {
+  ensureTripadvisorAllowlistLocation,
+  verifyTripadvisorLocationConnection,
+} from "@/lib/integrations/tripadvisor-api-client";
+import { tripadvisorErrorMessageForUser } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { assertPlatformTripadvisorEnabled } from "@/lib/integrations/platform-messaging-guard";
 import {
   fetchRestaurantTripadvisorConfigAdmin,
@@ -79,7 +83,7 @@ export async function POST(req: Request) {
   }
 
   const existing = await fetchRestaurantTripadvisorConfigAdmin(restaurantId);
-  const details = await fetchTripadvisorLocationDetails(locationId);
+  const details = await verifyTripadvisorLocationConnection(locationId);
   if ("error" in details) {
     const { error } = await upsertRestaurantTripadvisorIntegration(
       auth.sb,
@@ -98,10 +102,17 @@ export async function POST(req: Request) {
     if (error) {
       return Response.json({ error }, { status: 500 });
     }
-    return Response.json({ error: details.error }, { status: 400 });
+    return Response.json(
+      {
+        error: tripadvisorErrorMessageForUser(details.error, details.status),
+        code: details.error,
+      },
+      { status: details.status === 429 ? 429 : 400 },
+    );
   }
 
   const locationName = details.location.name?.trim() || null;
+  void ensureTripadvisorAllowlistLocation(locationId);
   const { error } = await upsertRestaurantTripadvisorIntegration(auth.sb, restaurantId, {
     status: "working",
     display_name: locationName,

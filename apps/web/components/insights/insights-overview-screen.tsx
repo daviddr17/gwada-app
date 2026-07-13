@@ -297,7 +297,7 @@ export function InsightsOverviewScreen() {
               Plattformen
             </h2>
             <p className="text-xs text-muted-foreground">
-              Verbindungsstatus und verfügbare Kennzahlen
+              Live-Kennzahlen pro Kanal — Charts unter Insights → Statistiken
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">

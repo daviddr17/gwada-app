@@ -30,11 +30,18 @@ type MetaInsightRow = {
 
 type MetaInsightsResponse = {
   data?: MetaInsightRow[];
+  error?: { message?: string; code?: number };
 };
 
+/**
+ * Aktuelle Page-Insights-Metriken (nach Meta-Deprecation Nov 2025):
+ * page_impressions → page_media_view
+ * page_impressions_unique → page_total_media_view_unique
+ * page_fans → page_follows
+ */
 const FACEBOOK_DAY_METRICS = [
-  "page_impressions",
-  "page_impressions_unique",
+  "page_media_view",
+  "page_total_media_view_unique",
   "page_post_engagements",
   "page_views_total",
 ] as const;
@@ -65,12 +72,75 @@ function seriesFromMetaValues(
 
 function unixSeconds(ymd: string, endOfDay = false): number {
   const [y, m, d] = ymd.split("-").map(Number);
-  const date = new Date(y, m - 1, d, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0);
+  const date = new Date(
+    y,
+    m - 1,
+    d,
+    endOfDay ? 23 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 59 : 0,
+  );
   return Math.floor(date.getTime() / 1000);
 }
 
-function looksLikeMissingInsightsScope(error: string): boolean {
-  return /read_insights|#10|#200|permission|권한|scope/i.test(error);
+function isPermissionError(error: string): boolean {
+  return /(#10)|(#200)|(permission)|(oauth)|(access token does not)|(not authorized)|(missing.*permission)|(scope)/i.test(
+    error,
+  );
+}
+
+function isInvalidMetricError(error: string): boolean {
+  return /(invalid metric)|(unknown metric)|(does not exist|unsupported metric)/i.test(
+    error,
+  );
+}
+
+async function fetchInsightsBundle(params: {
+  pageId: string;
+  token: string;
+  metrics: readonly string[];
+  since: number;
+  until: number;
+}): Promise<{ rows: MetaInsightRow[]; error: string | null }> {
+  const dayParams = new URLSearchParams({
+    access_token: params.token,
+    metric: params.metrics.join(","),
+    period: "day",
+    since: String(params.since),
+    until: String(params.until),
+  });
+  const result = await metaGraphGet<MetaInsightsResponse>(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/insights?${dayParams}`,
+    { platform: "facebook", feature: "insights" },
+  );
+  if (result.error) return { rows: [], error: result.error };
+  return { rows: result.data?.data ?? [], error: null };
+}
+
+/** Einzelmetriken nacheinander — ein ungültiger Name killt sonst den ganzen Batch. */
+async function fetchInsightsIndividually(params: {
+  pageId: string;
+  token: string;
+  metrics: readonly string[];
+  since: number;
+  until: number;
+}): Promise<{ rows: MetaInsightRow[]; errors: string[] }> {
+  const rows: MetaInsightRow[] = [];
+  const errors: string[] = [];
+  for (const metric of params.metrics) {
+    const result = await fetchInsightsBundle({
+      ...params,
+      metrics: [metric],
+    });
+    if (result.error) {
+      if (!isInvalidMetricError(result.error)) {
+        errors.push(result.error);
+      }
+      continue;
+    }
+    rows.push(...result.rows);
+  }
+  return { rows, errors };
 }
 
 export async function fetchFacebookPagePlatformInsights(params: {
@@ -97,52 +167,71 @@ export async function fetchFacebookPagePlatformInsights(params: {
   }
 
   const granted = row.config.granted_scopes ?? [];
-  const needsReconnect =
-    granted.length > 0 && !granted.includes("read_insights");
+  const hasReadInsights =
+    granted.length === 0 || granted.includes("read_insights");
 
   const since = unixSeconds(params.startYmd);
   const until = unixSeconds(params.endYmd, true);
 
-  const dayParams = new URLSearchParams({
-    access_token: token,
-    metric: FACEBOOK_DAY_METRICS.join(","),
-    period: "day",
-    since: String(since),
-    until: String(until),
+  let rows: MetaInsightRow[] = [];
+  let fetchError: string | null = null;
+
+  const batch = await fetchInsightsBundle({
+    pageId,
+    token,
+    metrics: FACEBOOK_DAY_METRICS,
+    since,
+    until,
   });
 
-  const dayResult = await metaGraphGet<MetaInsightsResponse>(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${pageId}/insights?${dayParams}`,
-    { platform: "facebook", feature: "insights" },
-  );
+  if (!batch.error) {
+    rows = batch.rows;
+  } else if (isInvalidMetricError(batch.error)) {
+    const individual = await fetchInsightsIndividually({
+      pageId,
+      token,
+      metrics: FACEBOOK_DAY_METRICS,
+      since,
+      until,
+    });
+    rows = individual.rows;
+    fetchError = individual.errors[0] ?? null;
+  } else {
+    fetchError = batch.error;
+  }
 
-  if (dayResult.error) {
+  if (fetchError && rows.length === 0) {
+    const permissionBlocked = isPermissionError(fetchError);
+    const needsAppReview = permissionBlocked && !hasReadInsights;
     return emptyFacebookInsights({
       connected: true,
-      needsReconnect: needsReconnect || looksLikeMissingInsightsScope(dayResult.error),
-      error: dayResult.error,
+      // Neu verbinden hilft nur, wenn der Scope noch gar nicht angefragt wurde.
+      // Ohne Meta App Review wird read_insights trotz Reconnect nicht erteilt.
+      needsReconnect: false,
+      error: needsAppReview
+        ? "facebook_insights_app_review"
+        : fetchError,
     });
   }
 
-  const rows = dayResult.data?.data ?? [];
-  const byName = new Map(rows.map((row) => [row.name ?? "", row]));
+  const byName = new Map(rows.map((entry) => [entry.name ?? "", entry]));
 
-  const impressionsSeries = seriesFromMetaValues(
-    "impressions",
-    "Impressionen",
-    byName.get("page_impressions")?.values,
+  const viewsSeries = seriesFromMetaValues(
+    "media_views",
+    "Media-Views",
+    byName.get("page_media_view")?.values,
   );
   const reachSeries = seriesFromMetaValues(
     "reach",
     "Reichweite",
-    byName.get("page_impressions_unique")?.values,
+    byName.get("page_total_media_view_unique")?.values,
   );
   const engagementSeries = seriesFromMetaValues(
     "engagements",
     "Beitrags-Interaktionen",
     byName.get("page_post_engagements")?.values,
   );
-  const viewsSeries = seriesFromMetaValues(
+  const pageViewsSeries = seriesFromMetaValues(
     "page_views",
     "Seitenaufrufe",
     byName.get("page_views_total")?.values,
@@ -151,7 +240,7 @@ export async function fetchFacebookPagePlatformInsights(params: {
   let fans: number | null = null;
   const fansParams = new URLSearchParams({
     access_token: token,
-    metric: "page_fans",
+    metric: "page_follows",
     period: "day",
   });
   const fansResult = await metaGraphGet<MetaInsightsResponse>(
@@ -167,25 +256,26 @@ export async function fetchFacebookPagePlatformInsights(params: {
   }
 
   const metrics = [
-    { key: "impressions", label: "Impressionen", value: impressionsSeries.total },
     { key: "reach", label: "Reichweite", value: reachSeries.total },
+    { key: "views", label: "Media-Views", value: viewsSeries.total },
     { key: "engagements", label: "Interaktionen", value: engagementSeries.total },
-    { key: "views", label: "Seitenaufrufe", value: viewsSeries.total },
-    ...(fans != null ? [{ key: "fans", label: "Fans", value: fans }] : []),
+    { key: "page_views", label: "Seitenaufrufe", value: pageViewsSeries.total },
+    ...(fans != null ? [{ key: "follows", label: "Follower", value: fans }] : []),
   ].filter((m) => m.value > 0);
 
   return {
     platform: "facebook",
     connected: true,
     available: metrics.length > 0,
-    error: null,
+    error: metrics.length === 0 ? fetchError : null,
     metrics,
-    series: [impressionsSeries, reachSeries, engagementSeries, viewsSeries],
-    impressions: impressionsSeries.total,
+    series: [reachSeries, viewsSeries, engagementSeries, pageViewsSeries],
+    // impressions-Feld = Media-Views (Nachfolger von page_impressions)
+    impressions: viewsSeries.total,
     reach: reachSeries.total,
     postEngagements: engagementSeries.total,
-    pageViews: viewsSeries.total,
+    pageViews: pageViewsSeries.total,
     fans,
-    needsReconnect,
+    needsReconnect: false,
   };
 }

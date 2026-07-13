@@ -80,14 +80,38 @@ function shiftAssignedProfileId(s: ShiftRow): string | null {
 }
 
 /**
- * Glocke: Zeitfenster-Erinnerungen zum Schichtplan — kein Self-Origin-Skip.
- * Wer die Schichten plant, soll sie ebenfalls in der Glocke sehen.
+ * Glocke-Filter für Schichtplan-Erinnerungen.
+ * - team: alle Schichten im Fenster (Mitarbeiter-Modul-Recht)
+ * - own: nur eigene zugewiesene Schichten (nur Staff-Profil)
+ * Self-Origin wird bewusst nicht angewandt (Zeitfenster-Erinnerung).
  */
 function filterShiftsForViewer(
   shifts: ShiftRow[],
   dismissed: Set<string>,
+  opts: {
+    scope: "team" | "own";
+    viewerStaffId: string | null;
+  },
 ): ShiftRow[] {
-  return shifts.filter((s) => !dismissed.has(s.id));
+  return shifts.filter((s) => {
+    if (dismissed.has(s.id)) return false;
+    if (opts.scope === "team") return true;
+    return Boolean(opts.viewerStaffId && s.staff_id === opts.viewerStaffId);
+  });
+}
+
+async function fetchViewerStaffId(
+  sb: SupabaseClient,
+  params: { restaurantId: string; profileId: string },
+): Promise<string | null> {
+  const { data } = await sb
+    .from("restaurant_staff")
+    .select("id")
+    .eq("restaurant_id", params.restaurantId)
+    .eq("profile_id", params.profileId)
+    .maybeSingle();
+
+  return (data as { id: string } | null)?.id ?? null;
 }
 
 async function fetchShiftsInRange(
@@ -165,13 +189,25 @@ function mapShiftToBellItem(
 
 export async function loadStaffShiftStartBellSummary(
   sb: SupabaseClient,
-  params: { restaurantId: string; userId: string; limit?: number },
+  params: {
+    restaurantId: string;
+    userId: string;
+    limit?: number;
+    /** team = Mitarbeiter-Modul; own = nur eigenes Staff-Profil */
+    scope?: "team" | "own";
+  },
 ): Promise<{ items: StaffShiftNotificationItem[]; totalCount: number }> {
   const now = Date.now();
+  const scope = params.scope ?? "own";
   const dismissed = await fetchDismissedShiftKeys(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
     kind: "start",
+  });
+
+  const viewerStaffId = await fetchViewerStaffId(sb, {
+    restaurantId: params.restaurantId,
+    profileId: params.userId,
   });
 
   const shifts = await fetchShiftsInRange(sb, {
@@ -180,7 +216,10 @@ export async function loadStaffShiftStartBellSummary(
     rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
   });
 
-  const active = filterShiftsForViewer(shifts, dismissed);
+  const active = filterShiftsForViewer(shifts, dismissed, {
+    scope,
+    viewerStaffId,
+  });
   const limit = params.limit ?? 5;
 
   return {
@@ -191,13 +230,24 @@ export async function loadStaffShiftStartBellSummary(
 
 export async function loadStaffShiftEndBellSummary(
   sb: SupabaseClient,
-  params: { restaurantId: string; userId: string; limit?: number },
+  params: {
+    restaurantId: string;
+    userId: string;
+    limit?: number;
+    scope?: "team" | "own";
+  },
 ): Promise<{ items: StaffShiftNotificationItem[]; totalCount: number }> {
   const now = Date.now();
+  const scope = params.scope ?? "own";
   const dismissed = await fetchDismissedShiftKeys(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
     kind: "end",
+  });
+
+  const viewerStaffId = await fetchViewerStaffId(sb, {
+    restaurantId: params.restaurantId,
+    profileId: params.userId,
   });
 
   const shifts = await fetchShiftsEndingInRange(sb, {
@@ -206,7 +256,10 @@ export async function loadStaffShiftEndBellSummary(
     rangeEndIso: new Date(now).toISOString(),
   });
 
-  const active = filterShiftsForViewer(shifts, dismissed);
+  const active = filterShiftsForViewer(shifts, dismissed, {
+    scope,
+    viewerStaffId,
+  });
   const limit = params.limit ?? 5;
 
   return {
@@ -386,13 +439,20 @@ export async function dismissAllStaffShiftNotifications(
     restaurantId: string;
     userId: string;
     kind: "start" | "end";
+    scope?: "team" | "own";
   },
 ): Promise<{ error: string | null }> {
   const now = Date.now();
+  const scope = params.scope ?? "own";
   const dismissed = await fetchDismissedShiftKeys(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
     kind: params.kind,
+  });
+
+  const viewerStaffId = await fetchViewerStaffId(sb, {
+    restaurantId: params.restaurantId,
+    profileId: params.userId,
   });
 
   const shifts =
@@ -408,7 +468,10 @@ export async function dismissAllStaffShiftNotifications(
           rangeEndIso: new Date(now).toISOString(),
         });
 
-  const activeIds = filterShiftsForViewer(shifts, dismissed).map((s) => s.id);
+  const activeIds = filterShiftsForViewer(shifts, dismissed, {
+    scope,
+    viewerStaffId,
+  }).map((s) => s.id);
 
   if (activeIds.length === 0) return { error: null };
 

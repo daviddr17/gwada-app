@@ -15,8 +15,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Test TripAdvisor Terra API (zurschlagd)
+      - name: Setup SSH
         env:
           LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: |
+          if [ -z "${LIVE_SSH_KEY}" ] || [ -z "${LIVE_VPS_HOST}" ]; then
+            echo "::error::LIVE_SSH_KEY / LIVE_VPS_HOST fehlen in GitHub Repository Secrets."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          printf '%s\n' "${LIVE_SSH_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${LIVE_VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes "root@${LIVE_VPS_HOST}" true
+
+      - name: Test TripAdvisor Terra API (zurschlagd)
+        env:
           LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
         run: bash scripts/test-tripadvisor-live-ci.sh

@@ -14,6 +14,7 @@ export function isReviewPlatformEnabledBySuperadmin(
   if (platform === "gwada") return true;
   if (platform === "google") return flags.googleBusinessEnabled;
   if (platform === "facebook") return flags.facebookEnabled;
+  if (platform === "tripadvisor") return flags.tripadvisorEnabled;
   return false;
 }
 
@@ -23,6 +24,7 @@ export function isReviewPlatformVisibleInDashboard(
     flags: PlatformMessagingFlags;
     googleConnected: boolean;
     facebookConnected: boolean;
+    tripadvisorConnected: boolean;
   },
 ): boolean {
   if (platform === "gwada") return true;
@@ -31,6 +33,7 @@ export function isReviewPlatformVisibleInDashboard(
   }
   if (platform === "google") return params.googleConnected;
   if (platform === "facebook") return params.facebookConnected;
+  if (platform === "tripadvisor") return params.tripadvisorConnected;
   return false;
 }
 

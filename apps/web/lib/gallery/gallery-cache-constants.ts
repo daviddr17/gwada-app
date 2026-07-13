@@ -7,6 +7,7 @@ export const GALLERY_CACHEABLE_PLATFORMS = [
   "facebook",
   "instagram",
   "google_business",
+  "tripadvisor",
 ] as const satisfies readonly GalleryPlatform[];
 
 export type GalleryCacheablePlatform = (typeof GALLERY_CACHEABLE_PLATFORMS)[number];

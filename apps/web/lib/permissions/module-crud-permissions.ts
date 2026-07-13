@@ -9,6 +9,7 @@ export const MODULE_CRUD_PREFIXES = [
   "news",
   "events",
   "reviews",
+  "insights",
   "documents",
   "staff",
   "staff_todos",
@@ -135,6 +136,13 @@ export const MODULE_CRUD_LABELS: Record<
     create: "Bewertungen: Anlegen",
     update: "Bewertungen: Bearbeiten",
     delete: "Bewertungen: Löschen",
+  },
+  insights: {
+    module: "Insights",
+    read: "Insights: Ansehen",
+    create: "Insights: Anlegen",
+    update: "Insights: Bearbeiten",
+    delete: "Insights: Löschen",
   },
   documents: {
     module: "Dokumente",

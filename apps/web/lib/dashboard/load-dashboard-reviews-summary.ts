@@ -17,6 +17,7 @@ import { averageRating } from "@/lib/reviews/review-stats";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 import { formatReviewCommentDisplay } from "@/lib/reviews/format-review-comment";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
+import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type DashboardReviewPlatformStat = {
@@ -51,6 +52,7 @@ const PLATFORM_HREF: Record<ReviewPlatform, string> = {
   gwada: "/dashboard/bewertungen/uebersicht?platform=gwada",
   google: "/dashboard/bewertungen/uebersicht?platform=google",
   facebook: "/dashboard/bewertungen/uebersicht?platform=facebook",
+  tripadvisor: "/dashboard/bewertungen/uebersicht?platform=tripadvisor",
 };
 
 function commentPreview(comment: string | null, max = 72): string | null {
@@ -123,7 +125,7 @@ export async function loadDashboardReviewsSummary(
     gwadaAll.map((r) => ({ rating: Number(r.rating) })),
   );
 
-  const [googleIntegration, facebookIntegration, cachedFeed, platformFlags] =
+  const [googleIntegration, facebookIntegration, tripadvisorIntegration, cachedFeed, platformFlags] =
     await Promise.all([
       fetchRestaurantOAuthIntegrationAdmin(restaurantId, "google_business", (raw) =>
         oauthConfigFromJson(raw),
@@ -131,12 +133,14 @@ export async function loadDashboardReviewsSummary(
       fetchRestaurantOAuthIntegrationAdmin(restaurantId, "facebook", (raw) =>
         oauthConfigFromJson(raw),
       ),
-      readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook"]),
+      fetchRestaurantTripadvisorConfigAdmin(restaurantId),
+      readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook", "tripadvisor"]),
       fetchReviewPlatformMessagingFlags(sb),
     ]);
 
   const googleIntegrationOk = googleIntegration?.status === "working";
   const facebookIntegrationOk = facebookIntegration?.status === "working";
+  const tripadvisorIntegrationOk = tripadvisorIntegration?.status === "working";
 
   const googleMeta = readPlatformSyncMeta(cachedFeed.syncRows, "google");
   const googleCached = cachedFeed.reviews.filter((r) => r.platform === "google");
@@ -167,10 +171,30 @@ export async function loadDashboardReviewsSummary(
   const facebookCount = facebookCached.length;
   const facebookAvg = facebookConnected ? averageRating(facebookCached) : null;
 
+  const tripadvisorMeta = readPlatformSyncMeta(cachedFeed.syncRows, "tripadvisor");
+  const tripadvisorCached = cachedFeed.reviews.filter(
+    (r) => r.platform === "tripadvisor",
+  );
+  const tripadvisorConnected =
+    tripadvisorIntegrationOk &&
+    (tripadvisorCached.length > 0 ||
+      typeof tripadvisorMeta.totalReviewCount === "number" ||
+      !cachedFeed.sync.platformErrors.tripadvisor);
+  const tripadvisorRecent = tripadvisorCached.slice(0, 8);
+  const tripadvisorCount =
+    typeof tripadvisorMeta.totalReviewCount === "number"
+      ? tripadvisorMeta.totalReviewCount
+      : tripadvisorCached.length;
+  const tripadvisorAvg =
+    typeof tripadvisorMeta.averageRating === "number"
+      ? tripadvisorMeta.averageRating
+      : averageRating(tripadvisorCached);
+
   const platformVisibility = {
     flags: platformFlags,
     googleConnected,
     facebookConnected,
+    tripadvisorConnected,
   };
 
   const mergedRecent = [
@@ -180,6 +204,9 @@ export async function loadDashboardReviewsSummary(
       : []),
     ...(isReviewPlatformVisibleInDashboard("facebook", platformVisibility)
       ? facebookRecent
+      : []),
+    ...(isReviewPlatformVisibleInDashboard("tripadvisor", platformVisibility)
+      ? tripadvisorRecent
       : []),
   ].sort(
     (a, b) =>
@@ -225,6 +252,14 @@ export async function loadDashboardReviewsSummary(
       count: facebookCount,
       average: facebookAvg,
       href: PLATFORM_HREF.facebook,
+    },
+    {
+      platform: "tripadvisor",
+      label: REVIEW_PLATFORM_LABELS.tripadvisor,
+      connected: tripadvisorConnected,
+      count: tripadvisorCount,
+      average: tripadvisorAvg,
+      href: PLATFORM_HREF.tripadvisor,
     },
   ];
 

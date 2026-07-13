@@ -4,6 +4,16 @@ export function integrationSyncErrorMessage(code: string): string {
       return "Google Business ist nicht verbunden.";
     case "facebook_not_connected":
       return "Facebook ist nicht verbunden.";
+    case "instagram_not_connected":
+      return "Instagram ist nicht verbunden.";
+    case "instagram_account_missing":
+      return "Kein Instagram-Business-Konto verknüpft — unter Integrationen verbinden.";
+    case "facebook_token_missing":
+      return "Facebook-Zugang fehlt — unter Integrationen erneut verbinden.";
+    case "restaurant_not_published":
+      return "Restaurant ist noch nicht veröffentlicht — zuerst unter Einstellungen veröffentlichen.";
+    case "restaurant_slug_missing":
+      return "Restaurant-Slug fehlt — unter Einstellungen → Restaurant pflegen.";
     case "google_location_missing":
     case "facebook_page_missing":
       return "Kein Standort bzw. keine Seite ausgewählt — unter Einstellungen → Integrationen verbinden.";

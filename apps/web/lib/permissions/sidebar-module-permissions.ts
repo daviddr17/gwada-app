@@ -14,6 +14,7 @@ const SIDEBAR_MODULE_CRUD_PREFIX: Record<SidebarModuleId, ModuleCrudPrefix | nul
     kontakte: "contacts",
     news: "news",
     bewertungen: "reviews",
+    insights: "insights",
     galerie: null,
     buchfuehrung: "accounting",
     dokumente: "documents",

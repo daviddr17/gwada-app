@@ -21,6 +21,8 @@ export async function GET() {
       instagramEnabled: flags.instagramEnabled,
       googleBusinessEnabled: flags.googleBusinessEnabled,
       lexofficeEnabled: flags.lexofficeEnabled,
+      tripadvisorEnabled: flags.tripadvisorEnabled,
+      appleBusinessConnectEnabled: flags.appleBusinessConnectEnabled,
     },
     {
       headers: {

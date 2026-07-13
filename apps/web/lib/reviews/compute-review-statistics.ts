@@ -21,6 +21,7 @@ const PLATFORM_COLORS: Record<ReviewPlatform, string> = {
   gwada: "var(--accent)",
   google: "var(--chart-1)",
   facebook: "var(--chart-2)",
+  tripadvisor: "var(--chart-3)",
 };
 
 const STAR_COLORS: Record<1 | 2 | 3 | 4 | 5, string> = {

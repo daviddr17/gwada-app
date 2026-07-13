@@ -3,6 +3,7 @@ export const GALLERY_PLATFORMS = [
   "facebook",
   "instagram",
   "google_business",
+  "tripadvisor",
 ] as const;
 
 export type GalleryPlatform = (typeof GALLERY_PLATFORMS)[number];
@@ -12,6 +13,7 @@ export const GALLERY_PLATFORM_LABELS: Record<GalleryPlatform, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   google_business: "Google",
+  tripadvisor: "TripAdvisor",
 };
 
 export const GALLERY_PLATFORM_ORDER: readonly GalleryPlatform[] =

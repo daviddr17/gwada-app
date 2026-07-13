@@ -7,6 +7,8 @@ export const INTEGRATION_PANEL_ACCENT = {
   google_oauth: "#4285F4",
   email: "#6366f1",
   lexoffice: "#00A88F",
+  tripadvisor: "#34E0A1",
+  apple_business_connect: "#1d1d1f",
   weather: "#0ea5e9",
   fiskaly: "#64748b",
 } as const;

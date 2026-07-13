@@ -18,6 +18,8 @@ import {
 import { fetchPlatformEmailSmtpConfigAdmin } from "@/lib/supabase/platform-email-secrets-db";
 import { testFiskalyAuth } from "@/lib/pos/fiskaly-auth";
 import { fetchPlatformFiskalyConfigAdmin } from "@/lib/supabase/platform-fiskaly-secrets-db";
+import { fetchTripadvisorApi } from "@/lib/integrations/tripadvisor-api-client";
+import { fetchPlatformTripadvisorConfigAdmin } from "@/lib/supabase/platform-tripadvisor-secrets-db";
 import { fetchPlatformWeatherConfigAdmin } from "@/lib/supabase/platform-weather-secrets-db";
 import { fetchPlatformWhatsappWahaConfigAdmin } from "@/lib/supabase/platform-whatsapp-secrets-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -64,6 +66,29 @@ async function fetchWithTimeout(
     cache: "no-store",
     signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
   });
+}
+
+async function checkTripadvisorConnection(): Promise<SuperadminIntegrationConnectionHealth> {
+  const platform = await fetchPlatformTripadvisorConfigAdmin();
+  if (!platform.enabled) {
+    return health("disabled", "Integration ist deaktiviert.");
+  }
+  if (!platform.apiKey) {
+    return health("not_configured", "API-Key fehlt in Superadmin → Integrationen.");
+  }
+
+  try {
+    const { latencyMs } = await timed(async () => {
+      const result = await fetchTripadvisorApi({ path: "/locations/1" });
+      if ("error" in result && (result.status === 401 || result.status === 403)) {
+        throw new Error(result.error);
+      }
+    });
+    return health("ok", "Terra API antwortet.", latencyMs);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Verbindung fehlgeschlagen";
+    return health("error", msg);
+  }
 }
 
 async function checkWeatherConnection(): Promise<SuperadminIntegrationConnectionHealth> {
@@ -407,6 +432,7 @@ const HEALTH_CHECKERS: Partial<
   >
 > = {
   weather: checkWeatherConnection,
+  tripadvisor: checkTripadvisorConnection,
   fiskaly: checkFiskalyConnection,
   whatsapp: checkWhatsappConnection,
   email: checkEmailConnection,

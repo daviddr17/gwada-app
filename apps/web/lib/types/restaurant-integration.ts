@@ -129,3 +129,30 @@ export type LexofficeIntegrationResponse = {
   webhookWarning: string | null;
   message?: string;
 };
+
+export type RestaurantTripadvisorStatus = "disconnected" | "working";
+
+export type TripadvisorIntegrationResponse = {
+  platformEnabled: boolean;
+  configured: boolean;
+  status: RestaurantTripadvisorStatus;
+  locationId: string | null;
+  locationName: string | null;
+  connectedAt: string | null;
+  lastError: string | null;
+  message?: string;
+};
+
+export type RestaurantAppleBusinessConnectStatus = "disconnected" | "working";
+
+export type AppleBusinessConnectIntegrationResponse = {
+  platformEnabled: boolean;
+  configured: boolean;
+  status: RestaurantAppleBusinessConnectStatus;
+  locationId: string | null;
+  locationName: string | null;
+  brandId: string | null;
+  connectedAt: string | null;
+  lastError: string | null;
+  message?: string;
+};

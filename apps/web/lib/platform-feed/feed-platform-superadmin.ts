@@ -11,6 +11,7 @@ export function isFeedConnectorEnabledBySuperadmin(
   if (platformKey === "facebook") return flags.facebookEnabled;
   if (platformKey === "instagram") return flags.instagramEnabled;
   if (platformKey === "google_business") return flags.googleBusinessEnabled;
+  if (platformKey === "tripadvisor") return flags.tripadvisorEnabled;
   if (platformKey === "whatsapp_channel" || platformKey === "whatsapp") {
     return flags.whatsappEnabled;
   }

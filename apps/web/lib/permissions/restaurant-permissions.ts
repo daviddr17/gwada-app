@@ -31,6 +31,8 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.instagram",
   "integrations.google_business",
   "integrations.lexoffice",
+  "integrations.tripadvisor",
+  "integrations.apple_business_connect",
   "settings.restaurant",
   "settings.opening_hours",
   "settings.branding",
@@ -176,6 +178,18 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "integrations.lexoffice",
       label: "Lexware Office",
       description: "Lexware Office (Lexoffice) per API-Key verbinden.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.tripadvisor",
+      label: "TripAdvisor",
+      description: "TripAdvisor-Profil per Location-ID verknüpfen.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.apple_business_connect",
+      label: "Apple Business Connect",
+      description: "Standort in Apple Maps per Location-ID verknüpfen.",
       group: "integrationen",
     },
     {

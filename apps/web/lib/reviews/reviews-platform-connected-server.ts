@@ -10,14 +10,17 @@ import {
   isReviewPlatformVisibleInDashboard,
 } from "@/lib/reviews/reviews-platform-availability-server";
 import { fetchRestaurantFacebookIntegration } from "@/lib/supabase/restaurant-facebook-integration-db";
+import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 export type ReviewPlatformConnectionState = {
   googleConnected: boolean;
   facebookConnected: boolean;
+  tripadvisorConnected: boolean;
   googleVisible: boolean;
   facebookVisible: boolean;
+  tripadvisorVisible: boolean;
 };
 
 export async function loadReviewPlatformConnectionState(
@@ -31,9 +34,11 @@ export async function loadReviewPlatformConnectionState(
     instagramEnabled: false,
     googleBusinessEnabled: false,
     lexofficeEnabled: false,
+    tripadvisorEnabled: false,
+    appleBusinessConnectEnabled: false,
   };
 
-  const [flags, googleRow, facebookRow] = await Promise.all([
+  const [flags, googleRow, facebookRow, tripadvisorRow] = await Promise.all([
     admin ? fetchReviewPlatformMessagingFlags(admin) : Promise.resolve(emptyFlags),
     fetchRestaurantOAuthIntegrationAdmin(
       restaurantId,
@@ -43,23 +48,34 @@ export async function loadReviewPlatformConnectionState(
     admin
       ? fetchRestaurantFacebookIntegration(admin, restaurantId)
       : Promise.resolve(null),
+    fetchRestaurantTripadvisorConfigAdmin(restaurantId),
   ]);
 
   const googleConnected = googleRow?.status === "working";
   const facebookConnected = facebookRow?.status === "working";
+  const tripadvisorConnected = tripadvisorRow?.status === "working";
 
   return {
     googleConnected,
     facebookConnected,
+    tripadvisorConnected,
     googleVisible: isReviewPlatformVisibleInDashboard("google", {
       flags,
       googleConnected,
       facebookConnected,
+      tripadvisorConnected,
     }),
     facebookVisible: isReviewPlatformVisibleInDashboard("facebook", {
       flags,
       googleConnected,
       facebookConnected,
+      tripadvisorConnected,
+    }),
+    tripadvisorVisible: isReviewPlatformVisibleInDashboard("tripadvisor", {
+      flags,
+      googleConnected,
+      facebookConnected,
+      tripadvisorConnected,
     }),
   };
 }
@@ -68,6 +84,10 @@ export async function isReviewsPlatformConnected(
   restaurantId: string,
   platform: ReviewsCacheablePlatform,
 ): Promise<boolean> {
+  if (platform === "tripadvisor") {
+    const row = await fetchRestaurantTripadvisorConfigAdmin(restaurantId);
+    return row?.status === "working";
+  }
   const oauthKey = platform === "google" ? "google_business" : "facebook";
   const row = await fetchRestaurantOAuthIntegrationAdmin(
     restaurantId,
@@ -86,6 +106,7 @@ export async function isReviewsPlatformVisible(
   const state = await loadReviewPlatformConnectionState(restaurantId);
   if (platform === "google") return state.googleVisible;
   if (platform === "facebook") return state.facebookVisible;
+  if (platform === "tripadvisor") return state.tripadvisorVisible;
   return false;
 }
 

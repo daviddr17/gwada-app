@@ -60,3 +60,23 @@ export async function assertPlatformLexofficeEnabled(
   }
   return { ok: true };
 }
+
+export async function assertPlatformTripadvisorEnabled(
+  sb: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const flags = await fetchPlatformMessagingFlags(sb);
+  if (!flags.tripadvisorEnabled) {
+    return { ok: false, error: "tripadvisor_disabled" };
+  }
+  return { ok: true };
+}
+
+export async function assertPlatformAppleBusinessConnectEnabled(
+  sb: SupabaseClient,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const flags = await fetchPlatformMessagingFlags(sb);
+  if (!flags.appleBusinessConnectEnabled) {
+    return { ok: false, error: "apple_business_connect_disabled" };
+  }
+  return { ok: true };
+}

@@ -52,6 +52,8 @@ export async function getNewsConnectorPublicInfo(
         instagramEnabled: false,
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
+        tripadvisorEnabled: false,
+        appleBusinessConnectEnabled: false,
       };
 
   const platforms = Object.keys(CONNECTORS) as NewsPlatform[];
@@ -90,6 +92,8 @@ export async function fetchUnifiedNewsFeed(
         instagramEnabled: false,
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
+        tripadvisorEnabled: false,
+        appleBusinessConnectEnabled: false,
       };
 
   const keys = platforms ?? (Object.keys(CONNECTORS) as NewsPlatform[]);

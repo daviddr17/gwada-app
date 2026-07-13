@@ -19,6 +19,7 @@ const PLATFORM_COLORS: Record<GalleryPlatform, string> = {
   facebook: "var(--chart-1)",
   instagram: "var(--chart-2)",
   google_business: "var(--chart-3)",
+  tripadvisor: "var(--chart-4)",
 };
 
 export type GalleryStatisticsInput = {

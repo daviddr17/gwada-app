@@ -11,6 +11,14 @@ import {
   weatherConfigFromJson,
   weatherConfigToUi,
 } from "@/lib/integrations/platform-weather-config";
+import {
+  tripadvisorConfigFromJson,
+  tripadvisorConfigToUi,
+} from "@/lib/integrations/platform-tripadvisor-config";
+import {
+  appleBusinessConnectConfigFromJson,
+  appleBusinessConnectConfigToUi,
+} from "@/lib/integrations/platform-apple-business-connect-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 /** Antwort für Superadmin-UI — niemals Klartext-Secrets. */
@@ -26,6 +34,14 @@ export function platformIntegrationConfigForUi(
 
   if (key === "weather") {
     return weatherConfigToUi(weatherConfigFromJson(raw));
+  }
+
+  if (key === "tripadvisor") {
+    return tripadvisorConfigToUi(tripadvisorConfigFromJson(raw));
+  }
+
+  if (key === "apple_business_connect") {
+    return appleBusinessConnectConfigToUi(appleBusinessConnectConfigFromJson(raw));
   }
 
   if (key === "fiskaly") {

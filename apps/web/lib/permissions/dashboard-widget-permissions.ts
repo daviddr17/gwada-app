@@ -25,6 +25,7 @@ const INTEGRATION_WIDGET_KEYS: RestaurantPermissionKey[] = [
   "integrations.instagram",
   "integrations.google_business",
   "integrations.lexoffice",
+  "integrations.tripadvisor",
   "settings.restaurant",
 ];
 

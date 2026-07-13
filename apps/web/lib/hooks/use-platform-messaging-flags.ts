@@ -26,6 +26,12 @@ export function usePlatformMessagingFlags(
   const [lexofficeEnabled, setLexofficeEnabled] = useState(
     initial?.lexofficeEnabled ?? false,
   );
+  const [tripadvisorEnabled, setTripadvisorEnabled] = useState(
+    initial?.tripadvisorEnabled ?? false,
+  );
+  const [appleBusinessConnectEnabled, setAppleBusinessConnectEnabled] = useState(
+    initial?.appleBusinessConnectEnabled ?? false,
+  );
   const [loading, setLoading] = useState(initial == null);
 
   const applyFlags = useCallback((flags: PlatformMessagingFlags) => {
@@ -35,6 +41,8 @@ export function usePlatformMessagingFlags(
     setInstagramEnabled(flags.instagramEnabled);
     setGoogleBusinessEnabled(flags.googleBusinessEnabled);
     setLexofficeEnabled(flags.lexofficeEnabled);
+    setTripadvisorEnabled(flags.tripadvisorEnabled);
+    setAppleBusinessConnectEnabled(flags.appleBusinessConnectEnabled);
   }, []);
 
   const load = useCallback(async () => {
@@ -53,6 +61,8 @@ export function usePlatformMessagingFlags(
           instagramEnabled: false,
           googleBusinessEnabled: false,
           lexofficeEnabled: false,
+          tripadvisorEnabled: false,
+          appleBusinessConnectEnabled: false,
         });
         setLoading(false);
         return;
@@ -65,6 +75,8 @@ export function usePlatformMessagingFlags(
         instagramEnabled: data.instagramEnabled === true,
         googleBusinessEnabled: data.googleBusinessEnabled === true,
         lexofficeEnabled: data.lexofficeEnabled === true,
+        tripadvisorEnabled: data.tripadvisorEnabled === true,
+        appleBusinessConnectEnabled: data.appleBusinessConnectEnabled === true,
       });
     } catch {
       applyFlags({
@@ -74,6 +86,8 @@ export function usePlatformMessagingFlags(
         instagramEnabled: false,
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
+        tripadvisorEnabled: false,
+        appleBusinessConnectEnabled: false,
       });
     }
     setLoading(false);
@@ -96,6 +110,8 @@ export function usePlatformMessagingFlags(
     instagramEnabled,
     googleBusinessEnabled,
     lexofficeEnabled,
+    tripadvisorEnabled,
+    appleBusinessConnectEnabled,
     loading,
   };
 }

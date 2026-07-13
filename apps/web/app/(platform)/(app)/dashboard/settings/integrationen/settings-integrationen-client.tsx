@@ -2,10 +2,13 @@
 
 import { Suspense, useCallback, useState } from "react";
 import { EmailIntegrationCard } from "@/components/settings/email-integration-card";
+import { AppleBusinessConnectIntegrationCard } from "@/components/settings/apple-business-connect-integration-card";
 import { FacebookIntegrationCard } from "@/components/settings/facebook-integration-card";
 import { GoogleBusinessIntegrationCard } from "@/components/settings/google-business-integration-card";
 import { LexofficeIntegrationCard } from "@/components/settings/lexoffice-integration-card";
 import { InstagramIntegrationCard } from "@/components/settings/instagram-integration-card";
+import { TripadvisorIntegrationCard } from "@/components/settings/tripadvisor-integration-card";
+import { IntegrationenInsightsLinkCard } from "@/components/settings/integrationen-insights-link-card";
 import { WhatsappIntegrationCard } from "@/components/settings/whatsapp-integration-card";
 import {
   SettingsIntegrationSaveProvider,
@@ -32,6 +35,8 @@ function IntegrationenContent({
     instagramEnabled,
     googleBusinessEnabled,
     lexofficeEnabled,
+    tripadvisorEnabled,
+    appleBusinessConnectEnabled,
     loading,
   } = usePlatformMessagingFlags(initialPlatformFlags);
   const { dirty, saving, saveAll } = useSettingsIntegrationSave();
@@ -55,7 +60,9 @@ function IntegrationenContent({
     facebookEnabled ||
     instagramEnabled ||
     googleBusinessEnabled ||
-    lexofficeEnabled;
+    lexofficeEnabled ||
+    tripadvisorEnabled ||
+    appleBusinessConnectEnabled;
 
   if (!anyEnabled) {
     return (
@@ -68,6 +75,7 @@ function IntegrationenContent({
   return (
     <>
       <div className="space-y-6">
+        <IntegrationenInsightsLinkCard />
         {whatsappEnabled ? <WhatsappIntegrationCard /> : null}
         {facebookEnabled ? (
           <Suspense fallback={null}>
@@ -88,9 +96,11 @@ function IntegrationenContent({
           <EmailIntegrationCard key={emailReload} onSaved={onEmailSaved} />
         ) : null}
         {lexofficeEnabled ? <LexofficeIntegrationCard /> : null}
+        {tripadvisorEnabled ? <TripadvisorIntegrationCard /> : null}
+        {appleBusinessConnectEnabled ? <AppleBusinessConnectIntegrationCard /> : null}
       </div>
 
-      {emailEnabled || lexofficeEnabled ? (
+      {emailEnabled || lexofficeEnabled || tripadvisorEnabled || appleBusinessConnectEnabled ? (
         <SettingsStickySaveBar show={dirty}>
           <Button
             type="button"

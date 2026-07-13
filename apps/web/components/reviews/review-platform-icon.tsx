@@ -2,6 +2,7 @@
 
 import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
+import { TripadvisorGlyph } from "@/components/icons/tripadvisor-glyph";
 import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
 import {
   REVIEW_PLATFORM_LABELS,
@@ -30,6 +31,8 @@ export function ReviewPlatformIcon({
         <GoogleGlyph className="size-4" />
       ) : platform === "facebook" ? (
         <FacebookGlyph className="size-4" />
+      ) : platform === "tripadvisor" ? (
+        <TripadvisorGlyph className="size-4" />
       ) : (
         <GwadaFaviconIcon size="chip" />
       )}

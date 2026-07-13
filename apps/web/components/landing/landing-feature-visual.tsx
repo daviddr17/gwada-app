@@ -269,6 +269,7 @@ const VISUALS: Record<LandingFeatureVisualKey, ComponentType<SceneProps>> = {
   kontakte: MessagesVisual,
   news: NewsVisual,
   bewertungen: ReviewsVisual,
+  insights: ReviewsVisual,
   galerie: GalleryVisual,
   buchfuehrung: AccountingVisual,
   dokumente: DocumentsVisual,

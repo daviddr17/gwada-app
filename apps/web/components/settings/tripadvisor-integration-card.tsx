@@ -15,6 +15,7 @@ import {
 } from "@/components/settings/settings-integration-panel";
 import { useRegisterSettingsIntegrationSave } from "@/components/settings/settings-integration-save-registry";
 import { RESTAURANT_INTEGRATION_NOT_ENABLED_MESSAGE } from "@/lib/constants/restaurant-integration-messages";
+import { tripadvisorErrorMessageForUser } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { INTEGRATION_PANEL_ACCENT } from "@/lib/ui/integration-panel-accent";
@@ -180,7 +181,9 @@ export function TripadvisorIntegrationCard() {
         }
         alertLine={
           state?.lastError ? (
-            <span className="text-destructive">{state.lastError}</span>
+            <span className="text-destructive">
+              {tripadvisorErrorMessageForUser(state.lastError)}
+            </span>
           ) : !state?.platformEnabled ? (
             RESTAURANT_INTEGRATION_NOT_ENABLED_MESSAGE
           ) : undefined

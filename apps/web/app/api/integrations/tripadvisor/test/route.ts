@@ -1,4 +1,8 @@
-import { fetchTripadvisorLocationDetails } from "@/lib/integrations/tripadvisor-api-client";
+import {
+  ensureTripadvisorAllowlistLocation,
+  verifyTripadvisorLocationConnection,
+} from "@/lib/integrations/tripadvisor-api-client";
+import { tripadvisorErrorMessageForUser } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { assertPlatformTripadvisorEnabled } from "@/lib/integrations/platform-messaging-guard";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
@@ -38,9 +42,16 @@ export async function POST(req: Request) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const details = await fetchTripadvisorLocationDetails(locationId);
+  const details = await verifyTripadvisorLocationConnection(locationId);
   if ("error" in details) {
-    return Response.json({ ok: false, error: details.error }, { status: 400 });
+    return Response.json(
+      {
+        ok: false,
+        error: tripadvisorErrorMessageForUser(details.error, details.status),
+        code: details.error,
+      },
+      { status: details.status === 429 ? 429 : 400 },
+    );
   }
 
   return Response.json({

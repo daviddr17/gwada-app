@@ -1,5 +1,6 @@
 import "server-only";
 
+import { normalizeTripadvisorErrorCode } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { terraLocalizedText } from "@/lib/integrations/tripadvisor-terra-parse";
 import { fetchPlatformTripadvisorConfigAdmin } from "@/lib/supabase/platform-tripadvisor-secrets-db";
 import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
@@ -29,13 +30,31 @@ type TerraProblemBody = {
 };
 
 function tripadvisorErrorMessage(body: TerraProblemBody, status: number): string {
-  return (
+  const raw =
     body.detail?.trim() ||
     body.message?.trim() ||
     body.title?.trim() ||
     body.error?.message?.trim() ||
-    `tripadvisor_${status}`
-  );
+    `tripadvisor_${status}`;
+  return normalizeTripadvisorErrorCode(raw, status);
+}
+
+/** Verhindert wiederholte Allowlist-POSTs pro Location (Terra Rate-Limits). */
+const ALLOWLIST_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const allowlistedLocationExpiry = new Map<string, number>();
+
+function isAllowlistCached(locationId: string): boolean {
+  const expiresAt = allowlistedLocationExpiry.get(locationId);
+  if (!expiresAt) return false;
+  if (Date.now() > expiresAt) {
+    allowlistedLocationExpiry.delete(locationId);
+    return false;
+  }
+  return true;
+}
+
+function markAllowlistCached(locationId: string): void {
+  allowlistedLocationExpiry.set(locationId, Date.now() + ALLOWLIST_CACHE_TTL_MS);
 }
 
 async function tripadvisorFetch(
@@ -130,8 +149,12 @@ export async function appendTripadvisorAllowlistLocations(
 export async function ensureTripadvisorAllowlistLocation(
   locationId: string,
 ): Promise<{ ok: true } | { error: string; status?: number }> {
-  const result = await appendTripadvisorAllowlistLocations([locationId]);
+  const trimmed = locationId.trim();
+  if (isAllowlistCached(trimmed)) return { ok: true };
+
+  const result = await appendTripadvisorAllowlistLocations([trimmed]);
   if ("error" in result) return result;
+  markAllowlistCached(trimmed);
   return { ok: true };
 }
 
@@ -211,11 +234,18 @@ export async function fetchTripadvisorCatalogLocation(
   return { location: normalizeCatalogLocation(result.data) };
 }
 
+/** Verbindungstest / Speichern: nur Catalog (1 Request, keine Allowlist). */
+export async function verifyTripadvisorLocationConnection(
+  locationId: string,
+): Promise<{ location: TripadvisorLocationDetails } | { error: string; status?: number }> {
+  return fetchTripadvisorCatalogLocation(locationId);
+}
+
 export async function fetchTripadvisorLocationDetails(
   locationId: string,
-): Promise<{ location: TripadvisorLocationDetails } | { error: string }> {
+): Promise<{ location: TripadvisorLocationDetails } | { error: string; status?: number }> {
   const allowlist = await ensureTripadvisorAllowlistLocation(locationId);
-  if ("error" in allowlist && allowlist.status !== 403) {
+  if ("error" in allowlist && allowlist.status !== 403 && allowlist.status !== 429) {
     return allowlist;
   }
 
@@ -232,5 +262,5 @@ export async function fetchTripadvisorLocationDetails(
     return catalog;
   }
 
-  return { error: result.error };
+  return { error: result.error, status: result.status };
 }

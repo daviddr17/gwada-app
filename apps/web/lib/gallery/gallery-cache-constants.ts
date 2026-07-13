@@ -12,8 +12,8 @@ export const GALLERY_CACHEABLE_PLATFORMS = [
 
 export type GalleryCacheablePlatform = (typeof GALLERY_CACHEABLE_PLATFORMS)[number];
 
-/** Google, Facebook, Instagram — ~10 Min. */
-export const GALLERY_CACHE_STALE_MS = 10 * 60 * 1000;
+/** Facebook, Instagram, Google Business — 1× pro Tag (Fotos ändern sich selten). */
+export const GALLERY_CACHE_STALE_MS = 24 * 60 * 60 * 1000;
 
 /** TripAdvisor (Terra API): 1× pro Woche. */
 export const GALLERY_CACHE_STALE_TRIPADVISOR_MS = 7 * 24 * 60 * 60 * 1000;

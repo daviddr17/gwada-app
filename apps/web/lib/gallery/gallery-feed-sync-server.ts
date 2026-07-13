@@ -116,7 +116,7 @@ export async function triggerGalleryFeedSyncIfStale(
   );
 
   const stale = cacheable.filter((platform) =>
-    isGalleryFeedSyncStale(syncedByPlatform.get(platform)),
+    isGalleryFeedSyncStale(syncedByPlatform.get(platform), platform),
   );
   if (stale.length === 0) return;
 

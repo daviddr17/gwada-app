@@ -27,7 +27,7 @@ async function maybeTriggerBackgroundSync(
   ]);
   const stalePlatforms = REVIEWS_CACHEABLE_PLATFORMS.filter((platform) => {
     const row = syncRows.find((entry) => entry.platform === platform);
-    return isReviewsFeedSyncStale(row?.synced_at);
+    return isReviewsFeedSyncStale(row?.synced_at, platform);
   });
 
   if (stalePlatforms.length > 0) {

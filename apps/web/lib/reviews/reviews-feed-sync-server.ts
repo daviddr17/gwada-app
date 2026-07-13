@@ -171,6 +171,29 @@ export async function syncRestaurantReviewsPlatforms(
   return stats;
 }
 
+export async function listStaleReviewsPlatforms(
+  admin: SupabaseClient,
+  restaurantId: string,
+  platforms?: ReviewsCacheablePlatform[],
+): Promise<ReviewsCacheablePlatform[]> {
+  const cacheable = platforms ?? [...REVIEWS_CACHEABLE_PLATFORMS];
+  if (cacheable.length === 0) return [];
+
+  const { data } = await admin
+    .from("restaurant_reviews_platform_sync")
+    .select("platform, synced_at")
+    .eq("restaurant_id", restaurantId)
+    .in("platform", cacheable);
+
+  const syncedByPlatform = new Map(
+    (data ?? []).map((row) => [row.platform as string, row.synced_at as string | null]),
+  );
+
+  return cacheable.filter((platform) =>
+    isReviewsFeedSyncStale(syncedByPlatform.get(platform), platform),
+  );
+}
+
 export async function triggerReviewsFeedSyncIfStale(
   restaurantId: string,
   platforms?: ReviewPlatform[],
@@ -183,19 +206,7 @@ export async function triggerReviewsFeedSyncIfStale(
   );
   if (cacheable.length === 0) return;
 
-  const { data } = await admin
-    .from("restaurant_reviews_platform_sync")
-    .select("platform, synced_at")
-    .eq("restaurant_id", restaurantId)
-    .in("platform", cacheable);
-
-  const syncedByPlatform = new Map(
-    (data ?? []).map((row) => [row.platform as string, row.synced_at as string | null]),
-  );
-
-  const stale = cacheable.filter((platform) =>
-    isReviewsFeedSyncStale(syncedByPlatform.get(platform)),
-  );
+  const stale = await listStaleReviewsPlatforms(admin, restaurantId, cacheable);
   if (stale.length === 0) return;
 
   await syncRestaurantReviewsPlatforms(admin, restaurantId, stale);

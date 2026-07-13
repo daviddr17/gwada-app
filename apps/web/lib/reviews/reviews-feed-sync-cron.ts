@@ -1,6 +1,6 @@
 import "server-only";
 
-import { syncRestaurantReviewsPlatforms } from "@/lib/reviews/reviews-feed-sync-server";
+import { listStaleReviewsPlatforms, syncRestaurantReviewsPlatforms } from "@/lib/reviews/reviews-feed-sync-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ReviewsFeedSyncCronStats = {
@@ -56,7 +56,17 @@ export async function runReviewsFeedSyncCron(
       continue;
     }
 
-    const result = await syncRestaurantReviewsPlatforms(admin, restaurantId);
+    const stalePlatforms = await listStaleReviewsPlatforms(admin, restaurantId);
+    if (stalePlatforms.length === 0) {
+      stats.skipped += 1;
+      continue;
+    }
+
+    const result = await syncRestaurantReviewsPlatforms(
+      admin,
+      restaurantId,
+      stalePlatforms,
+    );
     stats.syncedItems += result.synced;
     stats.errors.push(...result.errors.map((e) => `${restaurantId}:${e}`));
   }

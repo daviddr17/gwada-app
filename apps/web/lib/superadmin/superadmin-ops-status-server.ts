@@ -79,7 +79,7 @@ async function checkTripadvisorConnection(): Promise<SuperadminIntegrationConnec
 
   try {
     const { latencyMs } = await timed(async () => {
-      const result = await fetchTripadvisorApi({ path: "/locations/1" });
+      const result = await fetchTripadvisorApi({ path: "/allowlist", allowlist: true });
       if ("error" in result && (result.status === 401 || result.status === 403)) {
         throw new Error(result.error);
       }

@@ -54,6 +54,13 @@ import {
   dismissStaffDisplayTimeRequestNotification,
 } from "@/lib/notifications/notification-staff-display-time-request-server";
 import {
+  dismissAllStaffDisplayClockNotifications,
+  dismissStaffDisplayClockNotification,
+  isDisplayClockNotificationModule,
+} from "@/lib/notifications/notification-staff-display-clock-server";
+import { loadNotificationAccessContext } from "@/lib/notifications/notification-access-context";
+import { isNotificationModuleVisibleForUser } from "@/lib/notifications/notification-module-permissions";
+import {
   dismissAllStaffInviteResponseNotifications,
   dismissStaffInviteResponseNotification,
   isStaffInviteResponseModule,
@@ -85,6 +92,13 @@ export async function markNotificationReadServer(
   }
 
   const admin = adminOrUserClient(sb);
+  const { access } = await loadNotificationAccessContext(sb, {
+    restaurantId,
+    userId,
+  });
+  if (!isNotificationModuleVisibleForUser(module, access)) {
+    return { ok: false, error: "forbidden" };
+  }
 
   switch (module) {
     case "messages": {
@@ -311,6 +325,30 @@ export async function markNotificationReadServer(
         restaurantId,
         userId,
         requestId,
+      });
+      return result.error ? { ok: false, error: result.error } : { ok: true };
+    }
+
+    case "staff_display_clock_in":
+    case "staff_display_clock_out": {
+      if (!isDisplayClockNotificationModule(module)) {
+        return { ok: false, error: "invalid_module" };
+      }
+      if (!itemId) {
+        const all = await dismissAllStaffDisplayClockNotifications(sb, {
+          restaurantId,
+          userId,
+          module,
+        });
+        return all.error ? { ok: false, error: all.error } : { ok: true };
+      }
+      const shiftId = itemId ?? meta?.shiftId;
+      if (!shiftId) return { ok: false, error: "invalid_request" };
+      const result = await dismissStaffDisplayClockNotification(sb, {
+        restaurantId,
+        userId,
+        shiftId,
+        module,
       });
       return result.error ? { ok: false, error: result.error } : { ok: true };
     }

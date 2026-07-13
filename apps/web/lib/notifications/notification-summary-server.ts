@@ -7,6 +7,7 @@ import { loadAccountingNotificationItems } from "@/lib/notifications/notificatio
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
+import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
 import {
   loadStaffInviteResponseNotificationItems,
 } from "@/lib/notifications/notification-staff-invite-server";
@@ -23,6 +24,8 @@ import {
   isInAppModuleEnabled,
   type NotificationPreferences,
 } from "@/lib/notifications/notification-preferences";
+import { isNotificationModuleVisibleForUser } from "@/lib/notifications/notification-module-permissions";
+import { loadNotificationAccessContext } from "@/lib/notifications/notification-access-context";
 import type {
   NotificationItem,
   NotificationModuleSummary,
@@ -438,6 +441,44 @@ const MODULE_BUILDERS: Record<
       items,
     };
   },
+  staff_display_clock_in: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_clock_in;
+    const { items, totalCount } = await loadStaffDisplayClockNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_display_clock_in",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_display_clock_out: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_clock_out;
+    const { items, totalCount } = await loadStaffDisplayClockNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_display_clock_out",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
 };
 
 type ModuleBuildContext = {
@@ -466,6 +507,11 @@ export async function fetchNotificationSummaryServer(
   const preferences = await loadNotificationPreferences(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
+  });
+
+  const { access } = await loadNotificationAccessContext(sb, {
+    restaurantId: params.restaurantId,
+    userId: params.userId,
   });
 
   let whatsappConnected = params.whatsappConnected;
@@ -507,7 +553,11 @@ export async function fetchNotificationSummaryServer(
 
   const enabledModuleIds = (
     Object.keys(MODULE_BUILDERS) as NotificationModuleId[]
-  ).filter((moduleId) => isInAppModuleEnabled(preferences, moduleId));
+  ).filter(
+    (moduleId) =>
+      isInAppModuleEnabled(preferences, moduleId) &&
+      isNotificationModuleVisibleForUser(moduleId, access),
+  );
 
   const built = await Promise.all(
     enabledModuleIds.map((moduleId) => MODULE_BUILDERS[moduleId](ctx)),

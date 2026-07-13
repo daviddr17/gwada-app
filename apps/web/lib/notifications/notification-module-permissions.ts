@@ -35,6 +35,8 @@ const NOTIFICATION_MODULE_ACCESS: Record<
   staff_display_time_request: { kind: "module", prefix: "staff" },
   staff_invite_accepted: { kind: "module", prefix: "staff" },
   staff_invite_declined: { kind: "module", prefix: "staff" },
+  staff_display_clock_in: { kind: "module", prefix: "staff" },
+  staff_display_clock_out: { kind: "module", prefix: "staff" },
   inventory_low_stock: { kind: "module", prefix: "inventory" },
   accounting_quotation: { kind: "module", prefix: "accounting" },
   accounting_invoice: { kind: "module", prefix: "accounting" },

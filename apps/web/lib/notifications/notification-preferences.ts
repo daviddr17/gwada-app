@@ -48,6 +48,8 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       staff_display_time_request: true,
       staff_invite_accepted: true,
       staff_invite_declined: true,
+      staff_display_clock_in: false,
+      staff_display_clock_out: false,
     },
     pushEmailModules: {
       messages: true,
@@ -68,6 +70,8 @@ export function defaultNotificationPreferences(): NotificationPreferences {
       staff_display_time_request: true,
       staff_invite_accepted: true,
       staff_invite_declined: true,
+      staff_display_clock_in: true,
+      staff_display_clock_out: true,
     },
   };
 }

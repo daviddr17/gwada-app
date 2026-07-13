@@ -458,6 +458,33 @@ export function buildNotificationPushText(
         ]),
       });
     }
+    case "staff_display_clock_in":
+    case "staff_display_clock_out": {
+      const staffName = pickString(p.staffName) ?? "Mitarbeiter";
+      const at = pickString(p.at);
+      const staffId = pickString(p.staffId);
+      const clockHref = absoluteAppUrl(
+        staffId
+          ? `${moduleDef.href}?staff=${encodeURIComponent(staffId)}`
+          : moduleDef.href,
+      );
+      const isStart = event.module === "staff_display_clock_in";
+      return buildPushMessage({
+        prefix,
+        headline: isStart ? "Display: Schicht gestartet" : "Display: Schicht beendet",
+        subject: `${prefix}Display: ${isStart ? "Schicht gestartet" : "Schicht beendet"} — ${staffName}`,
+        href: clockHref,
+        details: detailLines([
+          staffName,
+          at
+            ? `Uhrzeit: ${new Date(at).toLocaleTimeString("de-DE", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}`
+            : null,
+        ]),
+      });
+    }
     case "staff_invite_accepted": {
       const staffName = pickString(p.staffName) ?? "Mitarbeiter";
       const positionName = pickString(p.positionName);

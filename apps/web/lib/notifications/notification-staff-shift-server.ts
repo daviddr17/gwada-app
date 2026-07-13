@@ -1,8 +1,5 @@
 import "server-only";
 
-import {
-  isSelfOriginatedNotification,
-} from "@/lib/notifications/notification-self-origin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Schichtbeginn: Glocke bis zu 60 Min. vor Start. */
@@ -82,31 +79,15 @@ function shiftAssignedProfileId(s: ShiftRow): string | null {
   return row?.profile_id ?? null;
 }
 
+/**
+ * Glocke: Zeitfenster-Erinnerungen zum Schichtplan — kein Self-Origin-Skip.
+ * Wer die Schichten plant, soll sie ebenfalls in der Glocke sehen.
+ */
 function filterShiftsForViewer(
   shifts: ShiftRow[],
-  viewerProfileId: string,
   dismissed: Set<string>,
-  viewerStaffId: string | null,
 ): ShiftRow[] {
-  return shifts.filter((s) => {
-    if (dismissed.has(s.id)) return false;
-    if (viewerStaffId && s.staff_id === viewerStaffId) return true;
-    return !isSelfOriginatedNotification(viewerProfileId, shiftActorProfileId(s));
-  });
-}
-
-async function fetchViewerStaffId(
-  sb: SupabaseClient,
-  params: { restaurantId: string; profileId: string },
-): Promise<string | null> {
-  const { data } = await sb
-    .from("restaurant_staff")
-    .select("id")
-    .eq("restaurant_id", params.restaurantId)
-    .eq("profile_id", params.profileId)
-    .maybeSingle();
-
-  return (data as { id: string } | null)?.id ?? null;
+  return shifts.filter((s) => !dismissed.has(s.id));
 }
 
 async function fetchShiftsInRange(
@@ -193,23 +174,13 @@ export async function loadStaffShiftStartBellSummary(
     kind: "start",
   });
 
-  const viewerStaffId = await fetchViewerStaffId(sb, {
-    restaurantId: params.restaurantId,
-    profileId: params.userId,
-  });
-
   const shifts = await fetchShiftsInRange(sb, {
     restaurantId: params.restaurantId,
     rangeStartIso: new Date(now).toISOString(),
     rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
   });
 
-  const active = filterShiftsForViewer(
-    shifts,
-    params.userId,
-    dismissed,
-    viewerStaffId,
-  );
+  const active = filterShiftsForViewer(shifts, dismissed);
   const limit = params.limit ?? 5;
 
   return {
@@ -229,23 +200,13 @@ export async function loadStaffShiftEndBellSummary(
     kind: "end",
   });
 
-  const viewerStaffId = await fetchViewerStaffId(sb, {
-    restaurantId: params.restaurantId,
-    profileId: params.userId,
-  });
-
   const shifts = await fetchShiftsEndingInRange(sb, {
     restaurantId: params.restaurantId,
     rangeStartIso: new Date(now - STAFF_SHIFT_BELL_END_TRAIL_MS).toISOString(),
     rangeEndIso: new Date(now).toISOString(),
   });
 
-  const active = filterShiftsForViewer(
-    shifts,
-    params.userId,
-    dismissed,
-    viewerStaffId,
-  );
+  const active = filterShiftsForViewer(shifts, dismissed);
   const limit = params.limit ?? 5;
 
   return {
@@ -373,14 +334,26 @@ export async function runStaffShiftNotificationsCron(
 
 export async function filterStaffShiftPushTargets(
   _admin: SupabaseClient,
-  event: { payload: Record<string, unknown> | null },
+  event: {
+    restaurant_id?: string | null;
+    payload: Record<string, unknown> | null;
+  },
   targets: { profileId: string; restaurantId: string }[],
 ): Promise<{ profileId: string; restaurantId: string }[]> {
   const assignedProfileId = event.payload?.assignedProfileId;
   if (typeof assignedProfileId !== "string" || !assignedProfileId) {
     return [];
   }
-  return targets.filter((t) => t.profileId === assignedProfileId);
+  const restaurantId =
+    (typeof event.restaurant_id === "string" && event.restaurant_id) ||
+    targets[0]?.restaurantId;
+  if (!restaurantId) return [];
+
+  const matched = targets.filter((t) => t.profileId === assignedProfileId);
+  if (matched.length > 0) return matched;
+
+  // Zugewiesenes Profil trotzdem zustellen, auch wenn es in der Employee-Liste fehlte.
+  return [{ profileId: assignedProfileId, restaurantId }];
 }
 
 export async function dismissStaffShiftNotification(
@@ -422,11 +395,6 @@ export async function dismissAllStaffShiftNotifications(
     kind: params.kind,
   });
 
-  const viewerStaffId = await fetchViewerStaffId(sb, {
-    restaurantId: params.restaurantId,
-    profileId: params.userId,
-  });
-
   const shifts =
     params.kind === "start"
       ? await fetchShiftsInRange(sb, {
@@ -440,12 +408,7 @@ export async function dismissAllStaffShiftNotifications(
           rangeEndIso: new Date(now).toISOString(),
         });
 
-  const activeIds = filterShiftsForViewer(
-    shifts,
-    params.userId,
-    dismissed,
-    viewerStaffId,
-  ).map((s) => s.id);
+  const activeIds = filterShiftsForViewer(shifts, dismissed).map((s) => s.id);
 
   if (activeIds.length === 0) return { error: null };
 

@@ -13,10 +13,13 @@ import {
 } from "recharts";
 import {
   CalendarDays,
+  Eye,
   MessageCircle,
   MessageSquare,
+  MousePointerClick,
   Newspaper,
   Star,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { InsightsStatisticsSkeleton } from "@/components/insights/insights-statistics-skeleton";
@@ -40,6 +43,7 @@ import type {
   InsightsStatisticsResult,
   InsightsStatsPeriod,
 } from "@/lib/insights/compute-insights-statistics";
+import { formatInsightCount } from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -207,7 +211,217 @@ export function InsightsStatisticsScreen() {
             />
           </div>
 
+          <section className="space-y-3" aria-label="Plattform-Insights">
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight">
+                Plattform-Insights
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Live-Kennzahlen von Google Business, Facebook und Instagram.
+                Meta liefert Account-Insights typischerweise für die letzten
+                ~30 Tage.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <KpiCard
+                icon={Eye}
+                label="Google Aufrufe"
+                value={
+                  data.platforms.google.connected
+                    ? formatInsightCount(data.platforms.google.impressions)
+                    : "—"
+                }
+                hint={
+                  data.platforms.google.connected
+                    ? `${formatInsightCount(data.platforms.google.websiteClicks)} Website · ${formatInsightCount(data.platforms.google.callClicks)} Anrufe`
+                    : "Nicht verbunden"
+                }
+              />
+              <KpiCard
+                icon={Users}
+                label="Facebook Reichweite"
+                value={
+                  data.platforms.facebook.connected
+                    ? formatInsightCount(data.platforms.facebook.reach)
+                    : "—"
+                }
+                hint={
+                  data.platforms.facebook.needsReconnect
+                    ? "Scope „Seiten-Statistiken“ fehlt — unter Integrationen erneut verbinden"
+                    : data.platforms.facebook.connected
+                      ? `${formatInsightCount(data.platforms.facebook.impressions)} Impressionen · ${formatInsightCount(data.platforms.facebook.postEngagements)} Interaktionen`
+                      : "Nicht verbunden"
+                }
+              />
+              <KpiCard
+                icon={MousePointerClick}
+                label="Instagram Reichweite"
+                value={
+                  data.platforms.instagram.connected
+                    ? formatInsightCount(data.platforms.instagram.reach)
+                    : "—"
+                }
+                hint={
+                  data.platforms.instagram.connected
+                    ? `${formatInsightCount(data.platforms.instagram.views)} Views · ${formatInsightCount(data.platforms.instagram.totalInteractions)} Interaktionen`
+                    : "Nicht verbunden"
+                }
+              />
+            </div>
+          </section>
+
           <div className="grid gap-6 lg:grid-cols-2">
+            {data.platforms.google.series[0]?.byDay.length ? (
+              <Card className="min-w-0 border-border/50 shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">Google Aufrufe / Tag</CardTitle>
+                  <CardDescription>
+                    Maps- und Suchimpressionen aus Business Profile Performance.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pl-0">
+                  <ChartContainer
+                    config={monthConfig}
+                    className="aspect-auto h-[260px] w-full min-w-0"
+                  >
+                    <LineChart
+                      accessibilityLayer
+                      data={data.platforms.google.series[0].byDay}
+                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        className="text-[10px]"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={36}
+                        className="text-[10px]"
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        name="Aufrufe"
+                        stroke="var(--accent)"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {data.platforms.facebook.series[0]?.byDay.length ? (
+              <Card className="min-w-0 border-border/50 shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    Facebook Impressionen / Tag
+                  </CardTitle>
+                  <CardDescription>
+                    Page Insights (page_impressions).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pl-0">
+                  <ChartContainer
+                    config={monthConfig}
+                    className="aspect-auto h-[260px] w-full min-w-0"
+                  >
+                    <LineChart
+                      accessibilityLayer
+                      data={data.platforms.facebook.series[0].byDay}
+                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        className="text-[10px]"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={36}
+                        className="text-[10px]"
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        name="Impressionen"
+                        stroke="var(--chart-1)"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {data.platforms.instagram.series[0]?.byDay.length ? (
+              <Card className="min-w-0 border-border/50 shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    Instagram Reichweite / Tag
+                  </CardTitle>
+                  <CardDescription>
+                    Account Insights (reach) — i. d. R. letzte ~30 Tage.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pl-0">
+                  <ChartContainer
+                    config={monthConfig}
+                    className="aspect-auto h-[260px] w-full min-w-0"
+                  >
+                    <LineChart
+                      accessibilityLayer
+                      data={data.platforms.instagram.series[0].byDay}
+                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        className="text-[10px]"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={36}
+                        className="text-[10px]"
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        name="Reichweite"
+                        stroke="var(--chart-2)"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            ) : null}
+
             <Card className="min-w-0 border-border/50 shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">Reservierungen pro Monat</CardTitle>

@@ -1,0 +1,219 @@
+import "server-only";
+
+import { META_GRAPH_VERSION } from "@/lib/constants/integration-oauth-scopes";
+import { metaGraphGet } from "@/lib/contact-messages/meta-graph-client";
+import {
+  oauthConfigFromJson,
+  type MetaOAuthIntegrationConfig,
+} from "@/lib/integrations/oauth-integration-types";
+import {
+  emptyInstagramInsights,
+  formatDayLabel,
+  type InstagramAccountPlatformInsights,
+  type PlatformInsightDayPoint,
+  type PlatformInsightSeries,
+  ymdFromIso,
+} from "@/lib/insights/platform-insights-types";
+import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
+
+type MetaInsightValue = {
+  value?: number;
+  end_time?: string;
+};
+
+type MetaInsightRow = {
+  name?: string;
+  period?: string;
+  values?: MetaInsightValue[];
+  total_value?: { value?: number };
+};
+
+type MetaInsightsResponse = {
+  data?: MetaInsightRow[];
+};
+
+/** Aktuelle Meta-Metriken (v22+): impressions/profile_views time-series sind deprecated. */
+const IG_TIME_SERIES_METRICS = ["reach", "views"] as const;
+const IG_TOTAL_VALUE_METRICS = [
+  "accounts_engaged",
+  "total_interactions",
+] as const;
+
+function seriesFromMetaValues(
+  key: string,
+  label: string,
+  values: MetaInsightValue[] | undefined,
+): PlatformInsightSeries {
+  const byDay: PlatformInsightDayPoint[] = [];
+  for (const entry of values ?? []) {
+    if (!entry.end_time) continue;
+    const date = ymdFromIso(entry.end_time);
+    byDay.push({
+      date,
+      label: formatDayLabel(date),
+      value: Number(entry.value ?? 0) || 0,
+    });
+  }
+  byDay.sort((a, b) => a.date.localeCompare(b.date));
+  return {
+    key,
+    label,
+    total: byDay.reduce((sum, row) => sum + row.value, 0),
+    byDay,
+  };
+}
+
+function unixSeconds(ymd: string, endOfDay = false): number {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(
+    y,
+    m - 1,
+    d,
+    endOfDay ? 23 : 0,
+    endOfDay ? 59 : 0,
+    endOfDay ? 59 : 0,
+  );
+  return Math.floor(date.getTime() / 1000);
+}
+
+/** Meta liefert Account-Insights meist nur ~30 Tage rückwirkend. */
+function clampMetaInsightsStart(startYmd: string, endYmd: string): string {
+  const end = new Date(`${endYmd}T12:00:00`);
+  const start = new Date(`${startYmd}T12:00:00`);
+  const minStart = new Date(end);
+  minStart.setDate(minStart.getDate() - 28);
+  const effective = start < minStart ? minStart : start;
+  const y = effective.getFullYear();
+  const m = String(effective.getMonth() + 1).padStart(2, "0");
+  const d = String(effective.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+export async function fetchInstagramAccountPlatformInsights(params: {
+  restaurantId: string;
+  startYmd: string;
+  endYmd: string;
+}): Promise<InstagramAccountPlatformInsights> {
+  const row = await fetchRestaurantOAuthIntegrationAdmin(
+    params.restaurantId,
+    "instagram",
+    (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
+  );
+  if (!row || row.status !== "working") {
+    return emptyInstagramInsights({
+      connected: false,
+      error: "instagram_not_connected",
+    });
+  }
+
+  const igId = row.config.instagram_business_account_id?.trim();
+  const token = row.config.page_access_token?.trim();
+  if (!igId || !token) {
+    return emptyInstagramInsights({
+      connected: true,
+      error: "instagram_account_missing",
+    });
+  }
+
+  const startYmd = clampMetaInsightsStart(params.startYmd, params.endYmd);
+  const since = unixSeconds(startYmd);
+  const until = unixSeconds(params.endYmd, true);
+
+  const seriesParams = new URLSearchParams({
+    access_token: token,
+    metric: IG_TIME_SERIES_METRICS.join(","),
+    period: "day",
+    metric_type: "time_series",
+    since: String(since),
+    until: String(until),
+  });
+
+  const seriesResult = await metaGraphGet<MetaInsightsResponse>(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${igId}/insights?${seriesParams}`,
+    { platform: "instagram", feature: "insights" },
+  );
+
+  // Fallback ohne metric_type (ältere Apps / Token)
+  const seriesData =
+    seriesResult.error == null
+      ? seriesResult.data
+      : (
+          await metaGraphGet<MetaInsightsResponse>(
+            `https://graph.facebook.com/${META_GRAPH_VERSION}/${igId}/insights?${new URLSearchParams(
+              {
+                access_token: token,
+                metric: "reach,views",
+                period: "day",
+                since: String(since),
+                until: String(until),
+              },
+            )}`,
+            { platform: "instagram", feature: "insights" },
+          )
+        ).data;
+
+  if (!seriesData && seriesResult.error) {
+    return emptyInstagramInsights({
+      connected: true,
+      error: seriesResult.error,
+    });
+  }
+
+  const byName = new Map(
+    (seriesData?.data ?? []).map((row) => [row.name ?? "", row]),
+  );
+
+  const reachSeries = seriesFromMetaValues(
+    "reach",
+    "Reichweite",
+    byName.get("reach")?.values,
+  );
+  const viewsSeries = seriesFromMetaValues(
+    "views",
+    "Views",
+    byName.get("views")?.values,
+  );
+
+  let accountsEngaged = 0;
+  let totalInteractions = 0;
+
+  const totalsParams = new URLSearchParams({
+    access_token: token,
+    metric: IG_TOTAL_VALUE_METRICS.join(","),
+    period: "day",
+    metric_type: "total_value",
+    since: String(since),
+    until: String(until),
+  });
+  const totalsResult = await metaGraphGet<MetaInsightsResponse>(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${igId}/insights?${totalsParams}`,
+    { platform: "instagram", feature: "insights" },
+  );
+  if (!totalsResult.error) {
+    for (const row of totalsResult.data?.data ?? []) {
+      const value = Number(row.total_value?.value ?? 0) || 0;
+      if (row.name === "accounts_engaged") accountsEngaged = value;
+      if (row.name === "total_interactions") totalInteractions = value;
+    }
+  }
+
+  const metrics = [
+    { key: "reach", label: "Reichweite", value: reachSeries.total },
+    { key: "views", label: "Views", value: viewsSeries.total },
+    { key: "engaged", label: "Accounts engaged", value: accountsEngaged },
+    { key: "interactions", label: "Interaktionen", value: totalInteractions },
+  ].filter((m) => m.value > 0);
+
+  return {
+    platform: "instagram",
+    connected: true,
+    available: metrics.length > 0,
+    error: null,
+    metrics,
+    series: [reachSeries, viewsSeries],
+    reach: reachSeries.total,
+    views: viewsSeries.total,
+    accountsEngaged,
+    totalInteractions,
+  };
+}

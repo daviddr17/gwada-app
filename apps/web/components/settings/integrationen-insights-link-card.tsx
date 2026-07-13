@@ -18,8 +18,8 @@ export function IntegrationenInsightsLinkCard() {
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-semibold tracking-tight">Insights</p>
             <p className="text-xs text-muted-foreground">
-              Gwada-KPIs, Plattform-Kennzahlen und Auswertungen über
-              Reservierungen, Bewertungen, Nachrichten und News.
+              Google Business Aufrufe &amp; Klicks, Facebook-/Instagram-Reichweite
+              und Gwada-KPIs — Reservierungen, Bewertungen, Nachrichten und News.
             </p>
           </div>
         </div>

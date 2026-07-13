@@ -1,5 +1,6 @@
 import type { ContactStatisticsResult } from "@/lib/contacts/compute-contact-statistics";
 import type { NewsStatisticsResult } from "@/lib/news/compute-news-statistics";
+import type { PlatformInsightsBundle } from "@/lib/insights/platform-insights-types";
 import type { ReservationStatsResult } from "@/lib/reservations/compute-reservation-stats";
 import type { ReviewStatisticsResult } from "@/lib/reviews/compute-review-statistics";
 
@@ -37,6 +38,7 @@ export type InsightsStatisticsResult = {
     byMonth: NewsStatisticsResult["byMonth"];
     byPlatform: NewsStatisticsResult["byPlatform"];
   };
+  platforms: PlatformInsightsBundle;
 };
 
 export function computeInsightsStatistics(input: {
@@ -48,6 +50,7 @@ export function computeInsightsStatistics(input: {
   messages: ContactStatisticsResult;
   news: NewsStatisticsResult;
   newsEngagement: { likes: number; comments: number; views: number };
+  platforms: PlatformInsightsBundle;
 }): InsightsStatisticsResult {
   return {
     periodMonths: input.periodMonths,
@@ -81,5 +84,6 @@ export function computeInsightsStatistics(input: {
       byMonth: input.news.byMonth,
       byPlatform: input.news.byPlatform,
     },
+    platforms: input.platforms,
   };
 }

@@ -61,6 +61,11 @@ export const FACEBOOK_OAUTH_SCOPES: IntegrationScopeMeta[] = [
     label: "Gäste-Inhalte auf der Seite",
     plannedUse: "Fotos, Erwähnungen und geteilte Inhalte",
   },
+  {
+    id: "read_insights",
+    label: "Seiten-Statistiken & Insights",
+    plannedUse: "Aufrufe, Reichweite und Interaktionen der Seite auswerten",
+  },
 ];
 
 export const FACEBOOK_OAUTH_SCOPE_IDS = uniqueOAuthIds(FACEBOOK_OAUTH_SCOPES);

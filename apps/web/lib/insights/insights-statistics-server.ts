@@ -6,6 +6,7 @@ import {
   type InsightsStatsPeriod,
   type InsightsStatisticsResult,
 } from "@/lib/insights/compute-insights-statistics";
+import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
 import { computeNewsStatistics } from "@/lib/news/compute-news-statistics";
 import { computeReservationStats } from "@/lib/reservations/compute-reservation-stats";
 import { fetchReviewStatisticsBundleServer } from "@/lib/reviews/reviews-statistics-server";
@@ -13,8 +14,10 @@ import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
   exclusiveUtcIsoAfterLocalVisibleEnd,
+  localDayKey,
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
+import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { ReservationAnalyticsRow } from "@/lib/supabase/reservations-analytics-db";
 import type {
@@ -257,12 +260,17 @@ export async function fetchInsightsStatistics(
   const { periodStart, periodEnd, rangeStartIso, rangeEndIso } =
     periodRange(monthsBack);
 
+  const flags = await fetchPlatformMessagingFlags(sb);
+  const startYmd = localDayKey(periodStart);
+  const endYmd = localDayKey(periodEnd);
+
   const [
     reviewBundleRes,
     reservationRows,
     contactBundle,
     newsItems,
     syncRes,
+    platforms,
   ] = await Promise.all([
     fetchReviewStatisticsBundleServer(sb, {
       restaurantId,
@@ -282,6 +290,12 @@ export async function fetchInsightsStatistics(
       .from("restaurant_news_platform_sync")
       .select("platform, item_count, synced_at, last_error")
       .eq("restaurant_id", restaurantId),
+    fetchPlatformInsightsBundle({
+      restaurantId,
+      startYmd,
+      endYmd,
+      flags,
+    }),
   ]);
 
   if (reviewBundleRes.error) {
@@ -327,6 +341,7 @@ export async function fetchInsightsStatistics(
       messages,
       news,
       newsEngagement,
+      platforms,
     }),
     error: null,
   };

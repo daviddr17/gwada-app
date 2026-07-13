@@ -1,6 +1,6 @@
 export type MetaGraphErrorContext = {
   platform?: "facebook" | "instagram";
-  feature?: "news" | "messages" | "gallery";
+  feature?: "news" | "messages" | "gallery" | "insights";
   errorCode?: number | null;
 };
 

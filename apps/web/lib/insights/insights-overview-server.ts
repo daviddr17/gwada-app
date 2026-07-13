@@ -5,16 +5,14 @@ import {
   type InsightsPeriodDays,
   resolveInsightsRange,
 } from "@/lib/insights/insights-date-range";
+import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
+import { formatInsightCount } from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import { readReviewsFeedFromCache } from "@/lib/reviews/reviews-feed-read-server";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
-import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import { fetchRestaurantAppleBusinessConnectConfigAdmin } from "@/lib/supabase/restaurant-apple-business-connect-integration-db";
-import { oauthConfigFromJson } from "@/lib/integrations/oauth-integration-types";
-import type { MetaOAuthIntegrationConfig } from "@/lib/integrations/oauth-integration-types";
-import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -239,16 +237,31 @@ function sumNewsEngagementForPlatform(
   return { likes, comments };
 }
 
+function topMetrics(
+  metrics: Array<{ label: string; value: number }>,
+  limit = 4,
+): InsightsPlatformMetric[] {
+  return metrics
+    .filter((m) => m.value > 0)
+    .slice(0, limit)
+    .map((m) => ({
+      label: m.label,
+      value: formatInsightCount(m.value),
+    }));
+}
+
 async function platformCards(
   sb: SupabaseClient,
   restaurantId: string,
+  periodStartYmd: string,
+  periodEndYmd: string,
   rangeStartIso: string,
   rangeEndIso: string,
 ): Promise<InsightsPlatformCard[]> {
   const flags = await fetchPlatformMessagingFlags(sb);
   const admin = createSupabaseAdminClient();
 
-  const [{ syncRows }, newsCacheRes] = await Promise.all([
+  const [{ syncRows }, newsCacheRes, platformInsights] = await Promise.all([
     readReviewsFeedFromCache(restaurantId, sb),
     admin
       ? admin
@@ -256,6 +269,12 @@ async function platformCards(
           .select("item")
           .eq("restaurant_id", restaurantId)
       : Promise.resolve({ data: [] as unknown[] }),
+    fetchPlatformInsightsBundle({
+      restaurantId,
+      startYmd: periodStartYmd,
+      endYmd: periodEndYmd,
+      flags,
+    }),
   ]);
 
   const newsItems = (newsCacheRes.data ?? [])
@@ -263,83 +282,77 @@ async function platformCards(
     .filter((item): item is UnifiedNewsItem => item != null);
 
   const syncByPlatform = new Map(syncRows.map((row) => [row.platform, row]));
+  const google = platformInsights.google;
+  const facebook = platformInsights.facebook;
+  const instagram = platformInsights.instagram;
 
-  const googleAuth = flags.googleBusinessEnabled
-    ? await getGoogleBusinessAccessTokenForRestaurant(restaurantId)
-    : null;
-  const googleConnected = Boolean(
-    googleAuth && !("error" in googleAuth) && googleAuth.config.location_name,
-  );
   const googleSync = syncByPlatform.get("google");
-  const googleMetrics: InsightsPlatformMetric[] = [];
-  if (googleSync?.meta.totalReviewCount != null) {
-    googleMetrics.push({
-      label: "Bewertungen gesamt",
-      value: String(googleSync.meta.totalReviewCount),
-    });
-  }
-  if (googleSync?.meta.averageRating != null) {
+  const googleMetrics = topMetrics([
+    ...google.metrics,
+    ...(googleSync?.meta.totalReviewCount != null
+      ? [
+          {
+            key: "reviews",
+            label: "Bewertungen",
+            value: googleSync.meta.totalReviewCount,
+          },
+        ]
+      : []),
+  ]);
+  if (
+    googleSync?.meta.averageRating != null &&
+    googleMetrics.length < 4 &&
+    !googleMetrics.some((m) => m.label === "Ø Sterne")
+  ) {
     googleMetrics.push({
       label: "Ø Sterne",
       value: formatReviewRating(googleSync.meta.averageRating),
     });
   }
 
-  const facebookRow = flags.facebookEnabled
-    ? await fetchRestaurantOAuthIntegrationAdmin(
-        restaurantId,
-        "facebook",
-        (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
-      )
-    : null;
-  const facebookConnected = facebookRow?.status === "working";
-  const fbEngagement = sumNewsEngagementForPlatform(
+  const fbNews = sumNewsEngagementForPlatform(
     newsItems,
     "facebook",
     rangeStartIso,
     rangeEndIso,
   );
-  const facebookMetrics: InsightsPlatformMetric[] = [];
-  if (fbEngagement.likes > 0) {
-    facebookMetrics.push({
-      label: "Likes (News)",
-      value: String(fbEngagement.likes),
-    });
-  }
-  if (fbEngagement.comments > 0) {
-    facebookMetrics.push({
-      label: "Kommentare (News)",
-      value: String(fbEngagement.comments),
-    });
-  }
+  const facebookMetrics = topMetrics([
+    ...facebook.metrics,
+    ...(fbNews.likes > 0
+      ? [{ key: "likes", label: "Likes (Beiträge)", value: fbNews.likes }]
+      : []),
+    ...(fbNews.comments > 0
+      ? [
+          {
+            key: "comments",
+            label: "Kommentare (Beiträge)",
+            value: fbNews.comments,
+          },
+        ]
+      : []),
+  ]);
 
-  const instagramRow = flags.instagramEnabled
-    ? await fetchRestaurantOAuthIntegrationAdmin(
-        restaurantId,
-        "instagram",
-        (raw) => oauthConfigFromJson<MetaOAuthIntegrationConfig>(raw),
-      )
-    : null;
-  const instagramConnected = instagramRow?.status === "working";
-  const igEngagement = sumNewsEngagementForPlatform(
+  const igNews = sumNewsEngagementForPlatform(
     newsItems,
     "instagram",
     rangeStartIso,
     rangeEndIso,
   );
-  const instagramMetrics: InsightsPlatformMetric[] = [];
-  if (igEngagement.likes > 0) {
-    instagramMetrics.push({
-      label: "Likes (News)",
-      value: String(igEngagement.likes),
-    });
-  }
-  if (igEngagement.comments > 0) {
-    instagramMetrics.push({
-      label: "Kommentare (News)",
-      value: String(igEngagement.comments),
-    });
-  }
+  const instagramMetrics = topMetrics([
+    ...instagram.metrics,
+    ...(igNews.likes > 0
+      ? [{ key: "likes", label: "Likes (Beiträge)", value: igNews.likes }]
+      : []),
+    ...(igNews.comments > 0
+      ? [
+          {
+            key: "comments",
+            label: "Kommentare (Beiträge)",
+            value: igNews.comments,
+          },
+        ]
+      : []),
+  ]);
 
   const tripadvisorRow = flags.tripadvisorEnabled
     ? await fetchRestaurantTripadvisorConfigAdmin(restaurantId)
@@ -350,7 +363,7 @@ async function platformCards(
   if (tripSync?.meta.totalReviewCount != null) {
     tripadvisorMetrics.push({
       label: "Bewertungen gesamt",
-      value: String(tripSync.meta.totalReviewCount),
+      value: formatInsightCount(tripSync.meta.totalReviewCount),
     });
   }
   if (tripSync?.meta.averageRating != null) {
@@ -377,40 +390,48 @@ async function platformCards(
       id: "google_business" as const,
       label: "Google Business",
       enabled: flags.googleBusinessEnabled,
-      connected: googleConnected,
-      insightsAvailable: googleConnected && googleMetrics.length > 0,
+      connected: google.connected,
+      insightsAvailable: google.available || googleMetrics.length > 0,
       metrics: googleMetrics,
-      hint: googleConnected
-        ? googleMetrics.length > 0
-          ? "Profil-Bewertungen aus Google — Details unter Statistiken."
-          : "Verbunden — Bewertungen werden beim nächsten Sync geladen."
-        : "Unter Einstellungen → Integrationen verbinden.",
+      hint: !google.connected
+        ? "Unter Einstellungen → Integrationen verbinden."
+        : google.error
+          ? `Google Performance: ${google.error}`
+          : google.available
+            ? "Profil-Aufrufe und Klicks aus Google Business Performance."
+            : "Verbunden — Performance-Daten folgen, sobald Google Werte liefert.",
     },
     {
       id: "facebook" as const,
       label: "Facebook",
       enabled: flags.facebookEnabled,
-      connected: facebookConnected,
-      insightsAvailable: facebookMetrics.length > 0,
+      connected: facebook.connected,
+      insightsAvailable: facebook.available || facebookMetrics.length > 0,
       metrics: facebookMetrics,
-      hint: facebookConnected
-        ? facebookMetrics.length > 0
-          ? "Beitrags-Engagement aus dem News-Feed im Zeitraum."
-          : "Verbunden — Engagement erscheint nach News-Sync."
-        : "Facebook-Seite unter Integrationen verbinden.",
+      hint: !facebook.connected
+        ? "Facebook-Seite unter Integrationen verbinden."
+        : facebook.needsReconnect
+          ? "Bitte Facebook erneut verbinden (Scope „Seiten-Statistiken“)."
+          : facebook.available
+            ? "Seiten-Impressionen und Reichweite aus Meta Page Insights."
+            : facebook.error
+              ? `Facebook Insights: ${facebook.error}`
+              : "Verbunden — Seiten-Insights erscheinen nach Sync / Freigabe.",
     },
     {
       id: "instagram" as const,
       label: "Instagram",
       enabled: flags.instagramEnabled,
-      connected: instagramConnected,
-      insightsAvailable: instagramMetrics.length > 0,
+      connected: instagram.connected,
+      insightsAvailable: instagram.available || instagramMetrics.length > 0,
       metrics: instagramMetrics,
-      hint: instagramConnected
-        ? instagramMetrics.length > 0
-          ? "Beitrags-Engagement aus dem News-Feed im Zeitraum."
-          : "Verbunden — Engagement erscheint nach News-Sync."
-        : "Instagram Business unter Integrationen verbinden.",
+      hint: !instagram.connected
+        ? "Instagram Business unter Integrationen verbinden."
+        : instagram.available
+          ? "Reichweite und Views aus Instagram Account Insights (max. ~30 Tage)."
+          : instagram.error
+            ? `Instagram Insights: ${instagram.error}`
+            : "Verbunden — Account-Insights erscheinen nach Sync / Freigabe.",
     },
     {
       id: "tripadvisor" as const,
@@ -459,7 +480,14 @@ export async function fetchInsightsOverview(
     countAllReviews(admin, sb, restaurantId, rangeStartIso, rangeEndIso),
     countInboundMessages(admin, restaurantId, rangeStartIso, rangeEndIso),
     countNewsEngagement(admin, restaurantId, rangeStartIso, rangeEndIso),
-    platformCards(sb, restaurantId, rangeStartIso, rangeEndIso),
+    platformCards(
+      sb,
+      restaurantId,
+      periodStartYmd,
+      periodEndYmd,
+      rangeStartIso,
+      rangeEndIso,
+    ),
   ]);
 
   return {

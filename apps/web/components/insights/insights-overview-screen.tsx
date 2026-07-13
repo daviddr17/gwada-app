@@ -11,6 +11,7 @@ import {
   Newspaper,
   Star,
 } from "lucide-react";
+import { GwadaUsageInsightsPanels } from "@/components/insights/gwada-usage-insights-panels";
 import { InsightsOverviewSkeleton } from "@/components/insights/insights-overview-skeleton";
 import { InsightsPlatformFilterChips } from "@/components/insights/insights-platform-filter-chips";
 import {
@@ -321,7 +322,7 @@ export function InsightsOverviewScreen() {
       <p className="text-xs text-muted-foreground">
         {INSIGHTS_PLATFORM_LABELS[platform]}-Insights
         {platform === "gwada"
-          ? " — Reservierungen, Bewertungen, Nachrichten und News aus Gwada."
+          ? " — Reservierungen, Bewertungen, Nachrichten, News und Gwada-Nutzung (Embed/API/Profil)."
           : " — Kennzahlen dieser Plattform. Charts unter Statistiken."}{" "}
         <Link
           href={`${APP_ROUTES.insights.statistics}?platform=${platform}`}
@@ -332,7 +333,7 @@ export function InsightsOverviewScreen() {
       </p>
 
       {platform === "gwada" ? (
-        <section aria-label="Gwada-Kennzahlen">
+        <section aria-label="Gwada-Kennzahlen" className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <KpiCard
               label="Reservierungen"
@@ -367,6 +368,9 @@ export function InsightsOverviewScreen() {
               icon={Newspaper}
             />
           </div>
+          {data?.gwada.usage ? (
+            <GwadaUsageInsightsPanels usage={data.gwada.usage} />
+          ) : null}
         </section>
       ) : null}
 

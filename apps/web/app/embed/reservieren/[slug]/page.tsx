@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
+import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import {
   EMBED_PREVIEW_TEXT_THEME_PARAM,
@@ -53,11 +54,25 @@ export default async function EmbedReservierenPage({
     );
   }
 
+  const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
+
   return (
-    <EmbedReservationWidget
-      config={result.data}
-      countries={publicCountries()}
-      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
-    />
+    <>
+      {!isPreview ? (
+        <RestaurantUsageBeacon
+          slug={slug}
+          source="embed"
+          dimension="reservation"
+        />
+      ) : null}
+      <EmbedReservationWidget
+        config={result.data}
+        countries={publicCountries()}
+        textTheme={resolveEmbedTextTheme(
+          textTheme,
+          sp[EMBED_PREVIEW_TEXT_THEME_PARAM],
+        )}
+      />
+    </>
   );
 }

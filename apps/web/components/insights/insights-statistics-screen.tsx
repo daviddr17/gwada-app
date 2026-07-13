@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { GwadaUsageInsightsPanels } from "@/components/insights/gwada-usage-insights-panels";
 import { InsightsPlatformFilterChips } from "@/components/insights/insights-platform-filter-chips";
 import {
   FacebookInsightsPanels,
@@ -377,6 +378,8 @@ export function InsightsStatisticsScreen() {
               hint={`${data.news.engagementLikes} Likes · ${data.news.engagementComments} Kommentare`}
             />
           </div>
+
+          <GwadaUsageInsightsPanels usage={data.usage} />
 
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="min-w-0 border-border/50 shadow-card">

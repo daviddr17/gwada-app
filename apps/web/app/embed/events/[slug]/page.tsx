@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
+import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import {
   EMBED_PREVIEW_TEXT_THEME_PARAM,
@@ -55,15 +56,25 @@ export default async function EmbedEventsPage({
   const { accentHex, viewMode, connectedPlatforms, items, pastItems, showAllPlatformFilter } =
     result.data;
 
+  const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
+
   return (
-    <EmbedEventsWidget
-      accentHex={accentHex}
-      viewMode={viewMode}
-      connectedPlatforms={connectedPlatforms}
-      items={items}
-      pastItems={pastItems}
-      showAllPlatformFilter={showAllPlatformFilter}
-      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
-    />
+    <>
+      {!isPreview ? (
+        <RestaurantUsageBeacon slug={slug} source="embed" dimension="events" />
+      ) : null}
+      <EmbedEventsWidget
+        accentHex={accentHex}
+        viewMode={viewMode}
+        connectedPlatforms={connectedPlatforms}
+        items={items}
+        pastItems={pastItems}
+        showAllPlatformFilter={showAllPlatformFilter}
+        textTheme={resolveEmbedTextTheme(
+          textTheme,
+          sp[EMBED_PREVIEW_TEXT_THEME_PARAM],
+        )}
+      />
+    </>
   );
 }

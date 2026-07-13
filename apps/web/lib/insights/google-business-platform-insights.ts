@@ -281,13 +281,17 @@ function humanizeGooglePerformanceError(raw: string | null): string | null {
   return raw;
 }
 
+function payloadHasDatedValues(body: GoogleTimeSeriesPayload): boolean {
+  return [...collectMetricSeries(body).values()].some((vals) => vals.length > 0);
+}
+
 async function fetchMulti(
   accessToken: string,
   location: string,
   start: DateParts,
   end: DateParts,
 ): Promise<{ body: GoogleTimeSeriesPayload; error: string | null }> {
-  let body: GoogleTimeSeriesPayload = {};
+  let bestEmptyOk: GoogleTimeSeriesPayload | null = null;
   let lastError: string | null = null;
 
   for (const style of ["rest_doc", "camel_date", "snake"] as const) {
@@ -296,14 +300,22 @@ async function fetchMulti(
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
     });
-    body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
-    if (res.ok) {
+    const body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
+    if (!res.ok) {
+      lastError = body.error?.message ?? `google_performance_${res.status}`;
+      continue;
+    }
+    // 200 mit leerer Serie = oft falsche Query-Params → andere Stilvariante versuchen.
+    if (payloadHasDatedValues(body)) {
       return { body, error: null };
     }
-    lastError = body.error?.message ?? `google_performance_${res.status}`;
+    bestEmptyOk = body;
   }
 
-  return { body, error: lastError };
+  if (bestEmptyOk) {
+    return { body: bestEmptyOk, error: null };
+  }
+  return { body: {}, error: lastError };
 }
 
 async function fetchPerMetricFallback(

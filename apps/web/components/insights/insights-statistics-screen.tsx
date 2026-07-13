@@ -26,7 +26,9 @@ import {
   Star,
   Users,
 } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import { InsightsPlatformFilterChips } from "@/components/insights/insights-platform-filter-chips";
 import { InsightsStatisticsSkeleton } from "@/components/insights/insights-statistics-skeleton";
 import {
   Card,
@@ -43,6 +45,12 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Button } from "@/components/ui/button";
+import {
+  INSIGHTS_PLATFORM_DEFAULT,
+  INSIGHTS_PLATFORM_LABELS,
+  parseInsightsPlatform,
+  type InsightsPlatform,
+} from "@/lib/constants/insights-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type {
   InsightsStatisticsResult,
@@ -55,7 +63,9 @@ import {
   WorkspaceRestaurantResolvePlaceholder,
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 const monthConfig = {
   count: { label: "Anzahl", color: "var(--accent)" },
@@ -77,13 +87,97 @@ function ChartEmpty({ message }: { message: string }) {
   );
 }
 
+function DayLineChart({
+  title,
+  description,
+  points,
+  seriesName,
+  stroke,
+}: {
+  title: string;
+  description: string;
+  points: { label: string; value: number }[];
+  seriesName: string;
+  stroke: string;
+}) {
+  if (!points.length) return null;
+  return (
+    <Card className="min-w-0 border-border/50 shadow-card">
+      <CardHeader>
+        <CardTitle className="text-lg">{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="pl-0">
+        <ChartContainer
+          config={monthConfig}
+          className="aspect-auto h-[260px] w-full min-w-0"
+        >
+          <LineChart
+            accessibilityLayer
+            data={points}
+            margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+          >
+            <CartesianGrid vertical={false} strokeDasharray="4 4" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              className="text-[10px]"
+              interval="preserveStartEnd"
+            />
+            <YAxis
+              tickLine={false}
+              axisLine={false}
+              width={36}
+              className="text-[10px]"
+              allowDecimals={false}
+            />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Line
+              type="monotone"
+              dataKey="value"
+              name={seriesName}
+              stroke={stroke}
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function InsightsStatisticsScreen() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { restaurantId, supabaseEnvOk, ready: workspaceReady } =
     useWorkspaceRestaurantUuid();
+  const [platform, setPlatformState] = useState<InsightsPlatform>(() =>
+    parseInsightsPlatform(searchParams.get("platform")),
+  );
   const [period, setPeriod] = useState<InsightsStatsPeriod>(12);
   const [data, setData] = useState<InsightsStatisticsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && !data);
+
+  const setPlatform = useCallback(
+    (next: InsightsPlatform) => {
+      setPlatformState(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === INSIGHTS_PLATFORM_DEFAULT) params.delete("platform");
+      else params.set("platform", next);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  useEffect(() => {
+    setPlatformState(parseInsightsPlatform(searchParams.get("platform")));
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     if (!restaurantId) {
@@ -117,6 +211,31 @@ export function InsightsStatisticsScreen() {
     void load();
   }, [load]);
 
+  const availablePlatforms = useMemo(() => {
+    const set = new Set<InsightsPlatform>(["gwada"]);
+    if (!data) return set;
+    if (data.platforms.google.connected || data.platforms.google.error) {
+      set.add("google_business");
+    }
+    if (data.platforms.facebook.connected || data.platforms.facebook.error) {
+      set.add("facebook");
+    }
+    if (data.platforms.instagram.connected || data.platforms.instagram.error) {
+      set.add("instagram");
+    }
+    if (data.reviews.byPlatform.some((p) => /tripadvisor/i.test(p.label))) {
+      set.add("tripadvisor");
+    }
+    return set;
+  }, [data]);
+
+  useEffect(() => {
+    if (!data) return;
+    if (!availablePlatforms.has(platform)) {
+      setPlatform(INSIGHTS_PLATFORM_DEFAULT);
+    }
+  }, [data, availablePlatforms, platform, setPlatform]);
+
   const reviewPlatformChart = useMemo(
     () =>
       data?.reviews.byPlatform.map((p) => ({
@@ -135,6 +254,13 @@ export function InsightsStatisticsScreen() {
         fill: p.color,
       })) ?? [],
     [data?.messages.byPlatform],
+  );
+
+  const tripReviews = useMemo(
+    () =>
+      data?.reviews.byPlatform.find((p) => /tripadvisor/i.test(p.label)) ??
+      null,
+    [data?.reviews.byPlatform],
   );
 
   if (!supabaseEnvOk) {
@@ -157,33 +283,73 @@ export function InsightsStatisticsScreen() {
     return <InsightsStatisticsSkeleton />;
   }
 
+  const google = data?.platforms.google;
+  const facebook = data?.platforms.facebook;
+  const instagram = data?.platforms.instagram;
+
   return (
     <div className="space-y-6 pb-4">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <div
-          className="flex flex-wrap gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"
-          role="group"
-          aria-label="Zeitraum"
-        >
-          {([3, 6, 12] as const).map((m) => (
-            <Button
-              key={m}
-              type="button"
-              size="sm"
-              variant={period === m ? "default" : "ghost"}
-              className={cn(
-                "h-8 rounded-lg px-3 text-xs",
-                period === m && "shadow-sm",
-              )}
-              onClick={() => setPeriod(m)}
-            >
-              {m} Mon.
-            </Button>
-          ))}
+      <div className="flex flex-col gap-3">
+        <InsightsPlatformFilterChips
+          value={platform}
+          onChange={setPlatform}
+          availablePlatforms={availablePlatforms}
+          disabled={loading}
+        />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div
+            className="flex flex-wrap gap-1 rounded-xl border border-border/50 bg-muted/30 p-1"
+            role="group"
+            aria-label="Zeitraum"
+          >
+            {([3, 6, 12] as const).map((m) => (
+              <Button
+                key={m}
+                type="button"
+                size="sm"
+                variant={period === m ? "default" : "ghost"}
+                className={cn(
+                  "h-8 rounded-lg px-3 text-xs",
+                  period === m && "shadow-sm",
+                )}
+                onClick={() => setPeriod(m)}
+              >
+                {m} Mon.
+              </Button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {data ? (
+      <p className="text-xs text-muted-foreground">
+        {INSIGHTS_PLATFORM_LABELS[platform]}-Statistiken
+        {platform === "google_business"
+          ? " — Google Performance i. d. R. letzte ~90 Tage."
+          : platform === "facebook" || platform === "instagram"
+            ? " — Meta-Insights meist letzte ~30 Tage."
+            : null}{" "}
+        <Link
+          href={
+            platform === INSIGHTS_PLATFORM_DEFAULT
+              ? APP_ROUTES.insights.overview
+              : `${APP_ROUTES.insights.overview}?platform=${platform}`
+          }
+          className="font-medium text-accent hover:underline"
+        >
+          Übersicht
+        </Link>
+      </p>
+
+      {!data ? (
+        <Card className="border-border/50 shadow-card">
+          <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
+            <MessageSquare className="size-5 shrink-0" aria-hidden />
+            Statistiken konnten nicht geladen werden.
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {data && platform === "gwada" ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
@@ -199,7 +365,7 @@ export function InsightsStatisticsScreen() {
               hint={
                 data.reviews.averageRating != null
                   ? `Ø ${formatReviewRating(data.reviews.averageRating)} Sterne`
-                  : "Alle Plattformen im Zeitraum"
+                  : "Im Zeitraum"
               }
             />
             <KpiCard
@@ -216,348 +382,7 @@ export function InsightsStatisticsScreen() {
             />
           </div>
 
-          <section className="space-y-3" aria-label="Plattform-Insights">
-            <div>
-              <h2 className="text-sm font-semibold tracking-tight">
-                Plattform-Insights
-              </h2>
-              <p className="text-xs text-muted-foreground">
-                Live-Kennzahlen von Google, Facebook und Instagram. Google
-                Performance: letzte ~90 Tage (oft 2–3 Tage Verzug); Meta ~30 Tage.
-              </p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <KpiCard
-                icon={Eye}
-                label="Google Aufrufe"
-                value={
-                  data.platforms.google.connected
-                    ? formatInsightCount(data.platforms.google.impressions)
-                    : "—"
-                }
-                hint={
-                  data.platforms.google.error
-                    ? data.platforms.google.error
-                    : data.platforms.google.connected
-                      ? `${formatInsightCount(data.platforms.google.searchImpressions)} Suche · ${formatInsightCount(data.platforms.google.mapsImpressions)} Maps`
-                      : "Nicht verbunden"
-                }
-              />
-              <KpiCard
-                icon={Users}
-                label="Facebook Reichweite"
-                value={
-                  data.platforms.facebook.connected
-                    ? formatInsightCount(data.platforms.facebook.reach)
-                    : "—"
-                }
-                hint={
-                  data.platforms.facebook.error === "facebook_insights_app_review"
-                    ? "Meta App Review für read_insights nötig — Neu verbinden allein reicht nicht"
-                    : data.platforms.facebook.connected
-                      ? `${formatInsightCount(data.platforms.facebook.impressions)} Media-Views · ${formatInsightCount(data.platforms.facebook.postEngagements)} Interaktionen`
-                      : "Nicht verbunden"
-                }
-              />
-              <KpiCard
-                icon={MousePointerClick}
-                label="Instagram Reichweite"
-                value={
-                  data.platforms.instagram.connected
-                    ? formatInsightCount(data.platforms.instagram.reach)
-                    : "—"
-                }
-                hint={
-                  data.platforms.instagram.connected
-                    ? `${formatInsightCount(data.platforms.instagram.views)} Views · ${formatInsightCount(data.platforms.instagram.totalInteractions)} Interaktionen`
-                    : "Nicht verbunden"
-                }
-              />
-            </div>
-          </section>
-
-          {data.platforms.google.connected ? (
-            <section className="space-y-3" aria-label="Google Business Performance">
-              <div>
-                <h2 className="text-sm font-semibold tracking-tight">
-                  Google Business Performance
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  Aufrufe, Anrufe und weitere Aktionen am Profil. Werte 0 = im
-                  Zeitraum keine Aktivität (oder noch nachziehend).
-                </p>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <KpiCard
-                  icon={Search}
-                  label="Suchaufrufe"
-                  value={formatInsightCount(data.platforms.google.searchImpressions)}
-                  hint="Google Suche Desktop + Mobile"
-                />
-                <KpiCard
-                  icon={MapPinned}
-                  label="Maps-Aufrufe"
-                  value={formatInsightCount(data.platforms.google.mapsImpressions)}
-                  hint="Google Maps Desktop + Mobile"
-                />
-                <KpiCard
-                  icon={Phone}
-                  label="Anrufe"
-                  value={formatInsightCount(data.platforms.google.callClicks)}
-                  hint="Klicks auf Anrufen"
-                />
-                <KpiCard
-                  icon={Globe}
-                  label="Website-Klicks"
-                  value={formatInsightCount(data.platforms.google.websiteClicks)}
-                  hint="Klicks auf die Website"
-                />
-                <KpiCard
-                  icon={Navigation}
-                  label="Wegbeschreibungen"
-                  value={formatInsightCount(data.platforms.google.directionRequests)}
-                  hint="Routenanfragen"
-                />
-                <KpiCard
-                  icon={MessageCircle}
-                  label="Nachrichten"
-                  value={formatInsightCount(data.platforms.google.conversations)}
-                  hint="Chat-Gespräche über Google"
-                />
-                <KpiCard
-                  icon={CalendarDays}
-                  label="Buchungen"
-                  value={formatInsightCount(data.platforms.google.bookings)}
-                  hint="Reserve with Google"
-                />
-                <KpiCard
-                  icon={MousePointerClick}
-                  label="Menü-Klicks"
-                  value={formatInsightCount(data.platforms.google.menuClicks)}
-                  hint="Interaktionen mit dem Speisekarten-Link"
-                />
-              </div>
-            </section>
-          ) : null}
-
           <div className="grid gap-6 lg:grid-cols-2">
-            {data.platforms.google.series.find((s) => s.key === "impressions")
-              ?.byDay.length ? (
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">Google Aufrufe / Tag</CardTitle>
-                  <CardDescription>
-                    Suche + Maps Impressionen (Business Profile Performance).
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-0">
-                  <ChartContainer
-                    config={monthConfig}
-                    className="aspect-auto h-[260px] w-full min-w-0"
-                  >
-                    <LineChart
-                      accessibilityLayer
-                      data={
-                        data.platforms.google.series.find(
-                          (s) => s.key === "impressions",
-                        )!.byDay
-                      }
-                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                      <XAxis
-                        dataKey="label"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        className="text-[10px]"
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        width={36}
-                        className="text-[10px]"
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        name="Aufrufe"
-                        stroke="var(--accent)"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {data.platforms.google.series.find((s) => s.key === "interactions")
-              ?.byDay.length ? (
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    Google Interaktionen / Tag
-                  </CardTitle>
-                  <CardDescription>
-                    Anrufe, Website, Routen, Nachrichten, Buchungen, Menü.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-0">
-                  <ChartContainer
-                    config={monthConfig}
-                    className="aspect-auto h-[260px] w-full min-w-0"
-                  >
-                    <LineChart
-                      accessibilityLayer
-                      data={
-                        data.platforms.google.series.find(
-                          (s) => s.key === "interactions",
-                        )!.byDay
-                      }
-                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                      <XAxis
-                        dataKey="label"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        className="text-[10px]"
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        width={36}
-                        className="text-[10px]"
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        name="Interaktionen"
-                        stroke="var(--chart-3)"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {data.platforms.facebook.series.find((s) => s.key === "reach")
-              ?.byDay.length ? (
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    Facebook Reichweite / Tag
-                  </CardTitle>
-                  <CardDescription>
-                    Page Insights (page_total_media_view_unique).
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-0">
-                  <ChartContainer
-                    config={monthConfig}
-                    className="aspect-auto h-[260px] w-full min-w-0"
-                  >
-                    <LineChart
-                      accessibilityLayer
-                      data={
-                        data.platforms.facebook.series.find(
-                          (s) => s.key === "reach",
-                        )!.byDay
-                      }
-                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                      <XAxis
-                        dataKey="label"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        className="text-[10px]"
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        width={36}
-                        className="text-[10px]"
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        name="Reichweite"
-                        stroke="var(--chart-1)"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            ) : null}
-
-            {data.platforms.instagram.series[0]?.byDay.length ? (
-              <Card className="min-w-0 border-border/50 shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-lg">
-                    Instagram Reichweite / Tag
-                  </CardTitle>
-                  <CardDescription>
-                    Account Insights (reach) — i. d. R. letzte ~30 Tage.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pl-0">
-                  <ChartContainer
-                    config={monthConfig}
-                    className="aspect-auto h-[260px] w-full min-w-0"
-                  >
-                    <LineChart
-                      accessibilityLayer
-                      data={data.platforms.instagram.series[0].byDay}
-                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
-                      <XAxis
-                        dataKey="label"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        className="text-[10px]"
-                        interval="preserveStartEnd"
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        width={36}
-                        className="text-[10px]"
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        name="Reichweite"
-                        stroke="var(--chart-2)"
-                        strokeWidth={2}
-                        dot={false}
-                      />
-                    </LineChart>
-                  </ChartContainer>
-                </CardContent>
-              </Card>
-            ) : null}
-
             <Card className="min-w-0 border-border/50 shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">Reservierungen pro Monat</CardTitle>
@@ -611,7 +436,7 @@ export function InsightsStatisticsScreen() {
               <CardHeader>
                 <CardTitle className="text-lg">Bewertungen pro Monat</CardTitle>
                 <CardDescription>
-                  Gwada und verbundene Plattformen zusammen.
+                  Alle in Gwada gesammelten Bewertungen.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pl-0">
@@ -701,7 +526,9 @@ export function InsightsStatisticsScreen() {
 
             <Card className="min-w-0 border-border/50 shadow-card">
               <CardHeader>
-                <CardTitle className="text-lg">Reservierungen nach Wochentag</CardTitle>
+                <CardTitle className="text-lg">
+                  Reservierungen nach Wochentag
+                </CardTitle>
                 <CardDescription>
                   Wann Gäste am häufigsten reservieren.
                 </CardDescription>
@@ -745,7 +572,9 @@ export function InsightsStatisticsScreen() {
             <Card className="min-w-0 border-border/50 shadow-card">
               <CardHeader>
                 <CardTitle className="text-lg">Bewertungen nach Plattform</CardTitle>
-                <CardDescription>Verteilung im gewählten Zeitraum.</CardDescription>
+                <CardDescription>
+                  Herkunft der in Gwada gespeicherten Reviews.
+                </CardDescription>
               </CardHeader>
               <CardContent className="pl-0">
                 {reviewPlatformChart.length === 0 ? (
@@ -827,14 +656,204 @@ export function InsightsStatisticsScreen() {
             </Card>
           </div>
         </>
-      ) : (
-        <Card className="border-border/50 shadow-card">
-          <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
-            <MessageSquare className="size-5 shrink-0" aria-hidden />
-            Statistiken konnten nicht geladen werden.
-          </CardContent>
-        </Card>
-      )}
+      ) : null}
+
+      {data && platform === "google_business" && google ? (
+        <>
+          {google.error ? (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              {google.error}
+            </p>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={Eye}
+              label="Aufrufe"
+              value={formatInsightCount(google.impressions)}
+              hint={`${formatInsightCount(google.searchImpressions)} Suche · ${formatInsightCount(google.mapsImpressions)} Maps`}
+            />
+            <KpiCard
+              icon={MousePointerClick}
+              label="Interaktionen"
+              value={formatInsightCount(google.interactions)}
+              hint="Anrufe, Website, Routen, Chat, Buchungen, Menü"
+            />
+            <KpiCard
+              icon={Search}
+              label="Suchaufrufe"
+              value={formatInsightCount(google.searchImpressions)}
+              hint="Google Suche"
+            />
+            <KpiCard
+              icon={MapPinned}
+              label="Maps-Aufrufe"
+              value={formatInsightCount(google.mapsImpressions)}
+              hint="Google Maps"
+            />
+            <KpiCard
+              icon={Phone}
+              label="Anrufe"
+              value={formatInsightCount(google.callClicks)}
+              hint="Klicks auf Anrufen"
+            />
+            <KpiCard
+              icon={Globe}
+              label="Website-Klicks"
+              value={formatInsightCount(google.websiteClicks)}
+              hint="Klicks auf die Website"
+            />
+            <KpiCard
+              icon={Navigation}
+              label="Wegbeschreibungen"
+              value={formatInsightCount(google.directionRequests)}
+              hint="Routenanfragen"
+            />
+            <KpiCard
+              icon={MessageCircle}
+              label="Nachrichten & mehr"
+              value={formatInsightCount(
+                google.conversations + google.bookings + google.menuClicks,
+              )}
+              hint={`${formatInsightCount(google.conversations)} Chat · ${formatInsightCount(google.bookings)} Buchungen · ${formatInsightCount(google.menuClicks)} Menü`}
+            />
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DayLineChart
+              title="Google Aufrufe / Tag"
+              description="Suche + Maps (Business Profile Performance)."
+              points={
+                google.series.find((s) => s.key === "impressions")?.byDay ?? []
+              }
+              seriesName="Aufrufe"
+              stroke="var(--accent)"
+            />
+            <DayLineChart
+              title="Google Interaktionen / Tag"
+              description="Anrufe, Website, Routen, Nachrichten, Buchungen, Menü."
+              points={
+                google.series.find((s) => s.key === "interactions")?.byDay ?? []
+              }
+              seriesName="Interaktionen"
+              stroke="var(--chart-3)"
+            />
+          </div>
+          {!google.available && !google.error ? (
+            <p className="text-xs text-muted-foreground">
+              Keine Tageswerte im Zeitraum — Google liefert Performance oft mit
+              2–3 Tagen Verzug.
+            </p>
+          ) : null}
+        </>
+      ) : null}
+
+      {data && platform === "facebook" && facebook ? (
+        <>
+          {facebook.error ? (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              {facebook.error === "facebook_insights_app_review"
+                ? "Meta App Review für read_insights nötig — Neu verbinden allein reicht nicht."
+                : facebook.error}
+            </p>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={Users}
+              label="Reichweite"
+              value={formatInsightCount(facebook.reach)}
+              hint="Einzigartige Media-Views"
+            />
+            <KpiCard
+              icon={Eye}
+              label="Media-Views"
+              value={formatInsightCount(facebook.impressions)}
+              hint="Seiten-Medienaufrufe"
+            />
+            <KpiCard
+              icon={MousePointerClick}
+              label="Interaktionen"
+              value={formatInsightCount(facebook.postEngagements)}
+              hint="Beitrags-Interaktionen"
+            />
+            <KpiCard
+              icon={Eye}
+              label="Seitenaufrufe"
+              value={formatInsightCount(facebook.pageViews)}
+              hint="Aufrufe der Facebook-Seite"
+            />
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DayLineChart
+              title="Facebook Reichweite / Tag"
+              description="page_total_media_view_unique"
+              points={
+                facebook.series.find((s) => s.key === "reach")?.byDay ?? []
+              }
+              seriesName="Reichweite"
+              stroke="var(--chart-1)"
+            />
+          </div>
+        </>
+      ) : null}
+
+      {data && platform === "instagram" && instagram ? (
+        <>
+          {instagram.error ? (
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              {instagram.error}
+            </p>
+          ) : null}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              icon={Users}
+              label="Reichweite"
+              value={formatInsightCount(instagram.reach)}
+              hint="Accounts erreicht"
+            />
+            <KpiCard
+              icon={Eye}
+              label="Views"
+              value={formatInsightCount(instagram.views)}
+              hint="Inhaltsaufrufe"
+            />
+            <KpiCard
+              icon={MousePointerClick}
+              label="Interaktionen"
+              value={formatInsightCount(instagram.totalInteractions)}
+              hint="Gesamtinteraktionen"
+            />
+            <KpiCard
+              icon={Users}
+              label="Accounts engaged"
+              value={formatInsightCount(instagram.accountsEngaged)}
+              hint="Interagierende Konten"
+            />
+          </div>
+          <div className="grid gap-6 lg:grid-cols-2">
+            <DayLineChart
+              title="Instagram Reichweite / Tag"
+              description="Account Insights — i. d. R. letzte ~30 Tage."
+              points={instagram.series[0]?.byDay ?? []}
+              seriesName="Reichweite"
+              stroke="var(--chart-2)"
+            />
+          </div>
+        </>
+      ) : null}
+
+      {data && platform === "tripadvisor" ? (
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard
+            icon={Star}
+            label="Bewertungen"
+            value={String(tripReviews?.count ?? 0)}
+            hint={
+              tripReviews?.average != null
+                ? `Ø ${formatReviewRating(tripReviews.average)} Sterne`
+                : "TripAdvisor im Sync"
+            }
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  getGoogleBusinessPlatformConfigAdmin,
+  getGoogleBusinessPlatformSecretsAdmin,
   googleBusinessConfigFromJson,
   refreshGoogleBusinessAccessToken,
 } from "@/lib/integrations/google-business-oauth";
@@ -27,7 +27,7 @@ export async function getGoogleBusinessAccessTokenForRestaurant(
   }
 
   const cfg = row.config;
-  let accessToken = cfg.access_token?.trim();
+  let accessToken = cfg.access_token?.trim() || undefined;
   const refreshToken = cfg.refresh_token?.trim();
 
   if (!accessToken && !refreshToken) {
@@ -35,17 +35,22 @@ export async function getGoogleBusinessAccessTokenForRestaurant(
   }
 
   if (refreshToken) {
-    const platform = await getGoogleBusinessPlatformConfigAdmin();
-    if (!platform) return { error: "platform_not_configured" };
-    const refreshed = await refreshGoogleBusinessAccessToken({
-      clientId: platform.clientId,
-      clientSecret: platform.clientSecret,
-      refreshToken,
-    });
-    if ("error" in refreshed) {
-      return { error: refreshed.error };
+    const platform = await getGoogleBusinessPlatformSecretsAdmin();
+    if (platform) {
+      const refreshed = await refreshGoogleBusinessAccessToken({
+        clientId: platform.clientId,
+        clientSecret: platform.clientSecret,
+        refreshToken,
+      });
+      if (!("error" in refreshed)) {
+        accessToken = refreshed.accessToken;
+      } else if (!accessToken) {
+        return { error: refreshed.error };
+      }
+      // Refresh fehlgeschlagen, aber gespeicherter Access-Token vorhanden → weiterprobieren.
+    } else if (!accessToken) {
+      return { error: "platform_not_configured" };
     }
-    accessToken = refreshed.accessToken;
   }
 
   if (!accessToken) {

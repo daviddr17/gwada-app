@@ -27,6 +27,22 @@ function clampRangeForMeta(
   return { startYmd: `${y}-${m}-${d}`, endYmd };
 }
 
+/** Google Daily Metrics: max. ~90 Tage (Performance API / Charts). */
+function clampRangeForGoogle(
+  startYmd: string,
+  endYmd: string,
+): { startYmd: string; endYmd: string } {
+  const end = new Date(`${endYmd}T12:00:00`);
+  const start = new Date(`${startYmd}T12:00:00`);
+  const minStart = new Date(end);
+  minStart.setDate(minStart.getDate() - 89);
+  const effective = start < minStart ? minStart : start;
+  const y = effective.getFullYear();
+  const m = String(effective.getMonth() + 1).padStart(2, "0");
+  const d = String(effective.getDate()).padStart(2, "0");
+  return { startYmd: `${y}-${m}-${d}`, endYmd };
+}
+
 export async function fetchPlatformInsightsBundle(params: {
   restaurantId: string;
   startYmd: string;
@@ -34,13 +50,14 @@ export async function fetchPlatformInsightsBundle(params: {
   flags: PlatformMessagingFlags;
 }): Promise<PlatformInsightsBundle> {
   const metaRange = clampRangeForMeta(params.startYmd, params.endYmd);
+  const googleRange = clampRangeForGoogle(params.startYmd, params.endYmd);
 
   const [google, facebook, instagram] = await Promise.all([
     params.flags.googleBusinessEnabled
       ? fetchGoogleBusinessPlatformInsights({
           restaurantId: params.restaurantId,
-          startYmd: params.startYmd,
-          endYmd: params.endYmd,
+          startYmd: googleRange.startYmd,
+          endYmd: googleRange.endYmd,
         })
       : Promise.resolve(emptyGoogleInsights()),
     params.flags.facebookEnabled

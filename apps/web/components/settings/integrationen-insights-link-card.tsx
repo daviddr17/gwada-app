@@ -18,8 +18,8 @@ export function IntegrationenInsightsLinkCard() {
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-semibold tracking-tight">Insights</p>
             <p className="text-xs text-muted-foreground">
-              Gwada-KPIs und Plattform-Status auf einen Blick — Reservierungen,
-              Bewertungen, Nachrichten und verbundene Profile.
+              Gwada-KPIs, Plattform-Kennzahlen und Auswertungen über
+              Reservierungen, Bewertungen, Nachrichten und News.
             </p>
           </div>
         </div>

@@ -44,6 +44,7 @@ export const APP_ROUTES = {
   insights: {
     root: "/dashboard/insights",
     overview: "/dashboard/insights/uebersicht",
+    statistics: "/dashboard/insights/statistiken",
   },
   dokumente: {
     root: "/dashboard/dokumente",

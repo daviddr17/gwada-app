@@ -11,6 +11,11 @@ const INSIGHTS_NAV: readonly ModuleSubnavItem[] = [
     matchMode: "exact",
     activeWhen: ["/dashboard/insights"],
   },
+  {
+    href: "/dashboard/insights/statistiken",
+    label: "Statistiken",
+    matchMode: "exact",
+  },
 ];
 
 export default function InsightsLayout({

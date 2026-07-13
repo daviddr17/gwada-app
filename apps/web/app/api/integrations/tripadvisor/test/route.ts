@@ -4,10 +4,33 @@ import {
 } from "@/lib/integrations/tripadvisor-api-client";
 import { tripadvisorErrorMessageForUser } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { assertPlatformTripadvisorEnabled } from "@/lib/integrations/platform-messaging-guard";
+import {
+  fetchRestaurantTripadvisorConfigAdmin,
+  fetchRestaurantTripadvisorIntegration,
+  upsertRestaurantTripadvisorIntegration,
+} from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
+import type { TripadvisorIntegrationResponse } from "@/lib/types/restaurant-integration";
 
 export const dynamic = "force-dynamic";
+
+function toResponse(
+  row: Awaited<ReturnType<typeof fetchRestaurantTripadvisorIntegration>>,
+  platformEnabled = true,
+): TripadvisorIntegrationResponse {
+  const status = row?.status ?? "disconnected";
+  const config = row?.config;
+  return {
+    platformEnabled,
+    configured: status === "working",
+    status,
+    locationId: config?.location_id ?? null,
+    locationName: config?.location_name ?? row?.display_name ?? null,
+    connectedAt: row?.connected_at ?? null,
+    lastError: row?.last_error ?? null,
+  };
+}
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as {
@@ -54,9 +77,40 @@ export async function POST(req: Request) {
     );
   }
 
+  const locationName = details.location.name?.trim() || null;
+  const existing = await fetchRestaurantTripadvisorConfigAdmin(restaurantId);
+  const allowlist = await ensureTripadvisorAllowlistLocation(locationId);
+  const allowlistHint =
+    "error" in allowlist
+      ? tripadvisorErrorMessageForUser(
+          allowlist.status === 403
+            ? "tripadvisor_allowlist_denied"
+            : allowlist.error,
+          allowlist.status,
+        )
+      : null;
+
+  // Erfolgreicher Test heilt hängende „Verbindung fehlgeschlagen“-Zustände.
+  const { error } = await upsertRestaurantTripadvisorIntegration(sb, restaurantId, {
+    status: "working",
+    display_name: locationName,
+    connected_at: existing?.connected_at ?? new Date().toISOString(),
+    last_error: null,
+    config: {
+      location_id: locationId,
+      location_name: locationName ?? undefined,
+    },
+  });
+
+  if (error) {
+    return Response.json({ error }, { status: 500 });
+  }
+
+  const row = await fetchRestaurantTripadvisorIntegration(sb, restaurantId);
+
   return Response.json({
     ok: true,
-    locationName: details.location.name?.trim() || null,
-    locationId,
+    allowlistHint,
+    ...toResponse(row),
   });
 }

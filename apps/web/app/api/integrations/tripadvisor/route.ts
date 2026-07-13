@@ -50,6 +50,85 @@ function toResponse(
   };
 }
 
+/**
+ * Catalog-Verifikation ok → Integration auf working setzen.
+ * Allowlist wird best effort versucht (Content-APIs); Fehler nur als Hinweis.
+ */
+async function connectTripadvisorLocation(params: {
+  sb: NonNullable<Awaited<ReturnType<typeof assertCanManageTripadvisor>>["sb"]>;
+  restaurantId: string;
+  locationId: string;
+}): Promise<
+  | { ok: true; response: TripadvisorIntegrationResponse; allowlistHint: string | null }
+  | { ok: false; status: number; error: string; code: string }
+> {
+  const existing = await fetchRestaurantTripadvisorConfigAdmin(params.restaurantId);
+  const details = await verifyTripadvisorLocationConnection(params.locationId);
+  if ("error" in details) {
+    const { error } = await upsertRestaurantTripadvisorIntegration(
+      params.sb,
+      params.restaurantId,
+      {
+        status: "disconnected",
+        config: {
+          ...existing?.config,
+          location_id: params.locationId,
+        },
+        display_name: existing?.display_name ?? null,
+        connected_at: existing?.connected_at ?? null,
+        last_error: details.error,
+      },
+    );
+    if (error) {
+      return { ok: false, status: 500, error, code: "persist_failed" };
+    }
+    return {
+      ok: false,
+      status: details.status === 429 ? 429 : 400,
+      error: tripadvisorErrorMessageForUser(details.error, details.status),
+      code: details.error,
+    };
+  }
+
+  const locationName = details.location.name?.trim() || null;
+  const allowlist = await ensureTripadvisorAllowlistLocation(params.locationId);
+  const allowlistHint =
+    "error" in allowlist
+      ? tripadvisorErrorMessageForUser(
+          allowlist.status === 403
+            ? "tripadvisor_allowlist_denied"
+            : allowlist.error,
+          allowlist.status,
+        )
+      : null;
+
+  const { error } = await upsertRestaurantTripadvisorIntegration(
+    params.sb,
+    params.restaurantId,
+    {
+      status: "working",
+      display_name: locationName,
+      connected_at: existing?.connected_at ?? new Date().toISOString(),
+      // Catalog ok = verbunden. Allowlist-Probleme sind Content-Hinweise, kein Hard-Fail.
+      last_error: null,
+      config: {
+        location_id: params.locationId,
+        location_name: locationName ?? undefined,
+      },
+    },
+  );
+
+  if (error) {
+    return { ok: false, status: 500, error, code: "persist_failed" };
+  }
+
+  const row = await fetchRestaurantTripadvisorIntegration(
+    params.sb,
+    params.restaurantId,
+  );
+  return { ok: true, response: toResponse(row), allowlistHint };
+}
+
 export async function GET(req: Request) {
   const restaurantId = new URL(req.url).searchParams.get("restaurantId")?.trim() ?? "";
   if (!isUuidRestaurantId(restaurantId)) {
@@ -82,52 +161,20 @@ export async function POST(req: Request) {
     return Response.json({ error: "forbidden" }, { status: auth.status });
   }
 
-  const existing = await fetchRestaurantTripadvisorConfigAdmin(restaurantId);
-  const details = await verifyTripadvisorLocationConnection(locationId);
-  if ("error" in details) {
-    const { error } = await upsertRestaurantTripadvisorIntegration(
-      auth.sb,
-      restaurantId,
-      {
-        status: "disconnected",
-        config: {
-          ...existing?.config,
-          location_id: locationId,
-        },
-        display_name: existing?.display_name ?? null,
-        connected_at: existing?.connected_at ?? null,
-        last_error: details.error,
-      },
-    );
-    if (error) {
-      return Response.json({ error }, { status: 500 });
-    }
-    return Response.json(
-      {
-        error: tripadvisorErrorMessageForUser(details.error, details.status),
-        code: details.error,
-      },
-      { status: details.status === 429 ? 429 : 400 },
-    );
-  }
-
-  const locationName = details.location.name?.trim() || null;
-  void ensureTripadvisorAllowlistLocation(locationId);
-  const { error } = await upsertRestaurantTripadvisorIntegration(auth.sb, restaurantId, {
-    status: "working",
-    display_name: locationName,
-    connected_at: existing?.connected_at ?? new Date().toISOString(),
-    last_error: null,
-    config: {
-      location_id: locationId,
-      location_name: locationName ?? undefined,
-    },
+  const result = await connectTripadvisorLocation({
+    sb: auth.sb,
+    restaurantId,
+    locationId,
   });
-
-  if (error) {
-    return Response.json({ error }, { status: 500 });
+  if (!result.ok) {
+    return Response.json(
+      { error: result.error, code: result.code },
+      { status: result.status },
+    );
   }
 
-  const row = await fetchRestaurantTripadvisorIntegration(auth.sb, restaurantId);
-  return Response.json(toResponse(row));
+  return Response.json({
+    ...result.response,
+    allowlistHint: result.allowlistHint,
+  });
 }

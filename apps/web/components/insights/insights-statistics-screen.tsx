@@ -13,22 +13,19 @@ import {
 } from "recharts";
 import {
   CalendarDays,
-  Eye,
-  Globe,
-  MapPinned,
   MessageCircle,
   MessageSquare,
-  MousePointerClick,
-  Navigation,
   Newspaper,
-  Phone,
-  Search,
   Star,
-  Users,
 } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { InsightsPlatformFilterChips } from "@/components/insights/insights-platform-filter-chips";
+import {
+  FacebookInsightsPanels,
+  GoogleInsightsPanels,
+  InstagramInsightsPanels,
+} from "@/components/insights/insights-platform-panels";
 import { InsightsStatisticsSkeleton } from "@/components/insights/insights-statistics-skeleton";
 import {
   Card,
@@ -56,7 +53,6 @@ import type {
   InsightsStatisticsResult,
   InsightsStatsPeriod,
 } from "@/lib/insights/compute-insights-statistics";
-import { formatInsightCount } from "@/lib/insights/platform-insights-types";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import {
   WorkspaceRestaurantMissingMessage,
@@ -660,63 +656,7 @@ export function InsightsStatisticsScreen() {
 
       {data && platform === "google_business" && google ? (
         <>
-          {google.error ? (
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              {google.error}
-            </p>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard
-              icon={Eye}
-              label="Aufrufe"
-              value={formatInsightCount(google.impressions)}
-              hint={`${formatInsightCount(google.searchImpressions)} Suche · ${formatInsightCount(google.mapsImpressions)} Maps`}
-            />
-            <KpiCard
-              icon={MousePointerClick}
-              label="Interaktionen"
-              value={formatInsightCount(google.interactions)}
-              hint="Anrufe, Website, Routen, Chat, Buchungen, Menü"
-            />
-            <KpiCard
-              icon={Search}
-              label="Suchaufrufe"
-              value={formatInsightCount(google.searchImpressions)}
-              hint="Google Suche"
-            />
-            <KpiCard
-              icon={MapPinned}
-              label="Maps-Aufrufe"
-              value={formatInsightCount(google.mapsImpressions)}
-              hint="Google Maps"
-            />
-            <KpiCard
-              icon={Phone}
-              label="Anrufe"
-              value={formatInsightCount(google.callClicks)}
-              hint="Klicks auf Anrufen"
-            />
-            <KpiCard
-              icon={Globe}
-              label="Website-Klicks"
-              value={formatInsightCount(google.websiteClicks)}
-              hint="Klicks auf die Website"
-            />
-            <KpiCard
-              icon={Navigation}
-              label="Wegbeschreibungen"
-              value={formatInsightCount(google.directionRequests)}
-              hint="Routenanfragen"
-            />
-            <KpiCard
-              icon={MessageCircle}
-              label="Nachrichten & mehr"
-              value={formatInsightCount(
-                google.conversations + google.bookings + google.menuClicks,
-              )}
-              hint={`${formatInsightCount(google.conversations)} Chat · ${formatInsightCount(google.bookings)} Buchungen · ${formatInsightCount(google.menuClicks)} Menü`}
-            />
-          </div>
+          <GoogleInsightsPanels google={google} />
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Google Aufrufe / Tag"
@@ -729,7 +669,7 @@ export function InsightsStatisticsScreen() {
             />
             <DayLineChart
               title="Google Interaktionen / Tag"
-              description="Anrufe, Website, Routen, Nachrichten, Buchungen, Menü."
+              description="Anrufe, Website, Routen, Nachrichten, Buchungen, Menü, Bestellungen."
               points={
                 google.series.find((s) => s.key === "interactions")?.byDay ?? []
               }
@@ -737,50 +677,12 @@ export function InsightsStatisticsScreen() {
               stroke="var(--chart-3)"
             />
           </div>
-          {!google.available && !google.error ? (
-            <p className="text-xs text-muted-foreground">
-              Keine Tageswerte im Zeitraum — Google liefert Performance oft mit
-              2–3 Tagen Verzug.
-            </p>
-          ) : null}
         </>
       ) : null}
 
       {data && platform === "facebook" && facebook ? (
         <>
-          {facebook.error ? (
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              {facebook.error === "facebook_insights_app_review"
-                ? "Meta App Review für read_insights nötig — Neu verbinden allein reicht nicht."
-                : facebook.error}
-            </p>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard
-              icon={Users}
-              label="Reichweite"
-              value={formatInsightCount(facebook.reach)}
-              hint="Einzigartige Media-Views"
-            />
-            <KpiCard
-              icon={Eye}
-              label="Media-Views"
-              value={formatInsightCount(facebook.impressions)}
-              hint="Seiten-Medienaufrufe"
-            />
-            <KpiCard
-              icon={MousePointerClick}
-              label="Interaktionen"
-              value={formatInsightCount(facebook.postEngagements)}
-              hint="Beitrags-Interaktionen"
-            />
-            <KpiCard
-              icon={Eye}
-              label="Seitenaufrufe"
-              value={formatInsightCount(facebook.pageViews)}
-              hint="Aufrufe der Facebook-Seite"
-            />
-          </div>
+          <FacebookInsightsPanels facebook={facebook} />
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Facebook Reichweite / Tag"
@@ -791,43 +693,23 @@ export function InsightsStatisticsScreen() {
               seriesName="Reichweite"
               stroke="var(--chart-1)"
             />
+            <DayLineChart
+              title="Facebook Media-Views / Tag"
+              description="page_media_view"
+              points={
+                facebook.series.find((s) => s.key === "media_views")?.byDay ??
+                []
+              }
+              seriesName="Views"
+              stroke="var(--chart-2)"
+            />
           </div>
         </>
       ) : null}
 
       {data && platform === "instagram" && instagram ? (
         <>
-          {instagram.error ? (
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              {instagram.error}
-            </p>
-          ) : null}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <KpiCard
-              icon={Users}
-              label="Reichweite"
-              value={formatInsightCount(instagram.reach)}
-              hint="Accounts erreicht"
-            />
-            <KpiCard
-              icon={Eye}
-              label="Views"
-              value={formatInsightCount(instagram.views)}
-              hint="Inhaltsaufrufe"
-            />
-            <KpiCard
-              icon={MousePointerClick}
-              label="Interaktionen"
-              value={formatInsightCount(instagram.totalInteractions)}
-              hint="Gesamtinteraktionen"
-            />
-            <KpiCard
-              icon={Users}
-              label="Accounts engaged"
-              value={formatInsightCount(instagram.accountsEngaged)}
-              hint="Interagierende Konten"
-            />
-          </div>
+          <InstagramInsightsPanels instagram={instagram} />
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Instagram Reichweite / Tag"
@@ -835,6 +717,15 @@ export function InsightsStatisticsScreen() {
               points={instagram.series[0]?.byDay ?? []}
               seriesName="Reichweite"
               stroke="var(--chart-2)"
+            />
+            <DayLineChart
+              title="Instagram Views / Tag"
+              description="Inhaltsaufrufe (views)."
+              points={
+                instagram.series.find((s) => s.key === "views")?.byDay ?? []
+              }
+              seriesName="Views"
+              stroke="var(--accent)"
             />
           </div>
         </>

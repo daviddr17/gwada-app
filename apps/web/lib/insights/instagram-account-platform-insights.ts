@@ -21,22 +21,40 @@ type MetaInsightValue = {
   end_time?: string;
 };
 
+type MetaInsightBreakdownResult = {
+  dimension_values?: string[];
+  value?: number;
+};
+
 type MetaInsightRow = {
   name?: string;
   period?: string;
   values?: MetaInsightValue[];
-  total_value?: { value?: number };
+  total_value?: {
+    value?: number;
+    breakdowns?: Array<{
+      dimension_keys?: string[];
+      results?: MetaInsightBreakdownResult[];
+    }>;
+  };
 };
 
 type MetaInsightsResponse = {
   data?: MetaInsightRow[];
 };
 
-/** Aktuelle Meta-Metriken (v22+): impressions/profile_views time-series sind deprecated. */
 const IG_TIME_SERIES_METRICS = ["reach", "views"] as const;
+
+/** Interaction totals (metric_type=total_value). */
 const IG_TOTAL_VALUE_METRICS = [
   "accounts_engaged",
   "total_interactions",
+  "likes",
+  "comments",
+  "shares",
+  "saves",
+  "replies",
+  "profile_links_taps",
 ] as const;
 
 function seriesFromMetaValues(
@@ -89,6 +107,10 @@ function clampMetaInsightsStart(startYmd: string, endYmd: string): string {
   return `${y}-${m}-${d}`;
 }
 
+function totalValue(row: MetaInsightRow | undefined): number {
+  return Number(row?.total_value?.value ?? 0) || 0;
+}
+
 export async function fetchInstagramAccountPlatformInsights(params: {
   restaurantId: string;
   startYmd: string;
@@ -133,7 +155,6 @@ export async function fetchInstagramAccountPlatformInsights(params: {
     { platform: "instagram", feature: "insights" },
   );
 
-  // Fallback ohne metric_type (ältere Apps / Token)
   const seriesData =
     seriesResult.error == null
       ? seriesResult.data
@@ -176,6 +197,14 @@ export async function fetchInstagramAccountPlatformInsights(params: {
 
   let accountsEngaged = 0;
   let totalInteractions = 0;
+  let likes = 0;
+  let comments = 0;
+  let shares = 0;
+  let saves = 0;
+  let replies = 0;
+  let profileLinkTaps = 0;
+  let follows = 0;
+  let unfollows = 0;
 
   const totalsParams = new URLSearchParams({
     access_token: token,
@@ -190,10 +219,46 @@ export async function fetchInstagramAccountPlatformInsights(params: {
     { platform: "instagram", feature: "insights" },
   );
   if (!totalsResult.error) {
-    for (const row of totalsResult.data?.data ?? []) {
-      const value = Number(row.total_value?.value ?? 0) || 0;
-      if (row.name === "accounts_engaged") accountsEngaged = value;
-      if (row.name === "total_interactions") totalInteractions = value;
+    const map = new Map(
+      (totalsResult.data?.data ?? []).map((r) => [r.name ?? "", r]),
+    );
+    accountsEngaged = totalValue(map.get("accounts_engaged"));
+    totalInteractions = totalValue(map.get("total_interactions"));
+    likes = totalValue(map.get("likes"));
+    comments = totalValue(map.get("comments"));
+    shares = totalValue(map.get("shares"));
+    saves = totalValue(map.get("saves"));
+    replies = totalValue(map.get("replies"));
+    profileLinkTaps = totalValue(map.get("profile_links_taps"));
+  }
+
+  // Follows/Unfollows mit Breakdown (oft erst ab ~100 Followern)
+  const followsParams = new URLSearchParams({
+    access_token: token,
+    metric: "follows_and_unfollows",
+    period: "day",
+    metric_type: "total_value",
+    breakdown: "follow_type",
+    since: String(since),
+    until: String(until),
+  });
+  const followsResult = await metaGraphGet<MetaInsightsResponse>(
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${igId}/insights?${followsParams}`,
+    { platform: "instagram", feature: "insights" },
+  );
+  if (!followsResult.error) {
+    const row = followsResult.data?.data?.find(
+      (r) => r.name === "follows_and_unfollows",
+    );
+    const results = row?.total_value?.breakdowns?.[0]?.results ?? [];
+    for (const r of results) {
+      const dims = (r.dimension_values ?? []).map((d) => d.toUpperCase());
+      const v = Number(r.value ?? 0) || 0;
+      if (dims.some((d) => d.includes("UNFOLLOW"))) unfollows += v;
+      else if (dims.some((d) => d.includes("FOLLOW"))) follows += v;
+    }
+    if (follows === 0 && unfollows === 0) {
+      follows = totalValue(row);
     }
   }
 
@@ -202,12 +267,23 @@ export async function fetchInstagramAccountPlatformInsights(params: {
     { key: "views", label: "Views", value: viewsSeries.total },
     { key: "engaged", label: "Accounts engaged", value: accountsEngaged },
     { key: "interactions", label: "Interaktionen", value: totalInteractions },
-  ].filter((m) => m.value > 0);
+    { key: "likes", label: "Likes", value: likes },
+    { key: "comments", label: "Kommentare", value: comments },
+    { key: "shares", label: "Shares", value: shares },
+    { key: "saves", label: "Saves", value: saves },
+    { key: "replies", label: "Story-Antworten", value: replies },
+    { key: "profile_taps", label: "Profil-Link-Taps", value: profileLinkTaps },
+    { key: "follows", label: "Follower +", value: follows },
+    { key: "unfollows", label: "Entfolger", value: unfollows },
+  ];
 
   return {
     platform: "instagram",
     connected: true,
-    available: metrics.length > 0,
+    available:
+      metrics.some((m) => m.value > 0) ||
+      reachSeries.byDay.length > 0 ||
+      viewsSeries.byDay.length > 0,
     error: null,
     metrics,
     series: [reachSeries, viewsSeries],
@@ -215,5 +291,13 @@ export async function fetchInstagramAccountPlatformInsights(params: {
     views: viewsSeries.total,
     accountsEngaged,
     totalInteractions,
+    likes,
+    comments,
+    shares,
+    saves,
+    replies,
+    profileLinkTaps,
+    follows,
+    unfollows,
   };
 }

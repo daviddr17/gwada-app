@@ -34,16 +34,18 @@ type MetaInsightsResponse = {
 };
 
 /**
- * Aktuelle Page-Insights-Metriken (nach Meta-Deprecation Nov 2025):
- * page_impressions → page_media_view
- * page_impressions_unique → page_total_media_view_unique
- * page_fans → page_follows
+ * Page Insights nach Meta-Deprecations (Impressionen/Fans).
+ * Zusätzlich: Follower-Zu-/Abgänge, CTA-Klicks, Video-Views.
  */
 const FACEBOOK_DAY_METRICS = [
   "page_media_view",
   "page_total_media_view_unique",
   "page_post_engagements",
   "page_views_total",
+  "page_daily_follows_unique",
+  "page_daily_unfollows_unique",
+  "page_total_actions",
+  "page_video_views",
 ] as const;
 
 function seriesFromMetaValues(
@@ -83,15 +85,13 @@ function unixSeconds(ymd: string, endOfDay = false): number {
   return Math.floor(date.getTime() / 1000);
 }
 
-function isPermissionError(error: string): boolean {
-  return /(#10)|(#200)|(permission)|(oauth)|(access token does not)|(not authorized)|(missing.*permission)|(scope)/i.test(
-    error,
-  );
+function isPermissionError(message: string): boolean {
+  return /(permission|oauth|access|(#10)|(#200)|read_insights)/i.test(message);
 }
 
-function isInvalidMetricError(error: string): boolean {
+function isInvalidMetricError(message: string): boolean {
   return /(invalid metric)|(unknown metric)|(does not exist|unsupported metric)/i.test(
-    error,
+    message,
   );
 }
 
@@ -102,7 +102,7 @@ async function fetchInsightsBundle(params: {
   since: number;
   until: number;
 }): Promise<{ rows: MetaInsightRow[]; error: string | null }> {
-  const dayParams = new URLSearchParams({
+  const qs = new URLSearchParams({
     access_token: params.token,
     metric: params.metrics.join(","),
     period: "day",
@@ -110,14 +110,13 @@ async function fetchInsightsBundle(params: {
     until: String(params.until),
   });
   const result = await metaGraphGet<MetaInsightsResponse>(
-    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/insights?${dayParams}`,
+    `https://graph.facebook.com/${META_GRAPH_VERSION}/${params.pageId}/insights?${qs}`,
     { platform: "facebook", feature: "insights" },
   );
   if (result.error) return { rows: [], error: result.error };
   return { rows: result.data?.data ?? [], error: null };
 }
 
-/** Einzelmetriken nacheinander — ein ungültiger Name killt sonst den ganzen Batch. */
 async function fetchInsightsIndividually(params: {
   pageId: string;
   token: string;
@@ -128,17 +127,18 @@ async function fetchInsightsIndividually(params: {
   const rows: MetaInsightRow[] = [];
   const errors: string[] = [];
   for (const metric of params.metrics) {
-    const result = await fetchInsightsBundle({
-      ...params,
+    const batch = await fetchInsightsBundle({
+      pageId: params.pageId,
+      token: params.token,
       metrics: [metric],
+      since: params.since,
+      until: params.until,
     });
-    if (result.error) {
-      if (!isInvalidMetricError(result.error)) {
-        errors.push(result.error);
-      }
+    if (batch.error) {
+      if (!isInvalidMetricError(batch.error)) errors.push(batch.error);
       continue;
     }
-    rows.push(...result.rows);
+    rows.push(...batch.rows);
   }
   return { rows, errors };
 }
@@ -205,8 +205,6 @@ export async function fetchFacebookPagePlatformInsights(params: {
     const needsAppReview = permissionBlocked && !hasReadInsights;
     return emptyFacebookInsights({
       connected: true,
-      // Neu verbinden hilft nur, wenn der Scope noch gar nicht angefragt wurde.
-      // Ohne Meta App Review wird read_insights trotz Reconnect nicht erteilt.
       needsReconnect: false,
       error: needsAppReview
         ? "facebook_insights_app_review"
@@ -236,6 +234,26 @@ export async function fetchFacebookPagePlatformInsights(params: {
     "Seitenaufrufe",
     byName.get("page_views_total")?.values,
   );
+  const followsUniqueSeries = seriesFromMetaValues(
+    "follows_unique",
+    "Neue Follower",
+    byName.get("page_daily_follows_unique")?.values,
+  );
+  const unfollowsUniqueSeries = seriesFromMetaValues(
+    "unfollows_unique",
+    "Entfolger",
+    byName.get("page_daily_unfollows_unique")?.values,
+  );
+  const ctaSeries = seriesFromMetaValues(
+    "cta_clicks",
+    "CTA / Kontakt-Klicks",
+    byName.get("page_total_actions")?.values,
+  );
+  const videoSeries = seriesFromMetaValues(
+    "video_views",
+    "Video-Views",
+    byName.get("page_video_views")?.values,
+  );
 
   let fans: number | null = null;
   const fansParams = new URLSearchParams({
@@ -260,22 +278,47 @@ export async function fetchFacebookPagePlatformInsights(params: {
     { key: "views", label: "Media-Views", value: viewsSeries.total },
     { key: "engagements", label: "Interaktionen", value: engagementSeries.total },
     { key: "page_views", label: "Seitenaufrufe", value: pageViewsSeries.total },
-    ...(fans != null ? [{ key: "follows", label: "Follower", value: fans }] : []),
-  ].filter((m) => m.value > 0);
+    { key: "follows_unique", label: "Neue Follower", value: followsUniqueSeries.total },
+    { key: "unfollows_unique", label: "Entfolger", value: unfollowsUniqueSeries.total },
+    { key: "cta", label: "CTA-Klicks", value: ctaSeries.total },
+    { key: "video", label: "Video-Views", value: videoSeries.total },
+    ...(fans != null ? [{ key: "follows", label: "Follower gesamt", value: fans }] : []),
+  ];
 
   return {
     platform: "facebook",
     connected: true,
-    available: metrics.length > 0,
-    error: metrics.length === 0 ? fetchError : null,
+    available: metrics.some((m) => m.value > 0) || seriesHasDays([
+      reachSeries,
+      viewsSeries,
+      engagementSeries,
+      pageViewsSeries,
+    ]),
+    error: metrics.every((m) => m.value === 0) ? fetchError : null,
     metrics,
-    series: [reachSeries, viewsSeries, engagementSeries, pageViewsSeries],
-    // impressions-Feld = Media-Views (Nachfolger von page_impressions)
+    series: [
+      reachSeries,
+      viewsSeries,
+      engagementSeries,
+      pageViewsSeries,
+      followsUniqueSeries,
+      unfollowsUniqueSeries,
+      ctaSeries,
+      videoSeries,
+    ],
     impressions: viewsSeries.total,
     reach: reachSeries.total,
     postEngagements: engagementSeries.total,
     pageViews: pageViewsSeries.total,
     fans,
+    followsUnique: followsUniqueSeries.total,
+    unfollowsUnique: unfollowsUniqueSeries.total,
+    ctaClicks: ctaSeries.total,
+    videoViews: videoSeries.total,
     needsReconnect: false,
   };
+}
+
+function seriesHasDays(series: PlatformInsightSeries[]): boolean {
+  return series.some((s) => s.byDay.length > 0);
 }

@@ -5,6 +5,7 @@ import {
   emptyGoogleInsights,
   formatDayLabel,
   type GoogleBusinessPlatformInsights,
+  type GoogleSearchKeywordInsight,
   type PlatformInsightDayPoint,
   type PlatformInsightMetric,
   type PlatformInsightSeries,
@@ -20,6 +21,7 @@ const GOOGLE_DAILY_METRICS = [
   "BUSINESS_DIRECTION_REQUESTS",
   "BUSINESS_CONVERSATIONS",
   "BUSINESS_BOOKINGS",
+  "BUSINESS_FOOD_ORDERS",
   "BUSINESS_FOOD_MENU_CLICKS",
 ] as const;
 
@@ -318,6 +320,86 @@ async function fetchMulti(
   return { body: {}, error: lastError };
 }
 
+async function fetchSearchKeywords(
+  accessToken: string,
+  location: string,
+  start: DateParts,
+  end: DateParts,
+): Promise<GoogleSearchKeywordInsight[]> {
+  const url = new URL(
+    `https://businessprofileperformance.googleapis.com/v1/${location}/searchkeywords/impressions/monthly`,
+  );
+  url.searchParams.set("monthlyRange.start_month.year", String(start.year));
+  url.searchParams.set("monthlyRange.start_month.month", String(start.month));
+  url.searchParams.set("monthlyRange.end_month.year", String(end.year));
+  url.searchParams.set("monthlyRange.end_month.month", String(end.month));
+  url.searchParams.set("pageSize", "25");
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    // camelCase month fields (Client-Library-Stil)
+    const alt = new URL(
+      `https://businessprofileperformance.googleapis.com/v1/${location}/searchkeywords/impressions/monthly`,
+    );
+    alt.searchParams.set("monthlyRange.startMonth.year", String(start.year));
+    alt.searchParams.set("monthlyRange.startMonth.month", String(start.month));
+    alt.searchParams.set("monthlyRange.endMonth.year", String(end.year));
+    alt.searchParams.set("monthlyRange.endMonth.month", String(end.month));
+    alt.searchParams.set("pageSize", "25");
+    const res2 = await fetch(alt.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    if (!res2.ok) return [];
+    return parseSearchKeywordsBody(await res2.json().catch(() => ({})));
+  }
+  return parseSearchKeywordsBody(await res.json().catch(() => ({})));
+}
+
+function parseSearchKeywordsBody(body: unknown): GoogleSearchKeywordInsight[] {
+  if (!body || typeof body !== "object") return [];
+  const rows =
+    (body as { searchKeywordsCounts?: unknown[]; search_keywords_counts?: unknown[] })
+      .searchKeywordsCounts ??
+    (body as { search_keywords_counts?: unknown[] }).search_keywords_counts ??
+    [];
+  const out: GoogleSearchKeywordInsight[] = [];
+  for (const raw of rows) {
+    if (!raw || typeof raw !== "object") continue;
+    const row = raw as Record<string, unknown>;
+    const keyword =
+      (typeof row.searchKeyword === "string" && row.searchKeyword) ||
+      (typeof row.search_keyword === "string" && row.search_keyword) ||
+      "";
+    if (!keyword.trim()) continue;
+    const insights =
+      (row.insightsValue as Record<string, unknown> | undefined) ??
+      (row.insights_value as Record<string, unknown> | undefined) ??
+      {};
+    const valueRaw = insights.value;
+    const thresholdRaw = insights.threshold;
+    const value =
+      valueRaw == null ? null : Number(typeof valueRaw === "string" ? valueRaw : valueRaw);
+    const threshold =
+      thresholdRaw == null
+        ? null
+        : Number(typeof thresholdRaw === "string" ? thresholdRaw : thresholdRaw);
+    out.push({
+      keyword: keyword.trim(),
+      impressions: value != null && Number.isFinite(value) ? value : null,
+      threshold: threshold != null && Number.isFinite(threshold) ? threshold : null,
+    });
+  }
+  return out.sort((a, b) => {
+    const av = a.impressions ?? a.threshold ?? 0;
+    const bv = b.impressions ?? b.threshold ?? 0;
+    return bv - av;
+  });
+}
+
 async function fetchPerMetricFallback(
   accessToken: string,
   location: string,
@@ -455,6 +537,11 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     "Menü-Klicks",
     byMetric.get("BUSINESS_FOOD_MENU_CLICKS"),
   );
+  const foodOrdersSeries = seriesFromDatedValues(
+    "food_orders",
+    "Essensbestellungen",
+    byMetric.get("BUSINESS_FOOD_ORDERS"),
+  );
 
   const mapsImpressionsSeries = mergeSeries("maps", "Maps-Aufrufe", [
     desktopMaps,
@@ -475,6 +562,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     conversationsSeries,
     bookingsSeries,
     menuClicksSeries,
+    foodOrdersSeries,
   ]);
 
   const impressions = impressionsSeries.total;
@@ -486,13 +574,25 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   const conversations = conversationsSeries.total;
   const bookings = bookingsSeries.total;
   const menuClicks = menuClicksSeries.total;
+  const foodOrders = foodOrdersSeries.total;
   const interactions = interactionsSeries.total;
+
+  const searchKeywords = await fetchSearchKeywords(
+    auth.accessToken,
+    location,
+    start,
+    end,
+  );
 
   // Immer alle Kernmetriken zeigen — auch mit 0 — damit klar ist, was gemessen wird.
   const metrics: PlatformInsightMetric[] = [
     { key: "impressions", label: "Aufrufe", value: impressions },
     { key: "search", label: "Suche", value: searchImpressions },
     { key: "maps", label: "Maps", value: mapsImpressions },
+    { key: "search_desktop", label: "Suche Desktop", value: desktopSearch.total },
+    { key: "search_mobile", label: "Suche Mobile", value: mobileSearch.total },
+    { key: "maps_desktop", label: "Maps Desktop", value: desktopMaps.total },
+    { key: "maps_mobile", label: "Maps Mobile", value: mobileMaps.total },
     { key: "interactions", label: "Interaktionen", value: interactions },
     { key: "calls", label: "Anrufe", value: callClicks },
     { key: "website", label: "Website", value: websiteClicks },
@@ -500,10 +600,13 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     { key: "conversations", label: "Nachrichten", value: conversations },
     { key: "bookings", label: "Buchungen", value: bookings },
     { key: "menu", label: "Menü", value: menuClicks },
+    { key: "food_orders", label: "Essensbestellungen", value: foodOrders },
   ];
 
   const hasAnySeries =
-    impressionsSeries.byDay.length > 0 || interactionsSeries.byDay.length > 0;
+    impressionsSeries.byDay.length > 0 ||
+    interactionsSeries.byDay.length > 0 ||
+    searchKeywords.length > 0;
 
   return {
     platform: "google_business",
@@ -522,16 +625,27 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
       conversationsSeries,
       bookingsSeries,
       menuClicksSeries,
+      foodOrdersSeries,
+      desktopSearch,
+      mobileSearch,
+      desktopMaps,
+      mobileMaps,
     ],
     impressions,
     searchImpressions,
     mapsImpressions,
+    searchDesktop: desktopSearch.total,
+    searchMobile: mobileSearch.total,
+    mapsDesktop: desktopMaps.total,
+    mapsMobile: mobileMaps.total,
     websiteClicks,
     callClicks,
     directionRequests,
     conversations,
     bookings,
     menuClicks,
+    foodOrders,
     interactions,
+    searchKeywords,
   };
 }

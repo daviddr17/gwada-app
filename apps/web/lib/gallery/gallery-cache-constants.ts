@@ -12,13 +12,23 @@ export const GALLERY_CACHEABLE_PLATFORMS = [
 
 export type GalleryCacheablePlatform = (typeof GALLERY_CACHEABLE_PLATFORMS)[number];
 
+/** Google, Facebook, Instagram — ~10 Min. */
 export const GALLERY_CACHE_STALE_MS = 10 * 60 * 1000;
+
+/** TripAdvisor (Terra API): 1× pro Woche. */
+export const GALLERY_CACHE_STALE_TRIPADVISOR_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function galleryFeedSyncStaleMs(platform: GalleryCacheablePlatform): number {
+  if (platform === "tripadvisor") return GALLERY_CACHE_STALE_TRIPADVISOR_MS;
+  return GALLERY_CACHE_STALE_MS;
+}
 
 export function isGalleryFeedSyncStale(
   syncedAt: string | null | undefined,
+  platform: GalleryCacheablePlatform,
 ): boolean {
   if (!syncedAt) return true;
-  return Date.now() - new Date(syncedAt).getTime() > GALLERY_CACHE_STALE_MS;
+  return Date.now() - new Date(syncedAt).getTime() > galleryFeedSyncStaleMs(platform);
 }
 
 export function isGalleryCacheablePlatform(

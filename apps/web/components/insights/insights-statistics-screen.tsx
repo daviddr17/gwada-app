@@ -14,10 +14,15 @@ import {
 import {
   CalendarDays,
   Eye,
+  Globe,
+  MapPinned,
   MessageCircle,
   MessageSquare,
   MousePointerClick,
+  Navigation,
   Newspaper,
+  Phone,
+  Search,
   Star,
   Users,
 } from "lucide-react";
@@ -217,9 +222,8 @@ export function InsightsStatisticsScreen() {
                 Plattform-Insights
               </h2>
               <p className="text-xs text-muted-foreground">
-                Live-Kennzahlen von Google, Facebook und Instagram — hier und in
-                den Tages-Charts darunter. Meta Account-Insights meist nur die
-                letzten ~30 Tage.
+                Live-Kennzahlen von Google, Facebook und Instagram. Google
+                Performance oft mit 2–3 Tagen Verzug; Meta meist ~30 Tage.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -232,9 +236,11 @@ export function InsightsStatisticsScreen() {
                     : "—"
                 }
                 hint={
-                  data.platforms.google.connected
-                    ? `${formatInsightCount(data.platforms.google.websiteClicks)} Website · ${formatInsightCount(data.platforms.google.callClicks)} Anrufe`
-                    : "Nicht verbunden"
+                  data.platforms.google.error
+                    ? data.platforms.google.error
+                    : data.platforms.google.connected
+                      ? `${formatInsightCount(data.platforms.google.searchImpressions)} Suche · ${formatInsightCount(data.platforms.google.mapsImpressions)} Maps`
+                      : "Nicht verbunden"
                 }
               />
               <KpiCard
@@ -270,13 +276,78 @@ export function InsightsStatisticsScreen() {
             </div>
           </section>
 
+          {data.platforms.google.connected ? (
+            <section className="space-y-3" aria-label="Google Business Performance">
+              <div>
+                <h2 className="text-sm font-semibold tracking-tight">
+                  Google Business Performance
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  Aufrufe, Anrufe und weitere Aktionen am Profil. Werte 0 = im
+                  Zeitraum keine Aktivität (oder noch nachziehend).
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard
+                  icon={Search}
+                  label="Suchaufrufe"
+                  value={formatInsightCount(data.platforms.google.searchImpressions)}
+                  hint="Google Suche Desktop + Mobile"
+                />
+                <KpiCard
+                  icon={MapPinned}
+                  label="Maps-Aufrufe"
+                  value={formatInsightCount(data.platforms.google.mapsImpressions)}
+                  hint="Google Maps Desktop + Mobile"
+                />
+                <KpiCard
+                  icon={Phone}
+                  label="Anrufe"
+                  value={formatInsightCount(data.platforms.google.callClicks)}
+                  hint="Klicks auf Anrufen"
+                />
+                <KpiCard
+                  icon={Globe}
+                  label="Website-Klicks"
+                  value={formatInsightCount(data.platforms.google.websiteClicks)}
+                  hint="Klicks auf die Website"
+                />
+                <KpiCard
+                  icon={Navigation}
+                  label="Wegbeschreibungen"
+                  value={formatInsightCount(data.platforms.google.directionRequests)}
+                  hint="Routenanfragen"
+                />
+                <KpiCard
+                  icon={MessageCircle}
+                  label="Nachrichten"
+                  value={formatInsightCount(data.platforms.google.conversations)}
+                  hint="Chat-Gespräche über Google"
+                />
+                <KpiCard
+                  icon={CalendarDays}
+                  label="Buchungen"
+                  value={formatInsightCount(data.platforms.google.bookings)}
+                  hint="Reserve with Google"
+                />
+                <KpiCard
+                  icon={MousePointerClick}
+                  label="Menü-Klicks"
+                  value={formatInsightCount(data.platforms.google.menuClicks)}
+                  hint="Interaktionen mit dem Speisekarten-Link"
+                />
+              </div>
+            </section>
+          ) : null}
+
           <div className="grid gap-6 lg:grid-cols-2">
-            {data.platforms.google.series[0]?.byDay.length ? (
+            {data.platforms.google.series.find((s) => s.key === "impressions")
+              ?.byDay.length ? (
               <Card className="min-w-0 border-border/50 shadow-card">
                 <CardHeader>
                   <CardTitle className="text-lg">Google Aufrufe / Tag</CardTitle>
                   <CardDescription>
-                    Maps- und Suchimpressionen aus Business Profile Performance.
+                    Suche + Maps Impressionen (Business Profile Performance).
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pl-0">
@@ -286,7 +357,11 @@ export function InsightsStatisticsScreen() {
                   >
                     <LineChart
                       accessibilityLayer
-                      data={data.platforms.google.series[0].byDay}
+                      data={
+                        data.platforms.google.series.find(
+                          (s) => s.key === "impressions",
+                        )!.byDay
+                      }
                       margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
                     >
                       <CartesianGrid vertical={false} strokeDasharray="4 4" />
@@ -311,6 +386,62 @@ export function InsightsStatisticsScreen() {
                         dataKey="value"
                         name="Aufrufe"
                         stroke="var(--accent)"
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    </LineChart>
+                  </ChartContainer>
+                </CardContent>
+              </Card>
+            ) : null}
+
+            {data.platforms.google.series.find((s) => s.key === "interactions")
+              ?.byDay.length ? (
+              <Card className="min-w-0 border-border/50 shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    Google Interaktionen / Tag
+                  </CardTitle>
+                  <CardDescription>
+                    Anrufe, Website, Routen, Nachrichten, Buchungen, Menü.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pl-0">
+                  <ChartContainer
+                    config={monthConfig}
+                    className="aspect-auto h-[260px] w-full min-w-0"
+                  >
+                    <LineChart
+                      accessibilityLayer
+                      data={
+                        data.platforms.google.series.find(
+                          (s) => s.key === "interactions",
+                        )!.byDay
+                      }
+                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
+                    >
+                      <CartesianGrid vertical={false} strokeDasharray="4 4" />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        className="text-[10px]"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        width={36}
+                        className="text-[10px]"
+                        allowDecimals={false}
+                      />
+                      <ChartTooltip content={<ChartTooltipContent />} />
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        name="Interaktionen"
+                        stroke="var(--chart-3)"
                         strokeWidth={2}
                         dot={false}
                       />

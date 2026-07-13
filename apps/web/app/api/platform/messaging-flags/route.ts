@@ -22,6 +22,7 @@ export async function GET() {
       googleBusinessEnabled: flags.googleBusinessEnabled,
       lexofficeEnabled: flags.lexofficeEnabled,
       tripadvisorEnabled: flags.tripadvisorEnabled,
+      appleBusinessConnectEnabled: flags.appleBusinessConnectEnabled,
     },
     {
       headers: {

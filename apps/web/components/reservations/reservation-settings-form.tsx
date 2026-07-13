@@ -11,6 +11,7 @@ import {
   type NotificationKindFieldState,
 } from "@/components/reservations/reservation-notification-channel-section";
 import { ReviewRequestPlatformsField } from "@/components/reservations/review-request-platforms-field";
+import { ReservationPlatformBookingLinks } from "@/components/reservations/reservation-platform-booking-links";
 import {
   Card,
   CardContent,
@@ -33,6 +34,7 @@ import {
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
 import { usePlatformMessagingFlags } from "@/lib/hooks/use-platform-messaging-flags";
+import { useRestaurantChannelConnections } from "@/lib/hooks/use-restaurant-channel-connections";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
 import {
   defaultReviewRequestIncludes,
@@ -498,6 +500,10 @@ export function ReservationSettingsForm() {
     googleConnected,
     facebookConnected,
   } = useReviewPlatformConnections(restaurantId);
+  const {
+    loading: channelConnectionsLoading,
+    instagramConnected,
+  } = useRestaurantChannelConnections(restaurantId);
   const [statusColorsByCode, setStatusColorsByCode] = useState<Map<string, string>>(
     () => new Map(),
   );
@@ -1046,6 +1052,23 @@ export function ReservationSettingsForm() {
                 <span className="font-mono text-foreground">{"{pin}"}</span>.
               </p>
             </div>
+
+            <Separator />
+
+            {(platformFlags.googleBusinessEnabled ||
+              platformFlags.facebookEnabled ||
+              platformFlags.instagramEnabled) &&
+            (googleConnected || facebookConnected || instagramConnected) ? (
+              <ReservationPlatformBookingLinks
+                restaurantId={restaurantId}
+                googleConnected={googleConnected}
+                facebookConnected={facebookConnected}
+                instagramConnected={instagramConnected}
+                connectionsLoading={
+                  reviewConnectionsLoading || channelConnectionsLoading
+                }
+              />
+            ) : null}
 
             <Separator />
 

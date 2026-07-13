@@ -48,6 +48,7 @@ export async function getEventsConnectorPublicInfo(
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
         tripadvisorEnabled: false,
+        appleBusinessConnectEnabled: false,
       };
 
   const platforms = Object.keys(CONNECTORS) as EventsPlatform[];
@@ -87,6 +88,7 @@ export async function fetchUnifiedEventsFeed(
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
         tripadvisorEnabled: false,
+        appleBusinessConnectEnabled: false,
       };
 
   const keys = platforms ?? (Object.keys(CONNECTORS) as EventsPlatform[]);

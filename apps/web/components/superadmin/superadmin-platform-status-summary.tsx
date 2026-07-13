@@ -34,6 +34,7 @@ const INTEGRATION_ALERT_LABELS: Record<PlatformIntegrationKey, string> = {
   fiskaly: "Fiskaly",
   lexoffice: "Lexoffice",
   tripadvisor: "TripAdvisor",
+  apple_business_connect: "Apple Business Connect",
 };
 
 type PlatformAlert = {

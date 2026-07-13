@@ -16,6 +16,7 @@ export type PlatformMessagingFlags = {
   googleBusinessEnabled: boolean;
   lexofficeEnabled: boolean;
   tripadvisorEnabled: boolean;
+  appleBusinessConnectEnabled: boolean;
 };
 
 const PLATFORM_INTEGRATION_FLAG_KEYS = [
@@ -26,6 +27,7 @@ const PLATFORM_INTEGRATION_FLAG_KEYS = [
   "google_business",
   "lexoffice",
   "tripadvisor",
+  "apple_business_connect",
 ] as const;
 
 const ALL_DISABLED: PlatformMessagingFlags = {
@@ -36,6 +38,7 @@ const ALL_DISABLED: PlatformMessagingFlags = {
   googleBusinessEnabled: false,
   lexofficeEnabled: false,
   tripadvisorEnabled: false,
+  appleBusinessConnectEnabled: false,
 };
 
 /** Liest nur `enabled` — keine Secrets (Service Role). */
@@ -68,6 +71,7 @@ async function fetchPlatformMessagingFlagsFromIntegrationsTable(): Promise<Platf
     googleBusinessEnabled: map.get("google_business") ?? false,
     lexofficeEnabled: map.get("lexoffice") ?? false,
     tripadvisorEnabled: map.get("tripadvisor") ?? false,
+    appleBusinessConnectEnabled: map.get("apple_business_connect") ?? false,
   };
 }
 
@@ -92,6 +96,7 @@ export async function fetchPlatformMessagingFlags(
         google_business_enabled?: boolean;
         lexoffice_enabled?: boolean;
         tripadvisor_enabled?: boolean;
+        apple_business_connect_enabled?: boolean;
       }
     | null
     | undefined;
@@ -105,6 +110,9 @@ export async function fetchPlatformMessagingFlags(
     ),
     lexofficeEnabled: readPlatformIntegrationEnabled(r?.lexoffice_enabled),
     tripadvisorEnabled: readPlatformIntegrationEnabled(r?.tripadvisor_enabled),
+    appleBusinessConnectEnabled: readPlatformIntegrationEnabled(
+      r?.apple_business_connect_enabled,
+    ),
   };
 }
 

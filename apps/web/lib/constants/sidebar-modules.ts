@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   CalendarDays,
+  BarChart3,
   ClipboardCheck,
   FileText,
   Images,
@@ -23,6 +24,7 @@ export const SIDEBAR_MODULE_IDS = [
   "kontakte",
   "news",
   "bewertungen",
+  "insights",
   "galerie",
   "buchfuehrung",
   "dokumente",
@@ -103,6 +105,14 @@ export const SIDEBAR_MODULE_DEFINITIONS: readonly SidebarModuleDefinition[] = [
     href: "/dashboard/bewertungen/uebersicht",
     pathPrefix: "/dashboard/bewertungen",
     icon: Star,
+  },
+  {
+    id: "insights",
+    label: "Insights",
+    tooltip: "Insights",
+    href: "/dashboard/insights/uebersicht",
+    pathPrefix: "/dashboard/insights",
+    icon: BarChart3,
   },
   {
     id: "galerie",

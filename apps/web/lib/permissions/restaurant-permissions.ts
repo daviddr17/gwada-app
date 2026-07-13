@@ -32,6 +32,7 @@ export const RESTAURANT_PERMISSION_KEYS = [
   "integrations.google_business",
   "integrations.lexoffice",
   "integrations.tripadvisor",
+  "integrations.apple_business_connect",
   "settings.restaurant",
   "settings.opening_hours",
   "settings.branding",
@@ -183,6 +184,12 @@ export const RESTAURANT_PERMISSION_CATALOG: readonly RestaurantPermissionMeta[] 
       key: "integrations.tripadvisor",
       label: "TripAdvisor",
       description: "TripAdvisor-Profil per Location-ID verknüpfen.",
+      group: "integrationen",
+    },
+    {
+      key: "integrations.apple_business_connect",
+      label: "Apple Business Connect",
+      description: "Standort in Apple Maps per Location-ID verknüpfen.",
       group: "integrationen",
     },
     {

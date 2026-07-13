@@ -35,6 +35,7 @@ export async function loadReviewPlatformConnectionState(
     googleBusinessEnabled: false,
     lexofficeEnabled: false,
     tripadvisorEnabled: false,
+    appleBusinessConnectEnabled: false,
   };
 
   const [flags, googleRow, facebookRow, tripadvisorRow] = await Promise.all([

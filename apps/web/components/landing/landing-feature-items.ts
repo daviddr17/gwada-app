@@ -28,6 +28,8 @@ const MODULE_DESCRIPTIONS: Record<SidebarModuleId, string> = {
   news: "Stories und Updates für Gäste — aus dem Dashboard auf eure Kanäle bringen.",
   bewertungen:
     "Google und weitere Plattformen im Blick — Einladungen senden und Feedback auswerten.",
+  insights:
+    "Kennzahlen und Plattform-Status — Reservierungen, Bewertungen und Nachrichten auf einen Blick.",
   galerie:
     "Bilder und Medien für Profil, News und Gäste-Auftritt — zentral verwaltet.",
   buchfuehrung:
@@ -48,6 +50,7 @@ const MODULE_ACCENTS: Record<SidebarModuleId, string> = {
   kontakte: "from-emerald-500/20 via-teal-500/10 to-transparent",
   news: "from-indigo-500/20 via-violet-500/10 to-transparent",
   bewertungen: "from-yellow-500/20 via-amber-500/10 to-transparent",
+  insights: "from-violet-500/20 via-purple-500/10 to-transparent",
   galerie: "from-cyan-500/20 via-sky-500/10 to-transparent",
   buchfuehrung: "from-lime-500/20 via-green-500/10 to-transparent",
   dokumente: "from-slate-500/20 via-zinc-500/10 to-transparent",

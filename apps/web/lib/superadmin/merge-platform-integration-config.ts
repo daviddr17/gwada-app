@@ -18,6 +18,10 @@ import {
   mergeTripadvisorApiKey,
   tripadvisorConfigFromJson,
 } from "@/lib/integrations/platform-tripadvisor-config";
+import {
+  mergeAppleBusinessConnectPrivateKey,
+  appleBusinessConnectConfigFromJson,
+} from "@/lib/integrations/platform-apple-business-connect-config";
 import type { PlatformIntegrationKey } from "@/lib/types/platform-integration";
 
 export function mergePlatformIntegrationConfig(
@@ -67,6 +71,20 @@ export function mergePlatformIntegrationConfig(
       typeof incoming.api_key === "string" ? incoming.api_key : undefined;
     merged.api_key = mergeTripadvisorApiKey(incKey, ex);
     delete merged.tripadvisor_api_key;
+    return merged;
+  }
+
+  if (key === "apple_business_connect") {
+    const ex = appleBusinessConnectConfigFromJson(existing);
+    if (typeof incoming.issuer_id === "string") {
+      merged.issuer_id = incoming.issuer_id.trim() || undefined;
+    }
+    if (typeof incoming.key_id === "string") {
+      merged.key_id = incoming.key_id.trim() || undefined;
+    }
+    const incKey =
+      typeof incoming.private_key === "string" ? incoming.private_key : undefined;
+    merged.private_key = mergeAppleBusinessConnectPrivateKey(incKey, ex);
     return merged;
   }
 

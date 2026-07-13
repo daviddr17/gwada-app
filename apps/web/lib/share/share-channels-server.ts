@@ -44,6 +44,7 @@ export async function getShareChannelPublicInfo(
         googleBusinessEnabled: false,
         lexofficeEnabled: false,
         tripadvisorEnabled: false,
+        appleBusinessConnectEnabled: false,
       };
 
   return SHARE_CHANNEL_DEFINITIONS.map((def) => {

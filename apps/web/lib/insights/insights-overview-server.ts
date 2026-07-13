@@ -410,13 +410,13 @@ async function platformCards(
       metrics: facebookMetrics,
       hint: !facebook.connected
         ? "Facebook-Seite unter Integrationen verbinden."
-        : facebook.needsReconnect
-          ? "Bitte Facebook erneut verbinden (Scope „Seiten-Statistiken“)."
+        : facebook.error === "facebook_insights_app_review"
+          ? "Meta muss „Seiten-Statistiken“ (read_insights) für die Gwada-App freigeben (App Review). Neu verbinden allein reicht nicht."
           : facebook.available
-            ? "Seiten-Impressionen und Reichweite aus Meta Page Insights."
+            ? "Media-Views und Reichweite aus Meta Page Insights — Details unter Statistiken."
             : facebook.error
               ? `Facebook Insights: ${facebook.error}`
-              : "Verbunden — Seiten-Insights erscheinen nach Sync / Freigabe.",
+              : "Verbunden — Seiten-Insights erscheinen, sobald Meta Daten liefert (meist ~1–2 Tage).",
     },
     {
       id: "instagram" as const,

@@ -217,9 +217,9 @@ export function InsightsStatisticsScreen() {
                 Plattform-Insights
               </h2>
               <p className="text-xs text-muted-foreground">
-                Live-Kennzahlen von Google Business, Facebook und Instagram.
-                Meta liefert Account-Insights typischerweise für die letzten
-                ~30 Tage.
+                Live-Kennzahlen von Google, Facebook und Instagram — hier und in
+                den Tages-Charts darunter. Meta Account-Insights meist nur die
+                letzten ~30 Tage.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -246,10 +246,10 @@ export function InsightsStatisticsScreen() {
                     : "—"
                 }
                 hint={
-                  data.platforms.facebook.needsReconnect
-                    ? "Scope „Seiten-Statistiken“ fehlt — unter Integrationen erneut verbinden"
+                  data.platforms.facebook.error === "facebook_insights_app_review"
+                    ? "Meta App Review für read_insights nötig — Neu verbinden allein reicht nicht"
                     : data.platforms.facebook.connected
-                      ? `${formatInsightCount(data.platforms.facebook.impressions)} Impressionen · ${formatInsightCount(data.platforms.facebook.postEngagements)} Interaktionen`
+                      ? `${formatInsightCount(data.platforms.facebook.impressions)} Media-Views · ${formatInsightCount(data.platforms.facebook.postEngagements)} Interaktionen`
                       : "Nicht verbunden"
                 }
               />
@@ -320,14 +320,15 @@ export function InsightsStatisticsScreen() {
               </Card>
             ) : null}
 
-            {data.platforms.facebook.series[0]?.byDay.length ? (
+            {data.platforms.facebook.series.find((s) => s.key === "reach")
+              ?.byDay.length ? (
               <Card className="min-w-0 border-border/50 shadow-card">
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    Facebook Impressionen / Tag
+                    Facebook Reichweite / Tag
                   </CardTitle>
                   <CardDescription>
-                    Page Insights (page_impressions).
+                    Page Insights (page_total_media_view_unique).
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pl-0">
@@ -337,7 +338,11 @@ export function InsightsStatisticsScreen() {
                   >
                     <LineChart
                       accessibilityLayer
-                      data={data.platforms.facebook.series[0].byDay}
+                      data={
+                        data.platforms.facebook.series.find(
+                          (s) => s.key === "reach",
+                        )!.byDay
+                      }
                       margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
                     >
                       <CartesianGrid vertical={false} strokeDasharray="4 4" />
@@ -360,7 +365,7 @@ export function InsightsStatisticsScreen() {
                       <Line
                         type="monotone"
                         dataKey="value"
-                        name="Impressionen"
+                        name="Reichweite"
                         stroke="var(--chart-1)"
                         strokeWidth={2}
                         dot={false}

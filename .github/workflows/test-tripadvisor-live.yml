@@ -1,0 +1,22 @@
+name: Test TripAdvisor live
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [test-tripadvisor-live]
+
+concurrency:
+  group: test-tripadvisor-live
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Test TripAdvisor Terra API (zurschlagd)
+        env:
+          LIVE_SSH_KEY: ${{ secrets.LIVE_SSH_KEY }}
+          LIVE_VPS_HOST: ${{ secrets.LIVE_VPS_HOST }}
+        run: bash scripts/test-tripadvisor-live-ci.sh

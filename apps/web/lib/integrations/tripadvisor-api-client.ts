@@ -74,11 +74,17 @@ export async function fetchTripadvisorApi<T>(
 }
 
 /** Terra: Location-ID muss auf der Allowlist stehen, bevor Content-Endpoints Daten liefern. */
-export async function ensureTripadvisorAllowlistLocation(
-  locationId: string,
-): Promise<{ ok: true } | { error: string; status?: number }> {
-  const trimmed = locationId.trim();
-  if (!trimmed || !/^\d+$/.test(trimmed)) {
+export async function appendTripadvisorAllowlistLocations(
+  locationIds: string[],
+): Promise<
+  | { ok: true; added?: number; noChange?: number }
+  | { error: string; status?: number }
+> {
+  const ids = locationIds
+    .map((id) => id.trim())
+    .filter((id) => /^\d+$/.test(id))
+    .map((id) => Number(id));
+  if (ids.length === 0) {
     return { error: "tripadvisor_location_invalid" };
   }
 
@@ -86,21 +92,24 @@ export async function ensureTripadvisorAllowlistLocation(
   if (!platform.enabled) return { error: "tripadvisor_disabled" };
   if (!platform.apiKey) return { error: "tripadvisor_api_key_missing" };
 
-  const postRes = await fetch(
-    `${TRIPADVISOR_TERRA_API_BASE}/allowlist?version=v1&operation=APPEND`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        "X-API-Key": platform.apiKey,
-      },
-      body: JSON.stringify([Number(trimmed)]),
-      cache: "no-store",
+  const postRes = await fetch(`${TRIPADVISOR_TERRA_API_BASE}/allowlist?version=v1`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "X-API-Key": platform.apiKey,
     },
-  );
+    body: JSON.stringify({
+      operation_type: "APPEND",
+      allowlist: ids,
+    }),
+    cache: "no-store",
+  });
 
-  const body = (await postRes.json().catch(() => ({}))) as TerraProblemBody;
+  const body = (await postRes.json().catch(() => ({}))) as TerraProblemBody & {
+    added?: number;
+    no_change?: number;
+  };
   if (!postRes.ok) {
     return {
       error: tripadvisorErrorMessage(body, postRes.status),
@@ -108,6 +117,14 @@ export async function ensureTripadvisorAllowlistLocation(
     };
   }
 
+  return { ok: true, added: body.added, noChange: body.no_change };
+}
+
+export async function ensureTripadvisorAllowlistLocation(
+  locationId: string,
+): Promise<{ ok: true } | { error: string; status?: number }> {
+  const result = await appendTripadvisorAllowlistLocations([locationId]);
+  if ("error" in result) return result;
   return { ok: true };
 }
 
@@ -164,16 +181,49 @@ function normalizeLocationDetails(raw: TerraLocationRaw): TripadvisorLocationDet
   };
 }
 
+type TerraCatalogLocationRaw = {
+  id?: number;
+  name?: string;
+  names?: { language?: string; value?: string; primary?: boolean }[];
+};
+
+function normalizeCatalogLocation(raw: TerraCatalogLocationRaw): TripadvisorLocationDetails {
+  return {
+    location_id: raw.id,
+    name: terraLocalizedText(raw.names) ?? raw.name?.trim() ?? undefined,
+  };
+}
+
+export async function fetchTripadvisorCatalogLocation(
+  locationId: string,
+): Promise<{ location: TripadvisorLocationDetails } | { error: string; status?: number }> {
+  const result = await fetchTripadvisorApi<TerraCatalogLocationRaw>({
+    path: `/catalog/locations/${encodeURIComponent(locationId)}`,
+  });
+  if ("error" in result) return result;
+  return { location: normalizeCatalogLocation(result.data) };
+}
+
 export async function fetchTripadvisorLocationDetails(
   locationId: string,
 ): Promise<{ location: TripadvisorLocationDetails } | { error: string }> {
   const allowlist = await ensureTripadvisorAllowlistLocation(locationId);
-  if ("error" in allowlist) return allowlist;
+  if ("error" in allowlist && allowlist.status !== 403) {
+    return allowlist;
+  }
 
   const result = await fetchTripadvisorApi<TerraLocationRaw>({
     path: `/locations/${encodeURIComponent(locationId)}`,
     searchParams: { locale: TRIPADVISOR_DEFAULT_LANGUAGE },
   });
-  if ("error" in result) return result;
-  return { location: normalizeLocationDetails(result.data) };
+  if (!("error" in result)) {
+    return { location: normalizeLocationDetails(result.data) };
+  }
+
+  const catalog = await fetchTripadvisorCatalogLocation(locationId);
+  if (!("error" in catalog)) {
+    return catalog;
+  }
+
+  return { error: result.error };
 }

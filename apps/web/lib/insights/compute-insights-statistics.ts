@@ -18,12 +18,14 @@ export type InsightsStatisticsResult = {
     byMonth: ReservationStatsResult["byMonth"];
     byWeekday: ReservationStatsResult["byWeekday"];
   };
+  /** Nur native Gwada-Bewertungen (`gwada_reviews`) — kein Plattform-Cache. */
   reviews: {
     totalReviews: number;
     averageRating: number | null;
     byMonth: ReviewStatisticsResult["byMonth"];
     byPlatform: ReviewStatisticsResult["byPlatform"];
   };
+  /** Nur Gwada-Kanal (`contact_messages.platform = gwada`). */
   messages: {
     totalMessages: number;
     inboundCount: number;
@@ -31,6 +33,7 @@ export type InsightsStatisticsResult = {
     byMonth: ContactStatisticsResult["byMonth"];
     byPlatform: ContactStatisticsResult["byPlatform"];
   };
+  /** Nur native Gwada-News (`gwada_news_posts`) — kein News-Plattform-Cache. */
   news: {
     publishedInPeriod: number;
     engagementLikes: number;
@@ -41,6 +44,12 @@ export type InsightsStatisticsResult = {
   };
   usage: RestaurantUsageInsights;
   platforms: PlatformInsightsBundle;
+  /** TripAdvisor-Sync-Meta für eigenen Chip (nicht in Gwada-KPIs). */
+  tripadvisor: {
+    connected: boolean;
+    reviewCount: number;
+    averageRating: number | null;
+  };
 };
 
 export function computeInsightsStatistics(input: {
@@ -54,6 +63,7 @@ export function computeInsightsStatistics(input: {
   newsEngagement: { likes: number; comments: number; views: number };
   usage: RestaurantUsageInsights;
   platforms: PlatformInsightsBundle;
+  tripadvisor: InsightsStatisticsResult["tripadvisor"];
 }): InsightsStatisticsResult {
   return {
     periodMonths: input.periodMonths,
@@ -89,5 +99,6 @@ export function computeInsightsStatistics(input: {
     },
     usage: input.usage,
     platforms: input.platforms,
+    tripadvisor: input.tripadvisor,
   };
 }

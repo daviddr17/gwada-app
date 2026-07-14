@@ -103,24 +103,17 @@ async function countReservations(
 
 async function countAllReviews(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
-  sb: SupabaseClient,
+  _sb: SupabaseClient,
   restaurantId: string,
   rangeStartIso: string,
   rangeEndIso: string,
 ): Promise<{ count: number; avgRating: number | null }> {
-  const startMs = new Date(rangeStartIso).getTime();
-  const endMs = new Date(rangeEndIso).getTime();
-
-  const [{ data: gwadaRows, error: gwadaError }, { reviews: cachedReviews }] =
-    await Promise.all([
-      admin
-        .from("gwada_reviews")
-        .select("rating")
-        .eq("restaurant_id", restaurantId)
-        .gte("created_at", rangeStartIso)
-        .lt("created_at", rangeEndIso),
-      readReviewsFeedFromCache(restaurantId, sb),
-    ]);
+  const { data: gwadaRows, error: gwadaError } = await admin
+    .from("gwada_reviews")
+    .select("rating")
+    .eq("restaurant_id", restaurantId)
+    .gte("created_at", rangeStartIso)
+    .lt("created_at", rangeEndIso);
 
   if (gwadaError) {
     console.warn("insights gwada reviews", gwadaError.message);
@@ -129,12 +122,6 @@ async function countAllReviews(
   const ratings: number[] = (gwadaRows ?? [])
     .map((row) => row.rating)
     .filter((rating): rating is number => typeof rating === "number");
-
-  for (const review of cachedReviews) {
-    const t = new Date(review.createdAt).getTime();
-    if (t < startMs || t >= endMs) continue;
-    ratings.push(review.rating);
-  }
 
   if (ratings.length === 0) return { count: 0, avgRating: null };
   const sum = ratings.reduce((acc, rating) => acc + rating, 0);
@@ -151,6 +138,7 @@ async function countInboundMessages(
     .from("contact_messages")
     .select("id", { count: "exact", head: true })
     .eq("restaurant_id", restaurantId)
+    .eq("platform", "gwada")
     .eq("direction", "inbound")
     .gte("created_at", rangeStartIso)
     .lt("created_at", rangeEndIso);
@@ -171,63 +159,24 @@ async function countNewsEngagement(
   const startMs = new Date(rangeStartIso).getTime();
   const endMs = new Date(rangeEndIso).getTime();
 
-  const [gwadaRes, cacheRes] = await Promise.all([
-    admin
-      .from("gwada_news_posts")
-      .select("id, status, published_at, created_at")
-      .eq("restaurant_id", restaurantId),
-    admin
-      .from("restaurant_news_platform_cache")
-      .select("item, published_at")
-      .eq("restaurant_id", restaurantId),
-  ]);
+  const gwadaRes = await admin
+    .from("gwada_news_posts")
+    .select("id, status, published_at, created_at")
+    .eq("restaurant_id", restaurantId);
 
-  const items: UnifiedNewsItem[] = [];
+  let published = 0;
 
   for (const raw of gwadaRes.data ?? []) {
     const row = raw as Record<string, unknown>;
     if (row.status !== "published") continue;
-    items.push({
-      id: `gwada:${row.id as string}`,
-      platform: "gwada",
-      source: "gwada",
-      postId: row.id as string,
-      title: null,
-      body: "",
-      media: [],
-      createdAt: row.created_at as string,
-      publishedAt: (row.published_at as string | null) ?? null,
-      scheduledAt: null,
-      status: "published",
-      canEdit: false,
-      canDelete: false,
-      externalUrl: null,
-      insights: null,
-      authorName: null,
-    });
-  }
-
-  for (const raw of cacheRes.data ?? []) {
-    const row = raw as Record<string, unknown>;
-    const parsed = parseNewsCachedItem(row.item);
-    if (parsed) items.push(parsed);
-  }
-
-  let published = 0;
-  let likes = 0;
-  let comments = 0;
-
-  for (const item of items) {
-    const iso = item.publishedAt ?? item.createdAt;
+    const iso =
+      (row.published_at as string | null) ?? (row.created_at as string);
     const t = new Date(iso).getTime();
     if (t < startMs || t >= endMs) continue;
-    if (item.status !== "published") continue;
     published += 1;
-    likes += item.insights?.likes ?? 0;
-    comments += item.insights?.comments ?? 0;
   }
 
-  return { published, likes, comments };
+  return { published, likes: 0, comments: 0 };
 }
 
 function sumNewsEngagementForPlatform(

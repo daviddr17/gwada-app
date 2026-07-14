@@ -5,7 +5,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Line,
   LineChart,
   XAxis,
@@ -64,10 +63,6 @@ import { cn } from "@/lib/utils";
 
 const monthConfig = {
   count: { label: "Anzahl", color: "var(--accent)" },
-} satisfies ChartConfig;
-
-const platformConfig = {
-  count: { label: "Anzahl", color: "var(--chart-3)" },
 } satisfies ChartConfig;
 
 const weekdayConfig = {
@@ -218,7 +213,7 @@ export function InsightsOverviewScreen() {
     if (data.platforms.instagram.connected || data.platforms.instagram.error) {
       set.add("instagram");
     }
-    if (data.reviews.byPlatform.some((p) => /tripadvisor/i.test(p.label))) {
+    if (data.tripadvisor.connected || data.tripadvisor.reviewCount > 0) {
       set.add("tripadvisor");
     }
     return set;
@@ -230,33 +225,6 @@ export function InsightsOverviewScreen() {
       setPlatform(INSIGHTS_PLATFORM_DEFAULT);
     }
   }, [data, availablePlatforms, platform, setPlatform]);
-
-  const reviewPlatformChart = useMemo(
-    () =>
-      data?.reviews.byPlatform.map((p) => ({
-        name: p.label,
-        count: p.count,
-        fill: p.color,
-      })) ?? [],
-    [data?.reviews.byPlatform],
-  );
-
-  const messagePlatformChart = useMemo(
-    () =>
-      data?.messages.byPlatform.map((p) => ({
-        name: p.label,
-        count: p.count,
-        fill: p.color,
-      })) ?? [],
-    [data?.messages.byPlatform],
-  );
-
-  const tripReviews = useMemo(
-    () =>
-      data?.reviews.byPlatform.find((p) => /tripadvisor/i.test(p.label)) ??
-      null,
-    [data?.reviews.byPlatform],
-  );
 
   if (!supabaseEnvOk) {
     return (
@@ -319,7 +287,7 @@ export function InsightsOverviewScreen() {
       <p className="text-xs text-muted-foreground">
         {INSIGHTS_PLATFORM_LABELS[platform]}
         {platform === "gwada"
-          ? " — Kennzahlen und Diagramme zu Reservierungen, Bewertungen, Nachrichten und Nutzung."
+          ? " — nur Gwada-eigene Kennzahlen und Diagramme (kein Plattform-Cache)."
           : platform === "google_business"
             ? " — Kennzahlen und Verlauf (Performance i. d. R. letzte ~90 Tage)."
             : platform === "facebook" || platform === "instagram"
@@ -347,25 +315,25 @@ export function InsightsOverviewScreen() {
             />
             <KpiCard
               icon={Star}
-              label="Bewertungen"
+              label="Gwada-Bewertungen"
               value={String(data.reviews.totalReviews)}
               hint={
                 data.reviews.averageRating != null
                   ? `Ø ${formatReviewRating(data.reviews.averageRating)} Sterne`
-                  : "Im Zeitraum"
+                  : "Nur native Gwada-Reviews"
               }
             />
             <KpiCard
               icon={MessageCircle}
-              label="Nachrichten"
+              label="Gwada-Nachrichten"
               value={String(data.messages.totalMessages)}
               hint={`${data.messages.inboundCount} eingehend · ${data.messages.outboundCount} ausgehend`}
             />
             <KpiCard
               icon={Newspaper}
-              label="News & Engagement"
+              label="Gwada-News"
               value={String(data.news.publishedInPeriod)}
-              hint={`${data.news.engagementLikes} Likes · ${data.news.engagementComments} Kommentare`}
+              hint="Veröffentlichte Beiträge in Gwada"
             />
           </div>
 
@@ -425,7 +393,7 @@ export function InsightsOverviewScreen() {
               <CardHeader>
                 <CardTitle className="text-lg">Bewertungen pro Monat</CardTitle>
                 <CardDescription>
-                  Alle in Gwada gesammelten Bewertungen.
+                  Native Gwada-Bewertungen (ohne Google/Facebook-Cache).
                 </CardDescription>
               </CardHeader>
               <CardContent className="pl-0">
@@ -468,7 +436,7 @@ export function InsightsOverviewScreen() {
               <CardHeader>
                 <CardTitle className="text-lg">Nachrichten pro Monat</CardTitle>
                 <CardDescription>
-                  Gespeicherte Kontakt-Nachrichten aller Kanäle.
+                  Nachrichten über den Gwada-Kanal.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pl-0">
@@ -552,92 +520,6 @@ export function InsightsOverviewScreen() {
                       />
                       <ChartTooltip content={<ChartTooltipContent />} />
                       <Bar dataKey="count" fill="var(--chart-2)" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ChartContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="min-w-0 border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle className="text-lg">Bewertungen nach Plattform</CardTitle>
-                <CardDescription>
-                  Herkunft der in Gwada gespeicherten Reviews.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pl-0">
-                {reviewPlatformChart.length === 0 ? (
-                  <ChartEmpty message="Keine Bewertungen nach Plattform." />
-                ) : (
-                  <ChartContainer
-                    config={platformConfig}
-                    className="aspect-auto h-[260px] w-full min-w-0"
-                  >
-                    <BarChart
-                      accessibilityLayer
-                      data={reviewPlatformChart}
-                      layout="vertical"
-                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid horizontal={false} strokeDasharray="4 4" />
-                      <XAxis type="number" hide />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        tickLine={false}
-                        axisLine={false}
-                        width={72}
-                        className="text-[10px]"
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {reviewPlatformChart.map((entry) => (
-                          <Cell key={entry.name} fill={entry.fill} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ChartContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="min-w-0 border-border/50 shadow-card">
-              <CardHeader>
-                <CardTitle className="text-lg">Nachrichten nach Kanal</CardTitle>
-                <CardDescription>
-                  WhatsApp, E-Mail, Social und Gwada.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="pl-0">
-                {messagePlatformChart.length === 0 ? (
-                  <ChartEmpty message="Keine Nachrichten nach Kanal." />
-                ) : (
-                  <ChartContainer
-                    config={platformConfig}
-                    className="aspect-auto h-[260px] w-full min-w-0"
-                  >
-                    <BarChart
-                      accessibilityLayer
-                      data={messagePlatformChart}
-                      layout="vertical"
-                      margin={{ left: 4, right: 8, top: 8, bottom: 0 }}
-                    >
-                      <CartesianGrid horizontal={false} strokeDasharray="4 4" />
-                      <XAxis type="number" hide />
-                      <YAxis
-                        type="category"
-                        dataKey="name"
-                        tickLine={false}
-                        axisLine={false}
-                        width={72}
-                        className="text-[10px]"
-                      />
-                      <ChartTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {messagePlatformChart.map((entry) => (
-                          <Cell key={entry.name} fill={entry.fill} />
-                        ))}
-                      </Bar>
                     </BarChart>
                   </ChartContainer>
                 )}
@@ -729,11 +611,13 @@ export function InsightsOverviewScreen() {
           <KpiCard
             icon={Star}
             label="Bewertungen"
-            value={String(tripReviews?.count ?? 0)}
+            value={String(data.tripadvisor.reviewCount)}
             hint={
-              tripReviews?.average != null
-                ? `Ø ${formatReviewRating(tripReviews.average)} Sterne`
-                : "TripAdvisor im Sync"
+              data.tripadvisor.averageRating != null
+                ? `Ø ${formatReviewRating(data.tripadvisor.averageRating)} Sterne`
+                : data.tripadvisor.connected
+                  ? "TripAdvisor Sync"
+                  : "Nicht verbunden"
             }
           />
         </div>

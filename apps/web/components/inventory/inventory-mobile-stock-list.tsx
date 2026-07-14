@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ScrollText, Trash2, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -30,8 +30,10 @@ function InventoryMobileStockInput({
   ) => void;
 }) {
   const [draft, setDraft] = useState(() => String(currentStock));
+  const focusedRef = useRef(false);
 
   useEffect(() => {
+    if (focusedRef.current) return;
     setDraft(String(currentStock));
   }, [ingredientId, currentStock]);
 
@@ -54,7 +56,13 @@ function InventoryMobileStockInput({
         inputMode="decimal"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onBlur={() => {
+          focusedRef.current = false;
+          commit();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -82,6 +90,7 @@ export type InventoryMobileStockListProps = {
     unitLabel: string,
     actor: OrderProtocolActor,
   ) => void;
+  onEditIngredient: (row: Ingredient) => void;
   onOpenUsage: (row: Ingredient) => void;
   onOpenProtocol: (row: Ingredient) => void;
   onDelete: (row: Ingredient) => void;
@@ -94,6 +103,7 @@ export function InventoryMobileStockList({
   metaLineForRow,
   actor,
   onCommitStock,
+  onEditIngredient,
   onOpenUsage,
   onOpenProtocol,
   onDelete,
@@ -127,7 +137,12 @@ export function InventoryMobileStockList({
             )}
           >
             <div className="mb-3 flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                className="min-w-0 flex-1 rounded-xl text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+                onClick={() => onEditIngredient(row)}
+                aria-label={`${row.name} bearbeiten`}
+              >
                 <p className="truncate text-base font-semibold leading-snug">
                   {row.name}
                 </p>
@@ -141,7 +156,10 @@ export function InventoryMobileStockList({
                     Unter Schwelle ({threshold} {unitLabel})
                   </p>
                 ) : null}
-              </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Tippen zum Bearbeiten
+                </p>
+              </button>
               <div className="flex shrink-0 items-center gap-0.5">
                 <Button
                   type="button"

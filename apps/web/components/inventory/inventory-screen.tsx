@@ -762,6 +762,9 @@ export function InventoryScreen() {
       }
   >(null);
   const [ingredientDrawerOpen, setIngredientDrawerOpen] = useState(false);
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (searchParams.get("new") !== "1") return;
@@ -930,6 +933,14 @@ export function InventoryScreen() {
         ? ingredients.find((i) => i.id === stockProtocolIngredientId) ?? null
         : null,
     [ingredients, stockProtocolIngredientId],
+  );
+
+  const editingIngredient = useMemo(
+    () =>
+      editingIngredientId
+        ? ingredients.find((i) => i.id === editingIngredientId) ?? null
+        : null,
+    [editingIngredientId, ingredients],
   );
 
   const commitStockChange = useCallback(
@@ -1129,6 +1140,7 @@ export function InventoryScreen() {
             }}
             actor={actor}
             onCommitStock={commitStockChange}
+            onEditIngredient={(row) => setEditingIngredientId(row.id)}
             onOpenUsage={(row) =>
               setUsageDrawer({ id: row.id, name: row.name })
             }
@@ -1516,6 +1528,40 @@ export function InventoryScreen() {
         open={ingredientDrawerOpen}
         onOpenChange={setIngredientDrawerOpen}
         onCreate={async (row) => (await addIngredient(row)) != null}
+        suppliers={suppliers.items}
+        ingredientCategories={ingredientCategories.items}
+        productionSites={productionSites.items}
+        brands={brands.items}
+        units={units.items}
+      />
+
+      <IngredientDrawer
+        open={editingIngredient !== null}
+        onOpenChange={(o) => {
+          if (!o) setEditingIngredientId(null);
+        }}
+        initial={editingIngredient}
+        onSave={async (id, patch) => {
+          const current = ingredients.find((i) => i.id === id);
+          const unitId = patch.unit ?? current?.unit ?? "";
+          const unitDef = units.items.find((u) => u.id === unitId);
+          const unitLabel =
+            unitDef != null
+              ? `${unitDef.name}${unitDef.active === false ? " · inaktiv" : ""}`
+              : unitId;
+          const stockChanged =
+            patch.currentStock !== undefined &&
+            current != null &&
+            patch.currentStock !== current.currentStock;
+          const ok = await updateIngredient(
+            id,
+            patch,
+            stockChanged
+              ? { stockActor: actor, stockUnitLabel: unitLabel }
+              : undefined,
+          );
+          return ok;
+        }}
         suppliers={suppliers.items}
         ingredientCategories={ingredientCategories.items}
         productionSites={productionSites.items}

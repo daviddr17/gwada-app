@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { SearchableSelect } from "@/components/ui/combobox";
@@ -23,7 +24,12 @@ import {
 } from "@/components/ui/select";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
+import {
+  isIosTouchDevice,
+  useDrawerFormKeyboardAssist,
+} from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import type {
+  Ingredient,
   IngredientStockUnit,
   InventoryTaxonomyDefinition,
   NewIngredient,
@@ -32,12 +38,18 @@ import {
   formatPurchaseUnitPriceDisplay,
   parsePurchaseUnitPriceInput,
 } from "@/lib/inventory/format-purchase-unit-price";
-import { cn } from "@/lib/utils";
 
 type IngredientDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (row: NewIngredient) => boolean | Promise<boolean>;
+  /** Create-Modus (Standard). */
+  onCreate?: (row: NewIngredient) => boolean | Promise<boolean>;
+  /** Edit-Modus — wenn gesetzt und `initial` vorhanden. */
+  onSave?: (
+    id: string,
+    patch: Partial<Ingredient>,
+  ) => boolean | Promise<boolean>;
+  initial?: Ingredient | null;
   suppliers: InventoryTaxonomyDefinition[];
   ingredientCategories: InventoryTaxonomyDefinition[];
   productionSites: InventoryTaxonomyDefinition[];
@@ -54,28 +66,74 @@ export function IngredientDrawer({
   open,
   onOpenChange,
   onCreate,
+  onSave,
+  initial = null,
   suppliers,
   ingredientCategories,
   productionSites,
   brands,
   units,
 }: IngredientDrawerProps) {
+  const mode = initial ? "edit" : "create";
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
+  const [iosTouch, setIosTouch] = useState(false);
   const [name, setName] = useState("");
   const [unit, setUnit] = useState<IngredientStockUnit>("g");
   const [currentStock, setCurrentStock] = useState("0");
+  const [lowStockThreshold, setLowStockThreshold] = useState("0");
   const [purchaseUnitPrice, setPurchaseUnitPrice] = useState("");
   const [supplierId, setSupplierId] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [productionSiteId, setProductionSiteId] = useState("");
   const [brandId, setBrandId] = useState("");
   const [active, setActive] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    setIosTouch(isIosTouchDevice());
+  }, []);
+
+  /** Nur beim Öffnen / Wechsel der Zutat hydraten — nicht bei jedem Realtime-Update von `initial`. */
+  const seedId = initial?.id ?? null;
+  const wasOpenRef = useRef(false);
+  const seededForKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      wasOpenRef.current = false;
+      seededForKeyRef.current = null;
+      return;
+    }
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    const seedKey = seedId ?? "__create__";
+    if (!justOpened && seededForKeyRef.current === seedKey) return;
+    seededForKeyRef.current = seedKey;
+
     const frame = requestAnimationFrame(() => {
+      if (seedId && initial && initial.id === seedId) {
+        setName(initial.name);
+        setUnit(initial.unit || firstActiveId(units) || "g");
+        setCurrentStock(String(initial.currentStock ?? 0));
+        setLowStockThreshold(String(initial.lowStockThreshold ?? 0));
+        setPurchaseUnitPrice(
+          initial.purchaseUnitPrice != null
+            ? formatPurchaseUnitPriceDisplay(initial.purchaseUnitPrice)
+            : "",
+        );
+        setSupplierId(initial.supplierId || firstActiveId(suppliers));
+        setCategoryId(initial.categoryId || firstActiveId(ingredientCategories));
+        setProductionSiteId(
+          initial.productionSiteId || firstActiveId(productionSites),
+        );
+        setBrandId(initial.brandId || firstActiveId(brands));
+        setActive(initial.active !== false);
+        return;
+      }
       setName("");
       setUnit(firstActiveId(units) || "g");
       setCurrentStock("0");
+      setLowStockThreshold("0");
       setPurchaseUnitPrice("");
       setSupplierId(firstActiveId(suppliers));
       setCategoryId(firstActiveId(ingredientCategories));
@@ -84,7 +142,16 @@ export function IngredientDrawer({
       setActive(true);
     });
     return () => cancelAnimationFrame(frame);
-  }, [open, suppliers, ingredientCategories, productionSites, brands, units]);
+  }, [
+    open,
+    seedId,
+    initial,
+    suppliers,
+    ingredientCategories,
+    productionSites,
+    brands,
+    units,
+  ]);
 
   const supplierOptions = useMemo(
     () =>
@@ -138,30 +205,71 @@ export function IngredientDrawer({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed) {
+      toast.error("Bitte einen Namen eingeben.");
+      return;
+    }
     const stock = Number.parseFloat(currentStock.replace(",", "."));
-    if (Number.isNaN(stock) || stock < 0) return;
+    if (Number.isNaN(stock) || stock < 0) {
+      toast.error("Bitte einen gültigen Bestand (≥ 0) eingeben.");
+      return;
+    }
+    const threshold = Number.parseFloat(lowStockThreshold.replace(",", "."));
+    if (Number.isNaN(threshold) || threshold < 0) {
+      toast.error("Bitte eine gültige Schwelle (≥ 0) eingeben.");
+      return;
+    }
     let parsedPrice: number | null = null;
     const priceRaw = purchaseUnitPrice.trim();
     if (priceRaw !== "") {
       parsedPrice = parsePurchaseUnitPriceInput(priceRaw);
-      if (parsedPrice == null) return;
+      if (parsedPrice == null) {
+        toast.error("Bitte einen gültigen Einkaufspreis eingeben.");
+        return;
+      }
     }
+
     void (async () => {
-      const ok = await Promise.resolve(
-        onCreate({
-          name: trimmed,
-          unit,
-          currentStock: stock,
-          purchaseUnitPrice: parsedPrice,
-          supplierId: supplierId || firstActiveId(suppliers),
-          categoryId: categoryId || firstActiveId(ingredientCategories),
-          productionSiteId: productionSiteId || firstActiveId(productionSites),
-          brandId: brandId || firstActiveId(brands),
-          active,
-        }),
-      );
-      if (ok) onOpenChange(false);
+      setSaving(true);
+      try {
+        if (mode === "edit" && initial && onSave) {
+          const ok = await Promise.resolve(
+            onSave(initial.id, {
+              name: trimmed,
+              unit,
+              currentStock: stock,
+              lowStockThreshold: threshold,
+              purchaseUnitPrice: parsedPrice,
+              supplierId: supplierId || firstActiveId(suppliers),
+              categoryId: categoryId || firstActiveId(ingredientCategories),
+              productionSiteId:
+                productionSiteId || firstActiveId(productionSites),
+              brandId: brandId || firstActiveId(brands),
+              active,
+            }),
+          );
+          if (ok) onOpenChange(false);
+          return;
+        }
+        if (!onCreate) return;
+        const ok = await Promise.resolve(
+          onCreate({
+            name: trimmed,
+            unit,
+            currentStock: stock,
+            lowStockThreshold: threshold,
+            purchaseUnitPrice: parsedPrice,
+            supplierId: supplierId || firstActiveId(suppliers),
+            categoryId: categoryId || firstActiveId(ingredientCategories),
+            productionSiteId: productionSiteId || firstActiveId(productionSites),
+            brandId: brandId || firstActiveId(brands),
+            active,
+          }),
+        );
+        if (ok) onOpenChange(false);
+      } finally {
+        setSaving(false);
+      }
     })();
   };
 
@@ -170,22 +278,25 @@ export function IngredientDrawer({
       open={open}
       onOpenChange={onOpenChange}
       direction="bottom"
-      repositionInputs={false}
+      repositionInputs={repositionInputs}
     >
-      <DrawerContent
-        className={drawerContentClassName("template")}
-      >
+      <DrawerContent className={drawerContentClassName("formMd")}>
         <DrawerHeader className={drawerFormHeaderClassName(6)}>
           <DrawerTitle className="text-xl font-semibold tracking-tight">
-            Neue Zutat
+            {mode === "edit" ? "Zutat bearbeiten" : "Neue Zutat"}
           </DrawerTitle>
           <DrawerDescription className="text-base">
-            Bestand und Zuordnungen – später mit Lagerbuchung verknüpfbar.
+            {mode === "edit"
+              ? "Name, Bestand und Zuordnungen anpassen."
+              : "Bestand und Zuordnungen – später mit Lagerbuchung verknüpfbar."}
           </DrawerDescription>
         </DrawerHeader>
 
-        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-          <div className={drawerScrollAreaClassName(6)}>
+        <form
+          onSubmit={handleSubmit}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
             <DrawerFormSection title="Stammdaten">
               <div className="space-y-2">
                 <Label htmlFor="ing-name">Name</Label>
@@ -195,7 +306,8 @@ export function IngredientDrawer({
                   onChange={(e) => setName(e.target.value)}
                   placeholder="z. B. schwarzer Pfeffer"
                   className="h-12 rounded-xl"
-                  autoFocus
+                  autoFocus={!iosTouch}
+                  enterKeyHint="done"
                 />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -208,7 +320,10 @@ export function IngredientDrawer({
                       if (typeof v === "string") setUnit(v);
                     }}
                   >
-                    <SelectTrigger id="ing-unit" className="h-11 w-full rounded-xl">
+                    <SelectTrigger
+                      id="ing-unit"
+                      className="h-11 w-full rounded-xl"
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -233,6 +348,19 @@ export function IngredientDrawer({
                 </div>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="ing-threshold">Schwelle</Label>
+                <Input
+                  id="ing-threshold"
+                  inputMode="decimal"
+                  value={lowStockThreshold}
+                  onChange={(e) => setLowStockThreshold(e.target.value)}
+                  className="h-12 rounded-xl"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Benachrichtigung, wenn Bestand ≤ Schwelle.
+                </p>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="ing-price">
                   Einkaufspreis pro {selectedUnitLabel}
                 </Label>
@@ -242,9 +370,12 @@ export function IngredientDrawer({
                   value={purchaseUnitPrice}
                   onChange={(e) => setPurchaseUnitPrice(e.target.value)}
                   onBlur={() => {
-                    const parsed = parsePurchaseUnitPriceInput(purchaseUnitPrice);
+                    const parsed =
+                      parsePurchaseUnitPriceInput(purchaseUnitPrice);
                     if (parsed != null) {
-                      setPurchaseUnitPrice(formatPurchaseUnitPriceDisplay(parsed));
+                      setPurchaseUnitPrice(
+                        formatPurchaseUnitPriceDisplay(parsed),
+                      );
                     }
                   }}
                   placeholder="optional, z. B. 2,50"
@@ -329,7 +460,8 @@ export function IngredientDrawer({
           <DrawerFormFooter
             onCancel={() => onOpenChange(false)}
             submitType="submit"
-            submitLabel="Anlegen"
+            submitLabel={mode === "edit" ? "Speichern" : "Anlegen"}
+            submitDisabled={saving}
           />
         </form>
       </DrawerContent>

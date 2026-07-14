@@ -10,6 +10,7 @@ import { feedPinnedItemSurfaceClassName } from "@/lib/ui/feed-pin-styles";
 import { cn } from "@/lib/utils";
 import { FeedMediaImage } from "@/components/feed/feed-media-image";
 import { FeedVideoTile } from "@/components/feed/feed-video-tile";
+import { galleryItemDisplayUrls } from "@/lib/gallery/gallery-item-display-urls";
 
 export const galleryMasonryGridShellClassName = "overflow-hidden rounded-[10px]";
 
@@ -26,6 +27,9 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
   item: UnifiedGalleryItem;
   onItemClick: (item: UnifiedGalleryItem) => void;
 }) {
+  const { src, thumbSrc } = galleryItemDisplayUrls(item);
+  const videoSrc = item.fullUrl?.trim() || item.previewUrl;
+
   return (
     <button
       type="button"
@@ -37,16 +41,15 @@ const GalleryMasonryTile = memo(function GalleryMasonryTile({
       )}
     >
       {item.mediaKind === "video" ? (
-        <FeedVideoTile src={item.previewUrl} />
+        <FeedVideoTile src={videoSrc} />
       ) : (
         <FeedMediaImage
-          src={item.previewUrl}
-          thumbSrc={item.thumbUrl}
+          src={src}
+          thumbSrc={thumbSrc}
           blurDataUrl={item.blurDataUrl}
           width={item.width}
           height={item.height}
           alt={item.title ?? item.caption ?? ""}
-          feedOptimized
           naturalSize
           imgClassName="transition duration-300 group-hover:scale-[1.02]"
         />

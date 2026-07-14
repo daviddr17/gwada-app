@@ -66,6 +66,7 @@ const TRIPADVISOR_PHOTOS_MAX_PAGES = 5;
 function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
   url: string;
   previewUrl: string;
+  thumbUrl: string | null;
   width: number | null;
   height: number | null;
 } | null {
@@ -74,6 +75,7 @@ function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
     return {
       url: terraUrl,
       previewUrl: terraUrl,
+      thumbUrl: null,
       width: photo.photo?.original_width ?? null,
       height: photo.photo?.original_height ?? null,
     };
@@ -88,12 +90,18 @@ function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
     const thumbnail = images.thumbnail?.url?.trim();
     const url = original ?? large ?? medium ?? small ?? thumbnail;
     if (url) {
-      const previewSource = thumbnail ?? small ?? medium ?? large ?? original;
+      // Preview = scharf genug fürs Raster; Thumb nur für schnelles Blur-up.
+      const previewSource = large ?? original ?? medium ?? small ?? thumbnail;
+      const thumbSource = thumbnail ?? small ?? medium;
       const sizeSource =
         images.original ?? images.large ?? images.medium ?? images.small;
       return {
         url,
         previewUrl: previewSource ?? url,
+        thumbUrl:
+          thumbSource && thumbSource !== (previewSource ?? url)
+            ? thumbSource
+            : null,
         width: sizeSource?.width ?? null,
         height: sizeSource?.height ?? null,
       };
@@ -109,13 +117,16 @@ function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
     photo.url_thumbnail?.trim();
   if (!flatUrl) return null;
 
+  const flatThumb =
+    photo.url_thumbnail?.trim() ||
+    photo.url_small?.trim() ||
+    photo.url_medium?.trim() ||
+    null;
+
   return {
     url: flatUrl,
-    previewUrl:
-      photo.url_thumbnail?.trim() ||
-      photo.url_small?.trim() ||
-      photo.url_medium?.trim() ||
-      flatUrl,
+    previewUrl: flatUrl,
+    thumbUrl: flatThumb && flatThumb !== flatUrl ? flatThumb : null,
     width: null,
     height: null,
   };
@@ -140,6 +151,7 @@ function mapTripadvisorPhoto(photo: TripadvisorPhotoRaw): UnifiedGalleryItem | n
     mediaKind: "image",
     previewUrl: urls.previewUrl,
     fullUrl: urls.url,
+    thumbUrl: urls.thumbUrl,
     width: urls.width,
     height: urls.height,
     storagePath: null,

@@ -54,8 +54,11 @@ function mapGoogleMedia(
     category,
     categoryLabel: galleryCategoryLabelForPlatform("google_business", category),
     mediaKind: format === "VIDEO" ? "video" : "image",
-    previewUrl: item.thumbnailUrl?.trim() || url,
+    previewUrl: url,
     fullUrl: url,
+    thumbUrl: item.thumbnailUrl?.trim() && item.thumbnailUrl.trim() !== url
+      ? item.thumbnailUrl.trim()
+      : null,
     width: null,
     height: null,
     storagePath: null,

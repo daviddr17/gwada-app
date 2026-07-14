@@ -20,6 +20,7 @@ import { GALLERY_PLATFORM_LABELS } from "@/lib/constants/gallery-platforms";
 import type { UnifiedGalleryItem } from "@/lib/gallery/unified-gallery-item";
 import { GalleryPlatformIcon } from "@/components/gallery/gallery-platform-icon";
 import { buildGalleryItemSharePayload } from "@/lib/share/share-payload-builders";
+import { galleryItemDisplayUrls } from "@/lib/gallery/gallery-item-display-urls";
 
 type Props = {
   item: UnifiedGalleryItem | null;
@@ -68,6 +69,9 @@ export function GalleryItemActionSheet({
 
   if (!item) return null;
 
+  const { src: displaySrc } = galleryItemDisplayUrls(item);
+  const videoSrc = item.fullUrl?.trim() || item.previewUrl;
+
   return (
     <>
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
@@ -85,7 +89,7 @@ export function GalleryItemActionSheet({
           <div className="overflow-hidden rounded-xl border border-border/50 bg-muted/20">
             {item.mediaKind === "video" ? (
               <video
-                src={item.previewUrl}
+                src={videoSrc}
                 className="max-h-64 w-full object-contain"
                 autoPlay
                 muted
@@ -94,7 +98,7 @@ export function GalleryItemActionSheet({
               />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={item.previewUrl} alt="" className="max-h-64 w-full object-contain" />
+              <img src={displaySrc} alt="" className="max-h-64 w-full object-contain" />
             )}
           </div>
           <div className="grid gap-2">

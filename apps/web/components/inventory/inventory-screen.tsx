@@ -163,7 +163,8 @@ const KIND_UI: Record<
     drawer: {
       titleCreate: "Neuer Lieferant",
       titleEdit: "Lieferant bearbeiten",
-      description: "Name und Sichtbarkeit – Zuordnung bei Zutaten.",
+      description:
+        "Name und Sichtbarkeit. Aus dem Bubble-Import oft nur die Kundennummer („Lieferant 123…“) – bitte den Klarnamen setzen; Bestellungen übernehmen ihn.",
       nameLabel: "Name",
       namePlaceholder: "z. B. Großmarkt Nord",
       activeDescription:

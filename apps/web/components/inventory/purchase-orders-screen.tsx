@@ -14,12 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
-import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY } from "@/lib/constants/inventory-storage";
-import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES } from "@/lib/data/inventory-seeds";
+import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY, INVENTORY_SUPPLIERS_KEY } from "@/lib/constants/inventory-storage";
+import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES, SEED_SUPPLIERS } from "@/lib/data/inventory-seeds";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
+import { resolvePurchaseOrderSupplierName } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import {
   type OrderProtocolActor,
   type PurchaseOrder,
@@ -155,12 +156,17 @@ export function PurchaseOrdersScreen() {
     updateLineQuantity,
     markLineDelivered,
     unmarkLineDelivered,
+    syncSupplierNamesFromTaxonomy,
   } = usePurchaseOrdersStorage();
   const {
     ingredients,
     updateIngredient,
     isHydrated: ingredientsHydrated,
   } = useIngredientsStorage();
+  const suppliers = useInventoryTaxonomyStorage(
+    INVENTORY_SUPPLIERS_KEY,
+    SEED_SUPPLIERS,
+  );
   const productionSites = useInventoryTaxonomyStorage(
     INVENTORY_PRODUCTION_SITES_KEY,
     SEED_PRODUCTION_SITES,
@@ -200,15 +206,38 @@ export function PurchaseOrdersScreen() {
     [orders, protocolOrderId],
   );
 
+  const supplierNameForOrder = useCallback(
+    (order: PurchaseOrder) =>
+      resolvePurchaseOrderSupplierName(order, suppliers.items),
+    [suppliers.items],
+  );
+
+  const supplierSyncSignature = useMemo(
+    () =>
+      [
+        ...orders.map((o) => `${o.id}:${o.supplierId}:${o.supplierName}`),
+        ...suppliers.items.map((s) => `${s.id}:${s.name}`),
+      ].join("|"),
+    [orders, suppliers.items],
+  );
+
+  useEffect(() => {
+    if (!isHydrated || !suppliers.isHydrated) return;
+    if (suppliers.items.length === 0 || orders.length === 0) return;
+    void syncSupplierNamesFromTaxonomy(suppliers.items);
+    // Nur wenn Namen/IDs sich ändern — nicht bei jeder Render-Identität.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- signature deckt relevante Änderungen ab
+  }, [isHydrated, suppliers.isHydrated, supplierSyncSignature]);
+
   const supplierFilterOptions = useMemo(() => {
     const byId = new Map<string, string>();
     for (const o of orders) {
-      byId.set(o.supplierId, o.supplierName);
+      byId.set(o.supplierId, supplierNameForOrder(o));
     }
     return [...byId.entries()]
       .sort((a, b) => a[1].localeCompare(b[1], "de"))
       .map(([value, label]) => ({ value, label }));
-  }, [orders]);
+  }, [orders, supplierNameForOrder]);
 
   const productionFilterOptions = useMemo(() => {
     const ids = new Set<string>();
@@ -302,7 +331,10 @@ export function PurchaseOrdersScreen() {
       const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
         stockActor: actor,
         stockUnitLabel: line.unitLabel,
-        stockFromDelivery: { orderId: order.id, supplierName: order.supplierName },
+        stockFromDelivery: {
+          orderId: order.id,
+          supplierName: supplierNameForOrder(order),
+        },
       });
       if (!okStock) {
         toast.error("Bestand konnte nicht gespeichert werden.");
@@ -319,7 +351,14 @@ export function PurchaseOrdersScreen() {
         `„${line.ingredientName}“ als geliefert markiert – Bestand um ${line.quantity} ${line.unitLabel} erhöht.`,
       );
     },
-    [actor, ingredients, markLineDelivered, orders, updateIngredient],
+    [
+      actor,
+      ingredients,
+      markLineDelivered,
+      orders,
+      supplierNameForOrder,
+      updateIngredient,
+    ],
   );
 
   const handleUnmarkLineDelivered = useCallback(
@@ -342,7 +381,10 @@ export function PurchaseOrdersScreen() {
       const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
         stockActor: actor,
         stockUnitLabel: line.unitLabel,
-        stockDeliveryRevert: { orderId: order.id, supplierName: order.supplierName },
+        stockDeliveryRevert: {
+          orderId: order.id,
+          supplierName: supplierNameForOrder(order),
+        },
       });
       if (!okStock) {
         toast.error("Bestand konnte nicht gespeichert werden.");
@@ -359,7 +401,14 @@ export function PurchaseOrdersScreen() {
         `Lieferung von „${line.ingredientName}“ rückgängig – Bestand um ${line.quantity} ${line.unitLabel} reduziert.`,
       );
     },
-    [actor, ingredients, orders, unmarkLineDelivered, updateIngredient],
+    [
+      actor,
+      ingredients,
+      orders,
+      supplierNameForOrder,
+      unmarkLineDelivered,
+      updateIngredient,
+    ],
   );
 
   const restaurantName = profile.name.trim() || undefined;
@@ -454,7 +503,7 @@ export function PurchaseOrdersScreen() {
                     <div className="min-w-0 flex-1 space-y-0.5">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-base font-semibold tracking-tight">
-                          {order.supplierName}
+                          {supplierNameForOrder(order)}
                         </span>
                         <span
                           className={cn(
@@ -569,8 +618,9 @@ export function PurchaseOrdersScreen() {
                     <div className="hidden md:block">
                     <ModuleDataTableFrame
                       tableFullscreen
-                      fullscreenTitle={`Bestellung · ${order.supplierName}`}
+                      fullscreenTitle={`Bestellung · ${supplierNameForOrder(order)}`}
                       summaryText={`${order.lines.length} Position${order.lines.length === 1 ? "" : "en"}`}
+                      toolbarClassName="px-4 sm:px-5"
                       shellClassName="overflow-hidden rounded-none bg-transparent ring-0 shadow-none"
                       scrollClassName="overflow-x-auto"
                       fullscreenChromeInsetClassName={

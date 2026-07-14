@@ -270,6 +270,9 @@ export function StaffFormDrawer({
     return () => URL.revokeObjectURL(url);
   }, [avatarFile]);
 
+  const countriesRef = useRef(countries);
+  countriesRef.current = countries;
+
   const resetFromStaff = useCallback(() => {
     if (!staff) {
       setGivenName("");
@@ -301,7 +304,7 @@ export function StaffFormDrawer({
     setCity(staff.city ?? "");
     setCountry(staff.country ?? "DE");
     setEmail(staff.email ?? "");
-    const parsed = parseGuestPhone(staff.phone ?? "", countries, defaultIso);
+    const parsed = parseGuestPhone(staff.phone ?? "", countriesRef.current, defaultIso);
     setPhoneIso(parsed.iso2);
     setPhoneLocal(parsed.local);
     setPositionTagId(staff.position_tag_id ?? STAFF_POSITION_TAG_NONE);
@@ -311,7 +314,7 @@ export function StaffFormDrawer({
     setClearDisplayPinOnSave(false);
     setIsActive(staff.is_active);
     setAvatarFile(null);
-  }, [staff, countries]);
+  }, [staff, defaultIso]);
 
   const loadDisplayPinSuggestion = useCallback(async () => {
     const { pin } = await fetchStaffDisplayPinSuggestionClient({ restaurantId });
@@ -366,18 +369,31 @@ export function StaffFormDrawer({
     };
   }, [open, mode, staff?.id, restaurantId]);
 
+  const staffFormWasOpenRef = useRef(false);
+  const staffFormSeededKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) return;
-    resetFromStaff();
+    if (!open) {
+      staffFormWasOpenRef.current = false;
+      staffFormSeededKeyRef.current = null;
+      return;
+    }
+    const justOpened = !staffFormWasOpenRef.current;
+    staffFormWasOpenRef.current = true;
+    const seedKey = staff?.id ?? `create:${mode}`;
+    const shouldReset = justOpened || staffFormSeededKeyRef.current !== seedKey;
+    staffFormSeededKeyRef.current = seedKey;
+    if (shouldReset) {
+      resetFromStaff();
+    }
     void (async () => {
       const sb = createSupabaseBrowserClient();
       const { rows } = await fetchRestaurantPositions(sb, restaurantId);
       setPositions(rows.filter((p) => p.slug !== "owner"));
-      if (mode === "create") {
+      if (shouldReset && mode === "create") {
         await loadDisplayPinSuggestion();
       }
     })();
-  }, [open, resetFromStaff, restaurantId, mode, loadDisplayPinSuggestion]);
+  }, [open, resetFromStaff, restaurantId, mode, loadDisplayPinSuggestion, staff?.id]);
 
   const invitePositions = useMemo(
     () => positions.filter((p) => p.slug !== "owner"),

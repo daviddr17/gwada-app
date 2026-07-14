@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2, Upload } from "lucide-react";
@@ -109,25 +110,30 @@ export function DocumentFormDrawer({
     });
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    if (mode === "edit" && document) {
-      setTitle(document.title);
-      setTagId(document.tag_id ?? DOCUMENT_TAG_NONE);
-      setFile(null);
-    } else {
-      setTagId(DOCUMENT_TAG_NONE);
-      setStaffId(DOCUMENT_STAFF_NONE);
-      if (initialFile) {
-        applySelectedFile(initialFile);
-      } else {
-        setTitle("");
+  useDrawerFormSeed(
+    open,
+    mode === "edit" && document
+      ? `edit:${document.id}`
+      : `create:${initialFile?.name ?? ""}:${initialFile?.size ?? 0}`,
+    () => {
+      if (mode === "edit" && document) {
+        setTitle(document.title);
+        setTagId(document.tag_id ?? DOCUMENT_TAG_NONE);
         setFile(null);
+      } else {
+        setTagId(DOCUMENT_TAG_NONE);
+        setStaffId(DOCUMENT_STAFF_NONE);
+        if (initialFile) {
+          applySelectedFile(initialFile);
+        } else {
+          setTitle("");
+          setFile(null);
+        }
       }
-    }
-    dragDepthRef.current = 0;
-    setIsDragOver(false);
-  }, [open, mode, document, initialFile, applySelectedFile]);
+      dragDepthRef.current = 0;
+      setIsDragOver(false);
+    },
+  );
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();

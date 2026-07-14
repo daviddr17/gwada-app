@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
@@ -150,8 +151,7 @@ export function StaffWorkEntryDrawer({
     setLogEntries(data);
   }, [entry?.id, restaurantId]);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, entry?.id ?? "__create__", () => {
     if (entry) {
       const s = new Date(entry.starts_at);
       setEntryType(entry.entry_type);
@@ -164,15 +164,15 @@ export function StaffWorkEntryDrawer({
           ? toTimeInput(new Date())
           : toTimeInput(new Date(entry.ends_at)),
       );
-    } else {
-      const day = defaultDay ?? new Date();
-      setEntryType("work");
-      setDateStr(toDateInput(day));
-      setStartTime("09:00");
-      setEndTime("17:00");
-      setStillRunning(false);
+      return;
     }
-  }, [open, entry, defaultDay]);
+    const day = defaultDay ?? new Date();
+    setEntryType("work");
+    setDateStr(toDateInput(day));
+    setStartTime("09:00");
+    setEndTime("17:00");
+    setStillRunning(false);
+  });
 
   useEffect(() => {
     if (!open) return;

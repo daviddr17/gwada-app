@@ -12,6 +12,7 @@ import {
   drawerFormHeaderClassName,
 } from "@/lib/ui/drawer-form-section";
 import { useDrawerFormKeyboardAssist } from "@/lib/hooks/use-drawer-form-keyboard-assist";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import {
   displayTouchNumericInputProps,
   displayTouchPhoneLocalInputMode,
@@ -161,28 +162,31 @@ export function DisplayReservationDrawer({
     })();
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const confirmed = statuses.find((s) => s.code === "confirmed");
-    setFirstName("");
-    setLastName("");
-    setPartySize("2");
-    setDateYmd(initialDayYmd.trim() || restaurantTodayYmd(timeZone));
-    const resolvedDayYmd = initialDayYmd.trim() || restaurantTodayYmd(timeZone);
-    setTimeHm(
-      initialTimeHm?.trim() ||
-        defaultTimeHm(step, timeZone, resolvedDayYmd, undefined),
-    );
-    setStatusId(confirmed?.id ?? statuses[0]?.id ?? "");
-    setNotifyEmail(true);
-    setNotifyWhatsapp(false);
-    setTermsAccepted(true);
-    setDwellDraft(String(defaultDwellMinutes));
-    setTableId("__none__");
-    setPhoneLocal("");
-    setEmail("");
-    setInternalNote("");
-  }, [open, statuses, defaultDwellMinutes, step, timeZone, initialDayYmd, initialTimeHm]);
+  useDrawerFormSeed(
+    open,
+    `create:${initialDayYmd}:${initialTimeHm ?? ""}`,
+    () => {
+      const confirmed = statuses.find((s) => s.code === "confirmed");
+      setFirstName("");
+      setLastName("");
+      setPartySize("2");
+      setDateYmd(initialDayYmd.trim() || restaurantTodayYmd(timeZone));
+      const resolvedDayYmd = initialDayYmd.trim() || restaurantTodayYmd(timeZone);
+      setTimeHm(
+        initialTimeHm?.trim() ||
+          defaultTimeHm(step, timeZone, resolvedDayYmd, undefined),
+      );
+      setStatusId(confirmed?.id ?? statuses[0]?.id ?? "");
+      setNotifyEmail(true);
+      setNotifyWhatsapp(false);
+      setTermsAccepted(true);
+      setDwellDraft(String(defaultDwellMinutes));
+      setTableId("__none__");
+      setPhoneLocal("");
+      setEmail("");
+      setInternalNote("");
+    },
+  );
 
   const statusItems = useMemo(
     () => statuses.map((s) => ({ value: s.id, label: s.name })),

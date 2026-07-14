@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
 import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { MenuTaxonomyDefinition } from "@/lib/types/menu";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -97,24 +98,21 @@ export function MenuTaxonomyDrawer({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (mode === "edit" && initial) {
-        setName(initial.name);
-        setActive(initial.active !== false);
-        setBackgroundColor(
-          HEX.test(initial.backgroundColor)
-            ? initial.backgroundColor
-            : "#64748b",
-        );
-      } else {
-        setName("");
-        setActive(true);
-        setBackgroundColor("#64748b");
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mode, initial, open]);
+  useDrawerFormSeed(open, `${mode}:${initial?.id ?? "__create__"}`, () => {
+    if (mode === "edit" && initial) {
+      setName(initial.name);
+      setActive(initial.active !== false);
+      setBackgroundColor(
+        HEX.test(initial.backgroundColor)
+          ? initial.backgroundColor
+          : "#64748b",
+      );
+      return;
+    }
+    setName("");
+    setActive(true);
+    setBackgroundColor("#64748b");
+  });
 
   const canDelete = mode === "edit" && initial && onDelete;
 

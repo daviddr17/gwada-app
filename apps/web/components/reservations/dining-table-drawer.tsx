@@ -36,6 +36,7 @@ import {
   type DiningTableRow,
 } from "@/lib/supabase/dining-floor-db";
 import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
 import { cn } from "@/lib/utils";
 
@@ -94,8 +95,7 @@ export function DiningTableDrawer({
     [areas],
   );
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, table?.id ?? `create:${styleTemplate?.id ?? "blank"}`, () => {
     if (table) {
       setAreaId(table.area_id);
       setTableNumber(String(table.table_number));
@@ -106,36 +106,37 @@ export function DiningTableDrawer({
       setPlanW(String(Number(table.plan_w_pct) || 13));
       setPlanH(String(Number(table.plan_h_pct) || 20));
       setColorHex(HEX.test(table.color_hex) ? table.color_hex : "#94a3b8");
-    } else {
-      const aid = defaultAreaId ?? areas[0]?.id ?? "";
-      setAreaId(aid);
-      setTableNumber(String(nextTableNumber));
-      setTableName("");
-      const src = styleTemplate;
-      if (src) {
-        setCapacity(String(src.capacity));
-        setPlanW(String(Number(src.plan_w_pct) || 13));
-        setPlanH(String(Number(src.plan_h_pct) || 20));
-        setColorHex(HEX.test(src.color_hex) ? src.color_hex : "#94a3b8");
-        const off = 4;
-        setPlanX(String(clampPct(Number(src.plan_x_pct) + off)));
-        setPlanY(String(clampPct(Number(src.plan_y_pct) + off)));
-      } else {
-        setCapacity("4");
-        setPlanX("15");
-        setPlanY("15");
-        setPlanW("13");
-        setPlanH("20");
-      }
+      return;
     }
-  }, [open, table, nextTableNumber, defaultAreaId, areas, styleTemplate]);
+    const aid = defaultAreaId ?? areas[0]?.id ?? "";
+    setAreaId(aid);
+    setTableNumber(String(nextTableNumber));
+    setTableName("");
+    const src = styleTemplate;
+    if (src) {
+      setCapacity(String(src.capacity));
+      setPlanW(String(Number(src.plan_w_pct) || 13));
+      setPlanH(String(Number(src.plan_h_pct) || 20));
+      setColorHex(HEX.test(src.color_hex) ? src.color_hex : "#94a3b8");
+      const off = 4;
+      setPlanX(String(clampPct(Number(src.plan_x_pct) + off)));
+      setPlanY(String(clampPct(Number(src.plan_y_pct) + off)));
+    } else {
+      setCapacity("4");
+      setPlanX("15");
+      setPlanY("15");
+      setPlanW("13");
+      setPlanH("20");
+      setColorHex(defaultColorForArea(areas, aid));
+    }
+  });
 
   useEffect(() => {
-    if (!open || table) return;
-    if (!styleTemplate) {
-      setColorHex(defaultColorForArea(areas, areaId));
-    }
-  }, [open, table, areaId, areas, styleTemplate]);
+    if (!open || table || styleTemplate) return;
+    setColorHex(defaultColorForArea(areas, areaId));
+    // Nur bei Area-Wechsel durch Nutzer — nicht bei areas-Array-Identität.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- areaId-driven color default
+  }, [open, table, styleTemplate, areaId]);
 
   const fieldClass = drawerFormFieldClassName;
 

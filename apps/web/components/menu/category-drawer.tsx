@@ -25,6 +25,7 @@ import {
   isIosTouchDevice,
   useDrawerFormKeyboardAssist,
 } from "@/lib/hooks/use-drawer-form-keyboard-assist";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { MenuCategoryDefinition, MenuMainCategoryDefinition } from "@/lib/types/menu";
 
 type CategorySavePayload =
@@ -56,6 +57,8 @@ const MENU_CATEGORY_LABELS: CategoryDrawerLabels = {
   deleteConfirmTitle: "Eintrag wirklich löschen?",
 };
 
+const EMPTY_MAIN_CATEGORIES: MenuMainCategoryDefinition[] = [];
+
 type CategoryDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,7 +79,7 @@ export function CategoryDrawer({
   onOpenChange,
   mode,
   initial,
-  mainCategories = [],
+  mainCategories = EMPTY_MAIN_CATEGORIES,
   defaultMainCategoryId,
   onSave,
   onDelete,
@@ -97,25 +100,23 @@ export function CategoryDrawer({
     setIosTouch(isIosTouchDevice());
   }, []);
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      const fallbackMainId =
-        defaultMainCategoryId ??
-        mainCategories.find((m) => m.active !== false)?.id ??
-        mainCategories[0]?.id ??
-        "";
-      if (mode === "edit" && initial) {
-        setName(initial.name);
-        setActive(initial.active !== false);
-        setMainCategoryId(initial.mainCategoryId || fallbackMainId);
-      } else {
-        setName("");
-        setActive(true);
-        setMainCategoryId(fallbackMainId);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mode, initial, open, mainCategories, defaultMainCategoryId]);
+  const seedKey = `${mode}:${initial?.id ?? "__create__"}`;
+  useDrawerFormSeed(open, seedKey, () => {
+    const fallbackMainId =
+      defaultMainCategoryId ??
+      mainCategories.find((m) => m.active !== false)?.id ??
+      mainCategories[0]?.id ??
+      "";
+    if (mode === "edit" && initial) {
+      setName(initial.name);
+      setActive(initial.active !== false);
+      setMainCategoryId(initial.mainCategoryId || fallbackMainId);
+      return;
+    }
+    setName("");
+    setActive(true);
+    setMainCategoryId(fallbackMainId);
+  });
 
   const mainCategoryOptions = mainCategories.map((m) => ({
     value: m.id,

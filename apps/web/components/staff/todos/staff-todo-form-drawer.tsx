@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -238,16 +239,14 @@ export function StaffTodoFormDrawer({
     });
   }, [restaurantId, open]);
 
-  useEffect(() => {
-    if (!open) return;
-    if (!todo) return;
+  useDrawerFormSeed(open, todo?.id ?? "__create__", () => {
     resetFromTodo();
-  }, [open, todo, resetFromTodo]);
+  });
 
   useEffect(() => {
     if (!open || todo) return;
-    resetFromTodo();
-  }, [open, todo, defaultCorrectiveOnDeviation, resetFromTodo]);
+    setRequireCorrectiveOnDeviation(defaultCorrectiveOnDeviation);
+  }, [open, todo, defaultCorrectiveOnDeviation]);
 
   const handleDeviceChange = (id: string) => {
     setChecklistDeviceId(id);

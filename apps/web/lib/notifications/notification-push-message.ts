@@ -446,6 +446,8 @@ export function buildNotificationPushText(
       const time = pickString(p.requestedStartsAt);
       const end = pickString(p.requestedEndsAt);
       const entryType = pickString(p.entryType);
+      const fromLabel = formatPushTime(time, timeZone);
+      const toLabel = formatPushTime(end, timeZone);
       return buildPushMessage({
         prefix,
         headline: "Zeit nachtragen",
@@ -453,7 +455,11 @@ export function buildNotificationPushText(
         href,
         details: detailLines([
           entryType ? `Art: ${entryType}` : null,
-          time && end ? `Zeitraum: ${time} – ${end}` : time ? `Beginn: ${time}` : null,
+          fromLabel && toLabel
+            ? `Zeitraum: ${fromLabel} – ${toLabel}`
+            : fromLabel
+              ? `Beginn: ${fromLabel}`
+              : null,
           "Bitte im Mitarbeiter-Dashboard prüfen und freigeben.",
         ]),
       });
@@ -469,6 +475,7 @@ export function buildNotificationPushText(
           : moduleDef.href,
       );
       const isStart = event.module === "staff_display_clock_in";
+      const atLabel = formatPushTime(at, timeZone);
       return buildPushMessage({
         prefix,
         headline: isStart ? "Display: Schicht gestartet" : "Display: Schicht beendet",
@@ -476,12 +483,7 @@ export function buildNotificationPushText(
         href: clockHref,
         details: detailLines([
           staffName,
-          at
-            ? `Uhrzeit: ${new Date(at).toLocaleTimeString("de-DE", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}`
-            : null,
+          atLabel ? `Uhrzeit: ${atLabel}` : null,
         ]),
       });
     }

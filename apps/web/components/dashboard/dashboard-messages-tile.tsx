@@ -11,30 +11,31 @@ import {
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { dashboardMessagesInboxHref } from "@/lib/contact-messages/messages-unread-summary";
+import {
+  formatRestaurantDateTime,
+  isSameRestaurantCalendarDay,
+} from "@/lib/restaurant/restaurant-timezone";
 
-function formatMessageWhen(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const sameDay =
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate();
-
-  if (sameDay) {
-    return d.toLocaleTimeString("de-DE", {
+function formatMessageWhen(iso: string, timeZone: string): string {
+  if (isSameRestaurantCalendarDay(iso, new Date(), timeZone)) {
+    return formatRestaurantDateTime(iso, timeZone, {
       hour: "2-digit",
       minute: "2-digit",
     });
   }
 
-  return d.toLocaleDateString("de-DE", {
+  return formatRestaurantDateTime(iso, timeZone, {
     day: "2-digit",
     month: "short",
   });
 }
 
 export function DashboardMessagesTile() {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { summary, error, loading, ready } = useDashboardMessagesStats();
   const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
   const total = summary?.total_unread ?? 0;
@@ -80,8 +81,8 @@ export function DashboardMessagesTile() {
                   trailing={
                     <span className="tabular-nums">
                       {row.unreadCount > 1
-                        ? `${row.unreadCount} · ${formatMessageWhen(row.lastAt)}`
-                        : formatMessageWhen(row.lastAt)}
+                        ? `${row.unreadCount} · ${formatMessageWhen(row.lastAt, restaurantTimeZone)}`
+                        : formatMessageWhen(row.lastAt, restaurantTimeZone)}
                     </span>
                   }
                 />

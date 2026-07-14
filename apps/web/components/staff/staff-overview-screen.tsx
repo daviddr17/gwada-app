@@ -25,6 +25,7 @@ import { useStaffDayStatsQuery } from "@/lib/hooks/use-staff-day-stats-query";
 import { useStaffPositionTagsStorage } from "@/lib/hooks/use-staff-position-tags-storage";
 import { useStaffEmploymentTypesStorage } from "@/lib/hooks/use-staff-employment-types-storage";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleUpdate } from "@/lib/permissions/module-crud-permissions";
@@ -57,6 +58,7 @@ export function StaffOverviewScreen() {
   const searchParams = useSearchParams();
   const staffIdFromUrl = searchParams.get("staff")?.trim() ?? "";
   const { restaurantId, ready: workspaceReady } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { has } = useRestaurantPermissions();
   const canReviewTimeRequests = hasModuleUpdate(has, "staff");
   const positionTags = useStaffPositionTagsStorage(restaurantId);
@@ -481,6 +483,7 @@ export function StaffOverviewScreen() {
         dayYmd={dayDate}
         shifts={completedShifts}
         staffById={staffById}
+        timeZone={restaurantTimeZone}
       />
 
       {presenceSheetMode ? (
@@ -492,6 +495,7 @@ export function StaffOverviewScreen() {
           mode={presenceSheetMode}
           presence={presenceRows}
           staffById={staffById}
+          timeZone={restaurantTimeZone}
         />
       ) : null}
 

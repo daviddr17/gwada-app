@@ -28,6 +28,7 @@ import {
   fetchStaffWorkEntriesInRange,
 } from "@/lib/supabase/staff-db";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import type {
   RestaurantStaffContractRow,
   RestaurantStaffRow,
@@ -119,6 +120,7 @@ export function StaffWorkHoursView({
   staffId = null,
   allowEdit = true,
 }: StaffWorkHoursViewProps) {
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const staffSelection = useStaffModuleSelectionOptional();
   const staffList = staffSelection?.staffList ?? [];
   const router = useRouter();
@@ -575,7 +577,10 @@ export function StaffWorkHoursView({
                                     {shiftStaffLabel}
                                   </p>
                                 ) : null}
-                                <StaffDisplayShiftRow segments={item.segments} />
+                                <StaffDisplayShiftRow
+                                  segments={item.segments}
+                                  timeZone={restaurantTimeZone}
+                                />
                               </div>
                             </button>
                           );

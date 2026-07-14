@@ -31,18 +31,15 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePlatformWeatherAvailable } from "@/lib/hooks/use-platform-weather-available";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
+import {
+  createRestaurantDateTimeFormatter,
+  restaurantTodayYmd,
+} from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import { cn } from "@/lib/utils";
-
-const todayHeadingFmt = new Intl.DateTimeFormat("de-DE", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-});
 
 type HeuteMetricTone =
   | "neutral"
@@ -191,7 +188,15 @@ export function DashboardHeuteTile() {
 
   const showSkeleton = useDeferredSkeleton(!ready || loading);
 
-  const todayLabel = useMemo(() => todayHeadingFmt.format(new Date()), []);
+  const todayLabel = useMemo(
+    () =>
+      createRestaurantDateTimeFormatter(restaurantTimeZone, {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }).format(new Date()),
+    [restaurantTimeZone],
+  );
 
   const unconfirmedRecent = useMemo(
     () => (can.reservations ? reservations.summary?.unconfirmedList ?? [] : []),
@@ -356,6 +361,7 @@ export function DashboardHeuteTile() {
           mode={presenceSheetMode}
           presence={staff.presence}
           staffById={staffById}
+          timeZone={restaurantTimeZone}
         />
       ) : null}
 
@@ -366,6 +372,7 @@ export function DashboardHeuteTile() {
           dayYmd={staffTodayYmd}
           shifts={staff.completedShifts}
           staffById={staffById}
+          timeZone={restaurantTimeZone}
         />
       ) : null}
 

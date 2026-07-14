@@ -1,22 +1,32 @@
 "use client";
 
+import { useMemo } from "react";
 import { StaffDisplayShiftSegmentsList } from "@/components/staff/staff-display-shift-segments-list";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  createRestaurantDateTimeFormatter,
+} from "@/lib/restaurant/restaurant-timezone";
 import { displayShiftBounds } from "@/lib/staff/staff-work-hours-display";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
-const timeDe = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 export function StaffDisplayShiftRow({
   segments,
+  timeZone = DEFAULT_RESTAURANT_TIMEZONE,
   className,
 }: {
   segments: RestaurantStaffWorkEntryRow[];
+  timeZone?: string;
   className?: string;
 }) {
+  const timeDe = useMemo(
+    () =>
+      createRestaurantDateTimeFormatter(timeZone, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [timeZone],
+  );
   const bounds = displayShiftBounds(segments);
   const endLabel = bounds.isOpen
     ? "läuft"
@@ -33,7 +43,11 @@ export function StaffDisplayShiftRow({
       <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
         {timeDe.format(new Date(bounds.startsAt))} – {endLabel}
       </p>
-      <StaffDisplayShiftSegmentsList segments={segments} className="mt-2" />
+      <StaffDisplayShiftSegmentsList
+        segments={segments}
+        timeZone={timeZone}
+        className="mt-2"
+      />
     </div>
   );
 }

@@ -18,6 +18,7 @@ import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezon
 import {
   DEFAULT_RESTAURANT_TIMEZONE,
   formatReservationSlotInRestaurantTz,
+  formatRestaurantDateTime,
 } from "@/lib/restaurant/restaurant-timezone";
 import type {
   DashboardGlobalSearchCategory,
@@ -50,28 +51,17 @@ function ilikePattern(term: string): string {
   return `%${escapeIlikeTerm(term)}%`;
 }
 
-function formatDeDate(iso: string | null | undefined): string | null {
+function formatDeDate(
+  iso: string | null | undefined,
+  timeZone: string,
+): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString("de-DE", {
+  const formatted = formatRestaurantDateTime(iso, timeZone, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
-}
-
-function formatDeDateTimeLocal(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatted === "—" ? null : formatted;
 }
 
 function formatReservationSearchDateTime(
@@ -193,6 +183,7 @@ async function searchReservations(
   query: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const filters = [
     `guest_first_name.ilike."${pattern}"`,
@@ -208,11 +199,6 @@ async function searchReservations(
       filters.push(`reservation_number.eq.${reservationNumber}`);
     }
   }
-
-  const admin = createSupabaseAdminClient();
-  const timeZone = admin
-    ? await fetchRestaurantTimezoneServer(admin, restaurantId)
-    : DEFAULT_RESTAURANT_TIMEZONE;
 
   const { data } = await sb
     .from("reservations")
@@ -241,6 +227,7 @@ async function searchContacts(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("contacts")
@@ -256,7 +243,7 @@ async function searchContacts(
     const name = `${row.first_name} ${row.last_name}`.trim();
     const subtitle =
       row.company?.trim() ||
-      formatDeDate(row.last_interaction_at) ||
+      formatDeDate(row.last_interaction_at, timeZone) ||
       null;
     return makeItem("contacts", row.id, name, subtitle);
   });
@@ -267,6 +254,7 @@ async function searchReviews(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("gwada_reviews")
@@ -281,7 +269,7 @@ async function searchReviews(
     const comment = row.comment?.trim();
     const subtitle = [
       `${row.rating} ★`,
-      formatDeDate(row.created_at),
+      formatDeDate(row.created_at, timeZone),
       comment ? comment.slice(0, 80) : null,
     ]
       .filter(Boolean)
@@ -346,6 +334,7 @@ async function searchDocuments(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("restaurant_documents")
@@ -360,7 +349,7 @@ async function searchDocuments(
       "documents",
       row.id,
       row.title?.trim() || row.file_name,
-      row.file_name !== row.title ? row.file_name : formatDeDate(row.updated_at),
+      row.file_name !== row.title ? row.file_name : formatDeDate(row.updated_at, timeZone),
     ),
   );
 }
@@ -370,6 +359,7 @@ async function searchNews(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("gwada_news_posts")
@@ -384,7 +374,7 @@ async function searchNews(
       "news",
       row.id,
       row.title?.trim() || "Beitrag",
-      [row.status, formatDeDate(row.published_at ?? row.created_at)]
+      [row.status, formatDeDate(row.published_at ?? row.created_at, timeZone)]
         .filter(Boolean)
         .join(" · "),
     ),
@@ -396,12 +386,8 @@ async function searchEvents(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
-  const admin = createSupabaseAdminClient();
-  const timeZone = admin
-    ? await fetchRestaurantTimezoneServer(admin, restaurantId)
-    : DEFAULT_RESTAURANT_TIMEZONE;
-
   const { data } = await sb
     .from("gwada_events")
     .select("id, title, status, start_at")
@@ -427,6 +413,7 @@ async function searchAccounting(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const perTable = Math.max(3, Math.ceil(limit / 2));
   const [invoices, vouchers] = await Promise.all([
@@ -459,7 +446,7 @@ async function searchAccounting(
         "accounting",
         row.id,
         `Rechnung ${row.voucher_number}`,
-        [recipient, row.status, formatDeDate(row.voucher_date)]
+        [recipient, row.status, formatDeDate(row.voucher_date, timeZone)]
           .filter(Boolean)
           .join(" · "),
       ),
@@ -472,7 +459,7 @@ async function searchAccounting(
         "accounting",
         row.id,
         `Beleg ${row.voucher_number}`,
-        [row.contact_name, row.status, formatDeDate(row.voucher_date)]
+        [row.contact_name, row.status, formatDeDate(row.voucher_date, timeZone)]
           .filter(Boolean)
           .join(" · "),
       ),
@@ -487,6 +474,7 @@ async function searchGallery(
   restaurantId: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ): Promise<DashboardGlobalSearchResultItem[]> {
   const { data } = await sb
     .from("gwada_gallery_items")
@@ -501,7 +489,7 @@ async function searchGallery(
       "gallery",
       row.id,
       row.title?.trim() || row.caption?.trim() || "Bild",
-      [row.category, formatDeDate(row.created_at)].filter(Boolean).join(" · "),
+      [row.category, formatDeDate(row.created_at, timeZone)].filter(Boolean).join(" · "),
     ),
   );
 }
@@ -537,35 +525,36 @@ type CategorySearcher = (
   query: string,
   pattern: string,
   limit: number,
+  timeZone: string,
 ) => Promise<DashboardGlobalSearchResultItem[]>;
 
 const CATEGORY_SEARCHERS: Record<
   DashboardGlobalSearchCategory,
   CategorySearcher
 > = {
-  menu: (sb, restaurantId, _query, pattern, limit) =>
+  menu: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
     searchMenu(sb, restaurantId, pattern, limit),
-  reservations: (sb, restaurantId, query, pattern, limit) =>
-    searchReservations(sb, restaurantId, query, pattern, limit),
-  contacts: (sb, restaurantId, _query, pattern, limit) =>
-    searchContacts(sb, restaurantId, pattern, limit),
-  reviews: (sb, restaurantId, _query, pattern, limit) =>
-    searchReviews(sb, restaurantId, pattern, limit),
-  staff: (sb, restaurantId, _query, pattern, limit) =>
+  reservations: (sb, restaurantId, query, pattern, limit, timeZone) =>
+    searchReservations(sb, restaurantId, query, pattern, limit, timeZone),
+  contacts: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchContacts(sb, restaurantId, pattern, limit, timeZone),
+  reviews: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchReviews(sb, restaurantId, pattern, limit, timeZone),
+  staff: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
     searchStaff(sb, restaurantId, pattern, limit),
-  inventory: (sb, restaurantId, _query, pattern, limit) =>
+  inventory: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
     searchInventory(sb, restaurantId, pattern, limit),
-  documents: (sb, restaurantId, _query, pattern, limit) =>
-    searchDocuments(sb, restaurantId, pattern, limit),
-  news: (sb, restaurantId, _query, pattern, limit) =>
-    searchNews(sb, restaurantId, pattern, limit),
-  events: (sb, restaurantId, _query, pattern, limit) =>
-    searchEvents(sb, restaurantId, pattern, limit),
-  accounting: (sb, restaurantId, _query, pattern, limit) =>
-    searchAccounting(sb, restaurantId, pattern, limit),
-  gallery: (sb, restaurantId, _query, pattern, limit) =>
-    searchGallery(sb, restaurantId, pattern, limit),
-  staff_todos: (sb, restaurantId, _query, pattern, limit) =>
+  documents: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchDocuments(sb, restaurantId, pattern, limit, timeZone),
+  news: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchNews(sb, restaurantId, pattern, limit, timeZone),
+  events: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchEvents(sb, restaurantId, pattern, limit, timeZone),
+  accounting: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchAccounting(sb, restaurantId, pattern, limit, timeZone),
+  gallery: (sb, restaurantId, _query, pattern, limit, timeZone) =>
+    searchGallery(sb, restaurantId, pattern, limit, timeZone),
+  staff_todos: (sb, restaurantId, _query, pattern, limit, _timeZone) =>
     searchStaffTodos(sb, restaurantId, pattern, limit),
 };
 
@@ -589,6 +578,10 @@ export async function searchDashboardGlobal(
 
   const pattern = ilikePattern(query);
   const limit = DASHBOARD_GLOBAL_SEARCH_LIMIT_PER_CATEGORY;
+  const admin = createSupabaseAdminClient();
+  const timeZone = admin
+    ? await fetchRestaurantTimezoneServer(admin, restaurantId)
+    : DEFAULT_RESTAURANT_TIMEZONE;
 
   const enabledCategories = DASHBOARD_GLOBAL_SEARCH_CATEGORY_ORDER.filter(
     (category) => canSearchCategory(has, category),
@@ -602,6 +595,7 @@ export async function searchDashboardGlobal(
         query,
         pattern,
         limit,
+        timeZone,
       );
       return { category, items };
     }),

@@ -14,7 +14,10 @@ import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import type { CompletedDisplayShift } from "@/lib/staff/staff-work-hours-display";
 import type { RestaurantStaffRow } from "@/lib/types/staff";
 import { staffDisplayName } from "@/lib/types/staff";
-import { formatDayHeadingDe } from "@/lib/reservations/month-range";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatRestaurantDayHeadingDe,
+} from "@/lib/restaurant/restaurant-timezone";
 
 export function StaffOverviewCompletedShiftsSheet({
   open,
@@ -22,18 +25,16 @@ export function StaffOverviewCompletedShiftsSheet({
   dayYmd,
   shifts,
   staffById,
+  timeZone = DEFAULT_RESTAURANT_TIMEZONE,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   dayYmd: string;
   shifts: CompletedDisplayShift[];
   staffById: Map<string, RestaurantStaffRow>;
+  timeZone?: string;
 }) {
-  const dayLabel = (() => {
-    const [y, m, d] = dayYmd.split("-").map(Number);
-    if (!y || !m || !d) return dayYmd;
-    return formatDayHeadingDe(new Date(y, m - 1, d));
-  })();
+  const dayLabel = formatRestaurantDayHeadingDe(dayYmd, timeZone);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
@@ -63,6 +64,7 @@ export function StaffOverviewCompletedShiftsSheet({
                     <p className="font-semibold leading-snug">{name}</p>
                     <StaffDisplayShiftSegmentsList
                       segments={shift.segments}
+                      timeZone={timeZone}
                       className="mt-2 text-sm"
                     />
                     <p className="mt-2 text-xs text-muted-foreground">

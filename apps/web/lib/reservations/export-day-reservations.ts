@@ -6,7 +6,7 @@ import type { jsPDF } from "jspdf";
 import type { ReservationListRow } from "@/lib/supabase/reservations-db";
 import { reservationDiningTableLabel } from "@/lib/reservations/reservation-table-assignment";
 import { sortReservationsByStart } from "@/lib/reservations/sort-reservations-by-start";
-import { DEFAULT_RESTAURANT_TIMEZONE } from "@/lib/restaurant/restaurant-timezone";
+import { DEFAULT_RESTAURANT_TIMEZONE, formatRestaurantDateTime } from "@/lib/restaurant/restaurant-timezone";
 
 export const DAY_RESERVATION_EXPORT_HEADERS = [
   "Zeit",
@@ -130,7 +130,11 @@ export async function buildDayReservationsPdfDocument(
   y += 5;
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text(`Export ${new Date().toLocaleString("de-DE")}`, 14, y + 2);
+  doc.text(
+    `Export ${formatRestaurantDateTime(new Date(), options?.timeZone)}`,
+    14,
+    y + 2,
+  );
   doc.setTextColor(0);
 
   autoTable(doc, {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -10,25 +11,17 @@ import {
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  createRestaurantDateTimeFormatter,
+} from "@/lib/restaurant/restaurant-timezone";
 import type {
   RestaurantStaffRow,
   StaffLivePresenceRow,
 } from "@/lib/types/staff";
 import { staffDisplayName } from "@/lib/types/staff";
 
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 export type StaffLivePresenceSheetMode = "working" | "on_break";
-
-function presenceTimeLabel(row: StaffLivePresenceRow): string {
-  if (row.status === "on_break" && row.break_started_at) {
-    return `Pause seit ${timeFmt.format(new Date(row.break_started_at))}`;
-  }
-  return `Schicht seit ${timeFmt.format(new Date(row.clocked_in_at))}`;
-}
 
 const SHEET_COPY: Record<
   StaffLivePresenceSheetMode,
@@ -50,13 +43,31 @@ export function StaffOverviewLivePresenceSheet({
   mode,
   presence,
   staffById,
+  timeZone = DEFAULT_RESTAURANT_TIMEZONE,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: StaffLivePresenceSheetMode;
   presence: StaffLivePresenceRow[];
   staffById: Map<string, RestaurantStaffRow>;
+  timeZone?: string;
 }) {
+  const timeFmt = useMemo(
+    () =>
+      createRestaurantDateTimeFormatter(timeZone, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [timeZone],
+  );
+
+  const presenceTimeLabel = (row: StaffLivePresenceRow): string => {
+    if (row.status === "on_break" && row.break_started_at) {
+      return `Pause seit ${timeFmt.format(new Date(row.break_started_at))}`;
+    }
+    return `Schicht seit ${timeFmt.format(new Date(row.clocked_in_at))}`;
+  };
+
   const copy = SHEET_COPY[mode];
   const rows = presence
     .filter((p) => p.status === mode)

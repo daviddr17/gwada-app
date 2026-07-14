@@ -1,6 +1,7 @@
 import { printJsPdfDocument } from "@/lib/export/print-jspdf-document";
 import { inventoryUnitLabelDe } from "@/lib/inventory/inventory-unit-label-de";
 import { applyJsPdfPageNumbers } from "@/lib/pdf/jspdf-page-numbers";
+import { formatRestaurantDateTime } from "@/lib/restaurant/restaurant-timezone";
 import type { jsPDF } from "jspdf";
 
 export type DisplayRecipeLine = {
@@ -22,6 +23,7 @@ export type DisplayRecipeDish = {
 
 export type DisplayRecipePrintOptions = {
   restaurantName?: string;
+  timeZone?: string;
 };
 
 const RECIPE_HEADERS = ["Zutat", "Menge", "Einheit"] as const;
@@ -92,7 +94,11 @@ export async function buildDisplayRecipePdfDocument(
 
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text(`Gedruckt ${new Date().toLocaleString("de-DE")}`, 14, y + 2);
+  doc.text(
+    `Gedruckt ${formatRestaurantDateTime(new Date(), options?.timeZone)}`,
+    14,
+    y + 2,
+  );
   doc.setTextColor(0);
 
   autoTable(doc, {

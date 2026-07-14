@@ -425,6 +425,22 @@ export async function updateReservation(
   };
 }
 
+/** Nur Status wechseln (z. B. Dashboard Schnell-Bestätigen). */
+export async function updateReservationStatus(
+  id: string,
+  statusId: string,
+): Promise<{ error: Error | null }> {
+  const sb = createSupabaseBrowserClient();
+  const { error } = await sb
+    .from("reservations")
+    .update({ status_id: statusId })
+    .eq("id", id);
+  if (error) {
+    return { error: new Error(error.message) };
+  }
+  return { error: null };
+}
+
 export async function deleteReservation(params: {
   restaurantId: string;
   id: string;

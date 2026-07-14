@@ -58,6 +58,7 @@ export function DashboardCompactListItem({
   title,
   meta,
   trailing,
+  trailingAction,
   leading,
   stripeVariant,
   className,
@@ -66,6 +67,8 @@ export function DashboardCompactListItem({
   title: React.ReactNode;
   meta?: React.ReactNode;
   trailing?: React.ReactNode;
+  /** Außerhalb des Links (z. B. Schnell-Aktion), kein Navigieren. */
+  trailingAction?: React.ReactNode;
   leading?: React.ReactNode;
   stripeVariant?: DashboardCompactStripeVariant;
   className?: string;
@@ -93,25 +96,34 @@ export function DashboardCompactListItem({
   );
 
   const rowClass = cn(
-    "flex items-center gap-3 py-2.5 text-left transition-colors",
-    stripeVariant ? "pl-2.5 pr-4" : "px-4",
+    "flex min-w-0 flex-1 items-center gap-3 py-2.5 text-left transition-colors",
+    stripeVariant ? "pl-2.5" : "pl-4",
+    trailingAction ? "pr-2" : "pr-4",
     href && "hover:bg-muted/30",
     className,
   );
 
+  const action = trailingAction ? (
+    <div className="flex shrink-0 items-center gap-1 py-1.5 pr-2.5">
+      {trailingAction}
+    </div>
+  ) : null;
+
   if (href) {
     return (
-      <li>
+      <li className="flex items-stretch">
         <AppNavLink href={href} prefetch={false} className={rowClass}>
           {inner}
         </AppNavLink>
+        {action}
       </li>
     );
   }
 
   return (
-    <li>
+    <li className="flex items-stretch">
       <div className={rowClass}>{inner}</div>
+      {action}
     </li>
   );
 }

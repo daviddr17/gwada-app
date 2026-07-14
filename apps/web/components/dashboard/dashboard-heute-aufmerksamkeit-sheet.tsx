@@ -1,5 +1,6 @@
 "use client";
 
+import { DashboardReservationQuickAcceptButton } from "@/components/dashboard/dashboard-reservation-quick-accept-button";
 import {
   DashboardCompactList,
   DashboardCompactListItem,
@@ -19,6 +20,7 @@ import {
 import { formatReservationTimeInRestaurantTz } from "@/lib/restaurant/restaurant-timezone";
 import type { DashboardMessageUnreadRow } from "@/lib/contact-messages/messages-unread-summary";
 import type { DashboardReservationRecent } from "@/lib/reservations/compute-dashboard-reservation-summary";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export function DashboardHeuteAufmerksamkeitSheet({
   open,
@@ -37,6 +39,7 @@ export function DashboardHeuteAufmerksamkeitSheet({
   unreadMessageCount: number;
   timeZone: string;
 }) {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const total = unconfirmedCount + unreadMessageCount;
   const empty = total === 0;
 
@@ -85,6 +88,15 @@ export function DashboardHeuteAufmerksamkeitSheet({
                           row.startsAt,
                           timeZone,
                         )}
+                        trailingAction={
+                          restaurantId ? (
+                            <DashboardReservationQuickAcceptButton
+                              restaurantId={restaurantId}
+                              reservationId={row.id}
+                              statusCode={row.statusCode}
+                            />
+                          ) : null
+                        }
                         stripeVariant="attention"
                         className="py-2.5"
                       />

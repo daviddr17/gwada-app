@@ -1,15 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText, Trash2, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-storage";
 import type { Ingredient } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
+import {
+  inventoryTouchOrderQtyHighlightCn,
+  inventoryTouchQtyInputClassName,
+  inventoryTouchQtyUnitSuffixClassName,
+} from "@/lib/ui/inventory-touch-qty-input";
 import { cn } from "@/lib/utils";
-
-const touchStockInputClassName =
-  "h-14 w-full rounded-2xl border border-input bg-background px-4 pr-16 text-center text-2xl font-semibold tabular-nums outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/45";
 
 function InventoryMobileStockInput({
   ingredientId,
@@ -69,20 +72,202 @@ function InventoryMobileStockInput({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={touchStockInputClassName}
+        className={cn(inventoryTouchQtyInputClassName, "pr-16")}
         aria-label={`Bestand ${unitLabel}`}
       />
-      <span className="pointer-events-none absolute top-1/2 right-4 -translate-y-1/2 text-sm font-medium text-muted-foreground">
-        {unitLabel}
-      </span>
+      <span className={inventoryTouchQtyUnitSuffixClassName}>{unitLabel}</span>
     </div>
   );
 }
+
+function InventoryMobileOrderInput({
+  ingredient,
+  canOrder,
+  supplierName,
+  brandLabel,
+  unitId,
+  unitLabel,
+  actor,
+  openQty,
+  openOrderId,
+  openLineId,
+  addLine,
+  updateLineQuantity,
+}: {
+  ingredient: Ingredient;
+  canOrder: boolean;
+  supplierName: string;
+  brandLabel: string;
+  unitId: string;
+  unitLabel: string;
+  actor: OrderProtocolActor;
+  openQty: number;
+  openOrderId: string | null;
+  openLineId: string | null;
+  addLine: (p: AddPurchaseLineParams) => Promise<boolean>;
+  updateLineQuantity: (
+    orderId: string,
+    lineId: string,
+    qty: number,
+    user: OrderProtocolActor,
+  ) => Promise<boolean>;
+}) {
+  const [draft, setDraft] = useState(() =>
+    openLineId ? String(openQty) : "",
+  );
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (focusedRef.current) return;
+    setDraft(openLineId ? String(openQty) : "");
+  }, [openLineId, openQty]);
+
+  const displayOrderQty = useMemo(() => {
+    const t = draft.trim();
+    if (t === "") return openLineId ? openQty : 0;
+    const n = Number.parseFloat(t.replace(",", "."));
+    return Number.isNaN(n) ? (openLineId ? openQty : 0) : n;
+  }, [draft, openLineId, openQty]);
+
+  const highlightOrderQty = canOrder && displayOrderQty > 0;
+
+  const commit = useCallback(async () => {
+    try {
+      if (!canOrder) {
+        toast.error(
+          "Diese Zutat hat keinen Lieferanten in den Stammdaten und kann nicht bestellt werden.",
+        );
+        return;
+      }
+      const raw = draft.trim();
+      let q: number;
+      if (raw === "") {
+        q = 0;
+      } else {
+        q = Number.parseFloat(raw.replace(",", "."));
+        if (Number.isNaN(q) || q < 0) {
+          toast.error("Bitte eine gültige Menge (≥ 0) eingeben.");
+          setDraft(openLineId ? String(openQty) : "");
+          return;
+        }
+      }
+      if (q === openQty) return;
+      if (!openLineId && q === 0) return;
+
+      if (q === 0) {
+        if (openOrderId && openLineId) {
+          const ok = await updateLineQuantity(
+            openOrderId,
+            openLineId,
+            0,
+            actor,
+          );
+          if (!ok) {
+            setDraft(openLineId ? String(openQty) : "");
+          }
+        }
+        return;
+      }
+
+      if (!openLineId) {
+        const ok = await addLine({
+          supplierId: ingredient.supplierId,
+          supplierName,
+          ingredientId: ingredient.id,
+          ingredientName: ingredient.name,
+          brandLabel,
+          quantity: q,
+          unitId,
+          unitLabel,
+          actor,
+        });
+        if (!ok) {
+          setDraft("");
+        }
+        return;
+      }
+      if (openOrderId && openLineId) {
+        const ok = await updateLineQuantity(
+          openOrderId,
+          openLineId,
+          q,
+          actor,
+        );
+        if (!ok) {
+          setDraft(String(openQty));
+        }
+      }
+    } catch (e) {
+      console.warn("[gwada] Bestellmenge speichern", e);
+      toast.error("Bestellung konnte nicht gespeichert werden.");
+      setDraft(openLineId ? String(openQty) : "");
+    }
+  }, [
+    addLine,
+    brandLabel,
+    canOrder,
+    draft,
+    ingredient,
+    openLineId,
+    openOrderId,
+    openQty,
+    supplierName,
+    unitId,
+    unitLabel,
+    updateLineQuantity,
+    actor,
+  ]);
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        inputMode="decimal"
+        disabled={!canOrder}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onBlur={() => {
+          focusedRef.current = false;
+          void commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        placeholder={canOrder ? "0" : "—"}
+        title={
+          canOrder
+            ? "Menge in der offenen Bestellung dieses Lieferanten (0 entfernt die Position)"
+            : "Ohne Lieferant nicht bestellbar"
+        }
+        className={inventoryTouchOrderQtyHighlightCn(highlightOrderQty)}
+        aria-label={`Bestellung ${unitLabel}`}
+      />
+      <span className={inventoryTouchQtyUnitSuffixClassName}>{unitLabel}</span>
+    </div>
+  );
+}
+
+export type InventoryMobileOrderContext = {
+  canOrder: boolean;
+  supplierName: string;
+  brandLabel: string;
+  unitId: string;
+  openQty: number;
+  openOrderId: string | null;
+  openLineId: string | null;
+};
 
 export type InventoryMobileStockListProps = {
   rows: Ingredient[];
   unitLabelById: (unitId: string) => string;
   metaLineForRow: (row: Ingredient) => string | null;
+  orderContextForRow: (row: Ingredient) => InventoryMobileOrderContext;
   actor: OrderProtocolActor;
   onCommitStock: (
     id: string,
@@ -90,19 +275,29 @@ export type InventoryMobileStockListProps = {
     unitLabel: string,
     actor: OrderProtocolActor,
   ) => void;
+  addLine: (p: AddPurchaseLineParams) => Promise<boolean>;
+  updateLineQuantity: (
+    orderId: string,
+    lineId: string,
+    qty: number,
+    user: OrderProtocolActor,
+  ) => Promise<boolean>;
   onEditIngredient: (row: Ingredient) => void;
   onOpenUsage: (row: Ingredient) => void;
   onOpenProtocol: (row: Ingredient) => void;
   onDelete: (row: Ingredient) => void;
 };
 
-/** Mobile-only: große Bestand-Felder ohne Quer-Scroll, Suche/Filter bleiben darüber. */
+/** Mobile-only: große Bestand-/Bestellung-Felder ohne Quer-Scroll. */
 export function InventoryMobileStockList({
   rows,
   unitLabelById,
   metaLineForRow,
+  orderContextForRow,
   actor,
   onCommitStock,
+  addLine,
+  updateLineQuantity,
   onEditIngredient,
   onOpenUsage,
   onOpenProtocol,
@@ -121,6 +316,7 @@ export function InventoryMobileStockList({
       {rows.map((row) => {
         const unitLabel = unitLabelById(row.unit);
         const meta = metaLineForRow(row);
+        const orderCtx = orderContextForRow(row);
         const threshold = row.lowStockThreshold ?? 0;
         const low =
           Number.isFinite(row.currentStock) &&
@@ -193,16 +389,45 @@ export function InventoryMobileStockList({
                 </Button>
               </div>
             </div>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-              Bestand
-            </p>
-            <InventoryMobileStockInput
-              ingredientId={row.id}
-              currentStock={row.currentStock}
-              unitLabel={unitLabel}
-              actor={actor}
-              onCommitStock={onCommitStock}
-            />
+
+            <div className="space-y-3">
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Bestand
+                </p>
+                <InventoryMobileStockInput
+                  ingredientId={row.id}
+                  currentStock={row.currentStock}
+                  unitLabel={unitLabel}
+                  actor={actor}
+                  onCommitStock={onCommitStock}
+                />
+              </div>
+              <div>
+                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                  Bestellung
+                </p>
+                <InventoryMobileOrderInput
+                  ingredient={row}
+                  canOrder={orderCtx.canOrder}
+                  supplierName={orderCtx.supplierName}
+                  brandLabel={orderCtx.brandLabel}
+                  unitId={orderCtx.unitId}
+                  unitLabel={unitLabel}
+                  actor={actor}
+                  openQty={orderCtx.openQty}
+                  openOrderId={orderCtx.openOrderId}
+                  openLineId={orderCtx.openLineId}
+                  addLine={addLine}
+                  updateLineQuantity={updateLineQuantity}
+                />
+                {!orderCtx.canOrder ? (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Ohne Lieferant nicht bestellbar
+                  </p>
+                ) : null}
+              </div>
+            </div>
           </li>
         );
       })}

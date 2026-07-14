@@ -1138,8 +1138,22 @@ export function InventoryScreen() {
               ].filter((s) => s.trim().length > 0 && s !== "—");
               return parts.length > 0 ? parts.join(" · ") : null;
             }}
+            orderContextForRow={(row) => {
+              const orderCtx = getOpenLineContext(row.supplierId, row.id);
+              return {
+                canOrder: Boolean(row.supplierId?.trim()),
+                supplierName: nameById(suppliers.items, row.supplierId),
+                brandLabel: nameById(brands.items, row.brandId),
+                unitId: row.unit,
+                openQty: orderCtx.quantity,
+                openOrderId: orderCtx.orderId,
+                openLineId: orderCtx.lineId,
+              };
+            }}
             actor={actor}
             onCommitStock={commitStockChange}
+            addLine={addLine}
+            updateLineQuantity={updateLineQuantity}
             onEditIngredient={(row) => setEditingIngredientId(row.id)}
             onOpenUsage={(row) =>
               setUsageDrawer({ id: row.id, name: row.name })

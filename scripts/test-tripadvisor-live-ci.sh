@@ -136,6 +136,20 @@ echo "${REV_GET}" | sed '$d' | head -c 400
 echo ""
 echo "${REV_GET}" | tail -1
 
+echo ""
+echo "--- GET /locations/${TEST_LOCATION}/photos?version=1&locale=de-DE&page=1&size=5 ---"
+PHOTO_GET="$(terra_get "/locations/${TEST_LOCATION}/photos?version=1&locale=de-DE&page=1&size=5")"
+echo "${PHOTO_GET}" | sed '$d' | head -c 2500
+echo ""
+echo "${PHOTO_GET}" | tail -1
+
+echo ""
+echo "--- GET /locations/${TEST_LOCATION}/photos?version=1&locale=de-DE&page=1&size=50 (expect size cap) ---"
+PHOTO_BIG="$(terra_get "/locations/${TEST_LOCATION}/photos?version=1&locale=de-DE&page=1&size=50")"
+echo "${PHOTO_BIG}" | sed '$d' | head -c 500
+echo ""
+echo "${PHOTO_BIG}" | tail -1
+
 if [[ "${ALLOW_POST_CODE}" != "200" && "${LOC_CODE}" != "200" && "${CAT_CODE}" != "200" ]]; then
   echo "::error::Alle Terra-Tests fehlgeschlagen (allowlist=${ALLOW_POST_CODE}, location=${LOC_CODE}, catalog=${CAT_CODE})"
   exit 1

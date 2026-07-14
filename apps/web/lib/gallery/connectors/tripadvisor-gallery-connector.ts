@@ -36,6 +36,7 @@ type TripadvisorPhotoRaw = {
   caption?: string;
   published_date?: string;
   publish_ts?: string;
+  album?: string;
   photo?: TripadvisorPhotoInfo;
   images?: {
     thumbnail?: TripadvisorPhotoImageSize;
@@ -50,6 +51,15 @@ type TripadvisorPhotoRaw = {
   url_small?: string;
   url_thumbnail?: string;
   url?: string;
+  /** Contributor avatar (nicht Galerieinhalt). */
+  user?: {
+    username?: string;
+    avatar?: {
+      url?: string;
+      thumbnail?: string | TripadvisorPhotoImageSize;
+      small?: string | TripadvisorPhotoImageSize;
+    };
+  };
 };
 
 type TripadvisorPhotosResponse = {
@@ -60,8 +70,34 @@ type TripadvisorPhotosResponse = {
   };
 };
 
-const TRIPADVISOR_PHOTOS_PAGE_SIZE = 50;
-const TRIPADVISOR_PHOTOS_MAX_PAGES = 5;
+/** Terra: max. `size` ist 25 (`'size' should not go over 25`). */
+const TRIPADVISOR_PHOTOS_PAGE_SIZE = 25;
+const TRIPADVISOR_PHOTOS_MAX_PAGES = 10;
+
+/** Unter dieser Kantenlänge wirken TA-Thumbs wie Profil-Avatare (50×50 / 150×150). */
+const MIN_GALLERY_EDGE_PX = 200;
+
+const PROFILE_ALBUM_RE =
+  /profil|profile|avatar|member|contributor|benutzer/i;
+
+function imageSizeUrl(
+  value: string | TripadvisorPhotoImageSize | undefined,
+): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value.trim() || null;
+  return value.url?.trim() || null;
+}
+
+function maxEdge(size: TripadvisorPhotoImageSize | undefined): number {
+  if (!size) return 0;
+  return Math.max(size.width ?? 0, size.height ?? 0);
+}
+
+function isLikelyProfileAlbum(album: string | undefined): boolean {
+  const value = album?.trim();
+  if (!value) return false;
+  return PROFILE_ALBUM_RE.test(value);
+}
 
 function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
   url: string;
@@ -70,63 +106,86 @@ function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
   width: number | null;
   height: number | null;
 } | null {
+  if (isLikelyProfileAlbum(photo.album)) return null;
+
   const terraUrl = photo.photo?.original_size_url?.trim();
+  const terraW = photo.photo?.original_width ?? null;
+  const terraH = photo.photo?.original_height ?? null;
   if (terraUrl) {
+    const edge = Math.max(terraW ?? 0, terraH ?? 0);
+    if (edge > 0 && edge < MIN_GALLERY_EDGE_PX) return null;
     return {
       url: terraUrl,
       previewUrl: terraUrl,
       thumbUrl: null,
-      width: photo.photo?.original_width ?? null,
-      height: photo.photo?.original_height ?? null,
+      width: terraW,
+      height: terraH,
     };
   }
 
   const images = photo.images;
   if (images) {
-    const original = images.original?.url?.trim();
-    const large = images.large?.url?.trim();
-    const medium = images.medium?.url?.trim();
-    const small = images.small?.url?.trim();
-    const thumbnail = images.thumbnail?.url?.trim();
-    const url = original ?? large ?? medium ?? small ?? thumbnail;
-    if (url) {
-      // Preview = scharf genug fürs Raster; Thumb nur für schnelles Blur-up.
-      const previewSource = large ?? original ?? medium ?? small ?? thumbnail;
-      const thumbSource = thumbnail ?? small ?? medium;
-      const sizeSource =
-        images.original ?? images.large ?? images.medium ?? images.small;
-      return {
-        url,
-        previewUrl: previewSource ?? url,
-        thumbUrl:
-          thumbSource && thumbSource !== (previewSource ?? url)
-            ? thumbSource
-            : null,
-        width: sizeSource?.width ?? null,
-        height: sizeSource?.height ?? null,
-      };
-    }
+    const ranked: { size: TripadvisorPhotoImageSize; kind: string }[] = [
+      { size: images.original, kind: "original" },
+      { size: images.large, kind: "large" },
+      { size: images.medium, kind: "medium" },
+      { size: images.small, kind: "small" },
+      { size: images.thumbnail, kind: "thumbnail" },
+    ].filter((entry): entry is { size: TripadvisorPhotoImageSize; kind: string } =>
+      Boolean(entry.size?.url?.trim()),
+    );
+
+    // Nie Thumbnail/Small als einzige Display-Quelle: wirkt wie Profilbild.
+    const displayCandidate =
+      ranked.find(
+        (entry) =>
+          entry.kind === "original" ||
+          entry.kind === "large" ||
+          entry.kind === "medium" ||
+          maxEdge(entry.size) >= MIN_GALLERY_EDGE_PX,
+      ) ?? null;
+
+    if (!displayCandidate) return null;
+
+    const url = displayCandidate.size.url!.trim();
+    const thumbCandidate =
+      ranked.find(
+        (entry) =>
+          entry.size.url?.trim() &&
+          entry.size.url.trim() !== url &&
+          (entry.kind === "thumbnail" ||
+            entry.kind === "small" ||
+            entry.kind === "medium"),
+      ) ?? null;
+
+    return {
+      url,
+      previewUrl: url,
+      thumbUrl: thumbCandidate?.size.url?.trim() || null,
+      width: displayCandidate.size.width ?? null,
+      height: displayCandidate.size.height ?? null,
+    };
   }
 
-  const flatUrl =
-    photo.url_original?.trim() ||
-    photo.url_large?.trim() ||
-    photo.url_medium?.trim() ||
-    photo.url?.trim() ||
-    photo.url_small?.trim() ||
-    photo.url_thumbnail?.trim();
-  if (!flatUrl) return null;
+  const flatCandidates = [
+    { url: photo.url_original?.trim(), edge: 1600 },
+    { url: photo.url_large?.trim(), edge: 550 },
+    { url: photo.url_medium?.trim(), edge: 250 },
+    { url: photo.url?.trim(), edge: 250 },
+  ].filter((entry): entry is { url: string; edge: number } => Boolean(entry.url));
+
+  const display = flatCandidates.find((entry) => entry.edge >= MIN_GALLERY_EDGE_PX);
+  if (!display) return null;
 
   const flatThumb =
     photo.url_thumbnail?.trim() ||
     photo.url_small?.trim() ||
-    photo.url_medium?.trim() ||
     null;
 
   return {
-    url: flatUrl,
-    previewUrl: flatUrl,
-    thumbUrl: flatThumb && flatThumb !== flatUrl ? flatThumb : null,
+    url: display.url,
+    previewUrl: display.url,
+    thumbUrl: flatThumb && flatThumb !== display.url ? flatThumb : null,
     width: null,
     height: null,
   };
@@ -139,6 +198,15 @@ function mapTripadvisorPhoto(photo: TripadvisorPhotoRaw): UnifiedGalleryItem | n
   const urls = pickPhotoUrl(photo);
   if (!urls) return null;
 
+  // Abwehr: falls die gewählte URL doch die Contributor-Avatar-URL ist.
+  const avatarUrl =
+    imageSizeUrl(photo.user?.avatar?.url) ||
+    imageSizeUrl(photo.user?.avatar?.thumbnail) ||
+    imageSizeUrl(photo.user?.avatar?.small);
+  if (avatarUrl && (urls.url === avatarUrl || urls.previewUrl === avatarUrl)) {
+    return null;
+  }
+
   return {
     id: `tripadvisor:${id}`,
     platform: "tripadvisor",
@@ -146,8 +214,8 @@ function mapTripadvisorPhoto(photo: TripadvisorPhotoRaw): UnifiedGalleryItem | n
     itemId: null,
     title: null,
     caption: photo.caption?.trim() || null,
-    category: null,
-    categoryLabel: null,
+    category: photo.album?.trim() || null,
+    categoryLabel: photo.album?.trim() || null,
     mediaKind: "image",
     previewUrl: urls.previewUrl,
     fullUrl: urls.url,
@@ -205,7 +273,7 @@ export const tripadvisorGalleryConnector: GalleryPlatformConnector = {
         .filter((item): item is UnifiedGalleryItem => item !== null);
       items.push(...batch);
 
-      if (batch.length < TRIPADVISOR_PHOTOS_PAGE_SIZE) break;
+      if (rawPhotos.length < TRIPADVISOR_PHOTOS_PAGE_SIZE) break;
     }
 
     return { items };

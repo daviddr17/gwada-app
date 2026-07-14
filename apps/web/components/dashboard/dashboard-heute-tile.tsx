@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Bell,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -12,11 +13,8 @@ import {
   Sun,
   UserCheck,
 } from "lucide-react";
-import {
-  DashboardCompactInlineMetrics,
-  DashboardCompactList,
-  DashboardCompactListItem,
-} from "@/components/dashboard/dashboard-compact-list";
+import { DashboardCompactInlineMetrics } from "@/components/dashboard/dashboard-compact-list";
+import { DashboardHeuteAufmerksamkeitSheet } from "@/components/dashboard/dashboard-heute-aufmerksamkeit-sheet";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import {
   StaffOverviewLivePresenceSheet,
@@ -33,10 +31,7 @@ import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { usePlatformWeatherAvailable } from "@/lib/hooks/use-platform-weather-available";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
-import {
-  formatReservationTimeInRestaurantTz,
-  restaurantTodayYmd,
-} from "@/lib/restaurant/restaurant-timezone";
+import { restaurantTodayYmd } from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
 import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
@@ -48,10 +43,6 @@ const todayHeadingFmt = new Intl.DateTimeFormat("de-DE", {
   day: "numeric",
   month: "long",
 });
-
-function formatReservationTime(iso: string, timeZone: string): string {
-  return formatReservationTimeInRestaurantTz(iso, timeZone);
-}
 
 type HeuteMetricTone =
   | "neutral"
@@ -146,46 +137,14 @@ function HeuteMetricPill({
   return <div className={shellClass}>{content}</div>;
 }
 
-function HeutePanel({
-  title,
-  titleClassName,
-  children,
-  className,
-}: {
-  title: string;
-  titleClassName?: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <section
-      className={cn(
-        "min-w-0 rounded-lg border border-border/40 bg-background/55 p-2",
-        className,
-      )}
-    >
-      <h3
-        className={cn(
-          "mb-1.5 px-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground",
-          titleClassName,
-        )}
-      >
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
-}
-
 function DashboardHeuteTileSkeleton() {
   return (
     <div className="space-y-2" aria-busy="true">
       <div className="flex flex-wrap gap-1.5">
-        {Array.from({ length: 6 }).map((_, i) => (
+        {Array.from({ length: 7 }).map((_, i) => (
           <Skeleton key={i} className="h-9 w-[5.25rem] rounded-lg" />
         ))}
       </div>
-      <Skeleton className="h-28 rounded-lg" />
     </div>
   );
 }
@@ -203,6 +162,7 @@ export function DashboardHeuteTile() {
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
+  const [aufmerksamkeitSheetOpen, setAufmerksamkeitSheetOpen] = useState(false);
 
   const accessOptions = {
     permissionsLoading,
@@ -234,8 +194,13 @@ export function DashboardHeuteTile() {
   const todayLabel = useMemo(() => todayHeadingFmt.format(new Date()), []);
 
   const unconfirmedRecent = useMemo(
-    () => reservations.summary?.unconfirmedList ?? [],
-    [reservations.summary],
+    () => (can.reservations ? reservations.summary?.unconfirmedList ?? [] : []),
+    [can.reservations, reservations.summary],
+  );
+
+  const unreadMessages = useMemo(
+    () => (can.messages ? messages.summary?.unread ?? [] : []),
+    [can.messages, messages.summary],
   );
 
   const staffById = useMemo(
@@ -247,12 +212,14 @@ export function DashboardHeuteTile() {
     (inventory.summary?.emptyStock ?? 0) > 0 ||
     (inventory.summary?.openOrders ?? 0) > 0;
 
-  const canShowAufmerksamkeit =
-    can.reservations || can.messages || can.staff;
-
-  const hasAufmerksamkeitContent =
-    (can.reservations && unconfirmedRecent.length > 0) ||
-    (can.messages && (messages.summary?.unread.length ?? 0) > 0);
+  const canShowAufmerksamkeit = can.reservations || can.messages;
+  const unconfirmedCount = can.reservations
+    ? (reservations.summary?.unconfirmedCount ?? 0)
+    : 0;
+  const unreadMessageCount = can.messages
+    ? (messages.summary?.total_unread ?? 0)
+    : 0;
+  const aufmerksamkeitCount = unconfirmedCount + unreadMessageCount;
 
   const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${restaurantTodayYmd(restaurantTimeZone)}`;
   const staffTodayYmd = restaurantTodayYmd(restaurantTimeZone);
@@ -318,6 +285,16 @@ export function DashboardHeuteTile() {
             </>
           ) : null}
 
+          {canShowAufmerksamkeit ? (
+            <HeuteMetricPill
+              label="Aufmerk."
+              value={String(aufmerksamkeitCount)}
+              onClick={() => setAufmerksamkeitSheetOpen(true)}
+              tone={aufmerksamkeitCount > 0 ? "attention" : "neutral"}
+              icon={<Bell aria-hidden />}
+            />
+          ) : null}
+
           {can.staff && staff.summary ? (
             <>
               <HeuteMetricPill
@@ -368,51 +345,6 @@ export function DashboardHeuteTile() {
             />
           ) : null}
         </DashboardCompactInlineMetrics>
-
-        <HeutePanel title="Aufmerksamkeit" titleClassName="text-blue-600/90 dark:text-blue-400/90">
-          <div className="space-y-2">
-            {can.reservations && unconfirmedRecent.length > 0 ? (
-              <DashboardCompactList aria-label="Unbestätigte Reservierungen">
-                {unconfirmedRecent.slice(0, 2).map((row) => (
-                  <DashboardCompactListItem
-                    key={row.id}
-                    href={row.href}
-                    title={row.guestLabel}
-                    meta={`${row.partySize} P.`}
-                    trailing={formatReservationTime(row.startsAt, restaurantTimeZone)}
-                    stripeVariant="attention"
-                    className="py-2"
-                  />
-                ))}
-              </DashboardCompactList>
-            ) : null}
-
-            {can.messages && (messages.summary?.unread.length ?? 0) > 0 ? (
-              <DashboardCompactList aria-label="Ungelesene Nachrichten">
-                {messages.summary!.unread.slice(0, 2).map((row) => (
-                  <DashboardCompactListItem
-                    key={row.contactId}
-                    href={row.href}
-                    title={row.contactName}
-                    meta={row.preview}
-                    stripeVariant="attention"
-                    className="py-2"
-                  />
-                ))}
-              </DashboardCompactList>
-            ) : null}
-
-            {!canShowAufmerksamkeit ? (
-              <p className="px-0.5 text-[11px] text-muted-foreground">
-                Keine Berechtigung für Tagesmodule.
-              </p>
-            ) : !hasAufmerksamkeitContent ? (
-              <p className="px-0.5 text-[11px] text-muted-foreground">
-                Keine Auffälligkeiten
-              </p>
-            ) : null}
-          </div>
-        </HeutePanel>
       </div>
 
       {presenceSheetMode ? (
@@ -437,6 +369,17 @@ export function DashboardHeuteTile() {
         />
       ) : null}
 
+      {aufmerksamkeitSheetOpen ? (
+        <DashboardHeuteAufmerksamkeitSheet
+          open={aufmerksamkeitSheetOpen}
+          onOpenChange={setAufmerksamkeitSheetOpen}
+          unconfirmedReservations={unconfirmedRecent}
+          unreadMessages={unreadMessages}
+          unconfirmedCount={unconfirmedCount}
+          unreadMessageCount={unreadMessageCount}
+          timeZone={restaurantTimeZone}
+        />
+      ) : null}
     </DashboardWidgetShell>
   );
 }

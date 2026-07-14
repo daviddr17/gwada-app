@@ -21,7 +21,7 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { NewsComposeDrawer } from "@/components/news/news-compose-drawer";
 import { NewsDetailDrawer } from "@/components/news/news-detail-drawer";
-import { NewsFeedSkeleton } from "@/components/news/news-feed-skeleton";
+import { NewsFeedSkeleton, NewsFeedSyncTrailingSkeleton } from "@/components/news/news-feed-skeleton";
 import { NewsListView, NewsMasonryGrid } from "@/components/news/news-feed-views";
 import { NewsPlatformFilterChips } from "@/components/news/news-platform-filter-chips";
 import { NewsStoriesRow } from "@/components/news/news-stories-row";
@@ -160,7 +160,6 @@ export function NewsScreen() {
           setLoading(false);
         } else {
           setLoading(true);
-          setItems([]);
         }
       }
 
@@ -178,7 +177,6 @@ export function NewsScreen() {
         applyFeedResponse(data, restaurantId);
       } catch {
         if (generation !== loadGeneration.current) return;
-        if (!silent && !cached) setItems([]);
         if (!silent && !cached) {
           toast.error("News konnten nicht geladen werden.");
         }
@@ -430,6 +428,8 @@ export function NewsScreen() {
 
       {showFeedSkeleton ? (
         <NewsFeedSkeleton viewMode={viewMode} />
+      ) : loading && items.length === 0 ? (
+        <div className="min-h-[22rem]" aria-busy="true" aria-label="News werden geladen" />
       ) : (
         <ListPaginationSurround
           page={currentPage}
@@ -447,18 +447,25 @@ export function NewsScreen() {
             onSyncNow: () => void syncNow(),
           }}
         >
-          {filtered.length === 0 ? (
+          {filtered.length === 0 && !loading ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              {              platformFilter !== NEWS_FILTER_ALL &&
+              {platformFilter !== NEWS_FILTER_ALL &&
               isNewsCacheablePlatform(platformFilter) &&
               syncMeta?.platformItemCounts?.[platformFilter] === 0
                 ? `${NEWS_PLATFORM_LABELS[platformFilter]}: Sync erfolgreich, aber keine Beiträge im Konto — unter Einstellungen → Integrationen prüfen oder „Jetzt synchronisieren“.`
                 : "Noch keine News in dieser Ansicht."}
             </p>
-          ) : viewMode === "list" ? (
-            <NewsListView items={paginatedItems} onItemClick={openDetail} />
           ) : (
-            <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
+            <>
+              {viewMode === "list" ? (
+                <NewsListView items={paginatedItems} onItemClick={openDetail} />
+              ) : (
+                <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
+              )}
+              {syncMeta?.stale && paginatedItems.length > 0 ? (
+                <NewsFeedSyncTrailingSkeleton viewMode={viewMode} />
+              ) : null}
+            </>
           )}
         </ListPaginationSurround>
       )}

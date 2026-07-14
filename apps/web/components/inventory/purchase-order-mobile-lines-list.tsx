@@ -148,16 +148,15 @@ export function PurchaseOrderMobileLinesList({
               </p>
             ) : null}
 
-            <p className="mb-1.5 mt-3 text-xs font-medium text-muted-foreground">
-              Menge
-            </p>
-            <PurchaseOrderMobileLineQtyInput
-              orderId={order.id}
-              line={line}
-              readOnly={readOnly}
-              actor={actor}
-              onCommit={onCommitQty}
-            />
+            <div className="mt-3">
+              <PurchaseOrderMobileLineQtyInput
+                orderId={order.id}
+                line={line}
+                readOnly={readOnly}
+                actor={actor}
+                onCommit={onCommitQty}
+              />
+            </div>
 
             {order.status === "closed" ? (
               <div className="mt-3">

@@ -4,6 +4,7 @@ import { ChevronDown, ClipboardList, Filter } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
+import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
 import {
   countPurchaseOrderActiveFilters,
   PurchaseOrdersFilterDrawer,
@@ -543,6 +544,29 @@ export function PurchaseOrdersScreen() {
                       ) : null}
                     </div>
 
+                    <div className="md:hidden">
+                      <PurchaseOrderMobileLinesList
+                        order={order}
+                        lines={sortPurchaseOrderLines(
+                          order.lines,
+                          ingredients,
+                          ingredientCategories.items,
+                          lineSortKey,
+                          lineSortDir,
+                        )}
+                        ingredients={ingredients}
+                        actor={actor}
+                        onCommitQty={commitLineQty}
+                        onMarkDelivered={(orderId, lineId) =>
+                          void handleMarkLineDelivered(orderId, lineId)
+                        }
+                        onUnmarkDelivered={(orderId, lineId) =>
+                          void handleUnmarkLineDelivered(orderId, lineId)
+                        }
+                      />
+                    </div>
+
+                    <div className="hidden md:block">
                     <ModuleDataTableFrame
                       tableFullscreen
                       fullscreenTitle={`Bestellung · ${order.supplierName}`}
@@ -723,6 +747,7 @@ export function PurchaseOrdersScreen() {
                         </tbody>
                       </table>
                     </ModuleDataTableFrame>
+                    </div>
                   </div>
                 ) : null}
               </section>

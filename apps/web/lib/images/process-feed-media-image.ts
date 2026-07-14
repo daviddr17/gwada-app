@@ -2,8 +2,8 @@ import "server-only";
 
 import sharp from "sharp";
 
-export const FEED_MEDIA_PREVIEW_MAX_WIDTH = 1280;
-export const FEED_MEDIA_PREVIEW_WEBP_QUALITY = 82;
+export const FEED_MEDIA_PREVIEW_MAX_WIDTH = 1600;
+export const FEED_MEDIA_PREVIEW_WEBP_QUALITY = 88;
 export const FEED_MEDIA_THUMB_MAX_WIDTH = 480;
 export const FEED_MEDIA_THUMB_WEBP_QUALITY = 75;
 export const FEED_MEDIA_BLUR_MAX_WIDTH = 16;

@@ -21,6 +21,12 @@ export const displayRestaurantLogoCompactClassName = cn(
   displayRestaurantLogoFrameClassName,
 );
 
+/** Fußzeile unten links — klein, aber mit object-contain wie Hero. */
+export const displayRestaurantLogoFooterClassName = cn(
+  "size-7",
+  displayRestaurantLogoFrameClassName,
+);
+
 export const displayRestaurantHeroTitleClassName =
   "text-base font-semibold leading-tight tracking-tight sm:text-lg";
 

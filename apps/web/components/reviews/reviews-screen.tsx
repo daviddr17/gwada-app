@@ -135,6 +135,7 @@ type ReviewsApiResponse = {
   googlePagination?: GoogleReviewsPaginationMeta;
   mergedPagination?: MergedReviewsPaginationMeta;
   facebookPagination?: ReviewListPaginationMeta;
+  tripadvisorPagination?: ReviewListPaginationMeta;
   platformTotals?: Partial<Record<ReviewPlatform, number>>;
   loadErrors?: Partial<Record<ReviewPlatform, string>>;
   loadError?: string | null;
@@ -171,6 +172,7 @@ export function ReviewsScreen() {
     loading: connectionsLoading,
     googleVisible,
     facebookVisible,
+    tripadvisorVisible,
   } = useReviewPlatformConnections(restaurantId);
   const [platformFilter, setPlatformFilter] = useState<ReviewPlatformFilter>(() =>
     parseReviewPlatformFilter(platformParam),
@@ -184,6 +186,7 @@ export function ReviewsScreen() {
   const [googlePage, setGooglePage] = useState(1);
   const [allPage, setAllPage] = useState(1);
   const [facebookPage, setFacebookPage] = useState(1);
+  const [tripadvisorPage, setTripadvisorPage] = useState(1);
   const [googleLocationSummary, setGoogleLocationSummary] =
     useState<GoogleLocationSummary | null>(null);
   const [googleStatsError, setGoogleStatsError] = useState<string | null>(null);
@@ -252,9 +255,11 @@ export function ReviewsScreen() {
   const isGooglePaginated = platformFilter === "google";
   const isAllPaginated = platformFilter === REVIEW_FILTER_ALL;
   const isFacebookPaginated = platformFilter === "facebook";
+  const isTripadvisorPaginated = platformFilter === "tripadvisor";
   const googlePagination = feedCache.googlePagination;
   const mergedPagination = feedCache.allPagination;
   const facebookPagination = feedCache.facebookPagination;
+  const tripadvisorPagination = feedCache.tripadvisorPagination;
   const mergedLoadErrors = feedCache.loadErrors;
   const mergedPlatformTotals = feedCache.platformTotals;
   const showSkeleton = useDeferredSkeleton(feedPrefetchLoading);
@@ -319,9 +324,10 @@ export function ReviewsScreen() {
       if (p === "gwada") return true;
       if (p === "google") return googleVisible;
       if (p === "facebook") return facebookVisible;
+      if (p === "tripadvisor") return tripadvisorVisible;
       return false;
     },
-    [googleVisible, facebookVisible],
+    [googleVisible, facebookVisible, tripadvisorVisible],
   );
 
   const platformViewReady =
@@ -337,11 +343,21 @@ export function ReviewsScreen() {
     if (platformFilter === "facebook") {
       return feedCache.facebookPages[facebookPage] ?? [];
     }
+    if (platformFilter === "tripadvisor") {
+      return feedCache.tripadvisorPages[tripadvisorPage] ?? [];
+    }
     if (platformFilter === REVIEW_FILTER_ALL) {
       return feedCache.allPages[allPage] ?? [];
     }
     return feedCache.gwada;
-  }, [platformFilter, feedCache, googlePage, facebookPage, allPage]);
+  }, [
+    platformFilter,
+    feedCache,
+    googlePage,
+    facebookPage,
+    tripadvisorPage,
+    allPage,
+  ]);
 
   useEffect(() => {
     if (!reviewProtocolParam || platformFilter !== "gwada" || !ready) return;
@@ -430,6 +446,7 @@ export function ReviewsScreen() {
       setGooglePage(1);
       setAllPage(1);
       setFacebookPage(1);
+      setTripadvisorPage(1);
       setGoogleLocationSummary(null);
       setGoogleStatsError(null);
     }
@@ -592,6 +609,44 @@ export function ReviewsScreen() {
         );
       }
 
+      if (tripadvisorVisible) {
+        requests.push(
+          (async () => {
+            const params = new URLSearchParams({
+              restaurantId,
+              platform: "tripadvisor",
+            });
+            const { res, json } = await fetchReviewsJson(params);
+            if (!res.ok) return;
+            const reviewsRead = json.reviews.map((review) => ({
+              ...review,
+              isUnread: false,
+            }));
+            markLoadedReviewsRead(reviewsRead);
+            setFeedCache((prev) => ({
+              ...prev,
+              tripadvisorPages: { 1: reviewsRead },
+              tripadvisorPagination: json.tripadvisorPagination ?? null,
+              tripadvisorTokenByPage: withNextPageToken(
+                1,
+                json.tripadvisorPagination?.nextPageToken,
+                {},
+              ),
+              platformTotals: {
+                ...prev.platformTotals,
+                tripadvisor:
+                  json.tripadvisorPagination?.totalReviewCount ??
+                  reviewsRead.length,
+              },
+              loadErrors: json.loadError
+                ? { ...prev.loadErrors, tripadvisor: json.loadError }
+                : prev.loadErrors,
+              sync: json.sync ?? prev.sync,
+            }));
+          })(),
+        );
+      }
+
       await Promise.all(requests);
       setFeedCache((prev) => ({ ...prev, ready: true }));
     } catch {
@@ -605,6 +660,7 @@ export function ReviewsScreen() {
     restaurantId,
     googleVisible,
     facebookVisible,
+    tripadvisorVisible,
     fetchReviewsJson,
     markLoadedReviewsRead,
   ]);
@@ -804,6 +860,60 @@ export function ReviewsScreen() {
     ],
   );
 
+  const loadTripadvisorPage = useCallback(
+    async (page: number, opts?: { force?: boolean }) => {
+      if (!restaurantId) return;
+      if (!opts?.force && feedCache.tripadvisorPages[page]) {
+        setTripadvisorPage(page);
+        return;
+      }
+      setPaginationBusy(true);
+      try {
+        const params = new URLSearchParams({
+          restaurantId,
+          platform: "tripadvisor",
+        });
+        const token =
+          page <= 1 ? null : (feedCache.tripadvisorTokenByPage[page] ?? null);
+        if (token) params.set("pageToken", token);
+        const { res, json } = await fetchReviewsJson(params);
+        if (!res.ok) {
+          toast.error(json.error ?? "Bewertungen konnten nicht geladen werden.");
+          return;
+        }
+        const reviewsRead = json.reviews.map((review) => ({
+          ...review,
+          isUnread: false,
+        }));
+        markLoadedReviewsRead(reviewsRead);
+        setFeedCache((prev) => ({
+          ...prev,
+          tripadvisorPages: { ...prev.tripadvisorPages, [page]: reviewsRead },
+          tripadvisorPagination:
+            json.tripadvisorPagination ?? prev.tripadvisorPagination,
+          tripadvisorTokenByPage: withNextPageToken(
+            page,
+            json.tripadvisorPagination?.nextPageToken,
+            prev.tripadvisorTokenByPage,
+          ),
+          sync: json.sync ?? prev.sync,
+        }));
+        setTripadvisorPage(page);
+      } catch {
+        toast.error("Netzwerkfehler beim Laden der Bewertungen.");
+      } finally {
+        setPaginationBusy(false);
+      }
+    },
+    [
+      restaurantId,
+      feedCache.tripadvisorPages,
+      feedCache.tripadvisorTokenByPage,
+      fetchReviewsJson,
+      markLoadedReviewsRead,
+    ],
+  );
+
   const prefetchFeedRef = useRef(prefetchFeed);
   prefetchFeedRef.current = prefetchFeed;
 
@@ -821,18 +931,25 @@ export function ReviewsScreen() {
       void loadFacebookPage(facebookPage, force);
       return;
     }
+    if (isTripadvisorPaginated) {
+      void loadTripadvisorPage(tripadvisorPage, force);
+      return;
+    }
     void prefetchFeed();
   }, [
     loadGooglePage,
     loadAllPage,
     loadFacebookPage,
+    loadTripadvisorPage,
     prefetchFeed,
     isGooglePaginated,
     isAllPaginated,
     isFacebookPaginated,
+    isTripadvisorPaginated,
     googlePage,
     allPage,
     facebookPage,
+    tripadvisorPage,
   ]);
 
   useEffect(() => {
@@ -845,7 +962,13 @@ export function ReviewsScreen() {
     setReadLocal({});
     setSortKey("created_desc");
     void prefetchFeedRef.current();
-  }, [restaurantId, connectionsLoading, googleVisible, facebookVisible]);
+  }, [
+    restaurantId,
+    connectionsLoading,
+    googleVisible,
+    facebookVisible,
+    tripadvisorVisible,
+  ]);
 
   useEffect(() => {
     if (!restaurantId || !platformViewReady) return;
@@ -854,12 +977,15 @@ export function ReviewsScreen() {
     void markAllReviewsReadClient(restaurantId).then(({ ok }) => {
       if (ok) {
         setReadLocal({});
-        setFeedCache((prev) => markReviewsReadInFeedCache(prev, [
-          ...prev.gwada,
-          ...Object.values(prev.allPages).flat(),
-          ...Object.values(prev.googlePages).flat(),
-          ...Object.values(prev.facebookPages).flat(),
-        ]));
+        setFeedCache((prev) =>
+          markReviewsReadInFeedCache(prev, [
+            ...prev.gwada,
+            ...Object.values(prev.allPages).flat(),
+            ...Object.values(prev.googlePages).flat(),
+            ...Object.values(prev.facebookPages).flat(),
+            ...Object.values(prev.tripadvisorPages).flat(),
+          ]),
+        );
       }
     });
   }, [restaurantId, platformViewReady]);
@@ -1045,12 +1171,34 @@ export function ReviewsScreen() {
     }
   };
 
+  const tripadvisorTotalPages = tripadvisorPagination
+    ? reviewListTotalPages(tripadvisorPagination.totalReviewCount)
+    : 1;
+
+  const goTripadvisorPrevious = () => {
+    if (tripadvisorPage <= 1 || paginationBusy) return;
+    void loadTripadvisorPage(tripadvisorPage - 1);
+  };
+
+  const goTripadvisorNext = () => {
+    if (paginationBusy) return;
+    if (
+      feedCache.tripadvisorPages[tripadvisorPage + 1] ||
+      feedCache.tripadvisorTokenByPage[tripadvisorPage + 1]
+    ) {
+      void loadTripadvisorPage(tripadvisorPage + 1);
+    }
+  };
+
   const loadError = useMemo(() => {
     if (platformFilter === "google") {
       return mergedLoadErrors.google ?? null;
     }
     if (platformFilter === "facebook") {
       return mergedLoadErrors.facebook ?? null;
+    }
+    if (platformFilter === "tripadvisor") {
+      return mergedLoadErrors.tripadvisor ?? null;
     }
     if (platformFilter === REVIEW_FILTER_ALL) {
       return null;
@@ -1124,6 +1272,7 @@ export function ReviewsScreen() {
     const platforms: ReviewPlatform[] = ["gwada"];
     if (googleVisible) platforms.push("google");
     if (facebookVisible) platforms.push("facebook");
+    if (tripadvisorVisible) platforms.push("tripadvisor");
     let sum = 0;
     let hasAny = false;
     for (const platform of platforms) {
@@ -1140,6 +1289,7 @@ export function ReviewsScreen() {
     mergedPlatformTotals,
     googleVisible,
     facebookVisible,
+    tripadvisorVisible,
   ]);
 
   const drawerFilterActiveCount = useMemo(
@@ -1231,6 +1381,12 @@ export function ReviewsScreen() {
       }
       return `${allReviews.length} auf dieser Seite · insgesamt ${facebookPagination.totalReviewCount} bei Facebook`;
     }
+    if (isTripadvisorPaginated && tripadvisorPagination) {
+      if (filtersActive) {
+        return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${tripadvisorPage}/${tripadvisorTotalPages})`;
+      }
+      return `${allReviews.length} auf dieser Seite · insgesamt ${tripadvisorPagination.totalReviewCount} bei TripAdvisor`;
+    }
     if (isAllPaginated && mergedPagination) {
       if (filtersActive) {
         return `${filteredSortedReviews.length} von ${allReviews.length} auf dieser Seite (Seite ${allPage}/${allTotalPages})`;
@@ -1254,6 +1410,10 @@ export function ReviewsScreen() {
     facebookPagination,
     facebookPage,
     facebookTotalPages,
+    isTripadvisorPaginated,
+    tripadvisorPagination,
+    tripadvisorPage,
+    tripadvisorTotalPages,
     isAllPaginated,
     mergedPagination,
     allPage,
@@ -1328,6 +1488,15 @@ export function ReviewsScreen() {
       {!connectionsLoading && platformFilter === "facebook" && !facebookVisible ? (
         <p className="text-sm text-muted-foreground">
           Facebook ist für dieses Restaurant nicht verfügbar oder nicht verbunden.
+        </p>
+      ) : null}
+
+      {!connectionsLoading &&
+      platformFilter === "tripadvisor" &&
+      !tripadvisorVisible ? (
+        <p className="text-sm text-muted-foreground">
+          TripAdvisor ist für dieses Restaurant nicht verfügbar oder nicht
+          verbunden.
         </p>
       ) : null}
 
@@ -1614,6 +1783,35 @@ export function ReviewsScreen() {
                   canNext={
                     Boolean(feedCache.facebookPages[facebookPage + 1]) ||
                     Boolean(feedCache.facebookTokenByPage[facebookPage + 1])
+                  }
+                  busy={paginationBusy}
+                >
+                  {viewMode === "list" ? (
+                    <ReviewsListView
+                      reviews={filteredSortedReviews}
+                      showPlatform={false}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  ) : (
+                    <ReviewsGridView
+                      reviews={filteredSortedReviews}
+                      showPlatform={false}
+                      getReviewProps={getReviewCardProps}
+                    />
+                  )}
+                </ReviewsPaginationSurround>
+              ) : isTripadvisorPaginated && tripadvisorPagination ? (
+                <ReviewsPaginationSurround
+                  page={tripadvisorPage}
+                  totalPages={tripadvisorTotalPages}
+                  onPrevious={goTripadvisorPrevious}
+                  onNext={goTripadvisorNext}
+                  canPrevious={tripadvisorPage > 1}
+                  canNext={
+                    Boolean(feedCache.tripadvisorPages[tripadvisorPage + 1]) ||
+                    Boolean(
+                      feedCache.tripadvisorTokenByPage[tripadvisorPage + 1],
+                    )
                   }
                   busy={paginationBusy}
                 >

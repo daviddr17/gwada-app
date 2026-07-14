@@ -4,6 +4,7 @@ import { FacebookGlyph } from "@/components/icons/facebook-glyph";
 import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
+import { TripadvisorGlyph } from "@/components/icons/tripadvisor-glyph";
 import {
   GALLERY_PLATFORM_LABELS,
   type GalleryPlatform,
@@ -30,6 +31,8 @@ export function GalleryPlatformIcon({
         <FacebookGlyph className={iconClass} />
       ) : platform === "instagram" ? (
         <InstagramGlyph className={iconClass} />
+      ) : platform === "tripadvisor" ? (
+        <TripadvisorGlyph className={iconClass} />
       ) : (
         <GwadaFaviconIcon size="chip" className={className} />
       )}

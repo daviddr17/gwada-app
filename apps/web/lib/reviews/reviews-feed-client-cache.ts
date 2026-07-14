@@ -21,6 +21,9 @@ export type ReviewsFeedClientCache = {
   facebookPages: ReviewsFeedPageMap;
   facebookPagination: ReviewListPaginationMeta | null;
   facebookTokenByPage: Record<number, string>;
+  tripadvisorPages: ReviewsFeedPageMap;
+  tripadvisorPagination: ReviewListPaginationMeta | null;
+  tripadvisorTokenByPage: Record<number, string>;
   platformTotals: Partial<Record<ReviewPlatform, number>>;
   loadErrors: Partial<Record<ReviewPlatform, string>>;
   sync: ReviewsFeedSyncMeta | null;
@@ -39,6 +42,9 @@ export function createEmptyReviewsFeedClientCache(): ReviewsFeedClientCache {
     facebookPages: {},
     facebookPagination: null,
     facebookTokenByPage: {},
+    tripadvisorPages: {},
+    tripadvisorPagination: null,
+    tripadvisorTokenByPage: {},
     platformTotals: {},
     loadErrors: {},
     sync: null,
@@ -69,6 +75,7 @@ export function patchReviewInFeedCache(
     allPages: patchPages(cache.allPages),
     googlePages: patchPages(cache.googlePages),
     facebookPages: patchPages(cache.facebookPages),
+    tripadvisorPages: patchPages(cache.tripadvisorPages),
   };
 }
 

@@ -83,7 +83,10 @@ function buildPlatformSyncMeta(
   return {
     syncedAt: row?.synced_at ?? null,
     itemCount: row?.item_count ?? 0,
-    stale: isReviewsFeedSyncStale(row?.synced_at, platform),
+    stale: isReviewsFeedSyncStale(row?.synced_at, platform, {
+      lastError: row?.last_error,
+      itemCount: row?.item_count,
+    }),
     lastError: row?.last_error ?? null,
   };
 }

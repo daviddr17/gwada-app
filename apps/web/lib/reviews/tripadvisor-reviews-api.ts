@@ -76,7 +76,9 @@ export async function fetchTripadvisorReviewsForRestaurant(
   if ("error" in auth) return auth;
 
   const allowlist = await ensureTripadvisorAllowlistLocation(auth.locationId);
-  void allowlist;
+  if ("error" in allowlist && allowlist.status === 403) {
+    return { error: "tripadvisor_allowlist_denied" };
+  }
 
   const allReviews: UnifiedReview[] = [];
   let totalReviewCount: number | undefined;

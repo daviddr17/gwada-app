@@ -35,8 +35,8 @@ type TripadvisorReviewsResponse = {
   };
 };
 
-const TRIPADVISOR_REVIEWS_PAGE_SIZE = 50;
-const TRIPADVISOR_REVIEWS_MAX_PAGES = 5;
+const TRIPADVISOR_REVIEWS_PAGE_SIZE = 25;
+const TRIPADVISOR_REVIEWS_MAX_PAGES = 10;
 
 function reviewLocalizedText(
   value: TripadvisorReviewRaw["title"],

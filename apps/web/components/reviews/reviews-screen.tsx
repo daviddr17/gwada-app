@@ -1546,7 +1546,11 @@ export function ReviewsScreen() {
           <CardContent className="p-4 text-sm text-destructive">
             {platformFilter === "google"
               ? "Google-Bewertungen konnten nicht geladen werden. Prüfe die Verbindung unter Einstellungen → Integrationen."
-              : "Facebook-Empfehlungen konnten nicht geladen werden. Meta stellt Page-Ratings regional unterschiedlich bereit — Verbindung und Berechtigungen prüfen."}
+              : platformFilter === "tripadvisor"
+                ? "TripAdvisor-Bewertungen konnten nicht geladen werden. Location-Verbindung und Plattform-API prüfen."
+                : platformFilter === "facebook"
+                  ? "Facebook-Empfehlungen konnten nicht geladen werden. Meta stellt Page-Ratings regional unterschiedlich bereit — Verbindung und Berechtigungen prüfen."
+                  : `${REVIEW_PLATFORM_LABELS[platformFilter as ReviewPlatform] ?? "Bewertungen"} konnten nicht geladen werden.`}
             <span className="mt-1 block text-xs opacity-80">{loadError}</span>
           </CardContent>
         </Card>
@@ -1564,7 +1568,11 @@ export function ReviewsScreen() {
               <CardContent className="p-4 text-sm text-foreground">
                 {platform === "google"
                   ? "Google-Bewertungen konnten nicht geladen werden."
-                  : "Facebook-Empfehlungen konnten nicht geladen werden."}
+                  : platform === "tripadvisor"
+                    ? "TripAdvisor-Bewertungen konnten nicht geladen werden."
+                    : platform === "facebook"
+                      ? "Facebook-Empfehlungen konnten nicht geladen werden."
+                      : `${REVIEW_PLATFORM_LABELS[platform]} konnten nicht geladen werden.`}
                 <span className="mt-1 block text-xs text-muted-foreground">
                   {message}
                 </span>

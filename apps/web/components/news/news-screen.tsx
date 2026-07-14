@@ -93,8 +93,10 @@ export function NewsScreen() {
   const [storyRings, setStoryRings] = useState<UnifiedNewsStoryRing[]>([]);
   const [syncMeta, setSyncMeta] = useState<NewsFeedSyncMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const showFeedSkeleton = useDeferredSkeleton(loading && items.length === 0);
+  const coldEmpty = loading && items.length === 0;
+  const showFeedSkeleton = useDeferredSkeleton(coldEmpty);
   const [composeOpen, setComposeOpen] = useState(false);
   const [activeStoryRing, setActiveStoryRing] = useState<UnifiedNewsStoryRing | null>(null);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
@@ -102,6 +104,8 @@ export function NewsScreen() {
   const [detailOpen, setDetailOpen] = useState(false);
   const { connectors, availablePlatforms } = useNewsPlatformConnections(restaurantId);
   const loadGeneration = useRef(0);
+  const itemsLengthRef = useRef(0);
+  itemsLengthRef.current = items.length;
 
   const applyFeedResponse = useCallback(
     (
@@ -132,7 +136,13 @@ export function NewsScreen() {
           ? prev
           : nextStoryRings,
       );
-      writeNewsFeedCache(cacheRestaurantId, NEWS_FILTER_ALL, nextItems, nextSync);
+      writeNewsFeedCache(
+        cacheRestaurantId,
+        NEWS_FILTER_ALL,
+        nextItems,
+        nextSync,
+        nextStoryRings,
+      );
     },
     [],
   );
@@ -143,6 +153,9 @@ export function NewsScreen() {
     if (!cached) return;
     setItems(cached.items);
     setSyncMeta(cached.sync);
+    if (cached.storyRings?.length) {
+      setStoryRings(cached.storyRings);
+    }
     setLoading(false);
   }, [restaurantId]);
 
@@ -152,15 +165,24 @@ export function NewsScreen() {
       const generation = ++loadGeneration.current;
       const cached = peekNewsFeedCache(restaurantId, NEWS_FILTER_ALL);
       const silent = options?.silent ?? false;
+      const hasVisibleItems =
+        (cached?.items.length ?? 0) > 0 || itemsLengthRef.current > 0;
 
       if (!silent) {
         if (cached) {
           setItems(cached.items);
           setSyncMeta(cached.sync);
+          if (cached.storyRings?.length) {
+            setStoryRings(cached.storyRings);
+          }
           setLoading(false);
+          setRefreshing(true);
         } else {
           setLoading(true);
+          setRefreshing(false);
         }
+      } else if (hasVisibleItems) {
+        setRefreshing(true);
       }
 
       try {
@@ -181,8 +203,9 @@ export function NewsScreen() {
           toast.error("News konnten nicht geladen werden.");
         }
       } finally {
-        if (!silent && generation === loadGeneration.current) {
-          setLoading(false);
+        if (generation === loadGeneration.current) {
+          if (!silent) setLoading(false);
+          setRefreshing(false);
         }
       }
     },
@@ -426,10 +449,16 @@ export function NewsScreen() {
         </Button>
       ) : null}
 
-      {showFeedSkeleton ? (
-        <NewsFeedSkeleton viewMode={viewMode} />
-      ) : loading && items.length === 0 ? (
-        <div className="min-h-[22rem]" aria-busy="true" aria-label="News werden geladen" />
+      {coldEmpty ? (
+        showFeedSkeleton ? (
+          <NewsFeedSkeleton viewMode={viewMode} />
+        ) : (
+          <NewsFeedSkeleton
+            viewMode={viewMode}
+            className="invisible"
+            aria-hidden
+          />
+        )
       ) : (
         <ListPaginationSurround
           page={currentPage}
@@ -462,7 +491,7 @@ export function NewsScreen() {
               ) : (
                 <NewsMasonryGrid items={paginatedItems} onItemClick={openDetail} />
               )}
-              {syncMeta?.stale && paginatedItems.length > 0 ? (
+              {(syncMeta?.stale || refreshing) && paginatedItems.length > 0 ? (
                 <NewsFeedSyncTrailingSkeleton viewMode={viewMode} />
               ) : null}
             </>

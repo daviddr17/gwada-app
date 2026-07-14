@@ -4,6 +4,7 @@ import type { NewsPlatformFilter } from "@/lib/constants/news-platforms";
 import { getModuleCacheStaleTime } from "@/lib/dashboard/module-data-cache-policy";
 import type { NewsFeedSyncMeta } from "@/lib/news/news-feed-sync-meta";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
+import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
 
 const CACHE_PREFIX = "gwada:news-feed:";
 const DEFAULT_STALE_MS = getModuleCacheStaleTime("newsFeed") ?? 5 * 60_000;
@@ -14,6 +15,7 @@ export type NewsFeedCachePayload = {
   at: number;
   items: UnifiedNewsItem[];
   sync: NewsFeedSyncMeta | null;
+  storyRings?: UnifiedNewsStoryRing[];
 };
 
 const memory = new Map<string, NewsFeedCachePayload>();
@@ -56,8 +58,15 @@ export function writeNewsFeedCache(
   platform: NewsPlatformFilter,
   items: UnifiedNewsItem[],
   sync: NewsFeedSyncMeta | null,
+  storyRings?: UnifiedNewsStoryRing[],
 ): void {
-  const payload: NewsFeedCachePayload = { at: Date.now(), items, sync };
+  const existing = memory.get(memoryKey(restaurantId, platform));
+  const payload: NewsFeedCachePayload = {
+    at: Date.now(),
+    items,
+    sync,
+    storyRings: storyRings ?? existing?.storyRings,
+  };
   memory.set(memoryKey(restaurantId, platform), payload);
   if (typeof window === "undefined") return;
   try {

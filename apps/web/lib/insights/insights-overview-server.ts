@@ -415,7 +415,7 @@ async function platformCards(
         : google.error
           ? `Google Performance: ${google.error}`
           : google.available
-            ? "Aufrufe, Anrufe, Website & Routen — siehe Abschnitt oben und Statistiken."
+            ? "Aufrufe, Anrufe, Website & Routen — Details und Verlauf in der Übersicht."
             : "Verbunden — Performance-Daten kommen oft mit 2–3 Tagen Verzug von Google.",
     },
     {
@@ -430,7 +430,7 @@ async function platformCards(
         : facebook.error === "facebook_insights_app_review"
           ? "Meta muss „Seiten-Statistiken“ (read_insights) für die Gwada-App freigeben (App Review). Neu verbinden allein reicht nicht."
           : facebook.available
-            ? "Media-Views und Reichweite aus Meta Page Insights — Details unter Statistiken."
+            ? "Media-Views und Reichweite aus Meta Page Insights — Verlauf in der Übersicht."
             : facebook.error
               ? `Facebook Insights: ${facebook.error}`
               : "Verbunden — Seiten-Insights erscheinen, sobald Meta Daten liefert (meist ~1–2 Tage).",

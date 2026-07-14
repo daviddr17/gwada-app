@@ -11,6 +11,7 @@ export type DashboardReservationRecent = {
   startsAt: string;
   partySize: number;
   statusName: string;
+  statusCode: string;
   href: string;
   unconfirmed: boolean;
 };
@@ -60,6 +61,7 @@ function toRecentRow(row: ReservationListRow): DashboardReservationRecent {
     startsAt: row.starts_at,
     partySize: row.party_size,
     statusName: row.reservation_statuses?.name ?? "—",
+    statusCode: row.reservation_statuses?.code ?? "",
     href: `/dashboard/reservierungen/uebersicht?reservation=${row.id}`,
     unconfirmed: isUnconfirmedReservation(row),
   };

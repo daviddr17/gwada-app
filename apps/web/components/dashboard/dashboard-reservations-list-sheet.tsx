@@ -1,5 +1,6 @@
 "use client";
 
+import { DashboardReservationQuickAcceptButton } from "@/components/dashboard/dashboard-reservation-quick-accept-button";
 import {
   DashboardCompactList,
   DashboardCompactListItem,
@@ -21,6 +22,7 @@ import {
   formatReservationTimeInRestaurantTz,
 } from "@/lib/restaurant/restaurant-timezone";
 import type { DashboardReservationRecent } from "@/lib/reservations/compute-dashboard-reservation-summary";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 
 export type DashboardReservationsListSheetMode = "today_upcoming" | "unconfirmed";
 
@@ -55,7 +57,9 @@ export function DashboardReservationsListSheet({
   timeZone: string;
   description?: string;
 }) {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
   const copy = SHEET_COPY[mode];
+  const showQuickAccept = mode === "unconfirmed";
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom">
@@ -91,6 +95,15 @@ export function DashboardReservationsListSheet({
                           row.startsAt,
                           timeZone,
                         )
+                  }
+                  trailingAction={
+                    showQuickAccept && restaurantId ? (
+                      <DashboardReservationQuickAcceptButton
+                        restaurantId={restaurantId}
+                        reservationId={row.id}
+                        statusCode={row.statusCode}
+                      />
+                    ) : null
                   }
                   stripeVariant={row.unconfirmed ? "attention" : undefined}
                   className="py-2.5"

@@ -43,6 +43,7 @@ import {
 } from "@/lib/ui/reservation-list-row-interactive";
 import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
+import { ReservationQuickAcceptButton } from "@/components/reservations/reservation-quick-accept-button";
 import { formatDayHeadingDe } from "@/lib/reservations/month-range";
 import {
   isConfirmedReservationStatus,
@@ -732,61 +733,73 @@ export function DayReservationsDrawer({
     ) : null;
     if (compact) {
       return (
-        <button
-          key={r.id}
-          type="button"
-          className={reservationListRowButtonCompactClassName}
-          aria-label={`Reservierung ${guest} bearbeiten`}
-          onClick={() => onEdit(r)}
-        >
-          <div className="flex w-full min-w-0 items-start gap-2 p-3 pt-4">
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div
-                className="h-1 w-full shrink-0 rounded-full"
-                style={{ backgroundColor: stripe }}
-                aria-hidden
-              />
-              <div className="min-w-0 w-full space-y-1">
-                <div className="flex min-w-0 w-full flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="shrink-0 text-xl font-semibold tabular-nums text-foreground">
-                    {t}
-                  </span>
-                  <div className="min-w-0 flex-1 basis-0">
-                    <GuestReservationBadge
-                      reservation={r}
-                      textClassName="text-muted-foreground"
-                      maxFontPx={15}
-                    />
-                  </div>
-                  {tableLabel ? (
-                    <span className="shrink-0 rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium tabular-nums text-foreground">
-                      {tableLabel}
+        <div key={r.id} className="flex items-stretch gap-1.5">
+          <button
+            type="button"
+            className={cn("min-w-0 flex-1", reservationListRowButtonCompactClassName)}
+            aria-label={`Reservierung ${guest} bearbeiten`}
+            onClick={() => onEdit(r)}
+          >
+            <div className="flex w-full min-w-0 items-start gap-2 p-3 pt-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <div
+                  className="h-1 w-full shrink-0 rounded-full"
+                  style={{ backgroundColor: stripe }}
+                  aria-hidden
+                />
+                <div className="min-w-0 w-full space-y-1">
+                  <div className="flex min-w-0 w-full flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                    <span className="shrink-0 text-xl font-semibold tabular-nums text-foreground">
+                      {t}
                     </span>
-                  ) : null}
+                    <div className="min-w-0 flex-1 basis-0">
+                      <GuestReservationBadge
+                        reservation={r}
+                        textClassName="text-muted-foreground"
+                        maxFontPx={15}
+                      />
+                    </div>
+                    {tableLabel ? (
+                      <span className="shrink-0 rounded-md border border-border/50 bg-background/80 px-1.5 py-px text-[11px] font-medium tabular-nums text-foreground">
+                        {tableLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    {r.party_size} {r.party_size === 1 ? "Person" : "Personen"} · bis {endLabel}
+                    {st?.name ? ` · ${st.name}` : ""}
+                    {st?.code === "change_requested" ? " · Änderung prüfen" : ""}
+                  </p>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
-                  {r.party_size} {r.party_size === 1 ? "Person" : "Personen"} · bis {endLabel}
-                  {st?.name ? ` · ${st.name}` : ""}
-                  {st?.code === "change_requested" ? " · Änderung prüfen" : ""}
-                </p>
               </div>
+              {starBtn}
             </div>
-            {starBtn}
-          </div>
-        </button>
+          </button>
+          {restaurantId && st?.code === "pending" ? (
+            <div className="flex shrink-0 items-center self-center">
+              <ReservationQuickAcceptButton
+                restaurantId={restaurantId}
+                reservationId={r.id}
+                statusCode={st.code}
+                onConfirmed={() => onDataChanged?.()}
+              />
+            </div>
+          ) : null}
+        </div>
       );
     }
     return (
-      <button
-        key={r.id}
-        type="button"
-        className={cn(
-          reservationListRowButtonDrawerFullClassName,
-          gwadaReview && "pr-1",
-        )}
-        aria-label={`Reservierung ${guest} bearbeiten`}
-        onClick={() => onEdit(r)}
-      >
+      <div key={r.id} className="flex items-stretch gap-1.5">
+        <button
+          type="button"
+          className={cn(
+            "min-w-0 flex-1",
+            reservationListRowButtonDrawerFullClassName,
+            gwadaReview && "pr-1",
+          )}
+          aria-label={`Reservierung ${guest} bearbeiten`}
+          onClick={() => onEdit(r)}
+        >
         <div
           className="w-1 shrink-0 self-stretch rounded-full"
           style={{ backgroundColor: stripe }}
@@ -856,7 +869,18 @@ export function DayReservationsDrawer({
             />
           ) : null}
         </div>
-      </button>
+        </button>
+        {restaurantId && st?.code === "pending" ? (
+          <div className="flex shrink-0 items-center self-center">
+            <ReservationQuickAcceptButton
+              restaurantId={restaurantId}
+              reservationId={r.id}
+              statusCode={st.code}
+              onConfirmed={() => onDataChanged?.()}
+            />
+          </div>
+        ) : null}
+      </div>
     );
   };
 

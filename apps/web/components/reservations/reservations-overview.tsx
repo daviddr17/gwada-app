@@ -72,6 +72,7 @@ import { fetchReservationDayNoteCountsForRange } from "@/lib/supabase/reservatio
 import { fetchScheduledStaffCountsByDayForRange } from "@/lib/supabase/staff-shift-schedule-db";
 import { ReservationGwadaReviewSheet } from "@/components/reservations/reservation-gwada-review-sheet";
 import { ReservationGwadaReviewStarButton } from "@/components/reservations/reservation-gwada-review-star-button";
+import { ReservationQuickAcceptButton } from "@/components/reservations/reservation-quick-accept-button";
 import { ReservationEditDrawer } from "@/components/reservations/reservation-edit-drawer";
 import { ReservationsFilterDrawer } from "@/components/reservations/reservations-filter-drawer";
 import { ReservationsOverviewPeriodStats } from "@/components/reservations/reservations-overview-period-stats";
@@ -1060,18 +1061,22 @@ export function ReservationsOverview() {
                       const tableLabel = reservationDiningTableLabel(r);
                       const gwadaReview = gwadaReviewsByReservation.get(r.id);
                       return (
-                        <button
+                        <div
                           key={r.id}
-                          type="button"
-                          className={cn(
-                            "flex gap-3",
-                            reservationListRowButtonClassName,
-                          )}
-                          aria-label={`Reservierung ${guest} bearbeiten`}
-                          onClick={() => {
-                            pushReservationEdit(r.id);
-                          }}
+                          className="flex items-stretch gap-1.5"
                         >
+                          <button
+                            type="button"
+                            className={cn(
+                              "min-w-0 flex-1",
+                              reservationListRowButtonClassName,
+                            )}
+                            aria-label={`Reservierung ${guest} bearbeiten`}
+                            onClick={() => {
+                              pushReservationEdit(r.id);
+                            }}
+                          >
+                            <div className="flex gap-3">
                           <div
                             className="mt-0.5 w-0.5 shrink-0 self-stretch rounded-full sm:mt-0"
                             style={{ backgroundColor: stripe }}
@@ -1144,7 +1149,21 @@ export function ReservationsOverview() {
                               />
                             ) : null}
                           </div>
-                        </button>
+                            </div>
+                          </button>
+                          {workspaceRestaurantId && st?.code === "pending" ? (
+                            <div className="flex shrink-0 items-center self-center pr-0.5">
+                              <ReservationQuickAcceptButton
+                                restaurantId={workspaceRestaurantId}
+                                reservationId={r.id}
+                                statusCode={st.code}
+                                onConfirmed={() => {
+                                  void invalidateReservations();
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                        </div>
                       );
                     })}
                   </CardContent>

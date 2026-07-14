@@ -56,6 +56,8 @@ const MENU_CATEGORY_LABELS: CategoryDrawerLabels = {
   deleteConfirmTitle: "Eintrag wirklich löschen?",
 };
 
+const EMPTY_MAIN_CATEGORIES: MenuMainCategoryDefinition[] = [];
+
 type CategoryDrawerProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,7 +78,7 @@ export function CategoryDrawer({
   onOpenChange,
   mode,
   initial,
-  mainCategories = [],
+  mainCategories = EMPTY_MAIN_CATEGORIES,
   defaultMainCategoryId,
   onSave,
   onDelete,
@@ -97,14 +99,29 @@ export function CategoryDrawer({
     setIosTouch(isIosTouchDevice());
   }, []);
 
+  /** Nur beim Öffnen / Wechsel der Entität hydraten — `mainCategories = []` wäre sonst jede Render-Neue Referenz. */
+  const seedId = initial?.id ?? null;
+  const wasOpenRef = useRef(false);
+  const seededForKeyRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!open) {
+      wasOpenRef.current = false;
+      seededForKeyRef.current = null;
+      return;
+    }
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    const seedKey = `${mode}:${seedId ?? "__create__"}`;
+    if (!justOpened && seededForKeyRef.current === seedKey) return;
+    seededForKeyRef.current = seedKey;
+
     const frame = requestAnimationFrame(() => {
       const fallbackMainId =
         defaultMainCategoryId ??
         mainCategories.find((m) => m.active !== false)?.id ??
         mainCategories[0]?.id ??
         "";
-      if (mode === "edit" && initial) {
+      if (mode === "edit" && seedId && initial && initial.id === seedId) {
         setName(initial.name);
         setActive(initial.active !== false);
         setMainCategoryId(initial.mainCategoryId || fallbackMainId);
@@ -115,7 +132,14 @@ export function CategoryDrawer({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [mode, initial, open, mainCategories, defaultMainCategoryId]);
+  }, [
+    open,
+    mode,
+    seedId,
+    initial,
+    mainCategories,
+    defaultMainCategoryId,
+  ]);
 
   const mainCategoryOptions = mainCategories.map((m) => ({
     value: m.id,

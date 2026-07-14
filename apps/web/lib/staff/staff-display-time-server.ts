@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomUUID } from "crypto";
 import { signStaffAvatarUrl } from "@/lib/display/display-storage-urls";
+import { emitStaffDisplayClockNotification } from "@/lib/notifications/notification-staff-display-clock-server";
 import type {
   DisplayTeamPresenceMember,
   StaffPresenceStatus,
@@ -259,6 +260,13 @@ export async function runDisplayTimeAction(
       entryType: "work",
       startsAt: now,
     });
+    await emitStaffDisplayClockNotification(admin, {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      shiftId,
+      action: "clock_in",
+      at: now,
+    });
     return {
       ok: true,
       state: { status: "working", clocked_in_at: now, break_started_at: null },
@@ -313,6 +321,13 @@ export async function runDisplayTimeAction(
 
   if (params.action === "clock_out") {
     await closeOpenEntry(admin, open.id, now);
+    await emitStaffDisplayClockNotification(admin, {
+      restaurantId: params.restaurantId,
+      staffId: params.staffId,
+      shiftId: open.shift_id,
+      action: "clock_out",
+      at: now,
+    });
     return {
       ok: true,
       state: { status: "off", clocked_in_at: null, break_started_at: null },

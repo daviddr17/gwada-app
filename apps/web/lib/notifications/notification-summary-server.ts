@@ -7,6 +7,7 @@ import { loadAccountingNotificationItems } from "@/lib/notifications/notificatio
 import { loadStaffTodoNotificationItems } from "@/lib/notifications/notification-staff-todos-server";
 import { loadStaffContractSignedNotificationItems } from "@/lib/notifications/notification-staff-contract-server";
 import { loadStaffDisplayTimeRequestNotificationItems } from "@/lib/notifications/notification-staff-display-time-request-server";
+import { loadStaffDisplayClockNotificationItems } from "@/lib/notifications/notification-staff-display-clock-server";
 import {
   loadStaffInviteResponseNotificationItems,
 } from "@/lib/notifications/notification-staff-invite-server";
@@ -23,9 +24,7 @@ import {
   isInAppModuleEnabled,
   type NotificationPreferences,
 } from "@/lib/notifications/notification-preferences";
-import {
-  isNotificationModuleVisibleForUser,
-} from "@/lib/notifications/notification-module-permissions";
+import { isNotificationModuleVisibleForUser } from "@/lib/notifications/notification-module-permissions";
 import {
   loadNotificationAccessContext,
   type StaffShiftBellScope,
@@ -447,6 +446,44 @@ const MODULE_BUILDERS: Record<
         restaurantId: ctx.restaurantId,
         userId: ctx.userId,
         module: "staff_invite_declined",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_display_clock_in: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_clock_in;
+    const { items, totalCount } = await loadStaffDisplayClockNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_display_clock_in",
+        limit: BELL_ITEMS_PER_MODULE,
+      },
+    );
+    return {
+      id: def.id,
+      count: totalCount,
+      label: def.labelPlural,
+      href: def.href,
+      items,
+    };
+  },
+  staff_display_clock_out: async (ctx) => {
+    const def = NOTIFICATION_MODULES.staff_display_clock_out;
+    const { items, totalCount } = await loadStaffDisplayClockNotificationItems(
+      ctx.sb,
+      {
+        restaurantId: ctx.restaurantId,
+        userId: ctx.userId,
+        module: "staff_display_clock_out",
         limit: BELL_ITEMS_PER_MODULE,
       },
     );

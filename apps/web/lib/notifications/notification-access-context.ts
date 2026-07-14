@@ -1,8 +1,6 @@
 import "server-only";
 
-import {
-  type NotificationModuleAccessContext,
-} from "@/lib/notifications/notification-module-permissions";
+import type { NotificationModuleAccessContext } from "@/lib/notifications/notification-module-permissions";
 import { hasModuleRead } from "@/lib/permissions/module-crud-permissions";
 import type { RestaurantPermissionKey } from "@/lib/permissions/restaurant-permissions";
 import type { SupabaseClient } from "@supabase/supabase-js";

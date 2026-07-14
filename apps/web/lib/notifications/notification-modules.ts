@@ -3,6 +3,8 @@ import {
   CalendarClock,
   CalendarDays,
   CalendarX2,
+  CirclePlay,
+  CircleStop,
   FileSpreadsheet,
   FileText,
   FileSignature,
@@ -41,6 +43,8 @@ export const NOTIFICATION_MODULE_IDS = [
   "staff_display_time_request",
   "staff_invite_accepted",
   "staff_invite_declined",
+  "staff_display_clock_in",
+  "staff_display_clock_out",
 ] as const;
 
 export type NotificationModuleId = (typeof NOTIFICATION_MODULE_IDS)[number];
@@ -239,6 +243,26 @@ export const NOTIFICATION_MODULES: Record<
     settingsInAppLabel: "Abgelehnte Einladungen in der Glocke",
     settingsPushWhatsappLabel: "WhatsApp bei abgelehnten Einladungen",
     settingsPushEmailLabel: "E-Mail bei abgelehnten Einladungen",
+  },
+  staff_display_clock_in: {
+    id: "staff_display_clock_in",
+    label: "Display-Schichtstart",
+    labelPlural: "Display-Schichtstart",
+    href: "/dashboard/mitarbeiter/uebersicht",
+    icon: CirclePlay,
+    settingsInAppLabel: "Display: Schicht gestartet in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei Display-Schichtstart",
+    settingsPushEmailLabel: "E-Mail bei Display-Schichtstart",
+  },
+  staff_display_clock_out: {
+    id: "staff_display_clock_out",
+    label: "Display-Schichtende",
+    labelPlural: "Display-Schichtende",
+    href: "/dashboard/mitarbeiter/uebersicht",
+    icon: CircleStop,
+    settingsInAppLabel: "Display: Schicht beendet in der Glocke",
+    settingsPushWhatsappLabel: "WhatsApp bei Display-Schichtende",
+    settingsPushEmailLabel: "E-Mail bei Display-Schichtende",
   },
 };
 

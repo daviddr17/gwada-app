@@ -99,6 +99,12 @@ export function sourceTimestampFromPayload(
   if (module === "staff_shift_end") {
     return pick("endsAt") ?? pick("startsAt");
   }
+  if (
+    module === "staff_display_clock_in" ||
+    module === "staff_display_clock_out"
+  ) {
+    return pick("at");
+  }
   if (module === "changelog") {
     return pick("publishedAt");
   }
@@ -117,6 +123,12 @@ export function sourceTimestampLabel(module: string): string {
   }
   if (module === "staff_shift_start" || module === "staff_shift_end") {
     return "Schicht";
+  }
+  if (
+    module === "staff_display_clock_in" ||
+    module === "staff_display_clock_out"
+  ) {
+    return "Display-Schicht";
   }
   if (module === "changelog") return "Veröffentlicht";
   return "Quelle";
@@ -170,6 +182,13 @@ export function formatNotificationPayloadSummary(
   }
 
   if (module === "staff_shift_start" || module === "staff_shift_end") {
+    return typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
+  }
+
+  if (
+    module === "staff_display_clock_in" ||
+    module === "staff_display_clock_out"
+  ) {
     return typeof p.staffName === "string" ? p.staffName : "Mitarbeiter";
   }
 

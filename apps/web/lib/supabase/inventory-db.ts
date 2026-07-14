@@ -426,7 +426,11 @@ export async function upsertInventoryTaxonomyRow(
   return true;
 }
 
-/** Lieferanten aus offenen/abgeschlossenen Bestellungen in inventory_suppliers spiegeln. */
+/**
+ * Lieferanten aus Bestellungen in inventory_suppliers anlegen, falls fehlend.
+ * Bestehende Namen/Aktiv-Flags nicht überschreiben (sonst gehen Taxonomy-Umbenennungen
+ * beim nächsten Bestell-Speichern wieder verloren).
+ */
 export async function ensurePurchaseOrderSuppliers(
   restaurantId: string,
   orders: PurchaseOrder[],
@@ -437,7 +441,23 @@ export async function ensurePurchaseOrderSuppliers(
     if (!sid) continue;
     byId.set(sid, o.supplierName?.trim() || sid);
   }
+  if (byId.size === 0) return true;
+
+  const supabase = createSupabaseBrowserClient();
+  const ids = [...byId.keys()];
+  const { data: existing, error: existingErr } = await supabase
+    .from("inventory_suppliers")
+    .select("id")
+    .eq("restaurant_id", restaurantId)
+    .in("id", ids);
+  if (existingErr) {
+    console.warn("[gwada] ensure suppliers select", existingErr.message);
+    return false;
+  }
+  const known = new Set((existing ?? []).map((r) => r.id as string));
+
   for (const [id, name] of byId) {
+    if (known.has(id)) continue;
     const ok = await upsertInventoryTaxonomyRow(
       "inventory_suppliers",
       restaurantId,

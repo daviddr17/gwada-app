@@ -228,36 +228,34 @@ export function useInventoryTaxonomyStorage(
   );
 
   const update = useCallback(
-    (
+    async (
       id: string,
       updates: { name?: string; active?: boolean },
-    ) => {
+    ): Promise<boolean> => {
       if (useDbInventory && table) {
-        void (async () => {
-          const rid = await getWorkspaceRestaurantId();
-          if (!rid) {
-            failSave();
-            return;
-          }
-          const ok = await updateInventoryTaxonomyRow(table, rid, id, updates);
-          if (!ok) {
-            failSave();
-            return;
-          }
-          setItems((prev) =>
-            prev.map((c) => {
-              if (c.id !== id) return c;
-              return normalizeTaxonomy({
-                ...c,
-                ...updates,
-                name:
-                  updates.name !== undefined ? updates.name.trim() : c.name,
-              });
-            }),
-          );
-          toast.success("Eintrag gespeichert");
-        })();
-        return;
+        const rid = await getWorkspaceRestaurantId();
+        if (!rid) {
+          failSave();
+          return false;
+        }
+        const ok = await updateInventoryTaxonomyRow(table, rid, id, updates);
+        if (!ok) {
+          failSave();
+          return false;
+        }
+        setItems((prev) =>
+          prev.map((c) => {
+            if (c.id !== id) return c;
+            return normalizeTaxonomy({
+              ...c,
+              ...updates,
+              name:
+                updates.name !== undefined ? updates.name.trim() : c.name,
+            });
+          }),
+        );
+        toast.success("Eintrag gespeichert");
+        return true;
       }
       persist(
         items.map((c) => {
@@ -270,6 +268,7 @@ export function useInventoryTaxonomyStorage(
         }),
         "Eintrag gespeichert",
       );
+      return true;
     },
     [failSave, items, persist, table, useDbInventory],
   );

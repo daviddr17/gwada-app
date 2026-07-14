@@ -126,7 +126,10 @@ type TaxonomyStore = {
     name: string,
     active?: boolean,
   ) => Promise<{ id: string; name: string } | null>;
-  update: (id: string, updates: { name?: string; active?: boolean }) => void;
+  update: (
+    id: string,
+    updates: { name?: string; active?: boolean },
+  ) => Promise<boolean>;
   reorder: (next: InventoryTaxonomyDefinition[]) => void;
   remove: (id: string) => Promise<boolean>;
 };
@@ -1454,12 +1457,13 @@ export function InventoryScreen() {
             )
           }
           onEdit={(cat) => {
-            setEntitySheet({
-              kind: manageKind,
-              mode: "edit",
-              item: cat as InventoryTaxonomyDefinition,
-            });
+            const kind = manageKind;
+            const item = cat as InventoryTaxonomyDefinition;
             setManageKind(null);
+            // Manage-Sheet erst schließen, dann Edit öffnen — sonst Fokus/Tap-Race auf iOS.
+            window.setTimeout(() => {
+              setEntitySheet({ kind, mode: "edit", item });
+            }, 280);
           }}
           onNew={() => {
             setEntitySheet({ kind: manageKind, mode: "create" });
@@ -1483,10 +1487,11 @@ export function InventoryScreen() {
           onSave={async (payload) => {
             const s = storeFor(entitySheet.kind);
             if ("id" in payload && payload.id) {
-              s.update(payload.id, {
+              const ok = await s.update(payload.id, {
                 name: payload.name,
                 active: payload.active,
               });
+              if (!ok) throw new Error("taxonomy_update_failed");
             } else {
               await s.add(payload.name, payload.active !== false);
             }

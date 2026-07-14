@@ -9,9 +9,13 @@ import {
   emptyInstagramInsights,
   type PlatformInsightsBundle,
 } from "@/lib/insights/platform-insights-types";
+import {
+  INSIGHTS_GOOGLE_MAX_DAYS,
+  INSIGHTS_META_MAX_DAYS,
+} from "@/lib/insights/compute-insights-statistics";
 import type { PlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 
-/** Meta Account-Insights: max. ~28 Tage sinnvoll anfragen. */
+/** Meta Account-Insights: API liefert meist max. ~28 Tage. */
 function clampRangeForMeta(
   startYmd: string,
   endYmd: string,
@@ -19,7 +23,7 @@ function clampRangeForMeta(
   const end = new Date(`${endYmd}T12:00:00`);
   const start = new Date(`${startYmd}T12:00:00`);
   const minStart = new Date(end);
-  minStart.setDate(minStart.getDate() - 28);
+  minStart.setDate(minStart.getDate() - INSIGHTS_META_MAX_DAYS);
   const effective = start < minStart ? minStart : start;
   const y = effective.getFullYear();
   const m = String(effective.getMonth() + 1).padStart(2, "0");
@@ -35,7 +39,7 @@ function clampRangeForGoogle(
   const end = new Date(`${endYmd}T12:00:00`);
   const start = new Date(`${startYmd}T12:00:00`);
   const minStart = new Date(end);
-  minStart.setDate(minStart.getDate() - 89);
+  minStart.setDate(minStart.getDate() - (INSIGHTS_GOOGLE_MAX_DAYS - 1));
   const effective = start < minStart ? minStart : start;
   const y = effective.getFullYear();
   const m = String(effective.getMonth() + 1).padStart(2, "0");

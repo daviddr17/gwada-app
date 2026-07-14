@@ -18,17 +18,33 @@ export const GALLERY_CACHE_STALE_MS = 24 * 60 * 60 * 1000;
 /** TripAdvisor (Terra API): 1× pro Woche. */
 export const GALLERY_CACHE_STALE_TRIPADVISOR_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Nach Fehler oder leerem TripAdvisor-Cache früher erneut syncen. */
+export const GALLERY_CACHE_RETRY_MS = 60 * 60 * 1000;
+
 export function galleryFeedSyncStaleMs(platform: GalleryCacheablePlatform): number {
   if (platform === "tripadvisor") return GALLERY_CACHE_STALE_TRIPADVISOR_MS;
   return GALLERY_CACHE_STALE_MS;
 }
 
+export type GalleryFeedSyncStaleOpts = {
+  lastError?: string | null;
+  itemCount?: number | null;
+};
+
 export function isGalleryFeedSyncStale(
   syncedAt: string | null | undefined,
   platform: GalleryCacheablePlatform,
+  opts?: GalleryFeedSyncStaleOpts,
 ): boolean {
   if (!syncedAt) return true;
-  return Date.now() - new Date(syncedAt).getTime() > galleryFeedSyncStaleMs(platform);
+  const ageMs = Date.now() - new Date(syncedAt).getTime();
+  if (opts?.lastError) {
+    return ageMs > GALLERY_CACHE_RETRY_MS;
+  }
+  if (platform === "tripadvisor" && (opts?.itemCount ?? 0) === 0) {
+    return ageMs > GALLERY_CACHE_RETRY_MS;
+  }
+  return ageMs > galleryFeedSyncStaleMs(platform);
 }
 
 export function isGalleryCacheablePlatform(

@@ -35,7 +35,7 @@ export function feedNewsDisplayAspectRatio(
 
 /** News-Raster — mobil 1 Spalte, Desktop bis 3 (weniger parallele Bild-Loads). */
 export const feedNewsGridClassName =
-  "grid w-full grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3";
+  "grid w-full grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3";
 
 /** Galerie — CSS-Columns-Masonry (Pinterest), mobil 1 Spalte. */
 export const feedGalleryMasonryClassName =

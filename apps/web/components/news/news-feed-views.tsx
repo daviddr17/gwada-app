@@ -173,7 +173,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
 
   const body = (
     <>
-      <div className="relative flex w-14 shrink-0 flex-col items-center sm:w-16">
+      <div className="relative flex w-14 shrink-0 flex-col items-center self-stretch sm:w-16">
         <div className="z-10 flex w-full flex-col items-center rounded-lg border border-border/40 bg-background px-1 py-1.5 text-center">
           <span className="text-xl font-semibold tabular-nums leading-none sm:text-2xl">
             {formatNewsTimelineDay(dateTime)}
@@ -183,10 +183,7 @@ const NewsTimelineRow = memo(function NewsTimelineRow({
           </span>
         </div>
         {showConnectorBelow ? (
-          <div
-            className="absolute top-[calc(100%-0.25rem)] bottom-0 w-px bg-border/60"
-            aria-hidden
-          />
+          <div className="mt-1 w-px min-h-3 flex-1 bg-border/60" aria-hidden />
         ) : null}
       </div>
 

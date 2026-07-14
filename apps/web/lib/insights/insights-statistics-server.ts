@@ -3,6 +3,7 @@ import "server-only";
 import { computeContactStatistics } from "@/lib/contacts/compute-contact-statistics";
 import {
   computeInsightsStatistics,
+  type InsightsStatsDays,
   type InsightsStatsPeriod,
   type InsightsStatisticsResult,
 } from "@/lib/insights/compute-insights-statistics";
@@ -10,7 +11,9 @@ import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insig
 import { fetchRestaurantUsageInsights } from "@/lib/insights/fetch-restaurant-usage-insights";
 import { computeNewsStatistics } from "@/lib/news/compute-news-statistics";
 import { computeReservationStats } from "@/lib/reservations/compute-reservation-stats";
-import { fetchReviewStatisticsBundleServer } from "@/lib/reviews/reviews-statistics-server";
+import { computeReviewStatistics } from "@/lib/reviews/compute-review-statistics";
+import { readReviewsPlatformSyncState } from "@/lib/reviews/reviews-cache-db";
+import { reviewExternalId } from "@/lib/reviews/review-settings-types";
 import type { UnifiedNewsItem } from "@/lib/news/unified-news-item";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
@@ -19,38 +22,87 @@ import {
   startOfLocalDay,
 } from "@/lib/reservations/month-range";
 import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
+import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { ReservationAnalyticsRow } from "@/lib/supabase/reservations-analytics-db";
 import type {
   ContactAnalyticsRow,
   ContactMessageAnalyticsRow,
 } from "@/lib/supabase/contact-messages-analytics-db";
+import type { ReviewAnalyticsRow } from "@/lib/supabase/reviews-analytics-db";
+import { fetchAllSupabaseRows } from "@/lib/supabase/fetch-all-supabase-rows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-function periodRange(monthsBack: InsightsStatsPeriod): {
+function periodRangeFromMonths(monthsBack: InsightsStatsPeriod): {
+  periodMode: "months";
+  periodMonths: InsightsStatsPeriod;
+  periodDays: null;
   periodStart: Date;
   periodEnd: Date;
   rangeStartIso: string;
   rangeEndIso: string;
+  startYmd: string;
+  endYmd: string;
 } {
   const periodEnd = startOfLocalDay(new Date());
   periodEnd.setHours(23, 59, 59, 999);
   const periodStart = startOfLocalDay(new Date());
   periodStart.setMonth(periodStart.getMonth() - monthsBack);
   return {
+    periodMode: "months",
+    periodMonths: monthsBack,
+    periodDays: null,
     periodStart,
     periodEnd,
     rangeStartIso: periodStart.toISOString(),
     rangeEndIso: exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd),
+    startYmd: localDayKey(periodStart),
+    endYmd: localDayKey(periodEnd),
   };
 }
 
-function parseNewsCachedItem(raw: unknown): UnifiedNewsItem | null {
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
-  const o = raw as Record<string, unknown>;
-  if (typeof o.id !== "string" || typeof o.platform !== "string") return null;
-  if (typeof o.body !== "string") return null;
-  return raw as UnifiedNewsItem;
+function periodRangeFromDays(daysBack: InsightsStatsDays): {
+  periodMode: "days";
+  periodMonths: null;
+  periodDays: InsightsStatsDays;
+  periodStart: Date;
+  periodEnd: Date;
+  rangeStartIso: string;
+  rangeEndIso: string;
+  startYmd: string;
+  endYmd: string;
+} {
+  const periodEnd = startOfLocalDay(new Date());
+  periodEnd.setHours(23, 59, 59, 999);
+  const periodStart = startOfLocalDay(new Date());
+  periodStart.setDate(periodStart.getDate() - daysBack);
+  return {
+    periodMode: "days",
+    periodMonths: null,
+    periodDays: daysBack,
+    periodStart,
+    periodEnd,
+    rangeStartIso: periodStart.toISOString(),
+    rangeEndIso: exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd),
+    startYmd: localDayKey(periodStart),
+    endYmd: localDayKey(periodEnd),
+  };
+}
+
+export type InsightsStatisticsPeriodInput =
+  | { monthsBack: InsightsStatsPeriod }
+  | { daysBack: InsightsStatsDays };
+
+function resolvePeriodInput(
+  input: InsightsStatisticsPeriodInput | InsightsStatsPeriod,
+) {
+  if (typeof input === "number") {
+    return periodRangeFromMonths(input);
+  }
+  if ("daysBack" in input) {
+    return periodRangeFromDays(input.daysBack);
+  }
+  return periodRangeFromMonths(input.monthsBack);
 }
 
 function sumNewsEngagement(items: UnifiedNewsItem[]): {
@@ -67,6 +119,91 @@ function sumNewsEngagement(items: UnifiedNewsItem[]): {
     views += item.insights?.views ?? 0;
   }
   return { likes, comments, views };
+}
+
+/** Nur native Gwada-Reviews — Plattform-Cache bleibt Performance-Spiegel, kein Gwada-KPI. */
+async function fetchGwadaReviewsOnly(
+  admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
+  restaurantId: string,
+  rangeStartIso: string,
+  rangeEndIso: string,
+  periodStart: Date,
+  periodEnd: Date,
+) {
+  const [gwadaResult, invitationsResult, visibilityRes] = await Promise.all([
+    fetchAllSupabaseRows<Record<string, unknown>>(async (from, to) =>
+      admin
+        .from("gwada_reviews")
+        .select("id, rating, comment, created_at, reservation_id")
+        .eq("restaurant_id", restaurantId)
+        .gte("created_at", rangeStartIso)
+        .lt("created_at", rangeEndIso)
+        .order("created_at", { ascending: true })
+        .range(from, to),
+    ),
+    fetchAllSupabaseRows<Record<string, unknown>>(async (from, to) =>
+      admin
+        .from("gwada_review_invitations")
+        .select("id, created_at, link_sent_at, completed_at")
+        .eq("restaurant_id", restaurantId)
+        .gte("created_at", rangeStartIso)
+        .lt("created_at", rangeEndIso)
+        .order("created_at", { ascending: true })
+        .range(from, to),
+    ),
+    admin
+      .from("restaurant_review_visibility")
+      .select("platform, external_id")
+      .eq("restaurant_id", restaurantId),
+  ]);
+
+  const error =
+    gwadaResult.error ??
+    invitationsResult.error ??
+    visibilityRes.error?.message ??
+    null;
+  if (error) {
+    return { data: null as ReturnType<typeof computeReviewStatistics> | null, error };
+  }
+
+  const hiddenKeys = new Set(
+    (visibilityRes.data ?? []).map(
+      (row) => `${row.platform as string}:${row.external_id as string}`,
+    ),
+  );
+
+  const reviews: ReviewAnalyticsRow[] = gwadaResult.data.map((row) => {
+    const id = row.id as string;
+    const platform = "gwada" as const;
+    const externalId = reviewExternalId({ id, platform });
+    return {
+      id,
+      platform,
+      rating: Number(row.rating),
+      created_at: row.created_at as string,
+      has_comment: Boolean((row.comment as string | null)?.trim()),
+      has_reply: false,
+      reservation_id: (row.reservation_id as string | null) ?? null,
+      hidden_from_public: hiddenKeys.has(`${platform}:${externalId}`),
+    };
+  });
+
+  const invitations = invitationsResult.data.map((row) => ({
+    id: row.id as string,
+    created_at: row.created_at as string,
+    link_sent_at: (row.link_sent_at as string | null) ?? null,
+    completed_at: (row.completed_at as string | null) ?? null,
+  }));
+
+  return {
+    data: computeReviewStatistics({
+      reviews,
+      invitations,
+      periodStart,
+      periodEnd,
+    }),
+    error: null,
+  };
 }
 
 async function fetchReservationsAdmin(
@@ -123,6 +260,7 @@ async function fetchContactBundleAdmin(
         "id, contact_id, platform, direction, created_at, reservation_id",
       )
       .eq("restaurant_id", restaurantId)
+      .eq("platform", "gwada")
       .gte("created_at", rangeStartIso)
       .lt("created_at", rangeEndIso)
       .order("created_at", { ascending: true }),
@@ -197,19 +335,13 @@ async function fetchNewsItemsAdmin(
   admin: NonNullable<ReturnType<typeof createSupabaseAdminClient>>,
   restaurantId: string,
 ): Promise<UnifiedNewsItem[]> {
-  const [gwadaRes, cacheRes] = await Promise.all([
-    admin
-      .from("gwada_news_posts")
-      .select(
-        "id, title, body, status, created_at, published_at, scheduled_at, media",
-      )
-      .eq("restaurant_id", restaurantId)
-      .order("created_at", { ascending: true }),
-    admin
-      .from("restaurant_news_platform_cache")
-      .select("item, published_at, platform")
-      .eq("restaurant_id", restaurantId),
-  ]);
+  const gwadaRes = await admin
+    .from("gwada_news_posts")
+    .select(
+      "id, title, body, status, created_at, published_at, scheduled_at, media",
+    )
+    .eq("restaurant_id", restaurantId)
+    .order("created_at", { ascending: true });
 
   const items: UnifiedNewsItem[] = [];
 
@@ -237,19 +369,15 @@ async function fetchNewsItemsAdmin(
     });
   }
 
-  for (const raw of cacheRes.data ?? []) {
-    const row = raw as Record<string, unknown>;
-    const parsed = parseNewsCachedItem(row.item);
-    if (parsed) items.push(parsed);
-  }
-
   return items;
 }
 
 export async function fetchInsightsStatistics(
   sb: SupabaseClient,
   restaurantId: string,
-  monthsBack: InsightsStatsPeriod = 12,
+  periodInput: InsightsStatisticsPeriodInput | InsightsStatsPeriod = {
+    monthsBack: 12,
+  },
 ): Promise<{ data: InsightsStatisticsResult | null; error: string | null }> {
   if (!isUuidRestaurantId(restaurantId)) {
     return { data: null, error: "invalid_request" };
@@ -258,26 +386,39 @@ export async function fetchInsightsStatistics(
   const admin = createSupabaseAdminClient();
   if (!admin) return { data: null, error: "server_misconfigured" };
 
-  const { periodStart, periodEnd, rangeStartIso, rangeEndIso } =
-    periodRange(monthsBack);
+  const {
+    periodMode,
+    periodMonths,
+    periodDays,
+    periodStart,
+    periodEnd,
+    rangeStartIso,
+    rangeEndIso,
+    startYmd,
+    endYmd,
+  } = resolvePeriodInput(periodInput);
 
   const flags = await fetchPlatformMessagingFlags(sb);
-  const startYmd = localDayKey(periodStart);
-  const endYmd = localDayKey(periodEnd);
 
   const [
-    reviewBundleRes,
+    gwadaReviewsRes,
     reservationRows,
     contactBundle,
     newsItems,
     syncRes,
     usage,
     platforms,
+    tripConfig,
+    reviewSyncRows,
   ] = await Promise.all([
-    fetchReviewStatisticsBundleServer(sb, {
+    fetchGwadaReviewsOnly(
+      admin,
       restaurantId,
-      monthsBack,
-    }),
+      rangeStartIso,
+      rangeEndIso,
+      periodStart,
+      periodEnd,
+    ),
     fetchReservationsAdmin(admin, restaurantId, rangeStartIso),
     fetchContactBundleAdmin(
       admin,
@@ -303,12 +444,16 @@ export async function fetchInsightsStatistics(
       endYmd,
       flags,
     }),
+    flags.tripadvisorEnabled
+      ? fetchRestaurantTripadvisorConfigAdmin(restaurantId)
+      : Promise.resolve(null),
+    readReviewsPlatformSyncState(sb, restaurantId, ["tripadvisor"]),
   ]);
 
-  if (reviewBundleRes.error) {
-    return { data: null, error: reviewBundleRes.error };
+  if (gwadaReviewsRes.error) {
+    return { data: null, error: gwadaReviewsRes.error };
   }
-  if (!reviewBundleRes.data) {
+  if (!gwadaReviewsRes.data) {
     return { data: null, error: "statistics_unavailable" };
   }
 
@@ -338,18 +483,34 @@ export async function fetchInsightsStatistics(
   });
   const newsEngagement = sumNewsEngagement(newsInPeriod);
 
+  const tripSync = reviewSyncRows.find((row) => row.platform === "tripadvisor");
+  const tripadvisor: InsightsStatisticsResult["tripadvisor"] = {
+    connected: tripConfig?.status === "working",
+    reviewCount:
+      tripSync?.meta.totalReviewCount ?? tripSync?.item_count ?? 0,
+    averageRating:
+      typeof tripSync?.meta.averageRating === "number"
+        ? tripSync.meta.averageRating
+        : null,
+  };
+
   return {
     data: computeInsightsStatistics({
-      periodMonths: monthsBack,
+      periodMode,
+      periodMonths,
+      periodDays,
       periodStart,
       periodEnd,
+      periodStartYmd: startYmd,
+      periodEndYmd: endYmd,
       reservations,
-      reviews: reviewBundleRes.data.stats,
+      reviews: gwadaReviewsRes.data,
       messages,
       news,
       newsEngagement,
       usage,
       platforms,
+      tripadvisor,
     }),
     error: null,
   };

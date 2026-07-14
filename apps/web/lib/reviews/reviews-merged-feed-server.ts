@@ -42,10 +42,14 @@ export async function loadMergedReviewsFeedPage(params: {
       loadGwadaReviewsForFeed(sb, restaurantId),
       countGwadaReviews(sb, restaurantId),
       loadReviewPlatformConnectionState(restaurantId),
-      readReviewsFeedFromCache(restaurantId, sb, ["google", "facebook"]),
+      readReviewsFeedFromCache(restaurantId, sb, [
+        "google",
+        "facebook",
+        "tripadvisor",
+      ]),
     ]);
 
-  const { googleVisible, facebookVisible } = platformState;
+  const { googleVisible, facebookVisible, tripadvisorVisible } = platformState;
 
   const googleCached = googleVisible
     ? cachedFeed.reviews.filter((review) => review.platform === "google")
@@ -53,10 +57,17 @@ export async function loadMergedReviewsFeedPage(params: {
   const facebookCached = facebookVisible
     ? cachedFeed.reviews.filter((review) => review.platform === "facebook")
     : [];
+  const tripadvisorCached = tripadvisorVisible
+    ? cachedFeed.reviews.filter((review) => review.platform === "tripadvisor")
+    : [];
 
   const googleMeta = readPlatformSyncMeta(cachedFeed.syncRows, "google");
   const facebookMeta = readPlatformSyncMeta(cachedFeed.syncRows, "facebook");
+  const tripadvisorMeta = readPlatformSyncMeta(cachedFeed.syncRows, "tripadvisor");
   const facebookSync = cachedFeed.syncRows.find((row) => row.platform === "facebook");
+  const tripadvisorSync = cachedFeed.syncRows.find(
+    (row) => row.platform === "tripadvisor",
+  );
 
   const platformTotals: Partial<Record<ReviewPlatform, number>> = {
     gwada: gwadaTotal,
@@ -75,6 +86,15 @@ export async function loadMergedReviewsFeedPage(params: {
           ? facebookSync.item_count
           : facebookCached.length;
   }
+  if (tripadvisorVisible) {
+    platformTotals.tripadvisor =
+      typeof tripadvisorMeta.totalReviewCount === "number"
+        ? tripadvisorMeta.totalReviewCount
+        : typeof tripadvisorSync?.item_count === "number" &&
+            tripadvisorSync.item_count > 0
+          ? tripadvisorSync.item_count
+          : tripadvisorCached.length;
+  }
 
   const totalReviewCount = Object.values(platformTotals).reduce(
     (sum, count) => sum + count,
@@ -85,6 +105,7 @@ export async function loadMergedReviewsFeedPage(params: {
     ...gwadaReviews,
     ...googleCached,
     ...facebookCached,
+    ...tripadvisorCached,
   ]);
 
   const paginated = paginateReviewList(merged, pageToken, totalReviewCount);
@@ -95,6 +116,9 @@ export async function loadMergedReviewsFeedPage(params: {
   }
   if (cachedFeed.sync.platformErrors.facebook) {
     loadErrors.facebook = cachedFeed.sync.platformErrors.facebook;
+  }
+  if (cachedFeed.sync.platformErrors.tripadvisor) {
+    loadErrors.tripadvisor = cachedFeed.sync.platformErrors.tripadvisor;
   }
 
   return {

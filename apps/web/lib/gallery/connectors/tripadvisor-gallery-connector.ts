@@ -44,10 +44,17 @@ type TripadvisorPhotoRaw = {
     large?: TripadvisorPhotoImageSize;
     original?: TripadvisorPhotoImageSize;
   };
+  url_original?: string;
+  url_large?: string;
+  url_medium?: string;
+  url_small?: string;
+  url_thumbnail?: string;
+  url?: string;
 };
 
 type TripadvisorPhotosResponse = {
   data?: TripadvisorPhotoRaw[];
+  photos?: TripadvisorPhotoRaw[];
   pagination?: {
     total_elements?: number;
   };
@@ -75,27 +82,53 @@ function pickPhotoUrl(photo: TripadvisorPhotoRaw): {
   }
 
   const images = photo.images;
-  if (!images) return null;
+  if (images) {
+    const original = images.original?.url?.trim();
+    const large = images.large?.url?.trim();
+    const medium = images.medium?.url?.trim();
+    const small = images.small?.url?.trim();
+    const thumbnail = images.thumbnail?.url?.trim();
+    const url = original ?? large ?? medium ?? small ?? thumbnail;
+    if (url) {
+      // Preview = scharf genug fürs Raster; Thumb nur für schnelles Blur-up.
+      const previewSource = large ?? original ?? medium ?? small ?? thumbnail;
+      const thumbSource = thumbnail ?? small ?? medium;
+      const sizeSource =
+        images.original ?? images.large ?? images.medium ?? images.small;
+      return {
+        url,
+        previewUrl: previewSource ?? url,
+        thumbUrl:
+          thumbSource && thumbSource !== (previewSource ?? url)
+            ? thumbSource
+            : null,
+        width: sizeSource?.width ?? null,
+        height: sizeSource?.height ?? null,
+      };
+    }
+  }
 
-  const original = images.original?.url?.trim();
-  const large = images.large?.url?.trim();
-  const medium = images.medium?.url?.trim();
-  const small = images.small?.url?.trim();
-  const thumbnail = images.thumbnail?.url?.trim();
-  const url = original ?? large ?? medium ?? small ?? thumbnail;
-  if (!url) return null;
+  const flatUrl =
+    photo.url_original?.trim() ||
+    photo.url_large?.trim() ||
+    photo.url_medium?.trim() ||
+    photo.url?.trim() ||
+    photo.url_small?.trim() ||
+    photo.url_thumbnail?.trim();
+  if (!flatUrl) return null;
 
-  // Preview = scharf genug fürs Raster; Thumb nur für schnelles Blur-up.
-  const previewSource = large ?? original ?? medium ?? small ?? thumbnail;
-  const thumbSource = thumbnail ?? small ?? medium;
-  const sizeSource = images.original ?? images.large ?? images.medium ?? images.small;
+  const flatThumb =
+    photo.url_thumbnail?.trim() ||
+    photo.url_small?.trim() ||
+    photo.url_medium?.trim() ||
+    null;
 
   return {
-    url,
-    previewUrl: previewSource ?? url,
-    thumbUrl: thumbSource && thumbSource !== (previewSource ?? url) ? thumbSource : null,
-    width: sizeSource?.width ?? null,
-    height: sizeSource?.height ?? null,
+    url: flatUrl,
+    previewUrl: flatUrl,
+    thumbUrl: flatThumb && flatThumb !== flatUrl ? flatThumb : null,
+    width: null,
+    height: null,
   };
 }
 
@@ -146,7 +179,9 @@ export const tripadvisorGalleryConnector: GalleryPlatformConnector = {
     if ("error" in auth) return { error: auth.error };
 
     const allowlist = await ensureTripadvisorAllowlistLocation(auth.locationId);
-    void allowlist;
+    if ("error" in allowlist && allowlist.status === 403) {
+      return { error: "tripadvisor_allowlist_denied" };
+    }
 
     const items: UnifiedGalleryItem[] = [];
 
@@ -164,7 +199,8 @@ export const tripadvisorGalleryConnector: GalleryPlatformConnector = {
         break;
       }
 
-      const batch = (result.data.data ?? [])
+      const rawPhotos = result.data.data ?? result.data.photos ?? [];
+      const batch = rawPhotos
         .map(mapTripadvisorPhoto)
         .filter((item): item is UnifiedGalleryItem => item !== null);
       items.push(...batch);

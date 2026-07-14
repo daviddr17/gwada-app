@@ -53,6 +53,10 @@ import type {
   PurchaseOrderLogQuantityChange,
   PurchaseOrdersPersistenceV1,
 } from "@/lib/types/purchase-order";
+import {
+  protocolActorNameFields,
+  protocolCreatedByLabel,
+} from "@/lib/types/purchase-order";
 
 function isRecord(x: unknown): x is Record<string, unknown> {
   return typeof x === "object" && x !== null;
@@ -450,8 +454,7 @@ export function usePurchaseOrdersStorage() {
           supplierName: params.supplierName,
           status: "open",
           createdAt: new Date().toISOString(),
-          createdBy: "",
-          createdByUserSource: "local_profile",
+          createdBy: protocolCreatedByLabel(params.actor),
           deliveryDate: null,
           lines: [],
           log: [],
@@ -469,9 +472,7 @@ export function usePurchaseOrdersStorage() {
       const logEntry: PurchaseOrderLogAdd = {
         id: createId(),
         at: new Date().toISOString(),
-        userFirstName: "",
-        userLastName: "",
-        userSource: "local_profile",
+        ...protocolActorNameFields(params.actor),
         kind: "add_to_order",
         ingredientId: params.ingredientId,
         ingredientName: params.ingredientName,
@@ -603,7 +604,7 @@ export function usePurchaseOrdersStorage() {
       orderId: string,
       lineId: string,
       nextQty: number,
-      _actor: OrderProtocolActor,
+      actor: OrderProtocolActor,
     ): Promise<boolean> => {
       const order = orders.find((o) => o.id === orderId);
       if (!order || order.status !== "open") {
@@ -631,9 +632,7 @@ export function usePurchaseOrdersStorage() {
       const logEntry: PurchaseOrderLogQuantityChange = {
         id: createId(),
         at: new Date().toISOString(),
-        userFirstName: "",
-        userLastName: "",
-        userSource: "local_profile",
+        ...protocolActorNameFields(actor),
         kind: "quantity_change",
         ingredientId: l.ingredientId,
         ingredientName: l.ingredientName,
@@ -666,7 +665,11 @@ export function usePurchaseOrdersStorage() {
   );
 
   const markLineDelivered = useCallback(
-    async (orderId: string, lineId: string): Promise<boolean> => {
+    async (
+      orderId: string,
+      lineId: string,
+      actor: OrderProtocolActor,
+    ): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "closed") {
         toast.error("Liefermeldung nur bei abgeschlossenen Bestellungen möglich.");
@@ -694,9 +697,7 @@ export function usePurchaseOrdersStorage() {
       const logEntry: PurchaseOrderLogMarkedDelivered = {
         id: createId(),
         at: new Date().toISOString(),
-        userFirstName: "",
-        userLastName: "",
-        userSource: "local_profile",
+        ...protocolActorNameFields(actor),
         kind: "marked_delivered",
         ingredientId: l.ingredientId,
         ingredientName: l.ingredientName,
@@ -712,7 +713,11 @@ export function usePurchaseOrdersStorage() {
   );
 
   const unmarkLineDelivered = useCallback(
-    async (orderId: string, lineId: string): Promise<boolean> => {
+    async (
+      orderId: string,
+      lineId: string,
+      actor: OrderProtocolActor,
+    ): Promise<boolean> => {
       const target = orders.find((o) => o.id === orderId);
       if (!target || target.status !== "closed") {
         toast.error("Nur bei abgeschlossenen Bestellungen möglich.");
@@ -740,9 +745,7 @@ export function usePurchaseOrdersStorage() {
       const logEntry: PurchaseOrderLogDeliveryReverted = {
         id: createId(),
         at: new Date().toISOString(),
-        userFirstName: "",
-        userLastName: "",
-        userSource: "local_profile",
+        ...protocolActorNameFields(actor),
         kind: "delivery_reverted",
         ingredientId: l.ingredientId,
         ingredientName: l.ingredientName,

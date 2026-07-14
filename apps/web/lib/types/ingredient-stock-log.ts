@@ -92,17 +92,14 @@ export type IngredientStockLogEntry =
 
 export function resolveIngredientStockLogUserLabel(
   e: IngredientStockLogEntry,
-  currentProfile: OrderProtocolActor,
+  _currentProfile?: OrderProtocolActor,
 ): string {
-  if (e.userSource === "local_profile") {
-    return formatOrderProtocolUserName(currentProfile) || "—";
-  }
-  return (
-    formatOrderProtocolUserName({
-      firstName: e.userFirstName,
-      lastName: e.userLastName,
-    }) || "—"
-  );
+  const stored = formatOrderProtocolUserName({
+    firstName: e.userFirstName,
+    lastName: e.userLastName,
+  });
+  if (stored) return stored;
+  return "—";
 }
 
 export function ingredientStockActionColumn(e: IngredientStockLogEntry): string {

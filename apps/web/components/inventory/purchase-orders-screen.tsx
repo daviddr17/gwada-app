@@ -340,7 +340,7 @@ export function PurchaseOrdersScreen() {
         toast.error("Bestand konnte nicht gespeichert werden.");
         return;
       }
-      if (!(await markLineDelivered(orderId, lineId))) {
+      if (!(await markLineDelivered(orderId, lineId, actor))) {
         await updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
         toast.error(
           "Bestellung konnte nicht aktualisiert werden. Bestand wurde zurückgesetzt.",
@@ -390,7 +390,7 @@ export function PurchaseOrdersScreen() {
         toast.error("Bestand konnte nicht gespeichert werden.");
         return;
       }
-      if (!(await unmarkLineDelivered(orderId, lineId))) {
+      if (!(await unmarkLineDelivered(orderId, lineId, actor))) {
         await updateIngredient(ing.id, { currentStock: ing.currentStock }, { skipStockLog: true });
         toast.error(
           "Bestellung konnte nicht aktualisiert werden. Bestand wurde zurückgesetzt.",

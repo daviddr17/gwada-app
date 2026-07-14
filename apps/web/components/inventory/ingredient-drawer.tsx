@@ -94,10 +94,24 @@ export function IngredientDrawer({
     setIosTouch(isIosTouchDevice());
   }, []);
 
+  /** Nur beim Öffnen / Wechsel der Zutat hydraten — nicht bei jedem Realtime-Update von `initial`. */
+  const seedId = initial?.id ?? null;
+  const wasOpenRef = useRef(false);
+  const seededForKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      seededForKeyRef.current = null;
+      return;
+    }
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+    const seedKey = seedId ?? "__create__";
+    if (!justOpened && seededForKeyRef.current === seedKey) return;
+    seededForKeyRef.current = seedKey;
+
     const frame = requestAnimationFrame(() => {
-      if (initial) {
+      if (seedId && initial && initial.id === seedId) {
         setName(initial.name);
         setUnit(initial.unit || firstActiveId(units) || "g");
         setCurrentStock(String(initial.currentStock ?? 0));
@@ -130,6 +144,7 @@ export function IngredientDrawer({
     return () => cancelAnimationFrame(frame);
   }, [
     open,
+    seedId,
     initial,
     suppliers,
     ingredientCategories,

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   Drawer,
   DrawerContent,
@@ -20,6 +21,10 @@ import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import {
+  isIosTouchDevice,
+  useDrawerFormKeyboardAssist,
+} from "@/lib/hooks/use-drawer-form-keyboard-assist";
 import type { MenuCategoryDefinition, MenuMainCategoryDefinition } from "@/lib/types/menu";
 
 type CategorySavePayload =
@@ -60,7 +65,7 @@ type CategoryDrawerProps = {
   /** Speisekarte: Zuordnung zu Speisen / Getränke / … */
   mainCategories?: MenuMainCategoryDefinition[];
   defaultMainCategoryId?: string;
-  onSave: (payload: CategorySavePayload) => void;
+  onSave: (payload: CategorySavePayload) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
   /** z. B. Bestand: Lieferanten, Zutatenkategorien, … */
   labels?: Partial<CategoryDrawerLabels>;
@@ -78,11 +83,19 @@ export function CategoryDrawer({
   labels: labelsProp,
 }: CategoryDrawerProps) {
   const labels = { ...MENU_CATEGORY_LABELS, ...labelsProp };
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { repositionInputs } = useDrawerFormKeyboardAssist({ open, scrollRef });
+  const [iosTouch, setIosTouch] = useState(false);
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
   const [mainCategoryId, setMainCategoryId] = useState("");
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setIosTouch(isIosTouchDevice());
+  }, []);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -112,26 +125,39 @@ export function CategoryDrawer({
 
   const canDelete = mode === "edit" && initial && onDelete;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
-    if (!trimmed) return;
-    if (showMainCategoryField && !mainCategoryId) return;
-    if (mode === "edit" && initial) {
-      onSave({
-        id: initial.id,
-        name: trimmed,
-        active,
-        ...(showMainCategoryField ? { mainCategoryId } : {}),
-      });
-    } else {
-      onSave({
-        name: trimmed,
-        active,
-        ...(showMainCategoryField ? { mainCategoryId } : {}),
-      });
+    if (!trimmed) {
+      toast.error("Bitte einen Namen eingeben.");
+      return;
     }
-    onOpenChange(false);
+    if (showMainCategoryField && !mainCategoryId) {
+      toast.error("Bitte eine Hauptkategorie wählen.");
+      return;
+    }
+    setSaving(true);
+    try {
+      if (mode === "edit" && initial) {
+        await onSave({
+          id: initial.id,
+          name: trimmed,
+          active,
+          ...(showMainCategoryField ? { mainCategoryId } : {}),
+        });
+      } else {
+        await onSave({
+          name: trimmed,
+          active,
+          ...(showMainCategoryField ? { mainCategoryId } : {}),
+        });
+      }
+      onOpenChange(false);
+    } catch {
+      /* Speichern bleibt offen; Fehlertoaster kommt vom Aufrufer. */
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleConfirmDelete = async () => {
@@ -148,10 +174,13 @@ export function CategoryDrawer({
 
   return (
     <>
-      <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
-        <DrawerContent
-          className={drawerContentClassName("assign")}
-        >
+      <Drawer
+        open={open}
+        onOpenChange={onOpenChange}
+        direction="bottom"
+        repositionInputs={repositionInputs}
+      >
+        <DrawerContent className={drawerContentClassName("taxonomy")}>
           <DrawerHeader className={drawerFormHeaderClassName(6)}>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1">
@@ -177,8 +206,11 @@ export function CategoryDrawer({
             </div>
           </DrawerHeader>
 
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className={drawerScrollAreaClassName(6)}>
+          <form
+            onSubmit={(e) => void handleSubmit(e)}
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <div ref={scrollRef} className={drawerScrollAreaClassName(6)}>
               <DrawerFormSection title="Stammdaten">
                 <div className="space-y-2">
                   <Label htmlFor="category-name">{labels.nameLabel}</Label>
@@ -188,7 +220,9 @@ export function CategoryDrawer({
                     onChange={(e) => setName(e.target.value)}
                     placeholder={labels.namePlaceholder}
                     className="h-12 rounded-xl"
-                    autoFocus
+                    /* Autofocus öffnet auf iOS die Tastatur und verdeckt Speichern. */
+                    autoFocus={!iosTouch}
+                    enterKeyHint="done"
                   />
                 </div>
               </DrawerFormSection>
@@ -212,7 +246,10 @@ export function CategoryDrawer({
               <DrawerFormSection title="Sichtbarkeit">
                 <div className="flex items-center justify-between gap-4">
                   <div className="space-y-0.5">
-                    <Label htmlFor="category-active" className="text-sm font-medium">
+                    <Label
+                      htmlFor="category-active"
+                      className="text-sm font-medium"
+                    >
                       {labels.activeLabel}
                     </Label>
                     <p className="text-xs text-muted-foreground">
@@ -232,6 +269,7 @@ export function CategoryDrawer({
               onCancel={() => onOpenChange(false)}
               submitType="submit"
               submitLabel={mode === "edit" ? "Speichern" : "Anlegen"}
+              submitDisabled={saving}
             />
           </form>
         </DrawerContent>

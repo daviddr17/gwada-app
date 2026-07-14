@@ -31,7 +31,7 @@ export const WHATSAPP_PLACEHOLDER_HINTS: ReadonlyArray<{
   { key: "{anrede}", label: "Hallo Vorname Nachname" },
   { key: "{vorname}", label: "Vorname" },
   { key: "{nachname}", label: "Nachname" },
-  { key: "{datum}", label: "dd.mm.yyyy" },
+  { key: "{datum}", label: "Di., 14.07.26" },
   { key: "{uhrzeit}", label: "HH:MM" },
   { key: "{personen}", label: "Personenzahl" },
   { key: "{nummer}", label: "Reservierungsnummer" },
@@ -135,11 +135,13 @@ export function resolveWhatsappTemplate(
   return custom || DEFAULT_WHATSAPP_TEMPLATES[kind];
 }
 
+/** Wie Manager-/Mitarbeiter-Slots: „Di., 14.07.26“ (Restaurant-Zeitzone). */
 function formatDateDe(d: Date, timeZone: string): string {
   return d.toLocaleDateString("de-DE", {
+    weekday: "short",
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
+    year: "2-digit",
     timeZone,
   });
 }

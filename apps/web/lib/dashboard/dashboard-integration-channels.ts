@@ -6,7 +6,8 @@ export type DashboardIntegrationChannelId =
   | "facebook"
   | "instagram"
   | "google_business"
-  | "lexoffice";
+  | "lexoffice"
+  | "tripadvisor";
 
 export type DashboardIntegrationChannelMeta = {
   id: DashboardIntegrationChannelId;
@@ -26,6 +27,7 @@ export const DASHBOARD_INTEGRATION_CHANNELS: readonly DashboardIntegrationChanne
       shortLabel: "Google",
     },
     { id: "lexoffice", label: "Lexware Office", shortLabel: "Lexware" },
+    { id: "tripadvisor", label: "TripAdvisor", shortLabel: "TA" },
   ] as const;
 
 export type DashboardIntegrationItem = DashboardIntegrationChannelMeta & {

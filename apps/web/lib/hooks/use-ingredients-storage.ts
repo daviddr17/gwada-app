@@ -493,9 +493,8 @@ export function useIngredientsStorage() {
         const base = {
           id: createId(),
           at: new Date().toISOString(),
-          userFirstName: "",
-          userLastName: "",
-          userSource: "local_profile" as const,
+          userFirstName: opts.stockActor.firstName.trim(),
+          userLastName: opts.stockActor.lastName.trim(),
           fromQuantity: prev.currentStock,
           toQuantity: nextStock,
           unitId,

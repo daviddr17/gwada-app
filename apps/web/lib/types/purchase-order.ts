@@ -6,11 +6,27 @@ export type OrderProtocolActor = {
   lastName: string;
 };
 
-/** Einziger lokaler Nutzer: Anzeigenamen kommen aus dem persönlichen Profil. */
+/** @deprecated Legacy Single-Device-Hinweis; Anzeige nutzt eingefrorene Namen. */
 export type ProtocolUserSource = "local_profile";
 
 export function formatOrderProtocolUserName(actor: OrderProtocolActor): string {
   return `${actor.firstName.trim()} ${actor.lastName.trim()}`.trim();
+}
+
+/** Vor-/Nachname zum Einfrieren in Protokoll-Einträgen (kein `local_profile`-Remapping). */
+export function protocolActorNameFields(actor: OrderProtocolActor): {
+  userFirstName: string;
+  userLastName: string;
+} {
+  return {
+    userFirstName: actor.firstName.trim(),
+    userLastName: actor.lastName.trim(),
+  };
+}
+
+/** Ersteller-Text für Bestellkopf — Klarname zum Zeitpunkt der Aktion. */
+export function protocolCreatedByLabel(actor: OrderProtocolActor): string {
+  return formatOrderProtocolUserName(actor) || "—";
 }
 
 /** Neues Protokoll: Artikel zur Bestellung hinzugefügt. */
@@ -119,9 +135,9 @@ export type PurchaseOrder = {
   status: PurchaseOrderStatus;
   /** Erstellungszeitpunkt – unveränderlich */
   createdAt: string;
-  /** Legacy: fester Anzeigetext. Leer zulässig wenn `createdByUserSource` gesetzt. */
+  /** Klarname zum Zeitpunkt der Eröffnung (eingefroren). */
   createdBy: string;
-  /** Anzeige „von …“ aus persönlichem Profil statt `createdBy`-Text */
+  /** @deprecated Nicht mehr für Remapping nutzen — `createdBy` ist Source of Truth. */
   createdByUserSource?: ProtocolUserSource;
   /** Geplantes Lieferdatum (YYYY-MM-DD), optional */
   deliveryDate: string | null;
@@ -129,35 +145,36 @@ export type PurchaseOrder = {
   log: PurchaseOrderLogEntry[];
 };
 
-/** Ersteller-Zeile in Kopf und Listen: Profil-Verknüpfung oder Legacy-Text. */
+/**
+ * Ersteller-Zeile: immer der eingefrorene Klarname.
+ * `createdByUserSource: local_profile` war Single-Device-Remapping und zeigte fälschlich
+ * den aktuellen Betrachter (z. B. Admin) statt den Mitarbeitenden.
+ */
 export function resolveProtocolCreatorLabel(
   order: Pick<PurchaseOrder, "createdBy" | "createdByUserSource">,
-  currentProfile: OrderProtocolActor,
+  _currentProfile?: OrderProtocolActor,
 ): string {
-  if (order.createdByUserSource === "local_profile") {
-    return formatOrderProtocolUserName(currentProfile) || "Nutzer";
-  }
-  return order.createdBy.trim() || "—";
+  const frozen = order.createdBy.trim();
+  if (frozen) return frozen;
+  return "—";
 }
 
 export function resolveLogEntryUserLabel(
   e: PurchaseOrderLogEntry,
-  currentProfile: OrderProtocolActor,
+  _currentProfile?: OrderProtocolActor,
 ): string {
   switch (e.kind) {
     case "add_to_order":
     case "quantity_change":
     case "marked_delivered":
-    case "delivery_reverted":
-      if (e.userSource === "local_profile") {
-        return formatOrderProtocolUserName(currentProfile) || "—";
-      }
-      return (
-        formatOrderProtocolUserName({
-          firstName: e.userFirstName,
-          lastName: e.userLastName,
-        }) || "—"
-      );
+    case "delivery_reverted": {
+      const stored = formatOrderProtocolUserName({
+        firstName: e.userFirstName,
+        lastName: e.userLastName,
+      });
+      if (stored) return stored;
+      return "—";
+    }
     case "legacy_adjustment":
       return e.userName.trim() || "—";
     default:

@@ -10,7 +10,7 @@ import type {
   PurchaseOrderLine,
 } from "@/lib/types/purchase-order";
 import {
-  inventoryTouchQtyInputClassName,
+  inventoryTouchOrderQtyInputCn,
   inventoryTouchQtyUnitSuffixClassName,
 } from "@/lib/ui/inventory-touch-qty-input";
 import { cn } from "@/lib/utils";
@@ -77,7 +77,7 @@ function PurchaseOrderMobileLineQtyInput({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={cn(inventoryTouchQtyInputClassName, "pr-16")}
+        className={inventoryTouchOrderQtyInputCn(true)}
         aria-label={`Menge ${line.ingredientName}`}
       />
       <span className={inventoryTouchQtyUnitSuffixClassName}>

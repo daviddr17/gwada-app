@@ -8,9 +8,9 @@ import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-stor
 import type { Ingredient } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
 import {
-  inventoryTouchOrderQtyHighlightCn,
-  inventoryTouchQtyInputClassName,
+  inventoryTouchOrderQtyInputCn,
   inventoryTouchQtyUnitSuffixClassName,
+  inventoryTouchStockQtyInputClassName,
 } from "@/lib/ui/inventory-touch-qty-input";
 import { cn } from "@/lib/utils";
 
@@ -72,7 +72,7 @@ function InventoryMobileStockInput({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={cn(inventoryTouchQtyInputClassName, "pr-16")}
+        className={inventoryTouchStockQtyInputClassName}
         aria-label={`Bestand ${unitLabel}`}
       />
       <span className={inventoryTouchQtyUnitSuffixClassName}>{unitLabel}</span>
@@ -245,7 +245,7 @@ function InventoryMobileOrderInput({
             ? "Menge in der offenen Bestellung dieses Lieferanten (0 entfernt die Position)"
             : "Ohne Lieferant nicht bestellbar"
         }
-        className={inventoryTouchOrderQtyHighlightCn(highlightOrderQty)}
+        className={inventoryTouchOrderQtyInputCn(highlightOrderQty)}
         aria-label={`Bestellung ${unitLabel}`}
       />
       <span className={inventoryTouchQtyUnitSuffixClassName}>{unitLabel}</span>
@@ -390,9 +390,9 @@ export function InventoryMobileStockList({
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="min-w-0">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-sky-800/80 dark:text-sky-300/90">
                   Bestand
                 </p>
                 <InventoryMobileStockInput
@@ -403,8 +403,8 @@ export function InventoryMobileStockList({
                   onCommitStock={onCommitStock}
                 />
               </div>
-              <div>
-                <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+              <div className="min-w-0">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-800/80 dark:text-emerald-300/90">
                   Bestellung
                 </p>
                 <InventoryMobileOrderInput
@@ -422,7 +422,7 @@ export function InventoryMobileStockList({
                   updateLineQuantity={updateLineQuantity}
                 />
                 {!orderCtx.canOrder ? (
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <p className="mt-1 text-[10px] leading-snug text-muted-foreground">
                     Ohne Lieferant nicht bestellbar
                   </p>
                 ) : null}

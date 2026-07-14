@@ -23,7 +23,6 @@ import {
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
 import { StaffOverviewCompletedShiftsSheet } from "@/components/staff/staff-overview-completed-shifts-sheet";
-import { DashboardReservationsListSheet } from "@/components/dashboard/dashboard-reservations-list-sheet";
 import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
@@ -186,10 +185,7 @@ function DashboardHeuteTileSkeleton() {
           <Skeleton key={i} className="h-9 w-[5.25rem] rounded-lg" />
         ))}
       </div>
-      <div className="grid gap-2 lg:grid-cols-2">
-        <Skeleton className="h-28 rounded-lg" />
-        <Skeleton className="h-28 rounded-lg" />
-      </div>
+      <Skeleton className="h-28 rounded-lg" />
     </div>
   );
 }
@@ -207,8 +203,6 @@ export function DashboardHeuteTile() {
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
-  const [todayReservationsSheetOpen, setTodayReservationsSheetOpen] =
-    useState(false);
 
   const accessOptions = {
     permissionsLoading,
@@ -266,7 +260,6 @@ export function DashboardHeuteTile() {
   const todayUpcomingReservations =
     reservations.summary?.todayUpcomingReservations ?? 0;
   const todayUpcomingGuests = reservations.summary?.todayUpcomingGuests ?? 0;
-  const todayUpcomingList = reservations.summary?.todayUpcomingList ?? [];
 
   return (
     <DashboardWidgetShell
@@ -376,92 +369,50 @@ export function DashboardHeuteTile() {
           ) : null}
         </DashboardCompactInlineMetrics>
 
-        <div className="grid gap-2 lg:grid-cols-2">
-          {can.reservations ? (
-            <HeutePanel
-              title="Reservierungen heute"
-              titleClassName="text-accent/90"
-            >
-              <button
-                type="button"
-                onClick={() => setTodayReservationsSheetOpen(true)}
-                className="block w-full rounded-md px-0.5 text-left transition-colors hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <div className="flex flex-wrap gap-x-5 gap-y-2 py-1">
-                  <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Anstehend
-                    </p>
-                    <p className="text-lg font-semibold tabular-nums leading-tight text-foreground">
-                      {todayUpcomingReservations}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {todayUpcomingReservations === 1
-                        ? "Reservierung"
-                        : "Reservierungen"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      Personen
-                    </p>
-                    <p className="text-lg font-semibold tabular-nums leading-tight text-foreground">
-                      {todayUpcomingGuests}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {todayUpcomingGuests === 1 ? "Gast" : "Gäste"}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </HeutePanel>
-          ) : null}
+        <HeutePanel title="Aufmerksamkeit" titleClassName="text-blue-600/90 dark:text-blue-400/90">
+          <div className="space-y-2">
+            {can.reservations && unconfirmedRecent.length > 0 ? (
+              <DashboardCompactList aria-label="Unbestätigte Reservierungen">
+                {unconfirmedRecent.slice(0, 2).map((row) => (
+                  <DashboardCompactListItem
+                    key={row.id}
+                    href={row.href}
+                    title={row.guestLabel}
+                    meta={`${row.partySize} P.`}
+                    trailing={formatReservationTime(row.startsAt, restaurantTimeZone)}
+                    stripeVariant="attention"
+                    className="py-2"
+                  />
+                ))}
+              </DashboardCompactList>
+            ) : null}
 
-          <HeutePanel title="Aufmerksamkeit" titleClassName="text-blue-600/90 dark:text-blue-400/90">
-            <div className="space-y-2">
-              {can.reservations && unconfirmedRecent.length > 0 ? (
-                <DashboardCompactList aria-label="Unbestätigte Reservierungen">
-                  {unconfirmedRecent.slice(0, 2).map((row) => (
-                    <DashboardCompactListItem
-                      key={row.id}
-                      href={row.href}
-                      title={row.guestLabel}
-                      meta={`${row.partySize} P.`}
-                      trailing={formatReservationTime(row.startsAt, restaurantTimeZone)}
-                      stripeVariant="attention"
-                      className="py-2"
-                    />
-                  ))}
-                </DashboardCompactList>
-              ) : null}
+            {can.messages && (messages.summary?.unread.length ?? 0) > 0 ? (
+              <DashboardCompactList aria-label="Ungelesene Nachrichten">
+                {messages.summary!.unread.slice(0, 2).map((row) => (
+                  <DashboardCompactListItem
+                    key={row.contactId}
+                    href={row.href}
+                    title={row.contactName}
+                    meta={row.preview}
+                    stripeVariant="attention"
+                    className="py-2"
+                  />
+                ))}
+              </DashboardCompactList>
+            ) : null}
 
-              {can.messages && (messages.summary?.unread.length ?? 0) > 0 ? (
-                <DashboardCompactList aria-label="Ungelesene Nachrichten">
-                  {messages.summary!.unread.slice(0, 2).map((row) => (
-                    <DashboardCompactListItem
-                      key={row.contactId}
-                      href={row.href}
-                      title={row.contactName}
-                      meta={row.preview}
-                      stripeVariant="attention"
-                      className="py-2"
-                    />
-                  ))}
-                </DashboardCompactList>
-              ) : null}
-
-              {!canShowAufmerksamkeit ? (
-                <p className="px-0.5 text-[11px] text-muted-foreground">
-                  Keine Berechtigung für Tagesmodule.
-                </p>
-              ) : !hasAufmerksamkeitContent ? (
-                <p className="px-0.5 text-[11px] text-muted-foreground">
-                  Keine Auffälligkeiten
-                </p>
-              ) : null}
-            </div>
-          </HeutePanel>
-        </div>
+            {!canShowAufmerksamkeit ? (
+              <p className="px-0.5 text-[11px] text-muted-foreground">
+                Keine Berechtigung für Tagesmodule.
+              </p>
+            ) : !hasAufmerksamkeitContent ? (
+              <p className="px-0.5 text-[11px] text-muted-foreground">
+                Keine Auffälligkeiten
+              </p>
+            ) : null}
+          </div>
+        </HeutePanel>
       </div>
 
       {presenceSheetMode ? (
@@ -486,16 +437,6 @@ export function DashboardHeuteTile() {
         />
       ) : null}
 
-      {todayReservationsSheetOpen ? (
-        <DashboardReservationsListSheet
-          open={todayReservationsSheetOpen}
-          onOpenChange={setTodayReservationsSheetOpen}
-          mode="today_upcoming"
-          rows={todayUpcomingList}
-          timeZone={restaurantTimeZone}
-          description={`${todayUpcomingReservations} Reservierungen · ${todayUpcomingGuests} Personen`}
-        />
-      ) : null}
     </DashboardWidgetShell>
   );
 }

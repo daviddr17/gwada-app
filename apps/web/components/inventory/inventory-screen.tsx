@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
+import { InventoryMobileStockList } from "@/components/inventory/inventory-mobile-stock-list";
 import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient-stock-protocol-drawer";
 import { IngredientUsageDrawer } from "@/components/inventory/ingredient-usage-drawer";
 import {
@@ -33,6 +34,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   Select,
@@ -85,6 +87,8 @@ import {
   moduleDataTableHeadCellDenseClassName,
   moduleDataTableHeadLabelClassName,
   moduleDataTableHeadRowSortableClassName,
+  moduleListPaginationAboveClassName,
+  moduleListPaginationBelowClassName,
   moduleTableFullscreenChromeInsetDenseClassName,
 } from "@/lib/ui/module-data-table";
 import { ModuleTableSortHeader } from "@/lib/ui/module-table-sort-header";
@@ -1090,6 +1094,50 @@ export function InventoryScreen() {
         </Button>
       </div>
 
+      <div className="md:hidden">
+        <ListPaginationSurround
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginatedRows.length}
+          totalCount={totalCount}
+          itemLabel="Zutaten"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          classNameAbove={moduleListPaginationAboveClassName}
+          classNameBelow={moduleListPaginationBelowClassName}
+        >
+          <InventoryMobileStockList
+            rows={paginatedRows}
+            unitLabelById={(unitId) => {
+              const unitDef = units.items.find((u) => u.id === unitId);
+              return unitDef != null
+                ? `${unitDef.name}${unitDef.active === false ? " · inaktiv" : ""}`
+                : unitId;
+            }}
+            metaLineForRow={(row) => {
+              const parts = [
+                nameById(ingredientCategories.items, row.categoryId),
+                nameById(suppliers.items, row.supplierId),
+                nameById(brands.items, row.brandId),
+              ].filter((s) => s.trim().length > 0 && s !== "—");
+              return parts.length > 0 ? parts.join(" · ") : null;
+            }}
+            actor={actor}
+            onCommitStock={commitStockChange}
+            onOpenUsage={(row) =>
+              setUsageDrawer({ id: row.id, name: row.name })
+            }
+            onOpenProtocol={(row) => setStockProtocolIngredientId(row.id)}
+            onDelete={(row) =>
+              setIngredientDelete({ id: row.id, name: row.name })
+            }
+          />
+        </ListPaginationSurround>
+      </div>
+
+      <div className="hidden md:block">
       <ModulePaginatedDataTable
         page={currentPage}
         totalPages={totalPages}
@@ -1375,6 +1423,7 @@ export function InventoryScreen() {
           </tbody>
         </table>
       </ModulePaginatedDataTable>
+      </div>
         </div>
       )}
 

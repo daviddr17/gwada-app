@@ -51,7 +51,12 @@ import {
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import type {
   InsightsStatisticsResult,
+  InsightsStatsDays,
   InsightsStatsPeriod,
+} from "@/lib/insights/compute-insights-statistics";
+import {
+  INSIGHTS_GOOGLE_MAX_DAYS,
+  INSIGHTS_META_MAX_DAYS,
 } from "@/lib/insights/compute-insights-statistics";
 import { formatReviewRating } from "@/lib/reviews/compute-review-statistics";
 import {
@@ -60,6 +65,52 @@ import {
 } from "@/components/workspace/workspace-restaurant-placeholder";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
+
+type PeriodSelection =
+  | { mode: "months"; value: InsightsStatsPeriod }
+  | { mode: "days"; value: InsightsStatsDays };
+
+function defaultPeriodForPlatform(platform: InsightsPlatform): PeriodSelection {
+  if (platform === "facebook" || platform === "instagram") {
+    return { mode: "days", value: INSIGHTS_META_MAX_DAYS };
+  }
+  if (platform === "google_business") {
+    return { mode: "days", value: INSIGHTS_GOOGLE_MAX_DAYS };
+  }
+  return { mode: "months", value: 3 };
+}
+
+function periodOptionsForPlatform(
+  platform: InsightsPlatform,
+): { selection: PeriodSelection; label: string }[] {
+  if (platform === "facebook" || platform === "instagram") {
+    return [
+      { selection: { mode: "days", value: 7 }, label: "7 Tage" },
+      {
+        selection: { mode: "days", value: INSIGHTS_META_MAX_DAYS },
+        label: `${INSIGHTS_META_MAX_DAYS} Tage`,
+      },
+    ];
+  }
+  if (platform === "google_business") {
+    return [
+      { selection: { mode: "days", value: 30 }, label: "30 Tage" },
+      {
+        selection: { mode: "days", value: INSIGHTS_GOOGLE_MAX_DAYS },
+        label: `${INSIGHTS_GOOGLE_MAX_DAYS} Tage`,
+      },
+    ];
+  }
+  return [
+    { selection: { mode: "months", value: 3 }, label: "3 Mon." },
+    { selection: { mode: "months", value: 6 }, label: "6 Mon." },
+    { selection: { mode: "months", value: 12 }, label: "12 Mon." },
+  ];
+}
+
+function samePeriod(a: PeriodSelection, b: PeriodSelection): boolean {
+  return a.mode === b.mode && a.value === b.value;
+}
 
 const monthConfig = {
   count: { label: "Anzahl", color: "var(--accent)" },
@@ -148,7 +199,11 @@ export function InsightsOverviewScreen() {
   const [platform, setPlatformState] = useState<InsightsPlatform>(() =>
     parseInsightsPlatform(searchParams.get("platform")),
   );
-  const [period, setPeriod] = useState<InsightsStatsPeriod>(12);
+  const [period, setPeriod] = useState<PeriodSelection>(() =>
+    defaultPeriodForPlatform(
+      parseInsightsPlatform(searchParams.get("platform")),
+    ),
+  );
   const [data, setData] = useState<InsightsStatisticsResult | null>(null);
   const [loading, setLoading] = useState(true);
   const showSkeleton = useDeferredSkeleton(loading && !data);
@@ -156,6 +211,7 @@ export function InsightsOverviewScreen() {
   const setPlatform = useCallback(
     (next: InsightsPlatform) => {
       setPlatformState(next);
+      setPeriod(defaultPeriodForPlatform(next));
       const params = new URLSearchParams(searchParams.toString());
       if (next === INSIGHTS_PLATFORM_DEFAULT) params.delete("platform");
       else params.set("platform", next);
@@ -166,7 +222,8 @@ export function InsightsOverviewScreen() {
   );
 
   useEffect(() => {
-    setPlatformState(parseInsightsPlatform(searchParams.get("platform")));
+    const next = parseInsightsPlatform(searchParams.get("platform"));
+    setPlatformState(next);
   }, [searchParams]);
 
   const load = useCallback(async () => {
@@ -177,10 +234,12 @@ export function InsightsOverviewScreen() {
     }
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        restaurantId,
-        monthsBack: String(period),
-      });
+      const params = new URLSearchParams({ restaurantId });
+      if (period.mode === "days") {
+        params.set("daysBack", String(period.value));
+      } else {
+        params.set("monthsBack", String(period.value));
+      }
       const res = await fetch(`/api/insights/statistics?${params}`);
       const body = (await res.json()) as InsightsStatisticsResult & {
         error?: string;
@@ -200,6 +259,18 @@ export function InsightsOverviewScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const periodOptions = useMemo(
+    () => periodOptionsForPlatform(platform),
+    [platform],
+  );
+
+  useEffect(() => {
+    const allowed = periodOptionsForPlatform(platform);
+    if (!allowed.some((opt) => samePeriod(opt.selection, period))) {
+      setPeriod(defaultPeriodForPlatform(platform));
+    }
+  }, [platform, period]);
 
   const availablePlatforms = useMemo(() => {
     const set = new Set<InsightsPlatform>(["gwada"]);
@@ -265,21 +336,24 @@ export function InsightsOverviewScreen() {
             role="group"
             aria-label="Zeitraum"
           >
-            {([3, 6, 12] as const).map((m) => (
-              <Button
-                key={m}
-                type="button"
-                size="sm"
-                variant={period === m ? "default" : "ghost"}
-                className={cn(
-                  "h-8 rounded-lg px-3 text-xs",
-                  period === m && "shadow-sm",
-                )}
-                onClick={() => setPeriod(m)}
-              >
-                {m} Mon.
-              </Button>
-            ))}
+            {periodOptions.map((opt) => {
+              const active = samePeriod(opt.selection, period);
+              return (
+                <Button
+                  key={`${opt.selection.mode}-${opt.selection.value}`}
+                  type="button"
+                  size="sm"
+                  variant={active ? "default" : "ghost"}
+                  className={cn(
+                    "h-8 rounded-lg px-3 text-xs",
+                    active && "shadow-sm",
+                  )}
+                  onClick={() => setPeriod(opt.selection)}
+                >
+                  {opt.label}
+                </Button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -289,10 +363,13 @@ export function InsightsOverviewScreen() {
         {platform === "gwada"
           ? " — nur Gwada-eigene Kennzahlen und Diagramme (kein Plattform-Cache)."
           : platform === "google_business"
-            ? " — Kennzahlen und Verlauf (Performance i. d. R. letzte ~90 Tage)."
+            ? ` — Kennzahlen und Verlauf (Google Performance max. ~${INSIGHTS_GOOGLE_MAX_DAYS} Tage).`
             : platform === "facebook" || platform === "instagram"
-              ? " — Kennzahlen und Verlauf (Meta-Insights meist letzte ~30 Tage)."
+              ? ` — Kennzahlen und Verlauf (Meta Account-Insights max. ~${INSIGHTS_META_MAX_DAYS} Tage).`
               : " — Kennzahlen und Verlauf."}
+        {data?.periodStartYmd && data?.periodEndYmd
+          ? ` Zeitraum ${data.periodStartYmd} – ${data.periodEndYmd}.`
+          : null}
       </p>
 
       {!data ? (
@@ -588,7 +665,7 @@ export function InsightsOverviewScreen() {
           <div className="grid gap-6 lg:grid-cols-2">
             <DayLineChart
               title="Instagram Reichweite / Tag"
-              description="Account Insights — i. d. R. letzte ~30 Tage."
+              description={`Account Insights — Zeitraum bis ${INSIGHTS_META_MAX_DAYS} Tage.`}
               points={instagram.series[0]?.byDay ?? []}
               seriesName="Reichweite"
               stroke="var(--chart-2)"

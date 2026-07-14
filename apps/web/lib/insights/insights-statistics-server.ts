@@ -3,6 +3,7 @@ import "server-only";
 import { computeContactStatistics } from "@/lib/contacts/compute-contact-statistics";
 import {
   computeInsightsStatistics,
+  type InsightsStatsDays,
   type InsightsStatsPeriod,
   type InsightsStatisticsResult,
 } from "@/lib/insights/compute-insights-statistics";
@@ -32,22 +33,76 @@ import type { ReviewAnalyticsRow } from "@/lib/supabase/reviews-analytics-db";
 import { fetchAllSupabaseRows } from "@/lib/supabase/fetch-all-supabase-rows";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-function periodRange(monthsBack: InsightsStatsPeriod): {
+function periodRangeFromMonths(monthsBack: InsightsStatsPeriod): {
+  periodMode: "months";
+  periodMonths: InsightsStatsPeriod;
+  periodDays: null;
   periodStart: Date;
   periodEnd: Date;
   rangeStartIso: string;
   rangeEndIso: string;
+  startYmd: string;
+  endYmd: string;
 } {
   const periodEnd = startOfLocalDay(new Date());
   periodEnd.setHours(23, 59, 59, 999);
   const periodStart = startOfLocalDay(new Date());
   periodStart.setMonth(periodStart.getMonth() - monthsBack);
   return {
+    periodMode: "months",
+    periodMonths: monthsBack,
+    periodDays: null,
     periodStart,
     periodEnd,
     rangeStartIso: periodStart.toISOString(),
     rangeEndIso: exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd),
+    startYmd: localDayKey(periodStart),
+    endYmd: localDayKey(periodEnd),
   };
+}
+
+function periodRangeFromDays(daysBack: InsightsStatsDays): {
+  periodMode: "days";
+  periodMonths: null;
+  periodDays: InsightsStatsDays;
+  periodStart: Date;
+  periodEnd: Date;
+  rangeStartIso: string;
+  rangeEndIso: string;
+  startYmd: string;
+  endYmd: string;
+} {
+  const periodEnd = startOfLocalDay(new Date());
+  periodEnd.setHours(23, 59, 59, 999);
+  const periodStart = startOfLocalDay(new Date());
+  periodStart.setDate(periodStart.getDate() - daysBack);
+  return {
+    periodMode: "days",
+    periodMonths: null,
+    periodDays: daysBack,
+    periodStart,
+    periodEnd,
+    rangeStartIso: periodStart.toISOString(),
+    rangeEndIso: exclusiveUtcIsoAfterLocalVisibleEnd(periodEnd),
+    startYmd: localDayKey(periodStart),
+    endYmd: localDayKey(periodEnd),
+  };
+}
+
+export type InsightsStatisticsPeriodInput =
+  | { monthsBack: InsightsStatsPeriod }
+  | { daysBack: InsightsStatsDays };
+
+function resolvePeriodInput(
+  input: InsightsStatisticsPeriodInput | InsightsStatsPeriod,
+) {
+  if (typeof input === "number") {
+    return periodRangeFromMonths(input);
+  }
+  if ("daysBack" in input) {
+    return periodRangeFromDays(input.daysBack);
+  }
+  return periodRangeFromMonths(input.monthsBack);
 }
 
 function sumNewsEngagement(items: UnifiedNewsItem[]): {
@@ -320,7 +375,9 @@ async function fetchNewsItemsAdmin(
 export async function fetchInsightsStatistics(
   sb: SupabaseClient,
   restaurantId: string,
-  monthsBack: InsightsStatsPeriod = 12,
+  periodInput: InsightsStatisticsPeriodInput | InsightsStatsPeriod = {
+    monthsBack: 12,
+  },
 ): Promise<{ data: InsightsStatisticsResult | null; error: string | null }> {
   if (!isUuidRestaurantId(restaurantId)) {
     return { data: null, error: "invalid_request" };
@@ -329,12 +386,19 @@ export async function fetchInsightsStatistics(
   const admin = createSupabaseAdminClient();
   if (!admin) return { data: null, error: "server_misconfigured" };
 
-  const { periodStart, periodEnd, rangeStartIso, rangeEndIso } =
-    periodRange(monthsBack);
+  const {
+    periodMode,
+    periodMonths,
+    periodDays,
+    periodStart,
+    periodEnd,
+    rangeStartIso,
+    rangeEndIso,
+    startYmd,
+    endYmd,
+  } = resolvePeriodInput(periodInput);
 
   const flags = await fetchPlatformMessagingFlags(sb);
-  const startYmd = localDayKey(periodStart);
-  const endYmd = localDayKey(periodEnd);
 
   const [
     gwadaReviewsRes,
@@ -432,9 +496,13 @@ export async function fetchInsightsStatistics(
 
   return {
     data: computeInsightsStatistics({
-      periodMonths: monthsBack,
+      periodMode,
+      periodMonths,
+      periodDays,
       periodStart,
       periodEnd,
+      periodStartYmd: startYmd,
+      periodEndYmd: endYmd,
       reservations,
       reviews: gwadaReviewsRes.data,
       messages,

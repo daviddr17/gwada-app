@@ -7,10 +7,20 @@ import type { ReviewStatisticsResult } from "@/lib/reviews/compute-review-statis
 
 export type InsightsStatsPeriod = 3 | 6 | 12;
 
+/** Kurzzeitraum für Meta/Google (Meta API max. ~28 Tage). */
+export type InsightsStatsDays = 7 | 28 | 30 | 90;
+
+export const INSIGHTS_META_MAX_DAYS = 28;
+export const INSIGHTS_GOOGLE_MAX_DAYS = 90;
+
 export type InsightsStatisticsResult = {
-  periodMonths: InsightsStatsPeriod;
+  periodMode: "months" | "days";
+  periodMonths: InsightsStatsPeriod | null;
+  periodDays: InsightsStatsDays | null;
   periodStart: string;
   periodEnd: string;
+  periodStartYmd: string;
+  periodEndYmd: string;
   reservations: {
     totalInPeriod: number;
     totalGuests: number;
@@ -53,9 +63,13 @@ export type InsightsStatisticsResult = {
 };
 
 export function computeInsightsStatistics(input: {
-  periodMonths: InsightsStatsPeriod;
+  periodMode: "months" | "days";
+  periodMonths: InsightsStatsPeriod | null;
+  periodDays: InsightsStatsDays | null;
   periodStart: Date;
   periodEnd: Date;
+  periodStartYmd: string;
+  periodEndYmd: string;
   reservations: ReservationStatsResult;
   reviews: ReviewStatisticsResult;
   messages: ContactStatisticsResult;
@@ -66,9 +80,13 @@ export function computeInsightsStatistics(input: {
   tripadvisor: InsightsStatisticsResult["tripadvisor"];
 }): InsightsStatisticsResult {
   return {
+    periodMode: input.periodMode,
     periodMonths: input.periodMonths,
+    periodDays: input.periodDays,
     periodStart: input.periodStart.toISOString(),
     periodEnd: input.periodEnd.toISOString(),
+    periodStartYmd: input.periodStartYmd,
+    periodEndYmd: input.periodEndYmd,
     reservations: {
       totalInPeriod: input.reservations.totalInPeriod,
       totalGuests: input.reservations.totalGuests,

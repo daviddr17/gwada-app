@@ -86,6 +86,37 @@ function NewsTimelineSkeleton({ count = 5 }: { count?: number }) {
   );
 }
 
+/** Nach bereits sichtbaren Beiträgen, solange der Hintergrund-Sync noch läuft. */
+export function NewsFeedSyncTrailingSkeleton({
+  viewMode = "list",
+  count = 3,
+}: {
+  viewMode?: NewsViewMode;
+  count?: number;
+}) {
+  if (viewMode === "grid") {
+    return (
+      <div
+        aria-busy
+        aria-label="Weitere News werden geladen"
+        className="pointer-events-none mt-4"
+      >
+        <NewsGridSkeleton count={count} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-busy
+      aria-label="Weitere News werden geladen"
+      className="pointer-events-none mt-3"
+    >
+      <NewsTimelineSkeleton count={count} />
+    </div>
+  );
+}
+
 export function NewsFeedSkeleton({
   viewMode = "list",
   className,

@@ -171,7 +171,11 @@ export function FeedMediaImage({
 
   return (
     <div
-      className={cn("relative w-full overflow-hidden bg-muted/40", className)}
+      className={cn(
+        "relative w-full overflow-hidden bg-muted/40",
+        !loaded && !blurDataUrl && !loadFailed && "skeleton-shimmer",
+        className,
+      )}
       style={{ aspectRatio }}
     >
       {blurDataUrl ? (

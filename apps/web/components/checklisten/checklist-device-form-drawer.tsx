@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { staffDrawerScrollClassName } from "@/components/staff/staff-form-field-styles";
@@ -18,6 +18,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { ChecklistAreaDefinition } from "@/lib/types/checklist-areas-devices";
 import type { RestaurantChecklistDeviceRow } from "@/lib/types/checklist-areas-devices";
 import type { ChecklistDeviceUpsertInput } from "@/lib/types/checklist-areas-devices";
@@ -59,20 +60,19 @@ export function ChecklistDeviceFormDrawer({
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, device?.id ?? "__create__", () => {
     if (device) {
       setName(device.name);
       setAreaId(device.area_id ?? "");
       setTargetMin(device.target_min != null ? String(device.target_min) : "");
       setTargetMax(device.target_max != null ? String(device.target_max) : "");
-    } else {
-      setName("");
-      setAreaId("");
-      setTargetMin("");
-      setTargetMax("");
+      return;
     }
-  }, [open, device]);
+    setName("");
+    setAreaId("");
+    setTargetMin("");
+    setTargetMax("");
+  });
 
   const areaOptions = [
     { value: "", label: "Kein Bereich" },

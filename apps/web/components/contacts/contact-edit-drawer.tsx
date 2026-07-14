@@ -204,8 +204,25 @@ export function ContactEditDrawer({
 
   const fieldClass = drawerFormFieldClassName;
 
+  const hydrateWasOpenRef = useRef(false);
+  const hydrateSeededForKeyRef = useRef<string | null>(null);
+  const countriesRef = useRef(countries);
+  countriesRef.current = countries;
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      hydrateWasOpenRef.current = false;
+      hydrateSeededForKeyRef.current = null;
+      return;
+    }
+    const justOpened = !hydrateWasOpenRef.current;
+    hydrateWasOpenRef.current = true;
+    const seedKey = isEdit
+      ? `edit:${contactId ?? ""}`
+      : `create:${initialDraft?.firstName ?? ""}|${initialDraft?.lastName ?? ""}|${initialDraft?.phones?.[0]?.local ?? ""}`;
+    if (!justOpened && hydrateSeededForKeyRef.current === seedKey) return;
+    hydrateSeededForKeyRef.current = seedKey;
+
     if (!isEdit) {
       setDetail(null);
       const draft = initialDraft;
@@ -307,7 +324,7 @@ export function ContactEditDrawer({
               .map((p) => {
                 const parsed = parseGuestPhone(
                   p.phone_display,
-                  countries,
+                  countriesRef.current,
                   p.country_iso2 ?? defaultCountryIso2,
                 );
                 return {
@@ -361,10 +378,10 @@ export function ContactEditDrawer({
     isEdit,
     contactId,
     restaurantId,
-    countries,
     defaultCountryIso2,
     lexofficeConnected,
     onOpenChange,
+    initialDraft,
   ]);
 
   const title = isEdit

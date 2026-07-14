@@ -28,6 +28,7 @@ import {
   isIosTouchDevice,
   useDrawerFormKeyboardAssist,
 } from "@/lib/hooks/use-drawer-form-keyboard-assist";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type {
   Ingredient,
   IngredientStockUnit,
@@ -94,64 +95,37 @@ export function IngredientDrawer({
     setIosTouch(isIosTouchDevice());
   }, []);
 
-  /** Nur beim Öffnen / Wechsel der Zutat hydraten — nicht bei jedem Realtime-Update von `initial`. */
-  const seedId = initial?.id ?? null;
-  const wasOpenRef = useRef(false);
-  const seededForKeyRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!open) {
-      wasOpenRef.current = false;
-      seededForKeyRef.current = null;
+  useDrawerFormSeed(open, initial?.id ?? "__create__", () => {
+    if (initial) {
+      setName(initial.name);
+      setUnit(initial.unit || firstActiveId(units) || "g");
+      setCurrentStock(String(initial.currentStock ?? 0));
+      setLowStockThreshold(String(initial.lowStockThreshold ?? 0));
+      setPurchaseUnitPrice(
+        initial.purchaseUnitPrice != null
+          ? formatPurchaseUnitPriceDisplay(initial.purchaseUnitPrice)
+          : "",
+      );
+      setSupplierId(initial.supplierId || firstActiveId(suppliers));
+      setCategoryId(initial.categoryId || firstActiveId(ingredientCategories));
+      setProductionSiteId(
+        initial.productionSiteId || firstActiveId(productionSites),
+      );
+      setBrandId(initial.brandId || firstActiveId(brands));
+      setActive(initial.active !== false);
       return;
     }
-    const justOpened = !wasOpenRef.current;
-    wasOpenRef.current = true;
-    const seedKey = seedId ?? "__create__";
-    if (!justOpened && seededForKeyRef.current === seedKey) return;
-    seededForKeyRef.current = seedKey;
-
-    const frame = requestAnimationFrame(() => {
-      if (seedId && initial && initial.id === seedId) {
-        setName(initial.name);
-        setUnit(initial.unit || firstActiveId(units) || "g");
-        setCurrentStock(String(initial.currentStock ?? 0));
-        setLowStockThreshold(String(initial.lowStockThreshold ?? 0));
-        setPurchaseUnitPrice(
-          initial.purchaseUnitPrice != null
-            ? formatPurchaseUnitPriceDisplay(initial.purchaseUnitPrice)
-            : "",
-        );
-        setSupplierId(initial.supplierId || firstActiveId(suppliers));
-        setCategoryId(initial.categoryId || firstActiveId(ingredientCategories));
-        setProductionSiteId(
-          initial.productionSiteId || firstActiveId(productionSites),
-        );
-        setBrandId(initial.brandId || firstActiveId(brands));
-        setActive(initial.active !== false);
-        return;
-      }
-      setName("");
-      setUnit(firstActiveId(units) || "g");
-      setCurrentStock("0");
-      setLowStockThreshold("0");
-      setPurchaseUnitPrice("");
-      setSupplierId(firstActiveId(suppliers));
-      setCategoryId(firstActiveId(ingredientCategories));
-      setProductionSiteId(firstActiveId(productionSites));
-      setBrandId(firstActiveId(brands));
-      setActive(true);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [
-    open,
-    seedId,
-    initial,
-    suppliers,
-    ingredientCategories,
-    productionSites,
-    brands,
-    units,
-  ]);
+    setName("");
+    setUnit(firstActiveId(units) || "g");
+    setCurrentStock("0");
+    setLowStockThreshold("0");
+    setPurchaseUnitPrice("");
+    setSupplierId(firstActiveId(suppliers));
+    setCategoryId(firstActiveId(ingredientCategories));
+    setProductionSiteId(firstActiveId(productionSites));
+    setBrandId(firstActiveId(brands));
+    setActive(true);
+  });
 
   const supplierOptions = useMemo(
     () =>

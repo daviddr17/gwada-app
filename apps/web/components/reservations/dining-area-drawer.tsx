@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { DiningAreaRow } from "@/lib/supabase/dining-floor-db";
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
@@ -46,20 +47,17 @@ export function DiningAreaDrawer({
   const [colorHex, setColorHex] = useState("#64748b");
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (mode === "edit" && initial) {
-        setName(initial.name);
-        setDisplayNumber(String(initial.display_number));
-        setColorHex(HEX.test(initial.color_hex) ? initial.color_hex : "#64748b");
-      } else {
-        setName("");
-        setDisplayNumber(String(suggestedDisplayNumber));
-        setColorHex("#64748b");
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mode, initial, open, suggestedDisplayNumber]);
+  useDrawerFormSeed(open, `${mode}:${initial?.id ?? "__create__"}`, () => {
+    if (mode === "edit" && initial) {
+      setName(initial.name);
+      setDisplayNumber(String(initial.display_number));
+      setColorHex(HEX.test(initial.color_hex) ? initial.color_hex : "#64748b");
+      return;
+    }
+    setName("");
+    setDisplayNumber(String(suggestedDisplayNumber));
+    setColorHex("#64748b");
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
@@ -157,8 +158,10 @@ export function AccountingVoucherDrawer({
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(
+    open,
+    editRow?.id ?? correctionOf?.id ?? `create:${initialFile?.name ?? ""}:${initialFile?.size ?? 0}`,
+    () => {
     if (editRow) {
       setVoucherKind(editRow.voucher_kind);
       setVoucherDate(editRow.voucher_date);
@@ -275,7 +278,8 @@ export function AccountingVoucherDrawer({
     setSyncToLexoffice(false);
     setSaveNewContact(false);
     setFile(initialFile ?? null);
-  }, [open, editRow, correctionOf, connectorConnected, initialFile]);
+  },
+  );
 
   useEffect(() => {
     if (!open || !editRow?.contact_id || contacts.length === 0) return;

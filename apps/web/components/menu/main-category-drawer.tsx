@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import {
   drawerScrollAreaClassName,
@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { Switch } from "@/components/ui/switch";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import type { MenuMainCategoryDefinition } from "@/lib/types/menu";
 
 type MainCategorySavePayload =
@@ -49,18 +50,15 @@ export function MainCategoryDrawer({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (mode === "edit" && initial) {
-        setName(initial.name);
-        setActive(initial.active !== false);
-      } else {
-        setName("");
-        setActive(true);
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [mode, initial, open]);
+  useDrawerFormSeed(open, `${mode}:${initial?.id ?? "__create__"}`, () => {
+    if (mode === "edit" && initial) {
+      setName(initial.name);
+      setActive(initial.active !== false);
+      return;
+    }
+    setName("");
+    setActive(true);
+  });
 
   const canDelete = mode === "edit" && initial && onDelete;
 

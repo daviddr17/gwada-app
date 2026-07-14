@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchAccountingVoucher, fetchAccountingVouchers } from "@/lib/accounting/accounting-api";
 import { voucherLabelForPicker } from "@/lib/accounting/accounting-cash-display";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { ACCOUNTING_CASH_DIRECTION_LABELS } from "@/lib/accounting/accounting-cash-book-defaults";
 import type {
   AccountingCashCategoryRow,
@@ -120,8 +121,7 @@ export function AccountingCashEntryDrawer({
     void loadVoucherOptions();
   }, [open, loadVoucherOptions]);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, initial?.id ?? "__create__", () => {
     setEntryDate(initial?.entry_date ?? todayIsoDate());
     setDirection(initial?.direction ?? "income");
     setCategoryId(initial?.category_id ?? "");
@@ -136,7 +136,7 @@ export function AccountingCashEntryDrawer({
         defaultTaxRate,
       ),
     );
-  }, [open, initial, defaultTaxRate]);
+  });
 
   const filteredCategories = useMemo(
     () => categories.filter((c) => c.direction === direction && !c.archived),

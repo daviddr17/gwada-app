@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
@@ -30,6 +30,7 @@ import {
   staffDrawerScrollClassName,
 } from "@/components/staff/staff-form-field-styles";
 import { appSelectTriggerAccentCn } from "@/lib/ui/app-select-trigger-accent";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { cn } from "@/lib/utils";
 import {
   createScheduledShift,
@@ -90,8 +91,7 @@ export function ShiftPlanShiftDrawer({
   const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, shift?.id ?? "__create__", () => {
     if (shift) {
       setStaffId(shift.staff_id);
       setDateYmd(localDayKey(new Date(shift.starts_at)));
@@ -109,15 +109,17 @@ export function ShiftPlanShiftDrawer({
     setTemplateId("none");
     setLabel("");
     setNote("");
-  }, [open, shift, defaultStaffId, defaultDay, staffRows]);
+  });
 
+  const templatesRef = useRef(templates);
+  templatesRef.current = templates;
   useEffect(() => {
     if (templateId === "none") return;
-    const t = templates.find((x) => x.id === templateId);
+    const t = templatesRef.current.find((x) => x.id === templateId);
     if (!t) return;
     setStartTime(t.start_time.slice(0, 5));
     setEndTime(t.end_time.slice(0, 5));
-  }, [templateId, templates]);
+  }, [templateId]);
 
   const staffSelectOptions = useMemo(
     () =>

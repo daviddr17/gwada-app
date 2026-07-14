@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
@@ -19,6 +19,7 @@ import { DrawerFormFooter } from "@/components/ui/drawer-form-footer";
 import { formScheduleTimeInputClassName } from "@/components/ui/date-picker";
 import { staffDrawerFieldClassName } from "@/components/staff/staff-form-field-styles";
 import { MENU_TAXONOMY_COLOR_INPUT_CLASSNAME } from "@/lib/constants/menu-color-picker";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { cn } from "@/lib/utils";
 import type { RestaurantShiftTemplateRow } from "@/lib/types/staff-shift-schedule";
 import {
@@ -54,8 +55,7 @@ export function ShiftPlanTemplateDrawer({
   const [pending, setPending] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, `${mode}:${template?.id ?? "__create__"}`, () => {
     if (mode === "edit" && template) {
       setName(template.name);
       setStartTime(template.start_time.slice(0, 5));
@@ -67,7 +67,7 @@ export function ShiftPlanTemplateDrawer({
     setStartTime("09:00");
     setEndTime("17:00");
     setColor("#3b82f6");
-  }, [open, mode, template]);
+  });
 
   const save = async () => {
     const trimmed = name.trim();

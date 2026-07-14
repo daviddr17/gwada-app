@@ -354,8 +354,24 @@ export function ReservationEditDrawer({
     defaultDwellMinutes,
   ]);
 
+  const reservationHydrateWasOpenRef = useRef(false);
+  const reservationHydrateSeededKeyRef = useRef<string | null>(null);
+  const countriesForPhoneRef = useRef(countriesForPhone);
+  countriesForPhoneRef.current = countriesForPhone;
+
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      reservationHydrateWasOpenRef.current = false;
+      reservationHydrateSeededKeyRef.current = null;
+      return;
+    }
+    const justOpened = !reservationHydrateWasOpenRef.current;
+    reservationHydrateWasOpenRef.current = true;
+    const seedKey = reservation?.id
+      ?? `create:${createFor?.restaurantId ?? ""}:${createFor?.day ?? ""}:${createFor?.initialTimeHm ?? ""}:${createFor?.initialContactId ?? ""}`;
+    if (!justOpened && reservationHydrateSeededKeyRef.current === seedKey) return;
+    reservationHydrateSeededKeyRef.current = seedKey;
+
     const defaultIso = restaurantIdForFetch
       ? resolveCountryIso2FromLabel(
           getProfileForRestaurantId(restaurantIdForFetch).country,
@@ -439,7 +455,7 @@ export function ReservationEditDrawer({
           if (phone) {
             const parsed = parseGuestPhone(
               phone,
-              countriesForPhone,
+              countriesForPhoneRef.current,
               defaultIso,
             );
             setPhoneCountryIso(parsed.iso2);
@@ -461,7 +477,6 @@ export function ReservationEditDrawer({
     restaurantIdForFetch,
     restaurantTimeZone,
     getProfileForRestaurantId,
-    countriesForPhone,
   ]);
 
   useEffect(() => {

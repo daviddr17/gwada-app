@@ -11,6 +11,7 @@ import type { PublicProfileLogoIntro } from "@/components/public/public-profile-
 import { ProfilePublicDockProvider } from "@/components/public/profile-public-dock-bridge";
 import { RestaurantProfileBrandedCanvas } from "@/components/public/restaurant-profile-branded-canvas";
 import { RestaurantPublicProfileLauncherSkeleton } from "@/components/public/restaurant-public-profile-launcher-skeleton";
+import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { PlatformAppBrandingProvider } from "@/lib/contexts/platform-app-branding-context";
 import type { PublicRestaurantProfile } from "@/lib/restaurant/public-restaurant-server";
@@ -77,6 +78,11 @@ export function RestaurantPublicProfilePageShell({
   return (
     <PlatformAppBrandingProvider initialBranding={initialBranding}>
       <ProfilePublicDockProvider>
+        <RestaurantUsageBeacon
+          slug={profile.slug}
+          source="profile"
+          dimension="view"
+        />
         <LazyMotion features={domAnimation}>
         <div className="relative flex h-dvh flex-col overflow-hidden">
           {showSkeletonOverlay ? (

@@ -24,55 +24,19 @@ export function defaultModuleToggles(
   ) as NotificationModuleToggles;
 }
 
+/**
+ * Defaults für Nutzer ohne gespeicherte Prefs (z. B. neu akzeptierte Einladung).
+ * Glocke/In-App: alle Module an — Push (WA/E-Mail): aus, Nutzer schaltet aktiv ein.
+ * Sichtbarkeit der Toggles in den Einstellungen folgt weiterhin den Rechten;
+ * die Default-Werte selbst werden nicht nach Rechten gefiltert.
+ */
 export function defaultNotificationPreferences(): NotificationPreferences {
   return {
     channelWhatsappEnabled: false,
-    channelEmailEnabled: true,
+    channelEmailEnabled: false,
     inAppModules: defaultModuleToggles(true),
-    pushWhatsappModules: {
-      messages: true,
-      reviews: false,
-      changelog: false,
-      reservations_pending: true,
-      reservations_change_request: true,
-      reservations_cancellation: true,
-      staff_shift_start: false,
-      staff_shift_end: false,
-      inventory_low_stock: true,
-      accounting_quotation: true,
-      accounting_invoice: true,
-      accounting_voucher: true,
-      staff_todo_completed: false,
-      staff_todo_deferred: false,
-      staff_contract_signed: true,
-      staff_display_time_request: true,
-      staff_invite_accepted: true,
-      staff_invite_declined: true,
-      staff_display_clock_in: false,
-      staff_display_clock_out: false,
-    },
-    pushEmailModules: {
-      messages: true,
-      reviews: true,
-      changelog: true,
-      reservations_pending: true,
-      reservations_change_request: true,
-      reservations_cancellation: true,
-      staff_shift_start: true,
-      staff_shift_end: true,
-      inventory_low_stock: true,
-      accounting_quotation: true,
-      accounting_invoice: true,
-      accounting_voucher: true,
-      staff_todo_completed: true,
-      staff_todo_deferred: true,
-      staff_contract_signed: true,
-      staff_display_time_request: true,
-      staff_invite_accepted: true,
-      staff_invite_declined: true,
-      staff_display_clock_in: true,
-      staff_display_clock_out: true,
-    },
+    pushWhatsappModules: defaultModuleToggles(false),
+    pushEmailModules: defaultModuleToggles(false),
   };
 }
 

@@ -1,8 +1,5 @@
 import "server-only";
 
-import {
-  isSelfOriginatedNotification,
-} from "@/lib/notifications/notification-self-origin";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Schichtbeginn: Glocke bis zu 60 Min. vor Start. */
@@ -82,16 +79,24 @@ function shiftAssignedProfileId(s: ShiftRow): string | null {
   return row?.profile_id ?? null;
 }
 
+/**
+ * Glocke-Filter für Schichtplan-Erinnerungen.
+ * - team: alle Schichten im Fenster (Mitarbeiter-Modul-Recht)
+ * - own: nur eigene zugewiesene Schichten (nur Staff-Profil)
+ * Self-Origin wird bewusst nicht angewandt (Zeitfenster-Erinnerung).
+ */
 function filterShiftsForViewer(
   shifts: ShiftRow[],
-  viewerProfileId: string,
   dismissed: Set<string>,
-  viewerStaffId: string | null,
+  opts: {
+    scope: "team" | "own";
+    viewerStaffId: string | null;
+  },
 ): ShiftRow[] {
   return shifts.filter((s) => {
     if (dismissed.has(s.id)) return false;
-    if (viewerStaffId && s.staff_id === viewerStaffId) return true;
-    return !isSelfOriginatedNotification(viewerProfileId, shiftActorProfileId(s));
+    if (opts.scope === "team") return true;
+    return Boolean(opts.viewerStaffId && s.staff_id === opts.viewerStaffId);
   });
 }
 
@@ -184,9 +189,16 @@ function mapShiftToBellItem(
 
 export async function loadStaffShiftStartBellSummary(
   sb: SupabaseClient,
-  params: { restaurantId: string; userId: string; limit?: number },
+  params: {
+    restaurantId: string;
+    userId: string;
+    limit?: number;
+    /** team = Mitarbeiter-Modul; own = nur eigenes Staff-Profil */
+    scope?: "team" | "own";
+  },
 ): Promise<{ items: StaffShiftNotificationItem[]; totalCount: number }> {
   const now = Date.now();
+  const scope = params.scope ?? "own";
   const dismissed = await fetchDismissedShiftKeys(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
@@ -204,12 +216,10 @@ export async function loadStaffShiftStartBellSummary(
     rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
   });
 
-  const active = filterShiftsForViewer(
-    shifts,
-    params.userId,
-    dismissed,
+  const active = filterShiftsForViewer(shifts, dismissed, {
+    scope,
     viewerStaffId,
-  );
+  });
   const limit = params.limit ?? 5;
 
   return {
@@ -220,9 +230,15 @@ export async function loadStaffShiftStartBellSummary(
 
 export async function loadStaffShiftEndBellSummary(
   sb: SupabaseClient,
-  params: { restaurantId: string; userId: string; limit?: number },
+  params: {
+    restaurantId: string;
+    userId: string;
+    limit?: number;
+    scope?: "team" | "own";
+  },
 ): Promise<{ items: StaffShiftNotificationItem[]; totalCount: number }> {
   const now = Date.now();
+  const scope = params.scope ?? "own";
   const dismissed = await fetchDismissedShiftKeys(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
@@ -240,12 +256,10 @@ export async function loadStaffShiftEndBellSummary(
     rangeEndIso: new Date(now).toISOString(),
   });
 
-  const active = filterShiftsForViewer(
-    shifts,
-    params.userId,
-    dismissed,
+  const active = filterShiftsForViewer(shifts, dismissed, {
+    scope,
     viewerStaffId,
-  );
+  });
   const limit = params.limit ?? 5;
 
   return {
@@ -373,14 +387,26 @@ export async function runStaffShiftNotificationsCron(
 
 export async function filterStaffShiftPushTargets(
   _admin: SupabaseClient,
-  event: { payload: Record<string, unknown> | null },
+  event: {
+    restaurant_id?: string | null;
+    payload: Record<string, unknown> | null;
+  },
   targets: { profileId: string; restaurantId: string }[],
 ): Promise<{ profileId: string; restaurantId: string }[]> {
   const assignedProfileId = event.payload?.assignedProfileId;
   if (typeof assignedProfileId !== "string" || !assignedProfileId) {
     return [];
   }
-  return targets.filter((t) => t.profileId === assignedProfileId);
+  const restaurantId =
+    (typeof event.restaurant_id === "string" && event.restaurant_id) ||
+    targets[0]?.restaurantId;
+  if (!restaurantId) return [];
+
+  const matched = targets.filter((t) => t.profileId === assignedProfileId);
+  if (matched.length > 0) return matched;
+
+  // Zugewiesenes Profil trotzdem zustellen, auch wenn es in der Employee-Liste fehlte.
+  return [{ profileId: assignedProfileId, restaurantId }];
 }
 
 export async function dismissStaffShiftNotification(
@@ -413,9 +439,11 @@ export async function dismissAllStaffShiftNotifications(
     restaurantId: string;
     userId: string;
     kind: "start" | "end";
+    scope?: "team" | "own";
   },
 ): Promise<{ error: string | null }> {
   const now = Date.now();
+  const scope = params.scope ?? "own";
   const dismissed = await fetchDismissedShiftKeys(sb, {
     profileId: params.userId,
     restaurantId: params.restaurantId,
@@ -440,12 +468,10 @@ export async function dismissAllStaffShiftNotifications(
           rangeEndIso: new Date(now).toISOString(),
         });
 
-  const activeIds = filterShiftsForViewer(
-    shifts,
-    params.userId,
-    dismissed,
+  const activeIds = filterShiftsForViewer(shifts, dismissed, {
+    scope,
     viewerStaffId,
-  ).map((s) => s.id);
+  }).map((s) => s.id);
 
   if (activeIds.length === 0) return { error: null };
 

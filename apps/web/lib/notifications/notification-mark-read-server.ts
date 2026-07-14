@@ -35,6 +35,10 @@ import {
   dismissAllStaffShiftNotifications,
   dismissStaffShiftNotification,
 } from "@/lib/notifications/notification-staff-shift-server";
+import { loadNotificationAccessContext } from "@/lib/notifications/notification-access-context";
+import {
+  isNotificationModuleVisibleForUser,
+} from "@/lib/notifications/notification-module-permissions";
 import {
   dismissAccountingNotification,
   dismissAllAccountingNotifications,
@@ -58,8 +62,6 @@ import {
   dismissStaffDisplayClockNotification,
   isDisplayClockNotificationModule,
 } from "@/lib/notifications/notification-staff-display-clock-server";
-import { loadNotificationAccessContext } from "@/lib/notifications/notification-access-context";
-import { isNotificationModuleVisibleForUser } from "@/lib/notifications/notification-module-permissions";
 import {
   dismissAllStaffInviteResponseNotifications,
   dismissStaffInviteResponseNotification,
@@ -92,7 +94,7 @@ export async function markNotificationReadServer(
   }
 
   const admin = adminOrUserClient(sb);
-  const { access } = await loadNotificationAccessContext(sb, {
+  const { access, shiftScope } = await loadNotificationAccessContext(sb, {
     restaurantId,
     userId,
   });
@@ -207,6 +209,7 @@ export async function markNotificationReadServer(
           restaurantId,
           userId,
           kind,
+          scope: shiftScope,
         });
         return all.error ? { ok: false, error: all.error } : { ok: true };
       }

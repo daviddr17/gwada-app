@@ -21,6 +21,7 @@ import type { PublicProfileLogoIntro } from "@/components/public/public-profile-
 import { PublicProfileInfoSections } from "@/components/public/public-profile-info-sections";
 import type { PublicProfileInfoTab } from "@/components/public/public-profile-info-sections";
 import { useProfilePublicDockBridge } from "@/components/public/profile-public-dock-bridge";
+import { reportRestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { RestaurantPublicProfileHeroCard } from "@/components/public/restaurant-public-profile-hero-card";
 import { RestaurantPublicProfileModuleSkeleton } from "@/components/public/restaurant-public-profile-module-skeleton";
 import { RestaurantPublicProfileReviews } from "@/components/public/restaurant-public-profile-reviews";
@@ -975,8 +976,13 @@ export function RestaurantPublicProfileAppLauncher({
       setActiveApp(appId);
       const app = apps.find((a) => a.id === appId);
       if (app?.module) void loadModule(app.module);
+      reportRestaurantUsageBeacon({
+        slug: profile.slug,
+        source: "profile",
+        dimension: `module:${appId}`,
+      });
     },
-    [apps, loadModule],
+    [apps, loadModule, profile.slug],
   );
 
   const openApp = useCallback(
@@ -1005,8 +1011,13 @@ export function RestaurantPublicProfileAppLauncher({
 
       setActiveApp(appId);
       if (app.module) void loadModule(app.module);
+      reportRestaurantUsageBeacon({
+        slug: profile.slug,
+        source: "profile",
+        dimension: `module:${appId}`,
+      });
     },
-    [activeApp, apps, isSheetClosing, loadModule],
+    [activeApp, apps, isSheetClosing, loadModule, profile.slug],
   );
 
   const openInfoAtTab = useCallback(

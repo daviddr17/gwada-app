@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
+import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import {
   EMBED_PREVIEW_TEXT_THEME_PARAM,
@@ -53,16 +54,26 @@ export default async function EmbedSpeisekartePage({
   const { name, accentHex, currencyCode, mainCategories, categories, items, tagDefinitions } =
     result.data;
 
+  const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
+
   return (
-    <EmbedMenuWidget
-      restaurantName={name}
-      accentHex={accentHex}
-      currencyCode={currencyCode}
-      mainCategories={mainCategories}
-      categories={categories}
-      items={items}
-      tagDefinitions={tagDefinitions}
-      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
-    />
+    <>
+      {!isPreview ? (
+        <RestaurantUsageBeacon slug={slug} source="embed" dimension="menu" />
+      ) : null}
+      <EmbedMenuWidget
+        restaurantName={name}
+        accentHex={accentHex}
+        currencyCode={currencyCode}
+        mainCategories={mainCategories}
+        categories={categories}
+        items={items}
+        tagDefinitions={tagDefinitions}
+        textTheme={resolveEmbedTextTheme(
+          textTheme,
+          sp[EMBED_PREVIEW_TEXT_THEME_PARAM],
+        )}
+      />
+    </>
   );
 }

@@ -7,6 +7,7 @@ import {
   type InsightsStatisticsResult,
 } from "@/lib/insights/compute-insights-statistics";
 import { fetchPlatformInsightsBundle } from "@/lib/insights/fetch-platform-insights-bundle";
+import { fetchRestaurantUsageInsights } from "@/lib/insights/fetch-restaurant-usage-insights";
 import { computeNewsStatistics } from "@/lib/news/compute-news-statistics";
 import { computeReservationStats } from "@/lib/reservations/compute-reservation-stats";
 import { fetchReviewStatisticsBundleServer } from "@/lib/reviews/reviews-statistics-server";
@@ -270,6 +271,7 @@ export async function fetchInsightsStatistics(
     contactBundle,
     newsItems,
     syncRes,
+    usage,
     platforms,
   ] = await Promise.all([
     fetchReviewStatisticsBundleServer(sb, {
@@ -290,6 +292,11 @@ export async function fetchInsightsStatistics(
       .from("restaurant_news_platform_sync")
       .select("platform, item_count, synced_at, last_error")
       .eq("restaurant_id", restaurantId),
+    fetchRestaurantUsageInsights({
+      restaurantId,
+      startYmd,
+      endYmd,
+    }),
     fetchPlatformInsightsBundle({
       restaurantId,
       startYmd,
@@ -341,6 +348,7 @@ export async function fetchInsightsStatistics(
       messages,
       news,
       newsEngagement,
+      usage,
       platforms,
     }),
     error: null,

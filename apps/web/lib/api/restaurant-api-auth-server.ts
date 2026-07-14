@@ -10,6 +10,7 @@ import {
   checkRestaurantApiRateLimit,
   RESTAURANT_API_RATE_LIMIT_PER_MINUTE,
 } from "@/lib/api/restaurant-api-rate-limit";
+import { recordApiUsageFireAndForget } from "@/lib/insights/restaurant-usage-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
 export type AuthenticatedRestaurantApiKey = {
@@ -179,6 +180,11 @@ export async function authenticateRestaurantApiKey(
     .from("restaurant_api_keys")
     .update({ last_used_at: new Date().toISOString() })
     .eq("id", row.id as string);
+
+  recordApiUsageFireAndForget({
+    restaurantId: row.restaurant_id as string,
+    moduleId: module,
+  });
 
   return {
     ok: true,

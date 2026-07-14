@@ -25,7 +25,10 @@ import {
   type NotificationPreferences,
 } from "@/lib/notifications/notification-preferences";
 import { isNotificationModuleVisibleForUser } from "@/lib/notifications/notification-module-permissions";
-import { loadNotificationAccessContext } from "@/lib/notifications/notification-access-context";
+import {
+  loadNotificationAccessContext,
+  type StaffShiftBellScope,
+} from "@/lib/notifications/notification-access-context";
 import type {
   NotificationItem,
   NotificationModuleSummary,
@@ -204,6 +207,7 @@ async function buildStaffShiftModule(
     restaurantId: string;
     userId: string;
     module: "staff_shift_start" | "staff_shift_end";
+    shiftScope: "team" | "own";
   },
 ): Promise<NotificationModuleSummary> {
   const def = NOTIFICATION_MODULES[params.module];
@@ -213,11 +217,13 @@ async function buildStaffShiftModule(
           restaurantId: params.restaurantId,
           userId: params.userId,
           limit: BELL_ITEMS_PER_MODULE,
+          scope: params.shiftScope,
         })
       : await loadStaffShiftEndBellSummary(sb, {
           restaurantId: params.restaurantId,
           userId: params.userId,
           limit: BELL_ITEMS_PER_MODULE,
+          scope: params.shiftScope,
         });
 
   return {
@@ -340,9 +346,19 @@ const MODULE_BUILDERS: Record<
       module: "reservations_cancellation",
     }),
   staff_shift_start: (ctx) =>
-    buildStaffShiftModule(ctx.sb, { ...ctx, module: "staff_shift_start" }),
+    buildStaffShiftModule(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+      module: "staff_shift_start",
+      shiftScope: ctx.shiftScope,
+    }),
   staff_shift_end: (ctx) =>
-    buildStaffShiftModule(ctx.sb, { ...ctx, module: "staff_shift_end" }),
+    buildStaffShiftModule(ctx.sb, {
+      restaurantId: ctx.restaurantId,
+      userId: ctx.userId,
+      module: "staff_shift_end",
+      shiftScope: ctx.shiftScope,
+    }),
   inventory_low_stock: (ctx) => buildInventoryLowStockModule(ctx.sb, ctx),
   accounting_quotation: (ctx) =>
     buildAccountingModule(ctx.sb, {
@@ -490,6 +506,7 @@ type ModuleBuildContext = {
   emailConnected: boolean;
   facebookConnected: boolean;
   instagramConnected: boolean;
+  shiftScope: StaffShiftBellScope;
 };
 
 export async function fetchNotificationSummaryServer(
@@ -509,7 +526,7 @@ export async function fetchNotificationSummaryServer(
     restaurantId: params.restaurantId,
   });
 
-  const { access } = await loadNotificationAccessContext(sb, {
+  const { access, shiftScope } = await loadNotificationAccessContext(sb, {
     restaurantId: params.restaurantId,
     userId: params.userId,
   });
@@ -549,6 +566,7 @@ export async function fetchNotificationSummaryServer(
     emailConnected: emailConnected ?? false,
     facebookConnected: facebookConnected ?? false,
     instagramConnected: instagramConnected ?? false,
+    shiftScope,
   };
 
   const enabledModuleIds = (

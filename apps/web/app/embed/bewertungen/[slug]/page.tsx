@@ -1,5 +1,6 @@
 import nextDynamic from "next/dynamic";
 import type { Metadata } from "next";
+import { RestaurantUsageBeacon } from "@/components/insights/restaurant-usage-beacon";
 import { parseListPageParam } from "@/lib/constants/list-pagination";
 import { embedPageMetadata } from "@/lib/embed/embed-page-metadata";
 import {
@@ -60,15 +61,25 @@ export default async function EmbedBewertungenPage({
 
   const { name, accentHex, reviews, summary, viewMode, pagination } = result.data;
 
+  const isPreview = Boolean(sp[EMBED_PREVIEW_TEXT_THEME_PARAM]);
+
   return (
-    <EmbedReviewsWidget
-      restaurantName={name}
-      accentHex={accentHex}
-      reviews={reviews}
-      summary={summary}
-      viewMode={viewMode}
-      pagination={pagination}
-      textTheme={resolveEmbedTextTheme(textTheme, sp[EMBED_PREVIEW_TEXT_THEME_PARAM])}
-    />
+    <>
+      {!isPreview ? (
+        <RestaurantUsageBeacon slug={slug} source="embed" dimension="reviews" />
+      ) : null}
+      <EmbedReviewsWidget
+        restaurantName={name}
+        accentHex={accentHex}
+        reviews={reviews}
+        summary={summary}
+        viewMode={viewMode}
+        pagination={pagination}
+        textTheme={resolveEmbedTextTheme(
+          textTheme,
+          sp[EMBED_PREVIEW_TEXT_THEME_PARAM],
+        )}
+      />
+    </>
   );
 }

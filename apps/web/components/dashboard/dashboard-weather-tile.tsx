@@ -10,6 +10,9 @@ import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-sh
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { GWADA_DASHBOARD_WIDGETS_REFRESH_EVENT } from "@/lib/dashboard/dashboard-widget-refresh";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { formatRestaurantDateTime } from "@/lib/restaurant/restaurant-timezone";
 import {
   peekDashboardWeatherCache,
   writeDashboardWeatherCache,
@@ -37,14 +40,13 @@ function formatPercent(v?: number): string {
   return `${nf1.format(v)} %`;
 }
 
-function formatTimeDe(iso?: string): string {
+function formatTimeDe(iso: string | undefined, timeZone: string): string {
   if (!iso?.trim()) return "—";
   const d = new Date(iso);
   if (!Number.isNaN(d.getTime())) {
-    return d.toLocaleTimeString("de-DE", {
+    return formatRestaurantDateTime(iso, timeZone, {
       hour: "2-digit",
       minute: "2-digit",
-      hour12: false,
     });
   }
   const m = iso.match(/T(\d{2}:\d{2})/);
@@ -63,6 +65,8 @@ function windLabel(deg?: number, speed?: number): string {
 }
 
 export function DashboardWeatherTile() {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { profile, isReady: profileReady } = useRestaurantProfile();
   const location = useMemo(() => buildVisualCrossingLocation(profile), [profile]);
 
@@ -225,7 +229,7 @@ export function DashboardWeatherTile() {
             {(today?.sunrise || today?.sunset) && (
               <DashboardCompactMetricPill
                 label="Sonne"
-                value={`↑ ${formatTimeDe(today?.sunrise)} · ↓ ${formatTimeDe(today?.sunset)}`}
+                value={`↑ ${formatTimeDe(today?.sunrise, restaurantTimeZone)} · ↓ ${formatTimeDe(today?.sunset, restaurantTimeZone)}`}
               />
             )}
           </DashboardCompactInlineMetrics>

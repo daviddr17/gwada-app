@@ -4,6 +4,8 @@ import { scheduleNotificationDeliverForEvent } from "@/lib/notifications/schedul
 import { NOTIFICATION_MODULES } from "@/lib/notifications/notification-modules";
 import type { NotificationModuleId } from "@/lib/notifications/notification-modules";
 import type { NotificationItem } from "@/lib/notifications/notification-types";
+import { formatReservationTimeInRestaurantTz } from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const DISPLAY_CLOCK_MODULES = [
@@ -22,11 +24,8 @@ export function isDisplayClockNotificationModule(
   return (DISPLAY_CLOCK_MODULES as readonly string[]).includes(module);
 }
 
-function formatClockTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatClockTime(iso: string, timeZone: string): string {
+  return formatReservationTimeInRestaurantTz(iso, timeZone);
 }
 
 async function fetchDismissedShiftIds(
@@ -84,6 +83,8 @@ export async function loadStaffDisplayClockNotificationItems(
     return { items: [], totalCount: 0 };
   }
 
+  const timeZone = await fetchRestaurantTimezoneServer(sb, params.restaurantId);
+
   const rows = (events ?? []).filter((raw) => {
     const row = raw as { reference_id: string };
     return !dismissed.has(row.reference_id);
@@ -117,7 +118,7 @@ export async function loadStaffDisplayClockNotificationItems(
         params.module === "staff_display_clock_in"
           ? "Display: Schicht gestartet"
           : "Display: Schicht beendet",
-      subtitle: `${staffName} · ${formatClockTime(at)}`,
+      subtitle: `${staffName} · ${formatClockTime(at, timeZone)}`,
       href,
       at,
       meta: {

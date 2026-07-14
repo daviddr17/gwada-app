@@ -12,10 +12,13 @@ import { ReviewPlatformIcon } from "@/components/reviews/review-platform-icon";
 import { REVIEW_PLATFORM_LABELS } from "@/lib/constants/review-platforms";
 import { useDashboardReviewsStats } from "@/lib/hooks/use-dashboard-reviews-stats";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
+import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { formatRestaurantDateTime } from "@/lib/restaurant/restaurant-timezone";
 import { cn } from "@/lib/utils";
 
-function formatReviewWhen(iso: string): string {
-  return new Date(iso).toLocaleDateString("de-DE", {
+function formatReviewWhen(iso: string, timeZone: string): string {
+  return formatRestaurantDateTime(iso, timeZone, {
     day: "2-digit",
     month: "short",
   });
@@ -41,6 +44,8 @@ function StarsCompact({ rating }: { rating: number }) {
 }
 
 export function DashboardReviewsTile() {
+  const { restaurantId } = useWorkspaceRestaurantUuid();
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const { summary, loading, error, ready } = useDashboardReviewsStats();
   const showSkeleton = useDeferredSkeleton(!ready || (loading && !summary));
 
@@ -104,7 +109,7 @@ export function DashboardReviewsTile() {
                   trailing={
                     <span className="flex flex-col items-end gap-1">
                       <StarsCompact rating={row.rating} />
-                      <span>{formatReviewWhen(row.createdAt)}</span>
+                      <span>{formatReviewWhen(row.createdAt, restaurantTimeZone)}</span>
                     </span>
                   }
                 />

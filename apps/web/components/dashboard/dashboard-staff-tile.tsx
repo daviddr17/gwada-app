@@ -121,6 +121,7 @@ export function DashboardStaffTile() {
           mode={presenceSheetMode}
           presence={presence}
           staffById={staffById}
+          timeZone={restaurantTimeZone}
         />
       ) : null}
 
@@ -131,6 +132,7 @@ export function DashboardStaffTile() {
           dayYmd={restaurantTodayYmd(restaurantTimeZone)}
           shifts={completedShifts}
           staffById={staffById}
+          timeZone={restaurantTimeZone}
         />
       ) : null}
     </DashboardWidgetShell>

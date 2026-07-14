@@ -23,6 +23,7 @@ import {
 import { displayModuleContentClassName } from "@/lib/ui/display-module-content";
 import { GWADA_DISPLAY_RECIPES_REFRESH_EVENT } from "@/lib/display/display-recipes-live-events";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
+import { useDisplayRestaurantTimezone } from "@/components/display/display-restaurant-timezone-provider";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +61,7 @@ export function DisplayRecipesModule({
 }: {
   restaurantName?: string;
 }) {
+  const timeZone = useDisplayRestaurantTimezone();
   const [loading, setLoading] = useState(true);
   const [allDishes, setAllDishes] = useState<Dish[]>([]);
   const showDataSkeleton = useDeferredSkeleton(loading && allDishes.length === 0);
@@ -152,7 +154,7 @@ export function DisplayRecipesModule({
     void (async () => {
       setPrintingRecipe(true);
       try {
-        await printDisplayRecipe(selected, { restaurantName });
+        await printDisplayRecipe(selected, { restaurantName, timeZone });
       } catch {
         toast.error("Drucken fehlgeschlagen.");
       } finally {

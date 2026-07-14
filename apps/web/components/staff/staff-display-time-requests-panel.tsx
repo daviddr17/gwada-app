@@ -8,8 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { DisplayRoundAvatar } from "@/components/display/display-round-avatar";
 import { displayPersonInitials } from "@/lib/display/display-avatar-utils";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import type { DisplayTimeRequestEntryType } from "@/lib/staff/staff-display-time-request-types";
+import {
+  formatRestaurantDateTime,
+  formatReservationTimeInRestaurantTz,
+} from "@/lib/restaurant/restaurant-timezone";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
 import { STAFF_WORK_ENTRY_LABELS, type StaffWorkEntryType } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
@@ -28,17 +33,6 @@ type TimeRequestRow = {
   };
 };
 
-const dateFmt = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-});
-
-const timeFmt = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
 export function StaffDisplayTimeRequestsPanel({
   restaurantId,
   className,
@@ -46,6 +40,7 @@ export function StaffDisplayTimeRequestsPanel({
   restaurantId: string;
   className?: string;
 }) {
+  const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const [rows, setRows] = useState<TimeRequestRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -158,9 +153,25 @@ export function StaffDisplayTimeRequestsPanel({
                       </p>
                     </div>
                     <p className="text-sm tabular-nums text-muted-foreground">
-                      {dateFmt.format(new Date(row.requested_starts_at))} ·{" "}
-                      {timeFmt.format(new Date(row.requested_starts_at))}–
-                      {timeFmt.format(new Date(row.requested_ends_at))}
+                      {formatRestaurantDateTime(
+                        row.requested_starts_at,
+                        restaurantTimeZone,
+                        {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        },
+                      )}{" "}
+                      ·{" "}
+                      {formatReservationTimeInRestaurantTz(
+                        row.requested_starts_at,
+                        restaurantTimeZone,
+                      )}
+                      –
+                      {formatReservationTimeInRestaurantTz(
+                        row.requested_ends_at,
+                        restaurantTimeZone,
+                      )}
                     </p>
                   </div>
                 </div>

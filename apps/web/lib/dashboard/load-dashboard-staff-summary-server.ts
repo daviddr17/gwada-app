@@ -3,11 +3,8 @@ import "server-only";
 import { computeDashboardStaffSummary } from "@/lib/staff/compute-dashboard-staff-summary";
 import { listCompletedDisplayShifts } from "@/lib/staff/staff-work-hours-display";
 import type { DashboardStaffSummaryPayload } from "@/lib/dashboard/dashboard-staff-summary-types";
-import {
-  exclusiveUtcIsoAfterLocalVisibleEnd,
-  localDayStartToUtcIso,
-  startOfLocalDay,
-} from "@/lib/reservations/month-range";
+import { restaurantDayBoundsIso } from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type {
   RestaurantStaffRow,
   StaffLivePresenceRow,
@@ -231,9 +228,11 @@ async function fetchStaffWorkEntriesTodayServer(
   sb: SupabaseClient,
   restaurantId: string,
 ) {
-  const today = startOfLocalDay(new Date());
-  const rangeStart = localDayStartToUtcIso(today);
-  const rangeEnd = exclusiveUtcIsoAfterLocalVisibleEnd(today);
+  const timeZone = await fetchRestaurantTimezoneServer(sb, restaurantId);
+  const { start: rangeStart, end: rangeEnd } = restaurantDayBoundsIso(
+    null,
+    timeZone,
+  );
 
   const { data: closed, error: closedErr } = await sb
     .from("restaurant_staff_work_entries")

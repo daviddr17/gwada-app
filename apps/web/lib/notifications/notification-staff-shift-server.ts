@@ -1,5 +1,7 @@
 import "server-only";
 
+import { formatReservationTimeInRestaurantTz } from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Schichtbeginn: Glocke bis zu 60 Min. vor Start. */
@@ -38,11 +40,8 @@ function staffDisplayName(staff: ShiftRow["restaurant_staff"]): string {
   return name || "Mitarbeiter";
 }
 
-function formatShiftTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatShiftTime(iso: string, timeZone: string): string {
+  return formatReservationTimeInRestaurantTz(iso, timeZone);
 }
 
 export type StaffShiftNotificationItem = {
@@ -171,6 +170,7 @@ async function fetchShiftsEndingInRange(
 function mapShiftToBellItem(
   s: ShiftRow,
   kind: "start" | "end",
+  timeZone: string,
 ): StaffShiftNotificationItem {
   const name = staffDisplayName(s.restaurant_staff);
   const label = s.label?.trim();
@@ -179,8 +179,8 @@ function mapShiftToBellItem(
     title: label ? `${name} · ${label}` : name,
     subtitle:
       kind === "start"
-        ? `Beginn ${formatShiftTime(s.starts_at)}`
-        : `Ende ${formatShiftTime(s.ends_at)}`,
+        ? `Beginn ${formatShiftTime(s.starts_at, timeZone)}`
+        : `Ende ${formatShiftTime(s.ends_at, timeZone)}`,
     href: "/dashboard/mitarbeiter/schichtplan",
     at: kind === "start" ? s.starts_at : s.ends_at,
     meta: { shiftId: s.id, kind },
@@ -199,22 +199,23 @@ export async function loadStaffShiftStartBellSummary(
 ): Promise<{ items: StaffShiftNotificationItem[]; totalCount: number }> {
   const now = Date.now();
   const scope = params.scope ?? "own";
-  const dismissed = await fetchDismissedShiftKeys(sb, {
-    profileId: params.userId,
-    restaurantId: params.restaurantId,
-    kind: "start",
-  });
-
-  const viewerStaffId = await fetchViewerStaffId(sb, {
-    restaurantId: params.restaurantId,
-    profileId: params.userId,
-  });
-
-  const shifts = await fetchShiftsInRange(sb, {
-    restaurantId: params.restaurantId,
-    rangeStartIso: new Date(now).toISOString(),
-    rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
-  });
+  const [dismissed, viewerStaffId, timeZone, shifts] = await Promise.all([
+    fetchDismissedShiftKeys(sb, {
+      profileId: params.userId,
+      restaurantId: params.restaurantId,
+      kind: "start",
+    }),
+    fetchViewerStaffId(sb, {
+      restaurantId: params.restaurantId,
+      profileId: params.userId,
+    }),
+    fetchRestaurantTimezoneServer(sb, params.restaurantId),
+    fetchShiftsInRange(sb, {
+      restaurantId: params.restaurantId,
+      rangeStartIso: new Date(now).toISOString(),
+      rangeEndIso: new Date(now + STAFF_SHIFT_BELL_START_LEAD_MS).toISOString(),
+    }),
+  ]);
 
   const active = filterShiftsForViewer(shifts, dismissed, {
     scope,
@@ -223,7 +224,9 @@ export async function loadStaffShiftStartBellSummary(
   const limit = params.limit ?? 5;
 
   return {
-    items: active.slice(0, limit).map((s) => mapShiftToBellItem(s, "start")),
+    items: active
+      .slice(0, limit)
+      .map((s) => mapShiftToBellItem(s, "start", timeZone)),
     totalCount: active.length,
   };
 }
@@ -239,22 +242,23 @@ export async function loadStaffShiftEndBellSummary(
 ): Promise<{ items: StaffShiftNotificationItem[]; totalCount: number }> {
   const now = Date.now();
   const scope = params.scope ?? "own";
-  const dismissed = await fetchDismissedShiftKeys(sb, {
-    profileId: params.userId,
-    restaurantId: params.restaurantId,
-    kind: "end",
-  });
-
-  const viewerStaffId = await fetchViewerStaffId(sb, {
-    restaurantId: params.restaurantId,
-    profileId: params.userId,
-  });
-
-  const shifts = await fetchShiftsEndingInRange(sb, {
-    restaurantId: params.restaurantId,
-    rangeStartIso: new Date(now - STAFF_SHIFT_BELL_END_TRAIL_MS).toISOString(),
-    rangeEndIso: new Date(now).toISOString(),
-  });
+  const [dismissed, viewerStaffId, timeZone, shifts] = await Promise.all([
+    fetchDismissedShiftKeys(sb, {
+      profileId: params.userId,
+      restaurantId: params.restaurantId,
+      kind: "end",
+    }),
+    fetchViewerStaffId(sb, {
+      restaurantId: params.restaurantId,
+      profileId: params.userId,
+    }),
+    fetchRestaurantTimezoneServer(sb, params.restaurantId),
+    fetchShiftsEndingInRange(sb, {
+      restaurantId: params.restaurantId,
+      rangeStartIso: new Date(now - STAFF_SHIFT_BELL_END_TRAIL_MS).toISOString(),
+      rangeEndIso: new Date(now).toISOString(),
+    }),
+  ]);
 
   const active = filterShiftsForViewer(shifts, dismissed, {
     scope,
@@ -263,7 +267,9 @@ export async function loadStaffShiftEndBellSummary(
   const limit = params.limit ?? 5;
 
   return {
-    items: active.slice(0, limit).map((s) => mapShiftToBellItem(s, "end")),
+    items: active
+      .slice(0, limit)
+      .map((s) => mapShiftToBellItem(s, "end", timeZone)),
     totalCount: active.length,
   };
 }

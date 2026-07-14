@@ -1,28 +1,34 @@
 "use client";
 
+import { useMemo } from "react";
 import { StaffWorkEntryTypeStripe } from "@/components/staff/staff-work-entry-type-stripe";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  createRestaurantDateTimeFormatter,
+} from "@/lib/restaurant/restaurant-timezone";
 import type { RestaurantStaffWorkEntryRow } from "@/lib/types/staff";
 import { STAFF_WORK_ENTRY_LABELS } from "@/lib/types/staff";
 import { cn } from "@/lib/utils";
 
-const timeDe = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function segmentEndLabel(segment: RestaurantStaffWorkEntryRow): string {
-  if (segment.is_open) return "läuft";
-  return timeDe.format(new Date(segment.ends_at));
-}
-
 /** Chronologische Display-Schicht-Segmente (Arbeit grün, Pause blau) mit Uhrzeiten. */
 export function StaffDisplayShiftSegmentsList({
   segments,
+  timeZone = DEFAULT_RESTAURANT_TIMEZONE,
   className,
 }: {
   segments: RestaurantStaffWorkEntryRow[];
+  timeZone?: string;
   className?: string;
 }) {
+  const timeDe = useMemo(
+    () =>
+      createRestaurantDateTimeFormatter(timeZone, {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    [timeZone],
+  );
+
   return (
     <ul className={cn("space-y-1.5", className)}>
       {segments.map((segment) => (
@@ -37,7 +43,9 @@ export function StaffDisplayShiftSegmentsList({
             </span>
             <span className="mt-0.5 block text-xs tabular-nums text-muted-foreground">
               {timeDe.format(new Date(segment.starts_at))} –{" "}
-              {segmentEndLabel(segment)}
+              {segment.is_open
+                ? "läuft"
+                : timeDe.format(new Date(segment.ends_at))}
             </span>
           </span>
         </li>

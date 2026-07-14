@@ -41,7 +41,11 @@ export async function GET(req: Request) {
     const pageToken = searchParams.get("pageToken")?.trim() || null;
 
     after(() => {
-      void triggerReviewsFeedSyncIfStale(restaurantId, ["google", "facebook"]);
+      void triggerReviewsFeedSyncIfStale(restaurantId, [
+        "google",
+        "facebook",
+        "tripadvisor",
+      ]);
     });
 
     const merged = await loadMergedReviewsFeedPage({
@@ -183,6 +187,55 @@ export async function GET(req: Request) {
         scope: "page" as const,
       },
       facebookPagination: paginated.pagination,
+      sync,
+      loadError,
+    });
+  } else if (platformRaw === "tripadvisor") {
+    const pageToken = searchParams.get("pageToken")?.trim() || null;
+
+    const { reviews: cachedTripadvisor, syncRows, sync } =
+      await readReviewsFeedFromCache(restaurantId, auth.sb, ["tripadvisor"]);
+
+    after(() => {
+      void triggerReviewsFeedSyncIfStale(restaurantId, ["tripadvisor"]);
+    });
+
+    loadError = sync.platformErrors.tripadvisor ?? null;
+    const tripadvisorSync = syncRows.find((row) => row.platform === "tripadvisor");
+    const tripadvisorMeta = readPlatformSyncMeta(syncRows, "tripadvisor");
+    const tripadvisorTotal =
+      typeof tripadvisorMeta.totalReviewCount === "number"
+        ? tripadvisorMeta.totalReviewCount
+        : typeof tripadvisorSync?.item_count === "number" &&
+            tripadvisorSync.item_count > 0
+          ? tripadvisorSync.item_count
+          : cachedTripadvisor.length;
+
+    const paginated = paginateReviewList(
+      cachedTripadvisor,
+      pageToken,
+      tripadvisorTotal,
+    );
+
+    reviews = await enrichReviewsWithReadState(auth.sb, {
+      restaurantId,
+      userId: auth.userId,
+      reviews: paginated.reviews,
+      platform: "tripadvisor",
+    });
+    reviews = await enrichReviewsWithVisibility(auth.sb, { restaurantId, reviews });
+
+    return Response.json({
+      platform: platformRaw,
+      reviews,
+      summary: {
+        count: reviews.length,
+        average: averageRating(reviews),
+        median: medianRating(reviews),
+        distribution: ratingDistribution(reviews),
+        scope: "page" as const,
+      },
+      tripadvisorPagination: paginated.pagination,
       sync,
       loadError,
     });

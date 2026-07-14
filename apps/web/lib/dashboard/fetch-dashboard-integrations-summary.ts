@@ -31,6 +31,8 @@ function platformEnabledForChannel(
       return flags.googleBusinessEnabled;
     case "lexoffice":
       return flags.lexofficeEnabled;
+    case "tripadvisor":
+      return flags.tripadvisorEnabled;
   }
 }
 
@@ -46,6 +48,7 @@ function isChannelConnected(
     case "instagram":
     case "google_business":
     case "lexoffice":
+    case "tripadvisor":
       return row.status === "working";
     case "email": {
       if (row.status !== "custom") return false;

@@ -181,17 +181,28 @@ export async function listStaleReviewsPlatforms(
 
   const { data } = await admin
     .from("restaurant_reviews_platform_sync")
-    .select("platform, synced_at")
+    .select("platform, synced_at, last_error, item_count")
     .eq("restaurant_id", restaurantId)
     .in("platform", cacheable);
 
   const syncedByPlatform = new Map(
-    (data ?? []).map((row) => [row.platform as string, row.synced_at as string | null]),
+    (data ?? []).map((row) => [
+      row.platform as string,
+      {
+        syncedAt: row.synced_at as string | null,
+        lastError: (row.last_error as string | null) ?? null,
+        itemCount: Number(row.item_count ?? 0),
+      },
+    ]),
   );
 
-  return cacheable.filter((platform) =>
-    isReviewsFeedSyncStale(syncedByPlatform.get(platform), platform),
-  );
+  return cacheable.filter((platform) => {
+    const row = syncedByPlatform.get(platform);
+    return isReviewsFeedSyncStale(row?.syncedAt, platform, {
+      lastError: row?.lastError,
+      itemCount: row?.itemCount,
+    });
+  });
 }
 
 export async function triggerReviewsFeedSyncIfStale(

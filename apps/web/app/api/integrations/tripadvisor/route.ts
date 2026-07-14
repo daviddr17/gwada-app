@@ -2,6 +2,7 @@ import {
   ensureTripadvisorAllowlistLocation,
   verifyTripadvisorLocationConnection,
 } from "@/lib/integrations/tripadvisor-api-client";
+import { syncTripadvisorContentAfterConnect } from "@/lib/integrations/tripadvisor-content-sync";
 import { tripadvisorErrorMessageForUser } from "@/lib/integrations/tripadvisor-user-error-messages";
 import { assertPlatformTripadvisorEnabled } from "@/lib/integrations/platform-messaging-guard";
 import {
@@ -12,6 +13,7 @@ import {
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { TripadvisorIntegrationResponse } from "@/lib/types/restaurant-integration";
+import { after } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +123,10 @@ async function connectTripadvisorLocation(params: {
   if (error) {
     return { ok: false, status: 500, error, code: "persist_failed" };
   }
+
+  after(() => {
+    void syncTripadvisorContentAfterConnect(params.restaurantId);
+  });
 
   const row = await fetchRestaurantTripadvisorIntegration(
     params.sb,

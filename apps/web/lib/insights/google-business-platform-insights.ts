@@ -265,11 +265,23 @@ function buildSingleMetricUrl(
 function humanizeGooglePerformanceError(raw: string | null): string | null {
   if (!raw) return null;
   const lower = raw.toLowerCase();
-  if (lower.includes("platform_not_configured")) {
-    return "Google OAuth-Credentials fehlen in den Plattform-Integrationen.";
+  if (lower.includes("platform_not_configured") || lower.includes("google_not_connected")) {
+    return lower.includes("platform_not_configured")
+      ? "Google OAuth-Credentials fehlen in den Plattform-Integrationen."
+      : "Google Business ist noch nicht verbunden.";
   }
-  if (lower.includes("unauthenticated") || lower.includes("invalid authentication")) {
+  if (
+    lower.includes("unauthenticated") ||
+    lower.includes("invalid authentication") ||
+    lower.includes("invalid_grant")
+  ) {
     return "Google-Zugang abgelaufen — bitte unter Integrationen neu verbinden.";
+  }
+  if (
+    lower.includes("insufficient") &&
+    (lower.includes("scope") || lower.includes("authentication scopes"))
+  ) {
+    return "Fehlende Google-Berechtigung für Insights — bitte Google unter Integrationen neu verbinden.";
   }
   if (lower.includes("permission") || lower.includes("forbidden") || lower.includes("403")) {
     return "Keine Berechtigung für Google Business Performance — Konto neu verbinden.";
@@ -277,8 +289,16 @@ function humanizeGooglePerformanceError(raw: string | null): string | null {
   if (lower.includes("not found") || lower.includes("404")) {
     return "Google-Standort nicht gefunden — Standort in Integrationen prüfen.";
   }
-  if (lower.includes("businessprofileperformance") || lower.includes("has not been used")) {
-    return "Business Profile Performance API im Google Cloud Projekt aktivieren.";
+  // Nur echte „API disabled“-Signale — nicht jeder String mit dem API-Namen.
+  if (
+    lower.includes("has not been used") ||
+    lower.includes("service_disabled") ||
+    lower.includes("api is not enabled") ||
+    lower.includes("enable it by visiting") ||
+    (lower.includes("businessprofileperformance") &&
+      (lower.includes("disabled") || lower.includes("not been used")))
+  ) {
+    return "Business Profile Performance API im Google Cloud Projekt aktivieren (Superadmin / Google Cloud Console).";
   }
   return raw;
 }

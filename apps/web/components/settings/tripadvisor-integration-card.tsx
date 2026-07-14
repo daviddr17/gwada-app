@@ -89,12 +89,16 @@ export function TripadvisorIntegrationCard() {
     });
     const data = (await res.json()) as TripadvisorIntegrationResponse & {
       error?: string;
+      allowlistHint?: string | null;
     };
     if (!res.ok) {
       toast.error(data.error ?? "Verbindung fehlgeschlagen.");
       return;
     }
     toast.success("TripAdvisor verbunden.");
+    if (data.allowlistHint) {
+      toast.message(data.allowlistHint);
+    }
     applyResponse(data);
   }, [restaurantId, locationId]);
 
@@ -114,20 +118,25 @@ export function TripadvisorIntegrationCard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ restaurantId, locationId: trimmed }),
       });
-      const data = (await res.json()) as {
+      const data = (await res.json()) as TripadvisorIntegrationResponse & {
         ok?: boolean;
         locationName?: string;
         error?: string;
+        allowlistHint?: string | null;
       };
       if (!res.ok || !data.ok) {
         toast.error(data.error ?? "Verbindungstest fehlgeschlagen.");
         return;
       }
+      applyResponse(data);
       toast.success(
         data.locationName
           ? `Verbindung ok — ${data.locationName}`
           : "Verbindung ok.",
       );
+      if (data.allowlistHint) {
+        toast.message(data.allowlistHint);
+      }
     } catch {
       toast.error("Netzwerkfehler beim Verbindungstest.");
     }

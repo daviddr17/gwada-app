@@ -137,8 +137,12 @@ export async function appendTripadvisorAllowlistLocations(
     no_change?: number;
   };
   if (!postRes.ok) {
+    const code =
+      postRes.status === 403
+        ? "tripadvisor_allowlist_denied"
+        : tripadvisorErrorMessage(body, postRes.status);
     return {
-      error: tripadvisorErrorMessage(body, postRes.status),
+      error: code,
       status: postRes.status,
     };
   }

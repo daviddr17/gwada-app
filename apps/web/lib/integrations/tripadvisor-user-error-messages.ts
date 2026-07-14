@@ -5,6 +5,8 @@ const TRIPADVISOR_USER_MESSAGES: Record<string, string> = {
     "TripAdvisor-API-Limit erreicht. Bitte in ein paar Minuten erneut versuchen.",
   tripadvisor_403:
     "Zugriff verweigert — API-Key oder Location-ID in Superadmin bzw. Einstellungen prüfen.",
+  tripadvisor_allowlist_denied:
+    "Standort-Lookup ok, aber Content (Bewertungen/Fotos) braucht Terra-Allowlist: Location in Superadmin → TripAdvisor freischalten oder API-Key-Rechte prüfen.",
   tripadvisor_401: "TripAdvisor-API-Key ungültig oder abgelaufen.",
   tripadvisor_disabled: "TripAdvisor ist auf der Plattform noch nicht freigeschaltet.",
   tripadvisor_api_key_missing: "TripAdvisor-API-Key fehlt in Superadmin → Integrationen.",
@@ -17,6 +19,12 @@ export function normalizeTripadvisorErrorCode(error: string, status?: number): s
   const trimmed = error.trim();
   if (status === 429 || /rate\s*limit/i.test(trimmed)) {
     return "tripadvisor_rate_limit";
+  }
+  if (
+    /allowlist/i.test(trimmed) ||
+    trimmed === "tripadvisor_allowlist_denied"
+  ) {
+    return "tripadvisor_allowlist_denied";
   }
   if (status === 403) return "tripadvisor_403";
   if (status === 401) return "tripadvisor_401";

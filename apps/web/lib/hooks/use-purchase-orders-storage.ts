@@ -23,6 +23,7 @@ import {
   toastPurchaseOrderQuantityChanged,
   toastPurchaseOrderQuantityIncreased,
 } from "@/lib/inventory/purchase-order-notifications";
+import { applyTaxonomySupplierNamesToOrders } from "@/lib/inventory/resolve-purchase-order-supplier-name";
 import { isSupabaseOnlyMode } from "@/lib/constants/database-mode";
 import { toastStorageError } from "@/lib/persist-notify";
 import {
@@ -39,6 +40,7 @@ import {
   mirrorWorkspaceJsonLocal,
 } from "@/lib/supabase/workspace-persistence";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import type {
   OrderProtocolActor,
   PurchaseOrder,
@@ -456,6 +458,12 @@ export function usePurchaseOrdersStorage() {
         };
         next.push(order);
         createdNewOrder = true;
+      } else if (
+        params.supplierName.trim() &&
+        params.supplierName.trim() !== order.supplierName
+      ) {
+        // Stammdaten-Klarname nachziehen (z. B. nach Umbenennung / Bubble-Platzhalter).
+        order.supplierName = params.supplierName.trim();
       }
 
       const logEntry: PurchaseOrderLogAdd = {
@@ -755,6 +763,20 @@ export function usePurchaseOrdersStorage() {
     [orders],
   );
 
+  const syncSupplierNamesFromTaxonomy = useCallback(
+    async (
+      suppliers: ReadonlyArray<Pick<InventoryTaxonomyDefinition, "id" | "name">>,
+    ): Promise<boolean> => {
+      const { orders: next, changed } = applyTaxonomySupplierNamesToOrders(
+        orders,
+        suppliers,
+      );
+      if (!changed) return true;
+      return persist(next);
+    },
+    [orders, persist],
+  );
+
   return {
     orders,
     isHydrated,
@@ -767,5 +789,6 @@ export function usePurchaseOrdersStorage() {
     updateLineQuantity,
     markLineDelivered,
     unmarkLineDelivered,
+    syncSupplierNamesFromTaxonomy,
   };
 }

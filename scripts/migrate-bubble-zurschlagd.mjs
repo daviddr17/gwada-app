@@ -56,6 +56,15 @@ function bubbleIdToTextId(bubbleId) {
   return `bbl-${String(bubbleId).replace(/[^a-zA-Z0-9]/g, "").slice(0, 40)}`;
 }
 
+/** Bubble „Supplier“ ist oft Kundennummer, manchmal schon Klarname. */
+function supplierDisplayNameFromBubbleField(supplierField) {
+  const raw = String(supplierField ?? "").trim();
+  if (!raw || raw === "default-supplier") return "Ohne Lieferant";
+  if (/^\d+x\d+$/i.test(raw)) return `Lieferant ${raw.slice(-8)}`;
+  if (/^\d+$/.test(raw)) return `Kunden-Nr. ${raw}`;
+  return raw;
+}
+
 async function bubbleFetchAll(type, constraints) {
   const rows = [];
   let cursor = 0;
@@ -389,7 +398,7 @@ function buildInventoryPayload({
 
     const supplierBubbleId = p.Supplier ?? "default-supplier";
     const supplierId = bubbleIdToTextId(supplierBubbleId);
-    suppliers.set(supplierId, `Lieferant ${String(supplierBubbleId).slice(-8)}`);
+    suppliers.set(supplierId, supplierDisplayNameFromBubbleField(supplierBubbleId));
 
     const siteBubble = p.ProductionPoints?.[0] ?? productionPoints[0]?._id;
     const productionSiteId = siteBubble ? bubbleIdToTextId(siteBubble) : defaultSiteId;

@@ -620,6 +620,7 @@ export function PurchaseOrdersScreen() {
                       tableFullscreen
                       fullscreenTitle={`Bestellung · ${supplierNameForOrder(order)}`}
                       summaryText={`${order.lines.length} Position${order.lines.length === 1 ? "" : "en"}`}
+                      toolbarClassName="px-4 sm:px-5"
                       shellClassName="overflow-hidden rounded-none bg-transparent ring-0 shadow-none"
                       scrollClassName="overflow-x-auto"
                       fullscreenChromeInsetClassName={

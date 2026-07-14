@@ -284,6 +284,8 @@ export type ModuleDataTableFrameProps = {
   fullscreenTitle?: string;
   /** Kurztext über der Tabelle und im Overlay-Kopf (z. B. „12 Einträge“). */
   summaryText?: string;
+  /** Zusätzliche Klassen für die Zeile über der Tabelle (Anzahl + Vollbild). */
+  toolbarClassName?: string;
   fullscreenChromeInsetClassName?: string;
   tableExport?: ModuleTableExportSource;
   renderTableExportSheet?: (
@@ -300,6 +302,7 @@ export function ModuleDataTableFrame({
   tableFullscreen = false,
   fullscreenTitle,
   summaryText,
+  toolbarClassName,
   fullscreenChromeInsetClassName = moduleTableFullscreenChromeInsetClassName,
   tableExport,
   renderTableExportSheet,
@@ -349,6 +352,7 @@ export function ModuleDataTableFrame({
           className={cn(
             "flex items-center justify-between gap-3",
             moduleListPaginationAboveClassName,
+            toolbarClassName,
           )}
         >
           {summaryText ? (

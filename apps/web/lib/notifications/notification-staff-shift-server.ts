@@ -1,6 +1,11 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+  DEFAULT_RESTAURANT_TIMEZONE,
+  formatReservationTimeInRestaurantTz,
+} from "@/lib/restaurant/restaurant-timezone";
+import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 
 /** Schichtbeginn: Glocke bis zu 60 Min. vor Start. */
 export const STAFF_SHIFT_BELL_START_LEAD_MS = 60 * 60 * 1000;
@@ -38,11 +43,11 @@ function staffDisplayName(staff: ShiftRow["restaurant_staff"]): string {
   return name || "Mitarbeiter";
 }
 
-function formatShiftTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("de-DE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function formatShiftTime(
+  iso: string,
+  timeZone: string = DEFAULT_RESTAURANT_TIMEZONE,
+): string {
+  return formatReservationTimeInRestaurantTz(iso, timeZone);
 }
 
 export type StaffShiftNotificationItem = {
@@ -171,6 +176,7 @@ async function fetchShiftsEndingInRange(
 function mapShiftToBellItem(
   s: ShiftRow,
   kind: "start" | "end",
+  timeZone: string,
 ): StaffShiftNotificationItem {
   const name = staffDisplayName(s.restaurant_staff);
   const label = s.label?.trim();
@@ -179,8 +185,8 @@ function mapShiftToBellItem(
     title: label ? `${name} · ${label}` : name,
     subtitle:
       kind === "start"
-        ? `Beginn ${formatShiftTime(s.starts_at)}`
-        : `Ende ${formatShiftTime(s.ends_at)}`,
+        ? `Beginn ${formatShiftTime(s.starts_at, timeZone)}`
+        : `Ende ${formatShiftTime(s.ends_at, timeZone)}`,
     href: "/dashboard/mitarbeiter/schichtplan",
     at: kind === "start" ? s.starts_at : s.ends_at,
     meta: { shiftId: s.id, kind },
@@ -221,9 +227,12 @@ export async function loadStaffShiftStartBellSummary(
     viewerStaffId,
   });
   const limit = params.limit ?? 5;
+  const timeZone = await fetchRestaurantTimezoneServer(sb, params.restaurantId);
 
   return {
-    items: active.slice(0, limit).map((s) => mapShiftToBellItem(s, "start")),
+    items: active
+      .slice(0, limit)
+      .map((s) => mapShiftToBellItem(s, "start", timeZone)),
     totalCount: active.length,
   };
 }
@@ -261,9 +270,12 @@ export async function loadStaffShiftEndBellSummary(
     viewerStaffId,
   });
   const limit = params.limit ?? 5;
+  const timeZone = await fetchRestaurantTimezoneServer(sb, params.restaurantId);
 
   return {
-    items: active.slice(0, limit).map((s) => mapShiftToBellItem(s, "end")),
+    items: active
+      .slice(0, limit)
+      .map((s) => mapShiftToBellItem(s, "end", timeZone)),
     totalCount: active.length,
   };
 }

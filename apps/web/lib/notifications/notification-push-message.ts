@@ -469,6 +469,7 @@ export function buildNotificationPushText(
           : moduleDef.href,
       );
       const isStart = event.module === "staff_display_clock_in";
+      const atLabel = formatPushTime(at, timeZone);
       return buildPushMessage({
         prefix,
         headline: isStart ? "Display: Schicht gestartet" : "Display: Schicht beendet",
@@ -476,12 +477,7 @@ export function buildNotificationPushText(
         href: clockHref,
         details: detailLines([
           staffName,
-          at
-            ? `Uhrzeit: ${new Date(at).toLocaleTimeString("de-DE", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}`
-            : null,
+          atLabel ? `Uhrzeit: ${atLabel}` : null,
         ]),
       });
     }

@@ -1,0 +1,109 @@
+"use client";
+
+import Link from "next/link";
+import { Menu, Search, UserRound, X } from "lucide-react";
+import { AppChromeNotificationBell } from "@/components/layout/app-chrome-notification-bell";
+import { Button } from "@/components/ui/button";
+import { useSidebar } from "@/components/ui/sidebar";
+import {
+  isRestaurantDashboardPath,
+  useDashboardGlobalSearchOptional,
+} from "@/lib/contexts/dashboard-global-search-context";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
+import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import { APP_MOBILE_BOTTOM_NAV_BAR_H } from "@/lib/ui/app-mobile-bottom-nav";
+import { cn } from "@/lib/utils";
+import { usePathname } from "next/navigation";
+
+const itemClassName =
+  "flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-none text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground";
+
+const itemActiveClassName = "text-foreground";
+
+/**
+ * Mobile Primary-Nav: Menü · Suche · Glocke · Profil (Thumb-Zone).
+ * Desktop: nicht gerendert (`md:hidden`).
+ */
+export function AppMobileBottomNav() {
+  const pathname = usePathname();
+  const { openMobile, setOpenMobile, toggleSidebar } = useSidebar();
+  const search = useDashboardGlobalSearchOptional();
+  const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
+
+  return (
+    <nav
+      data-app-mobile-bottom-nav
+      aria-label="Hauptnavigation"
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-40 border-t border-border/50 md:hidden",
+        appChromeFixedZoneBgClassName,
+        "pb-[env(safe-area-inset-bottom,0px)]",
+      )}
+    >
+      <div
+        className="flex items-stretch"
+        style={{ height: APP_MOBILE_BOTTOM_NAV_BAR_H }}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn(itemClassName, openMobile && itemActiveClassName)}
+          aria-label={openMobile ? "Menü schließen" : "Menü öffnen"}
+          aria-expanded={openMobile}
+          onClick={() => toggleSidebar()}
+        >
+          {openMobile ? (
+            <X className="size-5 shrink-0" aria-hidden />
+          ) : (
+            <Menu className="size-5 shrink-0" aria-hidden />
+          )}
+          <span>Menü</span>
+        </Button>
+
+        {showSearch ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className={itemClassName}
+            aria-label="Suche öffnen"
+            onClick={() => {
+              setOpenMobile(false);
+              search?.openSearch();
+            }}
+          >
+            <Search className="size-5 shrink-0" aria-hidden />
+            <span>Suche</span>
+          </Button>
+        ) : (
+          <span className={cn(itemClassName, "pointer-events-none opacity-40")}>
+            <Search className="size-5 shrink-0" aria-hidden />
+            <span>Suche</span>
+          </span>
+        )}
+
+        <div className="flex min-w-0 flex-1 items-stretch justify-center">
+          <AppChromeNotificationBell
+            className={cn(itemClassName, "h-full w-full")}
+            labelClassName="text-[10px] font-medium"
+            popoverSide="top"
+            showLabel
+          />
+        </div>
+
+        <Button
+          type="button"
+          variant="ghost"
+          className={cn(
+            itemClassName,
+            pathname.startsWith(APP_ROUTES.profile.root) && itemActiveClassName,
+          )}
+          aria-label="Profil"
+          render={<Link href={APP_ROUTES.profile.root} prefetch />}
+        >
+          <UserRound className="size-5 shrink-0" aria-hidden />
+          <span>Profil</span>
+        </Button>
+      </div>
+    </nav>
+  );
+}

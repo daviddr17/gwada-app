@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Settings, UserRound } from "lucide-react";
 import { AppBrandedBackground } from "@/components/layout/app-branded-background";
+import { AppMobileBottomNav } from "@/components/layout/app-mobile-bottom-nav";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { WorkspaceZoneTransition } from "@/components/layout/workspace-zone-transition";
 import { ModuleChipNav } from "@/components/layout/module-subnav";
@@ -92,7 +93,8 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           appChromeFixedZoneBgClassName,
         )}
       >
-        <div className="flex shrink-0 items-center gap-4 ps-4">
+        {/* Desktop: Sidebar-Trigger; mobil: Bottom-Nav „Menü“ */}
+        <div className="hidden shrink-0 items-center gap-4 ps-4 md:flex">
           <SidebarTrigger className="-ms-1 shrink-0" />
           <Separator
             orientation="vertical"
@@ -114,7 +116,8 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
             <AppChromeCenterFavicon />
             <div className="min-w-4 flex-1 basis-0 shrink-[2]" aria-hidden />
-            <div className="flex shrink-0 items-center gap-2">
+            {/* Desktop-Chrome: Suche, Glocke, Profil, … — mobil in Bottom-Nav / Menü */}
+            <div className="hidden shrink-0 items-center gap-2 md:flex">
               <DashboardGlobalSearchTrigger />
               <AppChromeNotificationBell />
               <AppChromeRestaurantProfileLink />
@@ -139,6 +142,10 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
               <DashboardPwaInstallButton />
               <ModeToggle size="icon-sm" />
             </div>
+            {/* Mobil: nur Theme — Rest in Bottom-Nav / Vollbild-Menü */}
+            <div className="flex shrink-0 items-center gap-2 md:hidden">
+              <ModeToggle size="icon-sm" />
+            </div>
           </div>
         </div>
       </header>
@@ -159,7 +166,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 
       <div
         data-app-scroll-root
-        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
+        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain max-md:pb-[var(--app-mobile-bottom-nav-bar)]"
       >
         {showDashboardBrandedBackground ? (
           <div
@@ -173,6 +180,8 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
           <WorkspaceZoneTransition>{children}</WorkspaceZoneTransition>
         </div>
       </div>
+
+      <AppMobileBottomNav />
     </SidebarInset>
   );
 }

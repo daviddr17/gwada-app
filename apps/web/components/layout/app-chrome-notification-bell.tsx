@@ -21,7 +21,21 @@ import { queryKeys } from "@/lib/query/query-keys";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import { cn } from "@/lib/utils";
 
-export function AppChromeNotificationBell() {
+type AppChromeNotificationBellProps = {
+  className?: string;
+  /** Popover-Richtung — Bottom-Nav nutzt `top`. */
+  popoverSide?: "top" | "bottom";
+  /** Label unter dem Icon (Bottom-Nav). */
+  showLabel?: boolean;
+  labelClassName?: string;
+};
+
+export function AppChromeNotificationBell({
+  className,
+  popoverSide = "bottom",
+  showLabel = false,
+  labelClassName,
+}: AppChromeNotificationBellProps = {}) {
   const [open, setOpen] = React.useState(false);
   const queryClient = useQueryClient();
   const { restaurantId } = useWorkspaceRestaurantUuid();
@@ -54,9 +68,14 @@ export function AppChromeNotificationBell() {
       <PopoverTrigger
         render={
           <Button
-            variant="outline"
-            size="icon-sm"
-            className="relative shrink-0 rounded-full border-border/60"
+            variant={showLabel ? "ghost" : "outline"}
+            size={showLabel ? "default" : "icon-sm"}
+            className={cn(
+              showLabel
+                ? "relative h-full min-w-0 flex-1 flex-col gap-0.5 rounded-none px-0 text-muted-foreground hover:text-foreground"
+                : "relative shrink-0 rounded-full border-border/60",
+              className,
+            )}
             aria-label={
               badge
                 ? `${totalCount} Benachrichtigungen`
@@ -65,20 +84,29 @@ export function AppChromeNotificationBell() {
           />
         }
       >
-        <Bell className="size-4" />
-        {badge ? (
-          <span
-            className={cn(
-              "pointer-events-none absolute -top-1 -right-1 flex min-w-[1.125rem] items-center justify-center rounded-full bg-accent px-1 py-0.5 text-[10px] font-bold leading-none text-accent-foreground shadow-sm",
-            )}
-            aria-hidden
-          >
-            {badge}
-          </span>
+        <span className="relative inline-flex">
+          <Bell className={cn("shrink-0", showLabel ? "size-5" : "size-4")} />
+          {badge ? (
+            <span
+              className={cn(
+                "pointer-events-none absolute -top-1 -right-1 flex min-w-[1.125rem] items-center justify-center rounded-full bg-accent px-1 py-0.5 text-[10px] font-bold leading-none text-accent-foreground shadow-sm",
+              )}
+              aria-hidden
+            >
+              {badge}
+            </span>
+          ) : null}
+        </span>
+        {showLabel ? (
+          <span className={cn("leading-none", labelClassName)}>Glocke</span>
         ) : null}
       </PopoverTrigger>
       <PopoverPortal>
-        <PopoverPositioner align="end" side="bottom" sideOffset={8}>
+        <PopoverPositioner
+          align="center"
+          side={popoverSide}
+          sideOffset={8}
+        >
           <PopoverContent className="p-0">
             {showSkeleton && !summary ? (
               <NotificationBellPanelSkeleton />

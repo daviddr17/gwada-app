@@ -6,18 +6,22 @@ import {
   useRef,
   useState,
   type ReactNode,
-  type TransitionEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 
-const OPEN_MS = 340;
-const CLOSE_MS = 320;
-/** Öffnen: iOS-Sheet (schnell rein, weich ausfedern). */
-const OPEN_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
-/** Schließen: beschleunigen hinaus — kein Abbremsen knapp vor dem Unmount. */
-const CLOSE_EASING = "cubic-bezier(0.4, 0, 1, 1)";
+/**
+ * Apple Sheet (UIKit / Safari):
+ * gleiche Kurve für Present + Dismiss — Abbremsen am Ende.
+ * Sheet liegt z-mäßig unter der Sticky-Bottom-Nav und fährt darunter durch;
+ * die Verlangsamung passiert hinter dem Dock → kein sichtbarer Snap.
+ */
+const SHEET_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+const OPEN_MS = 520;
+const CLOSE_MS = 480;
+const BACKDROP_OPEN_MS = 380;
+const BACKDROP_CLOSE_MS = 320;
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
@@ -42,21 +46,24 @@ function lockAppScroll(): () => void {
   };
 }
 
+function cancelAnimations(el: HTMLElement | null) {
+  if (!el) return;
+  for (const anim of el.getAnimations()) anim.cancel();
+}
+
 type AppMobileChromeScreenProps = {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
-  /** Optional Aktion rechts neben dem Titel. */
   headerAction?: ReactNode;
   className?: string;
   "aria-label"?: string;
 };
 
 /**
- * Einheitliches Mobile-Overlay für Menü/Suche/Benachrichtigungen:
- * Vollfläche bis zur Bottom-Nav. Schließen über das X in der Bottom-Nav
- * (Icon-Toggle) bzw. Escape — kein separater Schließen-Button.
+ * Mobile-Overlay Menü/Suche/Meldungen — vollflächig hinter der Bottom-Nav.
+ * Schließen: X in der Nav / Escape.
  */
 export function AppMobileChromeScreen({
   open,
@@ -68,41 +75,32 @@ export function AppMobileChromeScreen({
   "aria-label": ariaLabel,
 }: AppMobileChromeScreenProps) {
   const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(false);
   const unlockScrollRef = useRef<(() => void) | null>(null);
-  const closingUnmountRef = useRef(false);
-  const motionReduced = prefersReducedMotion();
+  const shellRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const openRef = useRef(open);
+  const generationRef = useRef(0);
+  openRef.current = open;
 
   useEffect(() => {
     if (open) {
-      closingUnmountRef.current = false;
       setMounted(true);
-      if (motionReduced) setVisible(true);
       return;
     }
-    setVisible(false);
-    if (motionReduced) {
+    if (prefersReducedMotion()) {
       setMounted(false);
       return;
     }
-    /** Beim Wechsel Menü↔Suche↔Meldungen: altes Overlay sofort weg, kein Doppel-Slide. */
+    /** Wechsel Menü↔Suche↔Meldungen: sofort ersetzen, kein Doppel-Slide. */
     const frame = requestAnimationFrame(() => {
       const anotherOpening = document.querySelector(
         '[data-app-mobile-chrome-overlay][data-open="true"]',
       );
-      if (anotherOpening) {
-        closingUnmountRef.current = true;
-        setMounted(false);
-      }
+      if (anotherOpening) setMounted(false);
     });
     return () => cancelAnimationFrame(frame);
-  }, [open, motionReduced]);
-
-  useLayoutEffect(() => {
-    if (!mounted || !open || motionReduced) return;
-    const frame = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(frame);
-  }, [mounted, open, motionReduced]);
+  }, [open]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -122,74 +120,158 @@ export function AppMobileChromeScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
-  /** Fallback, falls `transitionend` ausbleibt (Tab-Wechsel, prefers/browser quirks). */
-  useEffect(() => {
-    if (visible || !mounted || open || motionReduced) return;
-    const timer = window.setTimeout(() => {
-      if (!closingUnmountRef.current) setMounted(false);
-    }, CLOSE_MS + 80);
-    return () => window.clearTimeout(timer);
-  }, [visible, mounted, open, motionReduced]);
+  /**
+   * Open/Close per WAAPI (nicht CSS-Klasse toggle):
+   * - keine transitionend-Race mit Unmount
+   * - Present/Dismiss mit gleicher Apple-Kurve
+   * - Abbremsen hinter der Sticky-Nav (z darunter), nicht am Clip-Rand
+   */
+  useLayoutEffect(() => {
+    if (!mounted) return;
+    const panel = panelRef.current;
+    const backdrop = backdropRef.current;
+    if (!panel || !backdrop) return;
 
-  const handlePanelTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
-    if (event.propertyName !== "transform") return;
-    if (visible || !mounted) return;
-    closingUnmountRef.current = true;
-    /** Ein Frame nach Abschluss — sonst Sichtbarkeitssprung beim Unmount. */
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => setMounted(false));
-    });
-  };
+    const gen = ++generationRef.current;
+    const reduce = prefersReducedMotion();
+
+    cancelAnimations(panel);
+    cancelAnimations(backdrop);
+
+    if (open) {
+      if (reduce) {
+        panel.style.transform = "translate3d(0, 0, 0)";
+        backdrop.style.opacity = "1";
+        return;
+      }
+      panel.style.transform = "translate3d(0, 100%, 0)";
+      backdrop.style.opacity = "0";
+      const panelAnim = panel.animate(
+        [
+          { transform: "translate3d(0, 100%, 0)" },
+          { transform: "translate3d(0, 0, 0)" },
+        ],
+        {
+          duration: OPEN_MS,
+          easing: SHEET_EASING,
+          fill: "forwards",
+        },
+      );
+      const backdropAnim = backdrop.animate(
+        [{ opacity: 0 }, { opacity: 1 }],
+        {
+          duration: BACKDROP_OPEN_MS,
+          easing: SHEET_EASING,
+          fill: "forwards",
+        },
+      );
+      void panelAnim.finished.then(() => {
+        if (generationRef.current !== gen) return;
+        panel.style.transform = "translate3d(0, 0, 0)";
+        panelAnim.cancel();
+      });
+      void backdropAnim.finished.then(() => {
+        if (generationRef.current !== gen) return;
+        backdrop.style.opacity = "1";
+        backdropAnim.cancel();
+      });
+      return () => {
+        panelAnim.cancel();
+        backdropAnim.cancel();
+      };
+    }
+
+    /** Close */
+    if (reduce) {
+      setMounted(false);
+      return;
+    }
+
+    /** Anderes Overlay öffnet — dieses hier sofort weg. */
+    const anotherOpening = document.querySelector(
+      '[data-app-mobile-chrome-overlay][data-open="true"]',
+    );
+    if (anotherOpening && anotherOpening !== shellRef.current) {
+      setMounted(false);
+      return;
+    }
+
+    panel.style.transform = "translate3d(0, 0, 0)";
+    backdrop.style.opacity = "1";
+
+    const panelAnim = panel.animate(
+      [
+        { transform: "translate3d(0, 0, 0)" },
+        { transform: "translate3d(0, 100%, 0)" },
+      ],
+      {
+        duration: CLOSE_MS,
+        easing: SHEET_EASING,
+        fill: "forwards",
+      },
+    );
+    const backdropAnim = backdrop.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      {
+        duration: BACKDROP_CLOSE_MS,
+        easing: SHEET_EASING,
+        fill: "forwards",
+      },
+    );
+
+    void panelAnim.finished
+      .catch(() => undefined)
+      .then(() => {
+        if (generationRef.current !== gen) return;
+        if (openRef.current) return;
+        /**
+         * Compositor-Frame abwarten, dann unmounten —
+         * sonst flackert der letzte gerenderte Frame.
+         */
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (generationRef.current !== gen) return;
+            if (!openRef.current) setMounted(false);
+          });
+        });
+      });
+
+    return () => {
+      panelAnim.cancel();
+      backdropAnim.cancel();
+    };
+  }, [mounted, open]);
 
   if (!mounted || typeof document === "undefined") return null;
 
-  const transitionMs = visible ? OPEN_MS : CLOSE_MS;
-  const easing = visible ? OPEN_EASING : CLOSE_EASING;
-  /** Etwas über 100 %, damit Unmount nicht mit Restpixel sichtbar wird. */
-  const panelTransform = visible
-    ? "translate3d(0, 0, 0)"
-    : "translate3d(0, calc(100% + 2rem), 0)";
-
   return createPortal(
     <div
+      ref={shellRef}
       data-app-mobile-chrome-overlay
       data-open={open ? "true" : "false"}
-      className="fixed inset-x-0 top-0 touch-manipulation md:hidden"
-      style={{
-        zIndex: APP_LAYER_Z_INDEX.stackedSurface,
-        bottom: "var(--app-mobile-bottom-nav-offset)",
-      }}
-      aria-hidden={!visible}
+      className="fixed inset-0 touch-manipulation md:hidden"
+      style={{ zIndex: APP_LAYER_Z_INDEX.mobileChromeOverlay }}
+      aria-hidden={!open}
     >
       <div
-        className={cn(
-          "absolute inset-0 bg-background/25 transition-opacity",
-          visible ? "opacity-100" : "opacity-0",
-        )}
-        style={{
-          transitionDuration: motionReduced ? "0ms" : `${transitionMs}ms`,
-          transitionTimingFunction: easing,
-        }}
+        ref={backdropRef}
+        className="absolute inset-0 bg-background/25"
+        style={{ opacity: 0 }}
         aria-hidden
       />
 
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel ?? title}
         className={cn(
           "absolute inset-0 flex flex-col overscroll-none bg-background pt-[env(safe-area-inset-top,0px)]",
-          "[backface-visibility:hidden] will-change-transform",
+          "pb-[var(--app-mobile-bottom-nav-offset)]",
+          "[backface-visibility:hidden] transform-gpu",
           className,
         )}
-        style={{
-          transform: panelTransform,
-          transition: motionReduced
-            ? "none"
-            : `transform ${transitionMs}ms ${easing}`,
-        }}
-        onTransitionEnd={handlePanelTransitionEnd}
+        style={{ transform: "translate3d(0, 100%, 0)" }}
       >
         <header className="flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-3">
           <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">

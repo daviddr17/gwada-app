@@ -12,6 +12,7 @@ import {
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_MOBILE_BOTTOM_NAV_BAR_H, appMobileBottomSafePbClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 
@@ -22,8 +23,8 @@ const itemActiveClassName = "text-foreground";
 
 /**
  * Mobile Primary-Nav: Menü · Suche · Meldungen · Profil (Thumb-Zone).
- * Unter Chrome-Overlays freigehalten (`bottom`-Inset), daher nur `z` über Content —
- * nicht über FABs (sonst verschwinden Plus/Sprachnote hinter der Nav).
+ * z über `mobileChromeOverlay` — Sheet fährt darunter durch; X bleibt klickbar.
+ * FABs liegen geometrisch über der Nav (bottom-offset), nicht in derselben Fläche.
  * Desktop: nicht gerendert (`md:hidden`).
  */
 export function AppMobileBottomNav() {
@@ -38,10 +39,11 @@ export function AppMobileBottomNav() {
       data-app-mobile-bottom-nav
       aria-label="Hauptnavigation"
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 border-t border-border/50 md:hidden",
+        "fixed inset-x-0 bottom-0 border-t border-border/50 md:hidden",
         appChromeFixedZoneBgClassName,
         appMobileBottomSafePbClassName,
       )}
+      style={{ zIndex: APP_LAYER_Z_INDEX.mobileBottomNav }}
     >
       <div
         className="flex items-stretch"

@@ -157,6 +157,7 @@ export function PurchaseOrdersScreen() {
     markLineDelivered,
     unmarkLineDelivered,
     syncSupplierNamesFromTaxonomy,
+    healCreatorAttribution,
   } = usePurchaseOrdersStorage();
   const {
     ingredients,
@@ -212,6 +213,11 @@ export function PurchaseOrdersScreen() {
     [suppliers.items],
   );
 
+  const creatorLabelForOrder = useCallback(
+    (order: PurchaseOrder) => resolveProtocolCreatorLabel(order),
+    [],
+  );
+
   const supplierSyncSignature = useMemo(
     () =>
       [
@@ -228,6 +234,17 @@ export function PurchaseOrdersScreen() {
     // Nur wenn Namen/IDs sich ändern — nicht bei jeder Render-Identität.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- signature deckt relevante Änderungen ab
   }, [isHydrated, suppliers.isHydrated, supplierSyncSignature]);
+
+  useEffect(() => {
+    if (!isHydrated || orders.length === 0) return;
+    void healCreatorAttribution();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- einmalig pro Hydration / Order-Set mit local_profile
+  }, [
+    isHydrated,
+    orders
+      .map((o) => `${o.id}:${o.createdBy}:${o.createdByUserSource ?? ""}`)
+      .join("|"),
+  ]);
 
   const supplierFilterOptions = useMemo(() => {
     const byId = new Map<string, string>();
@@ -521,8 +538,11 @@ export function PurchaseOrdersScreen() {
                         {deliveryLabel ? ` · Lieferung ${deliveryLabel}` : ""}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
-                        Erstellt {formatWhen(order.createdAt)} ·{" "}
-                        {resolveProtocolCreatorLabel(order, actor)}
+                        Erstellt {formatWhen(order.createdAt)}
+                        {(() => {
+                          const creator = creatorLabelForOrder(order);
+                          return creator ? ` · ${creator}` : "";
+                        })()}
                       </p>
                     </div>
                   </button>

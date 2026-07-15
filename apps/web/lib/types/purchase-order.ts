@@ -146,17 +146,37 @@ export type PurchaseOrder = {
 };
 
 /**
- * Ersteller-Zeile: immer der eingefrorene Klarname.
- * `createdByUserSource: local_profile` war Single-Device-Remapping und zeigte fälschlich
- * den aktuellen Betrachter (z. B. Admin) statt den Mitarbeitenden.
+ * Klarname aus dem ältesten Protokolleintrag mit gespeichertem Namen.
+ * (Bei `local_profile` ohne eingefrorene Namen war der Viewer fälschlich der „Ersteller“.)
+ */
+export function resolveCreatorLabelFromOrderLog(
+  log: readonly PurchaseOrderLogEntry[],
+): string {
+  const chronological = [...log].sort((a, b) => a.at.localeCompare(b.at));
+  for (const e of chronological) {
+    const label = resolveLogEntryUserLabel(e);
+    if (label && label !== "—") return label;
+  }
+  return "";
+}
+
+/**
+ * Ersteller-Zeile: nur eingefrorene Klarnamen bzw. Protokoll — nie der aktuelle Betrachter.
+ * `createdByUserSource: local_profile` war Single-Device-Remapping und ist unzuverlässig
+ * (zeigte Admin/David statt Mitarbeitende).
  */
 export function resolveProtocolCreatorLabel(
-  order: Pick<PurchaseOrder, "createdBy" | "createdByUserSource">,
+  order: Pick<PurchaseOrder, "createdBy" | "createdByUserSource" | "log">,
   _currentProfile?: OrderProtocolActor,
 ): string {
+  const fromLog = resolveCreatorLabelFromOrderLog(order.log ?? []);
+  // local_profile: eingefrorener Text kann vom Viewer-Remapping stammen → Protokoll bevorzugen
+  if (order.createdByUserSource === "local_profile") {
+    return fromLog;
+  }
   const frozen = order.createdBy.trim();
-  if (frozen) return frozen;
-  return "—";
+  if (frozen && frozen !== "—") return frozen;
+  return fromLog;
 }
 
 export function resolveLogEntryUserLabel(
@@ -180,6 +200,37 @@ export function resolveLogEntryUserLabel(
     default:
       return "—";
   }
+}
+
+/**
+ * Entfernt unzuverlässiges `local_profile`-Remapping und setzt `createdBy`
+ * aus dem Protokoll, wenn dort ein Klarname liegt.
+ */
+export function healPurchaseOrderCreatorAttribution(order: PurchaseOrder): PurchaseOrder {
+  if (order.createdByUserSource !== "local_profile") return order;
+  const fromLog = resolveCreatorLabelFromOrderLog(order.log);
+  return {
+    ...order,
+    createdBy: fromLog,
+    createdByUserSource: undefined,
+  };
+}
+
+export function healPurchaseOrdersCreatorAttribution(
+  orders: PurchaseOrder[],
+): { orders: PurchaseOrder[]; changed: boolean } {
+  let changed = false;
+  const next = orders.map((order) => {
+    const healed = healPurchaseOrderCreatorAttribution(order);
+    if (
+      healed.createdBy !== order.createdBy ||
+      healed.createdByUserSource !== order.createdByUserSource
+    ) {
+      changed = true;
+    }
+    return healed;
+  });
+  return { orders: next, changed };
 }
 
 export type PurchaseOrdersPersistenceV1 = {

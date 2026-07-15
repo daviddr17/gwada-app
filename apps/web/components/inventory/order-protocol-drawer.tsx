@@ -12,7 +12,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
 import { protocolDeltaWrapClass } from "@/components/inventory/protocol-menge-colors";
 import type { PurchaseOrder, PurchaseOrderLogEntry } from "@/lib/types/purchase-order";
 import { resolveLogEntryUserLabel, resolveProtocolCreatorLabel } from "@/lib/types/purchase-order";
@@ -117,11 +116,12 @@ export function OrderProtocolDrawer({
   open,
   onOpenChange,
 }: OrderProtocolDrawerProps) {
-  const { actor } = usePersonalProfileNames();
   const entries = useMemo(
     () => (order ? [...order.log].reverse() : []),
     [order],
   );
+
+  const creatorLabel = order ? resolveProtocolCreatorLabel(order) : "";
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>
@@ -135,8 +135,8 @@ export function OrderProtocolDrawer({
           <DrawerDescription className="text-sm leading-relaxed">
             {order ? (
               <>
-                {order.supplierName} · erstellt {formatWhen(order.createdAt)} von{" "}
-                {resolveProtocolCreatorLabel(order, actor)}
+                {order.supplierName} · erstellt {formatWhen(order.createdAt)}
+                {creatorLabel ? ` von ${creatorLabel}` : ""}
                 {order.deliveryDate ? (
                   <>
                     {" "}
@@ -180,7 +180,7 @@ export function OrderProtocolDrawer({
                         {formatProtocolWhen(e.at)}
                       </td>
                       <td className="px-2 py-1.5 font-medium text-foreground sm:px-3 sm:py-2">
-                        {resolveLogEntryUserLabel(e, actor)}
+                        {resolveLogEntryUserLabel(e)}
                       </td>
                       <td
                         className="max-w-[14rem] truncate px-2 py-1.5 text-foreground sm:max-w-none sm:px-3 sm:py-2"

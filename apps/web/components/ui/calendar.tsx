@@ -37,7 +37,9 @@ function CalendarNavDropdown({
   "aria-label": ariaLabel,
   className,
 }: DropdownProps) {
-  const selected = options?.find((option) => option.value === value)
+  const selected = options?.find(
+    (option) => String(option.value) === String(value),
+  )
   const selectValue = value != null ? String(value) : undefined
 
   return (
@@ -60,7 +62,7 @@ function CalendarNavDropdown({
           className,
         )}
       >
-        <SelectValue placeholder={selected?.label ?? "—"} />
+        <SelectValue placeholder="—">{selected?.label ?? "—"}</SelectValue>
       </SelectTrigger>
       <SelectContent align="start" elevatedLayer>
         {options?.map((option) => (
@@ -318,11 +320,11 @@ function CalendarDayButton({
         "group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50",
         "[&>span]:text-xs [&>span]:opacity-70",
         defaultClassNames.day_button,
-        /* Heute: größere, kräftigere Zahl (früher eher „gewählt“-Optik) */
-        "data-[today]:text-[15px] data-[today]:font-semibold data-[today]:tabular-nums data-[today]:tracking-wide",
+        className,
+        modifiers.today &&
+          "text-[15px] font-semibold tabular-nums tracking-wide",
         /* Gewählter Tag: muted-Fläche (früher „Heute“-Optik) */
         "data-[selected-single=true]:bg-muted data-[selected-single=true]:text-foreground data-[selected-single=true]:hover:bg-muted/70 data-[selected-single=true]:hover:text-foreground",
-        className,
       )}
       {...props}
     />

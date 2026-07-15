@@ -1,0 +1,49 @@
+/*
+ * Mobile Bottom-Chrome: Bottom-Nav, FABs, Sticky-Footer — unlayered.
+ * PWA (standalone) vs Browser über CSS + html[data-display-mode].
+ */
+@media (max-width: 767px) {
+  :root {
+    --app-mobile-bottom-nav-bar: 3.5rem;
+    --app-mobile-fab-size: 3rem;
+    --app-mobile-fab-gap: 2rem;
+    /* Browser: nur echte Safe-Area (kein künstliches Min-Pad). */
+    --app-mobile-bottom-safe: env(safe-area-inset-bottom, 0px);
+    --app-mobile-bottom-nav-offset: calc(
+      var(--app-mobile-bottom-nav-bar) + var(--app-mobile-bottom-safe)
+    );
+    --app-mobile-fab-bottom: calc(
+      var(--app-mobile-bottom-nav-offset) + var(--app-mobile-fab-gap)
+    );
+    --app-mobile-fab-clearance: calc(
+      var(--app-mobile-fab-bottom) + var(--app-mobile-fab-size)
+    );
+    --app-mobile-content-pb: 1rem;
+  }
+
+  /* PWA / Home-Bildschirm: env() oft 0 — Mindest-Pad für Home-Indicator. */
+  @media (display-mode: standalone) {
+    :root {
+      --app-mobile-bottom-safe: max(env(safe-area-inset-bottom, 0px), 0.75rem);
+    }
+  }
+
+  html[data-display-mode="standalone"] {
+    --app-mobile-bottom-safe: max(env(safe-area-inset-bottom, 0px), 0.75rem);
+  }
+
+  [data-app-scroll-root] {
+    padding-bottom: var(--app-mobile-bottom-nav-offset);
+  }
+
+  body:has([data-dashboard-fab], [data-inventory-voice-fab], [data-reservation-voice-fab])
+    [data-app-scroll-root] {
+    padding-bottom: var(--app-mobile-fab-clearance);
+  }
+
+  body:has([data-dashboard-fab], [data-inventory-voice-fab], [data-reservation-voice-fab])
+    [data-settings-sticky-save-bar] {
+    bottom: var(--app-mobile-fab-clearance);
+    padding-inline-end: calc(1rem + var(--app-mobile-fab-size));
+  }
+}

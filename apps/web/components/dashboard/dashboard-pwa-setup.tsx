@@ -9,11 +9,16 @@ import {
 } from "@/lib/dashboard/dashboard-pwa-config";
 import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
 import { isStandalonePwaClient } from "@/lib/pwa/is-standalone-pwa-client";
+import { installDisplayModeAttributeSync } from "@/lib/pwa/sync-display-mode-attribute";
 import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
 import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 
 /** Registriert den Dashboard-Service-Worker (App-Zone). */
 export function DashboardPwaSetup() {
+  useEffect(() => {
+    return installDisplayModeAttributeSync();
+  }, []);
+
   useEffect(() => {
     syncAppleWebAppTitle(PWA_APP_LABEL_DASHBOARD);
     if (isStandalonePwaClient()) {

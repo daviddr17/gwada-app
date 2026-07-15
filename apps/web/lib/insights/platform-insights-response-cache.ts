@@ -37,6 +37,10 @@ export function markGoogleInsightsQuotaExceeded(restaurantId: string): void {
   );
 }
 
+export function clearGoogleInsightsQuotaCooldown(restaurantId: string): void {
+  googleQuotaUntilByRestaurant.delete(restaurantId);
+}
+
 export function readPlatformInsightsCache<T>(
   platform: PlatformInsightsCachePlatform,
   restaurantId: string,
@@ -84,10 +88,11 @@ export function isGoogleQuotaErrorMessage(raw: string | null | undefined): boole
   const lower = raw.toLowerCase();
   return (
     lower.includes("quota exceeded") ||
-    lower.includes("rate limit") ||
+    /\brate limit\b/.test(lower) ||
     lower.includes("resource_exhausted") ||
-    lower.includes("too many requests") ||
-    lower.includes("429")
+    /\btoo many requests\b/.test(lower) ||
+    /\b429\b/.test(lower) ||
+    lower.endsWith("_429")
   );
 }
 

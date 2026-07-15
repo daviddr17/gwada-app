@@ -500,6 +500,8 @@ export function InventoryCompactStockList(props: InventoryMobileStockListProps) 
             Number.isFinite(threshold) &&
             threshold > 0 &&
             row.currentStock <= threshold;
+          const inOpenOrder =
+            orderCtx.openLineId != null && orderCtx.openQty > 0;
 
           return (
             <li
@@ -507,6 +509,8 @@ export function InventoryCompactStockList(props: InventoryMobileStockListProps) 
               className={cn(
                 "grid grid-cols-[minmax(0,1fr)_7rem_7rem] items-center gap-x-2 gap-y-1 px-3 py-1.5",
                 low && "bg-amber-500/5",
+                inOpenOrder &&
+                  "ring-1 ring-inset ring-sky-500/45 dark:ring-sky-400/40",
               )}
             >
               <button

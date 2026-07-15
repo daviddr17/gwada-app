@@ -25,6 +25,7 @@ import {
 import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import "../../app-calendar.css";
+import "../../app-mobile-chrome.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   await getCachedRootLayoutBranding();

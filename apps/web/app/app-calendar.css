@@ -70,6 +70,15 @@
  * Tailwind-`background-color` auf :hover. Hier explizit wie DropdownMenuItem:
  * `hover:bg-muted/80` + `hover:text-foreground`.
  */
+.rdp-root
+  .rdp-day[data-today]:not([data-outside])
+  > .rdp-day_button {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.025em;
+}
+
 .rdp-root .rdp-button_previous,
 .rdp-root .rdp-button_next {
   border: none;

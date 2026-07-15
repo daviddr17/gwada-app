@@ -213,9 +213,9 @@
 
   @media (max-width: 767px) {
     :root {
+      /* Fallback bis app-mobile-chrome.css geladen; Details dort inkl. PWA/Browser. */
       --app-mobile-bottom-nav-bar: 3.5rem;
-      /* Min-Pad 0.5rem: PWA/Standalone wenn safe-area knapp oder Rundung clippt */
-      --app-mobile-bottom-safe: max(env(safe-area-inset-bottom, 0px), 0.5rem);
+      --app-mobile-bottom-safe: env(safe-area-inset-bottom, 0px);
       --app-mobile-bottom-nav-offset: calc(
         3.5rem + var(--app-mobile-bottom-safe)
       );

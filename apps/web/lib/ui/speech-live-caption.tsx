@@ -1,6 +1,6 @@
 "use client";
 
-import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import { appMobileFabCaptionBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 type SpeechLiveCaptionProps = {
@@ -26,7 +26,7 @@ export function SpeechLiveCaption({
       <div
         className={cn(
           "pointer-events-none fixed inset-x-4 z-[120] flex justify-center",
-          appMobileFabBottomClassName,
+          appMobileFabCaptionBottomClassName,
           className,
         )}
         aria-live="polite"

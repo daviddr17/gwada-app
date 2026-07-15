@@ -11,6 +11,7 @@ import {
 } from "@/lib/display/display-pwa-config";
 import { PWA_APP_LABEL_DISPLAY } from "@/lib/pwa/pwa-app-labels";
 import { isStandalonePwaClient } from "@/lib/pwa/is-standalone-pwa-client";
+import { installDisplayModeAttributeSync } from "@/lib/pwa/sync-display-mode-attribute";
 import { syncAppleTouchIcon } from "@/lib/pwa/sync-apple-touch-icon";
 import { syncAppleWebAppTitle } from "@/lib/pwa/sync-apple-web-app-title";
 
@@ -22,6 +23,10 @@ function displaySlugFromPathname(pathname: string): string | null {
 /** Registriert den Display-Service-Worker (nur unter /display). */
 export function DisplayPwaSetup() {
   const pathname = usePathname();
+
+  useEffect(() => {
+    return installDisplayModeAttributeSync();
+  }, []);
 
   useEffect(() => {
     syncAppleWebAppTitle(PWA_APP_LABEL_DISPLAY);

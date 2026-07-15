@@ -3,6 +3,7 @@ import "server-only";
 import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
 import {
   GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
+  clearGoogleInsightsQuotaCooldown,
   isGoogleInsightsQuotaCooldown,
   isGoogleQuotaErrorMessage,
   markGoogleInsightsQuotaExceeded,
@@ -217,9 +218,15 @@ const preferredParamStyleByRestaurant = new Map<string, ParamStyle>();
 
 function paramStylesToTry(restaurantId: string): ParamStyle[] {
   const preferred = preferredParamStyleByRestaurant.get(restaurantId);
-  const all: ParamStyle[] = ["rest_doc", "camel_date", "snake"];
-  if (!preferred) return all;
-  return [preferred, ...all.filter((s) => s !== preferred)];
+  if (preferred) return [preferred];
+  return ["rest_doc", "camel_date", "snake"];
+}
+
+/** Tages-Cache / Fallback: Daten anzeigen ohne Quota-Warnbanner. */
+function presentGoogleInsights(
+  data: GoogleBusinessPlatformInsights,
+): GoogleBusinessPlatformInsights {
+  return { ...data, error: null };
 }
 
 function buildPerformanceUrl(
@@ -456,7 +463,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     params.startYmd,
     params.endYmd,
   );
-  if (cached) return cached;
+  if (cached) return presentGoogleInsights(cached);
 
   if (isGoogleInsightsQuotaCooldown(params.restaurantId)) {
     const stale =
@@ -465,10 +472,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
         params.restaurantId,
       );
     if (stale) {
-      return {
-        ...stale,
-        error: GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
-      };
+      return presentGoogleInsights(stale);
     }
     return emptyGoogleInsights({
       connected: true,
@@ -485,6 +489,9 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     result,
     (data) => data.connected && !data.error,
   );
+  if (result.connected && !result.error) {
+    clearGoogleInsightsQuotaCooldown(params.restaurantId);
+  }
   return result;
 }
 
@@ -546,10 +553,7 @@ async function fetchGoogleBusinessPlatformInsightsLive(params: {
           params.restaurantId,
         );
       if (stale) {
-        return {
-          ...stale,
-          error: humanizeGooglePerformanceError(multi.error),
-        };
+        return presentGoogleInsights(stale);
       }
     }
     return emptyGoogleInsights({

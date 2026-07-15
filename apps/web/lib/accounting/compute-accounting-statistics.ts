@@ -87,9 +87,11 @@ export type AccountingStatisticsResult = {
   cashByMonth: Array<{ month: string; income: number; expense: number }>;
 };
 
-function inPeriod(iso: string, start: Date, end: Date): boolean {
-  const t = new Date(iso).getTime();
-  return t >= start.getTime() && t <= end.getTime();
+function inPeriod(isoOrYmd: string, start: Date, end: Date): boolean {
+  const normalized =
+    isoOrYmd.length <= 10 ? `${isoOrYmd}T12:00:00` : isoOrYmd;
+  const t = new Date(normalized).getTime();
+  return Number.isFinite(t) && t >= start.getTime() && t <= end.getTime();
 }
 
 function formatMonthLabel(ym: string): string {
@@ -98,8 +100,11 @@ function formatMonthLabel(ym: string): string {
   return d.toLocaleDateString("de-DE", { month: "short", year: "2-digit" });
 }
 
-function monthKey(iso: string): string {
-  const d = new Date(iso);
+function monthKey(isoOrYmd: string): string {
+  if (/^\d{4}-\d{2}/.test(isoOrYmd)) {
+    return isoOrYmd.slice(0, 7);
+  }
+  const d = new Date(isoOrYmd);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -128,16 +133,16 @@ export function computeAccountingStatistics(
   input: AccountingStatisticsInput,
 ): AccountingStatisticsResult {
   const invoicesInPeriod = input.invoices.filter((row) =>
-    inPeriod(row.created_at, input.periodStart, input.periodEnd),
+    inPeriod(row.activity_date, input.periodStart, input.periodEnd),
   );
   const quotationsInPeriod = input.quotations.filter((row) =>
-    inPeriod(row.created_at, input.periodStart, input.periodEnd),
+    inPeriod(row.activity_date, input.periodStart, input.periodEnd),
   );
   const vouchersInPeriod = input.vouchers.filter((row) =>
-    inPeriod(row.created_at, input.periodStart, input.periodEnd),
+    inPeriod(row.activity_date, input.periodStart, input.periodEnd),
   );
   const cashInPeriod = input.cashEntries.filter((row) =>
-    inPeriod(row.created_at, input.periodStart, input.periodEnd),
+    inPeriod(row.entry_date, input.periodStart, input.periodEnd),
   );
 
   const openInvoices = input.invoices.filter(
@@ -264,7 +269,7 @@ export function computeAccountingStatistics(
     ...quotationsInPeriod,
     ...vouchersInPeriod,
   ]) {
-    const key = monthKey(row.created_at);
+    const key = monthKey(row.activity_date);
     monthCounts.set(key, (monthCounts.get(key) ?? 0) + 1);
   }
   for (const row of cashInPeriod) {
@@ -301,7 +306,11 @@ export function computeAccountingStatistics(
 
   const weekdayCounts = new Map<number, number>();
   for (const row of documentsInPeriod) {
-    const d = new Date(row.created_at).getDay();
+    const d = new Date(
+      row.activity_date.length <= 10
+        ? `${row.activity_date}T12:00:00`
+        : row.activity_date,
+    ).getDay();
     weekdayCounts.set(d, (weekdayCounts.get(d) ?? 0) + 1);
   }
   const byWeekday = WEEKDAY_ORDER.map((dayIndex) => ({

@@ -134,14 +134,21 @@ export function isGoogleQuotaErrorMessage(raw: string | null | undefined): boole
   );
 }
 
-/** Nur wenn wir wirklich Cache-Daten ausliefern. */
-export const GOOGLE_INSIGHTS_QUOTA_WITH_CACHE_MESSAGE =
-  "Google Insights: Tageslimit erreicht — zuletzt gespeicherte Daten werden angezeigt. Neuer Abruf in Kürze wieder möglich.";
+/** Kurzer Hinweis nur bei echtem HTTP 429. */
+export const GOOGLE_INSIGHTS_RATE_LIMIT_MESSAGE =
+  "Google Insights: Zu viele Anfragen. Bitte in ein paar Minuten erneut versuchen.";
 
-/** Wenn kein Cache vorhanden ist (kein „Zwischenspeicher“ vortäuschen). */
+/**
+ * Unspezifisches Kontingent (oft API-Quota 0 / Cloud-Projekt) — kein „Tageslimit“.
+ * Performance-API dokumentiert vor allem Anfragen/Minute, kein festes Tageslimit.
+ */
 export const GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE =
-  "Google Insights: Tageslimit erreicht. Bitte später erneut versuchen.";
+  "Google Insights: Abruf derzeit nicht möglich (Google-Kontingent/API). Bitte später erneut versuchen.";
 
-/** @deprecated Alias — früherer Textcht text. */
+/** @deprecated Alias */
+export const GOOGLE_INSIGHTS_QUOTA_WITH_CACHE_MESSAGE =
+  GOOGLE_INSIGHTS_RATE_LIMIT_MESSAGE;
+
+/** @deprecated Alias */
 export const GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE =
-  GOOGLE_INSIGHTS_QUOTA_WITH_CACHE_MESSAGE;
+  GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE;

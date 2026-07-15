@@ -14,6 +14,8 @@ export type AccountingInvoiceAnalyticsRow = {
   id: string;
   status: string;
   source: AccountingSource;
+  /** Beleg-/Dokumentdatum (Fallback: Sync-Tag von created_at). */
+  activity_date: string;
   created_at: string;
   total_gross: number;
 };
@@ -25,6 +27,7 @@ export type AccountingVoucherAnalyticsRow = {
   status: string;
   source: AccountingSource;
   voucher_kind: AccountingVoucherKind;
+  activity_date: string;
   created_at: string;
   total_gross_amount: number;
 };
@@ -47,10 +50,11 @@ export type AccountingStatisticsBundle = {
 };
 
 const INVOICE_SELECT =
-  "id, status, source, created_at, totals, document_variant";
-const QUOTATION_SELECT = "id, status, source, created_at, totals";
+  "id, status, source, created_at, voucher_date, totals, document_variant";
+const QUOTATION_SELECT =
+  "id, status, source, created_at, voucher_date, totals";
 const VOUCHER_SELECT =
-  "id, status, source, voucher_kind, created_at, total_gross_amount, document_variant";
+  "id, status, source, voucher_kind, created_at, voucher_date, total_gross_amount, document_variant";
 const CASH_SELECT = "id, direction, amount, entry_date, created_at";
 
 function periodRange(monthsBack: AccountingStatsPeriod): {
@@ -70,11 +74,30 @@ function parseTotals(raw: unknown): number {
   return Number(totals.totalGross ?? 0);
 }
 
+/** Lexoffice-/Belegdatum für Insights: nicht Sync-created_at. */
+function activityDateFromRow(raw: Record<string, unknown>): string {
+  const voucher = raw.voucher_date;
+  if (typeof voucher === "string" && /^\d{4}-\d{2}-\d{2}/.test(voucher)) {
+    return voucher.slice(0, 10);
+  }
+  const created = raw.created_at;
+  if (typeof created === "string" && created.length >= 10) {
+    return created.slice(0, 10);
+  }
+  return localTodayYmd();
+}
+
+function localTodayYmd(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function mapInvoiceRow(raw: Record<string, unknown>): AccountingInvoiceAnalyticsRow {
   return {
     id: raw.id as string,
     status: raw.status as string,
     source: raw.source as AccountingSource,
+    activity_date: activityDateFromRow(raw),
     created_at: raw.created_at as string,
     total_gross: parseTotals(raw.totals),
   };
@@ -86,6 +109,7 @@ function mapVoucherRow(raw: Record<string, unknown>): AccountingVoucherAnalytics
     status: raw.status as string,
     source: raw.source as AccountingSource,
     voucher_kind: raw.voucher_kind as AccountingVoucherKind,
+    activity_date: activityDateFromRow(raw),
     created_at: raw.created_at as string,
     total_gross_amount: Number(raw.total_gross_amount ?? 0),
   };

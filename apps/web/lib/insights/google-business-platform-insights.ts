@@ -3,6 +3,7 @@ import "server-only";
 import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
 import {
   GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE,
+  GOOGLE_INSIGHTS_RATE_LIMIT_MESSAGE,
   clearGoogleInsightsQuotaCooldown,
   isGoogleInsightsQuotaCooldown,
   isGoogleQuotaErrorMessage,
@@ -268,9 +269,12 @@ function buildPerformanceUrl(
   return url;
 }
 
-function humanizeGooglePerformanceError(raw: string | null): string | null {
-  if (!raw) return null;
-  const lower = raw.toLowerCase();
+function humanizeGooglePerformanceError(
+  raw: string | null,
+  httpStatus?: number | null,
+): string | null {
+  if (!raw && httpStatus == null) return null;
+  const lower = (raw ?? "").toLowerCase();
   if (lower.includes("platform_not_configured") || lower.includes("google_not_connected")) {
     return lower.includes("platform_not_configured")
       ? "Google OAuth-Credentials fehlen in den Plattform-Integrationen."
@@ -289,10 +293,10 @@ function humanizeGooglePerformanceError(raw: string | null): string | null {
   ) {
     return "Fehlende Google-Berechtigung für Insights — bitte Google unter Integrationen neu verbinden.";
   }
-  if (lower.includes("permission") || lower.includes("forbidden") || lower.includes("403")) {
+  if (lower.includes("permission") || lower.includes("forbidden") || lower.includes("403") || httpStatus === 403) {
     return "Keine Berechtigung für Google Business Performance — Konto neu verbinden.";
   }
-  if (lower.includes("not found") || lower.includes("404")) {
+  if (lower.includes("not found") || lower.includes("404") || httpStatus === 404) {
     return "Google-Standort nicht gefunden — Standort in Integrationen prüfen.";
   }
   // Nur echte „API disabled“-Signale — nicht jeder String mit dem API-Namen.
@@ -305,6 +309,9 @@ function humanizeGooglePerformanceError(raw: string | null): string | null {
       (lower.includes("disabled") || lower.includes("not been used")))
   ) {
     return "Business Profile Performance API im Google Cloud Projekt aktivieren (Superadmin / Google Cloud Console).";
+  }
+  if (httpStatus === 429) {
+    return GOOGLE_INSIGHTS_RATE_LIMIT_MESSAGE;
   }
   if (isGoogleQuotaErrorMessage(raw)) {
     return GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE;
@@ -322,9 +329,14 @@ async function fetchMulti(
   start: DateParts,
   end: DateParts,
   restaurantId: string,
-): Promise<{ body: GoogleTimeSeriesPayload; error: string | null }> {
+): Promise<{
+  body: GoogleTimeSeriesPayload;
+  error: string | null;
+  httpStatus: number | null;
+}> {
   let bestEmptyOk: GoogleTimeSeriesPayload | null = null;
   let lastError: string | null = null;
+  let lastStatus: number | null = null;
 
   for (const style of paramStylesToTry(restaurantId)) {
     const url = buildPerformanceUrl(location, start, end, style);
@@ -335,24 +347,25 @@ async function fetchMulti(
     const body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
     if (!res.ok) {
       lastError = body.error?.message ?? `google_performance_${res.status}`;
+      lastStatus = res.status;
       /** Nur HTTP 429 → kurzer Backoff. Keyword-Match allein sperrt nicht mehr. */
       if (res.status === 429) {
         markGoogleInsightsQuotaExceeded(restaurantId);
-        return { body: {}, error: lastError };
+        return { body: {}, error: lastError, httpStatus: 429 };
       }
       continue;
     }
     if (payloadHasDatedValues(body)) {
       preferredParamStyleByRestaurant.set(restaurantId, style);
-      return { body, error: null };
+      return { body, error: null, httpStatus: res.status };
     }
     bestEmptyOk = body;
   }
 
   if (bestEmptyOk) {
-    return { body: bestEmptyOk, error: null };
+    return { body: bestEmptyOk, error: null, httpStatus: 200 };
   }
-  return { body: {}, error: lastError };
+  return { body: {}, error: lastError, httpStatus: lastStatus };
 }
 
 async function fetchSearchKeywords(
@@ -545,7 +558,7 @@ async function fetchGoogleBusinessPlatformInsightsLive(params: {
     }
     return emptyGoogleInsights({
       connected: true,
-      error: humanizeGooglePerformanceError(multi.error),
+      error: humanizeGooglePerformanceError(multi.error, multi.httpStatus),
     });
   }
 

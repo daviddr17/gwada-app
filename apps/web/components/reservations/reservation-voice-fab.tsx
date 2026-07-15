@@ -17,7 +17,12 @@ import {
 import { createReservationFromVoiceParsed } from "@/lib/reservations/reservation-voice-create-client";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
-import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import {
+  appMobileFabBottomClassName,
+  appMobileFabButtonClassName,
+  appMobileFabIconClassName,
+  appMobileFabStopIconClassName,
+} from "@/lib/ui/app-mobile-bottom-nav";
 import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { cn } from "@/lib/utils";
 
@@ -144,16 +149,17 @@ export function ReservationVoiceFab() {
           }
           aria-pressed={listening}
           className={cn(
-            "pointer-events-auto flex size-14 items-center justify-center rounded-full shadow-lg transition-transform active:scale-95",
+            "pointer-events-auto shadow-lg transition-transform active:scale-95",
+            appMobileFabButtonClassName,
             brandActionButtonClassName,
             listening && "ring-4 ring-accent/30",
           )}
           onClick={toggleListening}
         >
           {listening ? (
-            <Square className="size-5 fill-current" aria-hidden />
+            <Square className={appMobileFabStopIconClassName} aria-hidden />
           ) : (
-            <Mic className="size-6" strokeWidth={2.25} aria-hidden />
+            <Mic className={appMobileFabIconClassName} strokeWidth={2.25} aria-hidden />
           )}
         </button>
       </div>

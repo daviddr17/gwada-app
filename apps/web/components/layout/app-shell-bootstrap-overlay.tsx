@@ -32,10 +32,10 @@ export function AppShellBootstrapOverlay() {
           {Array.from({ length: 10 }).map((_, i) => (
             <div
               key={i}
-              className="grid h-8 w-full min-w-0 items-center gap-x-2 overflow-hidden rounded-md p-2 ms-[5px] grid-cols-[1rem_minmax(0,1fr)]"
+              className="grid h-8 w-full min-w-0 items-center gap-x-2 rounded-md px-2 ms-[5px] grid-cols-[1rem_minmax(0,1fr)]"
             >
               <Skeleton className="col-start-1 size-4 shrink-0 place-self-center rounded-md" />
-              <Skeleton className="col-start-2 h-4 min-w-0 w-full rounded-md" />
+              <Skeleton className="col-start-2 h-3.5 min-w-0 w-[70%] max-w-full justify-self-start rounded-md" />
             </div>
           ))}
         </div>

@@ -743,7 +743,9 @@ function SidebarMenuSkeleton({
       data-slot="sidebar-menu-skeleton"
       data-sidebar="menu-skeleton"
       className={cn(
-        "grid h-8 w-full min-w-0 items-center gap-x-2 overflow-hidden rounded-md p-2",
+        // Wie MenuButton rail: feste Höhe, nur horizontales Padding — kein p-2+overflow
+        // (sonst werden Icon/Text-Skeletons vertikal abgeschnitten).
+        "grid h-8 w-full min-w-0 items-center gap-x-2 rounded-md px-2",
         "grid-cols-[var(--sidebar-menu-icon-col)_minmax(0,1fr)] [--sidebar-menu-icon-col:theme(spacing.4)]",
         SIDEBAR_ICON_TRACK_MS,
         SIDEBAR_COMPACT_BUTTON,
@@ -760,7 +762,7 @@ function SidebarMenuSkeleton({
         />
       ) : null}
       <Skeleton
-        className="col-start-2 row-start-1 h-4 min-w-0 w-full rounded-md"
+        className="col-start-2 row-start-1 h-3.5 min-w-0 w-[70%] max-w-full justify-self-start rounded-md"
         data-sidebar="menu-skeleton-text"
       />
     </div>

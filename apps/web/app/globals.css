@@ -96,6 +96,7 @@
   /* Mobile Bottom-Nav (Inhalt ohne Safe-Area); Desktop = 0 */
   --app-mobile-bottom-nav-bar: 0px;
   /* Inhalt + Home-Indicator / abgerundeter PWA-Rand */
+  --app-mobile-bottom-safe: 0px;
   --app-mobile-bottom-nav-offset: 0px;
 
   /* Leicht hellgrauer als Page-Background, minimal abgesetzt */
@@ -213,8 +214,10 @@
   @media (max-width: 767px) {
     :root {
       --app-mobile-bottom-nav-bar: 3.5rem;
+      /* Min-Pad 0.5rem: PWA/Standalone wenn safe-area knapp oder Rundung clippt */
+      --app-mobile-bottom-safe: max(env(safe-area-inset-bottom, 0px), 0.5rem);
       --app-mobile-bottom-nav-offset: calc(
-        3.5rem + env(safe-area-inset-bottom, 0px)
+        3.5rem + var(--app-mobile-bottom-safe)
       );
     }
   }

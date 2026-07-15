@@ -118,7 +118,13 @@ export function AppMobileChromeScreen({
         {children}
       </div>
 
-      <footer className="shrink-0 border-t border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur-md supports-backdrop-filter:bg-background/85">
+      <footer
+        className={cn(
+          "shrink-0 border-t border-border/50 bg-background/95 px-3 pt-2.5 backdrop-blur-md supports-backdrop-filter:bg-background/85",
+          // Luft über Sticky-Footer; PWA-Safe zusätzlich, damit Schließen nicht clippt.
+          "pb-[max(0.75rem,var(--app-mobile-bottom-safe,0.5rem))]",
+        )}
+      >
         <Button
           type="button"
           variant="outline"

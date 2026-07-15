@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { OrderProtocolDrawer } from "@/components/inventory/order-protocol-drawer";
 import { PurchaseOrderMobileLinesList } from "@/components/inventory/purchase-order-mobile-lines-list";
+import { PurchaseOrderCompactLinesList } from "@/components/inventory/purchase-order-compact-lines-list";
+import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
 import {
   countPurchaseOrderActiveFilters,
   PurchaseOrdersFilterDrawer,
@@ -14,13 +16,18 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DatePickerField } from "@/components/ui/date-picker";
 import { usePersonalProfileNames } from "@/lib/hooks/use-personal-profile-names";
-import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY, INVENTORY_SUPPLIERS_KEY } from "@/lib/constants/inventory-storage";
-import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES, SEED_SUPPLIERS } from "@/lib/data/inventory-seeds";
+import { INVENTORY_BRANDS_KEY, INVENTORY_INGREDIENT_CATEGORIES_KEY, INVENTORY_PRODUCTION_SITES_KEY, INVENTORY_SUPPLIERS_KEY, INVENTORY_UNITS_KEY } from "@/lib/constants/inventory-storage";
+import { SEED_BRANDS, SEED_INGREDIENT_CATEGORIES, SEED_PRODUCTION_SITES, SEED_SUPPLIERS, SEED_UNITS } from "@/lib/data/inventory-seeds";
 import { useRestaurantProfile } from "@/lib/contexts/restaurant-profile-context";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
 import { useInventoryTaxonomyStorage } from "@/lib/hooks/use-inventory-taxonomy-storage";
 import { usePurchaseOrdersStorage } from "@/lib/hooks/use-purchase-orders-storage";
 import { resolvePurchaseOrderSupplierName } from "@/lib/inventory/resolve-purchase-order-supplier-name";
+import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
+import {
+  INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY,
+  useInventoryModuleViewMode,
+} from "@/lib/hooks/use-inventory-module-view-mode";
 import {
   type OrderProtocolActor,
   type PurchaseOrder,
@@ -180,6 +187,12 @@ export function PurchaseOrdersScreen() {
     INVENTORY_INGREDIENT_CATEGORIES_KEY,
     SEED_INGREDIENT_CATEGORIES,
   );
+  const units = useInventoryTaxonomyStorage(INVENTORY_UNITS_KEY, SEED_UNITS);
+  const {
+    mode: orderViewMode,
+    setMode: setOrderViewMode,
+    ready: orderViewReady,
+  } = useInventoryModuleViewMode(INVENTORY_PURCHASE_ORDER_VIEW_MODE_KEY);
   const [scope, setScope] = useState<keyof typeof scopeItems>("active");
   const [supplierFilterId, setSupplierFilterId] = useState<string>("all");
   const [productionFilterId, setProductionFilterId] = useState<string>("all");
@@ -216,6 +229,12 @@ export function PurchaseOrdersScreen() {
   const creatorLabelForOrder = useCallback(
     (order: PurchaseOrder) => resolveProtocolCreatorLabel(order),
     [],
+  );
+
+  const unitLabelForLine = useCallback(
+    (line: Pick<PurchaseOrderLine, "unitId" | "unitLabel">) =>
+      resolveInventoryUnitDisplayLabel(line.unitId, units.items, line.unitLabel),
+    [units.items],
   );
 
   const supplierSyncSignature = useMemo(
@@ -317,7 +336,8 @@ export function PurchaseOrdersScreen() {
     isHydrated &&
     userNameHydrated &&
     ingredientsHydrated &&
-    productionSites.isHydrated;
+    productionSites.isHydrated &&
+    units.isHydrated;
 
   const openProtocol = (o: PurchaseOrder) => {
     setProtocolOrderId(o.id);
@@ -347,7 +367,7 @@ export function PurchaseOrdersScreen() {
       const newStock = ing.currentStock + line.quantity;
       const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
         stockActor: actor,
-        stockUnitLabel: line.unitLabel,
+        stockUnitLabel: unitLabelForLine(line),
         stockFromDelivery: {
           orderId: order.id,
           supplierName: supplierNameForOrder(order),
@@ -365,7 +385,7 @@ export function PurchaseOrdersScreen() {
         return;
       }
       toast.success(
-        `„${line.ingredientName}“ als geliefert markiert – Bestand um ${line.quantity} ${line.unitLabel} erhöht.`,
+        `„${line.ingredientName}“ als geliefert markiert – Bestand um ${line.quantity} ${unitLabelForLine(line)} erhöht.`,
       );
     },
     [
@@ -374,6 +394,7 @@ export function PurchaseOrdersScreen() {
       markLineDelivered,
       orders,
       supplierNameForOrder,
+      unitLabelForLine,
       updateIngredient,
     ],
   );
@@ -397,7 +418,7 @@ export function PurchaseOrdersScreen() {
       }
       const okStock = await updateIngredient(ing.id, { currentStock: newStock }, {
         stockActor: actor,
-        stockUnitLabel: line.unitLabel,
+        stockUnitLabel: unitLabelForLine(line),
         stockDeliveryRevert: {
           orderId: order.id,
           supplierName: supplierNameForOrder(order),
@@ -415,7 +436,7 @@ export function PurchaseOrdersScreen() {
         return;
       }
       toast.success(
-        `Lieferung von „${line.ingredientName}“ rückgängig – Bestand um ${line.quantity} ${line.unitLabel} reduziert.`,
+        `Lieferung von „${line.ingredientName}“ rückgängig – Bestand um ${line.quantity} ${unitLabelForLine(line)} reduziert.`,
       );
     },
     [
@@ -423,6 +444,7 @@ export function PurchaseOrdersScreen() {
       ingredients,
       orders,
       supplierNameForOrder,
+      unitLabelForLine,
       unmarkLineDelivered,
       updateIngredient,
     ],
@@ -445,8 +467,14 @@ export function PurchaseOrdersScreen() {
             {filtered.length} Bestellung{filtered.length === 1 ? "" : "en"}
           </span>
         </div>
-        <div className={moduleSearchFilterButtonWrapClassName}>
-          <Button
+        <div className="flex shrink-0 items-center gap-2">
+          <InventoryModuleViewToggle
+            value={orderViewMode}
+            onChange={setOrderViewMode}
+            disabled={!orderViewReady}
+          />
+          <div className={moduleSearchFilterButtonWrapClassName}>
+            <Button
             type="button"
             variant="outline"
             size="icon-lg"
@@ -463,7 +491,8 @@ export function PurchaseOrdersScreen() {
             >
               {filterActiveCount}
             </Badge>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -613,6 +642,29 @@ export function PurchaseOrdersScreen() {
                       ) : null}
                     </div>
 
+                    {orderViewMode === "compact" ? (
+                      <PurchaseOrderCompactLinesList
+                        order={order}
+                        lines={sortPurchaseOrderLines(
+                          order.lines,
+                          ingredients,
+                          ingredientCategories.items,
+                          lineSortKey,
+                          lineSortDir,
+                          units.items,
+                        )}
+                        actor={actor}
+                        onCommitQty={commitLineQty}
+                        unitLabelForLine={unitLabelForLine}
+                        onMarkDelivered={(orderId, lineId) =>
+                          void handleMarkLineDelivered(orderId, lineId)
+                        }
+                        onUnmarkDelivered={(orderId, lineId) =>
+                          void handleUnmarkLineDelivered(orderId, lineId)
+                        }
+                      />
+                    ) : (
+                      <>
                     <div className="md:hidden">
                       <PurchaseOrderMobileLinesList
                         order={order}
@@ -622,10 +674,12 @@ export function PurchaseOrdersScreen() {
                           ingredientCategories.items,
                           lineSortKey,
                           lineSortDir,
+                          units.items,
                         )}
                         ingredients={ingredients}
                         actor={actor}
                         onCommitQty={commitLineQty}
+                        unitLabelForLine={unitLabelForLine}
                         onMarkDelivered={(orderId, lineId) =>
                           void handleMarkLineDelivered(orderId, lineId)
                         }
@@ -657,6 +711,7 @@ export function PurchaseOrdersScreen() {
                                 categories={ingredientCategories.items}
                                 productionSites={productionSites.items}
                                 brands={brands.items}
+                                units={units.items}
                                 restaurantName={restaurantName}
                               />
                             )
@@ -746,6 +801,7 @@ export function PurchaseOrdersScreen() {
                               ingredientCategories.items,
                               lineSortKey,
                               lineSortDir,
+                              units.items,
                             ).map((line) => {
                               const ingRow = ingredients.find((i) => i.id === line.ingredientId);
                               return (
@@ -772,7 +828,7 @@ export function PurchaseOrdersScreen() {
                                   />
                                 </td>
                                 <td className="px-3 py-2 text-muted-foreground">
-                                  {line.unitLabel}
+                                  {unitLabelForLine(line)}
                                 </td>
                                 <td className="px-3 py-2 align-middle">
                                   {order.status === "closed" ? (
@@ -818,6 +874,8 @@ export function PurchaseOrdersScreen() {
                       </table>
                     </ModuleDataTableFrame>
                     </div>
+                      </>
+                    )}
                   </div>
                 ) : null}
               </section>
@@ -829,6 +887,7 @@ export function PurchaseOrdersScreen() {
       <OrderProtocolDrawer
         order={protocolOrder}
         open={protocolOpen}
+        units={units.items}
         onOpenChange={(o) => {
           setProtocolOpen(o);
           if (!o) setProtocolOrderId(null);

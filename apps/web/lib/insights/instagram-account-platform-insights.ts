@@ -14,6 +14,10 @@ import {
   type PlatformInsightSeries,
   ymdFromIso,
 } from "@/lib/insights/platform-insights-types";
+import {
+  readPlatformInsightsCache,
+  writePlatformInsightsCache,
+} from "@/lib/insights/platform-insights-response-cache";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 type MetaInsightValue = {
@@ -113,6 +117,31 @@ function totalValue(row: MetaInsightRow | undefined): number {
 }
 
 export async function fetchInstagramAccountPlatformInsights(params: {
+  restaurantId: string;
+  startYmd: string;
+  endYmd: string;
+}): Promise<InstagramAccountPlatformInsights> {
+  const cached = readPlatformInsightsCache<InstagramAccountPlatformInsights>(
+    "instagram",
+    params.restaurantId,
+    params.startYmd,
+    params.endYmd,
+  );
+  if (cached) return cached;
+
+  const result = await fetchInstagramAccountPlatformInsightsLive(params);
+  writePlatformInsightsCache(
+    "instagram",
+    params.restaurantId,
+    params.startYmd,
+    params.endYmd,
+    result,
+    (data) => data.connected && !data.error,
+  );
+  return result;
+}
+
+async function fetchInstagramAccountPlatformInsightsLive(params: {
   restaurantId: string;
   startYmd: string;
   endYmd: string;

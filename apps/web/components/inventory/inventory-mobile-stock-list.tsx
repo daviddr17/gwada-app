@@ -8,9 +8,11 @@ import type { AddPurchaseLineParams } from "@/lib/hooks/use-purchase-orders-stor
 import type { Ingredient } from "@/lib/types/inventory";
 import type { OrderProtocolActor } from "@/lib/types/purchase-order";
 import {
+  inventoryCompactQtyUnitSuffixClassName,
   inventoryTouchOrderQtyInputCn,
   inventoryTouchQtyUnitSuffixClassName,
-  inventoryTouchStockQtyInputClassName,
+  inventoryTouchStockQtyInputCn,
+  type InventoryQtyInputDensity,
 } from "@/lib/ui/inventory-touch-qty-input";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,7 @@ function InventoryMobileStockInput({
   unitLabel,
   actor,
   onCommitStock,
+  density = "touch",
 }: {
   ingredientId: string;
   currentStock: number;
@@ -31,6 +34,7 @@ function InventoryMobileStockInput({
     unitLabel: string,
     actor: OrderProtocolActor,
   ) => void;
+  density?: InventoryQtyInputDensity;
 }) {
   const [draft, setDraft] = useState(() => String(currentStock));
   const focusedRef = useRef(false);
@@ -72,10 +76,18 @@ function InventoryMobileStockInput({
             (e.target as HTMLInputElement).blur();
           }
         }}
-        className={inventoryTouchStockQtyInputClassName}
+        className={inventoryTouchStockQtyInputCn(density)}
         aria-label={`Bestand ${unitLabel}`}
       />
-      <span className={inventoryTouchQtyUnitSuffixClassName}>{unitLabel}</span>
+      <span
+        className={
+          density === "compact"
+            ? inventoryCompactQtyUnitSuffixClassName
+            : inventoryTouchQtyUnitSuffixClassName
+        }
+      >
+        {unitLabel}
+      </span>
     </div>
   );
 }
@@ -93,6 +105,7 @@ function InventoryMobileOrderInput({
   openLineId,
   addLine,
   updateLineQuantity,
+  density = "touch",
 }: {
   ingredient: Ingredient;
   canOrder: boolean;
@@ -111,6 +124,7 @@ function InventoryMobileOrderInput({
     qty: number,
     user: OrderProtocolActor,
   ) => Promise<boolean>;
+  density?: InventoryQtyInputDensity;
 }) {
   const [draft, setDraft] = useState(() =>
     openLineId ? String(openQty) : "",
@@ -245,10 +259,18 @@ function InventoryMobileOrderInput({
             ? "Menge in der offenen Bestellung dieses Lieferanten (0 entfernt die Position)"
             : "Ohne Lieferant nicht bestellbar"
         }
-        className={inventoryTouchOrderQtyInputCn(highlightOrderQty)}
+        className={inventoryTouchOrderQtyInputCn(highlightOrderQty, density)}
         aria-label={`Bestellung ${unitLabel}`}
       />
-      <span className={inventoryTouchQtyUnitSuffixClassName}>{unitLabel}</span>
+      <span
+        className={
+          density === "compact"
+            ? inventoryCompactQtyUnitSuffixClassName
+            : inventoryTouchQtyUnitSuffixClassName
+        }
+      >
+        {unitLabel}
+      </span>
     </div>
   );
 }
@@ -432,5 +454,96 @@ export function InventoryMobileStockList({
         );
       })}
     </ul>
+  );
+}
+
+/** Kompakt: Artikelname (voll lesbar) + Bestand/Bestellung — möglichst viele Zeilen pro Screen. */
+export function InventoryCompactStockList(props: InventoryMobileStockListProps) {
+  const {
+    rows,
+    unitLabelById,
+    orderContextForRow,
+    actor,
+    onCommitStock,
+    addLine,
+    updateLineQuantity,
+    onEditIngredient,
+  } = props;
+
+  if (rows.length === 0) {
+    return (
+      <p className="rounded-xl border border-border/50 bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+        Keine Zutaten für die aktuelle Suche oder Filter.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/50 bg-card">
+      <div
+        className="grid grid-cols-[minmax(0,1fr)_7rem_7rem] gap-2 border-b border-border/50 bg-muted/35 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+        aria-hidden
+      >
+        <span>Zutat</span>
+        <span className="text-center text-sky-800/80 dark:text-sky-300/90">Bestand</span>
+        <span className="text-center text-emerald-800/80 dark:text-emerald-300/90">
+          Bestellung
+        </span>
+      </div>
+      <ul className="divide-y divide-border/40">
+        {rows.map((row) => {
+          const unitLabel = unitLabelById(row.unit);
+          const orderCtx = orderContextForRow(row);
+          const threshold = row.lowStockThreshold ?? 0;
+          const low =
+            Number.isFinite(row.currentStock) &&
+            Number.isFinite(threshold) &&
+            threshold > 0 &&
+            row.currentStock <= threshold;
+
+          return (
+            <li
+              key={row.id}
+              className={cn(
+                "grid grid-cols-[minmax(0,1fr)_7rem_7rem] items-center gap-x-2 gap-y-1 px-3 py-1.5",
+                low && "bg-amber-500/5",
+              )}
+            >
+              <button
+                type="button"
+                className="min-w-0 rounded-lg text-left text-sm font-medium leading-snug break-words text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/45"
+                onClick={() => onEditIngredient(row)}
+                aria-label={`${row.name} bearbeiten`}
+              >
+                {row.name}
+              </button>
+              <InventoryMobileStockInput
+                ingredientId={row.id}
+                currentStock={row.currentStock}
+                unitLabel={unitLabel}
+                actor={actor}
+                onCommitStock={onCommitStock}
+                density="compact"
+              />
+              <InventoryMobileOrderInput
+                ingredient={row}
+                canOrder={orderCtx.canOrder}
+                supplierName={orderCtx.supplierName}
+                brandLabel={orderCtx.brandLabel}
+                unitId={orderCtx.unitId}
+                unitLabel={unitLabel}
+                actor={actor}
+                openQty={orderCtx.openQty}
+                openOrderId={orderCtx.openOrderId}
+                openLineId={orderCtx.openLineId}
+                addLine={addLine}
+                updateLineQuantity={updateLineQuantity}
+                density="compact"
+              />
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

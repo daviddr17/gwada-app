@@ -4,6 +4,7 @@ import {
   resolveIngredientVoiceMatchWithQueries,
   type IngredientVoiceMatchCandidate,
 } from "@/lib/inventory/match-ingredient-voice-query";
+import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
 import {
   parsePurchaseOrderVoiceText,
   type ParsedPurchaseOrderVoice,
@@ -66,7 +67,11 @@ function buildOrderResolvedLine(params: {
   const supplier = params.suppliers.find((s) => s.id === params.ingredient.supplierId);
   const brand = params.brands.find((b) => b.id === params.ingredient.brandId);
   const unit = params.units.find((u) => u.id === params.ingredient.unit);
-  const unitLabel = unit?.name ?? params.ingredient.unit;
+  const unitLabel = resolveInventoryUnitDisplayLabel(
+    params.ingredient.unit,
+    params.units,
+    unit?.name,
+  );
   const openCtx = params.getOpenLineContext(
     params.ingredient.supplierId,
     params.ingredient.id,
@@ -91,7 +96,11 @@ function buildStockResolvedLine(params: {
   units: InventoryTaxonomyDefinition[];
 }): PurchaseOrderVoiceResolvedLine {
   const unit = params.units.find((u) => u.id === params.ingredient.unit);
-  const unitLabel = unit?.name ?? params.ingredient.unit;
+  const unitLabel = resolveInventoryUnitDisplayLabel(
+    params.ingredient.unit,
+    params.units,
+    unit?.name,
+  );
 
   return {
     ingredientId: params.ingredient.id,

@@ -6,10 +6,10 @@ import {
   isGoogleInsightsQuotaCooldown,
   isGoogleQuotaErrorMessage,
   markGoogleInsightsQuotaExceeded,
-  readGoogleInsightsCache,
-  readNewestGoogleInsightsCacheForRestaurant,
-  writeGoogleInsightsCache,
-} from "@/lib/insights/google-insights-response-cache";
+  readNewestPlatformInsightsCacheForRestaurant,
+  readPlatformInsightsCache,
+  writePlatformInsightsCache,
+} from "@/lib/insights/platform-insights-response-cache";
 import {
   emptyGoogleInsights,
   formatDayLabel,
@@ -450,7 +450,8 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   startYmd: string;
   endYmd: string;
 }): Promise<GoogleBusinessPlatformInsights> {
-  const cached = readGoogleInsightsCache(
+  const cached = readPlatformInsightsCache<GoogleBusinessPlatformInsights>(
+    "google",
     params.restaurantId,
     params.startYmd,
     params.endYmd,
@@ -458,7 +459,11 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   if (cached) return cached;
 
   if (isGoogleInsightsQuotaCooldown(params.restaurantId)) {
-    const stale = readNewestGoogleInsightsCacheForRestaurant(params.restaurantId);
+    const stale =
+      readNewestPlatformInsightsCacheForRestaurant<GoogleBusinessPlatformInsights>(
+        "google",
+        params.restaurantId,
+      );
     if (stale) {
       return {
         ...stale,
@@ -472,11 +477,13 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   }
 
   const result = await fetchGoogleBusinessPlatformInsightsLive(params);
-  writeGoogleInsightsCache(
+  writePlatformInsightsCache(
+    "google",
     params.restaurantId,
     params.startYmd,
     params.endYmd,
     result,
+    (data) => data.connected && !data.error,
   );
   return result;
 }
@@ -533,7 +540,11 @@ async function fetchGoogleBusinessPlatformInsightsLive(params: {
   const multiHadData = [...byMetric.values()].some((v) => v.length > 0);
   if (multi.error && !multiHadData) {
     if (isGoogleQuotaErrorMessage(multi.error)) {
-      const stale = readNewestGoogleInsightsCacheForRestaurant(params.restaurantId);
+      const stale =
+        readNewestPlatformInsightsCacheForRestaurant<GoogleBusinessPlatformInsights>(
+          "google",
+          params.restaurantId,
+        );
       if (stale) {
         return {
           ...stale,

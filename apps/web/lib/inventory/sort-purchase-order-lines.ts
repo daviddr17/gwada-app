@@ -1,6 +1,7 @@
 import type { Ingredient, InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import type { PurchaseOrderLine } from "@/lib/types/purchase-order";
 import { compareCategoryThenName } from "@/lib/inventory/sort-by-category";
+import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
 
 export type PurchaseOrderLineSortKey =
   | "categoryId"
@@ -33,6 +34,7 @@ export function sortPurchaseOrderLines(
   categories: InventoryTaxonomyDefinition[],
   sortKey: PurchaseOrderLineSortKey,
   sortDir: PurchaseOrderLineSortDir,
+  units: InventoryTaxonomyDefinition[] = [],
 ): PurchaseOrderLine[] {
   const dir = sortDir === "asc" ? 1 : -1;
 
@@ -60,7 +62,12 @@ export function sortPurchaseOrderLines(
       case "quantity":
         return (a.quantity - b.quantity) * dir;
       case "unitLabel":
-        return a.unitLabel.localeCompare(b.unitLabel, "de") * dir;
+        return (
+          resolveInventoryUnitDisplayLabel(a.unitId, units, a.unitLabel).localeCompare(
+            resolveInventoryUnitDisplayLabel(b.unitId, units, b.unitLabel),
+            "de",
+          ) * dir
+        );
       default:
         return 0;
     }

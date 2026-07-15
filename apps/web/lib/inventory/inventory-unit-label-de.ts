@@ -1,3 +1,5 @@
+import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
+
 /** Bekannte englische Lagereinheiten → Deutsch (App ist derzeit einsprachig). */
 const INVENTORY_UNIT_LABEL_DE: Record<string, string> = {
   piece: "Stück",
@@ -80,4 +82,22 @@ export function inventoryUnitLabelDe(
   if (translatedId) return translatedId;
 
   return label || id;
+}
+
+/**
+ * Einheit für UI/Export: Taxonomie-Name + deutsche Übersetzung bekannter IDs.
+ * `storedLabel` dient als Fallback für ältere Bestell-/Protokoll-Snapshots.
+ */
+export function resolveInventoryUnitDisplayLabel(
+  unitId: string,
+  units: readonly InventoryTaxonomyDefinition[],
+  storedLabel?: string | null,
+): string {
+  const unitDef = units.find((u) => u.id === unitId);
+  const label = inventoryUnitLabelDe(
+    unitId,
+    unitDef?.name ?? storedLabel ?? undefined,
+  );
+  if (unitDef?.active === false) return `${label} · inaktiv`;
+  return label;
 }

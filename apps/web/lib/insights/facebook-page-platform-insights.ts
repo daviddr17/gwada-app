@@ -14,6 +14,10 @@ import {
   type PlatformInsightSeries,
   ymdFromIso,
 } from "@/lib/insights/platform-insights-types";
+import {
+  readPlatformInsightsCache,
+  writePlatformInsightsCache,
+} from "@/lib/insights/platform-insights-response-cache";
 import { fetchRestaurantOAuthIntegrationAdmin } from "@/lib/supabase/restaurant-oauth-integration-db";
 
 type MetaInsightValue = {
@@ -144,6 +148,31 @@ async function fetchInsightsIndividually(params: {
 }
 
 export async function fetchFacebookPagePlatformInsights(params: {
+  restaurantId: string;
+  startYmd: string;
+  endYmd: string;
+}): Promise<FacebookPagePlatformInsights> {
+  const cached = readPlatformInsightsCache<FacebookPagePlatformInsights>(
+    "facebook",
+    params.restaurantId,
+    params.startYmd,
+    params.endYmd,
+  );
+  if (cached) return cached;
+
+  const result = await fetchFacebookPagePlatformInsightsLive(params);
+  writePlatformInsightsCache(
+    "facebook",
+    params.restaurantId,
+    params.startYmd,
+    params.endYmd,
+    result,
+    (data) => data.connected && !data.error,
+  );
+  return result;
+}
+
+async function fetchFacebookPagePlatformInsightsLive(params: {
   restaurantId: string;
   startYmd: string;
   endYmd: string;

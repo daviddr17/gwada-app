@@ -18,7 +18,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { IngredientDrawer } from "@/components/inventory/ingredient-drawer";
-import { InventoryMobileStockList } from "@/components/inventory/inventory-mobile-stock-list";
+import { InventoryMobileStockList, InventoryCompactStockList } from "@/components/inventory/inventory-mobile-stock-list";
+import { InventoryModuleViewToggle } from "@/components/inventory/inventory-module-view-toggle";
 import { IngredientStockProtocolDrawer } from "@/components/inventory/ingredient-stock-protocol-drawer";
 import { IngredientUsageDrawer } from "@/components/inventory/ingredient-usage-drawer";
 import {
@@ -65,6 +66,11 @@ import {
   formatPurchaseUnitPriceDisplay,
   parsePurchaseUnitPriceInput,
 } from "@/lib/inventory/format-purchase-unit-price";
+import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
+import {
+  INVENTORY_STOCK_VIEW_MODE_KEY,
+  useInventoryModuleViewMode,
+} from "@/lib/hooks/use-inventory-module-view-mode";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasModuleRead, hasModuleCreate } from "@/lib/permissions/module-crud-permissions";
 import { ModuleAccessDenied } from "@/lib/permissions/module-access-denied";
@@ -726,6 +732,11 @@ export function InventoryScreen() {
     isHydrated: ordersHydrated,
     getOpenLineContext,
   } = usePurchaseOrdersStorage();
+  const {
+    mode: stockViewMode,
+    setMode: setStockViewMode,
+    ready: stockViewReady,
+  } = useInventoryModuleViewMode(INVENTORY_STOCK_VIEW_MODE_KEY);
 
   const [usageDrawer, setUsageDrawer] = useState<{
     id: string;
@@ -1051,8 +1062,14 @@ export function InventoryScreen() {
               aria-label="Zutaten suchen"
             />
           </div>
-          <div className={moduleSearchFilterButtonWrapClassName}>
-            <Button
+          <div className="flex shrink-0 items-center gap-2">
+            <InventoryModuleViewToggle
+              value={stockViewMode}
+              onChange={setStockViewMode}
+              disabled={!stockViewReady}
+            />
+            <div className={moduleSearchFilterButtonWrapClassName}>
+              <Button
               type="button"
               variant="outline"
               size="icon-lg"
@@ -1070,6 +1087,7 @@ export function InventoryScreen() {
                 {filterActiveCount}
               </Badge>
             ) : null}
+            </div>
           </div>
         </div>
         {search.trim() ? (
@@ -1109,6 +1127,54 @@ export function InventoryScreen() {
         </Button>
       </div>
 
+      {stockViewMode === "compact" ? (
+        <ListPaginationSurround
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginatedRows.length}
+          totalCount={totalCount}
+          itemLabel="Zutaten"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          classNameAbove={moduleListPaginationAboveClassName}
+          classNameBelow={moduleListPaginationBelowClassName}
+        >
+          <InventoryCompactStockList
+            rows={paginatedRows}
+            unitLabelById={(unitId) =>
+              resolveInventoryUnitDisplayLabel(unitId, units.items)
+            }
+            metaLineForRow={() => null}
+            orderContextForRow={(row) => {
+              const orderCtx = getOpenLineContext(row.supplierId, row.id);
+              return {
+                canOrder: Boolean(row.supplierId?.trim()),
+                supplierName: nameById(suppliers.items, row.supplierId),
+                brandLabel: nameById(brands.items, row.brandId),
+                unitId: row.unit,
+                openQty: orderCtx.quantity,
+                openOrderId: orderCtx.orderId,
+                openLineId: orderCtx.lineId,
+              };
+            }}
+            actor={actor}
+            onCommitStock={commitStockChange}
+            addLine={addLine}
+            updateLineQuantity={updateLineQuantity}
+            onEditIngredient={(row) => setEditingIngredientId(row.id)}
+            onOpenUsage={(row) =>
+              setUsageDrawer({ id: row.id, name: row.name })
+            }
+            onOpenProtocol={(row) => setStockProtocolIngredientId(row.id)}
+            onDelete={(row) =>
+              setIngredientDelete({ id: row.id, name: row.name })
+            }
+          />
+        </ListPaginationSurround>
+      ) : (
+        <>
       <div className="md:hidden">
         <ListPaginationSurround
           page={currentPage}
@@ -1125,12 +1191,9 @@ export function InventoryScreen() {
         >
           <InventoryMobileStockList
             rows={paginatedRows}
-            unitLabelById={(unitId) => {
-              const unitDef = units.items.find((u) => u.id === unitId);
-              return unitDef != null
-                ? `${unitDef.name}${unitDef.active === false ? " · inaktiv" : ""}`
-                : unitId;
-            }}
+            unitLabelById={(unitId) =>
+              resolveInventoryUnitDisplayLabel(unitId, units.items)
+            }
             metaLineForRow={(row) => {
               const parts = [
                 nameById(ingredientCategories.items, row.categoryId),
@@ -1309,11 +1372,10 @@ export function InventoryScreen() {
               </tr>
             ) : (
               paginatedRows.map((row) => {
-                const unitDef = units.items.find((u) => u.id === row.unit);
-                const unitLabel =
-                  unitDef != null
-                    ? `${unitDef.name}${unitDef.active === false ? " · inaktiv" : ""}`
-                    : row.unit;
+                const unitLabel = resolveInventoryUnitDisplayLabel(
+                  row.unit,
+                  units.items,
+                );
                 const canOrderRow = Boolean(row.supplierId?.trim());
                 const orderCtx = getOpenLineContext(row.supplierId, row.id);
 
@@ -1454,6 +1516,8 @@ export function InventoryScreen() {
         </table>
       </ModulePaginatedDataTable>
       </div>
+        </>
+      )}
         </div>
       )}
 
@@ -1559,11 +1623,10 @@ export function InventoryScreen() {
         onSave={async (id, patch) => {
           const current = ingredients.find((i) => i.id === id);
           const unitId = patch.unit ?? current?.unit ?? "";
-          const unitDef = units.items.find((u) => u.id === unitId);
-          const unitLabel =
-            unitDef != null
-              ? `${unitDef.name}${unitDef.active === false ? " · inaktiv" : ""}`
-              : unitId;
+          const unitLabel = resolveInventoryUnitDisplayLabel(
+            unitId,
+            units.items,
+          );
           const stockChanged =
             patch.currentStock !== undefined &&
             current != null &&

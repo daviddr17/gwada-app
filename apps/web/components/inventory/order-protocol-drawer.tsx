@@ -13,6 +13,8 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { protocolDeltaWrapClass } from "@/components/inventory/protocol-menge-colors";
+import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
+import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
 import type { PurchaseOrder, PurchaseOrderLogEntry } from "@/lib/types/purchase-order";
 import { resolveLogEntryUserLabel, resolveProtocolCreatorLabel } from "@/lib/types/purchase-order";
 import { moduleDataTableHeadRowMutedClassName } from "@/lib/ui/module-data-table";
@@ -47,13 +49,17 @@ function formatProtocolWhen(iso: string) {
   }
 }
 
-function orderProtocolQuantityCell(e: PurchaseOrderLogEntry): ReactNode {
+function orderProtocolQuantityCell(
+  e: PurchaseOrderLogEntry,
+  units: InventoryTaxonomyDefinition[],
+): ReactNode {
+  const unitLabel = resolveInventoryUnitDisplayLabel(e.unitId, units, e.unitLabel);
   switch (e.kind) {
     case "add_to_order":
       return (
         <span className="tabular-nums">
           <span className={protocolDeltaWrapClass(e.quantity)}>+{e.quantity}</span>{" "}
-          <span className="text-muted-foreground">{e.unitLabel}</span>
+          <span className="text-muted-foreground">{unitLabel}</span>
         </span>
       );
     case "quantity_change": {
@@ -65,7 +71,7 @@ function orderProtocolQuantityCell(e: PurchaseOrderLogEntry): ReactNode {
           <span className="text-muted-foreground">→</span>
           <span className="text-foreground">{e.toQuantity}</span>{" "}
           <span className={protocolDeltaWrapClass(delta)}>({sign}{delta})</span>{" "}
-          <span className="text-muted-foreground">{e.unitLabel}</span>
+          <span className="text-muted-foreground">{unitLabel}</span>
         </span>
       );
     }
@@ -80,7 +86,7 @@ function orderProtocolQuantityCell(e: PurchaseOrderLogEntry): ReactNode {
             {d > 0 ? "+" : ""}
             {d}
           </span>{" "}
-          <span className="text-muted-foreground">{e.unitLabel}</span>
+          <span className="text-muted-foreground">{unitLabel}</span>
         </span>
       );
     }
@@ -109,12 +115,14 @@ type OrderProtocolDrawerProps = {
   order: PurchaseOrder | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  units: InventoryTaxonomyDefinition[];
 };
 
 export function OrderProtocolDrawer({
   order,
   open,
   onOpenChange,
+  units,
 }: OrderProtocolDrawerProps) {
   const entries = useMemo(
     () => (order ? [...order.log].reverse() : []),
@@ -189,7 +197,7 @@ export function OrderProtocolDrawer({
                         {e.ingredientName}
                       </td>
                       <td className="whitespace-nowrap px-2 py-1.5 tabular-nums sm:px-3 sm:py-2">
-                        {orderProtocolQuantityCell(e)}
+                        {orderProtocolQuantityCell(e, units)}
                       </td>
                       <td className="whitespace-nowrap px-2 py-1.5 text-muted-foreground sm:px-3 sm:py-2">
                         {actionColumn(e)}

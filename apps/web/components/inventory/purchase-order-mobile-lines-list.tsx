@@ -21,6 +21,7 @@ function PurchaseOrderMobileLineQtyInput({
   readOnly,
   actor,
   onCommit,
+  unitLabel,
 }: {
   orderId: string;
   line: PurchaseOrderLine;
@@ -32,6 +33,7 @@ function PurchaseOrderMobileLineQtyInput({
     qty: number,
     user: OrderProtocolActor,
   ) => Promise<boolean>;
+  unitLabel: string;
 }) {
   const [draft, setDraft] = useState(() => String(line.quantity));
   const focusedRef = useRef(false);
@@ -81,7 +83,7 @@ function PurchaseOrderMobileLineQtyInput({
         aria-label={`Menge ${line.ingredientName}`}
       />
       <span className={inventoryTouchQtyUnitSuffixClassName}>
-        {line.unitLabel}
+        {unitLabel}
       </span>
     </div>
   );
@@ -100,6 +102,7 @@ export type PurchaseOrderMobileLinesListProps = {
   ) => Promise<boolean>;
   onMarkDelivered: (orderId: string, lineId: string) => void;
   onUnmarkDelivered: (orderId: string, lineId: string) => void;
+  unitLabelForLine: (line: PurchaseOrderLine) => string;
 };
 
 /** Mobile: Positionen als Karten statt Horizontal-Scroll-Tabelle. */
@@ -111,6 +114,7 @@ export function PurchaseOrderMobileLinesList({
   onCommitQty,
   onMarkDelivered,
   onUnmarkDelivered,
+  unitLabelForLine,
 }: PurchaseOrderMobileLinesListProps) {
   const readOnly = order.status !== "open";
 
@@ -155,6 +159,7 @@ export function PurchaseOrderMobileLinesList({
                 readOnly={readOnly}
                 actor={actor}
                 onCommit={onCommitQty}
+                unitLabel={unitLabelForLine(line)}
               />
             </div>
 

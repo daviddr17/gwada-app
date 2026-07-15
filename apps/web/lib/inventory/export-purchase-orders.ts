@@ -3,6 +3,7 @@ import {
   downloadTablePdf,
   type TableDocumentExportOptions,
 } from "@/lib/export/table-document-export";
+import { resolveInventoryUnitDisplayLabel } from "@/lib/inventory/inventory-unit-label-de";
 import { sortPurchaseOrderLines } from "@/lib/inventory/sort-purchase-order-lines";
 import {
   DEFAULT_PURCHASE_ORDER_LINE_EXPORT_FILTERS,
@@ -56,6 +57,7 @@ export type PurchaseOrdersExportContext = {
   orders: PurchaseOrder[];
   ingredients: Ingredient[];
   categories: InventoryTaxonomyDefinition[];
+  units: InventoryTaxonomyDefinition[];
 };
 
 function stockForIngredient(
@@ -101,6 +103,7 @@ export function buildPurchaseOrdersExportRows(
       ctx.categories,
       "categoryId",
       "asc",
+      ctx.units,
     );
 
     for (const line of sortedLines) {
@@ -113,7 +116,7 @@ export function buildPurchaseOrdersExportRows(
         line.brandLabel?.trim() ?? "",
         stockForIngredient(ctx.ingredients, line.ingredientId),
         String(line.quantity),
-        line.unitLabel,
+        resolveInventoryUnitDisplayLabel(line.unitId, ctx.units, line.unitLabel),
         line.deliveredAt ? "Ja" : "Nein",
       ]);
     }
@@ -131,7 +134,7 @@ export function purchaseOrdersExportLineCount(
 /** CSV/PDF-Quelle für Tabellen-Export einer einzelnen Bestellung (Vollbild-Overlay). */
 export function buildPurchaseOrderTableExport(
   order: PurchaseOrder,
-  ctx: Pick<PurchaseOrdersExportContext, "ingredients" | "categories">,
+  ctx: Pick<PurchaseOrdersExportContext, "ingredients" | "categories" | "units">,
   filters: PurchaseOrderLineExportFilters = DEFAULT_PURCHASE_ORDER_LINE_EXPORT_FILTERS,
 ): TableDocumentExportOptions {
   const filteredLines = sortPurchaseOrderLines(
@@ -140,6 +143,7 @@ export function buildPurchaseOrderTableExport(
     ctx.categories,
     "categoryId",
     "asc",
+    ctx.units,
   );
 
   const status = order.status === "open" ? "Offen" : "Abgeschlossen";
@@ -155,7 +159,7 @@ export function buildPurchaseOrderTableExport(
     line.brandLabel?.trim() ?? "",
     stockForIngredient(ctx.ingredients, line.ingredientId),
     String(line.quantity),
-    line.unitLabel,
+    resolveInventoryUnitDisplayLabel(line.unitId, ctx.units, line.unitLabel),
     line.deliveredAt ? "Ja" : "Nein",
   ]);
 

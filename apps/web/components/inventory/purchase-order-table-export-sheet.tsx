@@ -54,6 +54,7 @@ type PurchaseOrderTableExportSheetProps = {
   categories: InventoryTaxonomyDefinition[];
   productionSites: InventoryTaxonomyDefinition[];
   brands: InventoryTaxonomyDefinition[];
+  units: InventoryTaxonomyDefinition[];
   restaurantName?: string;
 };
 
@@ -65,6 +66,7 @@ export function PurchaseOrderTableExportSheet({
   categories,
   productionSites,
   brands,
+  units,
   restaurantName,
 }: PurchaseOrderTableExportSheetProps) {
   const [filters, setFilters] = useState<PurchaseOrderLineExportFilters>(
@@ -125,10 +127,10 @@ export function PurchaseOrderTableExportSheet({
     () =>
       buildPurchaseOrderTableExport(
         order,
-        { ingredients, categories },
+        { ingredients, categories, units },
         filters,
       ),
-    [order, ingredients, categories, filters],
+    [order, ingredients, categories, units, filters],
   );
 
   const itemCount = exportOptions.rows.length;

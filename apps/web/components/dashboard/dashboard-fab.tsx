@@ -18,7 +18,7 @@ import {
 } from "@/lib/constants/dashboard-shortcuts";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
-import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
+import { appMobileFabBottomClassName, appMobileFabButtonClassName, appMobileFabIconClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 const MENU_SPRING = { type: "spring" as const, stiffness: 520, damping: 34 };
@@ -151,7 +151,8 @@ function DashboardFabLayer({
           aria-haspopup="menu"
           aria-label={open ? "Schnellaktionen schließen" : "Schnellaktionen"}
           className={cn(
-            "relative flex size-14 items-center justify-center rounded-full shadow-lg",
+            "relative shadow-lg",
+            appMobileFabButtonClassName,
             brandActionButtonClassName,
           )}
           animate={{ rotate: open ? 45 : 0, scale: open ? 1.04 : 1 }}
@@ -159,7 +160,7 @@ function DashboardFabLayer({
           transition={MENU_SPRING}
           onClick={() => setOpen((v) => !v)}
         >
-          <Plus className="size-6" strokeWidth={2.25} aria-hidden />
+          <Plus className={appMobileFabIconClassName} strokeWidth={2.25} aria-hidden />
         </m.button>
       </div>
     </>

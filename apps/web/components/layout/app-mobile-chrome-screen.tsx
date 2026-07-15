@@ -24,7 +24,7 @@ type AppMobileChromeScreenProps = {
   onClose: () => void;
   title: string;
   children: ReactNode;
-  /** Optional Aktion rechts neben dem Titel (vor Schließen). */
+  /** Optional Aktion rechts neben dem Titel. */
   headerAction?: ReactNode;
   className?: string;
   "aria-label"?: string;
@@ -32,7 +32,7 @@ type AppMobileChromeScreenProps = {
 
 /**
  * Einheitliches Mobile-Overlay für Menü/Suche/Benachrichtigungen:
- * Vollfläche bis zur Bottom-Nav (bleibt klickbar zum Schließen/Wechseln).
+ * Vollfläche bis zur Bottom-Nav; Schließen in der Daumenzone unten.
  */
 export function AppMobileChromeScreen({
   open,
@@ -107,25 +107,30 @@ export function AppMobileChromeScreen({
         willChange: motionReduced || presented ? undefined : "transform",
       }}
     >
-      <header className="flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-3">
+      <header className="flex shrink-0 items-center gap-2 border-b border-border/50 px-4 py-3">
         <h2 className="min-w-0 flex-1 truncate text-base font-semibold tracking-tight">
           {title}
         </h2>
         {headerAction}
+      </header>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        {children}
+      </div>
+
+      <footer className="shrink-0 border-t border-border/50 bg-background/95 px-3 py-2.5 backdrop-blur-md supports-backdrop-filter:bg-background/85">
         <Button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0 rounded-full"
+          variant="outline"
+          size="lg"
+          className="h-12 w-full rounded-xl border-border/60 text-base font-medium"
           aria-label="Schließen"
           onClick={onClose}
         >
-          <X className="size-4" />
+          <X className="size-4" aria-hidden />
+          Schließen
         </Button>
-      </header>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-4">
-        {children}
-      </div>
+      </footer>
     </div>,
     document.body,
   );

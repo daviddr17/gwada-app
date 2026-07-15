@@ -1,4 +1,5 @@
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 const MODULE_SECTIONS = 2;
 const ITEMS_PER_SECTION = 2;
@@ -34,19 +35,34 @@ function NotificationBellModuleSectionSkeleton() {
   );
 }
 
-export function NotificationBellPanelSkeleton() {
+export function NotificationBellPanelSkeleton({
+  layout = "popover",
+}: {
+  layout?: "popover" | "screen";
+} = {}) {
+  const isScreen = layout === "screen";
   return (
     <div
-      className="flex w-[min(100vw-1.5rem,22rem)] flex-col"
+      className={cn(
+        "flex flex-col",
+        isScreen ? "h-full min-h-0 w-full" : "w-[min(100vw-1.5rem,22rem)]",
+      )}
       aria-busy
       aria-label="Benachrichtigungen werden geladen"
       aria-hidden
     >
-      <div className="border-b border-border/50 px-4 py-3">
-        <p className="text-sm font-semibold text-foreground">Benachrichtigungen</p>
-      </div>
+      {!isScreen ? (
+        <div className="border-b border-border/50 px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">Benachrichtigungen</p>
+        </div>
+      ) : null}
 
-      <div className="max-h-[min(70vh,24rem)] min-h-[6rem] overflow-y-auto overscroll-contain">
+      <div
+        className={cn(
+          "overflow-y-auto overscroll-contain",
+          isScreen ? "min-h-0 flex-1" : "max-h-[min(70vh,24rem)] min-h-[6rem]",
+        )}
+      >
         {Array.from({ length: MODULE_SECTIONS }).map((_, i) => (
           <NotificationBellModuleSectionSkeleton key={i} />
         ))}

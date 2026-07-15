@@ -38,6 +38,7 @@ import {
   parsePurchaseOrderVoiceText,
 } from "@/lib/inventory/parse-purchase-order-voice-text";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
+import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 const COPY = {
@@ -317,7 +318,10 @@ export function InventoryVoiceFab({ mode }: { mode: InventoryVoiceMode }) {
       />
 
       <div
-        className="pointer-events-none fixed end-4 z-[120] flex flex-col items-end gap-2 sm:end-6 bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]"
+        className={cn(
+          "pointer-events-none fixed end-4 z-[120] flex flex-col items-end gap-2 sm:end-6",
+          appMobileFabBottomClassName,
+        )}
         data-inventory-voice-fab
         data-inventory-voice-mode={mode}
       >

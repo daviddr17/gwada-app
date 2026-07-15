@@ -16,7 +16,6 @@ import {
   type RestaurantStaffRow,
 } from "@/lib/types/staff";
 import { TagColorStripe } from "@/lib/ui/tag-color-stripe";
-import { cn } from "@/lib/utils";
 
 function staffRoleDisplay(row: RestaurantStaffRow): {
   label: string;
@@ -89,35 +88,50 @@ export function StaffOverviewMobileList({
                 <p className="truncate text-base font-semibold leading-snug">
                   {staffFamilyFirstDisplayName(row)}
                 </p>
-                {tag ? (
-                  <p className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs font-medium">
-                    <span
-                      className="size-2.5 shrink-0 rounded-full border border-border/50"
-                      style={{ backgroundColor: tag.background_color }}
-                      aria-hidden
-                    />
-                    <span className="truncate">{tag.name}</span>
-                  </p>
-                ) : null}
-                {role ? (
-                  <p className="mt-1 inline-flex max-w-full items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    {role.color ? (
-                      <TagColorStripe
-                        color={role.color}
-                        className="mr-0 h-4 shrink-0"
-                      />
+
+                {tag || role ? (
+                  <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                    {tag ? (
+                      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium leading-none">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full border border-border/50"
+                          style={{ backgroundColor: tag.background_color }}
+                          aria-hidden
+                        />
+                        <span className="truncate">{tag.name}</span>
+                      </span>
                     ) : null}
-                    <span className="truncate">{role.label}</span>
-                    <StaffRoleAccessIcons
-                      profile_id={row.profile_id}
-                      linked_profile={row.linked_profile}
-                      linked_employee={row.linked_employee}
-                      display_pin_set_at={row.display_pin_set_at}
-                    />
-                  </p>
+                    {tag && role ? (
+                      <span
+                        className="text-muted-foreground/50"
+                        aria-hidden
+                      >
+                        ·
+                      </span>
+                    ) : null}
+                    {role ? (
+                      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 font-medium leading-none text-muted-foreground">
+                        {role.color ? (
+                          <TagColorStripe
+                            color={role.color}
+                            className="mr-0 h-3.5 shrink-0 self-center"
+                          />
+                        ) : null}
+                        <span className="truncate">{role.label}</span>
+                        <StaffRoleAccessIcons
+                          profile_id={row.profile_id}
+                          linked_profile={row.linked_profile}
+                          linked_employee={row.linked_employee}
+                          display_pin_set_at={row.display_pin_set_at}
+                          className="self-center"
+                        />
+                      </span>
+                    ) : null}
+                  </div>
                 ) : null}
+
                 {contact ? (
-                  <p className="mt-1 truncate text-xs text-muted-foreground">
+                  <p className="mt-1.5 truncate text-xs text-muted-foreground">
                     {contact}
                   </p>
                 ) : null}
@@ -145,7 +159,7 @@ export function StaffOverviewMobileList({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className={cn("shrink-0 rounded-full text-muted-foreground")}
+                className="shrink-0 rounded-full text-muted-foreground"
                 aria-label="Bearbeiten"
                 onClick={() => onEdit(row)}
               >

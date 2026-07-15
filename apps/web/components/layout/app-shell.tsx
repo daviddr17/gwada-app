@@ -166,7 +166,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
 
       <div
         data-app-scroll-root
-        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain max-md:pb-[var(--app-mobile-bottom-nav-bar)]"
+        className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain max-md:pb-[var(--app-mobile-bottom-nav-offset)]"
       >
         {showDashboardBrandedBackground ? (
           <div

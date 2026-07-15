@@ -12,6 +12,7 @@ import {
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { APP_MOBILE_BOTTOM_NAV_BAR_H } from "@/lib/ui/app-mobile-bottom-nav";
+import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 
@@ -21,7 +22,8 @@ const itemClassName =
 const itemActiveClassName = "text-foreground";
 
 /**
- * Mobile Primary-Nav: Menü · Suche · Glocke · Profil (Thumb-Zone).
+ * Mobile Primary-Nav: Menü · Suche · Meldungen · Profil (Thumb-Zone).
+ * Liegt über Chrome-Overlays (`z` > Sheet/Suche), damit Tippen erneut schließt.
  * Desktop: nicht gerendert (`md:hidden`).
  */
 export function AppMobileBottomNav() {
@@ -29,16 +31,18 @@ export function AppMobileBottomNav() {
   const { openMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const search = useDashboardGlobalSearchOptional();
   const showSearch = isRestaurantDashboardPath(pathname) && Boolean(search);
+  const searchOpen = Boolean(search?.open);
 
   return (
     <nav
       data-app-mobile-bottom-nav
       aria-label="Hauptnavigation"
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 border-t border-border/50 md:hidden",
+        "fixed inset-x-0 bottom-0 border-t border-border/50 md:hidden",
         appChromeFixedZoneBgClassName,
         "pb-[env(safe-area-inset-bottom,0px)]",
       )}
+      style={{ zIndex: APP_LAYER_Z_INDEX.stackedSurface + 10 }}
     >
       <div
         className="flex items-stretch"
@@ -50,7 +54,10 @@ export function AppMobileBottomNav() {
           className={cn(itemClassName, openMobile && itemActiveClassName)}
           aria-label={openMobile ? "Menü schließen" : "Menü öffnen"}
           aria-expanded={openMobile}
-          onClick={() => toggleSidebar()}
+          onClick={() => {
+            if (searchOpen) search?.closeSearch();
+            toggleSidebar();
+          }}
         >
           {openMobile ? (
             <X className="size-5 shrink-0" aria-hidden />
@@ -64,14 +71,23 @@ export function AppMobileBottomNav() {
           <Button
             type="button"
             variant="ghost"
-            className={itemClassName}
-            aria-label="Suche öffnen"
+            className={cn(itemClassName, searchOpen && itemActiveClassName)}
+            aria-label={searchOpen ? "Suche schließen" : "Suche öffnen"}
+            aria-expanded={searchOpen}
             onClick={() => {
+              if (searchOpen) {
+                search?.closeSearch();
+                return;
+              }
               setOpenMobile(false);
               search?.openSearch();
             }}
           >
-            <Search className="size-5 shrink-0" aria-hidden />
+            {searchOpen ? (
+              <X className="size-5 shrink-0" aria-hidden />
+            ) : (
+              <Search className="size-5 shrink-0" aria-hidden />
+            )}
             <span>Suche</span>
           </Button>
         ) : (
@@ -85,8 +101,12 @@ export function AppMobileBottomNav() {
           <AppChromeNotificationBell
             className={cn(itemClassName, "h-full w-full")}
             labelClassName="text-[10px] font-medium"
-            popoverSide="top"
+            variant="mobileNav"
             showLabel
+            onBeforeOpen={() => {
+              setOpenMobile(false);
+              if (searchOpen) search?.closeSearch();
+            }}
           />
         </div>
 

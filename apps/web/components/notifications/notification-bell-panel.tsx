@@ -36,6 +36,8 @@ type NotificationBellPanelProps = {
   summary: NotificationSummary | null;
   loading: boolean;
   timeZone?: string;
+  /** `screen` = Vollflächen-Overlay (mobil); `popover` = Desktop-Glocke. */
+  layout?: "popover" | "screen";
   onMarkRead: (params: {
     module: NotificationModuleId;
     itemId: string;
@@ -51,27 +53,47 @@ export function NotificationBellPanel({
   summary,
   loading,
   timeZone = DEFAULT_RESTAURANT_TIMEZONE,
+  layout = "popover",
   onMarkRead,
   onMarkModuleRead,
   onNavigate,
 }: NotificationBellPanelProps) {
   const hasItems = (summary?.totalCount ?? 0) > 0;
+  const isScreen = layout === "screen";
 
   return (
-    <div className="flex w-[min(100vw-1.5rem,22rem)] flex-col">
-      <div className="border-b border-border/50 px-4 py-3">
-        <p className="text-sm font-semibold text-foreground">Benachrichtigungen</p>
-        {!loading && !hasItems ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">
+    <div
+      className={cn(
+        "flex flex-col",
+        isScreen ? "h-full min-h-0 w-full" : "w-[min(100vw-1.5rem,22rem)]",
+      )}
+    >
+      {!isScreen ? (
+        <div className="border-b border-border/50 px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">Benachrichtigungen</p>
+          {!loading && !hasItems ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Alles gelesen — keine neuen Hinweise.
+            </p>
+          ) : null}
+        </div>
+      ) : !loading && !hasItems ? (
+        <div className="border-b border-border/50 px-4 py-3">
+          <p className="text-xs text-muted-foreground">
             Alles gelesen — keine neuen Hinweise.
           </p>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div
         className={cn(
-          "max-h-[min(70vh,24rem)] overflow-y-auto overscroll-contain",
-          loading && !summary ? "min-h-[6rem]" : "",
+          "overflow-y-auto overscroll-contain",
+          isScreen
+            ? "min-h-0 flex-1"
+            : cn(
+                "max-h-[min(70vh,24rem)]",
+                loading && !summary ? "min-h-[6rem]" : "",
+              ),
         )}
       >
         {summary?.modules.map((mod) => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 type SpeechLiveCaptionProps = {
@@ -24,7 +25,8 @@ export function SpeechLiveCaption({
     return (
       <div
         className={cn(
-          "pointer-events-none fixed inset-x-4 z-[120] flex justify-center bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]",
+          "pointer-events-none fixed inset-x-4 z-[120] flex justify-center",
+          appMobileFabBottomClassName,
           className,
         )}
         aria-live="polite"

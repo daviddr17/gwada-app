@@ -18,6 +18,7 @@ import {
 } from "@/lib/constants/dashboard-shortcuts";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
+import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 const MENU_SPRING = { type: "spring" as const, stiffness: 520, damping: 34 };
@@ -120,7 +121,10 @@ function DashboardFabLayer({
       </AnimatePresence>
 
       <div
-        className="pointer-events-auto fixed end-4 z-[120] flex flex-col items-end gap-3 sm:end-6 bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]"
+        className={cn(
+          "pointer-events-auto fixed end-4 z-[120] flex flex-col items-end gap-3 sm:end-6",
+          appMobileFabBottomClassName,
+        )}
         data-dashboard-fab
         style={{
           WebkitTransform: "translate3d(0,0,0)",

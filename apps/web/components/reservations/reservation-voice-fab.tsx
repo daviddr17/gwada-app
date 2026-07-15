@@ -17,6 +17,7 @@ import {
 import { createReservationFromVoiceParsed } from "@/lib/reservations/reservation-voice-create-client";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
+import { appMobileFabBottomClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +127,10 @@ export function ReservationVoiceFab() {
       />
 
       <div
-        className="pointer-events-none fixed end-4 z-[120] flex flex-col items-end gap-2 sm:end-6 bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]"
+        className={cn(
+          "pointer-events-none fixed end-4 z-[120] flex flex-col items-end gap-2 sm:end-6",
+          appMobileFabBottomClassName,
+        )}
         data-reservation-voice-fab
       >
         {listening ? (

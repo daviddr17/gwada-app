@@ -743,26 +743,25 @@ function SidebarMenuSkeleton({
       data-slot="sidebar-menu-skeleton"
       data-sidebar="menu-skeleton"
       className={cn(
-        // Wie MenuButton rail: feste Höhe, nur horizontales Padding — kein p-2+overflow
-        // (sonst werden Icon/Text-Skeletons vertikal abgeschnitten).
-        "grid h-8 w-full min-w-0 items-center gap-x-2 rounded-md px-2",
-        "grid-cols-[var(--sidebar-menu-icon-col)_minmax(0,1fr)] [--sidebar-menu-icon-col:theme(spacing.4)]",
+        // Eigenes Flex-Layout — ohne SIDEBAR_LABELS_COLLAPSED (0fr clippt den Textbalken).
+        "flex h-8 w-full min-w-0 items-center gap-2 rounded-md px-2",
         SIDEBAR_ICON_TRACK_MS,
-        SIDEBAR_COMPACT_BUTTON,
-        SIDEBAR_LABELS_COLLAPSED,
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:[&_[data-sidebar=menu-skeleton-text]]:hidden",
+        "group-data-[sidebar-icon-compact]/sidebar-wrapper:w-8 group-data-[sidebar-icon-compact]/sidebar-wrapper:max-w-8 group-data-[sidebar-icon-compact]/sidebar-wrapper:justify-center group-data-[sidebar-icon-compact]/sidebar-wrapper:gap-0 group-data-[sidebar-icon-compact]/sidebar-wrapper:rounded-full group-data-[sidebar-icon-compact]/sidebar-wrapper:px-0 group-data-[sidebar-icon-compact]/sidebar-wrapper:ms-0",
         className,
       )}
       {...props}
     >
       {showIcon ? (
         <Skeleton
-          className="col-start-1 row-start-1 size-4 shrink-0 place-self-center rounded-md"
+          className="size-4 shrink-0 rounded-md"
           data-sidebar="menu-skeleton-icon"
         />
       ) : null}
       <Skeleton
-        className="col-start-2 row-start-1 h-3.5 min-w-0 w-[70%] max-w-full justify-self-start rounded-md"
+        className={cn(
+          "h-3.5 min-w-0 flex-1 rounded-md",
+          "group-data-[sidebar-icon-compact]/sidebar-wrapper:hidden",
+        )}
         data-sidebar="menu-skeleton-text"
       />
     </div>

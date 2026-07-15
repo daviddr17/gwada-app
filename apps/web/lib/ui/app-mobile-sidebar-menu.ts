@@ -10,6 +10,10 @@ export const appMobileSidebarModuleGroupContentClassName = [
   "[&_[data-sidebar=menu-button]_svg]:!col-auto [&_[data-sidebar=menu-button]_svg]:!row-auto [&_[data-sidebar=menu-button]_svg]:size-6 [&_[data-sidebar=menu-button]_svg]:place-self-center",
   "[&_[data-sidebar=menu-button]>span:last-child]:!col-auto [&_[data-sidebar=menu-button]>span:last-child]:!row-auto [&_[data-sidebar=menu-button]>span:last-child]:max-w-full [&_[data-sidebar=menu-button]>span:last-child]:line-clamp-2 [&_[data-sidebar=menu-button]>span:last-child]:text-xs [&_[data-sidebar=menu-button]>span:last-child]:leading-snug [&_[data-sidebar=menu-button]>span:last-child]:whitespace-normal [&_[data-sidebar=menu-button]>span:last-child]:text-balance",
   "[&_[data-sidebar=menu-button][data-active]]:border-border/50 [&_[data-sidebar=menu-button][data-active]]:bg-sidebar-accent [&_[data-sidebar=menu-button][data-active]]:shadow-xs",
+  // Skeletons wie Modul-Kacheln (sonst flache Rail-Zeile in schmaler Grid-Zelle → abgeschnitten).
+  "[&_[data-sidebar=menu-skeleton]]:ms-0 [&_[data-sidebar=menu-skeleton]]:flex [&_[data-sidebar=menu-skeleton]]:h-auto [&_[data-sidebar=menu-skeleton]]:min-h-[4.75rem] [&_[data-sidebar=menu-skeleton]]:w-full [&_[data-sidebar=menu-skeleton]]:flex-col [&_[data-sidebar=menu-skeleton]]:items-center [&_[data-sidebar=menu-skeleton]]:justify-center [&_[data-sidebar=menu-skeleton]]:gap-2 [&_[data-sidebar=menu-skeleton]]:rounded-xl [&_[data-sidebar=menu-skeleton]]:px-2 [&_[data-sidebar=menu-skeleton]]:py-3",
+  "[&_[data-sidebar=menu-skeleton-icon]]:!size-6",
+  "[&_[data-sidebar=menu-skeleton-text]]:!h-2.5 [&_[data-sidebar=menu-skeleton-text]]:!w-[60%] [&_[data-sidebar=menu-skeleton-text]]:!flex-none [&_[data-sidebar=menu-skeleton-text]]:!max-w-[5.5rem]",
 ].join(" ");
 
 export const appMobileSidebarFooterMenuClassName = "gap-2 px-3 pb-2";

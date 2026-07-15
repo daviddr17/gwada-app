@@ -9,14 +9,15 @@ import {
   type TransitionEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { APP_LAYER_Z_INDEX } from "@/lib/ui/app-layer-z-index";
 import { cn } from "@/lib/utils";
 
-const OPEN_MS = 320;
-const CLOSE_MS = 280;
-const PANEL_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+const OPEN_MS = 340;
+const CLOSE_MS = 320;
+/** Öffnen: iOS-Sheet (schnell rein, weich ausfedern). */
+const OPEN_EASING = "cubic-bezier(0.32, 0.72, 0, 1)";
+/** Schließen: beschleunigen hinaus — kein Abbremsen knapp vor dem Unmount. */
+const CLOSE_EASING = "cubic-bezier(0.4, 0, 1, 1)";
 
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined") return false;
@@ -54,7 +55,8 @@ type AppMobileChromeScreenProps = {
 
 /**
  * Einheitliches Mobile-Overlay für Menü/Suche/Benachrichtigungen:
- * Vollfläche bis zur Bottom-Nav; Schließen in der Daumenzone unten.
+ * Vollfläche bis zur Bottom-Nav. Schließen über das X in der Bottom-Nav
+ * (Icon-Toggle) bzw. Escape — kein separater Schließen-Button.
  */
 export function AppMobileChromeScreen({
   open,
@@ -68,10 +70,12 @@ export function AppMobileChromeScreen({
   const [mounted, setMounted] = useState(open);
   const [visible, setVisible] = useState(false);
   const unlockScrollRef = useRef<(() => void) | null>(null);
+  const closingUnmountRef = useRef(false);
   const motionReduced = prefersReducedMotion();
 
   useEffect(() => {
     if (open) {
+      closingUnmountRef.current = false;
       setMounted(true);
       if (motionReduced) setVisible(true);
       return;
@@ -81,11 +85,15 @@ export function AppMobileChromeScreen({
       setMounted(false);
       return;
     }
+    /** Beim Wechsel Menü↔Suche↔Meldungen: altes Overlay sofort weg, kein Doppel-Slide. */
     const frame = requestAnimationFrame(() => {
       const anotherOpening = document.querySelector(
         '[data-app-mobile-chrome-overlay][data-open="true"]',
       );
-      if (anotherOpening) setMounted(false);
+      if (anotherOpening) {
+        closingUnmountRef.current = true;
+        setMounted(false);
+      }
     });
     return () => cancelAnimationFrame(frame);
   }, [open, motionReduced]);
@@ -114,17 +122,34 @@ export function AppMobileChromeScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
+  /** Fallback, falls `transitionend` ausbleibt (Tab-Wechsel, prefers/browser quirks). */
+  useEffect(() => {
+    if (visible || !mounted || open || motionReduced) return;
+    const timer = window.setTimeout(() => {
+      if (!closingUnmountRef.current) setMounted(false);
+    }, CLOSE_MS + 80);
+    return () => window.clearTimeout(timer);
+  }, [visible, mounted, open, motionReduced]);
+
   const handlePanelTransitionEnd = (event: TransitionEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
     if (event.propertyName !== "transform") return;
-    if (!visible && mounted) setMounted(false);
+    if (visible || !mounted) return;
+    closingUnmountRef.current = true;
+    /** Ein Frame nach Abschluss — sonst Sichtbarkeitssprung beim Unmount. */
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => setMounted(false));
+    });
   };
 
   if (!mounted || typeof document === "undefined") return null;
 
   const transitionMs = visible ? OPEN_MS : CLOSE_MS;
+  const easing = visible ? OPEN_EASING : CLOSE_EASING;
+  /** Etwas über 100 %, damit Unmount nicht mit Restpixel sichtbar wird. */
   const panelTransform = visible
     ? "translate3d(0, 0, 0)"
-    : "translate3d(0, 100%, 0)";
+    : "translate3d(0, calc(100% + 2rem), 0)";
 
   return createPortal(
     <div
@@ -139,12 +164,12 @@ export function AppMobileChromeScreen({
     >
       <div
         className={cn(
-          "absolute inset-0 bg-background/30 transition-opacity",
+          "absolute inset-0 bg-background/25 transition-opacity",
           visible ? "opacity-100" : "opacity-0",
         )}
         style={{
           transitionDuration: motionReduced ? "0ms" : `${transitionMs}ms`,
-          transitionTimingFunction: PANEL_EASING,
+          transitionTimingFunction: easing,
         }}
         aria-hidden
       />
@@ -162,7 +187,7 @@ export function AppMobileChromeScreen({
           transform: panelTransform,
           transition: motionReduced
             ? "none"
-            : `transform ${transitionMs}ms ${PANEL_EASING}`,
+            : `transform ${transitionMs}ms ${easing}`,
         }}
         onTransitionEnd={handlePanelTransitionEnd}
       >
@@ -176,25 +201,6 @@ export function AppMobileChromeScreen({
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </div>
-
-        <footer
-          className={cn(
-            "shrink-0 border-t border-border/50 bg-background/95 px-3 pt-2.5 backdrop-blur-md supports-backdrop-filter:bg-background/85",
-            "pb-[max(0.75rem,var(--app-mobile-bottom-safe,0px))]",
-          )}
-        >
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="h-12 w-full rounded-xl border-border/60 text-base font-medium"
-            aria-label="Schließen"
-            onClick={onClose}
-          >
-            <X className="size-4" aria-hidden />
-            Schließen
-          </Button>
-        </footer>
       </div>
     </div>,
     document.body,

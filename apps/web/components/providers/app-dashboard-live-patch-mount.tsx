@@ -192,6 +192,17 @@ export function AppDashboardLivePatchMount() {
     const onReservationOpenResolved = (event: Event) => {
       const detail = (event as CustomEvent<ReservationOpenResolvedDetail>).detail;
       if (!detail || detail.restaurantId !== restaurantId) return;
+
+      // Soft-nav behält stale Modul-Caches — sofort patchen + invalidieren.
+      queryClient.setQueryData(
+        queryKeys.reservations.unconfirmed(restaurantId),
+        (prev: { id: string }[] | undefined) =>
+          prev?.filter((row) => row.id !== detail.reservationId) ?? prev,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.reservations.root(restaurantId),
+      });
+
       if (
         !shouldDecrementUnconfirmedCount({
           previousStatusCode: detail.previousStatusCode,

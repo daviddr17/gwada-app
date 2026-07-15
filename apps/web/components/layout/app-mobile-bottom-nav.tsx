@@ -40,7 +40,7 @@ export function AppMobileBottomNav() {
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 border-t border-border/50 md:hidden",
         appChromeFixedZoneBgClassName,
-        "pb-[env(safe-area-inset-bottom,0px)]",
+        "pb-[var(--app-mobile-bottom-safe,env(safe-area-inset-bottom,0px))]",
       )}
     >
       <div

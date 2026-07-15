@@ -41,21 +41,20 @@ import {
 } from "@/lib/supabase/workspace-persistence";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import type { InventoryTaxonomyDefinition } from "@/lib/types/inventory";
-import type {
-  OrderProtocolActor,
-  PurchaseOrder,
-  PurchaseOrderLine,
-  PurchaseOrderLogAdd,
-  PurchaseOrderLogDeliveryReverted,
-  PurchaseOrderLogEntry,
-  PurchaseOrderLogLegacy,
-  PurchaseOrderLogMarkedDelivered,
-  PurchaseOrderLogQuantityChange,
-  PurchaseOrdersPersistenceV1,
-} from "@/lib/types/purchase-order";
 import {
+  healPurchaseOrdersCreatorAttribution,
   protocolActorNameFields,
   protocolCreatedByLabel,
+  type OrderProtocolActor,
+  type PurchaseOrder,
+  type PurchaseOrderLine,
+  type PurchaseOrderLogAdd,
+  type PurchaseOrderLogDeliveryReverted,
+  type PurchaseOrderLogEntry,
+  type PurchaseOrderLogLegacy,
+  type PurchaseOrderLogMarkedDelivered,
+  type PurchaseOrderLogQuantityChange,
+  type PurchaseOrdersPersistenceV1,
 } from "@/lib/types/purchase-order";
 
 function isRecord(x: unknown): x is Record<string, unknown> {
@@ -227,7 +226,7 @@ function parseOrder(raw: unknown): PurchaseOrder | null {
   const createdByUserSource =
     raw.createdByUserSource === "local_profile" ? ("local_profile" as const) : undefined;
   if (typeof raw.createdAt !== "string" || typeof raw.createdBy !== "string") return null;
-  if (!createdByUserSource && !raw.createdBy.trim()) return null;
+  // createdBy darf leer sein (unbekannt / bereinigtes local_profile-Remapping)
   if (!Array.isArray(raw.lines) || !Array.isArray(raw.log)) return null;
   const lines: PurchaseOrderLine[] = [];
   for (const l of raw.lines) {
@@ -780,6 +779,12 @@ export function usePurchaseOrdersStorage() {
     [orders, persist],
   );
 
+  const healCreatorAttribution = useCallback(async (): Promise<boolean> => {
+    const { orders: next, changed } = healPurchaseOrdersCreatorAttribution(orders);
+    if (!changed) return true;
+    return persist(next);
+  }, [orders, persist]);
+
   return {
     orders,
     isHydrated,
@@ -793,5 +798,6 @@ export function usePurchaseOrdersStorage() {
     markLineDelivered,
     unmarkLineDelivered,
     syncSupplierNamesFromTaxonomy,
+    healCreatorAttribution,
   };
 }

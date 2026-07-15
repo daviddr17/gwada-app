@@ -11,6 +11,7 @@ import {
   STAFF_OVERVIEW_FILTER_DEFAULTS,
   type StaffOverviewFilterState,
 } from "@/components/staff/staff-overview-filter-drawer";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   clampListPage,
@@ -25,6 +26,7 @@ import type {
 } from "@/lib/types/staff";
 import { StaffLastLoginCell } from "@/components/staff/staff-last-login-cell";
 import { StaffAppAccessStatus } from "@/components/staff/staff-app-access-status";
+import { StaffOverviewMobileList } from "@/components/staff/staff-overview-mobile-list";
 import { StaffRoleAccessIcons } from "@/components/staff/staff-role-access-icons";
 import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
 import {
@@ -49,6 +51,8 @@ import {
   moduleDataTableHeadCellClassName,
   moduleDataTableHeadRowClassName,
   moduleDataTableHeadSortButtonCn,
+  moduleListPaginationAboveClassName,
+  moduleListPaginationBelowClassName,
 } from "@/lib/ui/module-data-table";
 import {
   moduleTableStickyHeadCellClassName,
@@ -537,6 +541,31 @@ export function StaffOverviewTable({
         employmentTypes={employmentTypes}
       />
 
+      <div className="md:hidden">
+        <ListPaginationSurround
+          page={currentPage}
+          totalPages={totalPages}
+          shown={paginatedRows.length}
+          totalCount={totalCount}
+          itemLabel="Mitarbeiter"
+          canPrevious={currentPage > 1}
+          canNext={currentPage < totalPages}
+          onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+          onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+          classNameAbove={moduleListPaginationAboveClassName}
+          classNameBelow={moduleListPaginationBelowClassName}
+        >
+          <StaffOverviewMobileList
+            rows={paginatedRows}
+            emptyMessage={emptyMessage}
+            workingIds={workingIds}
+            breakIds={breakIds}
+            onEdit={onEdit}
+          />
+        </ListPaginationSurround>
+      </div>
+
+      <div className="hidden md:block">
       <ModulePaginatedDataTable
         page={currentPage}
         totalPages={totalPages}
@@ -765,6 +794,7 @@ export function StaffOverviewTable({
           <p className="py-8 text-center text-sm text-muted-foreground">{emptyMessage}</p>
         ) : null}
       </ModulePaginatedDataTable>
+      </div>
     </>
   );
 }

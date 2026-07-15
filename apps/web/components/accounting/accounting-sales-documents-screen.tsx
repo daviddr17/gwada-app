@@ -13,12 +13,14 @@ import {
 } from "@/components/accounting/accounting-list-screen-skeleton";
 import { AccountingSalesDocumentSheet } from "@/components/accounting/accounting-sales-document-sheet";
 import { AccountingSalesDocumentDrawer } from "@/components/accounting/accounting-sales-document-drawer";
+import { AccountingSalesDocumentsMobileList } from "@/components/accounting/accounting-sales-documents-mobile-list";
 import { AccountingTableSortHeader } from "@/components/accounting/accounting-table-sort-header";
 import { AccountingSourceIcon } from "@/components/accounting/accounting-source-icon";
 import { AccountingStatusBadge } from "@/components/accounting/accounting-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import { ModuleTableStickyBodyCell } from "@/lib/ui/module-table-sticky-column";
 import {
@@ -71,6 +73,8 @@ import {
 import { modulePrimaryAddButtonFullWidthClassName } from "@/lib/ui/module-primary-add-button";
 import {
   moduleDataTableHeadRowClassName,
+  moduleListPaginationAboveClassName,
+  moduleListPaginationBelowClassName,
 } from "@/lib/ui/module-data-table";
 import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
 import {
@@ -488,6 +492,39 @@ export function AccountingSalesDocumentsScreen({
           }
         />
       ) : (
+        <>
+        <div className="md:hidden">
+          <ListPaginationSurround
+            page={listMeta.page}
+            totalPages={listMeta.totalPages}
+            shown={rows.length}
+            totalCount={listMeta.totalCount}
+            itemLabel={listCountLabel}
+            canPrevious={listMeta.page > 1}
+            canNext={listMeta.page < listMeta.totalPages}
+            busy={loading}
+            onPrevious={() => setPage(listMeta.page - 1)}
+            onNext={() => setPage(listMeta.page + 1)}
+            classNameAbove={moduleListPaginationAboveClassName}
+            classNameBelow={moduleListPaginationBelowClassName}
+          >
+            <AccountingSalesDocumentsMobileList
+              rows={rows}
+              emptyLabel={search.trim() ? searchEmptyLabel : emptyLabel}
+              statuses={statuses}
+              onOpenRow={(row) => {
+                setSheetRow(row);
+                setSheetOpen(true);
+              }}
+              onEditRow={(row) => {
+                setEditRow(row);
+                setDrawerOpen(true);
+              }}
+            />
+          </ListPaginationSurround>
+        </div>
+
+        <div className="hidden md:block">
         <ModulePaginatedDataTable
           page={listMeta.page}
           totalPages={listMeta.totalPages}
@@ -656,6 +693,8 @@ export function AccountingSalesDocumentsScreen({
                 </tbody>
               </table>
         </ModulePaginatedDataTable>
+        </div>
+        </>
       )}
         </>
       )}

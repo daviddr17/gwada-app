@@ -27,9 +27,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import { SearchableSelect } from "@/components/ui/combobox";
 import { Input } from "@/components/ui/input";
+import { DocumentsOverviewMobileList } from "@/components/documents/documents-overview-mobile-list";
 import {
   deleteRestaurantDocumentClient,
   restaurantDocumentDownloadUrl,
@@ -79,6 +81,8 @@ import {
   moduleDataTableHeadCellClassName,
   moduleDataTableHeadRowClassName,
   moduleDataTableHeadSortButtonCn,
+  moduleListPaginationAboveClassName,
+  moduleListPaginationBelowClassName,
 } from "@/lib/ui/module-data-table";
 import {
   ModuleTableIconActionButton,
@@ -745,6 +749,49 @@ export function DocumentsOverview() {
           </CardContent>
         </Card>
       ) : (
+        <>
+        <div className="md:hidden">
+          <ListPaginationSurround
+            page={currentPage}
+            totalPages={totalPages}
+            shown={paginatedRows.length}
+            totalCount={totalCount}
+            itemLabel="Dokumente"
+            canPrevious={currentPage > 1}
+            canNext={currentPage < totalPages}
+            onPrevious={() => setPage((p) => Math.max(1, p - 1))}
+            onNext={() => setPage((p) => Math.min(totalPages, p + 1))}
+            classNameAbove={moduleListPaginationAboveClassName}
+            classNameBelow={moduleListPaginationBelowClassName}
+          >
+            <DocumentsOverviewMobileList
+              rows={paginatedRows}
+              tagDefinitions={tagDefinitionsForChips}
+              uploaderLabel={(row) =>
+                formatDocumentUploaderLabel(row.uploaded_by, uploaderNames)
+              }
+              onDownload={(row) => {
+                window.open(
+                  restaurantDocumentDownloadUrl({
+                    restaurantId,
+                    documentId: row.id,
+                  }),
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              }}
+              onProtocol={(row) => setProtocolDoc(row)}
+              onEdit={(row) => {
+                setFormMode("edit");
+                setEditDoc(row);
+                setFormOpen(true);
+              }}
+              onDelete={(row) => setDeleteTarget(row)}
+            />
+          </ListPaginationSurround>
+        </div>
+
+        <div className="hidden md:block">
         <ModulePaginatedDataTable
           page={currentPage}
           totalPages={totalPages}
@@ -897,6 +944,8 @@ export function DocumentsOverview() {
               </tbody>
             </table>
         </ModulePaginatedDataTable>
+        </div>
+        </>
       )}
 
       <CategoriesManageDrawer

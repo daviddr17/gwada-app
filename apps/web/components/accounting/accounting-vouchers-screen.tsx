@@ -15,9 +15,11 @@ import {
 } from "@/components/accounting/accounting-list-screen-skeleton";
 import { AccountingVoucherDrawer } from "@/components/accounting/accounting-voucher-drawer";
 import { AccountingVoucherSheet } from "@/components/accounting/accounting-voucher-sheet";
+import { AccountingVouchersMobileList } from "@/components/accounting/accounting-vouchers-mobile-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ListPaginationSurround } from "@/components/ui/list-pagination";
 import { ModulePaginatedDataTable } from "@/lib/ui/module-paginated-data-table";
 import {
   createAccountingVoucher,
@@ -67,6 +69,8 @@ import {
   moduleDataTableHeadCellClassName,
   moduleDataTableHeadLabelClassName,
   moduleDataTableHeadRowClassName,
+  moduleListPaginationAboveClassName,
+  moduleListPaginationBelowClassName,
 } from "@/lib/ui/module-data-table";
 import { cn } from "@/lib/utils";
 import { countAccountingListActiveFilters } from "@/lib/constants/accounting-list-filters";
@@ -479,6 +483,40 @@ export function AccountingVouchersScreen() {
           ariaLabel="Belege werden geladen"
         />
       ) : (
+        <>
+        <div className="md:hidden">
+          <ListPaginationSurround
+            page={listMeta.page}
+            totalPages={listMeta.totalPages}
+            shown={rows.length}
+            totalCount={listMeta.totalCount}
+            itemLabel={listCountLabel}
+            canPrevious={listMeta.page > 1}
+            canNext={listMeta.page < listMeta.totalPages}
+            busy={loading}
+            onPrevious={() => setPage(listMeta.page - 1)}
+            onNext={() => setPage(listMeta.page + 1)}
+            classNameAbove={moduleListPaginationAboveClassName}
+            classNameBelow={moduleListPaginationBelowClassName}
+          >
+            <AccountingVouchersMobileList
+              rows={rows}
+              emptyLabel={emptyLabel}
+              statuses={statuses}
+              canManage={canManage}
+              onOpenRow={(row) => {
+                setSheetRow(row);
+                setSheetOpen(true);
+              }}
+              onEditRow={(row) => {
+                setEditRow(row);
+                setDrawerOpen(true);
+              }}
+            />
+          </ListPaginationSurround>
+        </div>
+
+        <div className="hidden md:block">
         <ModulePaginatedDataTable
           page={listMeta.page}
           totalPages={listMeta.totalPages}
@@ -655,6 +693,8 @@ export function AccountingVouchersScreen() {
                 </tbody>
               </table>
         </ModulePaginatedDataTable>
+        </div>
+        </>
       )}
         </>
       )}

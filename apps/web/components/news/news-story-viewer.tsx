@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { UnifiedNewsStoryRing } from "@/lib/news/unified-news-story";
+import { appMobileBottomSafePbLgClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 const STORY_OPEN_MS = 340;
@@ -227,7 +228,7 @@ export function NewsStoryViewer({ ring, open, onOpenChange }: Props) {
       </div>
 
       {current?.caption ? (
-        <div className="relative z-20 shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
+        <div className={cn("relative z-20 shrink-0 px-4 pt-2", appMobileBottomSafePbLgClassName)}>
           <p className="whitespace-pre-wrap text-sm text-white/90">{current.caption}</p>
         </div>
       ) : null}

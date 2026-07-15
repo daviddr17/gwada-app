@@ -11,7 +11,7 @@ import {
 } from "@/lib/contexts/dashboard-global-search-context";
 import { APP_ROUTES } from "@/lib/navigation/app-routes";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
-import { APP_MOBILE_BOTTOM_NAV_BAR_H } from "@/lib/ui/app-mobile-bottom-nav";
+import { APP_MOBILE_BOTTOM_NAV_BAR_H, appMobileBottomSafePbClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 import { usePathname } from "next/navigation";
 
@@ -40,7 +40,7 @@ export function AppMobileBottomNav() {
       className={cn(
         "fixed inset-x-0 bottom-0 z-40 border-t border-border/50 md:hidden",
         appChromeFixedZoneBgClassName,
-        "pb-[var(--app-mobile-bottom-safe,env(safe-area-inset-bottom,0px))]",
+        appMobileBottomSafePbClassName,
       )}
     >
       <div

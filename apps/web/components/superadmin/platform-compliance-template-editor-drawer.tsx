@@ -163,7 +163,7 @@ export function PlatformComplianceTemplateEditorDrawer({
     return () => {
       cancel = true;
     };
-  }, [open, templateId, resetCreate]);
+  }, [open, templateId]);
 
   const updateItem = (id: string, patch: Partial<ComplianceChecklistItem>) => {
     setItems((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));

@@ -50,6 +50,7 @@ import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { ContactQuickActionsBar } from "@/components/contacts/contact-quick-actions-bar";
 import { ContactTagsEditor } from "@/components/contacts/contact-tags-editor";
 import { ContactTimelineSection } from "@/components/contacts/contact-timeline-section";
+import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 type EmailDraft = { key: string; email: string; label: string };
@@ -1076,7 +1077,7 @@ export function ContactEditDrawer({
             <div
               className={cn(
                 "shrink-0 border-t border-border/60 bg-background/90 px-6 py-3 backdrop-blur-md",
-                "pb-[max(0.75rem,env(safe-area-inset-bottom))]",
+                appMobileBottomSafePbMdClassName,
                 "shadow-[0_-12px_40px_-12px_rgba(0,0,0,0.08)] dark:shadow-[0_-12px_48px_-12px_rgba(0,0,0,0.45)]",
               )}
               role="region"

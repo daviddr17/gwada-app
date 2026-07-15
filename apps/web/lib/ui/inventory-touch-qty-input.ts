@@ -19,7 +19,7 @@ export function inventoryTouchOrderQtyInputCn(active: boolean): string {
     inventoryTouchQtyInputClassName,
     "pr-11",
     active
-      ? "border-emerald-600 bg-emerald-500/18 text-emerald-950 ring-2 ring-emerald-600/20 focus-visible:border-emerald-600 focus-visible:ring-emerald-600/35 dark:border-emerald-500 dark:bg-emerald-500/22 dark:text-emerald-50"
+      ? "border-emerald-600 bg-emerald-500/18 text-emerald-950 focus-visible:border-emerald-600 dark:border-emerald-500 dark:bg-emerald-500/22 dark:text-emerald-50"
       : "border-emerald-500/35 bg-emerald-500/10 text-foreground focus-visible:border-emerald-500/55 dark:bg-emerald-500/12",
   );
 }

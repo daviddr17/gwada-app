@@ -15,13 +15,19 @@ import {
 } from "lucide-react";
 import { DashboardCompactInlineMetrics } from "@/components/dashboard/dashboard-compact-list";
 import { DashboardHeuteAufmerksamkeitSheet } from "@/components/dashboard/dashboard-heute-aufmerksamkeit-sheet";
+import { DashboardHeuteWorkHoursSheet } from "@/components/dashboard/dashboard-heute-work-hours-sheet";
+import { DashboardInventoryAlertsSheet } from "@/components/dashboard/dashboard-inventory-alerts-sheet";
+import { DashboardMessagesListSheet } from "@/components/dashboard/dashboard-messages-list-sheet";
+import {
+  DashboardReservationsListSheet,
+  type DashboardReservationsListSheetMode,
+} from "@/components/dashboard/dashboard-reservations-list-sheet";
 import { DashboardWidgetShell } from "@/components/dashboard/dashboard-widget-shell";
 import {
   StaffOverviewLivePresenceSheet,
   type StaffLivePresenceSheetMode,
 } from "@/components/staff/staff-overview-live-presence-sheet";
 import { StaffOverviewCompletedShiftsSheet } from "@/components/staff/staff-overview-completed-shifts-sheet";
-import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardInventoryStats } from "@/lib/hooks/use-dashboard-inventory-stats";
 import { useDashboardMessagesStats } from "@/lib/hooks/use-dashboard-messages-stats";
@@ -37,7 +43,6 @@ import {
 } from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions";
 import { hasDashboardWidgetAccess } from "@/lib/permissions/dashboard-widget-permissions";
-import { reservationsUnconfirmedOverviewHref } from "@/lib/reservations/unconfirmed-reservations";
 import { formatHoursDe } from "@/lib/staff/staff-work-hours-summary";
 import { cn } from "@/lib/utils";
 
@@ -75,23 +80,20 @@ const HEUTE_METRIC_VALUE_CLASS: Record<HeuteMetricTone, string> = {
 function HeuteMetricPill({
   label,
   value,
-  href,
   onClick,
   tone = "neutral",
   icon,
 }: {
   label: string;
   value: string;
-  href?: string;
-  onClick?: () => void;
+  onClick: () => void;
   tone?: HeuteMetricTone;
   icon?: ReactNode;
 }) {
   const shellClass = cn(
     "inline-flex min-w-0 rounded-lg border text-left transition-colors",
     HEUTE_METRIC_TONE_CLASS[tone],
-    (href || onClick) &&
-      "cursor-pointer hover:brightness-[1.02] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+    "cursor-pointer hover:brightness-[1.02] focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
   );
 
   const content = (
@@ -115,23 +117,11 @@ function HeuteMetricPill({
     </div>
   );
 
-  if (onClick) {
-    return (
-      <button type="button" onClick={onClick} className={shellClass}>
-        {content}
-      </button>
-    );
-  }
-
-  if (href) {
-    return (
-      <AppNavLink href={href} prefetch={false} className={shellClass}>
-        {content}
-      </AppNavLink>
-    );
-  }
-
-  return <div className={shellClass}>{content}</div>;
+  return (
+    <button type="button" onClick={onClick} className={shellClass}>
+      {content}
+    </button>
+  );
 }
 
 function DashboardHeuteTileSkeleton() {
@@ -156,10 +146,15 @@ export function DashboardHeuteTile() {
   const messages = useDashboardMessagesStats();
   const inventory = useDashboardInventoryStats();
 
+  const [reservationSheetMode, setReservationSheetMode] =
+    useState<DashboardReservationsListSheetMode | null>(null);
   const [presenceSheetMode, setPresenceSheetMode] =
     useState<StaffLivePresenceSheetMode | null>(null);
   const [completedSheetOpen, setCompletedSheetOpen] = useState(false);
+  const [workHoursSheetOpen, setWorkHoursSheetOpen] = useState(false);
   const [aufmerksamkeitSheetOpen, setAufmerksamkeitSheetOpen] = useState(false);
+  const [messagesSheetOpen, setMessagesSheetOpen] = useState(false);
+  const [inventorySheetOpen, setInventorySheetOpen] = useState(false);
 
   const accessOptions = {
     permissionsLoading,
@@ -226,7 +221,6 @@ export function DashboardHeuteTile() {
     : 0;
   const aufmerksamkeitCount = unconfirmedCount + unreadMessageCount;
 
-  const reservationDayHref = `/dashboard/reservierungen/uebersicht?day=${restaurantTodayYmd(restaurantTimeZone)}`;
   const staffTodayYmd = restaurantTodayYmd(restaurantTimeZone);
   const todayWorkHours = staff.summary?.todayWorkHours ?? 0;
   const todayUpcomingReservations =
@@ -270,18 +264,14 @@ export function DashboardHeuteTile() {
               <HeuteMetricPill
                 label="Reserv."
                 value={`${todayUpcomingReservations} · ${todayUpcomingGuests} P.`}
-                href={reservationDayHref}
+                onClick={() => setReservationSheetMode("today_upcoming")}
                 tone={todayUpcomingReservations > 0 ? "accent" : "neutral"}
                 icon={<CalendarDays aria-hidden />}
               />
               <HeuteMetricPill
                 label="Offen"
                 value={String(reservations.summary.unconfirmedCount)}
-                href={
-                  reservations.summary.unconfirmedCount > 0
-                    ? reservationsUnconfirmedOverviewHref()
-                    : undefined
-                }
+                onClick={() => setReservationSheetMode("unconfirmed")}
                 tone={
                   reservations.summary.unconfirmedCount > 0 ? "attention" : "neutral"
                 }
@@ -319,7 +309,7 @@ export function DashboardHeuteTile() {
               <HeuteMetricPill
                 label="Heute"
                 value={todayWorkHours > 0 ? formatHoursDe(todayWorkHours) : "0 h"}
-                href="/dashboard/mitarbeiter/arbeitszeiten"
+                onClick={() => setWorkHoursSheetOpen(true)}
                 tone={todayWorkHours > 0 ? "accent" : "neutral"}
                 icon={<Clock aria-hidden />}
               />
@@ -330,11 +320,7 @@ export function DashboardHeuteTile() {
             <HeuteMetricPill
               label="Post"
               value={String(messages.summary.total_unread)}
-              href={
-                messages.summary.total_unread > 0
-                  ? "/dashboard/kontakte/nachrichten?platform=all&read=unread"
-                  : "/dashboard/kontakte/nachrichten?platform=all"
-              }
+              onClick={() => setMessagesSheetOpen(true)}
               tone={messages.summary.total_unread > 0 ? "attention" : "neutral"}
               icon={<MessageCircle aria-hidden />}
             />
@@ -344,13 +330,34 @@ export function DashboardHeuteTile() {
             <HeuteMetricPill
               label="Bestand"
               value={`${inventory.summary.emptyStock} · ${inventory.summary.openOrders}`}
-              href="/dashboard/inventory/uebersicht"
+              onClick={() => setInventorySheetOpen(true)}
               tone="warning"
               icon={<Package aria-hidden />}
             />
           ) : null}
         </DashboardCompactInlineMetrics>
       </div>
+
+      {reservationSheetMode && can.reservations && reservations.summary ? (
+        <DashboardReservationsListSheet
+          open={reservationSheetMode !== null}
+          onOpenChange={(open) => {
+            if (!open) setReservationSheetMode(null);
+          }}
+          mode={reservationSheetMode}
+          rows={
+            reservationSheetMode === "today_upcoming"
+              ? (reservations.summary.todayUpcomingList ?? [])
+              : (reservations.summary.unconfirmedList ?? [])
+          }
+          timeZone={restaurantTimeZone}
+          description={
+            reservationSheetMode === "today_upcoming"
+              ? `${todayUpcomingReservations} Reservierungen · ${todayUpcomingGuests} Personen`
+              : `${reservations.summary.unconfirmedCount} offen`
+          }
+        />
+      ) : null}
 
       {presenceSheetMode ? (
         <StaffOverviewLivePresenceSheet
@@ -376,6 +383,19 @@ export function DashboardHeuteTile() {
         />
       ) : null}
 
+      {workHoursSheetOpen ? (
+        <DashboardHeuteWorkHoursSheet
+          open={workHoursSheetOpen}
+          onOpenChange={setWorkHoursSheetOpen}
+          dayYmd={staffTodayYmd}
+          todayWorkHours={todayWorkHours}
+          presence={staff.presence}
+          completedShifts={staff.completedShifts}
+          staffById={staffById}
+          timeZone={restaurantTimeZone}
+        />
+      ) : null}
+
       {aufmerksamkeitSheetOpen ? (
         <DashboardHeuteAufmerksamkeitSheet
           open={aufmerksamkeitSheetOpen}
@@ -385,6 +405,26 @@ export function DashboardHeuteTile() {
           unconfirmedCount={unconfirmedCount}
           unreadMessageCount={unreadMessageCount}
           timeZone={restaurantTimeZone}
+        />
+      ) : null}
+
+      {messagesSheetOpen && can.messages && messages.summary ? (
+        <DashboardMessagesListSheet
+          open={messagesSheetOpen}
+          onOpenChange={setMessagesSheetOpen}
+          rows={unreadMessages}
+          totalUnread={messages.summary.total_unread}
+          timeZone={restaurantTimeZone}
+        />
+      ) : null}
+
+      {inventorySheetOpen && can.inventory && inventory.summary ? (
+        <DashboardInventoryAlertsSheet
+          open={inventorySheetOpen}
+          onOpenChange={setInventorySheetOpen}
+          emptyStockCount={inventory.summary.emptyStock}
+          openOrdersCount={inventory.summary.openOrders}
+          openOrderLinesCount={inventory.summary.openOrderLines}
         />
       ) : null}
     </DashboardWidgetShell>

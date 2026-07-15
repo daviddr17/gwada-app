@@ -31,11 +31,19 @@ export function isUnconfirmedReservationStatusCode(code: string): boolean {
   });
 }
 
+export type ReservationOpenResolvedStatusPatch = {
+  id: string;
+  name: string;
+  color_hex?: string;
+};
+
 export type ReservationOpenResolvedDetail = {
   restaurantId: string;
   reservationId: string;
   previousStatusCode: string;
   nextStatusCode: string;
+  /** Für sofortigen Listen-Patch (Monats-Cache). */
+  nextStatus?: ReservationOpenResolvedStatusPatch;
 };
 
 export const GWADA_RESERVATION_OPEN_RESOLVED_EVENT =

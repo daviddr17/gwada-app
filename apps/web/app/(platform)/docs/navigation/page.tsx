@@ -80,17 +80,45 @@ export default function DocsNavigationPage() {
       <p>In den meisten Modulen findest du:</p>
       <ul>
         <li>
-          <strong>Suche</strong> — oben in der Toolbar
+          <strong>Suche</strong> — oben in der Toolbar; durchsucht Namen, Titel oder
+          Metadaten je nach Modul
         </li>
         <li>
-          <strong>Filter</strong> — Filter-Icon öffnet ein Panel von unten (Bottom Sheet)
+          <strong>Filter</strong> — rundes Filter-Icon öffnet ein Bottom Sheet von
+          unten. Optionen sind modulspezifisch (Status, Zeitraum, Lieferant, …).
+          „Zurücksetzen“ setzt Standardwerte, „Fertig“ wendet an und schließt.
         </li>
         <li>
-          <strong>Neu anlegen</strong> — breiter Button über der Liste
+          <strong>Plattform-Chips</strong> — bei Nachrichten, Bewertungen, Insights:
+          horizontale Chips statt Filter-Sheet (Kanal/Plattform direkt wählen)
         </li>
         <li>
-          <strong>Pagination</strong> — Anzahl und Seitenwechsel oben und unten bei
+          <strong>Neu anlegen</strong> — breiter Button über der Liste (volle Breite,
+          abgerundet)
+        </li>
+        <li>
+          <strong>Bottom Sheets</strong> — Formulare, Detailansichten und Filter
+          öffnen sich als Panel von unten; „Abbrechen“ / „Speichern“ unten
+        </li>
+        <li>
+          <strong>Pagination</strong> — „12/45 Einträge · Seite 2/3“ oben und unten bei
           langen Tabellen
+        </li>
+        <li>
+          <strong>Vollbild-Tabelle</strong> — Maximize-Icon oben rechts bei Tabellen
+          (Bestand, Dokumente, …)
+        </li>
+      </ul>
+
+      <h2>Schnellaktionen & Spracheingabe</h2>
+      <ul>
+        <li>
+          <strong>Plus-Button (FAB)</strong> — unten rechts; konfigurierbar unter
+          Einstellungen → Dashboard (max. 5 Aktionen)
+        </li>
+        <li>
+          <strong>Mikrofon-FAB</strong> — in Bestand und Reservierungen: Spracheingabe
+          für Bestände, Bestellmengen oder neue Reservierungen
         </li>
       </ul>
 

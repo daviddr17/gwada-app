@@ -140,7 +140,7 @@ export function PlatformContractTemplateEditorDrawer({
     return () => {
       cancel = true;
     };
-  }, [open, templateId, defaultCountryCode]);
+  }, [open, templateId]);
 
   const buildInput = useCallback((): PlatformStaffContractTemplateInput => {
     return {

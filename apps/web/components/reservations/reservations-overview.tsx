@@ -1157,7 +1157,8 @@ export function ReservationsOverview() {
                                 restaurantId={workspaceRestaurantId}
                                 reservationId={r.id}
                                 statusCode={st.code}
-                                onConfirmed={() => {
+                                onConfirmed={() => {}}
+                                onFailed={() => {
                                   void invalidateReservations();
                                 }}
                               />

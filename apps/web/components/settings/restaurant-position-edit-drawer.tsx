@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
@@ -139,9 +140,9 @@ export function RestaurantPositionEditDrawer({
     setLoading(false);
   }, [position, restaurantId]);
 
-  useEffect(() => {
-    if (open && position) void loadData();
-  }, [open, position, loadData]);
+  useDrawerFormSeed(open, position?.id ?? "__none__", () => {
+    if (position) void loadData();
+  });
 
   useEffect(() => {
     if (!open) {

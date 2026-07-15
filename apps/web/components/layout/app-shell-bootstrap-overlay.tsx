@@ -2,6 +2,7 @@
 
 import { DashboardWidgetTileSkeleton } from "@/components/dashboard/dashboard-widget-tile-skeleton";
 import { Skeleton } from "@/components/ui/skeleton";
+import { APP_MOBILE_BOTTOM_NAV_BAR_H, appMobileBottomSafePbClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
 import { cn } from "@/lib/utils";
 
@@ -27,13 +28,15 @@ export function AppShellBootstrapOverlay() {
             <Skeleton className="h-3 w-[55%] rounded-md" />
           </div>
         </div>
-        <div className="space-y-2 px-1">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton
+        <div className="space-y-1.5 px-2">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div
               key={i}
-              className="h-9 w-full rounded-lg"
-              style={{ width: `${58 + (i % 3) * 10}%` }}
-            />
+              className="grid h-8 w-full min-w-0 items-center gap-x-2 overflow-hidden rounded-md p-2 ms-[5px] grid-cols-[1rem_minmax(0,1fr)]"
+            >
+              <Skeleton className="col-start-1 size-4 shrink-0 place-self-center rounded-md" />
+              <Skeleton className="col-start-2 h-4 min-w-0 w-full rounded-md" />
+            </div>
           ))}
         </div>
       </aside>
@@ -66,10 +69,12 @@ export function AppShellBootstrapOverlay() {
         <div
           className={cn(
             "flex h-14 shrink-0 items-center justify-around border-t border-border/50 px-2 md:hidden",
-            "pb-[env(safe-area-inset-bottom,0px)]",
+            appMobileBottomSafePbClassName,
             appChromeFixedZoneBgClassName,
           )}
-          style={{ minHeight: "calc(3.5rem + env(safe-area-inset-bottom, 0px))" }}
+          style={{
+            minHeight: `calc(${APP_MOBILE_BOTTOM_NAV_BAR_H} + var(--app-mobile-bottom-safe, 0px))`,
+          }}
         >
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-1">

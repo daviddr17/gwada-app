@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { toast } from "sonner";
 import { AccountingContactRecipientFields } from "@/components/accounting/accounting-contact-recipient-fields";
@@ -281,17 +281,26 @@ export function AccountingVoucherDrawer({
   },
   );
 
+  const contactEnrichedForRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!open || !editRow?.contact_id || contacts.length === 0) return;
-    const match = contacts.find((c) => c.gwadaContactId === editRow.contact_id);
+    if (!open) {
+      contactEnrichedForRef.current = null;
+      return;
+    }
+    const enrichKey = editRow?.contact_id ?? "";
+    if (!enrichKey || contacts.length === 0) return;
+    if (contactEnrichedForRef.current === enrichKey) return;
+    const match = contacts.find((c) => c.gwadaContactId === editRow?.contact_id);
     if (!match) return;
+    contactEnrichedForRef.current = enrichKey;
     setContactRowKey(match.rowKey);
     setLexofficeContactId(match.lexofficeContactId);
     setRecipient(recipientFromUnifiedContact(match));
-    if (!contactOriginallyEmpty) {
-      setContactOriginallyEmpty(originallyEmptyContactFields(match));
-    }
-  }, [open, editRow, contacts, contactOriginallyEmpty]);
+    setContactOriginallyEmpty(
+      (prev) => prev ?? originallyEmptyContactFields(match),
+    );
+  }, [open, editRow?.contact_id, contacts]);
 
   const contactOptions = useMemo(
     () =>

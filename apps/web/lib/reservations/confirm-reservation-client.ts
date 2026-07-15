@@ -91,33 +91,42 @@ export async function confirmPendingReservationFromBrowser(params: {
     after,
   });
 
-  const dispatchEvent = reservationStatusDispatchEvent(
-    previousStatusCode,
-    "confirmed",
-  );
-  const warnings: string[] = [];
-  if (dispatchEvent && row.notify_whatsapp) {
-    const wa = await triggerReservationWhatsappDispatch(row.id, dispatchEvent);
-    const msg = whatsappDispatchUserMessage(wa);
-    if (msg) warnings.push(msg);
-  }
-  if (dispatchEvent && row.notify_email) {
-    const em = await triggerReservationEmailDispatch(row.id, dispatchEvent);
-    const msg = emailDispatchUserMessage(em, {
-      isSuperadmin: params.isSuperadmin === true,
-    });
-    if (msg) warnings.push(msg);
-  }
-
   dispatchReservationOpenResolvedLivePatch({
     restaurantId: row.restaurant_id,
     reservationId: row.id,
     previousStatusCode,
     nextStatusCode: "confirmed",
+    nextStatus: {
+      id: confirmed.id,
+      name: confirmed.name,
+      color_hex: confirmed.color_hex,
+    },
   });
   dispatchDashboardReservationUpdateLivePatch(row.restaurant_id);
 
-  return warnings.length > 0
-    ? { ok: true, warning: warnings.join(" ") }
-    : { ok: true };
+  const dispatchEvent = reservationStatusDispatchEvent(
+    previousStatusCode,
+    "confirmed",
+  );
+  void (async () => {
+    const warnings: string[] = [];
+    if (dispatchEvent && row.notify_whatsapp) {
+      const wa = await triggerReservationWhatsappDispatch(row.id, dispatchEvent);
+      const msg = whatsappDispatchUserMessage(wa);
+      if (msg) warnings.push(msg);
+    }
+    if (dispatchEvent && row.notify_email) {
+      const em = await triggerReservationEmailDispatch(row.id, dispatchEvent);
+      const msg = emailDispatchUserMessage(em, {
+        isSuperadmin: params.isSuperadmin === true,
+      });
+      if (msg) warnings.push(msg);
+    }
+    if (warnings.length > 0) {
+      const { toast } = await import("sonner");
+      toast.warning(warnings.join(" "));
+    }
+  })();
+
+  return { ok: true };
 }

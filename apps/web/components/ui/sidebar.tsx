@@ -733,28 +733,21 @@ function SidebarMenuBadge({
 
 function SidebarMenuSkeleton({
   className,
-  showIcon = false,
-  textWidth = "70%",
+  showIcon = true,
   ...props
 }: React.ComponentProps<"div"> & {
   showIcon?: boolean
-  /** Feste Breite — kein Zufall (SSR/Client-Hydration). */
-  textWidth?: string
 }) {
   return (
     <div
       data-slot="sidebar-menu-skeleton"
       data-sidebar="menu-skeleton"
       className={cn(
-        "flex h-8 min-w-0 w-full items-center gap-2 overflow-hidden rounded-md px-2",
+        "grid h-8 w-full min-w-0 items-center gap-x-2 overflow-hidden rounded-md p-2",
+        "grid-cols-[var(--sidebar-menu-icon-col)_minmax(0,1fr)] [--sidebar-menu-icon-col:theme(spacing.4)]",
         SIDEBAR_ICON_TRACK_MS,
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:h-8",
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:w-8",
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:max-w-8",
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:shrink-0",
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:justify-center",
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:rounded-full",
-        "group-data-[sidebar-icon-compact]/sidebar-wrapper:gap-0",
+        SIDEBAR_COMPACT_BUTTON,
+        SIDEBAR_LABELS_COLLAPSED,
         "group-data-[sidebar-icon-compact]/sidebar-wrapper:[&_[data-sidebar=menu-skeleton-text]]:hidden",
         className,
       )}
@@ -762,18 +755,13 @@ function SidebarMenuSkeleton({
     >
       {showIcon ? (
         <Skeleton
-          className="size-4 shrink-0 rounded-md"
+          className="col-start-1 row-start-1 size-4 shrink-0 place-self-center rounded-md"
           data-sidebar="menu-skeleton-icon"
         />
       ) : null}
       <Skeleton
-        className="h-4 max-w-(--skeleton-width) flex-1"
+        className="col-start-2 row-start-1 h-4 min-w-0 w-full rounded-md"
         data-sidebar="menu-skeleton-text"
-        style={
-          {
-            "--skeleton-width": textWidth,
-          } as React.CSSProperties
-        }
       />
     </div>
   )

@@ -46,6 +46,7 @@ import {
   peekReservationsMonthCache,
   writeReservationsMonthCache,
 } from "@/lib/reservations/reservations-month-client-cache";
+import { patchReservationOpenResolvedInQueryCaches } from "@/lib/reservations/reservations-list-query";
 import { mapRawToReservationListRow } from "@/lib/supabase/reservations-db";
 import { GWADA_STAFF_DATA_REFRESH_EVENT } from "@/lib/staff/staff-live-events";
 import { queryKeys } from "@/lib/query/query-keys";
@@ -193,15 +194,12 @@ export function AppDashboardLivePatchMount() {
       const detail = (event as CustomEvent<ReservationOpenResolvedDetail>).detail;
       if (!detail || detail.restaurantId !== restaurantId) return;
 
-      // Soft-nav behält stale Modul-Caches — sofort patchen + invalidieren.
-      queryClient.setQueryData(
-        queryKeys.reservations.unconfirmed(restaurantId),
-        (prev: { id: string }[] | undefined) =>
-          prev?.filter((row) => row.id !== detail.reservationId) ?? prev,
+      patchReservationOpenResolvedInQueryCaches(
+        queryClient,
+        restaurantId,
+        detail,
       );
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.reservations.root(restaurantId),
-      });
+      scheduleReservationReconcile();
 
       if (
         !shouldDecrementUnconfirmedCount({

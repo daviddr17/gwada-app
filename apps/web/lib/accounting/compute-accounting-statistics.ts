@@ -111,6 +111,19 @@ export function formatAccountingMoney(amount: number, currency = "EUR"): string 
   }).format(amount);
 }
 
+/** Buchhaltungs-KPIs nur für aus Lexoffice synchronisierte Dokumente. */
+export function computeLexofficeInsightsStatistics(
+  input: AccountingStatisticsInput,
+): AccountingStatisticsResult {
+  return computeAccountingStatistics({
+    ...input,
+    invoices: input.invoices.filter((row) => row.source === "lexoffice"),
+    quotations: input.quotations.filter((row) => row.source === "lexoffice"),
+    vouchers: input.vouchers.filter((row) => row.source === "lexoffice"),
+    cashEntries: [],
+  });
+}
+
 export function computeAccountingStatistics(
   input: AccountingStatisticsInput,
 ): AccountingStatisticsResult {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -66,13 +67,16 @@ export function PendingStaffInviteSheet({
     }
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return;
-    const source = invite ?? incompleteMembership;
-    if (!source) return;
-    setGivenName(source.staff_given_name?.trim() ?? "");
-    setFamilyName(source.staff_family_name?.trim() ?? "");
-  }, [open, invite, incompleteMembership]);
+  useDrawerFormSeed(
+    open,
+    invite?.invite_id ?? incompleteMembership?.staff_id ?? "__none__",
+    () => {
+      const source = invite ?? incompleteMembership;
+      if (!source) return;
+      setGivenName(source.staff_given_name?.trim() ?? "");
+      setFamilyName(source.staff_family_name?.trim() ?? "");
+    },
+  );
 
   const restaurantName =
     invite?.restaurant_name ?? incompleteMembership?.restaurant_name ?? "";

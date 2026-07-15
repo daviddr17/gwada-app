@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 
 const QUICK_START = [
   { label: "Erste Schritte", href: "/docs/erste-schritte", text: "Anmeldung, Restaurant wählen, loslegen" },
-  { label: "Navigation", href: "/docs/navigation", text: "Sidebar, Tabs, Listen, Schnellaktionen" },
-  { label: "Dashboard", href: "/docs/handbuch/dashboard", text: "Widgets und Tagesüberblick" },
-  { label: "Einstellungen", href: "/docs/handbuch/einstellungen", text: "Team, Integrationen, Displays" },
+  { label: "Navigation", href: "/docs/navigation", text: "Sidebar, Tabs, Filter, Bottom Sheets" },
+  { label: "Dashboard", href: "/docs/handbuch/dashboard", text: "Widgets, Heute-Briefing, Schnellaktionen" },
+  { label: "Integrationen", href: "/docs/handbuch/integrationen", text: "WhatsApp, Google, Meta, Lexware" },
+  { label: "Einstellungen", href: "/docs/handbuch/einstellungen", text: "Team, Displays, API" },
 ];
 
 export default function DocsPage() {
@@ -23,13 +24,17 @@ export default function DocsPage() {
       description="Handbuch für Restaurant-Teams und technische Referenz für Entwickler."
     >
       <p>
-        Willkommen in der gwada-Dokumentation. Hier findest du Anleitungen für alle
-        Module der App — verständlich formuliert, ohne technisches Vorwissen.
+        Willkommen in der gwada-Dokumentation. Hier findest du ausführliche Anleitungen
+        für alle Module — inklusive Erklärung jedes Tabs, Buttons, Filters und
+        typischer Workflows. Die Docs richten sich an Inhaber, Manager und Mitarbeiter
+        ohne technisches Vorwissen.
       </p>
 
       <DocsCallout variant="note" title="Text statt Screenshots">
-        Die Docs folgen bewusst dem Muster moderner Hilfe-Center (kurze Abschnitte,
-        klare Schritte, Tabellen). So bleiben sie auch nach UI-Updates aktuell.
+        Die Docs folgen bewusst dem Muster moderner Hilfe-Center: Tabellen für Buttons
+        und Filter, nummerierte Schritte für Aufgaben, Querverweise zwischen Modulen.
+        So bleiben sie auch nach UI-Updates aktuell — Menübezeichnungen entsprechen
+        der App.
       </DocsCallout>
 
       <h2>Schnellstart</h2>
@@ -42,7 +47,11 @@ export default function DocsPage() {
       </ul>
 
       <h2>Module</h2>
-      <p>Jedes Modul hat eine eigene Seite mit Bereichen, typischen Aufgaben und Tipps:</p>
+      <p>
+        Jedes Modul hat eine eigene Handbuch-Seite mit: Tabs und Bereichen, Buttons
+        und Toolbar-Elementen, Filter-Optionen (Bottom Sheet), Formularfeldern und
+        typischen Abläufen:
+      </p>
       <ul>
         {USER_GUIDE_PAGES.map((page) => (
           <li key={page.slug}>

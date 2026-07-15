@@ -1,6 +1,7 @@
 "use client";
 
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
+import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
 import Link from "next/link";
@@ -17,6 +18,7 @@ import { ReservationStatusLabel } from "@/components/reservations/reservation-st
 import { formatReservationSlotInRestaurantTz } from "@/lib/restaurant/restaurant-timezone";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import type { ContactReservationLink } from "@/lib/supabase/contacts-db";
+import { cn } from "@/lib/utils";
 
 function formatWhen(iso: string, timeZone: string): string {
   return formatReservationSlotInRestaurantTz(iso, timeZone);
@@ -105,7 +107,7 @@ export function ContactReservationsDrawer({
           )}
           </DrawerFormSection>
         </div>
-        <div className="border-t border-border/50 px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className={cn("border-t border-border/50 px-6 py-3", appMobileBottomSafePbMdClassName)}>
           <Button
             type="button"
             variant="outline"

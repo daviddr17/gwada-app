@@ -781,7 +781,7 @@ export function DayReservationsDrawer({
                 restaurantId={restaurantId}
                 reservationId={r.id}
                 statusCode={st.code}
-                onConfirmed={() => onDataChanged?.()}
+                onFailed={() => onDataChanged?.()}
               />
             </div>
           ) : null}
@@ -876,7 +876,7 @@ export function DayReservationsDrawer({
               restaurantId={restaurantId}
               reservationId={r.id}
               statusCode={st.code}
-              onConfirmed={() => onDataChanged?.()}
+              onFailed={() => onDataChanged?.()}
             />
           </div>
         ) : null}

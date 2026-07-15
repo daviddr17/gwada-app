@@ -1,4 +1,5 @@
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AccountingStatsPeriod } from "@/lib/accounting/compute-accounting-statistics";
 import type { AccountingCashDirection } from "@/lib/types/accounting-cash-book";
 import type {
@@ -100,17 +101,28 @@ function mapCashRow(raw: Record<string, unknown>): AccountingCashAnalyticsRow {
   };
 }
 
-export async function fetchAccountingStatisticsBundle(params: {
-  restaurantId: string;
-  monthsBack?: AccountingStatsPeriod;
-}): Promise<{ data: AccountingStatisticsBundle | null; error: string | null }> {
+export async function fetchAccountingStatisticsBundleWithClient(
+  sb: SupabaseClient,
+  params: {
+    restaurantId: string;
+    monthsBack?: AccountingStatsPeriod;
+    periodStart?: Date;
+    periodEnd?: Date;
+  },
+): Promise<{ data: AccountingStatisticsBundle | null; error: string | null }> {
   if (!isUuidRestaurantId(params.restaurantId)) {
     return { data: null, error: null };
   }
 
-  const months = params.monthsBack ?? 12;
-  const { periodStart, periodEnd } = periodRange(months);
-  const sb = createSupabaseBrowserClient();
+  let periodStart: Date;
+  let periodEnd: Date;
+  if (params.periodStart && params.periodEnd) {
+    periodStart = params.periodStart;
+    periodEnd = params.periodEnd;
+  } else {
+    const months = params.monthsBack ?? 12;
+    ({ periodStart, periodEnd } = periodRange(months));
+  }
 
   const [invoicesRes, quotationsRes, vouchersRes, cashRes] = await Promise.all([
     sb
@@ -166,4 +178,14 @@ export async function fetchAccountingStatisticsBundle(params: {
     },
     error: null,
   };
+}
+
+export async function fetchAccountingStatisticsBundle(params: {
+  restaurantId: string;
+  monthsBack?: AccountingStatsPeriod;
+}): Promise<{ data: AccountingStatisticsBundle | null; error: string | null }> {
+  return fetchAccountingStatisticsBundleWithClient(
+    createSupabaseBrowserClient(),
+    params,
+  );
 }

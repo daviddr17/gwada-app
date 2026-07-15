@@ -2,6 +2,15 @@ import "server-only";
 
 import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
 import {
+  GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
+  isGoogleInsightsQuotaCooldown,
+  isGoogleQuotaErrorMessage,
+  markGoogleInsightsQuotaExceeded,
+  readGoogleInsightsCache,
+  readNewestGoogleInsightsCacheForRestaurant,
+  writeGoogleInsightsCache,
+} from "@/lib/insights/google-insights-response-cache";
+import {
   emptyGoogleInsights,
   formatDayLabel,
   type GoogleBusinessPlatformInsights,
@@ -204,6 +213,15 @@ function collectMetricSeries(
 
 type ParamStyle = "rest_doc" | "camel_date" | "snake";
 
+const preferredParamStyleByRestaurant = new Map<string, ParamStyle>();
+
+function paramStylesToTry(restaurantId: string): ParamStyle[] {
+  const preferred = preferredParamStyleByRestaurant.get(restaurantId);
+  const all: ParamStyle[] = ["rest_doc", "camel_date", "snake"];
+  if (!preferred) return all;
+  return [preferred, ...all.filter((s) => s !== preferred)];
+}
+
 function buildPerformanceUrl(
   location: string,
   start: DateParts,
@@ -240,25 +258,6 @@ function buildPerformanceUrl(
     url.searchParams.set("daily_range.end_date.month", String(end.month));
     url.searchParams.set("daily_range.end_date.day", String(end.day));
   }
-  return url;
-}
-
-function buildSingleMetricUrl(
-  location: string,
-  metric: string,
-  start: DateParts,
-  end: DateParts,
-): URL {
-  const url = new URL(
-    `https://businessprofileperformance.googleapis.com/v1/${location}:getDailyMetricsTimeSeries`,
-  );
-  url.searchParams.set("dailyMetric", metric);
-  url.searchParams.set("dailyRange.start_date.year", String(start.year));
-  url.searchParams.set("dailyRange.start_date.month", String(start.month));
-  url.searchParams.set("dailyRange.start_date.day", String(start.day));
-  url.searchParams.set("dailyRange.end_date.year", String(end.year));
-  url.searchParams.set("dailyRange.end_date.month", String(end.month));
-  url.searchParams.set("dailyRange.end_date.day", String(end.day));
   return url;
 }
 
@@ -300,6 +299,9 @@ function humanizeGooglePerformanceError(raw: string | null): string | null {
   ) {
     return "Business Profile Performance API im Google Cloud Projekt aktivieren (Superadmin / Google Cloud Console).";
   }
+  if (isGoogleQuotaErrorMessage(raw)) {
+    return GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE;
+  }
   return raw;
 }
 
@@ -312,11 +314,12 @@ async function fetchMulti(
   location: string,
   start: DateParts,
   end: DateParts,
+  restaurantId: string,
 ): Promise<{ body: GoogleTimeSeriesPayload; error: string | null }> {
   let bestEmptyOk: GoogleTimeSeriesPayload | null = null;
   let lastError: string | null = null;
 
-  for (const style of ["rest_doc", "camel_date", "snake"] as const) {
+  for (const style of paramStylesToTry(restaurantId)) {
     const url = buildPerformanceUrl(location, start, end, style);
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -325,10 +328,14 @@ async function fetchMulti(
     const body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
     if (!res.ok) {
       lastError = body.error?.message ?? `google_performance_${res.status}`;
+      if (res.status === 429 || isGoogleQuotaErrorMessage(lastError)) {
+        markGoogleInsightsQuotaExceeded(restaurantId);
+        return { body: {}, error: lastError };
+      }
       continue;
     }
-    // 200 mit leerer Serie = oft falsche Query-Params → andere Stilvariante versuchen.
     if (payloadHasDatedValues(body)) {
+      preferredParamStyleByRestaurant.set(restaurantId, style);
       return { body, error: null };
     }
     bestEmptyOk = body;
@@ -345,7 +352,10 @@ async function fetchSearchKeywords(
   location: string,
   start: DateParts,
   end: DateParts,
+  restaurantId: string,
 ): Promise<GoogleSearchKeywordInsight[]> {
+  if (isGoogleInsightsQuotaCooldown(restaurantId)) return [];
+
   const url = new URL(
     `https://businessprofileperformance.googleapis.com/v1/${location}/searchkeywords/impressions/monthly`,
   );
@@ -359,8 +369,19 @@ async function fetchSearchKeywords(
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
   });
+  if (res.status === 429) {
+    markGoogleInsightsQuotaExceeded(restaurantId);
+    return [];
+  }
   if (!res.ok) {
-    // camelCase month fields (Client-Library-Stil)
+    const errBody = (await res.json().catch(() => ({}))) as {
+      error?: { message?: string };
+    };
+    if (isGoogleQuotaErrorMessage(errBody.error?.message)) {
+      markGoogleInsightsQuotaExceeded(restaurantId);
+      return [];
+    }
+    // camelCase month fields (Client-Library-Stil) — nur ein Retry
     const alt = new URL(
       `https://businessprofileperformance.googleapis.com/v1/${location}/searchkeywords/impressions/monthly`,
     );
@@ -373,6 +394,10 @@ async function fetchSearchKeywords(
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: "no-store",
     });
+    if (res2.status === 429) {
+      markGoogleInsightsQuotaExceeded(restaurantId);
+      return [];
+    }
     if (!res2.ok) return [];
     return parseSearchKeywordsBody(await res2.json().catch(() => ({})));
   }
@@ -420,35 +445,43 @@ function parseSearchKeywordsBody(body: unknown): GoogleSearchKeywordInsight[] {
   });
 }
 
-async function fetchPerMetricFallback(
-  accessToken: string,
-  location: string,
-  start: DateParts,
-  end: DateParts,
-): Promise<Map<string, GoogleDatedValue[]>> {
-  const byMetric = new Map<string, GoogleDatedValue[]>();
-  const results = await Promise.all(
-    GOOGLE_DAILY_METRICS.map(async (metric) => {
-      const url = buildSingleMetricUrl(location, metric, start, end);
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        cache: "no-store",
-      });
-      if (!res.ok) return null;
-      const body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
-      const values =
-        body.timeSeries?.datedValues ?? body.time_series?.dated_values ?? [];
-      return { metric, values };
-    }),
+export async function fetchGoogleBusinessPlatformInsights(params: {
+  restaurantId: string;
+  startYmd: string;
+  endYmd: string;
+}): Promise<GoogleBusinessPlatformInsights> {
+  const cached = readGoogleInsightsCache(
+    params.restaurantId,
+    params.startYmd,
+    params.endYmd,
   );
-  for (const row of results) {
-    if (!row) continue;
-    byMetric.set(row.metric, row.values);
+  if (cached) return cached;
+
+  if (isGoogleInsightsQuotaCooldown(params.restaurantId)) {
+    const stale = readNewestGoogleInsightsCacheForRestaurant(params.restaurantId);
+    if (stale) {
+      return {
+        ...stale,
+        error: GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
+      };
+    }
+    return emptyGoogleInsights({
+      connected: true,
+      error: GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
+    });
   }
-  return byMetric;
+
+  const result = await fetchGoogleBusinessPlatformInsightsLive(params);
+  writeGoogleInsightsCache(
+    params.restaurantId,
+    params.startYmd,
+    params.endYmd,
+    result,
+  );
+  return result;
 }
 
-export async function fetchGoogleBusinessPlatformInsights(params: {
+async function fetchGoogleBusinessPlatformInsightsLive(params: {
   restaurantId: string;
   startYmd: string;
   endYmd: string;
@@ -486,25 +519,32 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     });
   }
 
-  const multi = await fetchMulti(auth.accessToken, location, start, end);
-  let byMetric = multi.error ? new Map<string, GoogleDatedValue[]>() : collectMetricSeries(multi.body);
+  const multi = await fetchMulti(
+    auth.accessToken,
+    location,
+    start,
+    end,
+    params.restaurantId,
+  );
+  let byMetric = multi.error
+    ? new Map<string, GoogleDatedValue[]>()
+    : collectMetricSeries(multi.body);
 
   const multiHadData = [...byMetric.values()].some((v) => v.length > 0);
-  if (multi.error || !multiHadData) {
-    const fallback = await fetchPerMetricFallback(
-      auth.accessToken,
-      location,
-      start,
-      end,
-    );
-    if ([...fallback.values()].some((v) => v.length > 0)) {
-      byMetric = fallback;
-    } else if (multi.error) {
-      return emptyGoogleInsights({
-        connected: true,
-        error: humanizeGooglePerformanceError(multi.error),
-      });
+  if (multi.error && !multiHadData) {
+    if (isGoogleQuotaErrorMessage(multi.error)) {
+      const stale = readNewestGoogleInsightsCacheForRestaurant(params.restaurantId);
+      if (stale) {
+        return {
+          ...stale,
+          error: humanizeGooglePerformanceError(multi.error),
+        };
+      }
     }
+    return emptyGoogleInsights({
+      connected: true,
+      error: humanizeGooglePerformanceError(multi.error),
+    });
   }
 
   const desktopMaps = seriesFromDatedValues(
@@ -602,6 +642,7 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
     location,
     start,
     end,
+    params.restaurantId,
   );
 
   // Immer alle Kernmetriken zeigen — auch mit 0 — damit klar ist, was gemessen wird.

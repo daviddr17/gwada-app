@@ -6,6 +6,7 @@ export const INSIGHTS_PLATFORMS = [
   "facebook",
   "instagram",
   "tripadvisor",
+  "lexoffice",
 ] as const;
 
 export type InsightsPlatform = (typeof INSIGHTS_PLATFORMS)[number];
@@ -16,6 +17,7 @@ export const INSIGHTS_PLATFORM_LABELS: Record<InsightsPlatform, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   tripadvisor: "TripAdvisor",
+  lexoffice: "Lexoffice",
 };
 
 /** Reihenfolge der Chips — Gwada zuerst, dann externe Kanäle. */

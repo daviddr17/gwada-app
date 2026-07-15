@@ -71,6 +71,13 @@ import { useRestaurantPermissions } from "@/lib/hooks/use-restaurant-permissions
 import { hasSidebarModuleAccess } from "@/lib/permissions/sidebar-module-permissions";
 import { useSuperadminChangelogPendingCount } from "@/lib/hooks/use-superadmin-changelog-pending-count";
 import { appChromeFixedZoneBgClassName } from "@/lib/ui/app-chrome-fixed-zone";
+import {
+  appMobileSidebarFooterMenuButtonClassName,
+  appMobileSidebarFooterMenuClassName,
+  appMobileSidebarGroupClassName,
+  appMobileSidebarHeaderButtonClassName,
+  appMobileSidebarModuleGroupContentClassName,
+} from "@/lib/ui/app-mobile-sidebar-menu";
 import { cn } from "@/lib/utils";
 
 function profileInitials(firstName: string, lastName: string): string {
@@ -105,14 +112,7 @@ function restaurantInitials(name: string): string {
   return word.slice(0, 1).toLocaleUpperCase("de-DE");
 }
 
-const SIDEBAR_MODULE_SKELETON_WIDTHS = [
-  "72%",
-  "58%",
-  "65%",
-  "80%",
-  "55%",
-  "68%",
-] as const;
+const SIDEBAR_MODULE_SKELETON_COUNT = 10;
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -185,6 +185,13 @@ export function AppSidebar() {
     [isMobile, setOpenMobile],
   );
 
+  const mobileFooterMenuClassName = isMobile
+    ? appMobileSidebarFooterMenuClassName
+    : "gap-1.5";
+  const mobileFooterButtonClassName = isMobile
+    ? appMobileSidebarFooterMenuButtonClassName
+    : undefined;
+
   return (
     <Sidebar collapsible="icon" variant="inset">
       <div
@@ -199,6 +206,7 @@ export function AppSidebar() {
               tooltip={headerTooltip}
               render={<Link href="/workspace/restaurants" prefetch />}
               className={cn(
+                isMobile && appMobileSidebarHeaderButtonClassName,
                 "!p-0 [--sidebar-menu-icon-col:2rem] grid-cols-[2rem_minmax(0,1fr)] group-data-[sidebar-labels-collapsed]/sidebar-wrapper:grid-cols-[2rem_0fr] ms-[5px]",
                 SIDEBAR_COMPACT_BUTTON,
               )}
@@ -242,8 +250,10 @@ export function AppSidebar() {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent className="flex min-h-0 flex-1 flex-col gap-2">
-        <SidebarGroup className="pb-1.5">
-          <SidebarGroupContent>
+        <SidebarGroup className={cn("pb-1.5", isMobile && appMobileSidebarGroupClassName)}>
+          <SidebarGroupContent
+            className={isMobile ? appMobileSidebarModuleGroupContentClassName : undefined}
+          >
             <SidebarMenu className="gap-1.5">
               {inSuperadmin ? (
                 <>
@@ -387,12 +397,9 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                   {permissionsPending ? (
-                    Array.from({ length: 6 }, (_, i) => (
+                    Array.from({ length: SIDEBAR_MODULE_SKELETON_COUNT }, (_, i) => (
                       <SidebarMenuItem key={`perm-skeleton-${i}`}>
-                        <SidebarMenuSkeleton
-                          showIcon
-                          textWidth={SIDEBAR_MODULE_SKELETON_WIDTHS[i]}
-                        />
+                        <SidebarMenuSkeleton showIcon />
                       </SidebarMenuItem>
                     ))
                   ) : permissionsError && orderedSidebarModules.length === 0 ? (
@@ -449,12 +456,13 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarSeparator className="mx-0 w-full" />
       <SidebarFooter className={cn("shrink-0", appChromeFixedZoneBgClassName)}>
-        <SidebarMenu className="gap-1.5">
+        <SidebarMenu className={mobileFooterMenuClassName}>
           {isSuperadmin && !inSuperadmin ? (
             <SidebarMenuItem>
               <SidebarMenuButton
                 isActive={pathname.startsWith("/superadmin")}
                 tooltip="Superadmin"
+                className={mobileFooterButtonClassName}
                 render={
                   <Link
                     href="/superadmin/allgemein"
@@ -482,6 +490,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname === "/dashboard"}
                 tooltip="Dashboard"
+                className={mobileFooterButtonClassName}
                 render={
                   <Link
                     href="/dashboard"
@@ -504,6 +513,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith(APP_ROUTES.settings.root)}
                 tooltip="Einstellungen"
+                className={mobileFooterButtonClassName}
                 render={<AppNavLink href={APP_ROUTES.settings.root} />}
               >
                 <Settings />
@@ -516,6 +526,7 @@ export function AppSidebar() {
               <SidebarMenuButton
                 isActive={pathname.startsWith("/changelog")}
                 tooltip="Changelog"
+                className={mobileFooterButtonClassName}
                 render={<AppNavLink href="/changelog" />}
               >
                 <ScrollText />
@@ -529,7 +540,10 @@ export function AppSidebar() {
             <SidebarMenuButton
               type="button"
               tooltip="Abmelden"
-              className="text-sidebar-foreground/80"
+              className={cn(
+                "text-sidebar-foreground/80",
+                mobileFooterButtonClassName,
+              )}
               disabled={isLoggingOut}
               onClick={() => {
                 logout();

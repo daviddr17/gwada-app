@@ -1,6 +1,7 @@
 import "server-only";
 
 import { computeContactStatistics } from "@/lib/contacts/compute-contact-statistics";
+import { computeLexofficeInsightsStatistics } from "@/lib/accounting/compute-accounting-statistics";
 import {
   computeInsightsStatistics,
   type InsightsStatsDays,
@@ -23,6 +24,8 @@ import {
 } from "@/lib/reservations/month-range";
 import { fetchPlatformMessagingFlags } from "@/lib/supabase/platform-messaging-db";
 import { fetchRestaurantTripadvisorConfigAdmin } from "@/lib/supabase/restaurant-tripadvisor-integration-db";
+import { fetchRestaurantLexofficeConfigAdmin } from "@/lib/supabase/restaurant-lexoffice-integration-db";
+import { fetchAccountingStatisticsBundleWithClient } from "@/lib/supabase/accounting-analytics-db";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import type { ReservationAnalyticsRow } from "@/lib/supabase/reservations-analytics-db";
 import type {
@@ -410,6 +413,8 @@ export async function fetchInsightsStatistics(
     platforms,
     tripConfig,
     reviewSyncRows,
+    lexofficeConfig,
+    accountingBundleRes,
   ] = await Promise.all([
     fetchGwadaReviewsOnly(
       admin,
@@ -448,6 +453,16 @@ export async function fetchInsightsStatistics(
       ? fetchRestaurantTripadvisorConfigAdmin(restaurantId)
       : Promise.resolve(null),
     readReviewsPlatformSyncState(sb, restaurantId, ["tripadvisor"]),
+    flags.lexofficeEnabled
+      ? fetchRestaurantLexofficeConfigAdmin(restaurantId)
+      : Promise.resolve(null),
+    flags.lexofficeEnabled
+      ? fetchAccountingStatisticsBundleWithClient(admin, {
+          restaurantId,
+          periodStart,
+          periodEnd,
+        })
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   if (gwadaReviewsRes.error) {
@@ -494,6 +509,24 @@ export async function fetchInsightsStatistics(
         : null,
   };
 
+  const lexofficeConnected =
+    flags.lexofficeEnabled && lexofficeConfig?.status === "working";
+  const lexofficeStats =
+    accountingBundleRes.data && !accountingBundleRes.error
+      ? computeLexofficeInsightsStatistics({
+          invoices: accountingBundleRes.data.invoices,
+          quotations: accountingBundleRes.data.quotations,
+          vouchers: accountingBundleRes.data.vouchers,
+          cashEntries: accountingBundleRes.data.cashEntries,
+          periodStart: accountingBundleRes.data.periodStart,
+          periodEnd: accountingBundleRes.data.periodEnd,
+        })
+      : null;
+  const lexoffice: InsightsStatisticsResult["lexoffice"] = {
+    connected: lexofficeConnected,
+    stats: lexofficeStats,
+  };
+
   return {
     data: computeInsightsStatistics({
       periodMode,
@@ -511,6 +544,7 @@ export async function fetchInsightsStatistics(
       usage,
       platforms,
       tripadvisor,
+      lexoffice,
     }),
     error: null,
   };

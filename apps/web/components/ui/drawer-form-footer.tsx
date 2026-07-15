@@ -8,6 +8,7 @@ import {
   drawerHorizontalPaddingClassName,
   type DrawerContentPadding,
 } from "@/lib/ui/drawer-form-section";
+import { appMobileBottomSafePbLgClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 /** Sticky Fußzeile für Bottom-Sheet-Formulare (Abbrechen · Speichern · optional Löschen). */
@@ -17,7 +18,7 @@ export function drawerFormFooterShellClassName(
   return cn(
     "relative z-10 flex shrink-0 flex-col gap-3 border-t border-border/50 bg-card pt-4",
     drawerHorizontalPaddingClassName(contentPadding),
-    "pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+    appMobileBottomSafePbLgClassName,
   );
 }
 

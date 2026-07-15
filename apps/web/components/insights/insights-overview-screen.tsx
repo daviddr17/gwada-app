@@ -20,6 +20,7 @@ import {
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { GwadaUsageInsightsPanels } from "@/components/insights/gwada-usage-insights-panels";
+import { LexofficeInsightsPanels } from "@/components/insights/lexoffice-insights-panels";
 import { InsightsPlatformFilterChips } from "@/components/insights/insights-platform-filter-chips";
 import {
   FacebookInsightsPanels,
@@ -44,7 +45,6 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   INSIGHTS_PLATFORM_DEFAULT,
-  INSIGHTS_PLATFORM_LABELS,
   parseInsightsPlatform,
   type InsightsPlatform,
 } from "@/lib/constants/insights-platforms";
@@ -287,6 +287,15 @@ export function InsightsOverviewScreen() {
     if (data.tripadvisor.connected || data.tripadvisor.reviewCount > 0) {
       set.add("tripadvisor");
     }
+    if (
+      data.lexoffice.connected ||
+      (data.lexoffice.stats != null &&
+        data.lexoffice.stats.lexofficeDocumentsInPeriod +
+          data.lexoffice.stats.openInvoices >
+          0)
+    ) {
+      set.add("lexoffice");
+    }
     return set;
   }, [data]);
 
@@ -357,20 +366,6 @@ export function InsightsOverviewScreen() {
           </div>
         </div>
       </div>
-
-      <p className="text-xs text-muted-foreground">
-        {INSIGHTS_PLATFORM_LABELS[platform]}
-        {platform === "gwada"
-          ? " — nur Gwada-eigene Kennzahlen und Diagramme (kein Plattform-Cache)."
-          : platform === "google_business"
-            ? ` — Kennzahlen und Verlauf (Google Performance max. ~${INSIGHTS_GOOGLE_MAX_DAYS} Tage).`
-            : platform === "facebook" || platform === "instagram"
-              ? ` — Kennzahlen und Verlauf (Meta Account-Insights max. ~${INSIGHTS_META_MAX_DAYS} Tage).`
-              : " — Kennzahlen und Verlauf."}
-        {data?.periodStartYmd && data?.periodEndYmd
-          ? ` Zeitraum ${data.periodStartYmd} – ${data.periodEndYmd}.`
-          : null}
-      </p>
 
       {!data ? (
         <Card className="border-border/50 shadow-card">
@@ -698,6 +693,10 @@ export function InsightsOverviewScreen() {
             }
           />
         </div>
+      ) : null}
+
+      {data && platform === "lexoffice" ? (
+        <LexofficeInsightsPanels lexoffice={data.lexoffice} />
       ) : null}
     </div>
   );

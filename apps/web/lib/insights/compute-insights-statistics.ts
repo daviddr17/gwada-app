@@ -4,6 +4,12 @@ import type { RestaurantUsageInsights } from "@/lib/insights/restaurant-usage-co
 import type { PlatformInsightsBundle } from "@/lib/insights/platform-insights-types";
 import type { ReservationStatsResult } from "@/lib/reservations/compute-reservation-stats";
 import type { ReviewStatisticsResult } from "@/lib/reviews/compute-review-statistics";
+import type { AccountingStatisticsResult } from "@/lib/accounting/compute-accounting-statistics";
+
+export type LexofficeInsightsSnapshot = {
+  connected: boolean;
+  stats: AccountingStatisticsResult | null;
+};
 
 export type InsightsStatsPeriod = 3 | 6 | 12;
 
@@ -60,6 +66,8 @@ export type InsightsStatisticsResult = {
     reviewCount: number;
     averageRating: number | null;
   };
+  /** Lexoffice-Sync (Buchhaltung) — eigener Chip. */
+  lexoffice: LexofficeInsightsSnapshot;
 };
 
 export function computeInsightsStatistics(input: {
@@ -78,6 +86,7 @@ export function computeInsightsStatistics(input: {
   usage: RestaurantUsageInsights;
   platforms: PlatformInsightsBundle;
   tripadvisor: InsightsStatisticsResult["tripadvisor"];
+  lexoffice: LexofficeInsightsSnapshot;
 }): InsightsStatisticsResult {
   return {
     periodMode: input.periodMode,
@@ -118,5 +127,6 @@ export function computeInsightsStatistics(input: {
     usage: input.usage,
     platforms: input.platforms,
     tripadvisor: input.tripadvisor,
+    lexoffice: input.lexoffice,
   };
 }

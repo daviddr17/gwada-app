@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { toast } from "sonner";
@@ -206,18 +207,25 @@ export function AccountingSalesDocumentDrawer({
     open ? restaurantId : null,
   );
 
+  const contactEnrichedForRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (!open || !editRow?.contact_id || contacts.length === 0) return;
-    const match = contacts.find(
-      (c) => c.gwadaContactId === editRow.contact_id,
-    );
+    if (!open) {
+      contactEnrichedForRef.current = null;
+      return;
+    }
+    const enrichKey = editRow?.contact_id ?? "";
+    if (!enrichKey || contacts.length === 0) return;
+    if (contactEnrichedForRef.current === enrichKey) return;
+    const match = contacts.find((c) => c.gwadaContactId === editRow?.contact_id);
     if (!match) return;
+    contactEnrichedForRef.current = enrichKey;
     setContactRowKey(match.rowKey);
     setLexofficeContactId(match.lexofficeContactId);
-    if (!contactOriginallyEmpty) {
-      setContactOriginallyEmpty(originallyEmptyContactFields(match));
-    }
-  }, [open, editRow, contacts, contactOriginallyEmpty]);
+    setContactOriginallyEmpty(
+      (prev) => prev ?? originallyEmptyContactFields(match),
+    );
+  }, [open, editRow?.contact_id, contacts]);
 
   const contactOptions = useMemo(
     () =>
@@ -229,8 +237,11 @@ export function AccountingSalesDocumentDrawer({
     [contacts],
   );
 
-  useEffect(() => {
-    if (!open) return;
+  const formSeedKey =
+    editRow?.id ??
+    (correctionOf ? `correction:${correctionOf.id}` : `create:${documentKind}`);
+
+  useDrawerFormSeed(open, formSeedKey, () => {
     if (editRow) {
       setRecipientType(editRow.recipient_type);
       setContactId(editRow.contact_id);
@@ -326,15 +337,7 @@ export function AccountingSalesDocumentDrawer({
     setSendEmail(false);
     setSendWhatsapp(false);
     setCreateStep("form");
-  }, [
-    open,
-    editRow,
-    correctionOf,
-    defaultTax,
-    documentKind,
-    statuses,
-    connectorConnected,
-  ]);
+  });
 
   useEffect(() => {
     if (!open || !correctionOf || documentKind !== "invoice") return;

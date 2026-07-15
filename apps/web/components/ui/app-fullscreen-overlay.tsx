@@ -7,8 +7,9 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { FullscreenOverlayFloatingPortalContext } from "@/lib/contexts/fullscreen-overlay-floating-portal";
-import { cn } from "@/lib/utils";
+import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { APP_LAYER_Z_INDEX, appLayerFloatingInFullscreenOverlayZClassName } from "@/lib/ui/app-layer-z-index";
+import { cn } from "@/lib/utils";
 
 const APP_FULLSCREEN_OVERLAY_OPEN_MS = 300;
 const APP_FULLSCREEN_OVERLAY_CLOSE_MS = 260;
@@ -129,7 +130,7 @@ export function AppFullscreenOverlay({
         </div>
 
         {footer ? (
-          <footer className="sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md supports-backdrop-filter:bg-background/85">
+          <footer className={cn("sticky bottom-0 z-10 shrink-0 border-t border-border/50 bg-background/95 backdrop-blur-md supports-backdrop-filter:bg-background/85", appMobileBottomSafePbMdClassName)}>
             {footer}
           </footer>
         ) : null}

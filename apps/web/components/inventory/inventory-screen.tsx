@@ -578,7 +578,7 @@ function InventoryOrderAddCell({
           "min-w-0 flex-1 text-xs tabular-nums",
           !canOrder && "cursor-not-allowed opacity-50",
           highlightOrderQty &&
-            "border-emerald-600 ring-2 ring-emerald-600/25 focus-visible:border-emerald-600 focus-visible:ring-emerald-600/35 dark:border-emerald-500 dark:ring-emerald-500/25 dark:focus-visible:border-emerald-500 dark:focus-visible:ring-emerald-500/35",
+            "border-emerald-600 focus-visible:border-emerald-600 dark:border-emerald-500 dark:focus-visible:border-emerald-500",
         )}
       />
       <Button

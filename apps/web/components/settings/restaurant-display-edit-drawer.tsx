@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { useReducedMotion } from "framer-motion";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
@@ -92,20 +93,13 @@ export function RestaurantDisplayEditDrawer({
     accentHex?: string | null;
   } | null>(null);
 
-  useEffect(() => {
-    if (!open || !display) return;
+  useDrawerFormSeed(open, display?.id ?? "__none__", () => {
+    if (!display) return;
     setName(display.name);
     setAllowedModules(display.allowed_modules);
     setAutoLockSeconds(String(display.auto_lock_seconds));
     setIsActive(display.is_active);
-  }, [
-    open,
-    display?.id,
-    display?.name,
-    display?.allowed_modules,
-    display?.auto_lock_seconds,
-    display?.is_active,
-  ]);
+  });
 
   useEffect(() => {
     setPairing(null);

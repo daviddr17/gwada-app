@@ -5,6 +5,7 @@ import { GoogleGlyph } from "@/components/icons/google-glyph";
 import { GwadaFaviconIcon } from "@/components/icons/gwada-favicon-icon";
 import { InstagramGlyph } from "@/components/icons/instagram-glyph";
 import { TripadvisorGlyph } from "@/components/icons/tripadvisor-glyph";
+import { LexofficeGlyph } from "@/components/icons/lexoffice-glyph";
 import {
   INSIGHTS_PLATFORM_LABELS,
   INSIGHTS_PLATFORM_ORDER,
@@ -25,6 +26,9 @@ function InsightsPlatformIcon({
   if (platform === "instagram") return <InstagramGlyph className={iconClass} />;
   if (platform === "tripadvisor") {
     return <TripadvisorGlyph className={iconClass} />;
+  }
+  if (platform === "lexoffice") {
+    return <LexofficeGlyph className={iconClass} />;
   }
   return <GwadaFaviconIcon size="chip" className={className} />;
 }

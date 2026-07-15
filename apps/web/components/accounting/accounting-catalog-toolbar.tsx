@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -605,12 +606,11 @@ function StatusFormDrawer({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, initial?.id ?? "__create__", () => {
     setLabel(initial?.label ?? "");
     setColorHex(initial?.color_hex ?? "#64748b");
     setActive(!initial?.archived);
-  }, [open, initial]);
+  });
 
   const canDelete = Boolean(initial && onDelete);
 
@@ -759,13 +759,12 @@ function TaxRateFormDrawer({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, initial?.id ?? "__create__", () => {
     setLabel(initial?.label ?? "");
     setRate(String(initial?.rate_percent ?? 0));
     setIsDefault(initial?.is_default ?? false);
     setActive(!initial?.archived);
-  }, [open, initial]);
+  });
 
   const canDelete = Boolean(initial && onDelete);
 
@@ -937,8 +936,7 @@ function ArticleFormDrawer({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, initial?.id ?? "__create__", () => {
     setName(initial?.name ?? "");
     setDescription(initial?.description ?? "");
     setUnitName(initial?.default_unit_name ?? "Stück");
@@ -946,7 +944,7 @@ function ArticleFormDrawer({
     setTaxRate(String(initial?.default_tax_rate_percent ?? 0));
     setActive(!initial?.archived);
     setRecipeLines(recipeDraftFromLines(initial?.recipe));
-  }, [open, initial]);
+  });
 
   const unitOptions = units.map((u) => ({ value: u.name, label: u.name }));
   const taxOptions = taxRates.map((t) => ({

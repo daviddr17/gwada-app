@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
@@ -46,15 +47,12 @@ export function RestaurantDisplayCreateDrawer({
   const [autoLockSeconds, setAutoLockSeconds] = useState("60");
   const [isActive, setIsActive] = useState(true);
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setName("");
-      setAllowedModules(["time"]);
-      setAutoLockSeconds("60");
-      setIsActive(true);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
+  useDrawerFormSeed(open, "__create__", () => {
+    setName("");
+    setAllowedModules(["time"]);
+    setAutoLockSeconds("60");
+    setIsActive(true);
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

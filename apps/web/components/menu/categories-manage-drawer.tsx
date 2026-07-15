@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { SortableDragOverlay } from "@/components/ui/sortable-drag-overlay";
 import { useSortableReorder } from "@/lib/hooks/use-sortable-reorder";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { cn } from "@/lib/utils";
 
 /** Kategorien, Lieferanten, Tags, … – gemeinsame Listen-Zeile. */
@@ -71,10 +72,9 @@ export function CategoriesManageDrawer({
   const copy = { ...DEFAULT_MANAGE_COPY, ...copyProp };
   const [local, setLocal] = React.useState(categories);
 
-  React.useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, "__manage__", () => {
     setLocal([...categories]);
-  }, [open, categories]);
+  });
 
   const ordered = local;
   const itemIds = React.useMemo(() => ordered.map((c) => c.id), [ordered]);

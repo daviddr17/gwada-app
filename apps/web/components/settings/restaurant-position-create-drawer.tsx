@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import {
@@ -46,14 +47,11 @@ export function RestaurantPositionCreateDrawer({
     new Set(),
   );
 
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      setName("");
-      setColor(pickRestaurantPositionColor(`new-${Date.now()}`));
-      setPermDraft(new Set());
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
+  useDrawerFormSeed(open, "__create__", () => {
+    setName("");
+    setColor(pickRestaurantPositionColor(`new-${Date.now()}`));
+    setPermDraft(new Set());
+  });
 
   const togglePerm = (key: RestaurantPermissionKey, on: boolean) => {
     setPermDraft((prev) => {

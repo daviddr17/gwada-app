@@ -7,6 +7,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { EMOJI_PICKER_CATEGORIES } from "@/lib/constants/emoji-picker-categories";
+import { appMobileBottomSafePbClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 export function ContactMessageEmojiPickerSheet({
@@ -41,7 +42,7 @@ export function ContactMessageEmojiPickerSheet({
     >
       <DrawerContent
         showHandle
-        className="mx-auto flex max-h-[min(85dvh,560px)] w-full max-w-lg flex-col gap-0 rounded-t-[1.75rem] border-0 bg-popover p-0 pb-[env(safe-area-inset-bottom)] shadow-elevated"
+        className={cn("mx-auto flex max-h-[min(85dvh,560px)] w-full max-w-lg flex-col gap-0 rounded-t-[1.75rem] border-0 bg-popover p-0 shadow-elevated", appMobileBottomSafePbClassName)}
       >
         <DrawerTitle className="sr-only">Emoji auswählen</DrawerTitle>
 

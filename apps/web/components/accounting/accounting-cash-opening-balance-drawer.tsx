@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useDrawerFormSeed } from "@/lib/hooks/use-drawer-form-seed";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName } from "@/lib/ui/drawer-form-section";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import {
@@ -29,10 +30,9 @@ export function AccountingCashOpeningBalanceDrawer({
   const [value, setValue] = useState("0");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  useDrawerFormSeed(open, "__opening_balance__", () => {
     setValue(String(initialBalance));
-  }, [open, initialBalance]);
+  });
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} direction="bottom" repositionInputs={false}>

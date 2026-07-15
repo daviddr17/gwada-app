@@ -11,6 +11,7 @@ import {
   fetchReservationsForRestaurant,
   fetchUnconfirmedReservationsForRestaurant,
 } from "@/lib/supabase/reservations-db";
+import type { ReservationOpenResolvedDetail } from "@/lib/reservations/reservation-open-status";
 import {
   peekReservationsMonthCache,
   writeReservationsMonthCache,
@@ -91,4 +92,71 @@ export function patchReservationsMonthQueryCache(
       return next;
     },
   );
+}
+
+function patchReservationRowStatus(
+  row: ReservationListRow,
+  detail: ReservationOpenResolvedDetail,
+): ReservationListRow {
+  const nextName =
+    detail.nextStatus?.name ??
+    (detail.nextStatusCode === "confirmed"
+      ? "Bestätigt"
+      : detail.nextStatusCode);
+  const st = row.reservation_statuses;
+  return {
+    ...row,
+    reservation_statuses: st
+      ? {
+          ...st,
+          id: detail.nextStatus?.id ?? st.id,
+          code: detail.nextStatusCode,
+          name: nextName,
+          color_hex: detail.nextStatus?.color_hex ?? st.color_hex,
+        }
+      : {
+          id: detail.nextStatus?.id ?? "",
+          code: detail.nextStatusCode,
+          name: nextName,
+          color_hex: detail.nextStatus?.color_hex ?? "",
+        },
+  };
+}
+
+/** Sofort-Patch für Reservierungs-Listen (Unbestätigt + Monats-Queries). */
+export function patchReservationOpenResolvedInQueryCaches(
+  queryClient: QueryClient,
+  restaurantId: string,
+  detail: ReservationOpenResolvedDetail,
+): void {
+  queryClient.setQueryData<ReservationListRow[]>(
+    queryKeys.reservations.unconfirmed(restaurantId),
+    (prev) => prev?.filter((r) => r.id !== detail.reservationId) ?? prev,
+  );
+
+  for (const [key, data] of queryClient.getQueriesData<ReservationListRow[]>({
+    queryKey: queryKeys.reservations.root(restaurantId),
+  })) {
+    if (key[2] !== "month" || !data) continue;
+    const rangeStartIso = key[3];
+    const rangeEndExclusiveIso = key[4];
+    if (
+      typeof rangeStartIso !== "string" ||
+      typeof rangeEndExclusiveIso !== "string"
+    ) {
+      continue;
+    }
+    let changed = false;
+    const next = data.map((row) => {
+      if (row.id !== detail.reservationId) return row;
+      changed = true;
+      return patchReservationRowStatus(row, detail);
+    });
+    if (!changed) continue;
+    queryClient.setQueryData(key, next);
+    writeReservationsMonthCache(restaurantId, {
+      rangeStartIso,
+      rangeEndExclusiveIso,
+    }, next);
+  }
 }

@@ -50,6 +50,7 @@ import {
 } from "@/lib/display/display-todos-live-events";
 import { buildStaffTodoLimitsLabel } from "@/components/display/display-todo-capture-fields";
 import { brandActionButtonRoundedClassName } from "@/lib/ui/brand-action-button";
+import { appMobileBottomSafePbLgClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { cn } from "@/lib/utils";
 
 export type DisplayTimeTodoPopupItem = DisplayTodoClient;
@@ -321,7 +322,7 @@ export function DisplayTimeTodoPopup({
           <div
             className={cn(
               "shrink-0 space-y-2 border-t border-border/40 px-6 pt-3",
-              "pb-[max(1.25rem,env(safe-area-inset-bottom,0px))]",
+              appMobileBottomSafePbLgClassName,
             )}
           >
             {showProceed ? (

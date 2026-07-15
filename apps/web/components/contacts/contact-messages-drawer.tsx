@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { appMobileBottomSafePbMdClassName } from "@/lib/ui/app-mobile-bottom-nav";
 import { drawerContentClassName } from "@/lib/ui/drawer-chrome";
 import { drawerScrollAreaClassName, drawerFormHeaderClassName, drawerFormFullWidthButtonClassName } from "@/lib/ui/drawer-form-section";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DrawerFormSection } from "@/components/ui/drawer-form-section";
 import { ContactMessageChatViewport } from "@/components/contacts/contact-message-chat-viewport";
@@ -109,7 +111,7 @@ export function ContactMessagesDrawer({
             />
             </DrawerFormSection>
           </div>
-          <div className="border-t border-border/50 px-6 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className={cn("border-t border-border/50 px-6 py-3", appMobileBottomSafePbMdClassName)}>
             <Button
               type="button"
               variant="outline"

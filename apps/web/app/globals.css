@@ -95,6 +95,8 @@
   --app-chrome-header-h: calc(0.5rem + 2.25rem + 0.5rem + 1px);
   /* Mobile Bottom-Nav (Inhalt ohne Safe-Area); Desktop = 0 */
   --app-mobile-bottom-nav-bar: 0px;
+  /* Inhalt + Home-Indicator / abgerundeter PWA-Rand */
+  --app-mobile-bottom-nav-offset: 0px;
 
   /* Leicht hellgrauer als Page-Background, minimal abgesetzt */
   --app-chrome: color-mix(in oklch, var(--muted) 18%, var(--background));
@@ -211,6 +213,9 @@
   @media (max-width: 767px) {
     :root {
       --app-mobile-bottom-nav-bar: 3.5rem;
+      --app-mobile-bottom-nav-offset: calc(
+        3.5rem + env(safe-area-inset-bottom, 0px)
+      );
     }
   }
 

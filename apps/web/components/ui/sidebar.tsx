@@ -6,17 +6,11 @@ import { useRender } from "@base-ui/react/use-render"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { AppMobileChromeScreen } from "@/components/layout/app-mobile-chrome-screen"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -262,33 +256,21 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-        <SheetContent
-          dir={dir}
+      <AppMobileChromeScreen
+        open={openMobile}
+        onClose={() => setOpenMobile(false)}
+        title="Menü"
+        aria-label="Menü"
+      >
+        <div
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          showCloseButton
-          className={cn(
-            // Vollflächen-Overlay über dem Inhalt; Bottom-Nav bleibt bedeckt —
-            // Schließen über X oder Modulwahl.
-            "h-dvh w-full max-w-none gap-0 border-0 bg-sidebar p-0 text-sidebar-foreground",
-            "data-[side=left]:w-full data-[side=right]:w-full",
-          )}
-          style={
-            {
-              "--sidebar-width": "100%",
-            } as React.CSSProperties
-          }
-          side={side}
+          className="flex h-full w-full flex-col bg-sidebar text-sidebar-foreground"
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Menü</SheetTitle>
-            <SheetDescription>Modulnavigation</SheetDescription>
-          </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
-        </SheetContent>
-      </Sheet>
+          {children}
+        </div>
+      </AppMobileChromeScreen>
     )
   }
 

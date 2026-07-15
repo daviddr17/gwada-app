@@ -69,6 +69,7 @@ export function AppShellBootstrapOverlay() {
             "pb-[env(safe-area-inset-bottom,0px)]",
             appChromeFixedZoneBgClassName,
           )}
+          style={{ minHeight: "calc(3.5rem + env(safe-area-inset-bottom, 0px))" }}
         >
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-1">

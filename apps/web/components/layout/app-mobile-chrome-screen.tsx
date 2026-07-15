@@ -123,7 +123,7 @@ export function AppMobileChromeScreen({
           <X className="size-4" />
         </Button>
       </header>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pb-4">
         {children}
       </div>
     </div>,

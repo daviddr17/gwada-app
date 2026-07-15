@@ -120,7 +120,7 @@ function DashboardFabLayer({
       </AnimatePresence>
 
       <div
-        className="pointer-events-auto fixed end-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[120] flex flex-col items-end gap-3 sm:end-6"
+        className="pointer-events-auto fixed end-4 z-[120] flex flex-col items-end gap-3 sm:end-6 bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]"
         data-dashboard-fab
         style={{
           WebkitTransform: "translate3d(0,0,0)",

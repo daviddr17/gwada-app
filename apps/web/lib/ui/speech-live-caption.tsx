@@ -24,7 +24,7 @@ export function SpeechLiveCaption({
     return (
       <div
         className={cn(
-          "pointer-events-none fixed inset-x-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[120] flex justify-center",
+          "pointer-events-none fixed inset-x-4 z-[120] flex justify-center bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]",
           className,
         )}
         aria-live="polite"

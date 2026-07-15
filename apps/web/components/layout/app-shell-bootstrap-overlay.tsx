@@ -45,12 +45,13 @@ export function AppShellBootstrapOverlay() {
             appChromeFixedZoneBgClassName,
           )}
         >
-          <Skeleton className="size-8 rounded-lg" />
+          <Skeleton className="hidden size-8 rounded-lg md:block" />
           <Skeleton className="h-5 w-28 rounded-md" />
           <div className="flex-1" />
-          <Skeleton className="size-8 rounded-full" />
-          <Skeleton className="size-8 rounded-full" />
-          <Skeleton className="size-8 rounded-full" />
+          <Skeleton className="size-8 rounded-full md:hidden" />
+          <Skeleton className="hidden size-8 rounded-full md:block" />
+          <Skeleton className="hidden size-8 rounded-full md:block" />
+          <Skeleton className="hidden size-8 rounded-full md:block" />
         </header>
 
         <div className="flex-1 space-y-4 overflow-hidden p-4 md:p-6">
@@ -60,6 +61,21 @@ export function AppShellBootstrapOverlay() {
             <DashboardWidgetTileSkeleton />
             <DashboardWidgetTileSkeleton />
           </div>
+        </div>
+
+        <div
+          className={cn(
+            "flex h-14 shrink-0 items-center justify-around border-t border-border/50 px-2 md:hidden",
+            "pb-[env(safe-area-inset-bottom,0px)]",
+            appChromeFixedZoneBgClassName,
+          )}
+        >
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <Skeleton className="size-5 rounded-md" />
+              <Skeleton className="h-2 w-8 rounded-md" />
+            </div>
+          ))}
         </div>
       </div>
     </div>

@@ -317,7 +317,7 @@ export function InventoryVoiceFab({ mode }: { mode: InventoryVoiceMode }) {
       />
 
       <div
-        className="pointer-events-none fixed end-4 bottom-[max(1.25rem,env(safe-area-inset-bottom))] z-[120] flex flex-col items-end gap-2 sm:end-6"
+        className="pointer-events-none fixed end-4 z-[120] flex flex-col items-end gap-2 sm:end-6 bottom-[calc(var(--app-mobile-bottom-nav-bar)+max(1.25rem,env(safe-area-inset-bottom)))]"
         data-inventory-voice-fab
         data-inventory-voice-mode={mode}
       >

@@ -1,15 +1,22 @@
 import "server-only";
 
-/** Externe Plattform-Insights aktualisieren sich selten — einmal täglich reicht. */
+/** Erfolgreiche Plattform-Insights: max. 1 Live-Abruf / Tag / Zeitraum. */
 export const PLATFORM_INSIGHTS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Nach Google-Quota-Fehler bis zum nächsten Cache-Zyklus keine Live-Calls. */
-export const PLATFORM_INSIGHTS_QUOTA_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+/**
+ * Nach echtem HTTP 429 nur kurz keine Live-Calls (nicht 24h).
+ * Langer In-Memory-Lock war nach Deploy/ohne Cache dauerhaft falsch sichtbar.
+ */
+export const PLATFORM_INSIGHTS_QUOTA_COOLDOWN_MS = 15 * 60 * 1000;
+
+/** Abgelaufene Cache-Einträge als Fallback höchstens so lange nutzen. */
+export const PLATFORM_INSIGHTS_STALE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 export type PlatformInsightsCachePlatform = "google" | "facebook" | "instagram";
 
 type CacheEntry = {
   expiresAt: number;
+  writtenAt: number;
   data: unknown;
 };
 
@@ -54,18 +61,47 @@ export function readPlatformInsightsCache<T>(
   return entry.data as T;
 }
 
-export function readNewestPlatformInsightsCacheForRestaurant<T>(
+function pickNewestEntry(
   platform: PlatformInsightsCachePlatform,
   restaurantId: string,
-): T | null {
+  allowExpired: boolean,
+): CacheEntry | null {
   const prefix = `${platform}|${restaurantId}|`;
   let best: CacheEntry | null = null;
   const now = Date.now();
   for (const [key, entry] of responseCache) {
-    if (!key.startsWith(prefix) || now > entry.expiresAt) continue;
-    if (!best || entry.expiresAt > best.expiresAt) best = entry;
+    if (!key.startsWith(prefix)) continue;
+    if (!allowExpired && now > entry.expiresAt) continue;
+    if (
+      allowExpired &&
+      now - entry.writtenAt > PLATFORM_INSIGHTS_STALE_MAX_AGE_MS
+    ) {
+      continue;
+    }
+    if (!best || entry.writtenAt > best.writtenAt) best = entry;
   }
-  return (best?.data as T | undefined) ?? null;
+  return best;
+}
+
+export function readNewestPlatformInsightsCacheForRestaurant<T>(
+  platform: PlatformInsightsCachePlatform,
+  restaurantId: string,
+): T | null {
+  return (
+    (pickNewestEntry(platform, restaurantId, false)?.data as T | undefined) ??
+    null
+  );
+}
+
+/** Auch abgelaufene Einträge — Fallback wenn Live fehlschlägt / kurz 429. */
+export function readStalePlatformInsightsCacheForRestaurant<T>(
+  platform: PlatformInsightsCachePlatform,
+  restaurantId: string,
+): T | null {
+  return (
+    (pickNewestEntry(platform, restaurantId, true)?.data as T | undefined) ??
+    null
+  );
 }
 
 export function writePlatformInsightsCache<T>(
@@ -77,8 +113,10 @@ export function writePlatformInsightsCache<T>(
   shouldCache: (value: T) => boolean,
 ): void {
   if (!shouldCache(data)) return;
+  const now = Date.now();
   responseCache.set(cacheKey(platform, restaurantId, startYmd, endYmd), {
-    expiresAt: Date.now() + PLATFORM_INSIGHTS_CACHE_TTL_MS,
+    expiresAt: now + PLATFORM_INSIGHTS_CACHE_TTL_MS,
+    writtenAt: now,
     data,
   });
 }
@@ -96,5 +134,14 @@ export function isGoogleQuotaErrorMessage(raw: string | null | undefined): boole
   );
 }
 
+/** Nur wenn wir wirklich Cache-Daten ausliefern. */
+export const GOOGLE_INSIGHTS_QUOTA_WITH_CACHE_MESSAGE =
+  "Google Insights: Tageslimit erreicht — zuletzt gespeicherte Daten werden angezeigt. Neuer Abruf in Kürze wieder möglich.";
+
+/** Wenn kein Cache vorhanden ist (kein „Zwischenspeicher“ vortäuschen). */
+export const GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE =
+  "Google Insights: Tageslimit erreicht. Bitte später erneut versuchen.";
+
+/** @deprecated Alias — früherer Textcht text. */
 export const GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE =
-  "Google Insights: Anfragen-Limit erreicht. Zwischengespeicherte Daten werden angezeigt — ein neuer Abruf ist frühestens am nächsten Tag möglich.";
+  GOOGLE_INSIGHTS_QUOTA_WITH_CACHE_MESSAGE;

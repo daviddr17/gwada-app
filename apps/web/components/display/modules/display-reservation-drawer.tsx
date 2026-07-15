@@ -147,7 +147,8 @@ export function DisplayReservationDrawer({
   const [dateYmd, setDateYmd] = useState("");
   const [timeHm, setTimeHm] = useState("19:00");
   const [statusId, setStatusId] = useState("");
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  /** Display: E-Mail/WhatsApp standardmäßig aus, AGB an. */
+  const [notifyEmail, setNotifyEmail] = useState(false);
   const [notifyWhatsapp, setNotifyWhatsapp] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(true);
   const [dwellDraft, setDwellDraft] = useState("");
@@ -177,7 +178,7 @@ export function DisplayReservationDrawer({
           defaultTimeHm(step, timeZone, resolvedDayYmd, undefined),
       );
       setStatusId(confirmed?.id ?? statuses[0]?.id ?? "");
-      setNotifyEmail(true);
+      setNotifyEmail(false);
       setNotifyWhatsapp(false);
       setTermsAccepted(true);
       setDwellDraft(String(defaultDwellMinutes));
@@ -280,8 +281,8 @@ export function DisplayReservationDrawer({
           dining_table_id:
             tableAssignmentAllowed && tableId !== "__none__" ? tableId : null,
           dwell_minutes: minutesForEnd,
-          notify_email: notifyEmail,
-          notify_whatsapp: notifyWhatsapp,
+          notify_email: notifyEmail && hasEmail,
+          notify_whatsapp: notifyWhatsapp && hasPhone,
           terms_accepted: termsAccepted,
           notes: internalNote.trim() || null,
         }),

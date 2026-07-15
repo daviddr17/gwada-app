@@ -2,13 +2,13 @@ import "server-only";
 
 import { getGoogleBusinessAccessTokenForRestaurant } from "@/lib/integrations/google-business-access";
 import {
-  GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
+  GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE,
   clearGoogleInsightsQuotaCooldown,
   isGoogleInsightsQuotaCooldown,
   isGoogleQuotaErrorMessage,
   markGoogleInsightsQuotaExceeded,
-  readNewestPlatformInsightsCacheForRestaurant,
   readPlatformInsightsCache,
+  readStalePlatformInsightsCacheForRestaurant,
   writePlatformInsightsCache,
 } from "@/lib/insights/platform-insights-response-cache";
 import {
@@ -307,7 +307,7 @@ function humanizeGooglePerformanceError(raw: string | null): string | null {
     return "Business Profile Performance API im Google Cloud Projekt aktivieren (Superadmin / Google Cloud Console).";
   }
   if (isGoogleQuotaErrorMessage(raw)) {
-    return GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE;
+    return GOOGLE_INSIGHTS_QUOTA_NO_CACHE_MESSAGE;
   }
   return raw;
 }
@@ -335,7 +335,8 @@ async function fetchMulti(
     const body = (await res.json().catch(() => ({}))) as GoogleTimeSeriesPayload;
     if (!res.ok) {
       lastError = body.error?.message ?? `google_performance_${res.status}`;
-      if (res.status === 429 || isGoogleQuotaErrorMessage(lastError)) {
+      /** Nur HTTP 429 → kurzer Backoff. Keyword-Match allein sperrt nicht mehr. */
+      if (res.status === 429) {
         markGoogleInsightsQuotaExceeded(restaurantId);
         return { body: {}, error: lastError };
       }
@@ -381,13 +382,6 @@ async function fetchSearchKeywords(
     return [];
   }
   if (!res.ok) {
-    const errBody = (await res.json().catch(() => ({}))) as {
-      error?: { message?: string };
-    };
-    if (isGoogleQuotaErrorMessage(errBody.error?.message)) {
-      markGoogleInsightsQuotaExceeded(restaurantId);
-      return [];
-    }
     // camelCase month fields (Client-Library-Stil) — nur ein Retry
     const alt = new URL(
       `https://businessprofileperformance.googleapis.com/v1/${location}/searchkeywords/impressions/monthly`,
@@ -465,19 +459,14 @@ export async function fetchGoogleBusinessPlatformInsights(params: {
   );
   if (cached) return presentGoogleInsights(cached);
 
+  /** Kurzer 429-Backoff nur mit vorhandenen Daten — sonst live (Sperre war oft leer + Banner). */
   if (isGoogleInsightsQuotaCooldown(params.restaurantId)) {
     const stale =
-      readNewestPlatformInsightsCacheForRestaurant<GoogleBusinessPlatformInsights>(
+      readStalePlatformInsightsCacheForRestaurant<GoogleBusinessPlatformInsights>(
         "google",
         params.restaurantId,
       );
-    if (stale) {
-      return presentGoogleInsights(stale);
-    }
-    return emptyGoogleInsights({
-      connected: true,
-      error: GOOGLE_INSIGHTS_QUOTA_USER_MESSAGE,
-    });
+    if (stale) return presentGoogleInsights(stale);
   }
 
   const result = await fetchGoogleBusinessPlatformInsightsLive(params);
@@ -546,15 +535,13 @@ async function fetchGoogleBusinessPlatformInsightsLive(params: {
 
   const multiHadData = [...byMetric.values()].some((v) => v.length > 0);
   if (multi.error && !multiHadData) {
-    if (isGoogleQuotaErrorMessage(multi.error)) {
-      const stale =
-        readNewestPlatformInsightsCacheForRestaurant<GoogleBusinessPlatformInsights>(
-          "google",
-          params.restaurantId,
-        );
-      if (stale) {
-        return presentGoogleInsights(stale);
-      }
+    const stale =
+      readStalePlatformInsightsCacheForRestaurant<GoogleBusinessPlatformInsights>(
+        "google",
+        params.restaurantId,
+      );
+    if (stale) {
+      return presentGoogleInsights(stale);
     }
     return emptyGoogleInsights({
       connected: true,

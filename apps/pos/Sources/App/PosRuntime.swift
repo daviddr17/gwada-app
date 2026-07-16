@@ -96,6 +96,10 @@ final class PosRuntime: ObservableObject {
         pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
     }
 
+    func announce(_ message: String) {
+        statusMessage = message
+    }
+
     func signOut() {
         PosAuthStore.shared.clear()
         isSignedIn = false
@@ -297,7 +301,8 @@ final class PosRuntime: ObservableObject {
         sessionId: String,
         lines: [SessionOpenLine],
         method: PosPaymentMethodKind,
-        tipCents: Int
+        tipCents: Int,
+        receivedAmountCents: Int? = nil
     ) async {
         guard method == .cash else {
             statusMessage = "\(method.label) folgt — bitte Bar nutzen."
@@ -310,7 +315,8 @@ final class PosRuntime: ObservableObject {
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
                 allocations: allocations,
-                tipCents: tipCents
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents
             )
             statusMessage = "Teilzahlung kassiert."
             await pullCloudBootstrap(forceDemoFallback: false)
@@ -320,7 +326,8 @@ final class PosRuntime: ObservableObject {
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
                 allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
-                tipCents: tipCents
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents
             ))
             syncPending = PosSyncQueue.shared.pendingCount
             statusMessage = "Zahlung lokal gequeued — \(error.localizedDescription)"

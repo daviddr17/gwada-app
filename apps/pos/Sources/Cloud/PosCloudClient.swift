@@ -108,7 +108,8 @@ enum PosCloudClient {
         restaurantId: String,
         tableSessionId: String,
         allocations: [(orderLineId: String, quantity: Int)],
-        tipCents: Int = 0
+        tipCents: Int = 0,
+        receivedAmountCents: Int? = nil
     ) async throws {
         struct Allocation: Encodable {
             var orderLineId: String
@@ -119,6 +120,7 @@ enum PosCloudClient {
             var tableSessionId: String
             var allocations: [Allocation]
             var tipCents: Int
+            var receivedAmountCents: Int?
         }
         try await postVoid(
             "/api/pos/payments/collect-cash-allocations",
@@ -126,9 +128,57 @@ enum PosCloudClient {
                 restaurantId: restaurantId,
                 tableSessionId: tableSessionId,
                 allocations: allocations.map { Allocation(orderLineId: $0.orderLineId, quantity: $0.quantity) },
-                tipCents: tipCents
+                tipCents: tipCents,
+                receivedAmountCents: receivedAmountCents
             )
         )
+    }
+
+    struct PosTodayReceiptDto: Decodable, Identifiable, Sendable {
+        var paymentId: String
+        var orderId: String
+        var orderNumber: Int
+        var tableSessionId: String
+        var tableLabel: String
+        var diningTableId: String
+        var sessionStatus: String
+        var method: String
+        var status: String
+        var amountCents: Int
+        var tipCents: Int
+        var receivedAmountCents: Int?
+        var paidAt: String?
+        var canVoidCash: Bool
+
+        var id: String { paymentId }
+    }
+
+    @MainActor
+    static func fetchTodayReceipts(restaurantId: String) async throws -> [PosTodayReceiptDto] {
+        struct Res: Decodable { var receipts: [PosTodayReceiptDto] }
+        let res: Res = try await get("/api/pos/receipts/today", restaurantId: restaurantId)
+        return res.receipts
+    }
+
+    @MainActor
+    static func voidCashPayment(
+        restaurantId: String,
+        paymentId: String,
+        reopenTable: Bool = true
+    ) async throws -> (reopened: Bool, tableSessionId: String) {
+        struct Body: Encodable {
+            var restaurantId: String
+            var reopenTable: Bool
+        }
+        struct Res: Decodable {
+            var reopened: Bool
+            var tableSessionId: String
+        }
+        let res: Res = try await post(
+            "/api/pos/payments/\(paymentId)/void-cash",
+            body: Body(restaurantId: restaurantId, reopenTable: reopenTable)
+        )
+        return (res.reopened, res.tableSessionId)
     }
 
     @MainActor

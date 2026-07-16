@@ -40,6 +40,7 @@ struct PosSyncCollectCashPayload: Codable, Sendable {
     var tableSessionId: String
     var allocations: [PosSyncCashAllocation]
     var tipCents: Int
+    var receivedAmountCents: Int?
 }
 
 struct PosSyncCashAllocation: Codable, Sendable {
@@ -173,7 +174,8 @@ final class PosSyncQueue: ObservableObject {
                 restaurantId: payload.restaurantId,
                 tableSessionId: payload.tableSessionId,
                 allocations: payload.allocations.map { ($0.orderLineId, $0.quantity) },
-                tipCents: payload.tipCents
+                tipCents: payload.tipCents,
+                receivedAmountCents: payload.receivedAmountCents
             )
         }
     }

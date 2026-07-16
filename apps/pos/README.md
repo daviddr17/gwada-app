@@ -59,3 +59,8 @@ Im Login-Bereich setzen:
 
 Web **POS → Einstellungen**: Bondrucker anlegen, pro Speisekarten-Kategorie Ziel wählen (KDS / Drucker / beides / keines). Bootstrap liefert `kitchen` an den Hub; Bestellungen füllen KDS-Tickets und die lokale Druck-Queue (`/v1/print-jobs`). ESC/POS-Hardware folgt.
 
+## Quittungen & Bar
+
+- Sidebar **Quittungen**: heutige Zahlungen, Bar-Storno, Tisch wieder öffnen
+- Beim Kassieren: Trinkgeld (% oder €), gegebenes Bargeld per Ziffernblock, automatisches Rückgeld
+

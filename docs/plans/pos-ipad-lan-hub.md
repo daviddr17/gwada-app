@@ -62,9 +62,15 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 - [ ] Cloud-Login / echte Floor-Daten (statt Demo-Snapshot)
 - [ ] TestFlight Bundle `app.gwada.pos` (eigene App, getrennt von Staff)
 
+### Speisekarte → POS (Web)
+
+- [x] Optionsgruppen (Beilagen/Extras) mit Positionen + optionalem Aufpreis
+- [x] Chip „Optionen“ + Zuordnung am Gericht
+- [ ] POS liest Optionsgruppen und lässt Choices wählen
+
 ### Phase 2 — Bestell-Flow nativ
 
-- [ ] Tische, Warenkorb, senden über Hub
+- [ ] Tische, Warenkorb, Optionen wählen, senden über Hub
 - [ ] Barzahlung / Beleg über Web-API vom Hub
 
 ### Phase 3 — Offline / Hardware

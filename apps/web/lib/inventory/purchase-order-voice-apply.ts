@@ -18,7 +18,8 @@ export type InventoryVoiceMode = "stock" | "order";
 export type PurchaseOrderVoiceResolvedLine = {
   ingredientId: string;
   ingredientName: string;
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit: boolean;
   unitLabel: string;
   previousQuantity: number | null;
   supplierId: string;
@@ -30,7 +31,8 @@ export type PurchaseOrderVoiceResolvedLine = {
 export type PurchaseOrderVoiceAmbiguity = {
   itemIndex: number;
   heardQuery: string;
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit: boolean;
   candidates: IngredientVoiceMatchCandidate[];
 };
 
@@ -46,13 +48,15 @@ type OpenLineContext = {
 };
 
 export type PurchaseOrderVoiceItemInput = {
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit: boolean;
   articleQueries: string[];
 };
 
 function buildOrderResolvedLine(params: {
   ingredient: Ingredient;
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit: boolean;
   suppliers: InventoryTaxonomyDefinition[];
   brands: InventoryTaxonomyDefinition[];
   units: InventoryTaxonomyDefinition[];
@@ -81,6 +85,7 @@ function buildOrderResolvedLine(params: {
     ingredientId: params.ingredient.id,
     ingredientName: params.ingredient.name,
     quantity: params.quantity,
+    quantityExplicit: params.quantityExplicit,
     unitLabel,
     previousQuantity: openCtx.lineId ? openCtx.quantity : null,
     supplierId: params.ingredient.supplierId,
@@ -92,7 +97,8 @@ function buildOrderResolvedLine(params: {
 
 function buildStockResolvedLine(params: {
   ingredient: Ingredient;
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit: boolean;
   units: InventoryTaxonomyDefinition[];
 }): PurchaseOrderVoiceResolvedLine {
   const unit = params.units.find((u) => u.id === params.ingredient.unit);
@@ -106,6 +112,7 @@ function buildStockResolvedLine(params: {
     ingredientId: params.ingredient.id,
     ingredientName: params.ingredient.name,
     quantity: params.quantity,
+    quantityExplicit: params.quantityExplicit,
     unitLabel,
     previousQuantity: params.ingredient.currentStock,
     supplierId: params.ingredient.supplierId,
@@ -137,6 +144,7 @@ function resolveVoiceItemMatch(params: {
         itemIndex: params.itemIndex,
         heardQuery: params.item.articleQueries[0] ?? match.query,
         quantity: params.item.quantity,
+        quantityExplicit: params.item.quantityExplicit,
         candidates: match.candidates,
       },
     };
@@ -158,11 +166,13 @@ function resolveVoiceItemMatch(params: {
       ? buildStockResolvedLine({
           ingredient: match.ingredient,
           quantity: params.item.quantity,
+          quantityExplicit: params.item.quantityExplicit,
           units: params.units,
         })
       : buildOrderResolvedLine({
           ingredient: match.ingredient,
           quantity: params.item.quantity,
+          quantityExplicit: params.item.quantityExplicit,
           suppliers: params.suppliers,
           brands: params.brands,
           units: params.units,
@@ -233,14 +243,25 @@ export function buildPurchaseOrderVoiceItems(
 
   return parsed.items.map((item, index) => {
     const queries = new Set<string>([item.articleQuery]);
+    let quantity = item.quantity;
+    let quantityExplicit = item.quantityExplicit;
     for (const variant of parsedVariants) {
       const altItem = variant.items[index];
       if (altItem?.articleQuery.trim()) {
         queries.add(altItem.articleQuery.trim());
       }
+      if (
+        altItem?.quantityExplicit &&
+        altItem.quantity != null &&
+        !quantityExplicit
+      ) {
+        quantity = altItem.quantity;
+        quantityExplicit = true;
+      }
     }
     return {
-      quantity: item.quantity,
+      quantity,
+      quantityExplicit,
       articleQueries: [...queries],
     };
   });
@@ -249,7 +270,8 @@ export function buildPurchaseOrderVoiceItems(
 export function resolveInventoryVoiceLineForIngredient(params: {
   mode: InventoryVoiceMode;
   ingredientId: string;
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit?: boolean;
   ingredients: Ingredient[];
   suppliers: InventoryTaxonomyDefinition[];
   brands: InventoryTaxonomyDefinition[];
@@ -261,16 +283,21 @@ export function resolveInventoryVoiceLineForIngredient(params: {
     return { ok: false, error: "Zutat nicht gefunden." };
   }
 
+  const quantityExplicit =
+    params.quantityExplicit ?? params.quantity != null;
+
   const line =
     params.mode === "stock"
       ? buildStockResolvedLine({
           ingredient,
           quantity: params.quantity,
+          quantityExplicit,
           units: params.units,
         })
       : buildOrderResolvedLine({
           ingredient,
           quantity: params.quantity,
+          quantityExplicit,
           suppliers: params.suppliers,
           brands: params.brands,
           units: params.units,
@@ -285,7 +312,8 @@ export function resolveInventoryVoiceLineForIngredient(params: {
 
 export function resolvePurchaseOrderVoiceLineForIngredient(params: {
   ingredientId: string;
-  quantity: number;
+  quantity: number | null;
+  quantityExplicit?: boolean;
   ingredients: Ingredient[];
   suppliers: InventoryTaxonomyDefinition[];
   brands: InventoryTaxonomyDefinition[];
@@ -293,6 +321,15 @@ export function resolvePurchaseOrderVoiceLineForIngredient(params: {
   getOpenLineContext: (supplierId: string, ingredientId: string) => OpenLineContext;
 }): ResolvePurchaseOrderVoiceResult {
   return resolveInventoryVoiceLineForIngredient({ ...params, mode: "order" });
+}
+
+export function inventoryVoiceLinesReadyToApply(
+  lines: PurchaseOrderVoiceResolvedLine[],
+): lines is Array<PurchaseOrderVoiceResolvedLine & { quantity: number }> {
+  return (
+    lines.length > 0 &&
+    lines.every((line) => line.quantity != null && line.quantity > 0)
+  );
 }
 
 export async function applyPurchaseOrderVoiceLines(params: {
@@ -307,6 +344,9 @@ export async function applyPurchaseOrderVoiceLines(params: {
     user: OrderProtocolActor,
   ) => Promise<boolean>;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!inventoryVoiceLinesReadyToApply(params.lines)) {
+    return { ok: false, error: "Mengen fehlen noch." };
+  }
   for (const line of params.lines) {
     const openCtx = params.getOpenLineContext(line.supplierId, line.ingredientId);
 
@@ -357,6 +397,9 @@ export async function applyInventoryStockVoiceLines(params: {
     opts?: UpdateIngredientOptions,
   ) => Promise<boolean>;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!inventoryVoiceLinesReadyToApply(params.lines)) {
+    return { ok: false, error: "Mengen fehlen noch." };
+  }
   for (const line of params.lines) {
     const ok = await params.updateIngredient(
       line.ingredientId,

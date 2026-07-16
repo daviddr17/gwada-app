@@ -4,15 +4,15 @@ import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReservationVoiceCompleteSheet } from "@/components/reservations/reservation-voice-complete-sheet";
 import { useIsSuperadmin } from "@/lib/hooks/use-is-superadmin";
 import { useRestaurantIanaTimezone } from "@/lib/hooks/use-restaurant-iana-timezone";
 import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
 import {
-  formatParsedReservationVoiceLabel,
-  parseReservationVoiceTextWithAlternatives,
+  parseReservationVoiceDraftWithAlternatives,
   type ParsedReservationVoice,
+  type ReservationVoiceDraft,
 } from "@/lib/reservations/parse-reservation-voice-text";
 import { createReservationFromVoiceParsed } from "@/lib/reservations/reservation-voice-create-client";
 import { fetchReservationSettings } from "@/lib/supabase/reservation-settings-db";
@@ -31,9 +31,8 @@ export function ReservationVoiceFab() {
   const { isSuperadmin } = useIsSuperadmin();
   const restaurantTimeZone = useRestaurantIanaTimezone(restaurantId);
   const [mounted, setMounted] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pending, setPending] = useState<ParsedReservationVoice | null>(null);
-  const [heardText, setHeardText] = useState("");
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [draft, setDraft] = useState<ReservationVoiceDraft | null>(null);
   const defaultDwellRef = useRef(120);
 
   useEffect(() => {
@@ -49,21 +48,40 @@ export function ReservationVoiceFab() {
     });
   }, [restaurantId]);
 
+  const createFromParsed = useCallback(
+    async (parsed: ParsedReservationVoice) => {
+      if (!restaurantId) return;
+      const result = await createReservationFromVoiceParsed({
+        restaurantId,
+        parsed,
+        defaultDwellMinutes: defaultDwellRef.current,
+        restaurantTimeZone,
+        isSuperadmin,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        throw new Error(result.error);
+      }
+      toast.success(`Reservierung #${result.reservationNumber} angelegt.`);
+      setDraft(null);
+    },
+    [isSuperadmin, restaurantId, restaurantTimeZone],
+  );
+
   const handleFinalTranscript = useCallback(
     (transcript: string, alternatives?: string[]) => {
-      setHeardText(transcript);
-      const result = parseReservationVoiceTextWithAlternatives(
+      const next = parseReservationVoiceDraftWithAlternatives(
         transcript,
         alternatives ?? [],
       );
-      if (!result.ok) {
-        toast.error(result.error, {
+      if (!next.rawTranscript) {
+        toast.error("Kein Text erkannt.", {
           description: "Beispiel: Max Mustermann, 3 Personen, 18.7., 19 Uhr",
         });
         return;
       }
-      setPending(result.parsed);
-      setConfirmOpen(true);
+      setDraft(next);
+      setSheetOpen(true);
     },
     [],
   );
@@ -76,59 +94,26 @@ export function ReservationVoiceFab() {
     lang: "de-DE",
     onFinal: handleFinalTranscript,
     onError: handleSpeechError,
+    silenceFinalizeMs: 2400,
   });
 
   const toggleListening = () => {
-    if (listening) stop();
+    if (listening) stop("flush");
     else start();
-  };
-
-  const handleConfirm = async () => {
-    if (!restaurantId || !pending) return;
-    const result = await createReservationFromVoiceParsed({
-      restaurantId,
-      parsed: pending,
-      defaultDwellMinutes: defaultDwellRef.current,
-      restaurantTimeZone,
-      isSuperadmin,
-    });
-    if (!result.ok) {
-      toast.error(result.error);
-      throw new Error(result.error);
-    }
-    toast.success(`Reservierung #${result.reservationNumber} angelegt.`);
-    setPending(null);
-    setHeardText("");
   };
 
   if (!mounted || !ready || !restaurantId || !supported) return null;
 
-  const preview = pending ? formatParsedReservationVoiceLabel(pending) : null;
-
   return createPortal(
     <>
-      <ConfirmDialog
-        open={confirmOpen}
+      <ReservationVoiceCompleteSheet
+        open={sheetOpen}
         onOpenChange={(open) => {
-          setConfirmOpen(open);
-          if (!open) setPending(null);
+          setSheetOpen(open);
+          if (!open) setDraft(null);
         }}
-        title="Reservierung anlegen?"
-        description={
-          <div className="space-y-2 text-sm text-muted-foreground">
-            {preview ? (
-              <p className="font-medium text-foreground">{preview}</p>
-            ) : null}
-            {heardText ? (
-              <p className="text-xs italic">„{heardText}"</p>
-            ) : null}
-            <p>Ein Tippen legt die Reservierung an — ohne weiteres Formular.</p>
-          </div>
-        }
-        confirmLabel="Anlegen"
-        cancelLabel="Abbrechen"
-        destructive={false}
-        onConfirm={handleConfirm}
+        initialDraft={draft}
+        onConfirm={createFromParsed}
       />
 
       <div

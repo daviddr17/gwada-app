@@ -4,8 +4,8 @@ import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { InventoryVoiceConfirmSheet } from "@/components/inventory/inventory-voice-confirm-sheet";
 import { PurchaseOrderVoiceDisambiguationDialog } from "@/components/inventory/purchase-order-voice-disambiguation-dialog";
 import {
   applyDisplayInventoryOrderVoiceLines,
@@ -18,6 +18,7 @@ import { GWADA_DISPLAY_INVENTORY_REFRESH_EVENT } from "@/lib/display/display-inv
 import { useSpeechRecognition } from "@/lib/hooks/use-speech-recognition";
 import {
   buildPurchaseOrderVoiceItems,
+  inventoryVoiceLinesReadyToApply,
   resolveInventoryVoiceLineForIngredient,
   resolveInventoryVoiceLines,
   type InventoryVoiceMode,
@@ -25,29 +26,19 @@ import {
   type PurchaseOrderVoiceItemInput,
   type PurchaseOrderVoiceResolvedLine,
 } from "@/lib/inventory/purchase-order-voice-apply";
-import {
-  formatParsedPurchaseOrderVoicePreview,
-  parsePurchaseOrderVoiceText,
-} from "@/lib/inventory/parse-purchase-order-voice-text";
+import { parsePurchaseOrderVoiceText } from "@/lib/inventory/parse-purchase-order-voice-text";
 import { brandActionButtonClassName } from "@/lib/ui/brand-action-button";
 import { SpeechLiveCaption } from "@/lib/ui/speech-live-caption";
 import { cn } from "@/lib/utils";
 
 const COPY = {
   stock: {
-    confirmTitle: "Bestand setzen?",
-    confirmHint: "Bestätigen setzt den Lagerbestand auf die genannte Menge.",
     successOne: "Bestand angepasst.",
     micLabel: "Bestand per Sprache setzen",
-    confirmLabel: "Setzen",
   },
   order: {
-    confirmTitle: "Zur Bestellung hinzufügen?",
-    confirmHint:
-      "Bestätigen legt die Mengen in die offene Bestellung — vorhandene Positionen werden ersetzt.",
     successOne: "Bestellung angepasst.",
     micLabel: "Bestellung per Sprache hinzufügen",
-    confirmLabel: "Hinzufügen",
   },
 } as const;
 
@@ -64,7 +55,7 @@ export function DisplayInventoryVoiceButton({
 }: DisplayInventoryVoiceButtonProps) {
   const copy = COPY[mode];
   const [mounted, setMounted] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [pendingLines, setPendingLines] = useState<
     PurchaseOrderVoiceResolvedLine[] | null
   >(null);
@@ -110,9 +101,9 @@ export function DisplayInventoryVoiceButton({
     window.dispatchEvent(new Event(GWADA_DISPLAY_INVENTORY_REFRESH_EVENT));
   };
 
-  const openConfirm = useCallback((lines: PurchaseOrderVoiceResolvedLine[]) => {
+  const openSheet = useCallback((lines: PurchaseOrderVoiceResolvedLine[]) => {
     setPendingLines(lines);
-    setConfirmOpen(true);
+    setSheetOpen(true);
   }, []);
 
   const continueResolveFromIndex = useCallback(
@@ -137,9 +128,9 @@ export function DisplayInventoryVoiceButton({
         return;
       }
 
-      openConfirm([...accumulated, ...result.lines]);
+      openSheet([...accumulated, ...result.lines]);
     },
-    [openConfirm, taxonomyCtx],
+    [openSheet, taxonomyCtx],
   );
 
   const processVoiceTranscript = useCallback(
@@ -148,7 +139,7 @@ export function DisplayInventoryVoiceButton({
       const parseResult = parsePurchaseOrderVoiceText(transcript);
       if (!parseResult.ok) {
         toast.error(parseResult.error, {
-          description: 'Beispiel: „3 Tomaten" oder „2 Zwiebeln"',
+          description: 'Beispiel: „3 Tomaten" oder „Tomaten“ (Menge wird nachgefragt)',
         });
         return;
       }
@@ -175,9 +166,9 @@ export function DisplayInventoryVoiceButton({
         return;
       }
 
-      openConfirm(result.lines);
+      openSheet(result.lines);
     },
-    [openConfirm, taxonomyCtx],
+    [openSheet, taxonomyCtx],
   );
 
   const handleFinalTranscript = useCallback(
@@ -194,6 +185,7 @@ export function DisplayInventoryVoiceButton({
       const lineResult = resolveInventoryVoiceLineForIngredient({
         ingredientId,
         quantity: disambiguation.quantity,
+        quantityExplicit: disambiguation.quantityExplicit,
         ...taxonomyCtx,
       });
       if (!lineResult.ok) {
@@ -211,14 +203,14 @@ export function DisplayInventoryVoiceButton({
       setDisambiguation(null);
 
       if (nextIndex >= pendingItemsRef.current.length) {
-        openConfirm(nextResolved);
+        openSheet(nextResolved);
         return;
       }
 
       resolvedLinesRef.current = nextResolved;
       continueResolveFromIndex(nextIndex, nextResolved);
     },
-    [continueResolveFromIndex, disambiguation, openConfirm, taxonomyCtx],
+    [continueResolveFromIndex, disambiguation, openSheet, taxonomyCtx],
   );
 
   const handleSpeechError = useCallback((message: string) => {
@@ -229,44 +221,47 @@ export function DisplayInventoryVoiceButton({
     lang: "de-DE",
     onFinal: handleFinalTranscript,
     onError: handleSpeechError,
+    silenceFinalizeMs: 2400,
   });
 
   const toggleListening = () => {
-    if (listening) stop();
+    if (listening) stop("flush");
     else start();
   };
 
-  const handleConfirm = async () => {
-    if (!pendingLines?.length) return;
+  const handleConfirm = useCallback(
+    async (lines: PurchaseOrderVoiceResolvedLine[]) => {
+      if (!inventoryVoiceLinesReadyToApply(lines)) {
+        toast.error("Mengen fehlen noch.");
+        throw new Error("Mengen fehlen noch.");
+      }
 
-    const payload = pendingLines.map((line) => ({
-      ingredientId: line.ingredientId,
-      quantity: line.quantity,
-    }));
+      const payload = lines.map((line) => ({
+        ingredientId: line.ingredientId,
+        quantity: line.quantity,
+      }));
 
-    const result =
-      mode === "stock"
-        ? await applyDisplayInventoryStockVoiceLines(payload)
-        : await applyDisplayInventoryOrderVoiceLines(payload);
+      const result =
+        mode === "stock"
+          ? await applyDisplayInventoryStockVoiceLines(payload)
+          : await applyDisplayInventoryOrderVoiceLines(payload);
 
-    if (!result.ok) {
-      toast.error(result.error);
-      throw new Error(result.error);
-    }
+      if (!result.ok) {
+        toast.error(result.error);
+        throw new Error(result.error);
+      }
 
-    toast.success(copy.successOne);
-    notifyRefresh();
-    setPendingLines(null);
-    setHeardText("");
-    pendingItemsRef.current = [];
-    resolvedLinesRef.current = [];
-  };
+      toast.success(copy.successOne);
+      notifyRefresh();
+      setPendingLines(null);
+      setHeardText("");
+      pendingItemsRef.current = [];
+      resolvedLinesRef.current = [];
+    },
+    [copy.successOne, mode],
+  );
 
   if (!mounted || !supported || rows.length === 0) return null;
-
-  const preview = pendingLines
-    ? formatParsedPurchaseOrderVoicePreview(pendingLines)
-    : null;
 
   return (
     <>
@@ -276,39 +271,27 @@ export function DisplayInventoryVoiceButton({
           if (!open) setDisambiguation(null);
         }}
         heardQuery={disambiguation?.heardQuery ?? ""}
-        quantity={disambiguation?.quantity ?? 1}
+        quantity={disambiguation?.quantity ?? null}
         candidates={disambiguation?.candidates ?? []}
         onSelect={handleDisambiguationSelect}
       />
 
-      <ConfirmDialog
-        open={confirmOpen}
+      <InventoryVoiceConfirmSheet
+        open={sheetOpen}
         onOpenChange={(open) => {
-          setConfirmOpen(open);
+          setSheetOpen(open);
           if (!open) setPendingLines(null);
         }}
-        title={copy.confirmTitle}
-        description={
-          <div className="space-y-2 text-sm text-muted-foreground">
-            {preview ? (
-              <p className="font-medium text-foreground">{preview}</p>
-            ) : null}
-            {heardText ? (
-              <p className="text-xs italic">„{heardText}"</p>
-            ) : null}
-            <p>{copy.confirmHint}</p>
-          </div>
-        }
-        confirmLabel={copy.confirmLabel}
-        cancelLabel="Abbrechen"
-        destructive={false}
+        mode={mode}
+        initialLines={pendingLines}
+        heardText={heardText}
         onConfirm={handleConfirm}
       />
 
       <Button
         type="button"
         size="lg"
-        disabled={disabled || listening}
+        disabled={disabled}
         className={cn(
           "h-12 w-12 shrink-0 rounded-full px-0",
           brandActionButtonClassName,

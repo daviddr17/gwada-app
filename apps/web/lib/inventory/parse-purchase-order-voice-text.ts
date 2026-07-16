@@ -6,7 +6,9 @@ import {
 
 export type ParsedPurchaseOrderVoiceItem = {
   articleQuery: string;
-  quantity: number;
+  /** null = Menge nicht genannt → nachfragen */
+  quantity: number | null;
+  quantityExplicit: boolean;
 };
 
 export type ParsedPurchaseOrderVoice = {
@@ -35,6 +37,10 @@ function stripPrefixes(text: string): string {
     )
     .replace(/^bestelle\s+/i, "")
     .replace(/^in\s+die\s+bestellung\s+/i, "")
+    .replace(
+      /^(?:bitte\s+)?(?:bestand\s+)?(?:setzen|ändern|aendern)(?:\s+auf)?\s*/i,
+      "",
+    )
     .trim();
 }
 
@@ -63,7 +69,7 @@ function parseSingleSegment(segment: string): ParsedPurchaseOrderVoiceItem | nul
     const quantity = parseGermanQuantityToken(qtyFirst[1]!);
     const articleQuery = stripUnitWords(qtyFirst[2]!);
     if (quantity != null && articleQuery) {
-      return { articleQuery, quantity };
+      return { articleQuery, quantity, quantityExplicit: true };
     }
   }
 
@@ -72,13 +78,17 @@ function parseSingleSegment(segment: string): ParsedPurchaseOrderVoiceItem | nul
     const quantity = parseGermanQuantityToken(parts[parts.length - 1]!);
     const articleQuery = stripUnitWords(parts.slice(0, -1).join(" "));
     if (quantity != null && articleQuery) {
-      return { articleQuery, quantity };
+      return { articleQuery, quantity, quantityExplicit: true };
     }
   }
 
   const articleOnly = stripUnitWords(text);
   if (articleOnly) {
-    return { articleQuery: articleOnly, quantity: 1 };
+    return {
+      articleQuery: articleOnly,
+      quantity: null,
+      quantityExplicit: false,
+    };
   }
 
   return null;
@@ -119,20 +129,49 @@ export function parsePurchaseOrderVoiceText(
   return { ok: true, parsed: { items } };
 }
 
+/** Nur eine Zahl / Zahlwort — für Mengen-Nachfrage im Sheet. */
+export function parsePurchaseOrderVoiceQuantityOnly(
+  input: string,
+): number | null {
+  let text = normalizeText(input).toLowerCase();
+  text = text
+    .replace(/^(?:menge|anzahl)\s+/i, "")
+    .replace(/\b(mal|stück|stueck|stücke|stuecke|stk|kg|g|l|ml|packung|packungen)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text) return null;
+  if (isQuantityToken(text)) return parseGermanQuantityToken(text);
+  const leading = text.match(
+    new RegExp(
+      `^(\\d+(?:[.,]\\d+)?|${Object.keys(GERMAN_NUMBER_WORDS).join("|")})\\b`,
+      "i",
+    ),
+  );
+  if (leading) return parseGermanQuantityToken(leading[1]!);
+  return null;
+}
+
 export function formatParsedPurchaseOrderVoicePreview(
   lines: Array<{
     ingredientName: string;
-    quantity: number;
+    quantity: number | null;
     unitLabel: string;
     previousQuantity: number | null;
   }>,
 ): string {
   return lines
     .map((line) => {
-      const qtyLabel = line.unitLabel.trim()
-        ? `${line.quantity} ${line.unitLabel}`
-        : String(line.quantity);
-      if (line.previousQuantity != null && line.previousQuantity > 0) {
+      const qtyLabel =
+        line.quantity == null
+          ? "?"
+          : line.unitLabel.trim()
+            ? `${line.quantity} ${line.unitLabel}`
+            : String(line.quantity);
+      if (
+        line.quantity != null &&
+        line.previousQuantity != null &&
+        line.previousQuantity > 0
+      ) {
         const prevLabel = line.unitLabel.trim()
           ? `${line.previousQuantity} ${line.unitLabel}`
           : String(line.previousQuantity);

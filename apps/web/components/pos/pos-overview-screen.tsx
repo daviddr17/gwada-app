@@ -8,6 +8,7 @@ import {
   MonitorSmartphone,
   Receipt,
   ShoppingBag,
+  Ticket,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -43,6 +44,12 @@ const HUB_LINKS = [
     label: "Quittungen",
     description: "Bezahlte Bons, PDF und Bar-Storno mit Tisch wieder öffnen.",
     icon: FileText,
+  },
+  {
+    href: APP_ROUTES.pos.giftVouchers,
+    label: "Gutscheine",
+    description: "Wertgutscheine ausstellen, drucken, stornieren und verwalten.",
+    icon: Ticket,
   },
   {
     href: APP_ROUTES.pos.statistics,

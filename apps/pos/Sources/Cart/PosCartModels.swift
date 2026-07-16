@@ -42,8 +42,8 @@ enum PosPaymentMethodKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Später an Mollie/Terminal anbinden
-    var available: Bool { self == .cash }
+    /// Karte/Sonstiges folgen (Mollie/Adyen); Gutschein + Bar aktiv.
+    var available: Bool { self == .cash || self == .voucher }
 }
 
 struct PosCartModifier: Codable, Equatable, Identifiable, Sendable {

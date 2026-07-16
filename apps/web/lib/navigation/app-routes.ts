@@ -31,6 +31,7 @@ export const APP_ROUTES = {
     overview: "/dashboard/pos/uebersicht",
     orders: "/dashboard/pos/bestellungen",
     receipts: "/dashboard/pos/quittungen",
+    giftVouchers: "/dashboard/pos/gutscheine",
     statistics: "/dashboard/pos/statistiken",
     reports: "/dashboard/pos/berichte",
     settings: "/dashboard/pos/einstellungen",

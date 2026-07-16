@@ -5,6 +5,7 @@ struct RootView: View {
     enum SidebarItem: String, Hashable, CaseIterable, Identifiable {
         case tables
         case receipts
+        case giftVouchers
         case kds
         case device
 
@@ -14,6 +15,7 @@ struct RootView: View {
             switch self {
             case .tables: return "Tische"
             case .receipts: return "Quittungen"
+            case .giftVouchers: return "Gutscheine"
             case .kds: return "KDS"
             case .device: return "Gerät"
             }
@@ -23,6 +25,7 @@ struct RootView: View {
             switch self {
             case .tables: return "fork.knife"
             case .receipts: return "doc.text"
+            case .giftVouchers: return "gift"
             case .kds: return "flame"
             case .device: return "gearshape"
             }
@@ -77,6 +80,8 @@ struct RootView: View {
             TablesHomeView()
         case .receipts:
             ReceiptsView()
+        case .giftVouchers:
+            GiftVouchersView()
         case .kds:
             KdsView()
         case .device:

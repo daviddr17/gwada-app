@@ -87,7 +87,7 @@ struct TableSessionView: View {
         .sheet(isPresented: $showSplit) {
             SplitPayView(
                 lines: openLines,
-                onPay: { picked, method, tip, received in
+                onPay: { picked, method, tip, received, giftVoucherId, customPaymentMethodId in
                     showSplit = false
                     Task {
                         await runtime.collectSplit(
@@ -95,7 +95,9 @@ struct TableSessionView: View {
                             lines: picked,
                             method: method,
                             tipCents: tip,
-                            receivedAmountCents: received
+                            receivedAmountCents: received,
+                            giftVoucherId: giftVoucherId,
+                            customPaymentMethodId: customPaymentMethodId
                         )
                         await refreshOpenLines()
                     }

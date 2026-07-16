@@ -8,14 +8,13 @@ export const DEFAULT_ACCOUNTING_CASH_CATEGORIES: ReadonlyArray<{
   { direction: "income", name: "Barverkauf", sort_order: 0 },
   { direction: "income", name: "Trinkgeld", sort_order: 1 },
   { direction: "income", name: "Sonstige Einnahme", sort_order: 2 },
+  { direction: "income", name: "Gutscheinverkauf", sort_order: 3 },
+  { direction: "income", name: "Gutscheinverfall", sort_order: 4 },
   { direction: "expense", name: "Wareneinkauf", sort_order: 0 },
   { direction: "expense", name: "Betriebsausgabe", sort_order: 1 },
   { direction: "expense", name: "Sonstige Ausgabe", sort_order: 2 },
-  {
-    direction: "expense",
-    name: "Payment-Gebühren",
-    sort_order: 3,
-  },
+  { direction: "expense", name: "Gutschein-Storno", sort_order: 3 },
+  { direction: "expense", name: "Payment-Gebühren", sort_order: 4 },
 ];
 
 export const ACCOUNTING_CASH_DIRECTION_LABELS: Record<

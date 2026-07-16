@@ -33,6 +33,8 @@
 	<array>
 		<string>_gwada-pos._tcp</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Gwada POS scannt Gutschein-QR-Codes zum Einlösen an der Kasse.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Gwada POS verbindet iPhone-Handgeräte mit der iPad-Kasse im lokalen WLAN.</string>
 	<key>UILaunchScreen</key>

@@ -40,6 +40,7 @@ export async function POST() {
   const result = await applyDisplayAutoTableAssignments(
     admin,
     access.restaurantId,
+    access.staffId,
     assignments,
   );
 

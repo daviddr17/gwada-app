@@ -1,6 +1,10 @@
 import "server-only";
 
 import {
+  displayReservationLogActorFields,
+  resolveDisplayReservationActor,
+} from "@/lib/display/display-reservation-actor-server";
+import {
   buildReservationLogChanges,
   buildReservationLogDetails,
   reservationSnapshotFromPayload,
@@ -41,11 +45,13 @@ export type DisplayCreateReservationInput = {
 export async function createDisplayReservation(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   input: DisplayCreateReservationInput,
 ): Promise<
   | { ok: true; id: string; reservation_number: number; guest_pin: string }
   | { ok: false; error: string }
 > {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data, error } = await admin
     .from("reservations")
     .insert({
@@ -65,6 +71,7 @@ export async function createDisplayReservation(
       terms_accepted: input.terms_accepted,
       notes: input.notes?.trim() || null,
       is_walk_in: input.is_walk_in === true,
+      created_by_profile_id: actor.profileId,
     })
     .select("id, reservation_number, guest_pin, contact_id")
     .single();
@@ -105,7 +112,7 @@ export async function createDisplayReservation(
   await insertReservationLogEntry(admin, {
     restaurantId,
     reservationId: data.id as string,
-    actorUserId: null,
+    actorUserId: actor.profileId,
     action: "created",
     reservationNumber: data.reservation_number as number,
     guestLabel: formatReservationGuestLabel(
@@ -116,7 +123,7 @@ export async function createDisplayReservation(
     details: buildReservationLogDetails(
       buildReservationLogChanges(null, after),
       {
-        actorSource: "display",
+        ...displayReservationLogActorFields(actor),
         summary: input.is_walk_in
           ? "Walk-in (Laufkunde) über Display"
           : "Über Display angelegt",
@@ -146,9 +153,11 @@ export async function createDisplayReservation(
 export async function updateDisplayReservationStatus(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   reservationId: string,
   statusId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data: reservation } = await admin
     .from("reservations")
     .select(
@@ -205,7 +214,7 @@ export async function updateDisplayReservationStatus(
     await insertReservationLogEntry(admin, {
       restaurantId,
       reservationId,
-      actorUserId: null,
+      actorUserId: actor.profileId,
       action: "updated",
       reservationNumber: reservation.reservation_number as number,
       guestLabel: formatReservationGuestLabel(
@@ -214,7 +223,7 @@ export async function updateDisplayReservationStatus(
         reservation.guest_last_name as string,
       ),
       details: buildReservationLogDetails([], {
-        actorSource: "display",
+        ...displayReservationLogActorFields(actor),
         summary: `Status: „${previousName}“ → „${newName}“`,
       }),
     });
@@ -254,9 +263,11 @@ export type DisplayUpdateReservationInput = {
 export async function updateDisplayReservation(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   reservationId: string,
   input: DisplayUpdateReservationInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data: reservation } = await admin
     .from("reservations")
     .select(
@@ -375,7 +386,7 @@ export async function updateDisplayReservation(
     await insertReservationLogEntry(admin, {
       restaurantId,
       reservationId,
-      actorUserId: null,
+      actorUserId: actor.profileId,
       action: "updated",
       reservationNumber: reservation.reservation_number as number,
       guestLabel: formatReservationGuestLabel(
@@ -383,7 +394,9 @@ export async function updateDisplayReservation(
         input.guest_first_name,
         input.guest_last_name,
       ),
-      details: buildReservationLogDetails(changes, { actorSource: "display" }),
+      details: buildReservationLogDetails(changes, {
+        ...displayReservationLogActorFields(actor),
+      }),
     });
   }
 
@@ -427,9 +440,11 @@ export async function updateDisplayReservation(
 export async function updateDisplayReservationTable(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   reservationId: string,
   diningTableId: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data: reservation } = await admin
     .from("reservations")
     .select(
@@ -475,7 +490,7 @@ export async function updateDisplayReservationTable(
     await insertReservationLogEntry(admin, {
       restaurantId,
       reservationId,
-      actorUserId: null,
+      actorUserId: actor.profileId,
       action: "updated",
       reservationNumber: reservation.reservation_number as number,
       guestLabel: formatReservationGuestLabel(
@@ -484,7 +499,7 @@ export async function updateDisplayReservationTable(
         reservation.guest_last_name as string,
       ),
       details: buildReservationLogDetails([], {
-        actorSource: "display",
+        ...displayReservationLogActorFields(actor),
         summary: `Tisch: „${beforeTableLabel}“ → „${afterTableLabel}“`,
       }),
     });
@@ -513,8 +528,10 @@ async function resolveTableLabel(
 export async function deleteDisplayReservation(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   reservationId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await resolveDisplayReservationActor(admin, staffId);
   const { data: reservation } = await admin
     .from("reservations")
     .select(
@@ -536,7 +553,7 @@ export async function deleteDisplayReservation(
   await insertReservationLogEntry(admin, {
     restaurantId,
     reservationId,
-    actorUserId: null,
+    actorUserId: actor.profileId,
     action: "deleted",
     reservationNumber: reservation.reservation_number as number,
     guestLabel: formatReservationGuestLabel(
@@ -545,7 +562,7 @@ export async function deleteDisplayReservation(
       reservation.guest_last_name as string,
     ),
     details: buildReservationLogDetails([], {
-      actorSource: "display",
+      ...displayReservationLogActorFields(actor),
       summary: "Reservierung gelöscht",
     }),
   });
@@ -556,6 +573,7 @@ export async function deleteDisplayReservation(
 export async function applyDisplayAutoTableAssignments(
   admin: SupabaseClient,
   restaurantId: string,
+  staffId: string,
   assignments: Map<string, string | null>,
 ): Promise<{ ok: true; updated: number } | { ok: false; error: string }> {
   let updated = 0;
@@ -563,6 +581,7 @@ export async function applyDisplayAutoTableAssignments(
     const result = await updateDisplayReservationTable(
       admin,
       restaurantId,
+      staffId,
       reservationId,
       tableId,
     );

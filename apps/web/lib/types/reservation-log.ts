@@ -50,10 +50,12 @@ export function formatReservationLogActorLabel(
   fallback = "—",
 ): string {
   if (details.actorSource === "guest") return "Gast";
-  if (details.actorSource === "display") return "Display";
   const name = [details.actorGivenName?.trim(), details.actorFamilyName?.trim()]
     .filter(Boolean)
     .join(" ");
+  if (details.actorSource === "display") {
+    return name ? `${name} · Display` : "Display";
+  }
   return name || fallback;
 }
 

@@ -35,6 +35,7 @@ export async function PATCH(
   const result = await updateDisplayReservationStatus(
     admin,
     access.restaurantId,
+    access.staffId,
     id,
     body.status_id,
   );

@@ -1,0 +1,135 @@
+import Foundation
+import Network
+
+/// Minimaler HTTP/1.1-Server für die iPad-Kasse (Network.framework).
+final class HubHTTPServer: @unchecked Sendable {
+    typealias Handler = @Sendable (String, String) -> (status: Int, body: Data)
+
+    private let port: NWEndpoint.Port
+    private let handler: Handler
+    private var listener: NWListener?
+    private let queue = DispatchQueue(label: "app.gwada.pos.hub-http")
+
+    init(port: UInt16 = PosLanProtocol.hubPort, handler: @escaping Handler) {
+        self.port = NWEndpoint.Port(rawValue: port)!
+        self.handler = handler
+    }
+
+    func start() throws {
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        let listener = try NWListener(using: parameters, on: port)
+        self.listener = listener
+
+        listener.newConnectionHandler = { [weak self] connection in
+            self?.accept(connection)
+        }
+
+        listener.stateUpdateHandler = { state in
+            if case let .failed(error) = state {
+                print("[HubHTTP] listener failed: \(error)")
+            }
+        }
+
+        listener.start(queue: queue)
+    }
+
+    func stop() {
+        listener?.cancel()
+        listener = nil
+    }
+
+    private func accept(_ connection: NWConnection) {
+        connection.start(queue: queue)
+        receive(on: connection, buffer: Data())
+    }
+
+    private func receive(on connection: NWConnection, buffer: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 64 * 1024) { [weak self] data, _, isComplete, error in
+            guard let self else { return }
+            if let error {
+                print("[HubHTTP] receive error: \(error)")
+                connection.cancel()
+                return
+            }
+
+            var next = buffer
+            if let data, !data.isEmpty {
+                next.append(data)
+            }
+
+            if let request = Self.parseRequest(next) {
+                let result = self.handler(request.method, request.path)
+                let response = Self.serializeResponse(status: result.status, body: result.body)
+                connection.send(content: response, completion: .contentProcessed { _ in
+                    connection.cancel()
+                })
+                return
+            }
+
+            if isComplete {
+                connection.cancel()
+                return
+            }
+
+            self.receive(on: connection, buffer: next)
+        }
+    }
+
+    private struct ParsedRequest {
+        var method: String
+        var path: String
+    }
+
+    private static func parseRequest(_ data: Data) -> ParsedRequest? {
+        guard let raw = String(data: data, encoding: .utf8) else { return nil }
+        guard let headerEnd = raw.range(of: "\r\n\r\n") else { return nil }
+        let head = String(raw[..<headerEnd.lowerBound])
+        let lines = head.split(separator: "\r\n", omittingEmptySubsequences: false).map(String.init)
+        guard let requestLine = lines.first else { return nil }
+        let parts = requestLine.split(separator: " ")
+        guard parts.count >= 2 else { return nil }
+        let method = String(parts[0]).uppercased()
+        let pathWithQuery = String(parts[1])
+        let path = pathWithQuery.split(separator: "?").first.map(String.init) ?? pathWithQuery
+
+        var contentLength = 0
+        for line in lines.dropFirst() {
+            let lower = line.lowercased()
+            if lower.hasPrefix("content-length:") {
+                let value = line.split(separator: ":", maxSplits: 1).last?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
+                contentLength = Int(value) ?? 0
+            }
+        }
+
+        let bodyStart = raw.distance(from: raw.startIndex, to: headerEnd.upperBound)
+        guard data.count >= bodyStart + contentLength else { return nil }
+        return ParsedRequest(method: method, path: path)
+    }
+
+    private static func serializeResponse(status: Int, body: Data) -> Data {
+        let statusText: String
+        switch status {
+        case 200: statusText = "OK"
+        case 204: statusText = "No Content"
+        case 404: statusText = "Not Found"
+        case 405: statusText = "Method Not Allowed"
+        case 503: statusText = "Service Unavailable"
+        default: statusText = "Error"
+        }
+
+        let header = """
+        HTTP/1.1 \(status) \(statusText)\r
+        Content-Type: application/json; charset=utf-8\r
+        Content-Length: \(body.count)\r
+        Connection: close\r
+        Access-Control-Allow-Origin: *\r
+        \(PosLanProtocol.headerProtocol): \(PosLanProtocol.version)\r
+        \r
+        """
+        var response = Data(header.utf8)
+        response.append(body)
+        return response
+    }
+}

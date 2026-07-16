@@ -1,0 +1,7 @@
+# Generiert lokal: `xcodegen generate`
+GwadaPOS.xcodeproj/
+GwadaPOS.xcworkspace/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store

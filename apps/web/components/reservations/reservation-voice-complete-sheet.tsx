@@ -40,6 +40,7 @@ function draftFromFields(params: {
   dateYmd: string;
   timeHm: string;
   rawTranscript: string;
+  dateExplicit?: boolean;
 }): ReservationVoiceDraft {
   const missing: ReservationVoiceMissingField[] = [];
   if (params.partySize == null || params.partySize < 1) missing.push("partySize");
@@ -50,6 +51,7 @@ function draftFromFields(params: {
     guestLastName: params.lastName.trim(),
     partySize: params.partySize,
     dateYmd: params.dateYmd || null,
+    dateExplicit: params.dateExplicit ?? Boolean(params.dateYmd),
     timeHm: params.timeHm || null,
     rawName: [params.firstName, params.lastName].filter(Boolean).join(" "),
     rawTranscript: params.rawTranscript,
@@ -77,6 +79,7 @@ export function ReservationVoiceCompleteSheet({
   const [lastName, setLastName] = useState("");
   const [partySize, setPartySize] = useState<number | null>(null);
   const [dateYmd, setDateYmd] = useState("");
+  const [dateExplicit, setDateExplicit] = useState(false);
   const [timeHm, setTimeHm] = useState("");
   const [heardText, setHeardText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -93,6 +96,7 @@ export function ReservationVoiceCompleteSheet({
     lastName: "",
     partySize: null as number | null,
     dateYmd: "",
+    dateExplicit: false,
     timeHm: "",
     heardText: "",
   });
@@ -104,6 +108,7 @@ export function ReservationVoiceCompleteSheet({
     lastName,
     partySize,
     dateYmd,
+    dateExplicit,
     timeHm,
     heardText,
   };
@@ -113,6 +118,7 @@ export function ReservationVoiceCompleteSheet({
     setLastName(draft.guestLastName);
     setPartySize(draft.partySize);
     setDateYmd(draft.dateYmd ?? "");
+    setDateExplicit(draft.dateExplicit);
     setTimeHm(draft.timeHm ?? "");
     setHeardText(draft.rawTranscript);
   }, []);
@@ -130,6 +136,7 @@ export function ReservationVoiceCompleteSheet({
     lastName,
     partySize,
     dateYmd,
+    dateExplicit,
     timeHm,
     rawTranscript: heardText,
   });
@@ -153,6 +160,7 @@ export function ReservationVoiceCompleteSheet({
         lastName: fields.lastName,
         partySize: fields.partySize,
         dateYmd: fields.dateYmd,
+        dateExplicit: fields.dateExplicit,
         timeHm: fields.timeHm,
         rawTranscript: fields.heardText,
       });
@@ -249,6 +257,7 @@ export function ReservationVoiceCompleteSheet({
       lastName: fields.lastName,
       partySize: fields.partySize,
       dateYmd: fields.dateYmd,
+      dateExplicit: fields.dateExplicit,
       timeHm: fields.timeHm,
       rawTranscript: fields.heardText,
     });
@@ -297,8 +306,8 @@ export function ReservationVoiceCompleteSheet({
           </DrawerTitle>
           <p className="text-sm text-muted-foreground">
             {missing.length > 0
-              ? `Noch nötig: ${missing.map((m) => MISSING_HINT[m]).join(", ")}. Tippen bricht die Sprache ab.`
-              : "Werte prüfen oder kurz ändern. Sag „Ja“ / „Anlegen“ oder tippe Anlegen."}
+              ? `Noch nötig: ${missing.map((m) => MISSING_HINT[m]).join(", ")}. Ohne Datum gilt heute. Tippen bricht die Sprache ab.`
+              : "Werte prüfen oder kurz ändern. Ohne genanntes Datum gilt heute. Sag „Ja“ / „Anlegen“ oder tippe Anlegen."}
           </p>
           {heardText ? (
             <p className="mt-1 text-xs italic text-muted-foreground">
@@ -414,6 +423,7 @@ export function ReservationVoiceCompleteSheet({
                 onChange={(v) => {
                   abortSpeechForTyping();
                   setDateYmd(v ?? "");
+                  setDateExplicit(Boolean(v));
                 }}
                 fullWidth
                 className={cn(

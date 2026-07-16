@@ -21,6 +21,8 @@ export type ReservationVoiceDraft = {
   guestLastName: string;
   partySize: number | null;
   dateYmd: string | null;
+  /** true = Datum wurde gesagt (oder manuell gesetzt), false = Default heute. */
+  dateExplicit: boolean;
   timeHm: string | null;
   rawName: string;
   rawTranscript: string;
@@ -353,6 +355,10 @@ function splitGuestName(raw: string): {
   };
 }
 
+function formatDateYmd(ref: Date): string {
+  return `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, "0")}-${String(ref.getDate()).padStart(2, "0")}`;
+}
+
 function buildDraftFromText(
   input: string,
   options?: { referenceDate?: Date },
@@ -363,6 +369,7 @@ function buildDraftFromText(
 
   let partySize: number | null = null;
   let dateYmd: string | null = null;
+  let dateExplicit = false;
   let timeHm: string | null = null;
 
   const party = parsePartySize(text);
@@ -374,6 +381,7 @@ function buildDraftFromText(
   const date = parseDateYmd(text, ref);
   if (date) {
     dateYmd = date.ymd;
+    dateExplicit = true;
     text = date.rest;
   }
 
@@ -383,10 +391,15 @@ function buildDraftFromText(
     text = time.rest;
   }
 
+  // Kurzfristig: ohne genanntes Datum → heute (nicht nachfragen).
+  if (!dateYmd) {
+    dateYmd = formatDateYmd(ref);
+    dateExplicit = false;
+  }
+
   const { guestFirstName, guestLastName, rawName } = splitGuestName(text);
   const missing: ReservationVoiceMissingField[] = [];
   if (partySize == null) missing.push("partySize");
-  if (!dateYmd) missing.push("dateYmd");
   if (!timeHm) missing.push("timeHm");
 
   return {
@@ -394,6 +407,7 @@ function buildDraftFromText(
     guestLastName,
     partySize,
     dateYmd,
+    dateExplicit,
     timeHm,
     rawName,
     rawTranscript,
@@ -434,7 +448,11 @@ export function mergeReservationVoiceDrafts(
     incoming.rawName ||
     base.rawName;
   const partySize = incoming.partySize ?? base.partySize;
-  const dateYmd = incoming.dateYmd ?? base.dateYmd;
+  // Explizites Datum aus Follow-up gewinnt; sonst Base behalten (nicht mit Default „heute“ überschreiben).
+  const dateExplicit = incoming.dateExplicit || base.dateExplicit;
+  const dateYmd = incoming.dateExplicit
+    ? incoming.dateYmd
+    : (base.dateYmd ?? incoming.dateYmd);
   const timeHm = incoming.timeHm ?? base.timeHm;
   const missing: ReservationVoiceMissingField[] = [];
   if (partySize == null) missing.push("partySize");
@@ -448,6 +466,7 @@ export function mergeReservationVoiceDrafts(
     guestLastName,
     partySize,
     dateYmd,
+    dateExplicit,
     timeHm,
     rawName,
     rawTranscript,
@@ -539,11 +558,16 @@ export function parseReservationVoiceDraftWithAlternatives(
     options,
   );
   if (result.ok) {
+    const fromPrimary = buildDraftFromText(primary, options);
     return {
       guestFirstName: result.parsed.guestFirstName,
       guestLastName: result.parsed.guestLastName,
       partySize: result.parsed.partySize,
       dateYmd: result.parsed.dateYmd,
+      // Explizit nur, wenn dasselbe Datum auch im Primärtext erkannt wurde.
+      dateExplicit:
+        fromPrimary.dateExplicit &&
+        fromPrimary.dateYmd === result.parsed.dateYmd,
       timeHm: result.parsed.timeHm,
       rawName: result.parsed.rawName,
       rawTranscript: normalizeText(primary),

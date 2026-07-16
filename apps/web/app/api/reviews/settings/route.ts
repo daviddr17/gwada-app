@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import type { ReviewPlatform } from "@/lib/constants/review-platforms";
-import { isReviewPlatform } from "@/lib/constants/review-platforms";
+import { isReviewAutoReplyPlatform } from "@/lib/constants/review-platforms";
 import { runReviewAutoReplyBackfill } from "@/lib/reviews/review-auto-reply-server";
 import {
   fetchReviewAutoReplyRules,
@@ -24,7 +23,9 @@ function normalizeRules(input: unknown): ReviewAutoReplyRule[] | null {
     const o = raw as Record<string, unknown>;
     const platform = o.platform;
     const rating = Number(o.rating);
-    if (typeof platform !== "string" || !isReviewPlatform(platform)) continue;
+    if (typeof platform !== "string" || !isReviewAutoReplyPlatform(platform)) {
+      continue;
+    }
     if (!Number.isInteger(rating) || rating < 1 || rating > 5) continue;
     byKey.set(`${platform}:${rating}`, {
       platform,

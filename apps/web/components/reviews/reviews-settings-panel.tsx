@@ -18,8 +18,8 @@ import {
   settingsAccentSaveButtonClassName,
 } from "@/components/settings/settings-sticky-save-bar";
 import {
+  REVIEW_AUTO_REPLY_PLATFORMS,
   REVIEW_PLATFORM_LABELS,
-  REVIEW_PLATFORM_ORDER,
 } from "@/lib/constants/review-platforms";
 import { useDeferredSkeleton } from "@/lib/hooks/use-deferred-skeleton";
 import { useReviewPlatformConnections } from "@/lib/hooks/use-review-platform-connections";
@@ -187,7 +187,7 @@ export function ReviewsSettingsPanel() {
         <ReviewsSettingsSkeleton />
       ) : (
         <div className="space-y-4">
-          {REVIEW_PLATFORM_ORDER.map((platform) => {
+          {REVIEW_AUTO_REPLY_PLATFORMS.map((platform) => {
             const platformRules = rules.filter((rule) => rule.platform === platform);
             return (
               <Card key={platform} className="border-border/50 shadow-card">

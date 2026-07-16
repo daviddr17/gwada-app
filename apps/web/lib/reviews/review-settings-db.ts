@@ -22,7 +22,7 @@ export async function fetchReviewAutoReplyRules(
     return defaultReviewAutoReplyRules();
   }
 
-  const stored: ReviewAutoReplyRule[] = (data ?? [])
+  const stored = (data ?? [])
     .filter(
       (row): row is {
         platform: ReviewPlatform;
@@ -65,5 +65,20 @@ export async function upsertReviewAutoReplyRules(
   if (error) {
     return { ok: false, error: error.message };
   }
+
+  // TripAdvisor u. a. ohne Reply-API: alte Auto-Antwort-Zeilen entfernen.
+  const { error: cleanupError } = await sb
+    .from("restaurant_review_auto_reply_rules")
+    .delete()
+    .eq("restaurant_id", restaurantId)
+    .eq("platform", "tripadvisor");
+
+  if (cleanupError) {
+    console.warn(
+      "[gwada] review auto-reply tripadvisor cleanup",
+      cleanupError.message,
+    );
+  }
+
   return { ok: true };
 }

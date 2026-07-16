@@ -1,5 +1,8 @@
 import type { ReviewPlatform } from "@/lib/constants/review-platforms";
-import { REVIEW_PLATFORMS } from "@/lib/constants/review-platforms";
+import {
+  REVIEW_AUTO_REPLY_PLATFORMS,
+  type ReviewAutoReplyPlatform,
+} from "@/lib/constants/review-platforms";
 import type { UnifiedReview } from "@/lib/reviews/unified-review";
 
 export function reviewExternalId(review: Pick<UnifiedReview, "id" | "platform">): string {
@@ -19,7 +22,7 @@ export function reviewVisibilityKey(
 }
 
 export type ReviewAutoReplyRule = {
-  platform: ReviewPlatform;
+  platform: ReviewAutoReplyPlatform;
   rating: 1 | 2 | 3 | 4 | 5;
   enabled: boolean;
   replyTemplate: string;
@@ -27,7 +30,7 @@ export type ReviewAutoReplyRule = {
 
 export function defaultReviewAutoReplyRules(): ReviewAutoReplyRule[] {
   const rules: ReviewAutoReplyRule[] = [];
-  for (const platform of REVIEW_PLATFORMS) {
+  for (const platform of REVIEW_AUTO_REPLY_PLATFORMS) {
     for (let rating = 1; rating <= 5; rating++) {
       rules.push({
         platform,
@@ -41,11 +44,27 @@ export function defaultReviewAutoReplyRules(): ReviewAutoReplyRule[] {
 }
 
 export function mergeReviewAutoReplyRules(
-  stored: ReviewAutoReplyRule[],
+  stored: Array<{
+    platform: string;
+    rating: 1 | 2 | 3 | 4 | 5;
+    enabled: boolean;
+    replyTemplate: string;
+  }>,
 ): ReviewAutoReplyRule[] {
-  const byKey = new Map<string, ReviewAutoReplyRule>(
-    stored.map((rule) => [`${rule.platform}:${rule.rating}`, rule]),
-  );
+  const byKey = new Map<string, ReviewAutoReplyRule>();
+  for (const rule of stored) {
+    if (
+      !(REVIEW_AUTO_REPLY_PLATFORMS as readonly string[]).includes(rule.platform)
+    ) {
+      continue;
+    }
+    byKey.set(`${rule.platform}:${rule.rating}`, {
+      platform: rule.platform as ReviewAutoReplyPlatform,
+      rating: rule.rating,
+      enabled: rule.enabled,
+      replyTemplate: rule.replyTemplate,
+    });
+  }
   return defaultReviewAutoReplyRules().map((defaults) => {
     const key = `${defaults.platform}:${defaults.rating}`;
     return byKey.get(key) ?? defaults;

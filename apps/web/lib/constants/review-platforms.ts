@@ -13,8 +13,27 @@ export const REVIEW_PLATFORM_LABELS: Record<ReviewPlatform, string> = {
 export const REVIEW_PLATFORM_ORDER: readonly ReviewPlatform[] =
   REVIEW_PLATFORMS;
 
+/**
+ * Plattformen mit Reply-API für automatische Antworten.
+ * TripAdvisor ist read-only (Terra) — nicht in Auto-Antwort-Einstellungen.
+ */
+export const REVIEW_AUTO_REPLY_PLATFORMS = [
+  "gwada",
+  "google",
+  "facebook",
+] as const satisfies readonly ReviewPlatform[];
+
+export type ReviewAutoReplyPlatform =
+  (typeof REVIEW_AUTO_REPLY_PLATFORMS)[number];
+
 export function isReviewPlatform(value: string): value is ReviewPlatform {
   return (REVIEW_PLATFORMS as readonly string[]).includes(value);
+}
+
+export function isReviewAutoReplyPlatform(
+  value: string,
+): value is ReviewAutoReplyPlatform {
+  return (REVIEW_AUTO_REPLY_PLATFORMS as readonly string[]).includes(value);
 }
 
 /** Übersicht: alle Plattformen gemischt (Chips filtern nur die Ansicht). */

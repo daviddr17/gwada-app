@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { fetchReservationContactMessagesServer } from "@/lib/contact-messages/fetch-reservation-contact-messages-server";
 import { assertDisplayModuleAccess } from "@/lib/display/display-auth-server";
+import {
+  formatDisplayActorLabel,
+  resolveDisplayReservationActor,
+} from "@/lib/display/display-reservation-actor-server";
 import { sendDisplayReservationMessage } from "@/lib/display/display-reservation-message-server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 
@@ -67,11 +71,7 @@ export async function POST(
     return NextResponse.json({ error: "empty_body" }, { status: 400 });
   }
 
-  const { data: staff } = await admin
-    .from("restaurant_staff")
-    .select("profile_id")
-    .eq("id", access.staffId)
-    .maybeSingle();
+  const actor = await resolveDisplayReservationActor(admin, access.staffId);
 
   const result = await sendDisplayReservationMessage(admin, {
     restaurantId: access.restaurantId,
@@ -79,7 +79,8 @@ export async function POST(
     messageBody,
     sendWhatsapp: body.sendWhatsapp === true,
     sendEmail: body.sendEmail === true,
-    sentByProfileId: (staff?.profile_id as string | null) ?? null,
+    sentByProfileId: actor.profileId,
+    sentByLabel: formatDisplayActorLabel(actor),
     restaurantName: body.restaurantName?.trim() || null,
   });
 

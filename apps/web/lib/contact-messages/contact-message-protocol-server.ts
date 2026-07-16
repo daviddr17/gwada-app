@@ -86,6 +86,7 @@ export async function loadContactMessageProtocol(
       body,
       created_at,
       sent_by,
+      sent_by_label,
       external_source_id,
       external_seen,
       waha_ack
@@ -107,6 +108,7 @@ export async function loadContactMessageProtocol(
     body: string;
     created_at: string;
     sent_by: string | null;
+    sent_by_label: string | null;
     external_source_id: string | null;
     external_seen: boolean | null;
     waha_ack: number | null;
@@ -123,6 +125,8 @@ export async function loadContactMessageProtocol(
   const drafts: ProtocolEventDraft[] = [];
   const actorIds: Array<string | null> = [message.sent_by];
 
+  const outboundLabel = message.sent_by_label?.trim() || null;
+
   drafts.push({
     kind: "created",
     at: message.created_at,
@@ -132,8 +136,13 @@ export async function loadContactMessageProtocol(
         : "Nachricht erstellt",
     detail: platformLabel(displayPlatform),
     actorName:
-      message.direction === "inbound" ? "Gast" : null,
-    actorId: message.direction === "outbound" ? message.sent_by : null,
+      message.direction === "inbound"
+        ? "Gast"
+        : outboundLabel,
+    actorId:
+      message.direction === "outbound" && !outboundLabel
+        ? message.sent_by
+        : null,
   });
 
   const ext = message.external_source_id?.trim() ?? "";

@@ -39,3 +39,9 @@ export function displayReservationLogActorFields(
     actorFamilyName: actor.familyName,
   };
 }
+
+/** Klarname für Protokolle / Nachrichten-Absender (z. B. „Max · Display“). */
+export function formatDisplayActorLabel(actor: DisplayReservationActor): string {
+  const name = [actor.givenName, actor.familyName].filter(Boolean).join(" ");
+  return name ? `${name} · Display` : "Display";
+}

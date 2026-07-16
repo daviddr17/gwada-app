@@ -97,6 +97,8 @@ export async function sendDisplayReservationMessage(
     sendWhatsapp: boolean;
     sendEmail: boolean;
     sentByProfileId: string | null;
+    /** Anzeigename im Nachrichten-Protokoll, z. B. „Max · Display“. */
+    sentByLabel?: string | null;
     restaurantName?: string | null;
   },
 ): Promise<{ ok: boolean; errors?: string[] }> {
@@ -147,6 +149,7 @@ export async function sendDisplayReservationMessage(
     channels,
     reservationId: params.reservationId,
     sentBy: params.sentByProfileId,
+    sentByLabel: params.sentByLabel ?? null,
     restaurantName: params.restaurantName,
   });
 }

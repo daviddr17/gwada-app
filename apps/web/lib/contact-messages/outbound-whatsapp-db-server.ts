@@ -55,6 +55,7 @@ export async function insertPendingOutboundWhatsappMessage(
     threadContactId: string;
     body: string;
     sentBy?: string | null;
+    sentByLabel?: string | null;
     clientSendId?: string;
     sendBatchId?: string | null;
     deliveryStatus?: string;
@@ -104,6 +105,7 @@ export async function insertPendingOutboundWhatsappMessage(
       body: params.body.trim() || " ",
       reservation_id: null,
       sent_by: params.sentBy ?? null,
+      sent_by_label: params.sentByLabel ?? null,
       delivery_status: params.deliveryStatus ?? "pending",
       external_source_id: externalSourceId,
       suppress_notifications: true,

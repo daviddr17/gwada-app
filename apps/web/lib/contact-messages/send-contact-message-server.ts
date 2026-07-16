@@ -52,6 +52,8 @@ export type SendContactMessageServerInput = {
   channels: SendContactMessageChannel[];
   reservationId?: string | null;
   sentBy?: string | null;
+  /** Klarname Absender (Display-PIN ohne Profil). */
+  sentByLabel?: string | null;
   restaurantName?: string | null;
   attachmentFiles?: OutboundAttachmentFile[];
   voiceFile?: OutboundAttachmentFile;
@@ -180,6 +182,7 @@ async function insertMessage(
     body: string;
     reservation_id: string | null;
     sent_by: string | null;
+    sent_by_label?: string | null;
     delivery_status: string;
     send_batch_id?: string | null;
     external_source_id?: string | null;
@@ -240,6 +243,7 @@ export async function sendContactMessageServer(
         body: body || " ",
         reservation_id: input.reservationId ?? null,
         sent_by: input.sentBy ?? null,
+        sent_by_label: input.sentByLabel ?? null,
         delivery_status: "delivered",
         send_batch_id: sendBatchId,
         suppress_notifications: input.suppressNotifications === true,
@@ -266,6 +270,7 @@ export async function sendContactMessageServer(
           body: body || " ",
           reservation_id: input.reservationId ?? null,
           sent_by: input.sentBy ?? null,
+          sent_by_label: input.sentByLabel ?? null,
           delivery_status: "delivered",
           send_batch_id: sendBatchId,
         });
@@ -289,6 +294,7 @@ export async function sendContactMessageServer(
         threadContactId: input.contactId,
         body: mirrorBody,
         sentBy: input.sentBy ?? null,
+        sentByLabel: input.sentByLabel ?? null,
         clientSendId: input.clientSendId,
         sendBatchId,
         deliveryStatus:
@@ -443,6 +449,7 @@ export async function sendContactMessageServer(
         body: body || " ",
         reservation_id: input.reservationId ?? null,
         sent_by: input.sentBy ?? null,
+        sent_by_label: input.sentByLabel ?? null,
         delivery_status: deliveryStatus,
         send_batch_id: sendBatchId,
       });
@@ -508,6 +515,7 @@ export async function sendContactMessageServer(
           body: body || " ",
           reservation_id: input.reservationId ?? null,
           sent_by: input.sentBy ?? null,
+          sent_by_label: input.sentByLabel ?? null,
           delivery_status: deliveryStatus,
           send_batch_id: sendBatchId,
         });

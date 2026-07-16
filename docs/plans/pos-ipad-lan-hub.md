@@ -83,15 +83,23 @@ Simulator oder Gerät: iPad = Server, iPhone = Client (gleiches WLAN / Simulator
 
 - [x] Optionsgruppen (Beilagen/Extras) mit Positionen + optionalem Aufpreis
 - [x] Chip „Optionen“ + Zuordnung am Gericht
-- [x] Bootstrap liefert Optionen an die Kasse
-- [ ] POS-UI: Choices pro Gericht wählen (Aufpreis)
+- [x] Bootstrap liefert Optionen + Rezept-Zutaten (Ohne …)
+- [x] POS-UI: Choices / Ohne / Gang / Hinweis wählen
 
 ### Phase 2 — Bestell-Flow nativ
 
-- [x] Tisch öffnen (Hub + Handgerät über LAN)
-- [x] Einfache Position buchen (+ Gericht) inkl. Cloud/Queue
-- [ ] Warenkorb-UI, Optionen wählen, Split-Bill
-- [ ] Barzahlung / Beleg über Hub → `collect-cash-allocations`
+- [x] Tisch öffnen (bestehende `dining_tables` / Floor-Pläne)
+- [x] Warenkorb-UI (Gang, Optionen, Ohne aus Rezept, Freitext)
+- [x] Split-Rechnung (Mehrfachauswahl, Bar; Karte/Gutschein vorbereitet)
+- [x] Positionen auf anderen Tisch umziehen
+- [x] Barzahlung → `collect-cash-allocations` (+ Queue)
+- [ ] Karten-/Terminal-Anbindung
+
+### KDS
+
+- [x] `pos_kds_devices` + Web-Einstellungen (Kategorien/Gänge)
+- [x] Tickets-API + Swift-KDS + Hub-Seite `:8787/v1/kds`
+- [ ] Status tippen (preparing/ready) + Offline-Filter am Hub verfeinern
 
 ### Phase 3 — Offline-Queue / Hardware
 

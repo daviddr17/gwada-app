@@ -872,6 +872,7 @@ function ProfileAppContent({
               categories={menu.categories}
               items={menu.items}
               tagDefinitions={menu.tagDefinitions}
+              optionGroups={menu.optionGroups}
             />
           ) : null}
         </ModulePanel>

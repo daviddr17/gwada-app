@@ -10,6 +10,7 @@ const SIDEBAR_MODULE_CRUD_PREFIX: Record<SidebarModuleId, ModuleCrudPrefix | nul
     menu: "menu",
     inventory: "inventory",
     reservierungen: "reservations",
+    pos: null,
     events: "events",
     kontakte: "contacts",
     news: "news",
@@ -21,6 +22,18 @@ const SIDEBAR_MODULE_CRUD_PREFIX: Record<SidebarModuleId, ModuleCrudPrefix | nul
     checklisten: null,
     mitarbeiter: "staff",
   };
+
+const POS_MODULE_KEYS: RestaurantPermissionKey[] = [
+  "pos.kasse.manage",
+  "pos.kasse.export",
+];
+
+/** Web-POS-Modul (Übersicht, Bestellungen, Statistiken, Einstellungen). */
+export function hasPosModuleAccess(
+  has: (key: RestaurantPermissionKey) => boolean,
+): boolean {
+  return POS_MODULE_KEYS.some((key) => has(key));
+}
 
 const GALLERY_READ_KEYS: RestaurantPermissionKey[] = [
   "gallery.read",
@@ -37,6 +50,9 @@ export function hasSidebarModuleAccess(
     return (
       hasModuleRead(has, "staff_todos") || hasModuleRead(has, "compliance")
     );
+  }
+  if (moduleId === "pos") {
+    return hasPosModuleAccess(has);
   }
   const prefix = SIDEBAR_MODULE_CRUD_PREFIX[moduleId];
   if (prefix) {

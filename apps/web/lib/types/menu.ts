@@ -39,6 +39,30 @@ export type MenuRecipeLine = {
   amount: number;
 };
 
+/** Eine wählbare Position in einer Optionsgruppe (z. B. Pommes). */
+export type MenuOptionChoice = {
+  id: string;
+  name: string;
+  /** Aufpreis in €; 0 = kein Aufpreis */
+  priceDelta: number;
+  active?: boolean;
+};
+
+/**
+ * Wiederverwendbare Optionsgruppe (z. B. „Beilagen“, „Extras“).
+ * Kann mehreren Gerichten zugeordnet werden.
+ */
+export type MenuOptionGroup = {
+  id: string;
+  name: string;
+  active?: boolean;
+  /** 0 = optional; >=1 = mindestens so viele Choices */
+  minSelect: number;
+  /** null = beliebig viele */
+  maxSelect: number | null;
+  choices: MenuOptionChoice[];
+};
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -53,6 +77,8 @@ export interface MenuItem {
   listNumber?: number | null;
   /** Optional: Rezept aus Bestandszutaten mit Mengen */
   recipe?: MenuRecipeLine[] | null;
+  /** Zugeordnete Optionsgruppen (IDs), Reihenfolge = Anzeige */
+  optionGroupIds?: string[];
   /** Optional: Anzeige ab (YYYY-MM-DD, inklusive). */
   availableFrom?: string | null;
   /** Optional: Anzeige bis (YYYY-MM-DD, inklusive). */

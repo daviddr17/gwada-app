@@ -152,6 +152,11 @@ export function normalizeMenuItem(
         (t): t is string => typeof t === "string" && t.length > 0,
       )
     : [];
+  const optionGroupIds = Array.isArray(raw.optionGroupIds)
+    ? (raw.optionGroupIds as unknown[]).filter(
+        (t): t is string => typeof t === "string" && t.length > 0,
+      )
+    : [];
   return {
     id,
     name: raw.name,
@@ -164,6 +169,7 @@ export function normalizeMenuItem(
     listNumber:
       typeof listNum === "number" && !Number.isNaN(listNum) ? listNum : null,
     recipe: recipe ?? undefined,
+    optionGroupIds,
     availableFrom: normalizeMenuAvailabilityYmd(raw.availableFrom),
     availableTo: normalizeMenuAvailabilityYmd(raw.availableTo),
   };

@@ -8,6 +8,8 @@ import type {
   MenuCategoryDefinition,
   MenuItem,
   MenuMainCategoryDefinition,
+  MenuOptionChoice,
+  MenuOptionGroup,
   MenuTaxonomyDefinition,
 } from "@/lib/types/menu";
 
@@ -32,6 +34,9 @@ type MenuItemRow = {
   menu_item_recipe_lines:
     | { ingredient_id: string; amount: number | string }[]
     | null;
+  menu_item_option_groups:
+    | { option_group_id: string; sort_order: number }[]
+    | null;
 };
 
 function rowToMenuItem(row: MenuItemRow): MenuItem {
@@ -45,6 +50,9 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
           amount: Number(l.amount),
         }))
       : null;
+  const optionLinks = [...(row.menu_item_option_groups ?? [])].sort(
+    (a, b) => a.sort_order - b.sort_order,
+  );
   return {
     id: row.id,
     name: row.name,
@@ -56,6 +64,7 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
     active: row.is_active,
     listNumber: row.list_number,
     recipe,
+    optionGroupIds: optionLinks.map((x) => x.option_group_id),
     availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
     availableTo: normalizeMenuAvailabilityYmd(row.available_to),
   };
@@ -419,7 +428,7 @@ function splitMenuItemTags(
 async function replaceMenuItemRelations(
   restaurantId: string,
   menuItemId: string,
-  item: Pick<MenuItem, "tags" | "recipe">,
+  item: Pick<MenuItem, "tags" | "recipe" | "optionGroupIds">,
 ): Promise<boolean> {
   const supabase = createSupabaseBrowserClient();
   const { error: d1 } = await supabase
@@ -444,6 +453,14 @@ async function replaceMenuItemRelations(
     .eq("menu_item_id", menuItemId);
   if (d3) {
     console.warn("[gwada] delete menu_item_recipe_lines", d3.message);
+    return false;
+  }
+  const { error: d4 } = await supabase
+    .from("menu_item_option_groups")
+    .delete()
+    .eq("menu_item_id", menuItemId);
+  if (d4) {
+    console.warn("[gwada] delete menu_item_option_groups", d4.message);
     return false;
   }
 
@@ -487,6 +504,20 @@ async function replaceMenuItemRelations(
       return false;
     }
   }
+  const optionGroupIds = item.optionGroupIds ?? [];
+  if (optionGroupIds.length) {
+    const { error } = await supabase.from("menu_item_option_groups").insert(
+      optionGroupIds.map((option_group_id, i) => ({
+        menu_item_id: menuItemId,
+        option_group_id,
+        sort_order: i,
+      })),
+    );
+    if (error) {
+      console.warn("[gwada] insert menu_item_option_groups", error.message);
+      return false;
+    }
+  }
   return true;
 }
 
@@ -504,7 +535,8 @@ export async function loadMenuItemsRelational(
       available_from, available_to,
       menu_item_tags(tag_id),
       menu_item_allergens(allergen_id),
-      menu_item_recipe_lines(ingredient_id, amount)
+      menu_item_recipe_lines(ingredient_id, amount),
+      menu_item_option_groups(option_group_id, sort_order)
     `,
     )
     .eq("restaurant_id", rid)
@@ -601,6 +633,204 @@ export async function reorderMenuItemsInCategoryRelational(
       .eq("category_id", categoryId);
     if (error) {
       console.warn("[gwada] reorder menu_items", error.message);
+      return false;
+    }
+  }
+  return true;
+}
+
+type OptionGroupRow = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  sort_order: number;
+  min_select: number;
+  max_select: number | null;
+  menu_option_choices:
+    | {
+        id: string;
+        name: string;
+        price_delta: number | string;
+        is_active: boolean;
+        sort_order: number;
+      }[]
+    | null;
+};
+
+function rowToOptionGroup(row: OptionGroupRow): MenuOptionGroup {
+  const choices = [...(row.menu_option_choices ?? [])]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(
+      (c): MenuOptionChoice => ({
+        id: c.id,
+        name: c.name,
+        priceDelta: Number(c.price_delta),
+        active: c.is_active,
+      }),
+    );
+  return {
+    id: row.id,
+    name: row.name,
+    active: row.is_active,
+    minSelect: row.min_select,
+    maxSelect: row.max_select,
+    choices,
+  };
+}
+
+export async function loadMenuOptionGroupsRelational(
+  restaurantId?: string | null,
+): Promise<MenuOptionGroup[] | null> {
+  const rid = restaurantId ?? (await getWorkspaceRestaurantId());
+  if (!rid) return null;
+  const supabase = createSupabaseBrowserClient();
+  const { data, error } = await supabase
+    .from("menu_option_groups")
+    .select(
+      `
+      id, name, is_active, sort_order, min_select, max_select,
+      menu_option_choices(id, name, price_delta, is_active, sort_order)
+    `,
+    )
+    .eq("restaurant_id", rid)
+    .order("sort_order", { ascending: true });
+  if (error) {
+    console.warn("[gwada] menu_option_groups", error.message);
+    return null;
+  }
+  if (!data?.length) return [];
+  return (data as unknown as OptionGroupRow[]).map(rowToOptionGroup);
+}
+
+export type MenuOptionGroupSaveInput = {
+  name: string;
+  active: boolean;
+  minSelect: number;
+  maxSelect: number | null;
+  choices: {
+    id?: string;
+    name: string;
+    priceDelta: number;
+    active: boolean;
+  }[];
+};
+
+async function replaceOptionChoices(
+  groupId: string,
+  choices: MenuOptionGroupSaveInput["choices"],
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error: delErr } = await supabase
+    .from("menu_option_choices")
+    .delete()
+    .eq("option_group_id", groupId);
+  if (delErr) {
+    console.warn("[gwada] delete menu_option_choices", delErr.message);
+    return false;
+  }
+  if (!choices.length) return true;
+  const { error } = await supabase.from("menu_option_choices").insert(
+    choices.map((c, i) => ({
+      ...(c.id ? { id: c.id } : {}),
+      option_group_id: groupId,
+      name: c.name.trim(),
+      price_delta: c.priceDelta,
+      is_active: c.active,
+      sort_order: i,
+    })),
+  );
+  if (error) {
+    console.warn("[gwada] insert menu_option_choices", error.message);
+    return false;
+  }
+  return true;
+}
+
+export async function insertMenuOptionGroupRelational(
+  restaurantId: string,
+  input: MenuOptionGroupSaveInput,
+): Promise<{ id: string } | null> {
+  const supabase = createSupabaseBrowserClient();
+  const { data: last } = await supabase
+    .from("menu_option_groups")
+    .select("sort_order")
+    .eq("restaurant_id", restaurantId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const sortOrder = (last?.sort_order ?? -1) + 1;
+  const { data, error } = await supabase
+    .from("menu_option_groups")
+    .insert({
+      restaurant_id: restaurantId,
+      name: input.name.trim(),
+      is_active: input.active,
+      min_select: input.minSelect,
+      max_select: input.maxSelect,
+      sort_order: sortOrder,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    console.warn("[gwada] insert menu_option_groups", error?.message);
+    return null;
+  }
+  const id = data.id as string;
+  const ok = await replaceOptionChoices(id, input.choices);
+  if (!ok) {
+    await supabase.from("menu_option_groups").delete().eq("id", id);
+    return null;
+  }
+  return { id };
+}
+
+export async function updateMenuOptionGroupRelational(
+  id: string,
+  input: MenuOptionGroupSaveInput,
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("menu_option_groups")
+    .update({
+      name: input.name.trim(),
+      is_active: input.active,
+      min_select: input.minSelect,
+      max_select: input.maxSelect,
+    })
+    .eq("id", id);
+  if (error) {
+    console.warn("[gwada] update menu_option_groups", error.message);
+    return false;
+  }
+  return replaceOptionChoices(id, input.choices);
+}
+
+export async function deleteMenuOptionGroupRelational(
+  id: string,
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  const { error } = await supabase
+    .from("menu_option_groups")
+    .delete()
+    .eq("id", id);
+  if (error) {
+    console.warn("[gwada] delete menu_option_groups", error.message);
+    return false;
+  }
+  return true;
+}
+
+export async function reorderMenuOptionGroupsRelational(
+  orderedIds: string[],
+): Promise<boolean> {
+  const supabase = createSupabaseBrowserClient();
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from("menu_option_groups")
+      .update({ sort_order: i })
+      .eq("id", orderedIds[i]);
+    if (error) {
+      console.warn("[gwada] reorder menu_option_groups", error.message);
       return false;
     }
   }

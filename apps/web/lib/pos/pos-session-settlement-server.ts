@@ -30,6 +30,9 @@ export type SessionSummaryLine = {
   linePaymentState: PosLinePaymentState;
   notes: string | null;
   position: number;
+  course: string;
+  modifiers: unknown[];
+  ohneIngredientIds: string[];
 };
 
 export type SessionSummaryOrder = {
@@ -102,6 +105,9 @@ async function loadSessionLines(
         vat_rate: number;
         notes: string | null;
         position: number;
+        course?: string | null;
+        modifiers?: unknown;
+        ohne_ingredient_ids?: string[] | null;
       }>;
     }
   | { ok: false; error: string; status: number }
@@ -129,7 +135,7 @@ async function loadSessionLines(
   const { data: lineRows, error: linesError } = await supabase
     .from("pos_order_lines")
     .select(
-      "id, order_id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, line_total_cents, vat_rate, notes, position",
+      "id, order_id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, line_total_cents, vat_rate, notes, position, course, modifiers, ohne_ingredient_ids",
     )
     .in("order_id", orderIds)
     .order("position");
@@ -156,6 +162,9 @@ async function loadSessionLines(
       vat_rate: number;
       notes: string | null;
       position: number;
+      course?: string | null;
+      modifiers?: unknown;
+      ohne_ingredient_ids?: string[] | null;
     }>,
   };
 }
@@ -173,6 +182,9 @@ function mapSummaryLine(row: {
   vat_rate: number;
   notes: string | null;
   position: number;
+  course?: string | null;
+  modifiers?: unknown;
+  ohne_ingredient_ids?: string[] | null;
 }): SessionSummaryLine {
   const quantity = Number(row.quantity);
   const paidQuantity = Number(row.paid_quantity ?? 0);
@@ -194,6 +206,11 @@ function mapSummaryLine(row: {
     linePaymentState: deriveLinePaymentState(quantity, paidQuantity),
     notes: row.notes,
     position: row.position,
+    course: row.course ?? "other",
+    modifiers: Array.isArray(row.modifiers) ? row.modifiers : [],
+    ohneIngredientIds: Array.isArray(row.ohne_ingredient_ids)
+      ? row.ohne_ingredient_ids
+      : [],
   };
 }
 

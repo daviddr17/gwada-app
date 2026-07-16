@@ -11,6 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Filter,
   LayoutGrid,
+  ListPlus,
   Plus,
   Table2,
   Tags,
@@ -23,6 +24,7 @@ import { MenuCompactItemsTable } from "@/components/menu/menu-compact-items-tabl
 import { CategoryDrawer } from "@/components/menu/category-drawer";
 import { DishDrawer } from "@/components/menu/dish-drawer";
 import { FilterDrawer } from "@/components/menu/filter-drawer";
+import { MenuOptionGroupDrawer } from "@/components/menu/menu-option-group-drawer";
 import { MenuTaxonomyDrawer } from "@/components/menu/menu-taxonomy-drawer";
 import { MenuCategoryTabs } from "@/components/menu/menu-category-tabs";
 import { MenuMainCategoryTabs } from "@/components/menu/menu-main-category-tabs";
@@ -50,6 +52,7 @@ import {
 import { useCategoriesStorage } from "@/lib/hooks/use-categories-storage";
 import { useMainCategoriesStorage } from "@/lib/hooks/use-main-categories-storage";
 import { useIngredientsStorage } from "@/lib/hooks/use-ingredients-storage";
+import { useMenuOptionGroupsStorage } from "@/lib/hooks/use-menu-option-groups-storage";
 import { useMenuTaxonomyStorage } from "@/lib/hooks/use-menu-taxonomy-storage";
 import { useMenuStorage } from "@/lib/hooks/use-menu-storage";
 import {
@@ -63,6 +66,7 @@ import type {
   MenuCategoryDefinition,
   MenuItem,
   MenuMainCategoryDefinition,
+  MenuOptionGroup,
   MenuTaxonomyDefinition,
   PriceRange,
 } from "@/lib/types/menu";
@@ -146,6 +150,7 @@ export function MenuOverviewScreen() {
     MENU_TAXONOMY_ALLERGENS_KEY,
     SEED_MENU_ALLERGEN_DEFINITIONS,
   );
+  const menuOptionGroups = useMenuOptionGroupsStorage();
 
   const mergedTagDefinitions = useMemo(
     () => [...menuTags.items, ...menuAllergens.items],
@@ -166,7 +171,8 @@ export function MenuOverviewScreen() {
     menuHydrated &&
     ingredientsHydrated &&
     menuTags.isHydrated &&
-    menuAllergens.isHydrated;
+    menuAllergens.isHydrated &&
+    menuOptionGroups.isHydrated;
 
   const ingredientNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -198,6 +204,12 @@ export function MenuOverviewScreen() {
         mode: "edit";
         initial: MenuTaxonomyDefinition;
       }
+  >(null);
+  const [optionsManageOpen, setOptionsManageOpen] = useState(false);
+  const [optionSheet, setOptionSheet] = useState<
+    | null
+    | { mode: "create" }
+    | { mode: "edit"; group: MenuOptionGroup }
   >(null);
   const [categorySheet, setCategorySheet] = useState<
     | null
@@ -568,6 +580,16 @@ export function MenuOverviewScreen() {
           >
             <TriangleAlert className="size-4" />
             Allergene
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={moduleManageChipButtonClassName}
+            onClick={() => setOptionsManageOpen(true)}
+          >
+            <ListPlus className="size-4" />
+            Optionen
           </Button>
         </div>
 
@@ -980,6 +1002,55 @@ export function MenuOverviewScreen() {
                   taxonomySheet.group === "tags" ? menuTags : menuAllergens;
                 void store.remove(id);
               }
+            : undefined
+        }
+      />
+
+      <CategoriesManageDrawer
+        open={optionsManageOpen}
+        onOpenChange={setOptionsManageOpen}
+        categories={menuOptionGroups.items}
+        onReorder={(next) => {
+          void menuOptionGroups.reorder(next);
+        }}
+        onEdit={(row) => {
+          const full = menuOptionGroups.getById(row.id);
+          if (full) {
+            setOptionSheet({ mode: "edit", group: full });
+          }
+          setOptionsManageOpen(false);
+        }}
+        onNew={() => {
+          setOptionSheet({ mode: "create" });
+          setOptionsManageOpen(false);
+        }}
+        copy={{
+          title: "Optionen",
+          description:
+            "Gruppen wie Beilagen oder Extras. Positionen und Aufpreise im Editor. Danach Gerichten zuordnen.",
+          newButton: "Neue Option",
+        }}
+      />
+
+      <MenuOptionGroupDrawer
+        open={optionSheet !== null}
+        onOpenChange={(o) => {
+          if (!o) setOptionSheet(null);
+        }}
+        mode={optionSheet?.mode ?? "create"}
+        initial={
+          optionSheet?.mode === "edit" ? optionSheet.group : null
+        }
+        onSave={async (payload) => {
+          if (optionSheet?.mode === "edit") {
+            await menuOptionGroups.update(optionSheet.group.id, payload);
+          } else {
+            await menuOptionGroups.add(payload);
+          }
+        }}
+        onDelete={
+          optionSheet?.mode === "edit"
+            ? (id) => void menuOptionGroups.remove(id)
             : undefined
         }
       />

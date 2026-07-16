@@ -17,6 +17,8 @@ import type {
   MenuCategoryDefinition,
   MenuItem,
   MenuMainCategoryDefinition,
+  MenuOptionChoice,
+  MenuOptionGroup,
   MenuTaxonomyDefinition,
 } from "@/lib/types/menu";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,6 +33,13 @@ export type PublicEmbedMenu = {
   categories: MenuCategoryDefinition[];
   items: MenuItem[];
   tagDefinitions: MenuTaxonomyDefinition[];
+  /** Aktive Optionsgruppen (Beilagen/Extras) für Anzeige bzw. spätere Auswahl. */
+  optionGroups: MenuOptionGroup[];
+  /**
+   * Wenn true: Gäste können Optionen wählen (Online-/Tischbestellung).
+   * Sonst nur ausgeschrieben anzeigen — Auswahl braucht POS / Ordering-Flow.
+   */
+  guestOrderingEnabled: boolean;
 };
 
 function adminOrError(): SupabaseClient | { error: string; status: number } {
@@ -54,7 +63,33 @@ type MenuItemRow = {
   menu_item_allergens: { allergen_id: string }[] | null;
 };
 
-function rowToMenuItem(row: MenuItemRow): MenuItem {
+type OptionGroupRow = {
+  id: string;
+  name: string;
+  is_active: boolean;
+  min_select: number;
+  max_select: number | null;
+  menu_option_choices:
+    | {
+        id: string;
+        name: string;
+        price_delta: number | string;
+        is_active: boolean;
+        sort_order: number;
+      }[]
+    | null;
+};
+
+type ItemOptionLinkRow = {
+  menu_item_id: string;
+  option_group_id: string;
+  sort_order: number;
+};
+
+function rowToMenuItem(
+  row: MenuItemRow,
+  optionGroupIds: string[] = [],
+): MenuItem {
   const tagIds = (row.menu_item_tags ?? []).map((x) => x.tag_id);
   const allergenIds = (row.menu_item_allergens ?? []).map((x) => x.allergen_id);
   return {
@@ -68,8 +103,33 @@ function rowToMenuItem(row: MenuItemRow): MenuItem {
     active: row.is_active,
     listNumber: row.list_number,
     recipe: null,
+    optionGroupIds,
     availableFrom: normalizeMenuAvailabilityYmd(row.available_from),
     availableTo: normalizeMenuAvailabilityYmd(row.available_to),
+  };
+}
+
+function rowToPublicOptionGroup(row: OptionGroupRow): MenuOptionGroup | null {
+  if (!row.is_active) return null;
+  const choices = [...(row.menu_option_choices ?? [])]
+    .filter((c) => c.is_active)
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(
+      (c): MenuOptionChoice => ({
+        id: c.id,
+        name: c.name,
+        priceDelta: Number(c.price_delta),
+        active: true,
+      }),
+    );
+  if (!choices.length) return null;
+  return {
+    id: row.id,
+    name: row.name,
+    active: true,
+    minSelect: row.min_select,
+    maxSelect: row.max_select,
+    choices,
   };
 }
 
@@ -184,10 +244,61 @@ export async function fetchPublicEmbedMenu(
     }),
   );
 
-  const items: MenuItem[] = (itemsRes.data as unknown as MenuItemRow[] | null ?? [])
-    .filter((item) => activeCategoryIds.has(item.category_id))
-    .map(rowToMenuItem)
-    .filter((item) => isMenuItemPubliclyAvailable(item, new Date(), restaurantTimeZone));
+  const itemRows = (
+    (itemsRes.data as unknown as MenuItemRow[] | null) ?? []
+  ).filter((item) => activeCategoryIds.has(item.category_id));
+
+  const itemIds = itemRows.map((item) => item.id);
+
+  /** Optionen separat: fehlende Migration darf die öffentliche Speisekarte nicht killen. */
+  let optionGroups: MenuOptionGroup[] = [];
+  const optionIdsByItemId = new Map<string, string[]>();
+
+  if (itemIds.length > 0) {
+    const [groupsRes, linksRes] = await Promise.all([
+      admin
+        .from("menu_option_groups")
+        .select(
+          `
+          id, name, is_active, min_select, max_select, sort_order,
+          menu_option_choices(id, name, price_delta, is_active, sort_order)
+        `,
+        )
+        .eq("restaurant_id", restaurantId)
+        .eq("is_active", true)
+        .order("sort_order", { ascending: true }),
+      admin
+        .from("menu_item_option_groups")
+        .select("menu_item_id, option_group_id, sort_order")
+        .in("menu_item_id", itemIds)
+        .order("sort_order", { ascending: true }),
+    ]);
+
+    if (!groupsRes.error && groupsRes.data?.length) {
+      optionGroups = (groupsRes.data as unknown as OptionGroupRow[])
+        .map(rowToPublicOptionGroup)
+        .filter((g): g is MenuOptionGroup => g !== null);
+    }
+
+    if (!linksRes.error && linksRes.data?.length) {
+      const activeGroupIds = new Set(optionGroups.map((g) => g.id));
+      const links = [...(linksRes.data as ItemOptionLinkRow[])].sort(
+        (a, b) => a.sort_order - b.sort_order,
+      );
+      for (const link of links) {
+        if (!activeGroupIds.has(link.option_group_id)) continue;
+        const list = optionIdsByItemId.get(link.menu_item_id) ?? [];
+        list.push(link.option_group_id);
+        optionIdsByItemId.set(link.menu_item_id, list);
+      }
+    }
+  }
+
+  const items: MenuItem[] = itemRows
+    .map((row) => rowToMenuItem(row, optionIdsByItemId.get(row.id) ?? []))
+    .filter((item) =>
+      isMenuItemPubliclyAvailable(item, new Date(), restaurantTimeZone),
+    );
 
   const tagDefinitions: MenuTaxonomyDefinition[] = [
     ...(tagsRes.data ?? []).map((t) => ({
@@ -222,6 +333,9 @@ export async function fetchPublicEmbedMenu(
       categories,
       items,
       tagDefinitions,
+      optionGroups,
+      /** Online-Bestellung noch nicht aktiv — Auswahl nur in POS / später Ordering. */
+      guestOrderingEnabled: false,
     },
     error: null,
   };

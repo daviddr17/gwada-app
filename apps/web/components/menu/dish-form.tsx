@@ -21,6 +21,7 @@ import { DatePickerField } from "@/components/ui/date-picker";
 import type {
   MenuCategoryDefinition,
   MenuItem,
+  MenuOptionGroup,
   MenuRecipeLine,
   MenuTag,
   MenuTaxonomyDefinition,
@@ -40,6 +41,7 @@ type FormState = {
   category: string;
   imageUrl: string;
   tags: MenuTag[];
+  optionGroupIds: string[];
   active: boolean;
   listNumber: string;
   availableFrom: string;
@@ -54,6 +56,7 @@ const emptyForm: FormState = {
   category: "",
   imageUrl: "",
   tags: [],
+  optionGroupIds: [],
   active: true,
   listNumber: "",
   availableFrom: "",
@@ -87,6 +90,7 @@ function itemToFormState(item: MenuItem): FormState {
     category: item.category,
     imageUrl: item.imageUrl,
     tags: item.tags,
+    optionGroupIds: item.optionGroupIds ?? [],
     active: item.active !== false,
     listNumber:
       item.listNumber != null && !Number.isNaN(item.listNumber)
@@ -108,6 +112,8 @@ type DishFormProps = {
   ingredients: Ingredient[];
   /** Tags + Allergene (Stammdaten) für Auswahl und Chips */
   tagDefinitions: MenuTaxonomyDefinition[];
+  /** Optionsgruppen (Beilagen, Extras, …) */
+  optionGroups: MenuOptionGroup[];
   /** Lagereinheiten (Bestand) – für Anzeige im Rezept */
   stockUnits: InventoryTaxonomyDefinition[];
   onSubmit: (item: NewMenuItem) => void;
@@ -120,6 +126,7 @@ export function DishForm({
   categories,
   ingredients,
   tagDefinitions,
+  optionGroups,
   stockUnits,
   onSubmit,
   onCancel,
@@ -145,6 +152,19 @@ export function DishForm({
         .filter((x) => x.active !== false)
         .map((x) => ({ value: x.id, label: x.name })),
     [ingredients],
+  );
+
+  const optionGroupDefinitions = useMemo(
+    (): MenuTaxonomyDefinition[] =>
+      optionGroups
+        .filter((g) => g.active !== false)
+        .map((g) => ({
+          id: g.id,
+          name: g.name,
+          backgroundColor: "#0f766e",
+          active: true,
+        })),
+    [optionGroups],
   );
 
   const unitNameById = useMemo(
@@ -251,6 +271,7 @@ export function DishForm({
         form.imageUrl.trim() ||
         "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800&q=80",
       tags: form.tags,
+      optionGroupIds: form.optionGroupIds,
       active: form.active,
       listNumber,
       availableFrom: form.availableFrom.trim() || null,
@@ -456,6 +477,29 @@ export function DishForm({
             onChange={(tags) => setForm((p) => ({ ...p, tags }))}
             aria-label="Tags und Allergene"
           />
+        </DishFormSection>
+
+        <DishFormSection title="Optionen">
+          <p className="text-xs text-muted-foreground">
+            Optional — z. B. Beilagen oder Extras. Zuerst unter „Optionen“ in der
+            Übersicht anlegen, dann hier zuordnen.
+          </p>
+          {optionGroupDefinitions.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Noch keine Optionsgruppen. Lege sie über den Chip{" "}
+              <span className="font-medium text-foreground">Optionen</span> an.
+            </p>
+          ) : (
+            <TagMultiCombobox
+              id="dish-options-combo"
+              definitions={optionGroupDefinitions}
+              value={form.optionGroupIds}
+              onChange={(optionGroupIds) =>
+                setForm((p) => ({ ...p, optionGroupIds }))
+              }
+              aria-label="Optionsgruppen"
+            />
+          )}
         </DishFormSection>
 
         <DishFormSection title="Rezept">

@@ -1,15 +1,31 @@
 import "server-only";
 
-import { assertPosOrderStatusTransition, type PosOrderStatus } from "@gwada/pos-domain";
+import {
+  assertPosOrderStatusTransition,
+  isPosOrderCourse,
+  type PosOrderCourse,
+  type PosOrderStatus,
+} from "@gwada/pos-domain";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMenuItemPubliclyAvailable } from "@/lib/menu/item-utils";
 import { getOpenRegisterSession } from "@/lib/pos/register-report-aggregate";
 import { fetchRestaurantTimezoneServer } from "@/lib/supabase/restaurant-timezone-server";
 
+export type PosOrderLineModifier = {
+  type: "ohne" | "option" | "text";
+  label: string;
+  ingredientId?: string;
+  optionChoiceId?: string;
+  priceDeltaCents?: number;
+};
+
 export type CreatePosOrderLineInput = {
   menuItemId: string;
   quantity: number;
   notes?: string;
+  course?: PosOrderCourse | string;
+  ohneIngredientIds?: string[];
+  modifiers?: PosOrderLineModifier[];
 };
 
 export async function openPosTableSession(params: {
@@ -169,9 +185,20 @@ export async function createPosOrder(params: {
       return { ok: false, error: "invalid_quantity", status: 400 };
     }
 
-    const unitCents = Math.round(Number(menuItem.price) * 100);
+    const modifiers = Array.isArray(input.modifiers) ? input.modifiers : [];
+    const optionDelta = modifiers.reduce(
+      (sum, m) => sum + (Number(m.priceDeltaCents) || 0),
+      0,
+    );
+    const unitCents = Math.round(Number(menuItem.price) * 100) + optionDelta;
     const lineTotalCents = Math.round(unitCents * qty);
     subtotalCents += lineTotalCents;
+
+    const course: PosOrderCourse =
+      input.course && isPosOrderCourse(input.course) ? input.course : "other";
+    const ohneIds = (input.ohneIngredientIds ?? []).filter(
+      (id) => typeof id === "string" && id.trim().length > 0,
+    );
 
     lineRows.push({
       menu_item_id: menuItem.id,
@@ -181,6 +208,9 @@ export async function createPosOrder(params: {
       vat_rate: menuItem.vat_rate ?? 19,
       line_total_cents: lineTotalCents,
       notes: input.notes?.trim() || null,
+      course,
+      ohne_ingredient_ids: ohneIds,
+      modifiers,
       position: i,
     });
   }

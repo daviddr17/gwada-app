@@ -1,9 +1,7 @@
-import { RestaurantFiscalPanel } from "@/components/settings/restaurant-fiscal-panel";
+import { redirect } from "next/navigation";
+import { APP_ROUTES } from "@/lib/navigation/app-routes";
 
+/** Legacy: Fiskal-/TSE-Einstellungen liegen unter POS → Einstellungen. */
 export default function SettingsKassePage() {
-  return (
-    <div className="space-y-6 pt-2">
-      <RestaurantFiscalPanel />
-    </div>
-  );
+  redirect(APP_ROUTES.pos.settings);
 }

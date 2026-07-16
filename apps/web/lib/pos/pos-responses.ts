@@ -55,6 +55,9 @@ type LineRow = {
   line_total_cents: number;
   notes: string | null;
   position: number;
+  course?: string | null;
+  ohne_ingredient_ids?: string[] | null;
+  modifiers?: unknown;
 };
 
 type PaymentRow = {
@@ -107,6 +110,9 @@ export type PosOrderDto = {
     lineTotalCents: number;
     notes: string | null;
     position: number;
+    course: string;
+    ohneIngredientIds: string[];
+    modifiers: unknown[];
   }>;
   payments: Array<{
     id: string;
@@ -183,6 +189,11 @@ function mapOrderDto(
       lineTotalCents: Number(line.line_total_cents),
       notes: line.notes,
       position: line.position,
+      course: (line.course as string | null | undefined) ?? "other",
+      ohneIngredientIds: Array.isArray(line.ohne_ingredient_ids)
+        ? line.ohne_ingredient_ids
+        : [],
+      modifiers: Array.isArray(line.modifiers) ? line.modifiers : [],
     };
     }),
     payments: payments.map((payment) => ({
@@ -230,7 +241,7 @@ export async function loadPosOrderDto(
     supabase
       .from("pos_order_lines")
       .select(
-        "id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, vat_rate, line_total_cents, notes, position",
+        "id, menu_item_id, name, quantity, paid_quantity, unit_price_cents, vat_rate, line_total_cents, notes, position, course, ohne_ingredient_ids, modifiers",
       )
       .eq("order_id", orderId)
       .order("position"),

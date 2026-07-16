@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
     @EnvironmentObject private var runtime: PosRuntime
     @State private var hubIP = ""
+    @State private var showKds = false
 
     var body: some View {
         NavigationStack {
@@ -29,9 +30,10 @@ struct RootView: View {
                             value: runtime.bonjourPublishing ? "Aktiv (_gwada-pos._tcp)" : "—"
                         )
                         LabeledContent("Daten", value: runtime.dataSourceLabel)
-                        Text("Handgeräte laden nur über lokales WLAN. Ohne Internet läuft der Service weiter.")
+                        Text("Handgeräte & KDS über lokales WLAN — auch ohne Internet.")
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+                        Button("KDS öffnen") { showKds = true }
                     }
 
                     if !runtime.isSignedIn {
@@ -82,7 +84,9 @@ struct RootView: View {
                     if let floor = runtime.snapshot?.floor {
                         ForEach(floor.tables) { table in
                             let open = floor.openSessions.first { $0.dining_table_id == table.id }
-                            VStack(alignment: .leading, spacing: 8) {
+                            NavigationLink {
+                                TableSessionView(table: table, sessionId: open?.id)
+                            } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(table.label).font(.headline)
@@ -91,25 +95,11 @@ struct RootView: View {
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    Text(open == nil ? "Frei" : "Besetzt · \(open!.cover_count)")
+                                    Text(open == nil ? "Frei" : "Besetzt")
                                         .font(.subheadline.weight(.semibold))
                                         .foregroundStyle(open == nil ? .secondary : Color.accentColor)
                                 }
-                                HStack {
-                                    Button("Öffnen") {
-                                        Task { await runtime.openTable(tableId: table.id) }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    if runtime.role == .hub {
-                                        Button("+ Gericht") {
-                                            Task { await runtime.addDemoOrder(tableId: table.id) }
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .disabled((runtime.snapshot?.menu?.items.isEmpty ?? true))
-                                    }
-                                }
                             }
-                            .padding(.vertical, 4)
                         }
                     } else {
                         Text(
@@ -120,20 +110,6 @@ struct RootView: View {
                         .foregroundStyle(.secondary)
                     }
                 }
-
-                if let menu = runtime.snapshot?.menu, !menu.items.isEmpty {
-                    Section("Speisekarte (\(menu.items.count))") {
-                        ForEach(menu.items.prefix(12)) { item in
-                            HStack {
-                                Text(item.name)
-                                Spacer()
-                                Text(formatCents(item.priceCents))
-                                    .foregroundStyle(.secondary)
-                                    .tabularDigits()
-                            }
-                        }
-                    }
-                }
             }
             .navigationTitle("Gwada POS")
             .toolbar {
@@ -141,6 +117,17 @@ struct RootView: View {
                     Button("Aktualisieren") {
                         Task { await runtime.refresh() }
                     }
+                }
+            }
+            .sheet(isPresented: $showKds) {
+                NavigationStack {
+                    KdsView()
+                        .environmentObject(runtime)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Schließen") { showKds = false }
+                            }
+                        }
                 }
             }
         }
@@ -156,15 +143,5 @@ struct RootView: View {
         case .connected: return "Mit Kasse verbunden"
         case .error(let message): return message
         }
-    }
-
-    private func formatCents(_ cents: Int) -> String {
-        String(format: "%.2f €", Double(cents) / 100.0)
-    }
-}
-
-private extension View {
-    func tabularDigits() -> some View {
-        self.monospacedDigit()
     }
 }

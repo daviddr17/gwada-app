@@ -142,4 +142,27 @@ final class PosHubState: @unchecked Sendable {
         self.bootstrap = bootstrap
         PosLocalStore.saveBootstrap(bootstrap)
     }
+
+    private var localTickets: [[String: Any]] = []
+
+    func appendLocalTicket(orderNumber: Int, lines: [[String: Any]]) {
+        lock.lock()
+        defer { lock.unlock() }
+        localTickets.insert([
+            "orderId": UUID().uuidString,
+            "orderNumber": orderNumber,
+            "status": "received",
+            "lines": lines,
+        ], at: 0)
+        if localTickets.count > 40 {
+            localTickets = Array(localTickets.prefix(40))
+        }
+    }
+
+    func kdsTicketsJSON() -> Data {
+        lock.lock()
+        defer { lock.unlock() }
+        let payload: [String: Any] = ["tickets": localTickets]
+        return (try? JSONSerialization.data(withJSONObject: payload)) ?? Data(#"{"tickets":[]}"#.utf8)
+    }
 }

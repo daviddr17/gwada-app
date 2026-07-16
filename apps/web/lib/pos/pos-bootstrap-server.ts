@@ -37,6 +37,12 @@ export type PosBootstrapSessionMeta = {
   openCents: number;
 };
 
+export type PosBootstrapRecipeIngredient = {
+  ingredientId: string;
+  name: string;
+  amount: number;
+};
+
 export type PosBootstrapMenuItem = {
   id: string;
   name: string;
@@ -46,6 +52,8 @@ export type PosBootstrapMenuItem = {
   categoryId: string;
   listNumber: number | null;
   optionGroupIds: string[];
+  /** Rezept-Zutaten für „Ohne …“-Mehrfachauswahl */
+  recipe: PosBootstrapRecipeIngredient[];
   active: boolean;
 };
 
@@ -110,28 +118,41 @@ export async function loadPosBootstrap(
         .order("sort_order", { ascending: true }),
     ]);
 
-  let itemsRes = await supabase
+  const itemsWithRelations = await supabase
     .from("menu_items")
     .select(
       `
       id, name, description, price, vat_rate, category_id, list_number, is_active,
-      menu_item_option_groups(option_group_id, sort_order)
+      menu_item_option_groups(option_group_id, sort_order),
+      menu_item_recipe_lines(ingredient_id, amount, sort_order)
     `,
     )
     .eq("restaurant_id", restaurantId)
     .eq("is_active", true)
     .order("list_number", { ascending: true });
 
-  if (itemsRes.error) {
-    itemsRes = await supabase
-      .from("menu_items")
-      .select(
-        "id, name, description, price, vat_rate, category_id, list_number, is_active",
-      )
-      .eq("restaurant_id", restaurantId)
-      .eq("is_active", true)
-      .order("list_number", { ascending: true });
-  }
+  const itemsFallback = itemsWithRelations.error
+    ? await supabase
+        .from("menu_items")
+        .select(
+          "id, name, description, price, vat_rate, category_id, list_number, is_active",
+        )
+        .eq("restaurant_id", restaurantId)
+        .eq("is_active", true)
+        .order("list_number", { ascending: true })
+    : null;
+
+  const itemsRes = itemsFallback ?? itemsWithRelations;
+
+  const { data: ingredientRows } = await supabase
+    .from("inventory_ingredients")
+    .select("id, name")
+    .eq("restaurant_id", restaurantId)
+    .eq("is_active", true);
+
+  const ingredientNameById = new Map(
+    (ingredientRows ?? []).map((r) => [r.id as string, String(r.name ?? "")]),
+  );
 
   const groupsRes = await supabase
     .from("menu_option_groups")
@@ -221,6 +242,9 @@ export async function loadPosBootstrap(
     menu_item_option_groups:
       | { option_group_id: string; sort_order: number }[]
       | null;
+    menu_item_recipe_lines:
+      | { ingredient_id: string; amount: number | string; sort_order?: number }[]
+      | null;
   };
 
   const activeCategoryIds = new Set(
@@ -235,6 +259,16 @@ export async function loadPosBootstrap(
       const links = [...(row.menu_item_option_groups ?? [])].sort(
         (a, b) => a.sort_order - b.sort_order,
       );
+      const recipeLines = [...(row.menu_item_recipe_lines ?? [])].sort(
+        (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+      );
+      const recipe: PosBootstrapRecipeIngredient[] = recipeLines
+        .map((l) => ({
+          ingredientId: l.ingredient_id,
+          name: ingredientNameById.get(l.ingredient_id) ?? l.ingredient_id,
+          amount: Number(l.amount),
+        }))
+        .filter((l) => l.name.trim().length > 0);
       return {
         id: row.id,
         name: row.name,
@@ -244,6 +278,7 @@ export async function loadPosBootstrap(
         categoryId: row.category_id,
         listNumber: row.list_number,
         optionGroupIds: links.map((l) => l.option_group_id),
+        recipe,
         active: row.is_active,
       };
     });

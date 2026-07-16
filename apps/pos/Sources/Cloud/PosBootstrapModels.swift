@@ -28,6 +28,14 @@ struct PosCloudMenuOptionGroup: Codable, Equatable, Identifiable, Sendable {
     var choices: [PosCloudMenuChoice]
 }
 
+struct PosCloudRecipeIngredient: Codable, Equatable, Identifiable, Sendable {
+    var ingredientId: String
+    var name: String
+    var amount: Double
+
+    var id: String { ingredientId }
+}
+
 struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
     var id: String
     var name: String
@@ -37,6 +45,7 @@ struct PosCloudMenuItem: Codable, Equatable, Identifiable, Sendable {
     var categoryId: String
     var listNumber: Int?
     var optionGroupIds: [String]
+    var recipe: [PosCloudRecipeIngredient]?
     var active: Bool
 }
 

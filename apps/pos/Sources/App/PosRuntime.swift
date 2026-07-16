@@ -164,6 +164,188 @@ final class PosRuntime: ObservableObject {
         }
     }
 
+    func ensureLocalSession(tableId: String, covers: Int = 2) -> String {
+        PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: covers)
+    }
+
+    func sendCart(tableId: String, lines: [PosCartLine]) async -> Bool {
+        guard !lines.isEmpty else { return false }
+        let restaurantId = PosHubState.shared.restaurantId
+        var sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
+        if sessionId == nil {
+            await openTable(tableId: tableId, covers: 2)
+            sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id
+                ?? PosHubState.shared.openLocalSession(diningTableId: tableId, coverCount: 2)
+        }
+        guard let sessionId else { return false }
+
+        let items: [PosCloudOrderItem] = lines.map { line in
+            PosCloudOrderItem(
+                menuItemId: line.menuItemId,
+                quantity: line.quantity,
+                notes: line.notes.isEmpty ? nil : line.notes,
+                course: line.course.rawValue,
+                ohneIngredientIds: line.ohneIngredientIds,
+                modifiers: line.modifiers.map {
+                    PosCloudModifierPayload(
+                        type: $0.type,
+                        label: $0.label,
+                        ingredientId: $0.ingredientId,
+                        optionChoiceId: $0.optionChoiceId,
+                        priceDeltaCents: $0.priceDeltaCents
+                    )
+                }
+            )
+        }
+
+        let addCents = lines.reduce(0) { $0 + $1.lineTotalCents }
+        PosHubState.shared.bumpLocalOrder(sessionId: sessionId, addCents: addCents)
+        let localOrderNumber = (snapshot?.floor.orderCountBySessionId[sessionId] ?? 0) + 1
+        PosHubState.shared.appendLocalTicket(
+            orderNumber: localOrderNumber,
+            lines: lines.map { line in
+                [
+                    "id": line.id,
+                    "name": line.name,
+                    "quantity": line.quantity,
+                    "detail": line.subtitle,
+                ]
+            }
+        )
+        snapshot = PosHubState.shared.makeSnapshot()
+
+        do {
+            _ = try await PosCloudClient.createOrder(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                items: items
+            )
+            statusMessage = "Bestellung gesendet (\(lines.count) Positionen)."
+            return true
+        } catch {
+            for line in lines {
+                PosSyncQueue.shared.enqueueCreateOrder(PosSyncCreateOrderPayload(
+                    restaurantId: restaurantId,
+                    tableSessionId: sessionId,
+                    items: [PosSyncOrderItem(
+                        menuItemId: line.menuItemId,
+                        quantity: line.quantity,
+                        notes: line.notes.isEmpty ? nil : line.notes
+                    )],
+                    localOrderId: UUID().uuidString
+                ))
+            }
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage = "Lokal gebucht — Sync später (\(error.localizedDescription))"
+            return true
+        }
+    }
+
+    func loadOpenLines(tableId: String) async -> [SessionOpenLine] {
+        guard let sessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == tableId })?.id else {
+            return []
+        }
+        let restaurantId = PosHubState.shared.restaurantId
+        guard PosAuthStore.shared.isSignedIn else { return [] }
+        do {
+            let lines = try await PosCloudClient.fetchSessionSummary(
+                restaurantId: restaurantId,
+                sessionId: sessionId
+            )
+            return lines.compactMap { line in
+                guard line.openQuantity > 0 else { return nil }
+                var detailParts: [String] = []
+                if let course = line.course, let c = PosCourse(rawValue: course) {
+                    detailParts.append(c.label)
+                }
+                if let mods = line.modifiers {
+                    detailParts.append(contentsOf: mods.compactMap(\.label))
+                }
+                if let notes = line.notes, !notes.isEmpty {
+                    detailParts.append(notes)
+                }
+                return SessionOpenLine(
+                    id: line.id,
+                    orderLineId: line.id,
+                    name: line.name,
+                    openQuantity: line.openQuantity,
+                    openCents: line.openAmountCents,
+                    detail: detailParts.joined(separator: " · ")
+                )
+            }
+        } catch {
+            statusMessage = "Offene Positionen: \(error.localizedDescription)"
+            return []
+        }
+    }
+
+    func collectSplit(
+        sessionId: String,
+        lines: [SessionOpenLine],
+        method: PosPaymentMethodKind,
+        tipCents: Int
+    ) async {
+        guard method == .cash else {
+            statusMessage = "\(method.label) folgt — bitte Bar nutzen."
+            return
+        }
+        let restaurantId = PosHubState.shared.restaurantId
+        let allocations = lines.map { ($0.orderLineId, $0.openQuantity) }
+        do {
+            try await PosCloudClient.collectCash(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                allocations: allocations,
+                tipCents: tipCents
+            )
+            statusMessage = "Teilzahlung kassiert."
+            await pullCloudBootstrap(forceDemoFallback: false)
+            snapshot = PosHubState.shared.makeSnapshot()
+        } catch {
+            PosSyncQueue.shared.enqueueCollectCash(PosSyncCollectCashPayload(
+                restaurantId: restaurantId,
+                tableSessionId: sessionId,
+                allocations: allocations.map { PosSyncCashAllocation(orderLineId: $0.0, quantity: $0.1) },
+                tipCents: tipCents
+            ))
+            syncPending = PosSyncQueue.shared.pendingCount
+            statusMessage = "Zahlung lokal gequeued — \(error.localizedDescription)"
+        }
+    }
+
+    func moveLines(
+        lineIds: [String],
+        quantities: [Int],
+        fromTableId: String,
+        toTableId: String
+    ) async {
+        let restaurantId = PosHubState.shared.restaurantId
+        // Ziel-Session sicherstellen
+        var targetSessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == toTableId })?.id
+        if targetSessionId == nil {
+            await openTable(tableId: toTableId, covers: 2)
+            targetSessionId = snapshot?.floor.openSessions.first(where: { $0.dining_table_id == toTableId })?.id
+        }
+        guard let targetSessionId else {
+            statusMessage = "Ziel-Tisch konnte nicht geöffnet werden."
+            return
+        }
+        let moves = zip(lineIds, quantities).map { ($0, $1) }
+        do {
+            try await PosCloudClient.moveLines(
+                restaurantId: restaurantId,
+                targetTableSessionId: targetSessionId,
+                lineMoves: moves
+            )
+            statusMessage = "\(lineIds.count) Position(en) umgezogen."
+            await pullCloudBootstrap(forceDemoFallback: false)
+            snapshot = PosHubState.shared.makeSnapshot()
+        } catch {
+            statusMessage = "Umziehen fehlgeschlagen: \(error.localizedDescription)"
+        }
+        _ = fromTableId
+    }
+
     func addDemoOrder(tableId: String) async {
         guard role == .hub else { return }
         guard let menuItem = PosHubState.shared.menu?.items.first else {
@@ -192,7 +374,16 @@ final class PosRuntime: ObservableObject {
             _ = try await PosCloudClient.createOrder(
                 restaurantId: restaurantId,
                 tableSessionId: sessionId,
-                items: [(menuItem.id, 1, nil)]
+                items: [
+                    PosCloudOrderItem(
+                        menuItemId: menuItem.id,
+                        quantity: 1,
+                        notes: nil,
+                        course: PosCourse.main.rawValue,
+                        ohneIngredientIds: nil,
+                        modifiers: nil
+                    ),
+                ]
             )
             statusMessage = "„\(menuItem.name)“ in der Cloud gebucht."
         } catch {
@@ -322,6 +513,12 @@ final class PosRuntime: ObservableObject {
                 let snap = PosHubState.shared.makeSnapshot()
                 let data = (try? encoder.encode(snap)) ?? Data(#"{"error":"encode"}"#.utf8)
                 return (200, data)
+            }
+            if path == PosLanProtocol.kdsPath {
+                return (200, KdsHubHTML.page())
+            }
+            if path == PosLanProtocol.kdsTicketsPath {
+                return (200, PosHubState.shared.kdsTicketsJSON())
             }
             return (404, Data(#"{"error":"not_found"}"#.utf8))
         }

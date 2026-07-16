@@ -32,3 +32,10 @@ export {
   type PosSessionLineInput,
   type PosSessionSettlementState,
 } from "./settlement";
+
+export {
+  POS_ORDER_COURSES,
+  POS_ORDER_COURSE_LABELS_DE,
+  isPosOrderCourse,
+  type PosOrderCourse,
+} from "./course";

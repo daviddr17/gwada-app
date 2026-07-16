@@ -123,9 +123,11 @@ final class HubHTTPServer: @unchecked Sendable {
         default: statusText = "Error"
         }
 
+        let isHTML = body.starts(with: Data("<!doctype html>".utf8)) || body.starts(with: Data("<!DOCTYPE html>".utf8))
+        let contentType = isHTML ? "text/html; charset=utf-8" : "application/json; charset=utf-8"
         let header = """
         HTTP/1.1 \(status) \(statusText)\r
-        Content-Type: application/json; charset=utf-8\r
+        Content-Type: \(contentType)\r
         Content-Length: \(body.count)\r
         Connection: close\r
         Access-Control-Allow-Origin: *\r

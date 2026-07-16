@@ -28,8 +28,10 @@
 
 | Gerät | Rolle | Aufgabe |
 |-------|-------|---------|
-| **iPad** | `hub` | Autoritative Schicht-Instanz im Lokalnetz; Server im Hintergrund; wirbt per Bonjour; sync’t mit Cloud |
-| **iPhone** | `handheld` | Dünner Client; findet Hub; holt beim Start den Snapshot von der Kasse |
+| **iPad** | `hub` (auto) | Autoritative Schicht-Instanz im Lokalnetz; Server im Hintergrund; wirbt per Bonjour; sync’t mit Cloud |
+| **iPhone** | `handheld` (auto) | Dünner Client; findet Hub; holt beim Start den Snapshot von der Kasse |
+
+**Dieselbe App** (`Gwada Staff`): Beim Start wird per `Platform.isPad` erkannt, ob Server oder Handgerät. Manueller Override nur im Menü „Kasse im WLAN“, falls nötig.
 
 Kommunikation Handgerät ↔ Kasse läuft **über lokales WLAN**, nicht über die Cloud. Die Cloud bleibt für Login, Fiskaly/TSE, Stammdaten-Sync und Hub-Upstream.
 

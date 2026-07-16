@@ -24,10 +24,49 @@ import {
 } from "@/lib/supabase/workspace-persistence";
 
 const PERMISSIONS_RETRY_DELAYS_MS = [800, 1600, 3200] as const;
+/** Session: schnell in-tab. localStorage: PWA-Kaltstart ohne erneuten Permissions-RPC-Block. */
 const PERMISSIONS_SESSION_CACHE_KEY = "gwada-restaurant-permissions-v1";
+const PERMISSIONS_LOCAL_CACHE_KEY = "gwada-restaurant-permissions-v1";
 
 function permissionsCacheKey(restaurantId: string, userId: string): string {
   return `${userId}:${restaurantId}`;
+}
+
+function readPermissionsFromStorage(
+  storage: Storage | undefined,
+  storageKey: string,
+  restaurantId: string,
+  userId: string,
+): Set<string> | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, string[]>;
+    const keys = parsed[permissionsCacheKey(restaurantId, userId)];
+    if (!Array.isArray(keys) || keys.length === 0) return null;
+    return new Set(keys);
+  } catch {
+    return null;
+  }
+}
+
+function writePermissionsToStorage(
+  storage: Storage | undefined,
+  storageKey: string,
+  restaurantId: string,
+  userId: string,
+  keys: Set<string>,
+): void {
+  if (!storage) return;
+  try {
+    const raw = storage.getItem(storageKey);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
+    parsed[permissionsCacheKey(restaurantId, userId)] = [...keys];
+    storage.setItem(storageKey, JSON.stringify(parsed));
+  } catch {
+    /* ignore */
+  }
 }
 
 function readInitialPermissionsCache(): Set<string> {
@@ -43,17 +82,19 @@ function readPermissionsSessionCache(
   restaurantId: string,
   userId: string,
 ): Set<string> | null {
-  if (typeof sessionStorage === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(PERMISSIONS_SESSION_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Record<string, string[]>;
-    const keys = parsed[permissionsCacheKey(restaurantId, userId)];
-    if (!Array.isArray(keys) || keys.length === 0) return null;
-    return new Set(keys);
-  } catch {
-    return null;
-  }
+  const fromSession = readPermissionsFromStorage(
+    typeof sessionStorage !== "undefined" ? sessionStorage : undefined,
+    PERMISSIONS_SESSION_CACHE_KEY,
+    restaurantId,
+    userId,
+  );
+  if (fromSession) return fromSession;
+  return readPermissionsFromStorage(
+    typeof localStorage !== "undefined" ? localStorage : undefined,
+    PERMISSIONS_LOCAL_CACHE_KEY,
+    restaurantId,
+    userId,
+  );
 }
 
 function writePermissionsSessionCache(
@@ -61,15 +102,20 @@ function writePermissionsSessionCache(
   userId: string,
   keys: Set<string>,
 ): void {
-  if (typeof sessionStorage === "undefined") return;
-  try {
-    const raw = sessionStorage.getItem(PERMISSIONS_SESSION_CACHE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-    parsed[permissionsCacheKey(restaurantId, userId)] = [...keys];
-    sessionStorage.setItem(PERMISSIONS_SESSION_CACHE_KEY, JSON.stringify(parsed));
-  } catch {
-    /* ignore */
-  }
+  writePermissionsToStorage(
+    typeof sessionStorage !== "undefined" ? sessionStorage : undefined,
+    PERMISSIONS_SESSION_CACHE_KEY,
+    restaurantId,
+    userId,
+    keys,
+  );
+  writePermissionsToStorage(
+    typeof localStorage !== "undefined" ? localStorage : undefined,
+    PERMISSIONS_LOCAL_CACHE_KEY,
+    restaurantId,
+    userId,
+    keys,
+  );
 }
 
 function sleep(ms: number): Promise<void> {

@@ -2,15 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
+import { peekDashboardBatchSummaryCache } from "@/lib/dashboard/dashboard-batch-summary-cache";
 import { dashboardBatchSummaryQueryOptions } from "@/lib/hooks/dashboard-batch-summary-query-options";
 import { useDashboardEffectiveWidgetPrefs } from "@/lib/hooks/use-dashboard-effective-widget-prefs";
 import { useWorkspaceRestaurantUuid } from "@/lib/hooks/use-workspace-restaurant-uuid";
+import { queryKeys } from "@/lib/query/query-keys";
 import { isUuidRestaurantId } from "@/lib/supabase/opening-hours-db";
 import { runWhenIdle } from "@/lib/ui/run-when-idle";
 
 /**
- * Lädt Dashboard-KPIs im Hintergrund, sobald Workspace-Restaurant steht —
- * bevor der Nutzer die Startseite öffnet (SWR, kein Skeleton auf erstem Besuch).
+ * Seedet Dashboard-KPIs sofort aus LS und zieht im Hintergrund frisch —
+ * bevor / sobald der Nutzer die Startseite öffnet (kein 8s-Idle mehr).
  */
 export function DashboardBatchPrefetchMount() {
   const queryClient = useQueryClient();
@@ -27,11 +29,19 @@ export function DashboardBatchPrefetchMount() {
       return;
     }
 
+    const key = queryKeys.dashboard.summary(restaurantId, batchWidgets);
+    if (queryClient.getQueryData(key) == null) {
+      const cached = peekDashboardBatchSummaryCache(restaurantId, batchWidgets);
+      if (cached) {
+        queryClient.setQueryData(key, cached);
+      }
+    }
+
     runWhenIdle(() => {
       void queryClient.prefetchQuery(
         dashboardBatchSummaryQueryOptions(restaurantId, batchWidgets),
       );
-    }, 8000);
+    }, 400);
   }, [queryClient, restaurantId, batchWidgets, workspaceReady]);
 
   return null;

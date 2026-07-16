@@ -231,19 +231,74 @@ final class PosHubState: @unchecked Sendable {
         }
 
         for (printerId, lines) in printLinesByPrinter {
-            let printerName = printers.first(where: { $0.id == printerId })?.name ?? printerId
+            let printer = printers.first(where: { $0.id == printerId })
+            let printerName = printer?.name ?? printerId
             localPrintJobs.insert([
                 "id": UUID().uuidString,
                 "printerId": printerId,
                 "printerName": printerName,
                 "orderNumber": orderNumber,
                 "status": "pending",
+                "connectionType": printer?.connectionType ?? "virtual",
+                "host": printer?.resolvedHost ?? "",
+                "port": Int(printer?.resolvedPort ?? 9100),
                 "lines": lines,
                 "createdAt": ISO8601DateFormatter().string(from: Date()),
             ], at: 0)
         }
         if localPrintJobs.count > 80 {
             localPrintJobs = Array(localPrintJobs.prefix(80))
+        }
+    }
+
+    /// Pending Jobs atomar entnehmen (status → printing), für parallelen Versand.
+    func dequeuePendingPrintJobs(limit: Int = 12) -> [PosPrintJobSnapshot] {
+        lock.lock()
+        defer { lock.unlock() }
+        var out: [PosPrintJobSnapshot] = []
+        for i in 0 ..< localPrintJobs.count {
+            guard out.count < limit else { break }
+            guard (localPrintJobs[i]["status"] as? String) == "pending" else { continue }
+            let job = localPrintJobs[i]
+            let id = job["id"] as? String ?? UUID().uuidString
+            let rawLines = job["lines"] as? [[String: Any]] ?? []
+            let lines: [PosPrintJobLine] = rawLines.map { line in
+                PosPrintJobLine(
+                    quantity: line["quantity"] as? Int ?? 1,
+                    name: line["name"] as? String ?? "—",
+                    detail: line["detail"] as? String ?? ""
+                )
+            }
+            let portNum = job["port"] as? Int ?? 9100
+            out.append(
+                PosPrintJobSnapshot(
+                    id: id,
+                    printerId: job["printerId"] as? String ?? "",
+                    printerName: job["printerName"] as? String ?? "",
+                    orderNumber: job["orderNumber"] as? Int ?? 0,
+                    connectionType: job["connectionType"] as? String ?? "virtual",
+                    host: job["host"] as? String ?? "",
+                    port: UInt16(clamping: max(1, portNum)),
+                    lines: lines
+                )
+            )
+            localPrintJobs[i]["status"] = "printing"
+        }
+        return out
+    }
+
+    func markPrintJob(id: String, status: String, error: String?) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let idx = localPrintJobs.firstIndex(where: { ($0["id"] as? String) == id }) else { return }
+        localPrintJobs[idx]["status"] = status
+        if let error, !error.isEmpty {
+            localPrintJobs[idx]["error"] = error
+        } else {
+            localPrintJobs[idx].removeValue(forKey: "error")
+        }
+        if status == "printed" {
+            localPrintJobs[idx]["printedAt"] = ISO8601DateFormatter().string(from: Date())
         }
     }
 

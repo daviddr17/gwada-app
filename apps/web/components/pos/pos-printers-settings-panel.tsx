@@ -132,9 +132,9 @@ export function PosPrintersSettingsPanel() {
       </CardHeader>
       <CardContent className="space-y-5">
         <p className="text-sm text-muted-foreground">
-          Küchen- und Bondrucker fürs Routing. „Virtuell“ legt Jobs in die
-          Kassen-Queue (ohne Hardware). Netzwerk: typisch TCP-Port 9100 —
-          ESC/POS-Ansteuerung folgt auf dem Hub.
+          Küchen- und Bondrucker fürs Routing. Das iPad sendet ESC/POS
+          direkt im LAN an feste IP:Port (meist 9100) — ohne Treiber,
+          asynchron und ohne UI-Lag. „Virtuell“ = nur Queue zum Testen.
         </p>
 
         <div className="space-y-3 rounded-xl border border-border/50 bg-muted/20 p-4">

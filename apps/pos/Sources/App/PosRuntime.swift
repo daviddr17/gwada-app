@@ -225,6 +225,7 @@ final class PosRuntime: ObservableObject {
         let localOrderNumber = (snapshot?.floor.orderCountBySessionId[sessionId] ?? 0) + 1
         PosHubState.shared.routeKitchenOutput(orderNumber: localOrderNumber, cartLines: lines)
         pendingPrintJobs = PosHubState.shared.pendingPrintJobCount
+        Task { await PosPrintDispatcher.shared.kick() }
         publishSnapshot(PosHubState.shared.makeSnapshot())
 
         do {
@@ -609,6 +610,7 @@ final class PosRuntime: ObservableObject {
                     )
                 }
                 PosHubState.shared.routeKitchenOutput(orderNumber: orderNumber, cartLines: cartLines)
+                Task { await PosPrintDispatcher.shared.kick() }
                 let restaurantId = PosHubState.shared.restaurantId
                 let localOrderId = UUID().uuidString
                 Task { @MainActor in

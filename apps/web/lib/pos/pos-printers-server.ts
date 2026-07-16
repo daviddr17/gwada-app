@@ -10,18 +10,34 @@ export type PosPrinter = {
   name: string;
   connectionType: PosPrinterConnectionType;
   connectionConfig: Record<string, unknown>;
+  /** Flach für Hub/Swift — aus connectionConfig. */
+  host: string | null;
+  port: number | null;
   settings: Record<string, unknown>;
   sortOrder: number;
   isActive: boolean;
 };
 
 function mapPrinter(row: Record<string, unknown>): PosPrinter {
+  const connectionConfig =
+    (row.connection_config as Record<string, unknown> | null) ?? {};
+  const rawHost = connectionConfig.host;
+  const rawPort = connectionConfig.port;
+  const host = typeof rawHost === "string" ? rawHost.trim() || null : null;
+  let port: number | null = null;
+  if (typeof rawPort === "number" && Number.isFinite(rawPort)) {
+    port = rawPort;
+  } else if (typeof rawPort === "string" && rawPort.trim()) {
+    const n = Number(rawPort);
+    port = Number.isFinite(n) ? n : null;
+  }
   return {
     id: row.id as string,
     name: String(row.name ?? ""),
     connectionType: (row.connection_type as PosPrinterConnectionType) ?? "virtual",
-    connectionConfig:
-      (row.connection_config as Record<string, unknown> | null) ?? {},
+    connectionConfig,
+    host,
+    port,
     settings: (row.settings as Record<string, unknown> | null) ?? {},
     sortOrder: Number(row.sort_order ?? 0),
     isActive: Boolean(row.is_active),

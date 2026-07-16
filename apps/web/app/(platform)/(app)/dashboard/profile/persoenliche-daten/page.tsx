@@ -152,7 +152,18 @@ export default function ProfilePersoenlicheDatenPage() {
     country,
   ]);
 
-  const profileLoading = !isHydrated || !isRemoteLoaded;
+  // Lokal hydratisierte Daten sofort zeigen (Sidebar hat oft schon warm gemacht).
+  // Remote-Fetch blockiert die UI nicht — sonst wirkt der Profil-Tap „tot“.
+  const localDraftReady =
+    isHydrated &&
+    (Boolean(firstName.trim()) ||
+      Boolean(lastName.trim()) ||
+      Boolean(nickname.trim()) ||
+      Boolean(birthDate.trim()) ||
+      Boolean(street.trim()) ||
+      Boolean(city.trim()) ||
+      Boolean(postalCode.trim()));
+  const profileLoading = !isHydrated || (!isRemoteLoaded && !localDraftReady);
   const showProfileSkeleton = useDeferredSkeleton(profileLoading);
 
   if (profileLoading) {

@@ -5,8 +5,13 @@ import { DisplayProviders } from "@/components/providers/display-providers";
 import { Toaster } from "@/components/ui/sonner";
 import {
   DISPLAY_PWA_MANIFEST_PATH,
+  DISPLAY_PWA_SPLASH_PATH_PREFIX,
   displayPwaIconPath,
 } from "@/lib/display/display-pwa-config";
+import {
+  APPLE_MOBILE_WEB_APP_CAPABLE_META,
+  appleWebAppStartupImageMetadata,
+} from "@/lib/pwa/apple-startup-images";
 import { PWA_APP_LABEL_DISPLAY } from "@/lib/pwa/pwa-app-labels";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 
@@ -26,7 +31,11 @@ export async function generateMetadata(): Promise<Metadata> {
       capable: true,
       title: displayAppName,
       statusBarStyle: "default",
+      startupImage: appleWebAppStartupImageMetadata(
+        DISPLAY_PWA_SPLASH_PATH_PREFIX,
+      ),
     },
+    other: APPLE_MOBILE_WEB_APP_CAPABLE_META,
     icons: {
       apple: [{ url: displayPwaIconPath(180), sizes: "180x180", type: "image/png" }],
     },

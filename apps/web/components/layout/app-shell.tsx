@@ -17,6 +17,7 @@ import { AuthLogoutTransitionProvider } from "@/components/auth/auth-logout-tran
 import { DashboardUploadOverlay } from "@/components/layout/dashboard-upload-overlay";
 import { TestEnvironmentChip } from "@/components/layout/test-environment-chip";
 import { ModeToggle } from "@/components/theme/mode-toggle";
+import { AppNavLink } from "@/components/navigation/app-nav-link";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -126,7 +127,7 @@ function AppInsetWithChrome({ children }: { children: React.ReactNode }) {
                 size="icon-sm"
                 className="shrink-0 rounded-full border-border/60"
                 aria-label="Profil"
-                render={<Link href={APP_ROUTES.profile.root} prefetch />}
+                render={<AppNavLink href={APP_ROUTES.profile.personal} prefetch />}
               >
                 <UserRound className="size-4" />
               </Button>

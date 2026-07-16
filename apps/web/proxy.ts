@@ -39,7 +39,17 @@ function isPublicPath(pathname: string): boolean {
   if (pathname.startsWith("/bewertung/")) return true;
   if (pathname.startsWith("/nachrichten/")) return true;
   if (pathname.startsWith("/sb")) return true;
+  if (isDashboardPwaAssetPath(pathname)) return true;
   if (isPublicRestaurantProfilePath(pathname)) return true;
+  return false;
+}
+
+/** Manifest, SW, Icons, iOS-Splash — ohne Auth, sonst kein natives Home-Screen/Splash. */
+function isDashboardPwaAssetPath(pathname: string): boolean {
+  if (pathname === "/dashboard/manifest.webmanifest") return true;
+  if (pathname === "/dashboard/sw.js") return true;
+  if (pathname.startsWith("/dashboard/icon/")) return true;
+  if (pathname.startsWith("/dashboard/splash/")) return true;
   return false;
 }
 
@@ -88,6 +98,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/einladung/") ||
     pathname.startsWith("/bewertung/") ||
     pathname.startsWith("/nachrichten/") ||
+    isDashboardPwaAssetPath(pathname) ||
     isPublicRestaurantProfilePath(pathname)
   ) {
     return earlyResponse;

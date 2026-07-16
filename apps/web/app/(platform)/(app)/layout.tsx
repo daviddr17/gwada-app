@@ -20,8 +20,13 @@ import { WorkspaceAuthSessionProvider } from "@/lib/contexts/workspace-auth-sess
 import { WorkspaceRestaurantProvider } from "@/lib/contexts/workspace-restaurant-context";
 import {
   DASHBOARD_PWA_MANIFEST_PATH,
+  DASHBOARD_PWA_SPLASH_PATH_PREFIX,
   dashboardPwaIconPath,
 } from "@/lib/dashboard/dashboard-pwa-config";
+import {
+  APPLE_MOBILE_WEB_APP_CAPABLE_META,
+  appleWebAppStartupImageMetadata,
+} from "@/lib/pwa/apple-startup-images";
 import { PWA_APP_LABEL_DASHBOARD } from "@/lib/pwa/pwa-app-labels";
 import { getCachedRootLayoutBranding } from "@/lib/platform/cached-layout-branding";
 import "../../app-calendar.css";
@@ -37,7 +42,12 @@ export async function generateMetadata(): Promise<Metadata> {
       capable: true,
       title: dashboardAppName,
       statusBarStyle: "default",
+      startupImage: appleWebAppStartupImageMetadata(
+        DASHBOARD_PWA_SPLASH_PATH_PREFIX,
+      ),
     },
+    // Next 15+ mappt capable → mobile-web-app-capable; iOS Splash braucht weiterhin apple-*
+    other: APPLE_MOBILE_WEB_APP_CAPABLE_META,
     icons: {
       apple: [{ url: dashboardPwaIconPath(180), sizes: "180x180", type: "image/png" }],
     },
